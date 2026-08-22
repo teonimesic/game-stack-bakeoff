@@ -1452,6 +1452,13 @@ core. Both are correct; they answer different questions.
 Reporting the tau alone would have refuted #53. Reporting the resolved pairs alone would have
 overstated it. The pair of them is the result: a stable core with an unstable ordering on top.
 
+> ⚠️ **COMPROMISED AS A BLIND RESULT, 2026-08-22 (#83).** Every `idiomatic` round behind the
+> table below was later shown to have opened pack files naming the submissions outright — all
+> four `g1_pong` rounds, three of four `g3_arena`, four of six `g4_platformer`. The judge knew
+> which stack it was scoring. The ordering may still be a real reading of the code, but it is no
+> longer defensible as *blind*, and the four-game `rust > unity` result must not be cited as
+> evidence that the judge cannot have been applying a prior.
+
 ### The core holds on a fourth game
 
 `g1_pong` (**4 rounds**, `wg-matrix-2026-08-13`) resolves **rust>godot and rust>unity** — two of
@@ -1578,12 +1585,69 @@ list-shaped guard predicts.
 Pinned both directions: a freshly built pack is clean; a stored pre-fix pack reports
 `TRIAL ID 'g4_platformer__godot__t1' … the judge is holding the answer key`.
 
-### What it invalidates
+### What it invalidates — ANSWERED, not unknown
 
-**Unknown, and that is the honest answer.** Whether any judge read those bytes is not recoverable
-— the evidence strings cite `sim/03.src`-style neutral paths, not `other/*.json`, so there is no
-positive sign it was used. But #32's point stands: **no gate can ask what the judge knew.** Every
-code-aspect round on `g1_pong`, `g2_tetris3d` and `g4_platformer` was run on a field where four of
-eight packs could be identified outright, and no cross-stack claim from those rounds can be
-defended on blinding grounds. That they were already barred from cross-stack claims for other
-reasons (#53, and the decision recorded in `DECISIONS.md`) is luck, not design.
+The first version of this finding said "unknown". It is partly answerable, and cheaply: task 09
+added a capture of **which files the judge actually opened**, so for any round with that log the
+question is a set intersection rather than an inference. Intersecting opened paths against the
+index of pack files containing a trial id:
+
+| | |
+|---|---|
+| judge rounds on disk | 63 |
+| rounds with file-open logs | **37** |
+| of those, rounds that **opened a leaking file** | **14** |
+| rounds that identified **all eight** submissions | **3** |
+
+**The answer key was not merely present. It was read.** In `g1_pong__idiomatic__seed1` and
+`g4_platformer__architecture__seed0` and one capgate round, the judge opened a file naming the
+trial for **every submission in the field**.
+
+Per game and aspect, counting only rounds with logs:
+
+| field | compromised | clean |
+|---|---|---|
+| `g1_pong` / idiomatic | **4** | 0 |
+| `g3_arena` / idiomatic | 3 | 1 |
+| `g3_arena` / architecture | **2** | 0 |
+| `g4_platformer` / idiomatic | 4 | 2 |
+| `g4_platformer` / architecture | 1 | 1 |
+| `g2_tetris3d` / both | — | — (no logs; rounds predate the capture) |
+
+### A correction inside the correction
+
+The first pass reported `architecture` as entirely clean. **That was a matching artifact**:
+`blind_language=True` renames pack files to `.src`, so `other/01.json` becomes `other/01.src` and
+a full-name comparison could never fire. Re-run on stems, `architecture` is compromised in 3 of
+its 4 logged rounds — including the 8-of-8 round. **The aspect that looked exonerated was the one
+whose defence hid the evidence.**
+
+### The truncation had been protecting the blinding
+
+The only clean `g4_platformer__idiomatic` rounds are the two **capped** arm rounds from task 09.
+Measured directly: the capped packs contain **0** files bearing a trial id across 118 files; the
+uncapped packs contain **8** across 207.
+
+**The 160,000-character budget removed in #69 had been dropping the leaking files for length.**
+Removing it was correct on its own terms — a judge shown half a submission has not read it — but
+it strictly increased exposure of the answer key, and nobody could have predicted that because
+nobody knew the answer key was there. A fix in one place enlarged a defect in another that was
+not known to exist.
+
+### What this costs
+
+**Every cross-game `idiomatic` conclusion in #79 rests on compromised rounds.** All four `g1_pong`
+rounds, three of four `g3_arena` rounds, and four of six `g4_platformer` rounds opened a file
+naming the submissions. The `{rust, ts} > {godot, unity}` core and the four-game `rust > unity`
+result are **not defensible as blind judgements** and are marked accordingly in #79.
+
+They are not thereby *wrong* — a judge that knows the stack may still be reading the code — but
+that is precisely the distinction `DECISIONS.md` now records as permanently unavailable as a
+defence. The blinding argument is gone for these rounds specifically, on evidence rather than on
+principle.
+
+> **#32 said no gate can ask what the judge knew. That was true when it was written and is no
+> longer true**: the file-open log answers it directly for any round that has one. The capture
+> was added for an unrelated question — did a bigger pack make the judge read more? — and it is
+> the only reason this defect could be bounded at all rather than left as a class-wide suspicion.
+> **Capture what the instrument did, not only what it concluded.**
