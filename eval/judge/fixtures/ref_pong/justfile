@@ -1,0 +1,27 @@
+default: verify
+
+check:
+    @python3 -c "import game, probe, film, tests"
+
+lint:
+    @python3 -m py_compile game.py probe.py film.py tests.py
+
+test:
+    @python3 tests.py
+
+verify: check lint test
+    @echo "verify: ok"
+
+probe SEED:
+    @python3 probe.py {{SEED}}
+
+probe-file SEED TICKS SCRIPT OUT:
+    @python3 probe.py {{SEED}} --file {{TICKS}} {{SCRIPT}} {{OUT}}
+
+film SEED TICKS SCRIPT OUTDIR:
+    @python3 film.py {{SEED}} {{TICKS}} {{SCRIPT}} {{OUTDIR}}
+
+# stdout carries the manifest and nothing else - the grader parses it as JSON.
+# Regenerate the assets it points at with `python3 make_audio.py`.
+audio-manifest:
+    @cat audio-manifest.json

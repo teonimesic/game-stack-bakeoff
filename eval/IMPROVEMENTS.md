@@ -1,0 +1,729 @@
+
+---
+
+## Iteration 1b — `ball.wall_bounce` produces false negatives on shallow serves
+
+**Status: PRE-REGISTERED. Found while iteration 1 was blocked; measured on matrix data.**
+
+### The defect
+
+`bot_pong.ball_wall_bounce` idles up to 1200 ticks and requires a `wall_bounce` event
+plus a `vy` sign flip. It assumes a ball left alone will reach a wall.
+
+`g1_pong__godot__t0` fails it with **0 events** — while passing `paddle.deflects` with
+6 paddle hits. The ball is ping-ponging horizontally between two centre-parked paddles
+on a near-flat trajectory and never reaches a wall. The submission's source emits
+`wall_bounce` correctly.
+
+The bot waits for a condition instead of creating it. A submission that serves at a
+shallow angle is penalised for a choice the task never constrained.
+
+### Why my controls missed it
+
+All three reference implementations were written by me, and all three serve steeply
+enough that idle play hits a wall quickly. **A control suite written by the same author
+as the assertions shares the author's assumptions.** This is the ceiling problem from
+FINDINGS #21 in a new form: not "validated on easy artifacts" but "validated on
+artifacts that happen to satisfy an unstated precondition".
+
+### Hypothesis
+
+`ball.wall_bounce` fails on submissions whose serve is near-horizontal, independent of
+whether the submission implements wall bouncing correctly. If so it is a false-negative
+generator and must not be scored in its current form.
+
+### Falsification
+
+If every submission that fails `ball.wall_bounce` also lacks wall-bounce logic in its
+source, the criterion is correct and the Godot case is a genuine defect. I check the
+source of every failing submission, not just the one that prompted this.
+
+### Measurement (free, offline)
+
+1. Across all 8 Pong trials, count `ball.wall_bounce` failures.
+2. For each failure, grep the archived source for wall-bounce emission.
+3. Any submission that emits it and still fails is a confirmed false negative.
+
+### The fix, if confirmed
+
+Stop waiting for a wall bounce and **cause** one. The task states that where the ball
+strikes the paddle changes its outgoing angle, so the bot can drive a paddle to meet the
+ball off-centre and impart vertical velocity, then look for the bounce. That tests the
+same property without assuming anything about serve geometry.
+
+Then re-measure both directions: the corrected criterion must still fail a submission
+with no wall-bounce logic, or it has been weakened rather than fixed.
+
+---
+
+## Iteration 4 — which deterministic criteria have ever fired, and were they right?
+
+**Status: PRE-REGISTERED. Tool built; runs when all 24 are evaluated.**
+
+### Why
+
+Three candidate false negatives are now known in the deterministic tiers:
+`ball.wall_bounce` (fires only on shallow serves, never on a real defect),
+`render.animates` (floor is contrast-sensitive, not motion-sensitive), and
+`layer.clears` (already demoted - no correct implementation could satisfy it).
+
+Three is not a list of bugs, it is a pattern: **criteria encoding assumptions about how
+a game looks or behaves that the tasks never required.** The tiers were validated
+against reference implementations written by the same author as the assertions, so
+shared assumptions could not surface.
+
+### Hypothesis
+
+A material share of tier-1 and tier-2 criteria have **never failed any of the 24
+submissions**, and of the failures that did occur, a material share are false negatives.
+A criterion that never fires contributes nothing while appearing to; one that fires only
+wrongly is worse than absent, because it silently penalises a legitimate design choice.
+
+### Falsification
+
+If nearly every criterion fires at least once, and nearly every failure is genuine on
+inspection of the submission's source, the tiers are well-calibrated and the three known
+defects are isolated bugs rather than a pattern.
+
+### Measurement (free, offline, from stored results)
+
+1. For every tier-1 and tier-2 criterion, across all 24 evaluations: how many
+   submissions failed it.
+2. Partition: never-fired / fired-and-genuine / fired-and-false-negative.
+3. Genuineness is decided by reading the failing submission's archived source, not by
+   assuming the criterion was right.
+4. Report per game as well as overall - a criterion may be dead on one game and load
+   bearing on another.
+
+### What follows
+
+- **Never fired across 24**: not evidence of correctness. Either the property is
+  universal among competent submissions (so it cannot discriminate and is decoration),
+  or it is untestable as written. Distinguish the two before removing anything.
+- **Only ever fired wrongly**: remove or repair. It is actively harmful.
+- **Fired and genuine**: keep, and note it as one of the few criteria doing real work.
+
+---
+
+## Adjudication log — every play-bot failure so far is a harness defect
+
+Running tally. Each entry adjudicated against the failing submission's archived source,
+not against the verdict.
+
+| submission | criterion | verdict | why |
+|---|---|---|---|
+| `g1_pong__godot__t0` | `ball.wall_bounce` | FALSE NEG | shallow serve; ball ping-pongs between centred paddles and never reaches a wall. Source emits the event. |
+| `g1_pong__unity__t0` | `determinism.replay`, `determinism.seed` | FALSE NEG | second probe session on an open Unity project; refused by the engine. Submission never tested. |
+| `g1_pong__unity__t1` | `ball.wall_bounce`, `determinism.replay`, `determinism.seed` | FALSE NEG | both defects above, same trial |
+| `g2_tetris3d__rust__t0` | `move.translates` | FALSE NEG | `min x 0 -> 0` — the piece was already against the left wall, so `move_neg_x` was correctly refused. The criterion assumes a push always moves. |
+
+**Genuine defects caught: 0. Harness defects: 4.**
+
+The shared shape: each criterion **waits for a condition instead of establishing one**,
+and treats "the condition did not occur" as "the game is wrong".
+
+- `ball.wall_bounce` waits for the ball to reach a wall
+- `move.translates` assumes there is room to move in the direction it chose
+- `determinism.*` assumes a second session can start
+
+A criterion that depends on incidental state - where a piece happens to sit, what angle
+a ball happens to serve at, whether a previous process has exited - measures that
+incidental state, not the property it names.
+
+### Fix for `move.translates`
+
+Choose the direction with room. Read the piece's cells and the well width, push toward
+whichever side has clearance, and require the shape to be preserved. If neither side has
+room the piece spans the well and the check should be skipped rather than failed.
+
+| `g2_tetris3d__unity__t1` | `piece.stacks`, `gameover.triggers`, `determinism.replay`, `determinism.seed` | FALSE NEG | project lock, verified individually |
+| `g3_arena__rust__t0` | `enemies.chase` | FALSE NEG | distance to *nearest* enemy rose 75->202 because the closest enemy reached the player and was destroyed on contact, per spec. The criterion fails when chasing works best. |
+
+**Running total: 16 criterion failures adjudicated, 0 genuine.**
+
+The five distinct defects share one root cause: **each criterion measures incidental
+state rather than the property it names.**
+
+| criterion | names | actually measures |
+|---|---|---|
+| `ball.wall_bounce` | does the ball bounce off walls | whether the serve angle happens to reach a wall |
+| `move.translates` | does a piece slide | whether the piece happens to have room that way |
+| `enemies.chase` | do enemies approach | which enemy happens to be nearest at two instants |
+| `determinism.*` | is the run reproducible | whether a second process can open the project |
+| `piece.stacks`/`gameover.triggers` | do pieces accumulate / does it end | same |
+
+The fix in every case is the same shape: **establish the condition, or track the
+identity, instead of sampling ambient state.** Drive a paddle to create the bounce.
+Choose the direction with room. Follow one enemy by id and treat its destruction as
+evidence it arrived. Serialise sessions.
+
+---
+
+## The rule for fixing the sixteen: every repaired criterion needs a mutant
+
+Rewriting a criterion from **observation** to **experiment** makes it easier to pass by
+construction - that is the point of the fix. So the repair is only half done when the
+criterion stops producing false negatives.
+
+**Each fixed criterion must be re-validated in both directions:**
+
+1. It passes every submission that has the property (the 24 archived submissions).
+2. It **fails** a mutant with the underlying behaviour removed.
+
+| criterion | mutant that must make it go red |
+|---|---|
+| `ball.wall_bounce` | remove the vertical reflection in `collide_walls` |
+| `move.translates` | ignore the horizontal move inputs entirely |
+| `enemies.chase` | make enemies move in a fixed direction, not toward the player |
+| `determinism.replay` | seed from a non-reproducible source |
+| `determinism.seed` | ignore the seed argument |
+| `piece.stacks` | never add locked cells to the settled grid |
+| `gameover.triggers` | never set `game_over` |
+
+Sixteen false negatives is a bad outcome. Sixteen false negatives replaced by criteria
+that can no longer fail is a **worse** one, and it would look like success. Mutants are
+the only thing that tells the two apart.
+
+---
+
+## Iteration 5 — what task would discriminate at all?
+
+**Status: PRE-REGISTERED, probe not yet run.**
+
+### The evidence that motivates it
+
+Pong and Tetris are **exact ties** on adjudicated scores: all sixteen submissions at
+1.000, zero spread, zero within-cell variance. Two independent suites - the
+spec-change tasks and these whole-game builds - now agree that four well-built
+templates on Opus solve everything put in front of them.
+
+### Hypothesis
+
+More trials and stricter grading will not separate these stacks, because there is no
+variance to resolve. Separation requires a task with a **failure mode the templates do
+not already prevent.**
+
+The templates prevent: nondeterminism (clippy bans, boundary tests, replay hashes),
+sim/view leakage (compile-enforced), missing verification (a Stop hook), and API drift
+(pinned version notes). A task whose difficulty lies in any of those is pre-solved by
+the scaffold, not by the stack.
+
+### Candidate task shapes, in order of how little the templates help
+
+1. **Cross-cutting state over time** - save/load, replay a recorded session, rollback to
+   a past tick. The starters ship a state hash but nothing that serialises and restores.
+2. **Performance under load** - thousands of entities at a frame budget. Nothing in any
+   template addresses throughput, and the stacks genuinely differ here.
+3. **Incremental change against an existing large codebase** - the templates are small
+   and clean; the differences between stacks may only appear at scale.
+
+### Falsifier
+
+If a cheap probe of one candidate shape produces the same all-1.000 tie, that shape is
+not the answer and the hypothesis is wrong about where the variance lives.
+
+### Cost discipline
+
+A probe is **one task, one trial per stack** - four trials, roughly $50 - not a matrix.
+Only a shape that visibly separates stacks at n=1 earns a full matrix.
+
+---
+
+## Iteration 2, re-prioritised: the design judges may be where the difference is
+
+If every stack produces a functionally perfect game, then **the remaining differences
+are exactly the ones only a subjective judge can see**: whether the result looks good
+and feels good to play. That moves the design judge from a nice-to-have to the most
+likely place a real between-stack difference exists.
+
+It does not change the validation bar. It still ships only if it separates the tuned
+fixture from the detuned one by more than its own run-to-run spread, and it still
+carries no weight until that number exists.
+
+## Iteration 6 — field judging on idiomatic stack use
+
+Pre-registered before any judge ran.
+
+**Context.** The old rubric's only measured signal was adjudicated as a screenshot
+artifact (`FINDINGS.md` §26). Ten of its thirteen criteria asked about code quality and
+produced zero information across 24 submissions. The subjective layer currently measures
+nothing at all.
+
+**Hypothesis.** Asking one specialist to rank the *whole field* of 8 submissions on a
+single aspect — idiomatic use of its own stack — separates a field that per-submission
+"is this good?" scoring could not. Idiomatic stack use is chosen first because it is the
+only aspect whose subject is the variable under test.
+
+**Falsifiers, any one of which kills it:**
+
+1. **Ceiling.** All 8 submissions receive the same score, or **>70% sit at any one
+   score** — not merely the top one. A judge that cannot separate a competent field has
+   the wrong criteria, and re-running it will not fix that.
+
+   *Amended 2026-08-14, before any specialist judge had been run, so no result informed
+   it.* The original wording said "the top score", which would have passed a judge that
+   put seven of eight submissions at the bottom. The amendment makes the falsifier
+   strictly harder to satisfy; it does not relax anything.
+2. **Order-invariance.** Re-running with a different presentation order moves scores by
+   a mean of >1.0 point, or Kendall tau between the two orderings is < 0.5. A ranking
+   that moves with presentation order is a presentation artifact.
+3. **Mechanism.** Any separation that survives 1 and 2 must be adjudicated against the
+   cited files, exactly as `look.feedback` was. A score whose evidence does not hold when
+   the named file is opened is withdrawn, however consistent it is.
+
+**Deliberate design choice.** The judge is told each submission's stack is unknown and is
+instructed to score against *its own* stack's idioms. Cross-stack comparison is of
+fluency, not of idiom sets. If this proves incoherent in the evidence, the aspect is
+per-stack-only and cannot contribute to a cross-stack ranking — itself a reportable
+result.
+
+**Cost cap.** $12 per field call, 6 calls maximum (3 games x 2 orders) = $72 ceiling.
+Sonnet, not Opus: the submissions were written by Opus, and a judge must not grade its
+own model's work.
+
+### Amendment 2026-08-16 — the plan changed BEFORE the result, and here is why
+
+Recorded before the run finished, because a pre-registration amended after the numbers are
+in is not a pre-registration.
+
+- **The cost model was wrong, in the safe direction.** A field call costs **$2.82-$5.29**
+  measured (mean $4.38), not $12. The $72 ceiling was built from a per-call *budget flag*,
+  not from a measurement.
+- **`--orders 2` was replaced by sequential sampling at `--max-runs 6`.** `JUDGING.md`
+  specifies sampling until the decision resolves; `--orders N` cannot say whether a pair is
+  `ORDERED`, `TIED` or `UNRESOLVED`, which are the verdicts the design turns on. The
+  protocol had been implemented in `sequential.py`, self-tested, and **called by nothing**.
+- **The game changed from three to one, and from `g1_pong` to `g2_tetris3d`.** Three games
+  at full sequential depth prices at **$210 at the floor and ~$1,262 at the cap**, over the
+  authorised ceiling. `g3_arena` was excluded on evidence rather than cost: it straddles the
+  `syspolicyd` repair, so judging it would rank build conditions (FINDINGS #49). Of the two
+  clean games, tetris is the harder one and is 8/8 at exactly 1.000 in a single build regime.
+- **`--max-runs` cut from 24 to 6.** A truncated sampler reports `UNRESOLVED`, which is a
+  weaker answer than `TIED` and must never be written as one. Stated here so nobody later
+  reads an unresolved pair as an established tie.
+
+**Falsifier 1 (ceiling) and falsifier 2 (order-invariance) have already fired once each on
+`g1_pong`**, before this amendment: ceiling passes at modal fraction 0.625 against a 0.7
+threshold on all three calls — one submission's worth of margin — and `architecture` fails
+order-invariance at **tau 0.143** against the pre-registered 0.5 floor, with 4 of 8
+submissions changing score between orders. Per the falsifier as written, `architecture`'s
+ranking is a presentation artifact. It is carried into the tetris run rather than dropped:
+if it fails there too, that is a stable property of the aspect and it should be reported as
+**unusable**, which is a more useful result than a ranking.
+
+---
+
+## Iteration 7 — the null is now about the instrument, not the tasks
+
+**Status: MEASURED 2026-08-16.** Iteration 5 pre-registered the hypothesis that *"more
+trials and stricter grading will not separate these stacks, because there is no variance to
+resolve."* Half of that is now confirmed and the other half is refuted, and the refuted half
+matters more.
+
+### What was measured
+
+The twelve cells were compared **criterion by criterion** between their two independent
+trials, which nobody had done — every previous comparison was of totals.
+
+| | |
+|---|---|
+| criteria compared | **380** |
+| cells whose totals differ | 0 of 12 |
+| **criteria whose verdicts differ** | **0 of 380** |
+| evidence strings that differ | **219 of 380 (58%)** |
+
+### What that changes
+
+Iteration 5 said there is no variance to resolve. **There is variance** — 58% of the
+evidence strings differ, and they differ in substance, because the two submissions in a
+cell are independent builds. What there is no *resolution* for.
+
+> **The tiers do not report a tie because the submissions are identical. They report a tie
+> because they cannot distinguish two submissions that are not.**
+
+That is a different problem with a different fix. Iteration 5's remedy was a harder *task*.
+The measurement says the ceiling is in the *instrument*: every criterion is binary, and a
+binary criterion on work that is uniformly correct returns 1 for everything, whatever the
+task. A harder task moves where the ceiling sits; it does not remove it.
+
+### The falsifier this now carries
+
+Iteration 5's probe stands — a task shape the templates do not pre-solve is still worth one
+trial per stack. But it needs a second falsifier bolted on, or it will produce another
+uninterpretable tie:
+
+> **If the probe ties, check whether the criteria could have separated anything before
+> concluding the task could not.** Report the within-cell per-criterion comparison alongside
+> the between-stack one. A null from an instrument with zero within-cell resolution is not
+> evidence of equality — it is the instrument's own noise floor being reported as a result.
+
+### And it is why the graded criteria cannot simply be made stricter
+
+Raising thresholds on binary criteria converts a ceiling into a floor and manufactures
+failures that are properties of the threshold. The route that has actually produced
+information twice is the opposite one: **criteria that report what they saw rather than a
+verdict.** `enemy.kinds` now reports the wave it reached, which is what separates a
+submission defect from the bot failing to establish its condition — and reading that
+evidence string is how #46 was found at all.
+
+## Iteration 8 — mutants have a blind spot, and it has a name
+
+**Status: BUILT AND RUNNING, 2026-08-16.**
+
+**Context.** #39 established that mutants catch criteria that *cannot fail* and miss criteria
+that *pass for the wrong reason*. #46 adds a third class they cannot see, and it is the class
+every adjudicated false negative in this project belongs to: **criteria that fail correct work
+the reference does not resemble.**
+
+A mutant removes the mechanism a criterion names. It cannot manufacture an input the criterion
+mishandles. `ONE_KIND` collapses three enemy kinds to one and `enemy.kinds` goes red exactly as
+designed — while the same criterion was failing six real submissions that ship four kinds,
+because the reference showed all of them in wave 1 and the real games unlock them by wave.
+
+**Change.** `bot_mutants.py` gains a **VARIANTS** suite: correct games the reference
+deliberately does not resemble, where *every* criterion must still pass.
+
+| variant | exercises | why it exists |
+|---|---|---|
+| a 104-tick opening title card holds the ball | `ball.moves` | copied from a real Godot submission; the old criterion failed it for doing the presentation work the task asks for |
+| enemies faster than the player | `enemies.chase` | the only way to reach the contact branch, which the reference never takes |
+
+**Hypothesis.** A variants suite finds false negatives that no mutant, reference run or
+fixture test can, because it is the only member of the set built from behaviour the reference
+does not have.
+
+**It has already earned its place, in the same session it was written.** The second variant
+exists because the contact branch of the repaired `enemies.chase` raised `KeyError` and
+fail-closed a correct Godot submission to **0.000 on all 23 criteria** — after the reference,
+all 36 mutants and the three session-lock controls were green. A real submission found it. A
+variant would have.
+
+**Falsifier.** If a year of variants never turns one row red while adjudication keeps finding
+false negatives, the suite is decoration and the adjudication is doing the work.
+
+**The standing cost of not having it**, stated so it is not re-litigated: two variants take
+1.4 s to run. The defect they cover has cost, on the record, sixteen criteria in one sweep,
+three more under the harder task, two more here, and one stack-correlated 0.000.
+
+### RESULT 2026-08-16 — iteration 6 is falsified, on its own pre-registered terms
+
+13 field calls, $46.79, five aspects x two orders on `g2_tetris3d`.
+
+**Falsifier 1 (ceiling) fires on three of five aspects.** `architecture`, `audio` and
+`idiomatic` each put 6 or 7 of 8 submissions on one score on the *second* presentation order
+while separating the field on the first. The falsifier was written as ">70% at any one score";
+the readings are 0.875, 0.750 and 0.750.
+
+**Falsifier 2 (order-invariance) fires on `architecture`**, which has no usable tau at all —
+3 comparable pairs of 28 — with 4 of 8 submissions changing score between orders. On `g1_pong`
+the same aspect measured tau 0.143. Two games, same behaviour: it is a property of the aspect.
+
+**Falsifier 3 (mechanism) fires on `fun` and `idiomatic`.** Both survived every statistical
+gate and both fail when the evidence is read: `fun`'s pacing number is 93-100% of the run in
+every arm and its scores track run length (#52); `idiomatic` returns per-stack means identical
+across two different games because the pack carries the stack in every file extension (#53).
+
+**And the hypothesis itself is refuted.** It predicted that ranking the *whole field* would
+separate what per-submission scoring could not. Pooled over five aspects and both orders, the
+between-stack range of mean ranks is **1.70** and the mean gap between a stack's own two
+trials is **2.05**. Field ranking discriminates — between **submissions**, not between
+**stacks**, and not stably enough to order the submissions either.
+
+> **The subjective layer reached the same null as the deterministic tiers, by a different
+> route.** The tiers had no resolution below the cell. The judges have resolution below the
+> cell and nothing above it. Four independent instruments now agree that four well-built
+> templates on Opus are indistinguishable on these tasks.
+
+**What would have to change before spending on this again**, in the order it would matter:
+
+1. **A representative play session for `fun`**, separate from the criteria drive. Its current
+   telemetry cannot answer a pacing question and no amount of sampling fixes that.
+2. **Extension-blind packs for `architecture`**, which does not need the language. `idiomatic`
+   cannot be blinded and must be reported as within-stack only, or not at all.
+3. **A second game for every aspect.** `idiomatic`'s defect was only visible because the same
+   aspect had been run on two games; four of the five have been run on one.
+4. **Depth last.** `--max-runs 2` was enough to falsify three aspects. Sampling to resolution
+   on an aspect that fails gate 1 or gate 4 buys nothing.
+
+
+## Iteration 9 — the three gate failures repaired, and one of the repairs was wrong first
+
+**Status: REPAIRED AND PINNED 2026-08-16. No judge call was made; the spend decision is the
+user's and belongs against a repaired instrument rather than a promise.**
+
+| # | what failed | repair | pin |
+|---|---|---|---|
+| 1 | `fun` scored a degenerate pacing number (#52) | dedicated 3000-tick play session; pacing over **world** events only | healthy 0.192 / dead **1.000** |
+| 2 | `architecture` could read the stack off the extension (#53) | neutral `.src` extension for that aspect only | pack complete; **8 of 8 still identifiable by syntax** |
+| 3 | `architecture` cited names found nowhere (#51) | brief requires pack paths; adjudicator splits reconstruction from fabrication | 11 of 11 reconstruction, **0** fabrication |
+
+### The methodological result: the first repair of #52 was wrong, in the opposite direction
+
+Replacing the criteria session with a real play session fixed the stated defect —
+`longest_quiet_stretch_seconds` stopped being 93–100% of the run — and introduced a new one, in
+the same metric, immediately. Pacing was computed over every event name, so a bot pressing keys
+on a fixed cadence *manufactured* a fixed cadence of events. Against a deliberately dead game
+it scored **0.005**, the healthiest reading possible.
+
+**This is the third time in this project that a repair has been wrong in a way its own
+motivating defect could not reveal** — `ball.moves` asserted velocity as a proxy for movement
+(#34), `player.falls` accepted a flag instead of a height (#39), and now a pacing metric
+measured the bot instead of the game. All three were caught by the same move, and only by it:
+
+> **Pin the repair against the case that would make the NEW measurement lie, not against the
+> case that made the old one lie.** A repair validated on the failure that motivated it has been
+> validated on the one input guaranteed not to test it.
+
+### What is still open, stated so it is not mistaken for done
+
+- **`architecture`'s leak cannot be closed.** Syntax identifies the stack in all 8 submissions
+  and syntax is what the judge must read. `idiomatic` is per-stack-only, permanently.
+- **`g4_platformer` now has a play policy too**, so all four bots produce representative
+  telemetry — but g4 has never been launched and its bot has never met a real submission.
+- **None of this makes any aspect usable.** Per #55 the statistical gates will pass a repaired
+  aspect and a broken one alike. The next spend must budget for adjudication of the **passes**,
+  not more sampling.
+
+## Iteration 10 — the pack budget is an unrevisited design choice, and it is OPEN
+
+**Status: MEASURED, NOT DECIDED. Deliberately left open.**
+
+`anonymise.py` fills a code pack in sorted path order until `max_chars = 160_000`. Every one of
+the eight `g2_tetris3d` packs sits at that cap; across 60 stored submissions 32 dropped at
+least one file, and the deficit is stack-correlated — unity mean 6.1 files against godot 1.1,
+worst case 21 (#62).
+
+The number was chosen once and never checked against a real pack. Two repairs are available and
+they answer different questions:
+
+1. **Raise the budget.** Simple, and it only moves the cliff — a larger submission hits it
+   again, and the failure returns silently because it is invisible in the scores.
+2. **Budget per bucket** (`sim`, `view`, `tests`, `other`), so no directory is starved by where
+   its path happens to sort. Fixes the *mechanism*: the current defect is that alphabetical
+   order decides what the judge sees.
+
+(2) is better on the evidence, because the harm is not "too little code" but "an arbitrary
+selection of code, correlated with stack".
+
+**It is not decided here, and the reason is the discipline rather than indecision.** The
+obvious move is to raise the number until the drop counts look acceptable, and that is fitting
+the instrument to its data — the same failure as tightening a rubric after seeing which
+submissions it fails. Whichever is chosen, it must be pinned: a field built under the new
+budget must be checked for drops, not assumed to have none.
+
+**Until then the completeness gate refuses to judge a code aspect on an incomplete field**, so
+the cost of leaving it open is a refusal, not a wrong number.
+
+---
+
+## Iteration 11a: the completeness gate after the budget — repurpose, do not delete
+
+**Context.** The 160,000-character pack budget was removed (#69). Drops are now 0 by
+construction, so `pack_completeness`'s refusal can never fire on a field built today. A check
+that cannot fail is #57, and leaving it would be worse than useless: it would read as protection.
+
+**Two options were on the table. Argued, not picked silently.**
+
+| option | what it costs |
+|---|---|
+| **delete the gate** | removes the only thing that would notice a cap returning. And a cap is exactly how this defect arrived the first time — not as a mistake, but as a *reasonable-looking guard on prompt size*. The next person worried about context length adds one, and nothing objects |
+| **repurpose to assert `dropped == 0`** | keeps a gate that cannot fire on correct input — which is the thing #57 warns about — unless its ability to fire is pinned separately |
+
+**Chosen: repurpose.** The asymmetry decides it. Deleting protects against nothing; repurposing
+protects against the one failure mode with a demonstrated history in this repo, and its weakness
+(never firing) is fixable by pinning that it *can* fire, which deletion's weakness is not.
+
+**A gate that detected a defect becomes one that detects the defect's return.** The code is
+unchanged; only its meaning and its message are. `files_dropped_for_length` stays in the
+manifest for the same reason — it is now an invariant, not a diagnostic.
+
+**Falsification.** The gate must refuse a manifest carrying a non-zero drop count. That is
+pinned directly, because otherwise this iteration ships a check whose green is uninformative —
+the precise error it is written to avoid.
+
+**#62 stays valid and is not retracted.** It describes what was true of every round already run:
+every stored code judgement was made on a truncated, stack-correlated sample.
+
+## Iteration 11b: replace the ceiling gate with a standard error — proposed
+
+**The claim.** #58's modal-fraction threshold is a crude proxy for the question anyone actually
+has, which is *does this aspect separate these submissions?* It answers it by asking whether the
+scores are too bunched, using a cutoff that sits in an unreachable gap, so it can pass an aspect
+that separates nothing and fail one that separates something.
+
+**The proposal.** Test separation directly. Repeat an aspect on the same field until the
+standard error of a submission's mean score falls below the difference between submissions:
+
+> **`SE = SD / sqrt(n)`. Repeats shrink SE. They do NOT shrink SD.**
+
+That distinction is the whole proposal and must not be blurred: the judge's SD is a fixed
+property of the instrument — its own reliability — and repeating cannot improve it. What
+repeating buys is confidence about *where the mean is*. Report SD and SE separately, per aspect
+and per submission; the SD has never been measured here and is a finding on its own.
+
+**What it does NOT buy, and this is #63's lesson transplanted.** *Precision is not validity.* At
+n=22, an aspect that tracks palette depth yields a precisely measured artifact — a tight
+interval around the wrong quantity. `ux` correlates +0.528 with distinct-colour counts; more
+repeats would make that correlation cleaner, not less confounded. **No number of repeats
+converts a confounded aspect into a valid one.**
+
+**The use this licenses.** Within-stack A/B — template v1 against v2, same stack, same task —
+holds the stack constant, so a per-stack prior cancels out of the comparison. That is a sound
+use of a judge with known priors, and it is what the template improvement loop actually needs.
+**Cross-stack ranking remains barred** and no SE makes it permissible.
+
+**Do not delete #58.** It explains every earlier round's ceiling verdicts, and those rounds are
+in the record.
+
+---
+
+## Iteration 11c: why does capture geometry vary for the same id across runs? — MEASURE FIRST
+
+**Not a fix. A question with a measurement attached, because fixing it blind is how #49 happened.**
+
+Four capture geometries exist in the archive and each belongs to a different run: 420x640
+(`unity__t1`, `wg-matrix-2026-08-13`), 768x576 (`rust__t0`, `wg-audio48-2026-08-14`), 720x540
+(`ts__t1`, `wg-audio-2026-08-14`), and 640x400 for the other 32. This is upstream of #59 (a judge
+that tracked distinct-colour counts), of the parity gate, and of the re-film decision.
+
+**One hypothesis is already eliminated.** *The submission sets its own window size* — checked by
+scanning both submissions' `.cs`, justfiles and shell recipes for resolution literals and for
+`SetResolution`-style calls. **No resolution literal appears in either.** So the geometry is not
+written down anywhere in the work; it is emergent.
+
+**What that leaves, in the order they should be tested:**
+
+| hypothesis | test |
+|---|---|
+| display scaling / Retina backing-scale at capture time | film one fixed submission on an external display and on the internal panel; compare IHDR |
+| window manager gives a different default when a display is absent, asleep, or the session is detached | film with the display asleep and awake |
+| engine default aspect from the scene camera, resolved at runtime | film the same submission under two engine versions |
+| harness passes no explicit size, so the OS picks | read the capture recipe — cheapest, do it first |
+
+The last is cheap and should be done before any of the others: **if the harness never specifies a
+size, the answer is "whatever the OS gave us that day" and this is #49's class** — machine state
+leaking into evidence — which would make every frame-derived number conditional on the day it was
+captured, not just the four divergent ones.
+
+**Do not "fix" it by forcing a size until the cause is known.** Forcing a size would make new
+captures uniform and leave the archive's four divergences unexplained and unexplainable, which is
+worse than the current state: it would look solved.
+
+---
+
+## Iteration 11d: judge the other three games — a VALIDITY test, not another precision gate
+
+**The highest-value use of the repeats machinery, and it tests something the gates cannot.**
+
+Every gate the subjective layer has been given — ceiling, independence, order-invariance,
+reproducibility (mean self-tau +0.853) — measures **precision**: whether the instrument agrees
+with itself. None measures **validity**: whether it is measuring the thing it names. #59 is the
+proof that these come apart, since `ux` was precise, reproducible, order-invariant *and* tracking
+distinct-colour counts.
+
+**Tier 3 has only ever judged `g2_tetris3d` (#71).** Three games sit unused in the archive, and
+grading them costs no new trials.
+
+### The two hypotheses, stated so they can lose
+
+| finding | hypothesis | what refutes it |
+|---|---|---|
+| **#53** | `idiomatic`'s stable per-stack ordering is a **language prior**, not a reading of the work | the ordering does NOT reproduce on `g3_arena` and `g4_platformer` — different work, same stacks |
+| **#59** | `ux` measures **palette depth**, not user experience | its correlation with distinct-colour counts does not reproduce where renderers differ the same way |
+
+**#53's test is the sharper of the two, and it is nearly free.** A prior attaches to the stack;
+a reading attaches to the submission. Those make opposite predictions across a change of game,
+and no amount of repeating on tetris can separate them — which is precisely why the layer's
+existing gates have never touched it.
+
+### Read the outcomes before running it
+
+- **Ordering reproduces across games** → the prior hypothesis is supported and #53 hardens. This
+  is the damaging outcome for the layer and must be reported as plainly as the other.
+- **Ordering does not reproduce** → `idiomatic` is reading something submission-specific, and
+  #53's strong form weakens. That would be the second positive result the layer has produced.
+- **Ordering reproduces on one game and not the other** → the most likely result and the least
+  quotable; report per game with pair counts, and resist averaging them into a verdict.
+
+### Constraints carried in from what is already known
+
+- **Report per game. Never pool.** Two independent reasons forbid it (#72 and the regime rule),
+  and fixing one would not license it.
+- Tier 3 stays **weight 0.00** whatever this returns. It is a question about what the instrument
+  reads, not a bid to re-enter the score.
+- Frame-reading aspects are unblocked on every game now that geometry informs rather than refuses,
+  so `ux` and `fun_frames` can run on all four without re-filming.
+- Code-reading aspects need the packs rebuilt uncapped first (#69); the stored manifests are still
+  the capped ones.
+
+---
+
+## Iteration 12: comparing against `game-research-gpt` — PLAN ONLY, not started
+
+Task 11. Written before reading anything substantive, so the reading order is fixed in advance
+and cannot be steered by what turns out to be flattering.
+
+### What is actually there (measured, not assumed)
+
+| directory | size | files | readable? |
+|---|---|---|---|
+| `evaluation/` | **30G** | **194,505** | no — run artifacts |
+| `template/` | 63M | 2,600 | partly — mostly engine assets |
+| `research/` | 53M | 86 | yes |
+| `docs/` | 52K | 6 | yes |
+| `scripts/` | 32K | 4 | yes |
+
+**The 30G is not the comparison surface.** The readable surface is ~85K of prose plus a handful
+of scripts. Any plan that starts by ingesting `evaluation/` is a plan that runs out of context
+before it reaches an idea.
+
+### The structural difference that frames everything else
+
+Their `template/` is **single-stack Godot** — one `project.godot`, no `Cargo.toml`,
+`package.json` or `Assets/`. But `evaluation/` contains `cross-engine`, `cross-engine-v3` and
+`godot-defold-confirmation-v1` and `-v2`, so the cross-engine work is **Godot vs Defold**.
+
+So: **they compare two engines deeply; this project compares four stacks broadly.** Neither is a
+subset of the other, and a difference in their conclusions may be a difference in design rather
+than a disagreement. The `-v1`/`-v2` and `-v3` suffixes suggest deliberate replication, which is
+the single thing this project has least of — every finding here is n=1 on its own question.
+
+### Reading order, cheapest first, stop when the budget is spent
+
+1. `docs/adr/` and `RESEARCH_SYNTHESIS.md` — their decisions and conclusions. **Compare against
+   `DECISIONS.md` and `README.md`.** Cheapest, highest information.
+2. `research/decisions/` and `SOURCES.md` — how they source claims, against `research/AGENTS.md`.
+3. `scripts/` (4 files) and `template/protocol`, `template/ops` — their harness discipline.
+4. `evaluation/reports/` **only** — never the raw artifacts. Their conclusions, not their data.
+5. Targeted greps into `evaluation/` for one question at a time, if one arises.
+
+### Every entry gets a verdict, and both directions
+
+For each difference: **adopt** (naming the verification below), **reject** (naming why), or
+**open** (naming what would settle it). *"They do X, we do Y"* is a description and does not
+count. And the comparison runs **both ways** — the deliverable includes what this project has
+that theirs does not, because assuming the other side is ahead is how a regression gets imported.
+
+### Verification, by axis — an import is not done when it is installed
+
+| axis | how it must be proved here |
+|---|---|
+| judge/evaluator | re-grade stored submissions offline, before vs after. Free, 60+ submissions, 4 games |
+| criterion | both halves of `judge/bot_mutants.py` — a mutant that reddens it AND a variant that keeps it green |
+| template | fresh matrix (~$420) and a regime boundary. Prove the mechanism offline first |
+| doc/process | name the `eval/FINDINGS.md` entry it would have prevented |
+
+### Traps, each already paid for in this repo
+
+- **Never import a number.** Their costs and scores come from a different harness, model, task
+  set and machine. Importing one is #63 and #70 combined: a value quoted outside the scope that
+  gives it meaning.
+- **Never adopt a structure because it looks cleaner.** Name what it would have prevented.
+- **Their replication discipline is the most likely genuine import**, and it is also the one that
+  cannot be verified by re-grading — it is a process change, so it must name a finding here that
+  n=1 produced and replication would have caught. #53 and #76 are both candidates.
+
+### Not started
+
+This is the plan only. **Do not begin until it is agreed** — 30G and 194K files is precisely the
+kind of surface where an unplanned start reads a lot and concludes nothing.

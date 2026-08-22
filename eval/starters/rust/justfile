@@ -1,0 +1,194 @@
+import 'tools/launch.just'
+
+# Task runner. `just --list` shows everything; `just --dump --dump-format json`
+# gives a machine-readable manifest of recipes, parameters and dependencies.
+#
+# The contract with agents is: ONE command to know whether the work is done.
+# That command is `just verify`. Everything else exists to make `verify` fast
+# enough to run often.
+#
+# `just` shows the LAST comment line above a recipe as its description, so each
+# recipe here ends its comment block with a one-liner and keeps the reasoning
+# above a blank line.
+
+set shell := ["bash", "-uc"]
+
+# Show available recipes.
+default:
+    @just --list
+
+# Order is deliberate: it is the order of "how quickly does this tell me I broke
+# something".
+#   fmt         instant, and auto-fixes
+#   test-sim    ~1 s warm, ~25 s from cold. Catches most real bugs.
+#   lint        clippy — also where the determinism bans live (sim/clippy.toml)
+#   test-render the expensive one: builds and links the whole Bevy render stack
+#
+# Note `fmt`, not `fmt-check`. Formatting is mechanical and auto-fixable, so a
+# stray blank line should never be able to mask whether the real work is done.
+# Measured: in an eval trial the agent implemented the feature correctly, both
+# held-out tests passed, and `verify` still went red purely on rustfmt in its
+# own new test file. That is a wasted turn and a misleading signal. CI still
+# runs `fmt-check` so unformatted code cannot land.
+
+# THE gate. Green = done, red = not done. ~4 s warm, ~4 min from cold.
+verify: fmt test-sim lint test-render
+    @echo "✅ verify passed"
+
+# Covers the simulation crate completely — logic, determinism, replay, schedule
+# ambiguity, the dependency-boundary guard and the clippy determinism bans. It
+# never compiles the renderer, so it cannot tell you whether anything appears on
+# screen; `just verify` is still the gate.
+
+# The fast inner loop: everything in crates/sim. ~2 s warm, ~25 s from cold.
+quick: fmt
+    cargo clippy -p sim --all-targets -- -D warnings
+    cargo nextest run -p sim
+
+# Two commands because clippy and the test build produce different artifacts for
+# the same crates (clippy checks, nextest codegens). Warming only one of them
+# leaves half of `verify` cold.
+
+# Do the expensive cold build once, up front, so `verify` stays fast.
+warm:
+    cargo clippy --workspace --all-targets
+    cargo nextest run --workspace --no-run
+
+# Reformat everything in place.
+fmt:
+    cargo fmt --all
+
+# Fail if anything is unformatted. CI uses this; `verify` deliberately does not.
+fmt-check:
+    cargo fmt --all -- --check
+
+# Enforces crates/sim/clippy.toml: no wall clock, no std transcendentals, no
+# hash-ordered collections in the simulation.
+
+# Clippy over the whole workspace, warnings denied.
+lint:
+    cargo clippy --workspace --all-targets -- -D warnings
+
+# Type-check everything without codegen. Cheaper than `warm`.
+check:
+    cargo check --workspace --all-targets
+
+# Logic, determinism, replay, schedule ambiguity, sim/view boundary. No GPU.
+test-sim:
+    cargo nextest run -p sim
+
+# Forced single-threaded by .config/nextest.toml — concurrent Bevy render Apps
+# in one process contend and produce flaky empty frames.
+#
+# A test whose GPU never delivers a frame skips itself, and nextest hides the
+# stderr of a passing test, so a run that verified nothing would look exactly
+# like a run that verified every pixel. Each skip leaves a line in
+# render-skips.log and the count is reported next to the summary; `REQUIRE_GPU=1`
+# turns skips into failures instead (`just ci` sets it). A machine with no GPU
+# adapter at all does not skip — Bevy panics and the test is simply red. See the
+# `frame_or_skip!` doc comment.
+
+# Rendering tests: real GPU, real pixels, no window.
+test-render:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    log="${CARGO_TARGET_DIR:-target}/tmp/render-skips.log"
+    mkdir -p "$(dirname "$log")" && : > "$log"
+    cargo nextest run -p game --test render
+    status=$?
+    skipped=$(wc -l < "$log" | tr -d ' ')
+    if [ "${skipped:-0}" -gt 0 ]; then
+        echo ""
+        echo "⚠️  $skipped rendering test(s) SKIPPED: the GPU delivered no frame."
+        echo "   Nothing was proved about what appears on screen."
+        echo "   Set REQUIRE_GPU=1 to make this a failure instead (just ci does)."
+    fi
+    exit $status
+
+# Every test in the workspace.
+test:
+    cargo nextest run --workspace
+
+# Regenerate golden images. Blessing without looking turns the golden test into
+# a rubber stamp, so the recipe nags you.
+
+# Re-record the golden frames. LOOK AT THE RESULTING PNGs before committing.
+bless:
+    BLESS=1 cargo test -p game --test render -- --test-threads=1 matches_golden_frame
+    @echo "⚠️  Now open crates/game/tests/golden/*.png and confirm they look right."
+
+# Run the game for real, with a window.
+# Play it. Opens a real window; use it freely when you are at the machine.
+#
+# REFUSED WHEN THE EVALUATION HARNESS IS DRIVING (STARTER_NO_RAISE=1), and that is a
+# deliberate limitation of THIS STACK ON THIS OS, not a broken recipe. Do not try to
+# repair it: see the message below and use `just film` / `just probe` instead, which
+# give you strictly more than a window would.
+run:
+    @if [ "{{ NO_RAISE }}" = "1" ]; then \
+        echo "just run is DISABLED under the evaluation harness on this stack."; \
+        echo ""; \
+        echo "WHY: Bevy 0.19 on macOS cannot be prevented from taking keyboard focus."; \
+        echo "  Measured, three ways: Window { focused: false } at creation still"; \
+        echo "  raises; set_minimized(true) hides the window but leaves the"; \
+        echo "  APPLICATION frontmost; adding visible = false changes nothing. The"; \
+        echo "  window disappears and the keyboard stays captured until the process"; \
+        echo "  exits. The fix would be [NSApp deactivate], which Bevy does not expose."; \
+        echo "  godot and unity have working no-raise hooks; this stack has none."; \
+        echo ""; \
+        echo "THIS IS NOT A DEFECT IN YOUR GAME AND NOT A BROKEN TEMPLATE."; \
+        echo "  Running it would type into the game instead of into the machine of"; \
+        echo "  whoever is using this computer."; \
+        echo ""; \
+        echo "YOU CANNOT SEE A LIVE WINDOW ANYWAY. You have no eyes on this session,"; \
+        echo "  so a window would tell you nothing a frame cannot. Use:"; \
+        echo "    just film SEED TICKS SCRIPT OUTDIR   real pixels, on disk, inspectable"; \
+        echo "    just probe SEED                      live state, tick by tick"; \
+        echo "    just test-render                     assertions over real frames"; \
+        echo "  These are the same paths the grader uses, so passing them is the thing"; \
+        echo "  that actually counts."; \
+        exit 1; \
+    else \
+        STARTER_NO_RAISE={{ NO_RAISE }} STARTER_SILENT_LAUNCH={{ SILENT_LAUNCH }} cargo run -p game --release; \
+    fi
+
+# Watch a run instead of guessing at it. `probe` is interactive: it writes one
+# JSON line describing tick 0, then reads one JSON input object per line from
+# stdin and answers each with one trace line, flushed. `probe-file` replays a
+# whole script in one go. Both are headless and deterministic; stdout carries
+# nothing but trace lines, so anything you print for yourself goes to stderr.
+
+# Stream a run over stdin/stdout: one input line in, one trace line out.
+probe SEED:
+    @cargo run --quiet -p sim --bin probe -- stream {{SEED}}
+
+# Batch form: replay SCRIPT ('-' for no input) and write TICKS JSONL lines to OUT.
+probe-file SEED TICKS SCRIPT OUT:
+    cargo run --quiet -p sim --bin probe -- file {{SEED}} {{TICKS}} {{SCRIPT}} {{OUT}}
+
+# Needs a GPU, for the same reason the rendering tests do.
+
+# Render up to 12 evenly spaced frames of a run into OUTDIR as frame_0000.png…
+film SEED TICKS SCRIPT OUTDIR:
+    cargo run --quiet -p game --bin film -- {{SEED}} {{TICKS}} {{SCRIPT}} {{OUTDIR}}
+
+# Run this on every target you ship to.
+
+# Cross-platform determinism: the same replay must hash identically everywhere.
+test-determinism:
+    cargo nextest run -p sim --test determinism
+
+# Coverage report for the simulation crate.
+coverage:
+    cargo llvm-cov nextest -p sim --html
+    @echo "report: target/llvm-cov/html/index.html"
+
+# REQUIRE_GPU=1 turns "the GPU delivered no frame, skipping" into a failure. A
+# CI run that reports green while every rendering test skipped is worse than a
+# red one.
+
+# CI entrypoint: same checks, machine-readable output, no fail-fast.
+ci:
+    cargo fmt --all -- --check
+    cargo clippy --workspace --all-targets -- -D warnings
+    REQUIRE_GPU=1 cargo nextest run --workspace --profile ci

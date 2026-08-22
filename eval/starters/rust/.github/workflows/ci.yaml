@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # -D warnings so clippy findings fail the build rather than scroll past.
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  # Everything that needs no GPU. Fast, and it is what gates most PRs.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: rustfmt, clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-nextest }
+
+      - name: Format
+        run: cargo fmt --all -- --check
+      # Also enforces crates/sim/clippy.toml: the simulation may not touch a
+      # wall clock, std transcendentals, or hash-ordered collections.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
+
+      # The determinism suite is the highest-value gate in the repo and needs
+      # no GPU: replay hash chains, tick-count exactness, the schedule
+      # ambiguity assertion, and the dependency-graph boundary guard that fails
+      # if crates/sim ever gains a renderer or an entropy source.
+      - name: Simulation and determinism tests
+        run: cargo nextest run -p sim --profile ci
+
+  # Rendering tests on a CPU-only runner via lavapipe (Mesa's software Vulkan).
+  # This is the same recipe wgpu and Vello use in their own CI, so it is known
+  # to work on stock GitHub runners with no GPU attached.
+  render-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-nextest }
+
+      - name: Install software Vulkan (lavapipe)
+        run: |
+          sudo add-apt-repository ppa:kisak/turtle -y
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mesa-vulkan-drivers vulkan-tools libvulkan1
+          vulkaninfo --summary || true
+
+      - name: Rendering tests
+        env:
+          # Pin the software adapter so the run is reproducible and does not
+          # silently fall back to a different backend.
+          # A skipped rendering test proves nothing; in CI that must be red.
+          REQUIRE_GPU: "1"
+          WGPU_BACKEND: vulkan
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: cargo nextest run -p game --test render --profile ci
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-diffs-linux
+          path: |
+            crates/game/tests/golden/*.actual.png
+            crates/game/tests/golden/*.expected.png
+            crates/game/tests/golden/*.diff.png
+          if-no-files-found: ignore
+
+  # macOS has NO software rasterisation path - Metal only - so this job needs a
+  # real GPU runner. It is also the platform most developers here work on, so
+  # it is the one whose golden images are authoritative.
+  render-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-nextest }
+      - name: Rendering tests
+        env:
+          REQUIRE_GPU: "1"
+        run: cargo nextest run -p game --test render --profile ci
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-diffs-macos
+          path: |
+            crates/game/tests/golden/*.actual.png
+            crates/game/tests/golden/*.expected.png
+            crates/game/tests/golden/*.diff.png
+          if-no-files-found: ignore
+
+# Deliberately NOT here, and why:
+#
+# * Cross-platform golden-image equality. GPUs are not bit-identical across
+#   vendors, drivers or backends. Bevy's own pipeline compares only same-OS
+#   runs and posts an ADVISORY comment rather than failing. Our golden test
+#   uses a tolerance and each OS keeps its own baseline; do not try to make
+#   Metal and lavapipe agree on pixels.
+#
+# * Wall-clock performance gates. GitHub runners show >30% variance run to run,
+#   which is far larger than any regression worth catching. If you want a perf
+#   gate, use instruction counts (`gungraun`, formerly `iai-callgrind`) over a
+#   fixed number of deterministic ticks - that has near-zero CI noise because
+#   it counts instructions rather than measuring time.

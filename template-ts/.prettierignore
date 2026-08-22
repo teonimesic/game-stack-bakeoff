@@ -1,0 +1,6 @@
+node_modules
+public/main.js
+coverage
+pnpm-lock.yaml
+tests/render/golden
+tests/render/artifacts

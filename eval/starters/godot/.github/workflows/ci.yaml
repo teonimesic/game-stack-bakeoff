@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+env:
+  GODOT_VERSION: 4.7.1
+
+jobs:
+  # Everything that needs no display. Fast, and it is what gates most PRs:
+  # compile + static typing + the sim/ boundary guard + the whole simulation
+  # suite, including the determinism hash chains.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - uses: chickensoft-games/setup-godot@v2
+        with: { version: "${{ env.GODOT_VERSION }}", include-templates: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - run: just warm
+      - name: Format check
+        run: just fmt-check
+      - name: Lint
+        run: just lint
+      - name: Compile + boundary guard
+        run: just check
+      - name: Simulation and determinism tests
+        run: just test-sim --strict
+
+  # Rendering tests need a REAL display: Godot's headless driver cannot draw, and
+  # neither does --headless plus an explicit --rendering-driver. xvfb gives a
+  # display on a runner with no monitor; Mesa's llvmpipe provides software GL.
+  #
+  # `--strict` turns a SKIP into a FAILURE. Without it, a runner whose xvfb
+  # failed to start would skip all five tests and report GREEN over zero render
+  # coverage. That is the one outcome this pipeline must never produce.
+  render-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - uses: chickensoft-games/setup-godot@v2
+        with: { version: "${{ env.GODOT_VERSION }}", include-templates: false }
+
+      - name: Install a display and software GL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb mesa-vulkan-drivers libgl1-mesa-dri vulkan-tools
+      - name: Rendering tests
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a --server-args="-screen 0 1280x1024x24" just test-render --strict
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-diffs-linux
+          path: tests/golden/*.png
+          if-no-files-found: ignore
+
+  # macOS is Metal-only, has no software rasteriser, and is where the committed
+  # golden image was blessed - so it is the authoritative pixel baseline.
+  render-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - uses: chickensoft-games/setup-godot@v2
+        with: { version: "${{ env.GODOT_VERSION }}", include-templates: false }
+      - run: just test-render --strict
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-diffs-macos
+          path: tests/golden/*.png
+          if-no-files-found: ignore
+
+# Deliberately NOT here, and why:
+#
+# * Cross-platform golden-image equality. A rasteriser is not bit-identical
+#   across drivers or across Godot's Forward+ and Compatibility renderers. The
+#   golden test uses a tolerance, and if the Linux job ever disagrees with the
+#   macOS baseline beyond it, give Linux its own baseline rather than trying to
+#   make llvmpipe and Metal agree on pixels.
+#
+# * Wall-clock performance gates. GitHub runners vary by >30% run to run, which
+#   is far larger than any regression worth catching.

@@ -1,0 +1,7 @@
+{
+  "name": "EditorTools",
+  "rootNamespace": "Starter.EditorTools",
+  "references": ["Sim", "View"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": false
+}

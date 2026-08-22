@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+# Unity is not a package manager away: every job needs an activated editor.
+# `game-ci/unity-test-runner` handles activation from repository secrets. A fork
+# without those secrets cannot run these jobs, which is a real difference from
+# the Rust sibling of this template, where CI needs nothing but a toolchain.
+env:
+  UNITY_VERSION: 6000.0.45f1
+
+jobs:
+  # Everything that needs no GPU. Fast, and it is what gates most PRs.
+  #
+  # The simulation suite is the highest-value gate in the repo and needs no
+  # graphics device: replay hash chains, tick-count exactness, run invariants.
+  # `-nographics` is safe here and only here.
+  sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-sim-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-sim-
+
+      - name: Formatting
+        run: node tools/fmt.mjs --check
+
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: EditMode
+          # Compiler warnings are errors here, the same bargain as
+          # `clippy -D warnings`; the custom parameters keep the editor from
+          # opening a graphics device it does not need.
+          customParameters: -nographics -assemblyNames SimTests
+          artifactsPath: artifacts
+
+      - name: Summarise
+        if: always()
+        run: node tools/report.mjs artifacts/*.xml artifacts/*.log ci-sim 0
+
+  # Rendering tests need a REAL graphics device. `-nographics` installs a Null
+  # device and every pixel capture comes back empty, so there is no headless
+  # shortcut here the way lavapipe provides one for wgpu on Linux: Unity's Linux
+  # editor can be driven through Xvfb + Mesa, and macOS has Metal only.
+  #
+  # macOS is where the golden images are authoritative, because it is the
+  # platform this template was measured on.
+  render-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-render-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-render-
+
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: EditMode
+          customParameters: -assemblyNames RenderTests
+          artifactsPath: artifacts
+
+      # A failing pixel test writes actual/expected/diff PNGs. Upload them:
+      # "0.4% of pixels differ" is not reviewable, a magenta diff image is.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-diffs-macos
+          path: artifacts/render/*.png
+          if-no-files-found: ignore
+
+# Deliberately NOT here, and why:
+#
+# * Cross-platform golden-image equality. GPUs are not bit-identical across
+#   vendors, drivers or backends, and Unity additionally recompiles shaders per
+#   platform. Each OS keeps its own baseline; do not try to make Metal and Mesa
+#   agree on pixels.
+#
+# * Wall-clock performance gates. GitHub runners show >30% variance run to run,
+#   which is far larger than any regression worth catching. If you want a perf
+#   gate, count simulation ticks per second over a fixed deterministic replay
+#   and compare against a generous floor, not against the last run.
+#
+# * PlayMode tests. Everything here is testable in EditMode because the
+#   simulation is plain C#. A PlayMode run costs a domain reload per assembly
+#   and buys nothing this template needs.

@@ -1,0 +1,94 @@
+# eval/judge/ — grading a submission
+
+**`JUDGING.md` is the design document for the subjective layer** — what each judge looks at, the
+layer matrix, the validation gates, and what the 24-submission matrix showed about which criteria
+carry information. Read it before adding or changing a judge.
+
+Three tiers. The building agent must see none of them.
+
+| Tier | Weight | Implemented in |
+|---|---|---|
+| **Programmatic** — builds, gate green, lints, tests, frames render and animate, perf probe, **audio** | **0.31** | `checks.py`, `static.py`, `probe.py`, `png.py`, `audio.py` |
+| **Play-bot** — a scripted bot drives thousands of ticks and asserts the game actually plays | **0.69** | `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py` |
+| **LLM judge** — one specialist per aspect, each ranking a whole eight-submission field | **0.00** | `aspects.py`, `field.py`, `field_sweep.py`, `adjudicate.py`, `anonymise.py`, `RUBRIC.md` |
+
+`evaluate.py` runs all three. `regrade_wholegame.py` recomputes scores from stored tier files.
+
+**The audio criteria need `ffmpeg` and `ffprobe` on the grading machine.** Without them every
+audio criterion fails with that as the recorded reason — fail-closed, never skipped, because
+`total=0 passed=0` is indistinguishable from correct failure.
+
+**`audio.*` applies only to a task that asked for sound.** `evaluate(..., audio=False)` and
+`wholegame.py evaluate --no-audio` exist for re-scoring the runs that predate it; applying the
+criteria retroactively would measure the task change rather than the work.
+
+**Every audio criterion has a mutant.** `audio_selftest.py` runs 37 expectations: five criteria
+plus `audio.triggered` against a healthy fixture, then against nine mutants each of which must turn
+one of them red. Run it before believing an audio score. A criterion that cannot fail is worse than
+absent, because it looks like success.
+
+## The judge is diagnostic only
+
+It contributes **zero** to `overall` — not a token weight. Two independent reasons, either
+sufficient:
+
+1. **It cannot reorder anything.** Bounded contribution 0.10 against a tightest adjacent gap of
+   0.0622 on tiers 1+2 alone. Holds regardless of noise.
+2. **It is noisiest exactly where it would matter.** Score spread 0.308 and instability up to 0.462
+   on a contested submission, against 0.000 on an uncontested one. Holds regardless of weight.
+
+Its per-criterion verdicts **are** reported and are genuinely useful — it catches surviving
+placeholders, tautological tests, and pixel-identical frames that no deterministic tier sees.
+Anywhere it appears in a report, label it as diagnostic so no reader can mistake it for something
+that fed the ranking.
+
+## Validating the judge
+
+**Verdict stability is a property of the artifact, not of the rubric.** Criteria agree when the
+answer is obvious and diverge when it is borderline — which is exactly when you need them.
+
+Consequences, all learned the expensive way:
+
+- **Validating on clear-cut fixtures systematically overstates reliability.** A submission scoring
+  13/13 unanimously proves nothing about a contested criterion. So does one scoring 0/13 — that is
+  a ceiling at the floor.
+- **Validate on borderline artifacts**, and report per-artifact stability rather than a global
+  figure. A single instability number for "the judge" is not meaningful.
+- `instability` measures forward-vs-reverse disagreement **within** a run. Run-to-run variance on
+  identical input is a separate and equally large effect. Report both.
+- **When a binary criterion flips run to run, read the reasons before blaming the model.** Several
+  near-identical reasons with different verdicts is the signature of an unstated threshold. Rewrite
+  the question — though note that rewriting the three worst criteria here did not fix them.
+- A criterion every run answers identically **because the question never arose** has not been
+  tested. Check that a criterion is exercised, not just that it is stable.
+
+## Blinding
+
+`verify_blind.py` scans for the rubric's canary GUID, its reachability from every ancestor
+directory, and every criterion id the rubric defines.
+
+- **Run it after *any* starter edit**, not just before a run. A criterion id once reached the Unity
+  starter through a comment written while documenting an unrelated floating-point finding — not
+  through the prompt, template or `AGENTS.md`, which are the three places the design watched.
+- Run it **unpiped**. A `verify_blind.py | tail` "pass" is `tail`'s exit status.
+- Never fix a leak mid-run. Changing a starter partway through gives later trials a different
+  starter than earlier ones — a real within-run inconsistency traded for a usually-minor leak.
+
+## Anonymisation
+
+`anonymise.py` strips identifying structure before judging. Two things it has got wrong before:
+
+- **Check `CODE_EXT` covers the stack's extensions.** A missing extension produced an empty file
+  pack that the judge scored confidently at 0.08.
+- **A criterion cannot ask about something anonymisation destroys.** `code.navigable` asked about
+  file layout, which is exactly what the anonymiser removes; every run argued with the
+  anonymisation instead of answering.
+
+`evaluate.py` returns `usable: false` and excludes a tier with weight renormalisation rather than
+scoring an empty pack.
+
+## Changing weights or the rubric
+
+Update `RUBRIC.md` **and** the grading table in `README.md`. Then **re-grade offline** — re-running
+a stochastic judge to apply a weight change silently changes the verdicts too, so you would be
+measuring two things at once.

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(pgrep -c*)",
+      "Bash(pgrep -cf*)",
+      "Bash(pgrep -fc*)",
+      "Bash(pgrep -c:*)",
+      "Bash(pgrep -cf:*)",
+      "Bash(pgrep -fc:*)"
+    ]
+  }
+}

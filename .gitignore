@@ -1,0 +1,45 @@
+# WHAT IS DELIBERATELY NOT HERE, AND WHY
+#
+# This repository holds the PRODUCT (four templates, the evaluation harness, the docs and
+# findings) — not the EVIDENCE. Stored results are 129G and cannot live on a remote; they are
+# backed up separately, see tasks/12.
+#
+# Nothing here is "temporary files". Each entry is either build output that regenerates, or
+# evidence too large to push. If you add an entry, say which.
+
+# ---- stored evidence: 129G. Backed up separately, never pushed. -------------------------
+eval/runs/
+staging/
+
+# ---- build output, regenerates from source --------------------------------------------
+**/node_modules/
+**/target/
+**/dist/
+**/build/
+**/artifacts/
+**/coverage/
+**/__pycache__/
+*.pyc
+
+# Unity: Library/ is a multi-GB import cache, Temp/ and obj/ are per-build.
+# Assets/Analyzers/*.dll is NOT ignored — the analyzer binaries are part of the template.
+**/Library/
+**/Temp/
+**/obj/
+**/Logs/
+**/MemoryCaptures/
+**/UserSettings/
+*.csproj
+*.sln
+
+# Godot import cache
+**/.godot/
+**/*.import
+
+# Python envs
+.venv/
+venv/
+
+# ---- machine-local, not shared ---------------------------------------------------------
+.claude/settings.local.json
+.DS_Store

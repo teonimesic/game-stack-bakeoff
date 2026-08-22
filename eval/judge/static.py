@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+"""The programmatic tier: everything a script can answer, answered by a script.
+
+Design rule, from research/09 and from twelve separate occasions in this project where
+a mechanism reported success and measured nothing: never ask a model something a script
+can answer. Build status, gate status, lint, test counts, whether a frame is non-empty,
+whether consecutive frames differ, simulation throughput and repository size are all
+mechanical. They are collected here, before the judge is ever invoked, and the judge is
+never shown them as a question.
+
+Every check is fail-closed: a command that does not run scores FALSE, never "skipped".
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import png
+from probe import Criterion, ProbeError, ProbeSession
+
+# Reuse the battle-tested multi-runner parsers from the existing harness rather than
+# writing a fifth set of regexes that can silently return (0, 0).
+import importlib.util as _ilu
+
+_RUNNER = Path(__file__).resolve().parent.parent / "runner.py"
+_spec = _ilu.spec_from_file_location("_eval_runner", _RUNNER)
+_runner = _ilu.module_from_spec(_spec)  # type: ignore[arg-type]
+assert _spec and _spec.loader
+# Register before exec: @dataclass resolves annotations via sys.modules, and a module
+# that is mid-exec and unregistered makes it fail with a confusing AttributeError.
+import sys as _sys  # noqa: E402
+
+_sys.modules["_eval_runner"] = _runner
+_spec.loader.exec_module(_runner)  # type: ignore[union-attr]
+parse_test_counts = _runner.parse_test_counts
+parse_skipped = _runner.parse_skipped
+
+
+@dataclass
+class Cmd:
+    name: str
+    argv: list[str]
+    code: int
+    seconds: float
+    tail: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "argv": self.argv, "exit": self.code,
+                "seconds": round(self.seconds, 1), "tail": self.tail[-4000:]}
+
+
+def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
+        env: dict[str, str] | None = None) -> Cmd:
+    import os
+
+    e = dict(os.environ)
+    if env:
+        e.update(env)
+    t0 = time.monotonic()
+    try:
+        p = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
+                           timeout=timeout_s, env=e)
+        code, out = p.returncode, (p.stdout + p.stderr)
+    except subprocess.TimeoutExpired:
+        code, out = 124, f"TIMEOUT after {timeout_s}s"
+    except OSError as ex:
+        code, out = 127, f"could not run: {ex}"
+    return Cmd(name, argv, code, time.monotonic() - t0, out)
+
+
+# --------------------------------------------------------------------------- #
+
+CODE_EXT = {".rs", ".ts", ".tsx", ".js", ".mjs", ".cs", ".gd", ".shader", ".wgsl"}
+SKIP_DIRS = {".git", "target", "node_modules", "dist", "Library", "Temp", "obj",
+             ".godot", ".venv", "coverage", "artifacts", "build", "__pycache__"}
+
+
+def repo_stats(repo: Path) -> dict[str, Any]:
+    by_ext: dict[str, dict[str, int]] = {}
+    total_files = total_lines = 0
+    for p in repo.rglob("*"):
+        if not p.is_file():
+            continue
+        if any(part in SKIP_DIRS for part in p.relative_to(repo).parts):
+            continue
+        ext = p.suffix.lower()
+        if ext not in CODE_EXT:
+            continue
+        try:
+            n = sum(1 for _ in p.open("rb"))
+        except OSError:
+            continue
+        d = by_ext.setdefault(ext, {"files": 0, "lines": 0})
+        d["files"] += 1
+        d["lines"] += n
+        total_files += 1
+        total_lines += n
+    return {"code_files": total_files, "code_lines": total_lines, "by_ext": by_ext}
+
+
+def film(repo: Path, seed: int, ticks: int, env: dict[str, str] | None = None
+         ) -> tuple[Cmd, list[Path], Path]:
+    outdir = Path(tempfile.mkdtemp(prefix="film-"))
+    cmd = run(repo, "film", ["just", "film", str(seed), str(ticks), "-", str(outdir)],
+              timeout_s=900, env=env)
+    frames = sorted(outdir.glob("*.png"))
+    return cmd, frames, outdir
+
+
+#: Every criterion computed from the pixels, and WHY it survives a change of frame size.
+#:
+#: #59 established the boundary: more pixels is more opportunity for distinct colours,
+#: more ink and more change, so a RAW COUNT is not comparable across geometries and a
+#: DENSITY is. Submissions choose their own frame size - only one stack's `film` recipe
+#: passes an explicit resolution, and a portrait well for a falling-block game is a
+#: legitimate design choice, not a defect. So the harness does not force a geometry; it
+#: guarantees instead that nothing it MEASURES depends on one.
+#:
+#: The gate is `assert_frame_criteria_geometry_safe()`. It discovers frame-derived
+#: criteria from this module's own source rather than from this dict, so a new one that
+#: nobody registers FAILS rather than passing unnoticed.
+FRAME_CRITERION_MEASURES = {
+    "render.frames": "count_of_files",   # counts PNGs on disk, not pixels
+    "render.nonempty": "density",        # ink_coverage = lit pixels / total pixels
+    "render.animates": "density",        # fraction of pixels differing between frames
+}
+GEOMETRY_SAFE_MEASURES = {"density", "count_of_files"}
+
+
+def assert_frame_criteria_geometry_safe() -> list[str]:
+    """Refuse UNSOUND MEASURES rather than unusual submissions.
+
+    Returns a list of problems; empty means every frame-derived criterion is invariant to
+    capture geometry. Discovery is mechanical: it reads this module's source for `add(...)`
+    calls whose condition touches `frame_info` or `frames`, so the registry above cannot
+    silently fall out of date - the failure mode of every hand-maintained list.
+    """
+    import inspect
+    import re as _re
+    src = inspect.getsource(sys.modules[__name__])
+    body = src[src.index("def deterministic("):] if "def deterministic(" in src else src
+    found = set()
+    for m in _re.finditer(r'add\(\s*"([a-z]+\.[a-z_]+)"\s*,(.{0,240}?)\)\s*\n', body,
+                          _re.S):
+        cid, expr = m.group(1), m.group(2)
+        if "frame_info" in expr or _re.search(r"\bframes\b", expr):
+            found.add(cid)
+    problems = []
+    for cid in sorted(found):
+        kind = FRAME_CRITERION_MEASURES.get(cid)
+        if kind is None:
+            problems.append(
+                f"{cid} is computed from frames but is not in FRAME_CRITERION_MEASURES. "
+                f"Declare how it behaves when the frame size changes: a density or a "
+                f"file count is safe, a raw pixel/colour count is not (#59).")
+        elif kind not in GEOMETRY_SAFE_MEASURES:
+            problems.append(
+                f"{cid} is declared {kind!r}, which is geometry-sensitive. Submissions "
+                f"choose their own frame size, so this criterion would score shape "
+                f"rather than content (#59).")
+    for cid in sorted(set(FRAME_CRITERION_MEASURES) - found):
+        problems.append(
+            f"{cid} is registered as frame-derived but no longer appears to be. Remove "
+            f"it, or the registry is describing code that does not exist (#38).")
+    return problems
+
+
+def analyse_frames(frames: list[Path]) -> dict[str, Any]:
+    """Non-empty and animating - the two things pixels can prove without a model."""
+    info: dict[str, Any] = {"count": len(frames), "errors": []}
+    imgs: list[png.Image] = []
+    for f in frames:
+        try:
+            imgs.append(png.read(f))
+        except Exception as e:  # a corrupt PNG is a real finding, not a crash
+            info["errors"].append(f"{f.name}: {e}")
+    if not imgs:
+        info.update(mean_ink=0.0, max_ink=0.0, mean_frame_delta=0.0, sizes=[])
+        return info
+    bg = imgs[0].dominant_background()
+    inks = [im.ink_coverage(bg) for im in imgs]
+    deltas = [imgs[i].differs_from(imgs[i - 1]) for i in range(1, len(imgs))]
+    info.update(
+        sizes=sorted({(im.width, im.height) for im in imgs}),
+        background=bg,
+        mean_ink=round(sum(inks) / len(inks), 5),
+        max_ink=round(max(inks), 5),
+        per_frame_ink=[round(v, 5) for v in inks],
+        mean_frame_delta=round(sum(deltas) / len(deltas), 5) if deltas else 0.0,
+        per_frame_delta=[round(v, 5) for v in deltas],
+    )
+    return info
+
+
+def probe_throughput(repo: Path, env: dict[str, str] | None = None,
+                     ticks: int = 400) -> dict[str, Any]:
+    try:
+        t0 = time.monotonic()
+        with ProbeSession(repo=repo, seed=7, env=env) as s:
+            start = time.monotonic()
+            s.idle(ticks)
+            elapsed = time.monotonic() - start
+        return {"ok": True, "ticks": ticks,
+                "ticks_per_second": round(ticks / elapsed, 1) if elapsed else None,
+                "startup_s": round(start - t0, 2)}
+    except ProbeError as e:
+        return {"ok": False, "error": str(e)[:400]}
+
+
+# --------------------------------------------------------------------------- #
+
+CRITERIA = [
+    ("build.compiles", "Does the project build / type-check cleanly?"),
+    ("verify.green", "Does the repository's own gate, `just verify`, pass?"),
+    ("lint.clean", "Does the linter pass with no findings?"),
+    ("tests.exist", "Does the project ship more than a token number of its own tests?"),
+    ("tests.green", "Do all of the project's own tests pass, with none skipped?"),
+    ("render.frames", "Does the game render frames at all?"),
+    ("render.nonempty", "Do the rendered frames contain something other than a blank "
+                        "background?"),
+    ("render.animates", "Do consecutive frames of a played run differ, i.e. is "
+                        "something actually moving?"),
+    ("probe.responds", "Does the headless probe start and advance the simulation?"),
+]
+
+MIN_OWN_TESTS = 8          # the starter already ships more than this
+# Aligned with the floor the four render harnesses already use in their own
+# "renders a non-empty frame" test (>0.001). Measured: the starter's placeholder marker
+# covers 0.0015 of a 640x400 frame, so a tighter floor would be measuring "the
+# placeholder is small" rather than "something is drawn".
+INK_MIN, INK_MAX = 0.001, 0.85
+DELTA_MIN = 0.0005
+
+
+def collect(repo: Path, seed: int = 7, film_ticks: int = 900,
+            env: dict[str, str] | None = None,
+            run_coverage: bool = False,
+            frames_out: Path | None = None,
+            audio_game: str | None = None) -> dict[str, Any]:
+    """`audio_game` adds the five tier-1 audio criteria for that game.
+
+    It is None by default and must stay that way for any submission built before audio
+    entered the task set: scoring those against audio criteria would measure the task
+    change rather than the work (RUBRIC.md).
+    """
+    cmds: list[Cmd] = []
+
+    c_check = run(repo, "check", ["just", "check"], timeout_s=1800, env=env)
+    cmds.append(c_check)
+    c_verify = run(repo, "verify", ["just", "verify"], timeout_s=2400, env=env)
+    cmds.append(c_verify)
+    c_lint = run(repo, "lint", ["just", "lint"], timeout_s=1800, env=env)
+    cmds.append(c_lint)
+    c_test = run(repo, "test", ["just", "test"], timeout_s=2400, env=env)
+    cmds.append(c_test)
+
+    passed_n, total_n = parse_test_counts(c_test.tail)
+    skipped_n = parse_skipped(c_test.tail)
+
+    cov: dict[str, Any] = {"run": False}
+    if run_coverage:
+        c_cov = run(repo, "coverage", ["just", "coverage"], timeout_s=2400, env=env)
+        cmds.append(c_cov)
+        m = re.findall(r"(\d+(?:\.\d+)?)\s*%", c_cov.tail)
+        cov = {"run": True, "exit": c_cov.code,
+               "percentages_seen": [float(x) for x in m[-5:]]}
+
+    c_film, frames, outdir = film(repo, seed, film_ticks, env)
+    cmds.append(c_film)
+    frame_info = analyse_frames(frames)
+    thru = probe_throughput(repo, env)
+
+    crit: list[Criterion] = []
+
+    def add(cid: str, ok: bool, ev: str) -> None:
+        crit.append(Criterion(cid, dict(CRITERIA)[cid], ok, ev))
+
+    add("build.compiles", c_check.code == 0,
+        f"`just check` exit {c_check.code} in {c_check.seconds:.0f}s")
+    add("verify.green", c_verify.code == 0,
+        f"`just verify` exit {c_verify.code} in {c_verify.seconds:.0f}s; "
+        f"tail: {c_verify.tail[-300:].strip()}")
+    add("lint.clean", c_lint.code == 0,
+        f"`just lint` exit {c_lint.code}")
+    add("tests.exist", total_n >= MIN_OWN_TESTS,
+        f"{total_n} tests discovered by `just test` (floor {MIN_OWN_TESTS})")
+    add("tests.green", c_test.code == 0 and total_n > 0 and skipped_n == 0
+        and passed_n == total_n,
+        f"`just test` exit {c_test.code}: {passed_n}/{total_n} passed, "
+        f"{skipped_n} skipped")
+    add("render.frames", len(frames) > 0 and not frame_info.get("errors"),
+        f"`just film` exit {c_film.code}, produced {len(frames)} PNGs; "
+        f"decode errors: {frame_info.get('errors') or 'none'}")
+    add("render.nonempty",
+        INK_MIN <= float(frame_info.get("mean_ink", 0.0)) <= INK_MAX,
+        f"mean ink coverage {frame_info.get('mean_ink')} over {len(frames)} frames "
+        f"(window {INK_MIN}-{INK_MAX}); per frame {frame_info.get('per_frame_ink')}")
+    add("render.animates", float(frame_info.get("mean_frame_delta", 0.0)) > DELTA_MIN,
+        f"mean fraction of pixels changing between consecutive frames "
+        f"{frame_info.get('mean_frame_delta')} (floor {DELTA_MIN})")
+    add("probe.responds", bool(thru.get("ok")),
+        f"probe throughput: {thru}")
+
+    audio_info: dict[str, Any] = {"applies": False}
+    if audio_game is not None:
+        import audio as audio_mod
+
+        audio_info = audio_mod.collect(repo, audio_game, env)
+        audio_info["applies"] = True
+        for c in audio_info["criteria"]:
+            crit.append(Criterion(c["id"], c["question"], c["passed"], c["evidence"]))
+
+    if frames_out is not None:
+        # The judge sees the same frames the pixel checks saw - one capture, two
+        # consumers, so the tiers cannot disagree about what was on screen.
+        shutil.rmtree(frames_out, ignore_errors=True)
+        frames_out.mkdir(parents=True, exist_ok=True)
+        for f in frames:
+            shutil.copy(f, frames_out / f.name)
+    shutil.rmtree(outdir, ignore_errors=True)
+    npass = sum(1 for c in crit if c.passed)
+    return {
+        "tier": "programmatic",
+        "passed": npass,
+        "total": len(crit),
+        "score": npass / len(crit),
+        "criteria": [c.to_dict() for c in crit],
+        "commands": [c.to_dict() for c in cmds],
+        "tests": {"passed": passed_n, "total": total_n, "skipped": skipped_n},
+        "coverage": cov,
+        "audio": audio_info,
+        "frames": frame_info,
+        "throughput": thru,
+        "repo": repo_stats(repo),
+    }
+
+
+if __name__ == "__main__":
+    import sys
+    print(json.dumps(collect(Path(sys.argv[1]).resolve()), indent=2))

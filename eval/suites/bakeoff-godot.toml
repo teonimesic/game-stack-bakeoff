@@ -1,0 +1,89 @@
+name = "bakeoff-godot"
+
+# Prompts are SEMANTICALLY identical across stacks and written in each
+# stack's own vocabulary. See suites/prompts.py for why byte-identity was
+# the wrong invariant.
+
+[arms.godot_gdscript]
+model = "opus"
+
+[[task]]
+id = "t1_rally"
+notes = "Pure simulation logic. No engine API surface, no rendering. The control: if a stack loses elsewhere but wins here, the deficit is churn, not language."
+prompt = """Add a rally counter to the game simulation.
+
+Requirements:
+- a public `rally_length` field on `World`.
+- It is a non-negative integer count. Use whichever integer type is natural in
+  this codebase.
+- It counts consecutive paddle hits since the last point was scored.
+- It increases by one for every paddle hit. A single tick can contain more than
+  one hit.
+- It resets to zero on the tick a point is scored.
+- It starts at zero and is initialised wherever the simulation sets up its
+  other state.
+- It must be part of deterministic simulation state: two runs with the same
+  seed must agree on its value at every tick.
+
+Add tests covering the behaviour, then make sure `just verify` passes.
+"""
+allowed_paths = ["sim/**", "tests/**"]
+protected_paths = ["tests/**", "justfile", "tools/**"]
+holdout_src = "eval/holdout-godot/t1_rally"
+holdout_cmd = "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import >/dev/null 2>&1; /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s res://tests/run_holdout_tests.gd"
+setup_cmd = "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import"
+max_turns = 50
+max_budget_usd = 8.0
+timeout_s = 3000
+
+[[task]]
+id = "t2_net"
+notes = "Rendering. Grading looks at real pixels from the headless GPU harness, so 'it compiles' and 'the code looks right' both score zero."
+prompt = """Draw a centre net in the game's rendered output: a vertical line down the
+middle of the arena, like the dividing line in Pong.
+
+Requirements:
+- It must be visible in the rendered frame, spanning most of the arena height.
+- It must not obscure gameplay - the paddles and ball must remain clearly
+  visible, and the net must stay narrow.
+- It is presentation only. It must not affect the simulation or collisions.
+
+Add a test that proves the net actually renders, then make sure `just verify`
+passes.
+"""
+allowed_paths = ["view/**", "tests/**"]
+protected_paths = ["tests/**", "justfile", "tools/**"]
+holdout_src = "eval/holdout-godot/t2_net"
+holdout_cmd = "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import >/dev/null 2>&1; /Applications/Godot.app/Contents/MacOS/Godot --path . --resolution 640x400 -s res://tests/run_holdout_render.gd"
+setup_cmd = "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import"
+max_turns = 60
+max_budget_usd = 8.0
+timeout_s = 3000
+
+[[task]]
+id = "t3_powerup"
+notes = "A determinism trap. The obvious implementation (thread_rng / SystemTime) passes review and fails the held-out replay comparison. Directly measures whether the determinism section of AGENTS.md lands."
+prompt = """Add a collectable powerup to the game simulation.
+
+Requirements:
+- a new powerup value on the entity `Kind` enum, on an entity that also has a position.
+- Exactly one powerup exists at a time. Every 200 ticks it moves to a new
+  randomly chosen position inside the arena.
+- It must always be inside the arena bounds.
+- Its position must be reproducible: two runs of the simulation with the same
+  seed must place it identically at every tick, and different seeds must produce
+  different placements.
+- It does not need to interact with the ball or the paddles yet.
+- If the view layer draws simulation entities, make sure the powerup renders
+  sensibly rather than as a stray copy of another entity.
+
+Add tests covering the behaviour, then make sure `just verify` passes.
+"""
+allowed_paths = ["sim/**", "view/**", "tests/**"]
+protected_paths = ["tests/**", "justfile", "tools/**"]
+holdout_src = "eval/holdout-godot/t3_powerup"
+holdout_cmd = "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import >/dev/null 2>&1; /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s res://tests/run_holdout_tests.gd"
+setup_cmd = "/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --import"
+max_turns = 50
+max_budget_usd = 8.0
+timeout_s = 3000

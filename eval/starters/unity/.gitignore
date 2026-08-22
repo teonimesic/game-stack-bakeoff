@@ -1,0 +1,22 @@
+# Unity generates these; they are machine-local caches and build output.
+/Library/
+/Temp/
+/Logs/
+/obj/
+/Build/
+/build/
+/UserSettings/
+/artifacts/
+/Assets/Generated/
+/Assets/Generated.meta
+*.csproj
+!/tools/analyzer/*.csproj
+*.sln
+**/*.actual.png
+.DS_Store
+
+# Analyzer build output. Assets/Analyzers/Starter.Analyzers.dll IS committed on
+# purpose: it is what makes the determinism rules enforceable with no .NET SDK
+# and no network. Only the intermediate build tree is ignored.
+/tools/analyzer/bin/
+/tools/analyzer/obj/

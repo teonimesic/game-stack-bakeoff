@@ -1,0 +1,38 @@
+{
+  "name": "pong-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@10.21.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "esbuild src/view/main.ts --bundle --outfile=public/main.js --servedir=public --serve=5173",
+    "build": "esbuild src/view/main.ts --bundle --minify --outfile=public/main.js"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "dependencies": {
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.2.0",
+    "@types/pngjs": "6.0.5",
+    "@types/three": "0.185.4",
+    "@vitest/coverage-v8": "4.1.10",
+    "esbuild": "0.28.2",
+    "eslint": "10.8.1",
+    "playwright": "1.62.1",
+    "pngjs": "7.0.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}

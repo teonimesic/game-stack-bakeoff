@@ -1,0 +1,35 @@
+[package]
+name = "game"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+sim = { path = "../sim" }
+
+# `default-features = false` is the single biggest build-time lever in this
+# repo, and it is easy to leave off by accident. Bevy 0.19's default feature set
+# is ["2d", "3d", "ui", "audio"]: without this line the "2d" below is redundant
+# and you also compile bevy_pbr, bevy_gltf, bevy_light, bevy_anti_alias,
+# bevy_mikktspace, ktx2, morph targets, bevy_ui, bevy_ui_render and rodio —
+# none of which a 2D Pong uses. Measured cold `just verify`, holding everything
+# else fixed: 405 s with the default features, 294 s without them.
+#
+# "2d" is a bundle: sprites, meshes, gizmos, text, picking, scenes, camera,
+# winit and the 2D render pipeline. It is deliberately not trimmed further —
+# an agent asked to draw something should not first have to discover which
+# feature flag unlocks the type it wants.
+#
+# `libm` routes transcendentals through a pure-Rust implementation so results
+# are bit-identical across platforms. Required for cross-platform replay, and
+# asserted by crates/sim/tests/boundary.rs.
+bevy = { version = "0.19", default-features = false, features = [
+    "2d",
+    "png",
+    "libm",
+] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[lints]
+workspace = true

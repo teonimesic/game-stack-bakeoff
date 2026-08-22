@@ -1,0 +1,136 @@
+# Task runner. `just --list` shows everything; `just --dump --dump-format json`
+# gives a machine-readable manifest of recipes, parameters and dependencies.
+#
+# The contract with agents is: ONE command to know whether the work is done.
+# That command is `just verify`. Everything else exists to make `verify` fast
+# enough to run often.
+
+set shell := ["bash", "-uc"]
+
+unity := env_var_or_default("UNITY_BIN", "/Applications/Unity/Hub/Editor/6000.0.45f1/Unity.app/Contents/MacOS/Unity")
+
+# Show available recipes.
+default:
+    @just --list
+
+# THE gate. If this is green, the change is done. If it is red, it is not.
+#
+# Each step launches its own batchmode editor. Measured warm: ~12s total.
+# Measured with an empty `Library/`: ~22s. `just warm` does the first asset
+# import up front if you would rather pay it separately.
+#
+# Note `fmt`, not `fmt-check`. Formatting is mechanical and auto-fixable, so a
+# stray blank line should never be able to mask whether the real work is done.
+# CI still runs `fmt-check` so unformatted code cannot land.
+#
+# THE gate: format, lint, simulation tests, rendered-pixel tests.
+verify: fmt lint test-sim test-render
+    @echo "✅ verify passed"
+
+# Do the expensive cold import once, up front, so `verify` stays predictable.
+warm:
+    @tools/unity-compile.sh warm errors
+
+# The closest thing Unity has to `cargo check`.
+#
+# Compile every assembly, including the EditMode test assemblies.
+check:
+    @tools/unity-compile.sh check errors
+
+# See tools/fmt.mjs for what it does and does not touch.
+#
+# Mechanical whitespace formatting.
+fmt:
+    @node tools/fmt.mjs
+
+# Mechanical whitespace formatting, check only.
+fmt-check:
+    @node tools/fmt.mjs --check
+
+# Every Roslyn diagnostic is an error here, the same bargain as
+# `clippy -D warnings`. That includes the vendored analyzers in
+# `Assets/Analyzers/`: PONG#### (determinism), UNT#### (Unity idioms) and
+# CA#### (.NET correctness/performance). Severities live in
+# `Assets/Default.globalconfig`.
+#
+# Compile + all analyzers, with every diagnostic treated as an error.
+lint:
+    @tools/unity-compile.sh lint warnings
+
+# No GPU, so these run with `-nographics`.
+#
+# Simulation tests: logic, determinism, replay, playability. The fast inner loop.
+test-sim:
+    @tools/unity-tests.sh test-sim SimTests off
+
+# Rendering tests: real Metal/DX/Vulkan device, real pixels, no window.
+#
+# Deliberately NOT `-nographics`: that gives a Null graphics device, every
+# capture would come back empty, and the only way to keep the tests green would
+# be to stop asserting on pixels. Verified working in macOS batchmode.
+#
+# Rendering tests: real graphics device, real pixels, no window.
+test-render:
+    @tools/unity-tests.sh test-render RenderTests on
+
+# Everything, in one editor launch.
+test:
+    @tools/unity-tests.sh test - on
+
+# LOOK AT THE RESULTING PNGs before committing them — blessing without looking
+# turns the golden test into a rubber stamp.
+#
+# Regenerate golden images in Assets/Tests/RenderTests/golden/.
+bless:
+    @BLESS=1 tools/unity-tests.sh bless RenderTests on "Pong.View.Tests.RenderTests.MatchesGoldenFrame"
+    @echo "⚠️  Now open Assets/Tests/RenderTests/golden/*.png and confirm they look right."
+
+# Build and launch a real player with a window.
+run:
+    "{{ unity }}" -batchmode -nographics -logFile artifacts/build.log \
+        -projectPath "{{ justfile_directory() }}" -executeMethod Pong.EditorTools.BuildScript.BuildMacOS
+    open build/Pong.app
+
+# Open the project in the Unity editor GUI.
+edit:
+    "{{ unity }}" -projectPath "{{ justfile_directory() }}" &
+
+# Run this on every target you ship to: the same replay must hash identically
+# everywhere.
+#
+# Cross-platform determinism check.
+test-determinism:
+    @tools/unity-tests.sh test-determinism SimTests off "Pong.Sim.Tests.DeterminismTests"
+
+# Not part of `verify`: it costs a whole extra editor launch and a percentage is
+# not a pass/fail signal. Pass a number to enforce a floor, e.g.
+# `just coverage 80`.
+#
+# Line and method coverage of Assets/Sim/.
+coverage MIN="":
+    @tools/unity-coverage.sh {{ MIN }}
+
+# Needs the .NET SDK and network access ONCE; the committed DLL means nobody
+# else needs either. Microsoft.CodeAnalysis.CSharp is pinned to the Roslyn Unity
+# ships (4.3.1) — a newer one loads and then silently does nothing.
+#
+# Rebuild and re-vendor Assets/Analyzers/Pong.Analyzers.dll from tools/analyzer/.
+analyzers:
+    cd tools/analyzer && dotnet build -c Release -o ./bin --nologo
+    cp tools/analyzer/bin/Pong.Analyzers.dll Assets/Analyzers/Pong.Analyzers.dll
+    @echo "✓ rebuilt Assets/Analyzers/Pong.Analyzers.dll — run `just lint` to check it loads"
+
+# Same checks as `verify`, plus: no auto-fixing, no fail-fast on formatting, and
+# FAIL_ON_SKIP so a machine with no GPU adapter cannot report green over zero
+# rendered-pixel coverage. Locally a skip is a warning; in CI it is a failure.
+#
+# CI entrypoint.
+ci:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    export FAIL_ON_SKIP=1
+    fail=0
+    node tools/fmt.mjs --check || fail=1
+    tools/unity-compile.sh ci-lint warnings || fail=1
+    tools/unity-tests.sh ci-test - on || fail=1
+    exit $fail

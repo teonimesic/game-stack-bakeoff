@@ -1,0 +1,23 @@
+{
+  "music": {
+    "file": "audio/music.wav",
+    "loops": true
+  },
+  "sfx": {
+    "paddle_hit": {
+      "file": "audio/paddle_hit.wav"
+    },
+    "wall_bounce": {
+      "file": "audio/wall_bounce.wav"
+    },
+    "score_left": {
+      "file": "audio/score_left.wav"
+    },
+    "score_right": {
+      "file": "audio/score_right.wav"
+    },
+    "game_over": {
+      "file": "audio/game_over.wav"
+    }
+  }
+}

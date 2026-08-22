@@ -1,0 +1,9 @@
+{
+  "name": "View",
+  "rootNamespace": "Pong.View",
+  "references": ["Sim"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "overrideReferences": false,
+  "autoReferenced": true
+}

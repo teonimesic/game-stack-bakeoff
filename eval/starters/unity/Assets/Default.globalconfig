@@ -1,0 +1,9 @@
+is_global = true
+dotnet_analyzer_diagnostic.category-Determinism.severity = error
+dotnet_analyzer_diagnostic.category-Correctness.severity = error
+dotnet_analyzer_diagnostic.category-Reliability.severity = warning
+dotnet_analyzer_diagnostic.category-Usage.severity = warning
+dotnet_analyzer_diagnostic.category-Performance.severity = warning
+dotnet_analyzer_diagnostic.category-Globalization.severity = warning
+dotnet_analyzer_diagnostic.category-Maintainability.severity = warning
+dotnet_analyzer_diagnostic.category-Security.severity = warning

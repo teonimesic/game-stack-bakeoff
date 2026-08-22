@@ -1,0 +1,9 @@
+node_modules
+coverage
+public/main.js
+**/*.actual.png
+test-results.xml
+
+# Render failure evidence: regenerated on every run.
+tests/render/artifacts/
+.eslintcache

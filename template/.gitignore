@@ -1,0 +1,6 @@
+/target
+# Failure artifacts written by the render tests. The blessed goldens
+# (crates/game/tests/golden/*.png) ARE committed; these three are not.
+**/*.actual.png
+**/*.expected.png
+**/*.diff.png
