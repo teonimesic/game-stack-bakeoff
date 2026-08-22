@@ -648,6 +648,23 @@ class PlatformerBot(Bot):
         enemies are all on ledges still produces a measurement rather than None.
         """
         px, py = _px(t), _py(t)
+        # WHILE AIRBORNE, DO NOT RE-DECIDE THE TARGET BY HEIGHT.
+        #
+        # The filter exists to reject enemies standing on ledges the bot cannot reach. At
+        # the apex of a crossing jump the bot IS on a ledge's height, so the filter turned
+        # on the enemy it was travelling towards: measured on `g4_platformer__unity__t0`
+        # (`wg-g4c-2026-08-21`), at y=119 it excluded the target at y=37 (dy=82) and
+        # retargeted one 1,700 units away, reversing mid-jump and falling into the gap.
+        #
+        # A filter that re-evaluates every tick will fire during any state the bot itself
+        # created. Airborne, fall back to nearest-by-x, which is stable across a jump.
+        if _player(t).get("grounded") is not True:
+            best, bd = None, float("inf")
+            for e in _list(t, "enemies"):
+                x = _f(e, "x")
+                if x is not None and abs(x - px) < bd:
+                    best, bd = e, abs(x - px)
+            return best
         best, bd = None, float("inf")
         any_best, any_bd = None, float("inf")
         for e in _list(t, "enemies"):
@@ -776,9 +793,23 @@ class PlatformerBot(Bot):
                 prev = s.last
                 for _ in range(3000):
                     e = self._nearest(prev)
-                    inputs: dict[str, Any] = {"attack": True}
+                    # SWING WHEN THERE IS SOMETHING TO HIT, not on every tick.
+                    #
+                    # This used to hold `attack` down permanently. On a submission whose
+                    # swing ROOTS the character - a normal design choice - that stops it
+                    # travelling: measured on `g4_platformer__unity__t0`
+                    # (`wg-g4c-2026-08-21`), walking right with the same edge-jump reaches
+                    # x=387.4 and clears a 78.5-unit gap at full health with attack off,
+                    # and reaches x=360.3, falls in and loses health with attack on.
+                    #
+                    # So a bot that attacks constantly cannot cross a gap on any
+                    # submission that penalises attacking, and it fails `attack.damages`
+                    # for a reason that has nothing to do with whether attacks damage.
+                    inputs: dict[str, Any] = {}
                     if e is not None:
                         gap = (_f(e, "x") or 0.0) - _px(prev)
+                        if abs(gap) <= 44.0:
+                            inputs["attack"] = True
                         if abs(gap) > 26.0:
                             inputs["move_right" if gap > 0 else "move_left"] = True
                             # SAME EDGE-CROSSING LOGIC AS `_approach`, because this loop

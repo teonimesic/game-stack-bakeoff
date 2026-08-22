@@ -2180,10 +2180,43 @@ visible once the one before it was removed:
 | 4 | the jump fired **too early** | at `_EDGE_JUMP_WITHIN = 48` the bot left the ground 48 units before a 78.5-unit gap and landed in it; at 24, 12 and 6 it crossed with **full health** | threshold → 20 |
 | 5 | `_combat` is a **second** movement loop | `_approach` got the fix; `attack.damages` did not move **at all** — byte-identical evidence — because `_combat` re-implements "walk toward the target" inline | same edge logic added |
 
-After all five, unity__t0's combat session runs **378 ticks** where it ran 329, and the bot gets
-further — but still lands no hit, and the cell stays at 0.896. **Not resolved.**
+Then instrumentation — printing target, position and inputs every tick rather than proposing a
+sixth hypothesis — found the two that mattered, and **one of them was introduced by fix 1**:
 
-### What the chain is worth even unresolved
+| # | cause | evidence | fix |
+|---|---|---|---|
+| 6 | `_combat` held **`attack` down on every tick**, and this submission's swing roots the character | same walk with attack **off** reaches x=387.4 and crosses at full health; with attack **on**, x=360.3, falls in, loses hp | swing only within 44 units of the target |
+| 7 | the height filter **re-decided the target mid-jump** | at apex y=119 it excluded the target at y=37 (dy=82) and retargeted an enemy 1,700 units away, reversing the bot into the gap | airborne, fall back to nearest-by-x |
+
+**unity__t0: 0.896 → 0.966.** `attack.damages` and `score.on_kill` recovered. Suite green.
+
+> **A bot that attacks constantly cannot cross a gap on any submission that penalises attacking,
+> and it then fails `attack.damages` for a reason that has nothing to do with whether attacks
+> damage.** The criterion was measuring the bot's input policy.
+
+> **A filter that re-evaluates every tick will fire during a state the bot itself created.** The
+> height filter exists to reject enemies on ledges; at the apex of its own jump the bot *is* at a
+> ledge's height, so it rejected the enemy it was travelling towards. Fix 1 caused cause 7, and
+> only instrumentation could have shown that — the score moved the right way at every step.
+
+### The last failure is a criterion defect, adjudicated to source
+
+`knockback.applied` still fails: *"on the first hit the enemy was on the right and the player's vx
+went 190.0 -> 0.0"*. The submission is correct. `Sim.cs` applies
+`Velocity = (knockDirX * KNOCKBACK_X, KNOCKBACK_Y)` for an enemy hit — but a **pit** hit takes the
+other branch deliberately:
+
+```csharp
+/// a pit instead puts the character back on the last wide platform it stood on,
+/// because falling forever is not a punishment, it is an ending.
+if (fromPit) { p.Position = p.Safe; p.Velocity = Vec2.Zero; }
+```
+
+The bot's *first* hit on this level is a pit fall, so the criterion measures a deliberate
+respawn and reports it as absent knockback. It assumes "first `player_hit`" means "hit by the
+enemy it was walking at" — an assumption the level's own geometry breaks. Filed as its own task.
+
+### What the chain is worth
 
 **A margin reads as caution and was the defect.** Jumping 48 units early rather than 20 looks
 like the safe choice, and it spent the only resource that mattered — horizontal distance
