@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#82 from building and running this evaluator. **Check whether a
+Findings #19-#83 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -33,6 +33,26 @@ separately:
   the result.
 - **It runs after the thing it was fixing** (#47). It reports success, truthfully, in
   twenty-four places, and changes no number.
+
+## The test is what the artifact does, not what the account covers
+
+> **A hypothesis that explains everything you have looked at is not thereby correct.**
+
+The pit hypothesis for #82 explained the evidence string, named a real defect in the bot,
+predicted exactly which submissions would fail, and produced a general principle that is true and
+worth keeping — *the penalty is indexed to how good the level is*. Every part of that survived
+scrutiny. It was still the wrong cause, and the fix built on it changed the score by nothing: the
+re-grade came back byte-identical.
+
+What separated the account from the truth was **ten lines of instrumentation against the
+artifact** — opening a probe session and printing where the bot was and which enemy it had
+chosen. Not more reasoning about the output. The same move settled #81 (hashing the evidence
+strings showed 4-of-4 distinct, killing the caching story) and #83 (grepping the pack for tokens
+showed the judge was inferring, not copying).
+
+Three of the last four findings turned on running something against the real object rather than
+reasoning further about its output. **When a hypothesis fits, that is the moment to go and watch
+the thing run**, because a fitting hypothesis is exactly what stops people looking.
 
 ## The rules, in the order they would have saved the most
 
@@ -137,6 +157,7 @@ separately:
 | **80** | Two durable records that quietly lost content: a shell-substituted evidence string and an overwritten task | [documentation](findings/documentation.md) |
 | **81** | The rule-9 alarm on unity was mis-framed: repeats of one subject measure reliability, not agreement | [certifies-nothing](findings/certifies-nothing.md) |
 | **82** | The play-bot was blamed for not crossing pits; it was picking targets it could not reach | [certifies-nothing](findings/certifies-nothing.md) |
+| **83** | The answer key was in the judge's pack again: `.codex` hook scripts carried the trial id | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

@@ -1,7 +1,8 @@
 ---
+established_by: Re-scoped from documentation to a measured decision, and the coordinator's reading was tested rather than adopted - it needed splitting. MEASURED across 26 rounds / 208 evidence strings: idiomatic names its own stack's real tokens in 134/144 (93%) with real extensions by design; architecture, with blind_language=True and .src paths, in only 13/64 (20%). So substitution DOES work (93->20) and the claim that no anonymiser helps was wrong. But the residual 20% is unfixable: Godot, GDScript, MonoBehaviour, UnityEngine and THREE are ABSENT from the 2.2M-char architecture pack, verified, yet the judge still writes 'Rust/Bevy.', 'Unity/C#.', 'Godot/GDScript.' - it infers the language from syntax and names the engine, and once wrote 'EngineBehaviour = renamed MonoBehaviour', decoding the substitution. DECISIONS.md now records: code aspects are within-stack only, permanently; cross-stack claims barred not because the judgement is necessarily wrong but because 'it is blind, therefore not a prior' is unavailable as a defence forever; architecture's partial blinding is kept because 20 percent beats 93 at zero cost. #53's question is retired as mis-posed. Along the way fixed three real leaks: half-substituted org names (bevyengine/engine#6183), missing lowercase godot and Unity-compound tokens, and FINDINGS #83.
 id: 14
 title: Record the blinding limit for code aspects in DECISIONS.md
-status: open
+status: done
 priority: 2
 refs: eval/FINDINGS.md #53, eval/judge/anonymise.py
 done_when: DECISIONS.md states that code-reading aspects are not language-blind, why it cannot be fixed, and what follows for their use; and FINDINGS #53 points at that decision instead of carrying the open question itself

@@ -128,12 +128,31 @@ def check_pack_skill(pack_dirs: list[Path]) -> list[str]:
             rel = p.relative_to(pack)
             # `code/` is the anonymised submission text; it has already been through
             # neutralise(). Everything else in a pack is ours and is checked.
-            if rel.parts and rel.parts[0] == "code":
-                continue
+            # `code/` is exempt from the STACK-TOKEN scan because neutralise() has
+            # already rewritten it. It is NOT exempt from the trial-id scan: that is
+            # precisely where the leak was found, inside code/other/*.json.
+            code_dir = bool(rel.parts) and rel.parts[0] == "code"
             try:
                 text = p.read_text(encoding="utf-8", errors="replace")
             except OSError as e:
                 problems.append(f"unreadable ({e}): {p} (failing closed)")
+                continue
+            # A TRIAL ID IS THE ANSWER KEY, not a hint. `.codex` hook scripts embedded
+            # the absolute work-tree path, so 31 stored packs contained strings like
+            # `g4_platformer__godot__t1` - naming the game, the stack AND the attempt.
+            # #32 was this same defect in `MAPPING.json`. Checked FIRST because it is
+            # categorically worse than a stack token.
+            for m in anonymise._TRIAL_ID_RE.finditer(text):
+                problems.append(
+                    f"TRIAL ID {m.group(0)!r} in pack file {rel} - the judge is holding "
+                    f"the answer key (#32, #83)")
+                break
+            m = anonymise._WORK_PATH_RE.search(text)
+            if m:
+                problems.append(
+                    f"WORK-TREE PATH {m.group(0)[:60]!r} in pack file {rel} - it names "
+                    f"the trial directory")
+            if code_dir:
                 continue
             for rx, _ in anonymise._STACK_RE:
                 m = rx.search(text)

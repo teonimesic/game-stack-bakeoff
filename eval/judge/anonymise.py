@@ -27,9 +27,14 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+# `.claude` was already here; `.codex` was not, and its hook scripts embed the ABSOLUTE
+# work-tree path -- which contains the trial id, e.g. `g4_platformer__godot__t1`. That is
+# not a hint about the stack, it is the answer key, and it reached 31 stored packs. #32 was
+# exactly this defect in a different file. Agent-tooling directories are configuration, are
+# never the authored game, and are skipped as a class rather than one name at a time.
 SKIP_DIRS = {".git", "target", "node_modules", "dist", "Library", "Temp", "obj",
              ".godot", ".venv", "coverage", "artifacts", "build", "__pycache__",
-             ".claude", ".github"}
+             ".claude", ".github", ".codex", ".cursor", ".aider", ".vscode", ".idea"}
 CODE_EXT = {".rs", ".ts", ".tsx", ".js", ".mjs", ".cs", ".gd", ".py", ".shader",
             ".wgsl", ".toml", ".json"}
 # Config files carry the stack's name in every line; they add nothing to a judgement
@@ -42,13 +47,31 @@ DROP_NAMES = {"Cargo.toml", "Cargo.lock", "package.json", "pnpm-lock.yaml",
 
 # Only tokens that name the stack. Nothing that would change the meaning of the code.
 _STACK_TOKENS = [
+    # ORGANISATION AND REPOSITORY NAMES FIRST, because they CONTAIN the engine name and
+    # the plain token rules below would only rewrite the tail. An agent cited GitHub issue
+    # `bevyengine/bevy#6183` in a comment; the second token was replaced and the first was
+    # not, leaving `bevyengine/engine#6183` in a supposedly language-blind pack. That is
+    # worse than leaving it alone: a half-substituted string still names the engine AND
+    # advertises that a substitution happened, which is a hint to decode the rest.
+    #
+    # Ordering is load-bearing. `neutralise()` applies these in sequence, so any pattern
+    # whose match contains another pattern's match must come first.
+    (r"\bbevyengine\b", "engineorg"), (r"\bgodotengine\b", "engineorg"),
+    (r"\bUnityTechnologies\b", "EngineOrg"), (r"\bmrdoob\b", "engineorg"),
     (r"\bbevy(_\w+)?\b", "engine"), (r"\bBevy\b", "Engine"),
     (r"\bwgpu\b", "gpu"), (r"\bwinit\b", "windowing"),
     (r"\bthree\b", "engine"), (r"\bTHREE\b", "ENGINE"),
     (r"\bUnityEngine\b", "EngineCore"), (r"\bUnityEditor\b", "EngineEditor"),
     (r"\bMonoBehaviour\b", "EngineBehaviour"), (r"\bUnity\b", "Engine"),
-    (r"\bGodot\b", "Engine"), (r"\bGDScript\b", "Script"),
+    (r"\bGodot\b", "Engine"), (r"\bgodot(_\w+)?\b", "engine"),
+    (r"\bGDScript\b", "Script"),
     (r"\bNode2D\b", "SceneNode2D"), (r"\bNode3D\b", "SceneNode3D"),
+    # Compound identifiers that EMBED an engine name. These must come after the specific
+    # rules above (UnityEngine, UnityEditor, MonoBehaviour), because the first matching
+    # rule wins and a catch-all placed earlier would swallow them and lose the distinction.
+    # `UnityCsReference` is the case that motivated this: `\bUnity\b` does not match
+    # inside it, so it survived a language-blind pack intact.
+    (r"\bUnity\w+\b", "EngineThing"), (r"\bunity[-_]\w+\b", "enginething"),
     (r"\bNUnit\b", "TestFramework"), (r"\bvitest\b", "testrunner"),
     (r"\bnextest\b", "testrunner"), (r"\bplaywright\b", "browserdriver"),
 ]
@@ -89,7 +112,23 @@ def _bucket(rel: str) -> str:
     return "other"
 
 
+#: A trial id names the game, the STACK and the attempt: `g4_platformer__godot__t1`.
+#: Anywhere one of these reaches a pack the blinding is not degraded, it is void.
+_TRIAL_ID_RE = re.compile(r"\bg\d+_[a-z0-9]+__(?:rust|ts|unity|godot)__t\d+\b")
+#: The work root leaks the same identity through absolute paths baked into scripts.
+_WORK_PATH_RE = re.compile(r"/[^\s\"']*game-research-work[^\s\"']*")
+
+
 def neutralise(text: str) -> str:
+    """Rewrite stack tokens AND anything that names the trial outright.
+
+    Skipping `.codex` (above) removes the file that motivated this, but a path can be
+    baked into any file an agent writes, so the identity pattern is scrubbed everywhere
+    as well. Two independent defences, because one of them is a list of directory names
+    and this project has learned what a list-shaped guard misses.
+    """
+    text = _TRIAL_ID_RE.sub("SUBMISSION", text)
+    text = _WORK_PATH_RE.sub("/WORKTREE", text)
     for rx, rep in _STACK_RE:
         text = rx.sub(rep, text)
     return text

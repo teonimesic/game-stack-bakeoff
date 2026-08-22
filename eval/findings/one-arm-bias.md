@@ -1529,3 +1529,61 @@ file extension is still in every pack, still uniquely identifies the stack, and 
 **cannot** be blinded to it, because you cannot judge whether Rust reads like Rust without
 knowing it is Rust. That is unchanged and unfixable, and it is why the aspect stays barred from
 cross-stack use regardless of how consistent it looks.
+
+---
+
+## 83. The answer key was in the judge's pack again: `.codex` hook scripts carried the trial id
+
+Investigating how much the code-aspect blinding leaks turned up something categorically worse
+than the leak being investigated.
+
+Agents write `.codex/hooks/*.sh` — tooling configuration — and those scripts embed the **absolute
+work-tree path**. `SKIP_DIRS` listed `.claude` and `.github`, but not `.codex`, so the files
+reached the pack carrying:
+
+```
+/Users/…/game-research-work/wg-g4c-2026-08-21T02-26-46/g4_platformer__godot__t1/.codex/hooks/…
+```
+
+That names the **game, the stack and the attempt**. It is not a hint about the language, it is the
+identity of the submission, in a directory the judge is told is anonymous.
+
+**31 stored packs contain a trial id.** Across `wg-audio48` and `wg-g4c`, for `g1_pong`,
+`g2_tetris3d` and `g4_platformer`.
+
+### This is #32, and #32's own lesson said so
+
+#32 found `MAPPING.json` inside a blinded judge's working directory and concluded:
+
+> **A judge with the answer key produces a ranking that survives every validation gate this
+> project has.** Order-invariance passes, independence passes, adjudication passes. None of them
+> can ask what the judge knew.
+
+That was fixed by asserting no `MAPPING` file is left in the pack — **a fix aimed at the file that
+had failed**, not at the property. The property is *no text in the pack may name the submission*,
+and the next violation arrived in a different file with a different name, exactly as a
+list-shaped guard predicts.
+
+### Fixed in three independent places, because one of them is a list
+
+1. **`SKIP_DIRS` gains `.codex`, `.cursor`, `.aider`, `.vscode`, `.idea`** — agent tooling as a
+   *class*. Still a list, and still therefore incomplete.
+2. **`neutralise()` scrubs the identity pattern itself**: any `g<n>_<game>__<stack>__t<n>` becomes
+   `SUBMISSION` and any work-root path becomes `/WORKTREE`, wherever they appear. This does not
+   depend on knowing which file will carry it.
+3. **`verify_blind --packs` now fails on a trial id or a work-tree path**, checked *before* stack
+   tokens because it is worse, and **not** exempting `code/` — which is where these were, and
+   which the stack-token scan skips because `neutralise()` has already run over it.
+
+Pinned both directions: a freshly built pack is clean; a stored pre-fix pack reports
+`TRIAL ID 'g4_platformer__godot__t1' … the judge is holding the answer key`.
+
+### What it invalidates
+
+**Unknown, and that is the honest answer.** Whether any judge read those bytes is not recoverable
+— the evidence strings cite `sim/03.src`-style neutral paths, not `other/*.json`, so there is no
+positive sign it was used. But #32's point stands: **no gate can ask what the judge knew.** Every
+code-aspect round on `g1_pong`, `g2_tetris3d` and `g4_platformer` was run on a field where four of
+eight packs could be identified outright, and no cross-stack claim from those rounds can be
+defended on blinding grounds. That they were already barred from cross-stack claims for other
+reasons (#53, and the decision recorded in `DECISIONS.md`) is luck, not design.

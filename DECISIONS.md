@@ -225,6 +225,64 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 - **g4, the platformer, is designed and NOT launched.** Launching needs approval and at least
   two calibration trials in different cells; the honest cost range is $800-1,900 (#42).
 
+## Code-reading aspects are within-stack only — permanently, not pending a better anonymiser
+
+**Decided 2026-08-22, on measurement.** `idiomatic` and `architecture` may be used to compare
+submissions **within one stack**. They may never contribute to a cross-stack claim, and this is
+not a defect awaiting repair.
+
+### The measurement
+
+Across 26 stored code-aspect rounds, 208 evidence strings, counting strings that name their own
+stack's real tokens (`Bevy`, `MonoBehaviour`, `Godot`, `THREE`, `@export`, `InputMap`):
+
+| aspect | blinding | strings naming the real stack |
+|---|---|---|
+| `idiomatic` | real extensions, by design | **134 of 144 (93%)** |
+| `architecture` | `blind_language=True`, `.src` paths | **13 of 64 (20%)** |
+
+**The substitution works and is worth keeping** — 93% → 20% is not nothing, and an earlier
+reading that "no anonymiser helps" was wrong. But the residual 20% is unfixable, and the reason
+is decisive: `Godot`, `GDScript`, `MonoBehaviour`, `UnityEngine`, `THREE` are **absent from the
+architecture pack**, verified over 2.2M characters — yet the judge writes *"Rust/Bevy."*,
+*"Unity/C#."*, *"Godot/GDScript."* anyway. It is not copying a token that slipped through. **It is
+identifying the language from the syntax and naming the engine itself**, and on one occasion
+wrote *"EngineBehaviour = renamed MonoBehaviour"* — decoding the substitution and reporting what
+had been replaced.
+
+### Why no better anonymiser exists
+
+Syntax cannot be removed without paraphrasing the code, and paraphrasing changes the thing being
+judged. A stronger cipher is still a cipher against a reader that breaks it. For `idiomatic` the
+point is sharper still: the aspect asks whether the code is written the way its language is
+normally written, so **the aspect whose subject is the variable under test cannot be blinded to
+that variable.** Blinding it would not make it fair; it would make it meaningless.
+
+### What follows, and what does not
+
+- **Barred: any cross-stack ordering from a code aspect.** Not because the judgement is
+  necessarily wrong — it may be a real reading of the work — but because it can never again be
+  *defended* with "it cannot be a prior, the judge is blind". That defence is unavailable
+  permanently.
+- **Permitted: within-stack A/B** — template v1 against v2, same stack, same task. A per-stack
+  prior is constant on both sides and cancels. This is the same argument that licenses the
+  repeats work, and it is what the template improvement loop actually needs.
+- **`architecture`'s `blind_language=True` stays**, because 20% is better than 93% and the
+  cost is zero. Keeping a partial defence is not the same as trusting it.
+
+### The question this retires
+
+#53 asked whether `idiomatic`'s stack ordering is "a language prior rather than a judgement of
+the work". **That question was mis-posed**: it assumed the judge did not know the stack. It does,
+in 93% of strings, by its own account. The ordering may still be a real judgement — #79 found it
+reproduces across four games with zero contradictions — but "blind, therefore not a prior" was
+never available as an argument, and no experiment can restore it.
+
+**A limit that cannot be removed is a decision, not a finding.** #53 and #83 record how it was
+discovered; this records what is now done about it.
+
+---
+
 ---
 
 ## Keeping this current
