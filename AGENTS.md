@@ -196,6 +196,30 @@ instances is a rule that fails on the first instance you did not have when you w
 
 **When writing the next rule, state what it protects, not what went wrong last time.**
 
+## Capture what the instrument DID, not only what it concluded
+
+A judge round stores its scores and its reasoning. Since 2026-08-22 it also stores **which files
+it opened**, and that capture was added for an unrelated question — did a larger pack make the
+judge read more?
+
+Two weeks later it was the only reason a serious defect could be bounded. Trial ids had reached
+25 stored judge packs (#83), and the question *"did any judge actually read the answer key?"*
+became a set intersection instead of an unanswerable suspicion: 37 of 63 rounds had the log, 14
+had opened a leaking file, 3 held the complete key to their field. The other 26 rounds have no
+log and are permanently unassessable.
+
+**#32 concluded that no gate can ask what the judge knew. That is no longer true where the log
+exists** — and false everywhere it does not.
+
+> **An audit trail of what a mechanism did is worth more than the confidence you had when you
+> built it, because the question it will be asked is not the one it was built for.** Record the
+> inputs a component actually consumed, not merely the output it produced.
+
+This generalises past the judge: `runstat` reads process state rather than inferring it from
+artifacts (#37, #60), `bot_mutants` records which criteria a mutant flipped rather than only
+whether it passed, and `anonymise` writes a manifest of what it dropped — which is what made #62
+findable at all, four matrices late.
+
 ## Keep the documentation current
 
 `README.md`, `DECISIONS.md` and `eval/FINDINGS.md` must not go stale. Update them **in the same

@@ -1599,9 +1599,23 @@ index of pack files containing a trial id:
 | of those, rounds that **opened a leaking file** | **14** |
 | rounds that identified **all eight** submissions | **3** |
 
-**The answer key was not merely present. It was read.** In `g1_pong__idiomatic__seed1` and
-`g4_platformer__architecture__seed0` and one capgate round, the judge opened a file naming the
-trial for **every submission in the field**.
+**The answer key was not merely present. It was read.** In three rounds —
+`g1_pong__idiomatic__seed1`, `g4_platformer__architecture__seed0` (both in
+`wg-funframes-crossgame`) and `wg-g4c-capgate/out/uncapped/g4_platformer__idiomatic__seed1` — the
+judge opened a file naming the trial for **every submission in the field**. Verified by dumping
+the eight paths and the eight ids they resolve to.
+
+> **The "all eight" count was disputed at 3 against 0 and reconciled by reproducing the other
+> method rather than re-deriving the answer.** Two independent defects, neither in the matching:
+> a glob of `runs/*/[a-z]*/g*__*__seed*.json` missed four rounds sitting one directory deeper,
+> and the label was extracted with `path.split("/")[0]` on an **absolute** path, which returns
+> `''` for every file — so the label set was always `{''}`, size 1, and `len(labels) == 8` could
+> never fire. Fixing only the label extraction turned 0 into 9 on the looser per-submission
+> keying; the strict count is 3.
+>
+> The tell was stated before the cause was found: *a permissive matcher returning fewer hits than
+> a strict one usually means the two are matching different things.* It was — but the divergence
+> was downstream of the match, in how a hit was attributed.
 
 Per game and aspect, counting only rounds with logs:
 
@@ -1613,6 +1627,19 @@ Per game and aspect, counting only rounds with logs:
 | `g4_platformer` / idiomatic | 4 | 2 |
 | `g4_platformer` / architecture | 1 | 1 |
 | `g2_tetris3d` / both | — | — (no logs; rounds predate the capture) |
+
+### Two traps worth naming, both general
+
+**A mitigation that alters the artifact can defeat the check looking for the thing it mitigates.**
+`blind_language` renames pack files to `.src`, so a full-name comparison could never match a
+stored `other/01.json` — and `architecture`, the *more* blinded aspect, came back clean for that
+reason alone. The defence hid the evidence of its own failure.
+
+**A repair can enlarge a defect that is not known to exist.** Removing the pack budget (#69) was
+correct on its own terms — a judge shown half a submission has not read it — and it strictly
+increased exposure of the answer key, because the dropped files were the leaking ones. Not an
+argument against the fix; an argument for bounding what a fix touches, and for asking what a
+change makes newly *visible* as well as what it makes newly *correct*.
 
 ### A correction inside the correction
 
