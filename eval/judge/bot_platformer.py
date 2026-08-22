@@ -620,21 +620,99 @@ class PlatformerBot(Bot):
 
     # -- reaching an enemy, killing it, scoring ----------------------------- #
 
+    #: How far above or below the character an enemy may be and still count as reachable
+    #: by walking and swinging. A little over one jump.
+    _REACH_DY = 40.0
+
     @staticmethod
     def _nearest(t: Tick) -> dict[str, Any] | None:
-        px = _px(t)
+        """The nearest enemy AT A HEIGHT THE CHARACTER CAN HIT, falling back to any.
+
+        THE DEFECT THIS REPAIRS, and it is not the one anyone predicted. This ranked
+        enemies by horizontal distance alone. On a level with platforms at several
+        heights that picks an enemy standing 80 units up on a ledge, and the bot then
+        walks underneath it and swings at nothing for the rest of the session.
+
+        Measured on `g4_platformer__ts__t0` (`wg-g4c-2026-08-21`): player at y=17, nearest
+        by x is enemy 16 at x=174 **y=97**, while enemy 15 sits at x=357 **y=13** - same
+        height, plainly walkable. The bot chose the unreachable one and reported
+        "3002 ticks of walk-and-swing: 0 enemy_hit". Six combat criteria failed on a
+        submission that works.
+
+        The failure was blamed on the level's PITS, by two people, because the same
+        submission also has gaps in its ground and the evidence string mentions a
+        position inside one. **The gaps were real and were not the cause** - the target
+        was on the same ground segment, 133 units away, the whole time.
+
+        Fall back to nearest-by-x when nothing is at a reachable height, so a level whose
+        enemies are all on ledges still produces a measurement rather than None.
+        """
+        px, py = _px(t), _py(t)
         best, bd = None, float("inf")
+        any_best, any_bd = None, float("inf")
         for e in _list(t, "enemies"):
-            x = _f(e, "x")
+            x, y = _f(e, "x"), _f(e, "y")
             if x is None:
                 continue
-            if abs(x - px) < bd:
-                best, bd = e, abs(x - px)
+            d = abs(x - px)
+            if d < any_bd:
+                any_best, any_bd = e, d
+            if y is not None and abs(y - py) > PlatformerBot._REACH_DY:
+                continue
+            if d < bd:
+                best, bd = e, d
+        return best if best is not None else any_best
+
+    @staticmethod
+    def _edge_distance(t: Tick, moving_right: bool) -> float | None:
+        """How far ahead the ground under the character ends, or None if unknown.
+
+        Derived from `platforms`, like `_ledge_x`, because the alternative is to walk
+        forward and find out by dying - which is exactly what this repairs.
+        """
+        px, py = _px(t), _py(t)
+        best = None
+        for p in _list(t, "platforms"):
+            x, y = _f(p, "x"), _f(p, "y")
+            w, h = _f(p, "w"), _f(p, "h")
+            if None in (x, y, w, h):
+                continue
+            top = y + h / 2.0
+            # the surface the character is standing on, within a small tolerance
+            if not (-6.0 <= py - top <= 80.0):
+                continue
+            if not (x - w / 2.0 - 4.0 <= px <= x + w / 2.0 + 4.0):
+                continue
+            edge = (x + w / 2.0) if moving_right else (x - w / 2.0)
+            d = (edge - px) if moving_right else (px - edge)
+            if best is None or d < best:
+                best = d
         return best
+
+    #: How close to the edge of the ground to start a crossing jump.
+    _EDGE_JUMP_WITHIN = 48.0
 
     def _approach(self, s: ProbeSession, stop_at: float, ticks: int,
                   attack: bool) -> dict[str, Any] | None:
-        """Walk toward the nearest enemy, jumping when progress stalls."""
+        """Walk toward the nearest enemy, JUMPING GAPS and jumping when progress stalls.
+
+        THE DEFECT THIS REPAIRS, measured on `wg-g4c-2026-08-21`. The bot reached every
+        enemy by walking, so a level whose ground has pits stopped it: it walked into the
+        first gap and died, and six combat criteria failed on submissions that worked.
+        `g4_platformer__ts__t0` has pits at x 520-600, 1080-1180, 1700-1790 and its own
+        evidence reads "reached x=588.8" - inside the first one. It scored the field's
+        lowest. `g4_platformer__unity__t0` is the same, on a level whose source says
+        "Six pits to clear".
+
+        **The penalty was indexed to how good the level was**: a submission that builds
+        real platforming lost criteria that a flat corridor scores full marks on. That is
+        not a measurement error, it is a measurement that rewards the wrong thing.
+
+        The stall detector already here does not help - falling into a pit is not a stall,
+        because x keeps changing all the way down. The gap has to be seen BEFORE it is
+        entered, which is what `_edge_distance` is for (FINDINGS #65: establish the
+        condition, never walk forward and hope).
+        """
         last_x = _px(s.last)
         stalled = 0
         for i in range(ticks):
@@ -651,6 +729,11 @@ class PlatformerBot(Bot):
                 inputs["move_right" if gap > 0 else "move_left"] = True
             if attack and abs(gap) <= stop_at * 1.6:
                 inputs["attack"] = True
+            moving = "move_right" in inputs or "move_left" in inputs
+            if moving and _player(s.last).get("grounded") is True:
+                d = self._edge_distance(s.last, gap > 0)
+                if d is not None and d <= self._EDGE_JUMP_WITHIN:
+                    inputs["jump"] = True
             if stalled > 20:
                 inputs["jump"] = True
                 stalled = 0

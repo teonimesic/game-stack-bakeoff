@@ -2122,3 +2122,55 @@ the stack** — *"Unity/C#."*, *"TypeScript/three.js."* — and on `g4_platforme
 *"EngineBehaviour = renamed MonoBehaviour"*. It **reverse-engineered `anonymise.neutralise()` and
 reported the original token.** See #53 and task 14: the blinding is not merely nominal, it is
 actively decoded and the decoding is written down in the record.
+
+---
+
+## 82. The play-bot was blamed for not crossing pits; it was picking targets it could not reach
+
+`g4_platformer__ts__t0` (`wg-g4c-2026-08-21`) scored the field's lowest, 0.793, losing six combat
+criteria. The diagnosis, made twice and by two people, was that **the bot cannot cross a gap**:
+that submission's ground is four segments with pits at x 520-600, 1080-1180 and 1700-1790, and
+the bot's own evidence read *"reached x=588.8"* — inside the first pit. It was recorded as the
+largest live tier-2 defect, on the grounds that the penalty was indexed to how good the level was.
+
+**The gaps were real and were not the cause.**
+
+Instrumenting a probe session against the actual submission: the player stands at x=41, **y=17**.
+`_nearest` returned enemy 16 at x=174 — 133 units away, on the same ground segment, no pit
+between — but at **y=97**, eighty units up on a ledge. Enemy 15 sat at x=357, **y=13**, the
+player's own height and plainly walkable.
+
+`_nearest` ranked enemies by horizontal distance and **ignored the vertical axis entirely**. On a
+level with platforms at several heights it therefore selects an enemy standing above the
+character, walks underneath it, and swings at nothing for the rest of the session — *"3002 ticks
+of walk-and-swing: 0 enemy_hit"*.
+
+**Fixed** by preferring the nearest enemy within `_REACH_DY` of the character's own height, with a
+fall-back to nearest-by-x so a level whose enemies are all on ledges still yields a measurement
+rather than `None`. `ts__t0` goes **0.793 → 1.000**, all six criteria recovered. Full suite green:
+36 criteria pinned both ways, 4 variants, 3 session-lock controls, 0 unmet.
+
+### Why the wrong cause was so convincing
+
+The pit hypothesis explained the evidence, named a real property of the level, predicted the right
+submissions, and produced a memorable and true general principle — *the penalty is indexed to how
+good the level is*. Every part of that survives. It simply was not what was happening.
+
+> **A hypothesis that explains the evidence, identifies a real defect, and predicts the right
+> cases can still be the wrong cause.** What separated them was not more reasoning about the
+> evidence string — it was opening a session against the submission and printing where the bot was
+> and what it had chosen. Ten lines of instrumentation against the actual artifact beat two rounds
+> of inference from its output.
+
+The gap-crossing code written for the wrong hypothesis is kept: it establishes the edge from
+`platforms` rather than discovering it by dying, and a level whose ground genuinely ends still
+needs it. But it is **not** what fixed this, and it fixed nothing on its own — measured, the
+re-grade with gap-crossing alone left `ts__t0` byte-identical at 0.793.
+
+### A third cause, still open
+
+`g4_platformer__unity__t0` remains at 0.896 and is neither of the above. Its target is at a
+reachable height (dy=7) and no pit lies between, but the character's health falls 5 → 0 by tick
+275 while walking toward an enemy 460 units away: **it dies en route**, because the approach walks
+into everything between it and its target without fighting back. Three submissions, three
+different causes, all previously filed as one. Recorded as its own task.
