@@ -18,10 +18,10 @@ Last updated **2026-08-21**.
 
 | evidence | reading |
 |---|---|
-| **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **4/8**, with all four remaining failures adjudicated to the instrument or the template, none to the work. **Not summed** — see below |
+| **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **5/8** as of 2026-08-22, after four play-bot repairs (#82); of the three cells below 1.000, one is a genuine submission defect (#66) and two are adjudicated to the instrument. **Not summed** — see below |
 | **the two trials of a cell agree on verdicts far more often than on evidence** | reported per scope, never pooled. `wg-matrix` (3 games, 436 paired criteria): **5** verdict differences against **332** differing evidence strings. `wg-audio48` (232 paired): **0** verdict differences, **120** differing evidence strings. So the submissions are genuinely different artifacts that the instrument mostly cannot separate — but "mostly", not "never" |
 | **cost: the between-stack range is 42% of its own noise floor** | measured on all four stacks at once (`wg-g4c`, 8/8 `completed`, $421.00): mean within-cell gap **$21.15**, between-stack range **$8.91** |
-| **no subjective aspect separates the stacks** | between-stack range of mean ranks **1.70**, mean gap between a stack's *own* two trials **2.05**. Still true after the 2026-08-21 round, which produced tier 3's **first positive result** — and it is not about stacks (below) |
+| **no subjective aspect separates the stacks** | `wg-tetris-judge-2026-08-17`, 5 aspects × 2 orders, `g2_tetris3d` only — the sole field tier 3 had judged when this was measured (#71). Post-repair round: between-stack range of mean ranks **2.10** against a mean within-stack gap of **1.93**; pre-repair **1.90** against **2.27**. The two are within ~10% of each other in both, which is no separation. ⚠️ Both rounds are among those later shown to have opened pack files naming the submissions (#83), so this is **not** defensible as a blind result |
 | **a fourth game, unseen by the templates, changes nothing** | `g4_platformer` was added after all four templates were fixed; it reproduces the null |
 
 **Five instruments, five different routes, the same null.** Tier 1 (builds, lints, tests,
@@ -40,6 +40,15 @@ cell can be wrong sevenfold, which is how the retracted 2026-08-17 cost reading 
 (FINDINGS #63). Across all 8 trials **cost tracks turns at r = 0.971**: cost is very nearly a
 restatement of how many turns an agent chose to take, and turns vary 205–370 *within* one stack.
 
+> ⚠️ **A previous version of this table read "between-stack range of mean ranks 1.70, mean gap
+> 2.05" with no scope at all — no run, no game, no aspect set, no date.** It does not reproduce:
+> the only field tier 3 had judged gives 2.10/1.93 post-repair and 1.90/2.27 pre-repair. Replaced
+> above with both, scoped. **That is the fourth summary statistic in this table found
+> unreproducible for the same reason**, after 20-of-24, 380-paired-criteria and
+> 0-verdict-differences. Every one stated a number and omitted the population it was computed
+> over. **An aggregate without its scope is not a weak claim, it is an unfalsifiable one** — it
+> cannot be checked, so it survives indefinitely and gets quoted as established.
+>
 > ⚠️ **A previous version of this table read "0 verdict differences across 380 paired criteria"
 > and "219 of 380 evidence strings differ". Both are withdrawn: neither reproduces.** A
 > 2026-08-22 recount searched every coherent scope — all runs (1098 paired), `wg-matrix` alone
