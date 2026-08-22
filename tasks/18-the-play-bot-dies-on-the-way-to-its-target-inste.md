@@ -1,7 +1,7 @@
 ---
 id: 18
 title: The play-bot dies on the way to its target instead of fighting through
-status: open
+status: in_flight
 priority: 2
 refs: eval/FINDINGS.md #82, eval/judge/bot_platformer.py
 done_when: either g4_platformer__unity__t0 (wg-g4c-2026-08-21) passes attack.damages, score.on_kill and knockback.applied, or the behaviour is shown to be a property of that submission rather than of the bot, with the measurement that distinguishes them

@@ -1614,8 +1614,20 @@ the eight paths and the eight ids they resolve to.
 > keying; the strict count is 3.
 >
 > The tell was stated before the cause was found: *a permissive matcher returning fewer hits than
-> a strict one usually means the two are matching different things.* It was — but the divergence
-> was downstream of the match, in how a hit was attributed.
+> a strict one usually means the two are matching different things.* **True, and it needs a
+> qualifier or it points at the wrong stage:** the two may be matching identically and diverging
+> **downstream, in the grouping**. Here the match was fine and the attribution collapsed — every
+> hit was filed under the same empty label, so a per-round count that depended on distinct labels
+> read 1 where it should have read 8.
+>
+> **Check the grouping key before re-examining the matcher.** A count that aggregates by a derived
+> key has two places to fail, and the one that produces a *plausible* number is the second: a
+> broken matcher usually returns zero hits and announces itself, while a broken grouping returns
+> the right hits filed wrongly.
+>
+> The defective test was `len(labels) >= 8` over labels that were always `{''}` — **a guarantee,
+> not a measurement**, and the vacuous-check shape catalogued in #73, committed while auditing an
+> audit.
 
 Per game and aspect, counting only rounds with logs:
 

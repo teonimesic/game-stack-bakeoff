@@ -2167,7 +2167,38 @@ The gap-crossing code written for the wrong hypothesis is kept: it establishes t
 needs it. But it is **not** what fixed this, and it fixed nothing on its own — measured, the
 re-grade with gap-crossing alone left `ts__t0` byte-identical at 0.793.
 
-### A third cause, still open
+### The third cause was a fourth, a fifth and a sixth
+
+`g4_platformer__unity__t0` was filed as one more cause. It is a chain, and each link only became
+visible once the one before it was removed:
+
+| # | cause | how it showed | fix |
+|---|---|---|---|
+| 1 | `_nearest` ignored height | swung under a ledge for 3002 ticks | prefer enemies within `_REACH_DY` |
+| 2 | the falsifier came back **negative** | unity__t0 has the field's *lowest* enemy density near the start — 1 within 600px against ts__t0's 5, which now scores 1.000. Not a punishing submission | — |
+| 3 | it *is* the pit case after all | hp dropped at ticks 103/146/189/232, evenly spaced, all at **x≈272** after a fall to y=-32: fall in, respawn, walk right, fall in again | — |
+| 4 | the jump fired **too early** | at `_EDGE_JUMP_WITHIN = 48` the bot left the ground 48 units before a 78.5-unit gap and landed in it; at 24, 12 and 6 it crossed with **full health** | threshold → 20 |
+| 5 | `_combat` is a **second** movement loop | `_approach` got the fix; `attack.damages` did not move **at all** — byte-identical evidence — because `_combat` re-implements "walk toward the target" inline | same edge logic added |
+
+After all five, unity__t0's combat session runs **378 ticks** where it ran 329, and the bot gets
+further — but still lands no hit, and the cell stays at 0.896. **Not resolved.**
+
+### What the chain is worth even unresolved
+
+**A margin reads as caution and was the defect.** Jumping 48 units early rather than 20 looks
+like the safe choice, and it spent the only resource that mattered — horizontal distance
+remaining — before the obstacle began.
+
+**A fix that changes nothing at all is evidence about where the code is, not about whether the
+fix is right.** `attack.damages` returning byte-identical evidence after `_approach` was repaired
+is what exposed that two loops do the same job. A partial improvement would have hidden it.
+
+**The falsifier earned its place by failing.** Task 18 was written with "it may be a property of
+the submission rather than the bot" as an explicit branch. Measuring enemy density took one probe
+and ruled the submission out, which is what licensed spending the next hour on the bot instead of
+arguing about the level.
+
+### Still open
 
 `g4_platformer__unity__t0` remains at 0.896 and is neither of the above. Its target is at a
 reachable height (dy=7) and no pit lies between, but the character's health falls 5 → 0 by tick

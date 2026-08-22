@@ -19,7 +19,7 @@ Last updated **2026-08-21**.
 | evidence | reading |
 |---|---|
 | **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **4/8**, with all four remaining failures adjudicated to the instrument or the template, none to the work. **Not summed** — see below |
-| **0 verdict differences across 380 paired criteria** | comparing each cell's two independent trials criterion by criterion, nothing differs — while **219 of 380 evidence strings do**, so the submissions are genuinely different artifacts the instrument cannot separate. ⚠️ *Scope unstated: this figure does not name which runs and games it spans, and a 2026-08-22 recount from the stored reports did not reproduce 380 under any obvious reading. Not withdrawn — the reading may simply differ — but do not extend it without re-deriving it* |
+| **the two trials of a cell agree on verdicts far more often than on evidence** | reported per scope, never pooled. `wg-matrix` (3 games, 436 paired criteria): **5** verdict differences against **332** differing evidence strings. `wg-audio48` (232 paired): **0** verdict differences, **120** differing evidence strings. So the submissions are genuinely different artifacts that the instrument mostly cannot separate — but "mostly", not "never" |
 | **cost: the between-stack range is 42% of its own noise floor** | measured on all four stacks at once (`wg-g4c`, 8/8 `completed`, $421.00): mean within-cell gap **$21.15**, between-stack range **$8.91** |
 | **no subjective aspect separates the stacks** | between-stack range of mean ranks **1.70**, mean gap between a stack's *own* two trials **2.05**. Still true after the 2026-08-21 round, which produced tier 3's **first positive result** — and it is not about stacks (below) |
 | **a fourth game, unseen by the templates, changes nothing** | `g4_platformer` was added after all four templates were fixed; it reproduces the null |
@@ -40,6 +40,19 @@ cell can be wrong sevenfold, which is how the retracted 2026-08-17 cost reading 
 (FINDINGS #63). Across all 8 trials **cost tracks turns at r = 0.971**: cost is very nearly a
 restatement of how many turns an agent chose to take, and turns vary 205–370 *within* one stack.
 
+> ⚠️ **A previous version of this table read "0 verdict differences across 380 paired criteria"
+> and "219 of 380 evidence strings differ". Both are withdrawn: neither reproduces.** A
+> 2026-08-22 recount searched every coherent scope — all runs (1098 paired), `wg-matrix` alone
+> (436), `wg-matrix`+`wg-arena3d` (584), `wg-audio48` (232), everything except g4 (958) — and by
+> tier (playbot 540, programmatic 402). **None gives 380.** Six *arbitrary* subsets do, but each
+> mixes runs and games incoherently, e.g. `wg-audio` pong + `wg-matrix` arena + `wg-audio48`
+> tetris — the same "many combinations reach it, none is principled" signature as the 20-of-24
+> figure below. And **"0 verdict differences" is false in every scope with a plausible count**:
+> the number is 5 for `wg-matrix`, 13 across all runs. Some of that drift is this session's own
+> criterion repairs re-grading cells, so the figure may well have been true when written — which
+> is exactly why an aggregate must record its scope *and* its date. Replaced above with per-scope
+> figures.
+>
 > ⚠️ **A previous version of this table read "20 of 24 cells score exactly 1.000". That number is
 > withdrawn: it cannot be reproduced from the record, because it never said which 24 cells it
 > counted.** Searching the stored reports, **eight different combinations** of three 8-cell groups

@@ -690,7 +690,19 @@ class PlatformerBot(Bot):
         return best
 
     #: How close to the edge of the ground to start a crossing jump.
-    _EDGE_JUMP_WITHIN = 48.0
+    #:
+    #: MEASURED, and the first value was wrong in the direction that looks safe. At 48.0
+    #: the bot jumps early, spends its airtime over solid ground and lands in the gap:
+    #: on `g4_platformer__unity__t0` (`wg-g4c-2026-08-21`), whose ground ends at x=300 and
+    #: resumes at x=378.5, it reached x=366.6 and lost 4 of 5 hp to repeated falls. At
+    #: 24.0, 12.0 and 6.0 it clears the same 78.5-unit gap and arrives with FULL health.
+    #:
+    #: Set to 20.0: inside the measured working band with margin, and far enough from the
+    #: edge that a character moving ~3 units per tick still gets several ticks of warning.
+    #: **Jumping earlier is not safer.** A margin intuitively reads as caution, and here it
+    #: spent the only resource that mattered - horizontal distance remaining - before the
+    #: obstacle began.
+    _EDGE_JUMP_WITHIN = 20.0
 
     def _approach(self, s: ProbeSession, stop_at: float, ticks: int,
                   attack: bool) -> dict[str, Any] | None:
@@ -769,6 +781,17 @@ class PlatformerBot(Bot):
                         gap = (_f(e, "x") or 0.0) - _px(prev)
                         if abs(gap) > 26.0:
                             inputs["move_right" if gap > 0 else "move_left"] = True
+                            # SAME EDGE-CROSSING LOGIC AS `_approach`, because this loop
+                            # is a SECOND implementation of "walk toward the target" and
+                            # the first fix reached only the other one. `_approach` gained
+                            # gap handling and `attack.damages` did not move at all -
+                            # byte-identical evidence - which is what exposed the
+                            # duplication. Two loops doing the same job is a defect that
+                            # presents as a fix not working.
+                            if _player(prev).get("grounded") is True:
+                                d = self._edge_distance(prev, gap > 0)
+                                if d is not None and d <= self._EDGE_JUMP_WITHIN:
+                                    inputs["jump"] = True
                     t = s.step_raw(inputs)
                     hits += t.events.count("enemy_hit")
                     if "enemy_dead" in t.events:
