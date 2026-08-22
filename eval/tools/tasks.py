@@ -117,16 +117,38 @@ def _set(tid: str, **kw) -> int:
 
 
 def cmd_add(a) -> int:
+    """Create a task file, refusing to overwrite one that appeared while we looked.
+
+    The id is computed by reading the directory, so two writers racing compute the SAME
+    number - and `write_text` would then silently overwrite the loser. That happened on
+    2026-08-22: two agents both created a `12` and one task vanished without any error.
+    A silent-overwrite path is exactly what this project does not leave lying around.
+
+    So: exclusive create (O_EXCL), and on collision take the next free id and try again.
+    The check is on the ID, not the filename, because the same id with a different slug is
+    still the same task number.
+    """
     TASKS.mkdir(exist_ok=True)
-    nid = f"{max([int(t['id']) for t in _load() if t.get('id','').isdigit()] + [0]) + 1:02d}"
     slug = re.sub(r"[^a-z0-9]+", "-", a.title.lower()).strip("-")[:48]
-    p = TASKS / f"{nid}-{slug}.md"
-    p.write_text(
-        f"---\nid: {nid}\ntitle: {a.title}\nstatus: open\npriority: {a.priority}\n"
-        f"refs: {a.refs or ''}\ndone_when: {a.done_when}\n---\n\n{a.why or ''}\n",
-        encoding="utf-8")
-    print(f"created {p.relative_to(ROOT)}")
-    return 0
+    nid_int = max([int(t["id"]) for t in _load() if t.get("id", "").isdigit()] + [0]) + 1
+    for _ in range(50):
+        nid = f"{nid_int:02d}"
+        if any(TASKS.glob(f"{nid}-*.md")):
+            nid_int += 1
+            continue
+        body = (f"---\nid: {nid}\ntitle: {a.title}\nstatus: open\n"
+                f"priority: {a.priority}\nrefs: {a.refs or ''}\n"
+                f"done_when: {a.done_when}\n---\n\n{a.why or ''}\n")
+        try:
+            with open(TASKS / f"{nid}-{slug}.md", "x", encoding="utf-8") as fh:
+                fh.write(body)
+        except FileExistsError:
+            nid_int += 1
+            continue
+        print(f"created {(TASKS / f'{nid}-{slug}.md').relative_to(ROOT)}")
+        return 0
+    print("could not allocate a free task id after 50 attempts", file=sys.stderr)
+    return 1
 
 
 def cmd_check() -> int:

@@ -242,3 +242,49 @@ standoff.
 **The re-film decision reverts: the substitution is invalid.** Either film, accepting that it
 creates a *third* geometry for that id, or do not judge that field on frames — which the parity
 gate now enforces without anyone remembering to.
+
+---
+
+## 80. Two durable records that quietly lost content: a shell-substituted evidence string and an overwritten task
+
+Both on 2026-08-22, both writing to a record meant to outlive the session, both silent.
+
+### The evidence string that executed itself
+
+Closing task 07 with `tasks.py done 07 "...so \`just lint\` and \`just verify\` answer from the
+code while \`just check\` keeps its warm cache..."` — written inside double quotes, so the shell
+treated each backticked phrase as **command substitution**. `just` ran three times in a directory
+with no justfile, printed `error: no justfile found` to stderr, and substituted **empty strings**.
+
+The stored record became *"so / answer from the code while  keeps its warm cache"*. Three phrases
+gone. `tasks.py` reported success, because from its side nothing failed: it received a string and
+wrote it faithfully.
+
+> **The corruption happened before the tool that owns the record ever saw the data.** No amount of
+> validation inside `tasks.py` would have caught it — the string it was handed was already wrong.
+> The three `error: no justfile found` lines were the only signal, and they looked like noise from
+> an unrelated command.
+
+Prose destined for a durable record should be written **to a file**, not passed through a shell
+argument. Where it must go through a shell, single-quote it.
+
+### The task that was overwritten by a concurrent writer
+
+`tasks.py add` computed the next id by reading the directory and then called `write_text`, which
+truncates. Two agents adding a task at the same time both computed `12`, and **one task vanished
+with no error from either side.**
+
+Fixed: exclusive creation (`open(..., "x")`), and on collision take the next free id and retry —
+checking the **id**, not the filename, because the same number with a different slug is still the
+same task. Pinned: a decoy squatting id 18 is left intact and the new task lands on 19.
+
+### What the pair have in common
+
+Neither was a bug in the thing being written to. One was corrupted upstream by the shell; the
+other by a writer that never asked whether the destination already existed. **A record is only as
+durable as the weakest step in the path that reaches it**, and both weak steps were outside the
+component that looked responsible.
+
+This is the same shape as #62 — a field nothing read — but worse in one respect: there, the data
+was present and ignored. Here the data was **destroyed**, and the destruction left a success
+message behind.
