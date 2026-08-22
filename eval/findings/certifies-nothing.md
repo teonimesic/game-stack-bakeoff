@@ -2238,3 +2238,72 @@ reachable height (dy=7) and no pit lies between, but the character's health fall
 275 while walking toward an enemy 460 units away: **it dies en route**, because the approach walks
 into everything between it and its target without fighting back. Three submissions, three
 different causes, all previously filed as one. Recorded as its own task.
+
+---
+
+## 84. A criterion can measure the play-bot's input policy instead of the submission
+
+`attack.damages` failed `g4_platformer__unity__t0` (run `wg-g4c-2026-08-21`) for four rounds
+of investigation. The
+submission's attacks damage things perfectly well. The bot could not reach anything to hit.
+
+`_combat` held **`attack` down on every tick**. That submission's swing roots the character —
+a normal design choice, and one several commercial platformers make — so the bot could not
+build the horizontal speed to cross a gap. Measured on the same walk with the same jump: attack
+**off** reaches x=387.4 and clears a 78.5-unit gap at full health; attack **on** reaches x=360.3,
+falls in, and loses health. It then reported *"0 enemy_hit"* and failed the criterion.
+
+> **A play-bot's input policy is part of the instrument, and a criterion can end up measuring
+> the policy rather than the submission.** The failure mode is specific: the bot's *default
+> behaviour* interacts with a *legitimate design choice*, and the criterion attributes the
+> collision to the submission because the submission is the only thing it knows how to blame.
+
+This is not the same as a bot that cannot establish its condition (#29, #34, #65). Those fail to
+*create* the situation. This one creates it and then destroys it with an unrelated input it is
+holding down for other reasons.
+
+### What makes it hard to see
+
+The criterion's name, its evidence string and its failure are all internally consistent.
+*"3002 ticks of walk-and-swing: 0 enemy_hit"* is true, and reads as a fact about the submission.
+Nothing in the record mentions that the bot was also holding `attack` for all 3002 of them.
+**The instrument's own behaviour is the one variable its evidence never reports.**
+
+Fixed here by swinging only within 44 units of the target — swing when there is something to hit,
+not constantly.
+
+### Other criteria in the same class, not yet audited
+
+Two more places hold an input down while relying on movement:
+
+- **`bot_arena`** sends `{"fire": True, **_aim(...)}` while closing on enemies. A submission where
+  firing applies recoil, roots the shooter, or imposes a reload lock would be penalised on the
+  criteria that need the bot to *arrive somewhere*, exactly as here.
+- **`bot_tetris3d`** sends `{"hard_drop": True, "move_pos_x": True}` on one tick. A submission
+  that locks the piece on hard-drop may legitimately ignore the simultaneous lateral move.
+
+Neither is measured yet. Filed as a task rather than asserted — the point of naming a class is
+that its other members become checkable, not that they are thereby guilty.
+
+## 85. A per-tick filter will fire during a state the agent itself created
+
+Task 15 gave `_nearest` a height filter, so the bot would stop targeting enemies standing on
+ledges it could not reach. Correct, and it fixed a real defect.
+
+It then broke the bot's own jumps. Re-evaluated every tick, at the **apex of a crossing jump** the
+character is at a ledge's height — so the filter rejected the enemy it was travelling towards
+(y=37, dy=82 from the apex at y=119) and retargeted one **1,700 units away**. The bot reversed
+mid-air and fell into the gap it was crossing.
+
+> **A predicate evaluated every tick over a state the agent is actively changing will eventually
+> be evaluated in the middle of a manoeuvre the agent started.** The filter's premise — *this
+> height difference means unreachable* — is true standing still and false while jumping, and
+> nothing in the predicate distinguishes the two.
+
+Fixed by falling back to nearest-by-x while airborne: the filter's job is to reject enemies on
+ledges, not to re-decide a target every tick of a jump the bot began.
+
+**Both halves of this were self-inflicted and neither was visible in a score.** The height filter
+moved `g4_platformer__ts__t0` (`wg-g4c-2026-08-21`) from 0.793 to 1.000 — a clean win — while silently introducing this. The score
+went the right way at every step, which is exactly why four rounds of reasoning about outputs
+found nothing and one round of printing the bot's position and target found both.
