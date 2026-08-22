@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#80 from building and running this evaluator. **Check whether a
+Findings #19-#81 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -135,6 +135,7 @@ separately:
 | **78** | `ux` tracks distinct-colour count on all three games it has been run on | [one-arm-bias](findings/one-arm-bias.md) |
 | **79** | `idiomatic` has a real stack-level component, but #53's contrast between stack and submission was backwards | [one-arm-bias](findings/one-arm-bias.md) |
 | **80** | Two durable records that quietly lost content: a shell-substituted evidence string and an overwritten task | [documentation](findings/documentation.md) |
+| **81** | The rule-9 alarm on unity was mis-framed: repeats of one subject measure reliability, not agreement | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

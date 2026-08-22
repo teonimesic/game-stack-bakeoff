@@ -1500,6 +1500,12 @@ So *some* stacks behave like constants and others do not — but it is a **gradi
 ts**, not two-and-two, and **rust varies more than godot**, not less. A first reading that paired
 unity with rust as the constants had the second member wrong.
 
+> ⚠️ **RESOLVED, and the alarm was mis-framed — see #81.** Four rounds of one submission are
+> repeated measurements, so a small SD across them is *reliability*, not independent subjects
+> agreeing. Rule 9 speaks only to the second. Truncated packs, caching and anchor-defaulting were
+> each tested and eliminated; the residual pattern has p≈0.27 of arising by chance in some stack.
+> The paragraph below stands as what was believed at the time.
+
 **`unity` is the striking case and the one worth pursuing:** its SE is exactly 0.00 on two
 different games, meaning the judge gave *literally the same score* to all eight unity submissions
 in four rounds, twice, on unrelated work. That is rule 9's signature — independent subjects

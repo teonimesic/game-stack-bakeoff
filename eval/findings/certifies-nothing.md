@@ -2065,3 +2065,60 @@ already existed.
 asked what the floor was a property of. Here, a stopping target was estimated from the same sample
 as the estimator without asking how it scales. In both cases the quantity was treated as fixed
 while the design made it vary.
+
+---
+
+## 81. The rule-9 alarm on unity was mis-framed: repeats of one subject measure reliability, not agreement
+
+`idiomatic` scored **all eight unity submissions exactly 3, in four rounds, on two different
+games** — standard error 0.00, twice. It was flagged as rule 9's signature: *independent subjects
+agreeing exactly are reporting the instrument*. Task 12 tested it and the hypothesis does not
+survive.
+
+### Three mechanisms, all eliminated by measurement
+
+| candidate | test | result |
+|---|---|---|
+| **truncated packs** — unity lost most files to the old budget (#62), so the judge saw least of it and defaulted | compare flat vs varying fields by pack regime | **refuted.** `g3_arena` is uncapped and flat; the `g4_platformer` **capped** arm varies (SD 0.50). Completeness does not predict flatness |
+| **caching / identical reasoning** | hash the evidence text per round | **refuted.** 4 of 4 evidence strings distinct in every flat cell — the judge re-derives from different observations each time |
+| **nothing to say, so it fell back to the anchor** | measure evidence length and read it | **refuted.** 883-1011 chars of specific detail: `Mesh.MarkDynamic()`, `IndexFormat.UInt32`, the `Update`/`FixedUpdate` split, with line references |
+
+### The framing error, which is the actual finding
+
+**Rule 9 is about independent SUBJECTS agreeing. This was one subject measured four times.**
+
+Four rounds of the same submission are repeated measurements, and low variance across them is
+**reliability** — the thing an instrument is supposed to have. The only genuinely independent
+agreement here is between the *two* unity trials, and two subjects landing on the field's modal
+anchor is not a coincidence worth a finding.
+
+> **Repeat-measurement variance and between-subject variance are different quantities, and rule 9
+> only speaks to the second.** Reading a small SD over repeats as "suspiciously consistent"
+> inverts the rule: it treats an instrument behaving well as evidence that it is broken.
+
+This is the same confusion #79 caught in #53 — comparing quantities measured at different n — in
+a new place. There, one round was mistaken for instability; here, four rounds were mistaken for
+collusion.
+
+### And the residue is chance
+
+The one real question left is why unity's *pair* is invariant in two of four games. Conditioning
+on how many submissions were invariant in each field anyway (pong 0/8, tetris 6/8, arena 3/8,
+platformer 2/8):
+
+| | |
+|---|---|
+| P(a **specific** stack has both trials invariant in ≥2 of 4 games) | **0.076** |
+| P(**any** of the four stacks does) | **0.272** |
+
+Better than one in four that *some* stack shows this pattern by chance. **Unity was noticed
+because it was looked at**, and the pattern needs no mechanism.
+
+### What did come out of it
+
+Reading the judge's evidence to test the third candidate turned up something else, and it is
+worse than the thing being investigated: **the judge opens nearly every evidence string by naming
+the stack** — *"Unity/C#."*, *"TypeScript/three.js."* — and on `g4_platformer` it wrote
+*"EngineBehaviour = renamed MonoBehaviour"*. It **reverse-engineered `anonymise.neutralise()` and
+reported the original token.** See #53 and task 14: the blinding is not merely nominal, it is
+actively decoded and the decoding is written down in the record.
