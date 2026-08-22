@@ -4,7 +4,7 @@ title: Give fun a representative play session instead of the criteria drive
 status: open
 priority: 2
 refs: eval/FINDINGS.md #52, eval/judge/telemetry.py, eval/judge/probe.py
-done_when: fun's telemetry comes from a session driven to look like play rather than from the criteria sweep, and the change is shown to move quiet_fraction_of_run on at least one stored submission where the old number was an artifact
+done_when: fun's telemetry comes from a session driven to look like play rather than from the criteria sweep, AND the effect is measured on stored submissions - EITHER quiet_fraction_of_run moves materially, with the before/after reported, OR it does not, in which case the criteria drive was representative enough and the change is reported as buying nothing rather than shipped
 ---
 
 The 'fun' aspect reads telemetry.json - event counts, intervals, how long the run went quiet - measured from a real driven run of the submission.
