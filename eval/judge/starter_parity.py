@@ -158,8 +158,12 @@ CORE_RECIPES = {"verify", "test", "lint", "fmt", "probe", "film", "run"}
 #:                        deliberately unequal, so this axis is REPORTED and can never
 #:                        fail. The row that still matters most is audio, because the
 #:                        task asks every agent for sound on a SCORED criterion: godot
-#:                        and ts always could, rust now can (task 26), unity still
-#:                        cannot without com.unity.modules.audio.
+#:                        and ts always could, rust gained it in task 26, and unity in
+#:                        task 52 (`com.unity.modules.audio`). ALL FOUR now can, so the
+#:                        audio row no longer discriminates - and that is the row to
+#:                        re-read before attributing any audio result to a stack, since
+#:                        every trial graded before 2026-08-23 ran with an arm that
+#:                        could not compile `AudioSource` at all (measured: CS1069).
 #:   capture geometry   - see tools/frame_parity.py; one submission filmed at 768x576
 #:                        while 21 filmed at 640x400 (#59).
 SHARED_LAUNCH = "tools/launch.just"
@@ -455,13 +459,22 @@ def main() -> int:
             line += f" / {unknown} NOT ESTABLISHED (which is not the same as no)"
         notes.append(line)
     notes.append(
-        "  audio is the row with a SCORED criterion behind it. rust gained it under task "
-        "26 (bevy's own default feature set); unity's com.unity.modules.audio is the one "
-        "line still outstanding. When it was unequal the effect was REAL BUT MEASURED "
-        "SMALL, so do not reach for it to explain a cost gap: unity's dependency work is "
-        "+1 line in manifest.json (+6 lock) and rust's was 12-14 lines in Cargo.toml, "
-        "while ALL FOUR stacks then author a ~300-line WAV synthesiser (ts 320, rust 340, "
-        "unity 305, godot 46 on top of the engine's built-in). See eval/IMPROVEMENTS.md.")
+        "  audio is the row with a SCORED criterion behind it, and since task 52 all four "
+        "starters carry it: rust gained it under task 26 (bevy's own default feature set), "
+        "unity under task 52 (com.unity.modules.audio, +1 manifest line and +6 lock, both "
+        "resolved `builtin` from the installed editor). A row that no longer varies cannot "
+        "explain anything about a run graded AFTER the change - and it explains less than "
+        "it looks like about runs graded BEFORE it, because when it was unequal the effect "
+        "was REAL BUT MEASURED SMALL: rust's dependency work was 12-14 lines in Cargo.toml "
+        "and unity's is one, while ALL FOUR stacks then author a ~300-line WAV synthesiser "
+        "(ts 320, rust 340, unity 305, godot 46 on top of the engine's built-in). See "
+        "eval/IMPROVEMENTS.md.")
+    notes.append(
+        "  particles now splits 2/2 rather than 1/3: godot and unity ship an engine "
+        "particle system (GPUParticles2D; Shuriken), rust and ts ship none at any pin. "
+        "That is the widest EFFORT gap in research/10-stack-capability-matrix.md and it is "
+        "the reason the templates must not hand a rust or ts agent an emitter - writing "
+        "one is the work being measured.")
 
     # -- recipe BEHAVIOUR now differs by stack; say so before it looks like drift --- #
     notes.append(

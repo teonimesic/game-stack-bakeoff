@@ -155,7 +155,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#108, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#110, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -207,6 +207,17 @@ discrimination gate that a bad implementation must fail.
 the *product*, not only the grader: an agent that films a correct scoreboard and sees nothing
 may delete working code. All four starters now draw the HUD through the captured render path,
 each with a rendering test that goes red if it leaves that path. FINDINGS #27.
+
+**All four templates are now at their own stack's best, not at a common floor** (DECISIONS.md,
+2026-08-22; tasks 26 and 52). Rust runs Bevy's own default feature set, Godot and Unity expose
+their native particle systems through `view/fx.gd` and `Assets/View/Fx.cs`, and **Unity can
+compile `AudioSource` for the first time** — until 2026-08-23 it was a hard `CS1069`, on a
+criterion that is scored, while the prompt told every agent to use it. TypeScript adopts
+nothing and says why: on the rasteriser its harness actually uses, `InstancedMesh` buys 5-6%
+and `Points` is already five lines away (FINDINGS #110). Divergence between the four is the
+subject of the comparison, so `eval/judge/starter_parity.py` **reports** the capability
+register and can never fail on it. Regime notes: `eval/RUNS.md`, twelfth and thirteenth
+comparability breaks.
 
 **Audio is measured.** Six criteria — five deterministic in tier 1, one in tier 2 — each paired
 with a mutant that makes it go red (`eval/judge/audio_selftest.py`, 37 expectations).

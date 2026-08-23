@@ -125,6 +125,46 @@ fast the game is unplayable". When you change a tuning constant, assert on the
 *consequence* you care about, measured over a run — how long something takes,
 how often it happens, where it ends up — not on the constant you changed.
 
+## The engine's own audio and particles are on
+
+`Packages/manifest.json` carries `com.unity.modules.audio` and
+`com.unity.modules.particlesystem`, and `packages-lock.json` resolves both as
+`builtin` — they come out of the installed editor, with no network. So all of
+this compiles today, with no manifest edit and no permission to ask for:
+
+| You want | It is there |
+|---|---|
+| Sound | `AudioSource` + `AudioClip`. Clips under `Assets/Audio/`, playback triggered from `Assets/View` only — `Assets/Sim` must not know sound exists |
+| Particles | `ParticleSystem` (Shuriken), wired up in `Assets/View/Fx.cs` — see below |
+| Lit 3D and real-time shadows | Built-in Render Pipeline, already on: `QualitySettings` ships Ultra with hard and soft shadows, and MSAA 2x |
+| Many identical things cheaply | `Graphics.RenderMeshInstanced`, `DrawMeshInstanced`, `BatchRendererGroup`, all in `CoreModule` |
+| Sprite sheets | `UnityEngine.U2D.SpriteAtlas` and `SpriteRenderer`, both in `CoreModule` |
+
+Absent at this pin, each one a manifest line to ask for first:
+`com.unity.modules.physics` (PhysX), `.physics2d` (Box2D), and
+`.animation` (`Animator`, `AnimationClip`). There is **no glTF importer
+anywhere** in this editor — FBX, OBJ, DAE and DXF import out of the box, glTF
+does not.
+
+## Particles — use them, they are one call
+
+`GameView` already owns an idle `Fx`, so a burst costs one line:
+
+```csharp
+view.Fx.ShowBursts(new[] { new Fx.Burst(at, colour, ageSeconds, entity.SimId) });
+```
+
+**A burst must be a pure function of simulation state.**
+`RenderHarness.CaptureFrame` steps to tick N with no view attached, then builds
+a fresh `GameView` and syncs once, and no player loop ever runs — so anything
+the view accumulated frame by frame (an emitter you started when an event fired,
+a tween, a screen shake) is missing from every filmed frame and every rendering
+test, with nothing red to say so. Keep the tick a thing happened on, and pass
+the age. That is also what makes a burst reproducible: nothing in `Fx.cs` lets
+wall time reach an emitter — only `ParticleSystem.Simulate(age, …)` advances one
+— and three rendering tests hold it, that the burst is drawn, that the age
+drives it, and that two identical bursts are byte-identical.
+
 ## Probing a run
 
 - `just probe SEED` — a long-lived process. It writes a tick-0 line before

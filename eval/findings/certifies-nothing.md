@@ -2842,3 +2842,65 @@ have been read the first time:
 
 A dead `if False:` block in the recipes axis, holding a comparison that could never run, was
 removed.
+
+---
+
+## 110. The capability with "the largest single measured effect in the whole matrix" was measured at 167x the geometry this task set reaches, and against a baseline nobody would have written
+
+Task 26 left TypeScript undone with a named next step, and the number that made it the live
+candidate was quoted three times — in the root `IMPROVEMENTS.md`, in `tasks/52`, and in the brief
+that opened task 52:
+
+> *"50 000 points at **4.1 ms** against 50 000 `InstancedMesh` at **590 ms** on SwiftShader
+> (144x) — the largest single measured capability effect in the matrix, and one that lands
+> directly in `capture.cpu_seconds`."*
+
+Both halves of that sentence turn out to be about something other than the decision it was being
+used to make. Measured 2026-08-23 in the ts starter's own rasteriser (ANGLE/SwiftShader, the
+same `--use-angle=swiftshader` pin `src/view/harness.ts` uses), mean ms per 640x400 frame
+rendered and read back, median of three runs of 20 frames:
+
+| objects | N separate `Mesh` | one `InstancedMesh` | one `Points` |
+|---|---|---|---|
+| 300 | 5.06 | **4.73** | 0.49 |
+| 2 000 | 30.19 | **28.47** | 0.69 |
+| 10 000 | 149.16 | **140.68** | 1.71 |
+
+**`InstancedMesh` buys 5-6%, at every size.** The 144x was never a measurement of instancing
+against the thing a submission would otherwise write — it was `Points` against `InstancedMesh`,
+i.e. two batched primitives against each other, and the arithmetic is dominated by the one that
+was already fast. Against the honest baseline (N meshes, which is what a submission that does not
+know better ships) instancing is worth nothing here.
+
+**And the field it was said to land in cannot see it.** `capture.cpu_seconds` is *"user+system
+CPU, `just film` and its descendants"*. Measured on the pristine ts starter, `just film 7 600`
+costs **3.91 s of CPU** (2.97 user + 0.94 sys) for twelve frames. At the task set's peak
+geometry — ~300 unit cubes, which is §8 of `research/10-stack-capability-matrix.md`'s own figure
+— the entire `Points`-versus-`Mesh` difference over twelve frames is **55 ms, 1.4%**, under the
+run-to-run noise of a browser launch. `Points` is a genuine 10x, and it is 10x of a term that is
+not what the number measures.
+
+### What it says about the register it came from
+
+The same document declines *"GPU instancing, LOD, texture compression, streaming, compute,
+multithreading, skeletal animation/glTF"* in one row, for exactly the right reason — *"§8 of the
+survey: irrelevant to the current task set. Peak geometry is ~300 unit cubes"* — and then, four
+paragraphs later, names `InstancedMesh` as a live candidate on the strength of a figure taken at
+50 000. **The two statements are in the same file, written in the same session, and neither is
+careless.** The declined row reasons about the task set; the not-done row reasons about the
+survey. Nothing connects them, because the survey measures the STACK and the register has to
+decide about the RUN.
+
+> **A capability survey measures what a stack can do. It cannot tell you whether the difference
+> is reachable by the workload you are actually grading, and a headline ratio is at its most
+> persuasive exactly where the two have drifted furthest apart.** Before promoting a surveyed
+> number to a decision, re-measure it at the size your own subjects reach — and check what the
+> comparison's baseline was, because "A is 144x B" says nothing about A versus what people write.
+
+The decision it produced: **ts adopts no scaffolding.** `Points` is five lines and E1, so it is
+documented with the table above in `starters/ts/AGENTS.md` rather than wrapped — the same call
+task 26 made on sprite atlasing, now stated as a rule in `DECISIONS.md`. The one thing worth a
+template author's words is the trap that costs a turn: under this starter's **orthographic**
+camera `PointsMaterial.size` is in device pixels and `sizeAttenuation` is ignored outright,
+because three 0.185's point shader guards its attenuation with
+`if ( isPerspective )` — read out of `node_modules/three/build/three.module.js`, not remembered.

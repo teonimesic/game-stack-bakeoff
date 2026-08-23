@@ -340,3 +340,85 @@ rejected for a stated reason is evidence; one that was never considered is a gap
   points at **4.1 ms** against 50 000 `InstancedMesh` at **590 ms** on SwiftShader (144×) —
   the largest single measured capability effect in the matrix, and one that lands directly in
   `capture.cpu_seconds`.
+
+  > **Both sentences in this bullet are wrong, and task 52 measured why (#110).** The 144×
+  > is `Points` against `InstancedMesh`, not against the N-separate-meshes baseline a
+  > submission would otherwise write — against that, instancing is worth 5-6% at every size
+  > on this rasteriser. And `capture.cpu_seconds` covers the whole of `just film`, which
+  > costs 3.91 s of CPU on the pristine starter, so at this task set's ~300 objects the
+  > entire difference is 55 ms. Left in place rather than edited, because it was acted on.
+
+---
+
+## Iteration: each template at its own stack's best — unity and ts, 2026-08-23
+
+Task 52, the second and final instalment. Same evidence base, same rule, the two arms task 26
+deliberately stopped short of. `eval/RUNS.md` records it as the **thirteenth** comparability
+break.
+
+### What changed, and the field that would move
+
+| arm | change | field that would move if it worked |
+|---|---|---|
+| **unity** | `Packages/manifest.json` gains `com.unity.modules.audio`; `packages-lock.json` regenerated, resolving it `source: "builtin"` | Tier-1 `audio.*`, which is **scored**. Before this the arm could not compile the API the prompt names: measured on the pristine tree, `AudioSource`/`AudioClip` give four `error CS1069 … forwarded to assembly 'UnityEngine.AudioModule'` and `just check` exits 1. `idiomatic`, which reads code: a submission triggering `AudioSource.PlayOneShot` rather than explaining in prose why it shipped none |
+| **unity** | `com.unity.modules.particlesystem`, plus `Assets/View/Fx.cs` exposing Shuriken as one call, with `GameView` owning an idle `Fx` | `idiomatic`: godot and unity are the only two arms with a native particle system, and a submission that hand-rolls a quad-spawner instead is exactly what that aspect is for. `fun_frames`: a burst is a legible event marker, correlating **−0.120** with distinct colours (#78), which is what makes the frames channel usable where `ux` is not. `capture.cpu_seconds` |
+| **ts** | **Nothing in the code, the pins or the recipes.** One `AGENTS.md` section carrying the measurement below | `idiomatic` only — and that is why nothing was built. See the decline register |
+
+### The falsifier, written first
+
+**Unity.** Re-run any game on the Unity arm under the new starter. If submissions still ship no
+audio, the manifest line was not what was stopping them — an agent that *could* have added it
+itself all along, at the cost of asking permission it was told to ask for. Likewise `Fx`: if no
+Unity submission touches it on a task with an obvious event to mark, the file is dead weight.
+
+**The uncomfortable half, stated because it is the more likely outcome for `Fx`.** Godot's
+equivalent has never been through a trial either, so a null result would be about **two** files
+and would say the particle asymmetry the survey calls the widest effort gap does not reach a
+submission at all. That is a finding about the survey's effort tiers, not about the templates.
+
+### Measured costs, on the grading machine, 2026-08-23
+
+| | before | after |
+|---|---|---|
+| unity warm `just verify` | ~12 s, 26 sim + 6 render assertions | **15.8 s**, 26 sim + **9** render assertions |
+| unity `just check` (the fast inner loop) | ~6 s | **6.1-6.7 s** |
+| unity `packages-lock.json` | 7 entries | 9, both new ones `builtin` — resolved from the installed editor, network irrelevant |
+| ts anything | — | unchanged; no code, no pin, no recipe touched |
+
+### The three new render tests, and the mutant that pins them
+
+`ABurstIsDrawn`, `ABurstAges`, `RenderingIsReproducibleWithABurstOnScreen`, mirroring godot's
+three. Commenting out the single `view.Fx.ShowBursts(bursts)` line in `RenderHarness` turns the
+first two red — *"a burst added 0.0000% ink to a frame that already had 0.4660%"*, *"differ in
+only 0.0000% of pixels"* — and leaves the other seven green. The golden frame is **unchanged**:
+an idle `Fx` builds no GameObject, no material and no emitter until asked.
+
+`ABurstAges` is the **variant**, not the mutant (`AGENTS.md` rule 15): an emitter frozen so hard
+it never advances would pass the reproducibility test perfectly, so two ages must produce two
+pictures or `age` is decorative.
+
+### Surveyed as available and DELIBERATELY NOT ADOPTED
+
+| capability | arm(s) | why not |
+|---|---|---|
+| **`InstancedMesh` / `BatchedMesh`** | ts | **Measured, and it is not the win the task-26 note said (#110).** 640x400, SwiftShader, ms/frame incl. readback: at 300 objects 4.73 instanced vs 5.06 for N meshes; at 2 000, 28.47 vs 30.19; at 10 000, 140.68 vs 149.16. **5-6% at every size.** The 144× that made it a candidate was instancing measured against *`Points`*, not against the baseline a submission writes |
+| **`Points`** | ts | A real **10.3×** at 300 objects (0.49 vs 5.06 ms) — and **not adopted as scaffolding, because it is already E1 and five lines.** `capture.cpu_seconds` covers all of `just film`, measured at **3.91 s of CPU** on the pristine starter, so twelve frames × 4.6 ms = 55 ms is unresolvable. The only field left is `idiomatic`, and a wrapper adds surface without adding reach. Documented instead, with the table and the one trap that costs a turn: under an orthographic camera `PointsMaterial.size` is device pixels and `sizeAttenuation` is **ignored**, because three 0.185's point shader guards attenuation with `if ( isPerspective )` |
+| **A particle system for ts** | ts | Unchanged from task 26 and now load-bearing in the other direction: unity has one and ts does not, so the 2/2 split in `starter_parity`'s register is the measurement. Writing an emitter into the ts template would delete it |
+| **`com.unity.modules.physics` / `.physics2d`** | unity | Unchanged from task 26. Two of four prompts forbid a physics engine and `Sim.asmdef`'s `noEngineReferences` makes one structurally unreachable from where game rules must live |
+| **`com.unity.modules.animation`** | unity | E3ₗ and one manifest line, and **declined for the same reason `Sim` cannot see it**: `Animator` state is engine-owned, frame-driven and outside `StateHash`, so a submission driving gameplay from it fails determinism rather than gaining a capability. `SkinnedMeshRenderer` is already in `CoreModule` for the bones-as-Transforms path |
+| **`com.unity.postprocessing` (BiRP PPv2)** | unity | #59, exactly as bloom was declined in task 26 — and it is worse here: U2 in the survey's open list asks whether PPv2 even renders through `camera.Render()` into a RenderTexture in batchmode, and nobody has measured it. Adopting an effect that may be invisible to the capture path, in service of a palette-coupled field, is two errors |
+| **Unity GPU instancing** | unity | E2 and measured `supportsInstancing = true`, but `Assets/View/Flat.shader` would need `#pragma multi_compile_instancing` and §8 of the survey applies unchanged: peak geometry is ~300 unit cubes. The ts measurement above is the direct evidence — one batched draw against N is 5-6% on a software rasteriser, and Unity's capture path runs on real Metal, where it is smaller still |
+
+### What was checked and found sound rather than changed
+
+- **Does the audio module open a device on the capture path?** No, and the reason is not the
+  one anybody would have guessed — the batchmode editor already ran an FMOD CoreAudio output
+  with **no audio module and `-disable-audio` set**. Three arms, pristine as the control:
+  **#109**. No new guard was needed; the flag's rationale was repaired instead.
+- **`StarterLaunchGuard`'s live branch.** Written by reflection in anticipation of exactly this
+  change, and never once executed. It now logs *"SILENT LAUNCH ACTIVE — AudioListener.volume=0,
+  pause=True"*, against a control launch that logs *"silent launch NOT requested"*.
+- **#106 on the two arms it could not reach.** Independently re-measured here: unity's
+  `tools/fmt.mjs --check` and ts's `prettier --check .` are both clean on the pristine tree,
+  and `just verify` leaves both trees untouched. Task 51 had already established this with a
+  stronger control in `starter_gate_control.py`; this is corroboration, not a new result.

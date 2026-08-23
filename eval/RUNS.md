@@ -1036,7 +1036,15 @@ the file is refused rather than silently measuring the unrepaired gate. The othe
 printed as **NOT PINNED IN THE THIRD DIRECTION**, reported and not failed: their `check` is a
 compiler over a dependency graph and the plant sits in a root everything imports, so there is no
 per-file scope for a bad repair to narrow at that address.
-## THE RUST AND GODOT STARTERS CHANGED ON 2026-08-23 — an ELEVENTH comparability break
+## THE RUST AND GODOT STARTERS CHANGED ON 2026-08-23 — a TWELFTH comparability break
+
+**Renumbered 2026-08-23 (task 52). This section and the one above it were BOTH written as "an
+eleventh comparability break" on the same day, by two sessions that could not see each other.**
+Anything citing "RUNS.md's eleventh comparability break" — `tasks/26-*.md`, `tasks/47-*.md`,
+FINDINGS #106 — means one of the two, and the way to tell them apart is by what changed: the
+eleventh is the repair-rule section added to all four guides (task 47), the twelfth is this one,
+the rust and godot capability change (task 26). Nothing about either run is altered; only the
+ordinal is.
 
 Task 26, the first instalment of `DECISIONS.md`'s "each template at its stack's best, not at a
 common floor". **Two arms of four changed. `starters/ts/` and `starters/unity/` are untouched
@@ -1090,6 +1098,74 @@ byte-identical and unity's known 1-ULP divergence, shared launch file identical 
 `da9914ce2e54beaa`); `tools/starter_gate_control.py` green on pristine and red on the planted
 error for every arm. The capability register in `starter_parity` now reports four capabilities
 instead of one and states in its own output that divergence is the design, not drift.
+
+
+## THE UNITY STARTER CHANGED ON 2026-08-23 — a THIRTEENTH comparability break
+
+Task 52, the second and final instalment of the same decision. **One arm of four changed.**
+`starters/rust/` and `starters/godot/` are untouched; `starters/ts/` gained documentation only —
+one AGENTS.md section, no code, no pin, no recipe.
+
+**No Unity trial after this date is comparable with one before it on what the submission was able
+to contain, and its `just verify` now runs nine render assertions instead of six.**
+
+| property | before | after |
+|---|---|---|
+| audio | **`AudioSource` and `AudioClip` did not compile.** Measured on the pristine tree: `error CS1069 … forwarded to assembly 'UnityEngine.AudioModule'`, four of them, `just check` exit 1. `AUDIO_NOTE["unity"]` in the prompt says *"Audio is `AudioSource`/`AudioClip`"* and audio is a **scored** criterion | `com.unity.modules.audio`, resolved `source: "builtin"` from the installed editor with the network irrelevant. `just check` exit 0 on the same probe file |
+| particles | **`ParticleSystem` did not compile** (`CS1069`, `UnityEngine.ParticleSystemModule`) | `com.unity.modules.particlesystem`, also `builtin`; `Assets/View/Fx.cs` exposes it as one call and `GameView` owns an idle `Fx` |
+| `just verify`, warm | ~12 s, 26 sim + 6 render assertions | **15.8 s**, 26 sim + **9** render assertions |
+| the pin change itself | the prompt told the agent to ship sound; `AGENTS.md` marks a `Packages/manifest.json` edit ⚠️ *ask first*, so the arm was told to ask permission for the thing it had been told to do | already made |
+| audio device on the capture path | *see below — unchanged, and not for the reason anyone assumed* | unchanged |
+| audio device on the LAUNCH path | `StarterLaunchGuard`'s reflection found no `AudioListener` and logged *"this project has no audio module — nothing can play"* | the guard's **live** branch runs for the first time: *"SILENT LAUNCH ACTIVE — AudioListener.volume=0, pause=True"*, and the unguarded control logs *"silent launch NOT requested"* |
+
+**The golden frame is unchanged.** An idle `Fx` builds no GameObject, no material and no emitter
+until something asks for a burst, so the edit is rendering-neutral on the pristine tree — the
+same property the Godot `Fx` has, and `MatchesGoldenFrame` is green without a re-bless.
+
+**The three new render tests are pinned by a mutant.** Commenting out the single
+`view.Fx.ShowBursts(bursts)` line in `RenderHarness` turns `ABurstIsDrawn` and `ABurstAges` red
+with the numbers in their messages (`0.0000% added ink`; `0.0000% of pixels differ`) and leaves
+the other seven green, which is what a criterion that measures its own mechanism looks like.
+
+### The audio-device hazard that was checked, and what the check found
+
+Bevy's audio capability opened a device on the capture path silently, so the same question was
+asked of Unity, with the pristine manifest as the control. `sample` on a live batchmode editor,
+counting `FMOD::OutputCoreAudio` frames on a CoreAudio IO thread:
+
+| arm | frames |
+|---|---|
+| pristine manifest (no audio module), `-disable-audio` | **2** |
+| audio module, `-disable-audio` | **1** |
+| audio module, no `-disable-audio` | **1** |
+
+**Unity's batchmode editor runs an FMOD CoreAudio output regardless of the manifest and
+regardless of `-disable-audio`** — it did so on every matrix already graded, and the module adds
+nothing. So there is no new hazard on the capture path and no new guard is needed. What is *not*
+established is that `-disable-audio` achieves what `tools/unity-tests.sh` says it does (*"an
+editor that opens an audio device also contends for one"*); it plainly does not close this one.
+The flag is kept — it is harmless and the rationale is repaired rather than the code — and the
+launch path, which is where a human would hear something, is guarded and measured above.
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** Nothing here changes how anything is graded and no
+  stored submission is re-read.
+- **Invalidated going forward:** a Unity submission after this date can ship sound without a
+  manifest edit it was told to ask permission for. Every Unity submission before it faced a
+  scored criterion whose named API was a compile error. That cost is unmeasured, in the same way
+  #98's and the TS capture page's are — and it is now the *only* difference of that shape left in
+  the matrix, because the audio row of `starter_parity`'s capability register no longer varies.
+- **The ts arm is NOT a regime boundary.** No file under `starters/ts/` other than `AGENTS.md`
+  changed, `just verify` runs the same 67 tests, and the golden frame is untouched. It is
+  recorded here only so that "ts changed on 2026-08-23" cannot later be inferred from silence.
+
+Gates re-run after the change: `judge/verify_blind.py` on an out-of-repo copy of all four
+starters (**BLIND**, 81 criterion ids, exit 0); `judge/starter_parity.py` with tests
+(**"No drift detected on any measured axis"**, 4 of 4 stacks really ran their suites at
+22/22 rust, 67/67 ts, 35/35 unity, 26/26 godot, hash chain 401 ticks, guides 2032-2249 words);
+`tools/starter_gate_control.py` over all four, **29 measurements, 0 FAILED, 0 NOT CHECKED**,
+including the verify-idempotence direction on the modified unity and ts trees.
 
 
 ## Rules

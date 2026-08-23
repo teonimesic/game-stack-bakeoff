@@ -9,6 +9,7 @@
 // graphics device, so render tests must run WITHOUT `-nographics`; `just
 // test-render` does exactly that.
 
+using System.Collections.Generic;
 using System.IO;
 using Starter.Sim;
 using UnityEngine;
@@ -304,11 +305,22 @@ namespace Starter.View
         /// The simulation is advanced with the same fixed-step discipline the
         /// pure `Sim` tests use, so the rendered frame corresponds to an exactly
         /// known tick — there is no "roughly one second in" ambiguity.
-        public static Frame CaptureFrame(ulong seed, int ticks, Intents[] inputs) =>
-            CaptureFrameSized(seed, ticks, inputs, ViewConfig.VIEW_WIDTH, ViewConfig.VIEW_HEIGHT);
+        ///
+        /// `bursts` is the `Fx` layer's whole input, and it is a parameter here
+        /// rather than something the view accumulates for the reason
+        /// `Assets/View/Fx.cs` sets out at length: this capture steps the
+        /// simulation with no view attached and syncs once, so a burst reaches
+        /// a frame only if it can be reconstructed from the tick being
+        /// captured.
+        public static Frame CaptureFrame(
+            ulong seed, int ticks, Intents[] inputs,
+            IReadOnlyList<Fx.Burst> bursts = null) =>
+            CaptureFrameSized(seed, ticks, inputs,
+                ViewConfig.VIEW_WIDTH, ViewConfig.VIEW_HEIGHT, bursts);
 
         public static Frame CaptureFrameSized(
-            ulong seed, int ticks, Intents[] inputs, int width, int height)
+            ulong seed, int ticks, Intents[] inputs, int width, int height,
+            IReadOnlyList<Fx.Burst> bursts = null)
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
             {
@@ -331,6 +343,7 @@ namespace Starter.View
 
             var view = new GameView();
             view.Sync(state);
+            view.Fx.ShowBursts(bursts);
             var camera = GameView.CreateArenaCamera();
 
             var descriptor = new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 24)
