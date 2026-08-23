@@ -689,7 +689,17 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         s["submission"] = mapping["mapping"].get(s["label"], "?")
         s["stack"] = s["submission"].split("__")[1] if "__" in s["submission"] else "?"
     payload.update({
+        # RECORD WHICH RUN THE PACK CAME FROM. Its absence cost a round of confusion on
+        # 2026-08-22: `g2_tetris3d` has four stored fields in different states of repair,
+        # and a round that names only the GAME cannot say which it judged. #68 was briefly
+        # reported as compromised because the wrong field was inspected; it had in fact
+        # read `wg-audio48`, re-driven for exactly that reason the day before.
+        #
+        # This is #70 one level up - an id is not a key - with the id being a GAME and the
+        # namespace being the run. `build_pack` already writes `run` into the mapping
+        # record; `run_field` simply never carried it into the stored round.
         "usable": True, "aspect": aspect_id, "game": mapping["game"],
+        "run": mapping.get("run"),
         "order_seed": mapping["order_seed"], "model": model,
         "cost_usd": data.get("total_cost_usd"),
         "mapping": mapping["mapping"],

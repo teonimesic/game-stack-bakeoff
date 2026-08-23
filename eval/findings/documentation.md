@@ -288,3 +288,40 @@ component that looked responsible.
 This is the same shape as #62 — a field nothing read — but worse in one respect: there, the data
 was present and ignored. Here the data was **destroyed**, and the destruction left a success
 message behind.
+
+### A game is not a field either: the same defect one level up again
+
+2026-08-22. `fun`'s rounds were reported as having read pre-repair telemetry, and tier 3's only
+positive result (#68) was briefly marked compromised. **It was not.** The wrong field was
+inspected.
+
+`g2_tetris3d` is not a field. It is a **game with four stored fields in different states of
+repair**:
+
+| run | representative telemetry |
+|---|---|
+| `wg-matrix-2026-08-13` | **0 of 8** |
+| `wg-audio-2026-08-14` | 0 of 3 |
+| `wg-audio48-2026-08-14` | **8 of 8** — re-driven 2026-08-17, deliberately, before the judge round |
+
+The rounds read `wg-audio48`. Established by **fingerprint**, because the stored round does not
+record which run it judged: all **7 of 7** `quiet_fraction_of_run` values and **4 of 4**
+`events_per_second` values quoted in #68's evidence appear in `wg-audio48`'s stored telemetry, and
+**none** appears in `wg-matrix`'s.
+
+> **A trial id is not unique across runs; a GAME is not unique across runs either.** Same rule,
+> third namespace. And the failure mode is the one this session keeps producing in new costumes:
+> **a claim true of one population, quoted about another.** It appeared as code-vs-evidence in
+> `DECISIONS.md` — "the confound is gone by construction" described the code and was read as
+> describing the field — and immediately again as evidence-vs-evidence across two runs of the
+> same game.
+
+**Fixed at the source rather than by being more careful.** `run_field` recorded the game and not
+the run, so no stored round could answer "which field was this?". `build_pack` had the run in its
+mapping record all along; `field.py` now carries `mapping["run"]` into every stored round. The
+fingerprint match was only possible because the evidence quoted numeric telemetry — a round whose
+aspect cites no numbers would have been unresolvable.
+
+**What made this recoverable was insisting the answer come from the round files rather than from
+either party's reasoning.** Both readings were coherent, both were argued from real evidence, and
+one was wrong. The values decided it in a single query.
