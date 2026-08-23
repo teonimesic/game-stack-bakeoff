@@ -3286,6 +3286,9 @@ fired on correct input and were disabled for it.
 rust guide mentions that a Stop hook re-runs the gate when you try to finish, while the hook is
 live in all four. A heading heuristic is structurally blind to it.
 
+> **"live in all four" was overturned by #130** — it was inferred from the file being present and
+> wired. The asymmetry above is unaffected; only the word "live" is.
+
 ## 127. The producer built to stop a count going stale globbed one level deep, and the cross-check that certified it had been produced by the same glob
 
 `census.py` exists because `README.md`'s opening counts had no producer and outlived their scope
@@ -3496,6 +3499,25 @@ so that control had been passing for the wrong reason. It was repaired rather th
 is the distinction that matters: a control that cannot fail is not evidence, and the fix is to
 make it able to, not to accept its green.
 
+**The half that outlives this hook.** A silent success path does not merely leave the question
+open now — it forecloses it *retrospectively*, because the evidence that would answer it was never
+written. Every trial in the archive is permanently unable to say whether its gate ran, and no
+re-reading changes that; the only repair is an audit trail added before the next run, which is
+`tasks/84`. That is `AGENTS.md`'s *record the inputs a component actually consumed, not merely the
+output it produced*, arriving one archive too late — the same shape as the judge rounds with no
+file-open log, which are unassessable for the same reason.
+
+> **REPAIRED 2026-08-23, and the repair names the third state.** `eval/starters/*/.claude/hooks/verify-gate.sh`
+> now appends `invoked` plus one of `pass` / `block` / `skip <guard>` / `no_project_dir` to a log
+> addressed **outside** the graded tree, and `wholegame.hook_log_path` refuses to launch a trial
+> whose log address is inside it.
+>
+> `skip` is the value this finding could not name. Every hook short-circuits on a warm guard, and
+> **a short-circuit left the same silence as a pass** — so the null measured above was over a
+> population that mixed three outcomes into one absence.
+>
+> No real trial has yet run under the trail. `stop_hook.log == "absent"` on any trial of the next
+> matrix is a defect to chase, not a green gate.
 ## 132. A field name that collided with an unrelated one let a false claim about it survive every grep
 
 `aspects.py` carried a comment saying `FUN_FRAMES` *"is `diagnostic_only` so no aggregate can
