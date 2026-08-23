@@ -1137,9 +1137,11 @@ built-in), so the audio-capability asymmetry cannot carry a cost difference eith
 component most likely to differ by stack does not.
 
 **The caveat stays attached to the widest cell.** Rust's `just run` is **gated** in this
-regime, so whether 2.15x is a property of rust or of our gate is open (#17) and the number must
-not be quoted without it. It is also still **n=2 per cell**: what is established is that the
-floor is far wider than the Aug-17 estimate, not that the stacks are equal.
+regime — refused under the harness since the seventh comparability break (2026-08-17,
+`STARTER_NO_RAISE=1`), above — so whether 2.15x is a property of rust or of our gate is open,
+and the number must not be quoted without it. It is also still **n=2 per cell**: what is
+established is that the floor is far wider than the Aug-17 estimate, not that the stacks are
+equal.
 
 > ⚠️ **A number reported to the operator here was wrong and is corrected.** The rust agents were
 > said to have "hit the refusal 5 and 3 times". They hit it **zero** times: `just run` was
@@ -1150,9 +1152,9 @@ floor is far wider than the Aug-17 estimate, not that the stacks are equal.
 > mentions of a mechanism instead of firings of it will report the documentation as evidence*
 > — #31's shape, in a measurement of a guard rather than in the guard.
 
-**What #17 measures, corrected.** The gate cost rust no refusal turns at all: both agents read
-the justfile at record 17 of 1124 and 640, saw `run` was gated, and never attempted it. What
-separates rust is not refusals but **how little feedback tooling it ran**:
+**What the gate measures, corrected (FINDINGS #64).** The gate cost rust no refusal turns at
+all: both agents read the justfile at record 17 of 1124 and 640, saw `run` was gated, and never
+attempted it. What separates rust is not refusals but **how little feedback tooling it ran**:
 
 | `just` recipe | rust | ts | unity | godot |
 |---|---|---|---|---|
