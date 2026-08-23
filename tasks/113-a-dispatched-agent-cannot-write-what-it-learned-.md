@@ -1,7 +1,7 @@
 ---
 id: 113
 title: a dispatched agent cannot write what it learned back into a ticket BODY
-status: open
+status: in_flight
 priority: 3
 refs: ''
 done_when: tasks.py grows a subcommand that appends a section to a ticket body and writes it to the queue in the MAIN checkout, exercised from a real agent worktree in eval/tools/tasks_control.py direction 2 alongside add, with the round-trip row proving the rest of the file is byte-identical afterwards; or, if a body append is judged wrong, the work skill and AGENTS.md are corrected to name where a dispatched agent's learnings actually go and the two tickets that used established_by are cited as the precedent

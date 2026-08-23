@@ -1,7 +1,7 @@
 ---
 id: 109
 title: Change the work and dispatch skills so agents open PRs and address a CodeRabbit review before handing back
-status: open
+status: in_flight
 priority: 2
 refs: BLOCKED BY tasks/108 - do not start until a real PR here has received a CodeRabbit review. .claude/skills/work/SKILL.md, .claude/skills/dispatch/SKILL.md, AGENTS.md
 done_when: work/SKILL.md and dispatch/SKILL.md describe the PR flow end to end including how an agent waits for a review, how it decides which recommendations to act on, and what it does when the review never arrives; the flow has been run end to end on at least one real task and the resulting PR is cited; and the failure modes are stated with what an agent does in each rather than left to be re-derived
