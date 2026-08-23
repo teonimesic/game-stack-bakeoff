@@ -950,3 +950,70 @@ regime ordinals, pack labels (#70) — and **every one of them has collided.** E
 mechanism: a shared queue, a duplicate check, an ordinal check, a ban on joining rounds by label.
 Every one of those catches the collision. **This is the only one that asks what the collision
 broke.**
+
+---
+
+## 119. Retiring a suite would have deleted the only copy of what its trials were asked to do
+
+**The four `template*/` trees were retired on 2026-08-23** (task 56, `DECISIONS.md`). The ticket's
+`done_when` said to remove the trees, `eval/run-bakeoff.sh` **and `eval/suites/bakeoff-*.toml`.**
+The last of those three would have been a mistake, and the reason is not visible from any file
+listing.
+
+**What a stored spec-change trial records about its own task is the string `t1_rally`.** Not the
+prompt, not the requirement, not a hash of either. Read from
+`runs/bakeoff-ts-2026-08-11T15-33-41/trials/t1_rally__typescript_three__t0.json`, the keys are
+`trial_id, task, arm, trial, started_at, session_id, wall_s, agent, diff_stat, changed_files,
+tampering, touched_protected, self_verify, reverted, holdout, passed, score, finished_at`. The
+prompt is in none of them, and `agent` holds cost, tokens, turns and `final_text` — the answer,
+never the question.
+
+Scanned for the first line of the rally prompt across everything under `eval/runs/`:
+
+| corpus | files containing the task text |
+|---|---|
+| `eval/runs/**` — 12 run directories, **71 trials**, including the work trees and `bakeoff.log` | **0** |
+| `eval/suites/` | 6 — four `bakeoff-*.toml`, `core.toml`, `prompts.py` |
+| everywhere else in the repository | 0 |
+
+**The extraction was proved on a case whose answer was known before it ran** (rule 12): the same
+scanner was pointed at `eval/suites/`, where the string was read by eye minutes earlier, and
+returned the six files. A census that returns zero is worth nothing until the scanner has been
+shown able to return non-zero.
+
+So the answer key and the question both lived outside the evidence, in files the retirement was
+about to delete. `eval/holdout*/` is the same shape — it is what `score: 1.00` meant — and
+`eval/variants/AGENTS.no-api-notes.md` is the *treatment* of an 18-trial ablation arm. All were
+kept; only the trees and the launcher went.
+
+### Why this was reachable at all, and where it is already fixed
+
+`wholegame.py`, the harness that replaced this one, writes `prompt.txt` into every trial's
+artifacts and snapshots a run-level `prompts/` directory with an index that `prompt_guard.py`
+diffs. **That capture exists because of #41, where a rendered prompt disagreed with the stored
+one.** It was added for provenance — *did this run send what we think it sent* — and the property
+it happens to give is the one that matters here: a whole-game run directory is legible on its own.
+The older one is not, and no gate would have said so.
+
+> **Evidence you can still read is not the same as evidence you can still interpret.** A record
+> that stores an identifier instead of the thing it identifies is complete, well-formed, parseable
+> and worthless the moment its lookup table is deleted — and nothing about the record announces
+> that it has a lookup table.
+
+The generalisation, which is the reason this is filed rather than fixed and forgotten: **before
+deleting anything, ask what the surviving artifacts DEREFERENCE into it.** A dependency scan finds
+imports and file reads. It does not find a foreign key in a JSON field, and the thing being deleted
+looks unreferenced precisely because the reference is data, not code.
+
+Two deletions on this same day were the same class — #104, where the only record of a starter was a
+commit no archive contained, and task 07's closure removing the sole reproduction of #66's defect.
+**All three were judged safe by looking at what pointed at the target. In every case what pointed
+at it was a string inside something else that was being kept.**
+
+### What made this deletion different, and it should be said plainly
+
+The four trees are in git across **139 commits** and pushed: `git log -- template-ts` resolves, and
+both commits that ever touched them (`a3d0fd1`, `ee8625f`) are on `origin/main`, verified with
+`git branch -r --contains` rather than assumed. #104's work tree was never committed and had no
+such property. **A deletion whose recovery has been verified and a deletion whose recovery is
+assumed look identical until someone needs the file.**

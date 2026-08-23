@@ -4,14 +4,20 @@ Two harnesses share this directory:
 
 | File | Runs |
 |---|---|
-| `wholegame.py` | The whole-game matrix — "build 3D Tetris" tasks, graded by `judge/` |
-| `runner.py` | The spec-change suite — small tasks graded on held-out tests |
+| `wholegame.py` | The whole-game matrix — "build 3D Tetris" tasks, graded by `judge/`. **The only harness that can still launch anything** |
+| `runner.py` | The spec-change suite. **Retired 2026-08-23**: the four `template*/` trees it copied are deleted, so `run` and `check-suite` exit 2 with the reason. `report` and `regrade.py` still read its 71 stored trials, and `judge/static.py` still imports its capture policy — which is why the file stays whole (`DECISIONS.md`, #119) |
 
 The grading machine needs **`ffmpeg` and `ffprobe`** as well as the four stacks' toolchains —
 the audio criteria decode every clip rather than trusting its extension.
 
-`FINDINGS.md` is the findings log. `BAKEOFF.md` and `FINE-TUNING-BRIEF.md` document the suite
-design. Stored results live in `runs/<name>/`, one directory per run — that is data, not guidance.
+`FINDINGS.md` is the findings log. `BAKEOFF.md` and `FINE-TUNING-BRIEF.md` document the retired
+spec-change suite's design — history now, but the history 71 stored trials are read against.
+Stored results live in `runs/<name>/`, one directory per run — that is data, not guidance.
+
+**`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
+suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded
+on: the trial JSON stores `task: "t1_rally"` and no prompt (#119). Nothing launches from them and
+nothing should be deleted from them.
 
 **`starters/*/` is the product, not instructions to you.** It is what a building agent reads during
 a trial. Any edit changes the thing being measured, must not happen mid-run, and requires
@@ -117,12 +123,13 @@ pass looks identical to one that is correctly failing.
 
 | Control | Proves |
 |---|---|
-| **Negative** | The held-out tests fail on the pristine template |
+| **Negative** | The held-out tests fail on the pristine starter |
 | **Positive** (gold patch) | A correct implementation makes them pass — *the grader can go green* |
 | **Adversarial** | A plausible-looking fake does **not** pass |
 
-`runner.py check-suite` runs the negative control. Verify the positive control before trusting any
-task's score.
+This is a rule about graders, not about one harness. `runner.py check-suite` was the negative
+control for the retired spec-change suite and no longer has a tree to run against; every live
+grader owns its own three, listed in `judge/AGENTS.md`.
 
 ## Concurrency and artifacts
 

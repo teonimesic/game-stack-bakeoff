@@ -627,6 +627,52 @@ contributed 14 of the 30 `BLE001` and 3 of the 11 `B905`, every one of them an i
 needs.
 
 ---
+## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]
+
+**The four original trees — `template/`, `template-ts/`, `template-unity/`, `template-godot/` —
+are deleted, and with them `eval/run-bakeoff.sh` and `eval/archive-and-rerun.sh`, the only two
+things that could launch a spec-change trial.**
+
+**Why, and it is not tidiness.** They were a *fork*, not a copy: a finished Pong per stack,
+diverged from `eval/starters/*` in every source file. A copy can be gated on equality; a fork
+cannot, so nothing compared them and nothing could. Measured: **0 of the 105 commits since the
+repo import touched any `template*/` directory, against 6 that touched `eval/starters/`** (#112).
+The consequence was not hypothetical — a capture-page defect repaired in `eval/starters/ts` on
+2026-08-22 was still live in `template-ts` a day later, and was found by hand, not by a gate
+(#112, task 48). **A second tree with a dormant consumer has nothing pulling it back into line,
+and the cost of keeping it is paid every time the live tree is repaired.**
+
+The suite they fed was already answered: it **failed to separate four stacks that all scored
+6/6**, it has not run since 2026-08-12, and the programme decision that tasks are whole-game
+builds rather than spec changes was taken before that. Keeping a fork alive for an experiment
+that returned a null and is not being repeated is paying maintenance for nothing.
+
+**What was deliberately KEPT, and why each.** Retiring a suite is not the same as deleting its
+evidence, and the two look identical from a file listing:
+
+| Kept | Because |
+|---|---|
+| `eval/runs/bakeoff-*`, `core-*`, `archive-run1-*` | 71 trials in 12 run directories. The results |
+| `eval/suites/*.toml`, `eval/suites/prompts.py` | **The sole copy of what those 71 trials were asked to do.** A trial record stores `task: "t1_rally"` and no prompt text; 0 files under `eval/runs/` contain it (#119) |
+| `eval/holdout*/`, `eval/variants/` | The answer key and the ablation arm — what "score 1.00" and "arm no_api_notes" meant |
+| `eval/runner.py`, whole | `judge/static.py` imports its capture policy by path. Two truncation policies in one repository is #100, which came back as #114. It is also the definition of the measurement the 71 stored verdicts report, and `report` / `regrade.py` still read them. `run` and `check-suite` now exit 2 naming the retirement instead of raising three frames down |
+| `eval/BAKEOFF.md`, `eval/FINE-TUNING-BRIEF.md` | The suite's design, which is the context those results are read in |
+
+**`eval/starters/*/` are untouched and are not substitutes.** They are the whole-game product and
+the subject of the comparison; they carry no finished game for a spec change to modify.
+
+**Deletion here is recoverable and that is load-bearing.** The trees are in git across 139 commits
+and pushed to `origin/main` — `git log -- template-ts` resolves, and `a3d0fd1` and `ee8625f` are
+both on the remote. This is the property #104 did not have, where the only record of a starter was
+a commit no archive contained. **A deletion whose recovery you have verified is a different act
+from one whose recovery you assume.**
+
+**Known cost, stated rather than discovered later:** `template-ts` received the capture-page
+repair on 2026-08-23 (#112, task 48, commit `ee8625f`) — about 500 lines of porting, six hours
+before this. That work is discarded. It was correct to do and correct to discard: it closed the
+instance, and this closes the shape.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -648,6 +694,7 @@ settled question is noise that makes the live ones harder to find.
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
+| The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the

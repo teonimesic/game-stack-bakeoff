@@ -40,7 +40,7 @@ What it can tell you, and how to read each one:
 | `hotspot` | **churn × complexity.** Complicated code people keep having to touch — the difficulty is being paid for repeatedly. Neither number alone says this: complexity alone flags code that is hard but settled, churn alone flags code that is simply under active development. High churn on something being actively built is expected. |
 | `complexity` | cyclomatic complexity above 20 per function. A prompt to look. A 30-branch dispatch table scores badly and reads fine. |
 | `longfn` | functions over 90 lines. Same caveat. |
-| `lint` | `ruff`, pinned to **correctness** rules, not style — blind excepts, `subprocess.run` without `check=`, swallowed exceptions. Deliberately not run over `template*/`, `eval/starters/*/` or `eval/judge/fixtures/`, which are the product or stand-ins for it. **Totals only; `python3 eval/tools/lint.py` gives the file and line of every site.** |
+| `lint` | `ruff`, pinned to **correctness** rules, not style — blind excepts, `subprocess.run` without `check=`, swallowed exceptions. Deliberately not run over `eval/starters/*/` or `eval/judge/fixtures/`, which are the product or stand-ins for it. **Totals only; `python3 eval/tools/lint.py` gives the file and line of every site.** |
 | `dup` | the same paragraph in more than one file, grouped per file-pair. Two copies drift and the reader who finds the stale one cannot tell. |
 | `fat` / `history` / `dead` / `todo` | long sections, prose describing a former state, uncalled functions, markers. |
 

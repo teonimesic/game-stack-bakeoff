@@ -1,5 +1,16 @@
 # Fine-tuning brief: make each stack's template as good as that stack can be
 
+> ### The TREES this briefed are deleted (2026-08-23); the PRINCIPLE is live and moved
+>
+> "template" here means the four `template*/` Pong trees, retired with the spec-change suite
+> (`DECISIONS.md`, #119). The principle they were fine-tuned under — **hold the tasks constant,
+> tune each stack to its own best rather than to a common floor** — survived them and now governs
+> `eval/starters/*/`. It is stated as a decision in `DECISIONS.md`, *"The templates are measured at
+> each stack's best, not at a common floor"*, which is where to read it as current policy.
+>
+> Kept because it is the reasoning behind that decision, and because the 71 stored spec-change
+> trials were run against trees built to this brief.
+
 ## The methodological point
 
 The first round of templates were **faithful parity ports** of the Rust/Bevy one. That was the

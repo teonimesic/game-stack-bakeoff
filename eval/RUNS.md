@@ -1208,6 +1208,22 @@ the document-root containment reddens the escape test. `judge/starter_parity.py`
 applicable — it reads `eval/starters/` and compares stacks, never a stack against its own second
 tree, which is the gap FINDINGS #112 is about.
 
+### Superseded the same day: the tree this bounds no longer exists — 2026-08-23
+
+`template*/` was deleted (`DECISIONS.md`, task 56, #119). **This is NOT a fifteenth comparability
+boundary, and the reason is worth stating rather than leaving to inference: a boundary bounds
+future comparisons, and there is no future spec-change run to bound.** The ordinal above stands as
+written — it is the record of a change that really happened to a tree that really existed — and
+its last paragraph is now unconditional: *a future spec-change run on `template-ts` is not
+comparable with those four* becomes *there will be no future spec-change run without first
+restoring the tree from git, at which point the restorer inherits this boundary and every starter
+repair made after 2026-08-23 that never reached the fork.*
+
+**Nothing in this ledger changes.** The 71 spec-change trials in 12 run directories and their
+$91.73 were already outside it (opening note), they are still on disk, and what they were asked to
+do is still in `eval/suites/` — which is why those files were kept when the trees went (#119).
+Every whole-game figure in this file is `eval/starters/*`, untouched.
+
 
 ## Rules
 
