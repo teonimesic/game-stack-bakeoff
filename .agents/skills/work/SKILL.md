@@ -108,6 +108,15 @@ In the same session as the work:
 **Commit on `task-<id>-<slug>`.** Use `git commit -F` with a file: backticks in `-m` are executed
 by the shell and silently strip text (#80).
 
+> **Name that file for the ticket, and read back what the commit got.** The scratchpad outlives
+> nothing but is not empty: on 2026-08-23 a `git commit -F .../commitmsg2.txt` on this branch
+> picked up a **previous session's** file and shipped a commit titled *"Task 117, review round
+> 1"* onto task 120's work, at exit 0 (`tasks/120`). That is rule 12 against the author — a
+> correct method aimed at an address nobody verified — and `-F` is the one place it is silent,
+> because a message file that exists is indistinguishable from the one you meant. `git log
+> --oneline -1` after every commit costs nothing; `--amend -F` is the repair while it is
+> unpushed.
+
 **Never merge.** Nothing below changes that — a review is a second opinion on the code, and the
 orchestrator's verification against the artifacts is the measurement.
 
