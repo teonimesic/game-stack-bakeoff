@@ -2052,3 +2052,84 @@ history is what makes a captured frame a pure function of `(seed, ticks, inputs)
 still cannot complete *inside* a capture — it must resolve in `__capturePreload` first. Recorded
 in the TS starter's `AGENTS.md` with the reason, because it is now a documented capability with a
 documented shape rather than a silent failure.
+
+---
+
+## 103. #100 was repaired in the file it named, and the same merged buffer is still in the runner that stores the agent's own gate
+
+The tier-1 capture is fixed. `judge/static.Cmd.to_dict` no longer truncates a concatenation: it
+stores **`stdout` and `stderr` as separate fields**, each sampled on its own budget — first 1000
+characters, last 3000, the middle replaced by a marker naming the characters and lines dropped —
+with `stdout_chars` / `stderr_chars` recording the full length of each, and a `note` field for the
+harness's own words (a timeout, a binary that could not be spawned) so nothing the harness says is
+attributed to a stream the command did not write. A timeout no longer erases what the command had
+already printed. `Cmd.tail` survives in memory, byte for byte, because the test-count and coverage
+parsers read it — so no criterion moved.
+
+### The variant, run against the unfixed function first
+
+A mutant that deletes the truncation cannot produce this defect; only an input where one stream is
+arbitrarily larger than the other can (rule 15). A child writing ~10 KB to one stream and one short
+line to the other, through the real `static.run`, against the code as it stood:
+
+| variant | stored record, before the repair | after |
+|---|---|---|
+| 10 KB on stderr, `✅ verify passed` on stdout | **token absent** — 4000 chars kept, all of them stderr | present |
+| 10 KB on stdout, one line on stderr | line present | present |
+
+**The asymmetry is the whole defect** — the survivor is whichever stream the tool wrote second, and
+that belongs to the tool. `judge/capture_selftest.py` was written before the repair and run against
+it: 9 of 17 expectations held and 7 of its 9 tests could not run at all against an API that did not
+exist yet. After: **39/39**, including two mutants — deleting the truncation, and reinstating the
+pre-#100 merge, which loses the stdout line on demand.
+
+### The positive control: the real gate, one execution, two renderings
+
+`just verify` in one `wg-g4c` submission per stack, in a scratch clone, each run **once** and the
+captured streams rendered under both policies — so the comparison cannot be confounded by a
+rebuild:
+
+| stack | exit | stdout chars | stderr chars | token under `[-4000:]` of `out+err` | token now |
+|---|---|---|---|---|---|
+| godot | 0 | 3263 | 0 | yes | yes |
+| rust | 0 | **16** | **8638** | **NO** | **yes** |
+| ts | 0 | 670 | 213 | yes | yes |
+| unity | 0 | 201 | 0 | yes | yes |
+
+The Rust arm's green gate writes **16 characters to stdout and 8638 to stderr** — the completion
+line is the entire stdout, and the old policy discarded it whole. This control does not reproduce
+the *godot* half of #100: that submission printed nothing to stderr, so the two godot misses in the
+stored corpus (engine resource-leak lines at exit) are not exercised here. Four positive controls,
+one of which is the arm that carried the defect; the godot failure mode is covered by the variant,
+not by this table.
+
+### The instance the finding did not name
+
+`#100` located the defect at `judge/static.py:64` and `:163`. The same shape is still in
+`eval/runner.py`, the spec-change harness: `sh()` returns `(p.stdout + p.stderr)` as one string
+(`runner.py:177`), and that buffer is stored as `self_verify.tail[-4000:]` (`:592`) and
+`holdout.tail[-5000:]` (`:622`). Swept over the stored `trials/*.json` on 2026-08-23:
+
+| | records | `self_verify` exit 0 | contain `verify passed` | at the 4000 cap |
+|---|---|---|---|---|
+| all arms | 47 | 26 | 24 | 2 |
+
+The two misses are exactly the two at the cap, and both are the Rust template — one on the
+`rust_bevy` arm, one on `baseline`. Same mechanism, same arm, a lower rate only because the
+spec-change tasks are smaller. `self_verify` is the record of *the agent's own gate*, which is the
+one place a future check could ask whether the agent ran it to completion. Filed as task 50 rather
+than fixed here: `sh()`'s two-tuple is read in ten places and the stored field shape has its own
+reader audit to do.
+
+> **A finding names the instance it was found at; the defect is a shape.** Repairing the file the
+> finding cites leaves the mechanism wherever nobody looked. The grep that finds this class is for
+> the shape — a stream concatenation followed by a slice — not for the file, and it takes one
+> command: two hits in this repository, one of them repaired today.
+
+### What this does not settle
+
+The stored corpus cannot be backfilled — the discarded stdout was never written down — so it stays
+mixed, and `static.stored_stdout()` returns **None** for a pre-repair record rather than `""`,
+because a line missing from a merged buffer is not evidence the command never printed it. And the
+`expected_stdout_contains` check this unblocks (`eval/IMPROVEMENTS.md` axis 2 candidate 1) is still
+a separate decision: it can only ever be asked of runs graded after today.

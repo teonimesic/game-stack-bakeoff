@@ -37,6 +37,33 @@ variant. **Do not add a frametime or fps field** — the TS arm films on SwiftSh
 three film on the GPU, so it would rank the backend; `DECLINED` in that module says what would have
 to change first. Adding any of this to the score is a regime boundary and needs its own task.
 
+## What a stored command record holds: two streams, sampled apart
+
+Every command tier 1 runs — `just check`, `verify`, `lint`, `test`, `film` — is stored by
+`static.Cmd.to_dict` with **`stdout` and `stderr` as separate fields**, each sampled on its own
+budget: the first `STREAM_HEAD_CHARS` characters and the last `STREAM_TAIL_CHARS`, the middle
+replaced by a marker naming how many characters and lines went, and the full length of each stream
+recorded beside it as `stdout_chars` / `stderr_chars`. The harness's own words — a timeout, a
+binary that could not be spawned — go in `note`, never into a stream the command did not write.
+
+It used to be one `tail` field holding the last 4000 characters of `stdout + stderr`. **A
+truncation policy is a sampling policy**, and that one sampled *whichever stream the tool happened
+to write second*: 15 of 16 green Rust `verify` records kept no trace of the recipe's own
+`✅ verify passed`, because `cargo-nextest` fills stderr (#100). **Raising a cap is not a fix for
+that class of defect** — it moves the boundary and leaves in place the rule that stdout is
+sacrificed first, still correlated with a stack by a property nobody chose.
+
+Reading stored records: `static.stored_stdout()` returns **None** for anything written before the
+repair, because a line missing from a merged buffer is not evidence the command never printed it —
+those records are unmeasurable, not empty. `static.stored_output()` reads either shape. In memory
+`Cmd.tail` is unchanged and still means stdout-then-stderr, because the test-count and coverage
+parsers read it; only the stored shape moved. Stored records cannot be repaired — the discarded
+stdout was never written down — so the corpus is mixed and any sweep over it must partition on
+which shape it is reading.
+
+`judge/capture_selftest.py` pins both directions (a flood on either stream keeps the other) and
+carries the mutant that proves those checks can fail. It must stay green.
+
 ## The judge is diagnostic only
 
 It contributes **zero** to `overall` — not a token weight. Two independent reasons, either

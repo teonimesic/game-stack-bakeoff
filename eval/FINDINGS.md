@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#102 from building and running this evaluator. **Check whether a
+Findings #19-#103 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -177,6 +177,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **100** | The stored evidence for `verify.green` drops the gate's own "passed" line on 15 of 16 Rust submissions, because stdout is truncated before stderr | [one-arm-bias](findings/one-arm-bias.md) |
 | **101** | The TypeScript capture page never ran its own determinism script, and the defect filed instead was the opposite of the truth — radius zero on all 26 stored submissions | [one-arm-bias](findings/one-arm-bias.md) |
 | **102** | A submission the judge never disagreed with gets an error bar of zero, and then out-resolves everything | [certifies-nothing](findings/certifies-nothing.md) |
+| **103** | #100 was repaired in the file it named, and the same merged buffer is still in the runner that stores the agent's own gate | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 
