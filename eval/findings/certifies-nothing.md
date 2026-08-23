@@ -3234,3 +3234,41 @@ on 24 of 56 matrix trials. With tier 1 out of the sum, `overall` is a **constant
 16 `wg-audio48` trials and all 8 of `wg-g4c`. The saturation was always there; it was being
 disguised by a tier-1 nit or two per field, which is the worse of the two states to be in — but it
 is now the only scored tier, and no weight can help it.
+
+## 126. A near-miss check that could not tell a rename from a forgotten copy produced two rows, and both were false
+
+`starter_parity` collects each starter guide's heading set. Wiring it to a report surfaced two
+"a section one guide never got" rows. **Both were false, and they were false in opposite
+directions** — which is what makes this an instrument defect rather than two mistakes.
+
+| row | what the tool saw | what is true |
+|---|---|---|
+| ts lacks "The one command" | heading absent | the ts guide opens `## Commands` at the same position, carrying the same sentence: *`just verify` green means done. Red means not done.* A **rename**. |
+| unity lacks "Gameplay is not correctness" | heading absent | unity carries it as a **bold paragraph** at the end of `## Testing`. |
+
+The ticket filed off the first row asserted the second *did not reproduce*. It does reproduce —
+the ticket had measured **content** while the tool measures **headings**, and neither said which.
+So the false positive propagated into a ticket as a correction, and was itself wrong.
+
+> **A check keyed on the one thing a document is allowed to vary will report variation as
+> absence.** `starter_parity`'s own comment says the four guides are stack-native and heading
+> equality may not be demanded of them — and the near-miss note keyed on heading text anyway. It
+> would have re-printed *"check whether this is a section one guide never got"* on two answered
+> rows every run, forever.
+
+Repaired by adjudicating each near miss against **the sentence, not the heading**: an entry names
+the guidance sentence, and the tool re-reads it out of all four guides every run. Absent from the
+stack lacking the heading is a forgotten copy and goes red; absent from a stack that *has* the
+heading means the entry names the wrong sentence and also goes red. So the register cannot rot
+into a stale allowlist.
+
+The control that matters is a **variant**: delete ts's contract sentence while leaving the
+heading absent, and the tool must go red. The pre-change code prints the identical note either
+way, so a mutant of it establishes nothing.
+
+A rename must remain a **note**, never a gate — three separate findings here record gates that
+fired on correct input and were disabled for it.
+
+**The real one-arm asymmetry this was looking for exists and is 1-of-4 and a sentence:** only the
+rust guide mentions that a Stop hook re-runs the gate when you try to finish, while the hook is
+live in all four. A heading heuristic is structurally blind to it.
