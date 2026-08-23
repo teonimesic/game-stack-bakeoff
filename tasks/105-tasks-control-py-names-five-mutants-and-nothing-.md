@@ -1,7 +1,7 @@
 ---
 id: 105
 title: tasks_control.py names five mutants and nothing can run them
-status: open
+status: in_flight
 priority: 3
 refs: 'eval/tools/tasks_control.py, eval/tools/disclosure_mutants.py, tasks/82, eval/FINDINGS.md #139, AGENTS.md rule 15'
 done_when: eval/tools/ holds a runner that applies each of the five mutants task 82 names to a COPY of tasks.py in a tempdir, runs tasks_control.py against it, and reports which control row went red; every mutant is killed by the row naming its mechanism, and a mutant that survives fails the runner with a non-zero exit; or, if a mutant turns out to be inert against the real corpus, that is recorded with the reason rather than deleted

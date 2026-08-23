@@ -99,7 +99,23 @@ uncommitted `tasks/` blocks the merge.
 | The same fix made twice | Take the better one, and say in the commit why |
 | **A structured file (JSON, TOML, lock)** | Merge by STRUCTURE, not by text. Keeping both sides of `eval/withdrawn.json` produced a file that PARSED while silently dropping an entry — duplicate keys keep the last, so the loss is invisible to `json.load` and to the eye. Rebuild by id from both sides and count the entries |
 | **Two branches added code to one file** | Keeping both sides is right and does not mean the result parses. A nested marker whose outer pair was already consumed, and two halves of one statement each ending differently, both surface as `SyntaxError`, not as a conflict. Parse the file before you trust the merge |
+| **`--theirs` or `--ours` on a document that is a LIST** | Never. On 2026-08-23 `git checkout --theirs eval/FINDINGS.md` resolved a conflict cleanly and silently dropped an index row the other side had added — the file was well-formed, the merge was green, and `docstat.py --findings` was the only thing that noticed. Same shape as the structured-file row below: a list resolved by side loses entries without malforming |
+| **Keeping both sides of a document that states one fact** | Keeping both is right for logs and wrong for assertions. It duplicated `eval/FINDINGS.md`'s range sentence, and `_check_range_in` validates *each copy*, so **N correct copies are N passes** and the duplicate survives. One statement per live document |
 | **Both sides right in the same region** | Neither `--ours` nor `--theirs`. Merge by hand and say what each contributed — on 2026-08-23 `DECISIONS.md` held a withdrawal-register sentence on one side and a corrected cost figure on the other, and taking either wholesale would have discarded a real result |
+
+**You allocate the finding number, not the agent — and do it at merge, not before.**
+
+Three branches on 2026-08-23 each independently took **#137**, having each correctly read the
+highest number on `main` before starting. That is not carelessness and re-reading does not fix it:
+**nothing can gate a number a peer has not committed yet**, and the merging tree is the only one
+that holds every claim at once. `docstat.py --findings` gates a *gap*, so an agent choosing between
+a collision and a gap should choose the collision and say so — the collision is repairable here and
+the gap is invisible.
+
+When two branches collide, the rule is *the merged one keeps it* — but neither is merged yet, so
+apply the rule's purpose instead: **renumber whichever side has fewer citations to chase.** One of
+those three had spread `#137`/`#138` through three code files and two had a body and an index row;
+the bodies moved. Renumbering means the heading, the index row, **and** every citation.
 
 Then, unpiped: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`. Renumbering
 creates stale citations that still *resolve* — `--renumbered` is what finds them.
