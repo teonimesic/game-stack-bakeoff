@@ -3585,3 +3585,43 @@ in a tempdir; the repository's file is never written to.
 
 The gate proved itself within the hour: merging `main` moved the log from 113 to 114 findings,
 and `--findings` went red on the count this very task had just written.
+
+## 135. A locator answering two questions kept one counter, so a published agreement figure was one too high
+
+`disclosure.py` locates two different things in a trial's closing message: *the agent could not
+verify its own work*, and *the starter it was handed arrived broken*. They are different
+families with different denominators.
+
+**They shared one list and one counter.** So `wg-matrix g2_tetris3d__rust__t1`, located **only**
+by the starter cue, sat inside the figure published as the unverified-work rate — and that figure
+was compared against a hand pass which never covered the starter family at all. The comparable
+number is **25**, not 26. Per stack, only rust moves: 12 to 11.
+
+The figure appeared in three documents. It was not wrong by much, and that is the point: a
+one-unit error inside a rate nobody could decompose is invisible, and it was quoted as evidence
+of agreement between two instruments measuring **different populations**.
+
+> **A locator that answers two questions must keep two counters.** Otherwise its output is a
+> number about a union nobody named, and every comparison against it silently changes what is
+> being compared.
+
+**The under-reporting had a second cause, and it was not vocabulary.** The cue matched the
+*complaint*; **8 of the 12** state the defect as the **repair** — *"`crates/game` gained
+`default-run`"* — which no complaint word appears in. It also required the artifact word to
+precede the breakage inside one window, so `` **`just run` was already broken** in the starter ``
+missed while `` `just run` was broken in the starter `` matched: same defect, same run, two
+trials apart.
+
+The extraction was proved before the census was believed: 12 of the 18 hand-classified rows are
+the Rust subfamily, and that set is **equal** to the 12 a different producer counted
+independently in another task — same five runs, same twelve trial ids.
+
+**Three of eighteen remain unlocated, and the miss is measured rather than asserted.** All three
+are godot agents describing an inherited defect in starter-owned code without ever attributing it
+to the starter. Every draft wide enough to catch them produced false positives, because those
+sentence shapes are identical to an agent describing a bug in code it wrote itself. Named in the
+docstring so the next reader does not re-derive the attempt.
+
+Two of its mutants are worth naming: `not_a_report` and `family_split` both make the instrument
+look **healthier** when removed. A mutant whose absence improves the number is the one most likely
+to survive review.

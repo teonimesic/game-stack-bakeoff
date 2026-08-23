@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#134 from building and running this evaluator. **Check whether a
+Findings #19-#135 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -211,6 +211,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **132** | A field name that collided with an unrelated one let a false claim about it survive every grep | [certifies-nothing](findings/certifies-nothing.md) |
 | **133** | A focus guard installed as an autoload minimised the window the godot render tests read pixels from; macOS then returned the same stale frame to every capture, 6 of 9 tests failed blaming the arena transform and the particle system, and the 2 that passed were the reproducibility tests | [one-arm-bias](findings/one-arm-bias.md) |
 | **134** | The gate over the findings figure checked the RANGE and the COUNT went stale beside it, spelled in words where no check could read it — and the first mutant showed the check had two implementations | [certifies-nothing](findings/certifies-nothing.md) |
+| **135** | A locator answering two questions kept one counter, so a published agreement figure was one too high | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
