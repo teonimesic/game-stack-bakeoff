@@ -36,6 +36,33 @@ Both halves grew with the merges of that morning; work from what the tool prints
 **31 citations were wrong, not 16.** The decided half was 16 of 16 wrong, by construction. The
 undecidable half was **15 of 51** — and finding those 15 is the work this ticket actually was.
 
+### What every replacement was graded against
+
+Not the count — the count is zero whatever you write. Each destination number below was checked
+by opening `eval/findings/` and reading the heading, and each citing sentence was read against it.
+The headings are quoted verbatim at `27a51b8`; re-read them with
+`grep -rn "^## " eval/findings/*.md`.
+
+| now cites | heading in `eval/findings/` that establishes it | replaced |
+|---|---|---|
+| **#127** | *The producer built to stop a count going stale globbed one level deep, and the cross-check that certified it had been produced by the same glob* | `#126` ×5 |
+| **#128** | *Tier 2 saturates because the task is finished, not because the criteria are too few — four harder criteria built from the task's own unchecked requirements passed 8 of 8* | `#126` ×14 |
+| **#131** | *The anonymiser's stack vocabulary was a list of SPELLINGS, so the Rust arm shipped its build tool's name into 22 blind packs — and every architecture round that left a file-open log opened one* | `#130` ×2 |
+| **#133** | *a focus guard minimised the window the render tests read pixels from, and a frozen frame is not an empty one* | `#132` ×2 |
+| **#134** | *A gate was built to stop the findings figure going stale, it checked the range, and the count went stale beside it — in words, where no check could read it* | `#133` ×3 |
+| **#140** | *The census gate could catch only the wordings of the two documents it was built from, and the obvious widening was strictly worse than the enumeration it replaced* | `#137` ×5 |
+
+The 16 decided rows: `DECISIONS.md:216,423,697` `README.md:510` `judge/RUBRIC.md:219,286`
+`judge/AGENTS.md:24` `skills/add-game/SKILL.md:120,126` → **#128**;
+`skills/audit-docs/SKILL.md:177,184` `DECISIONS.md:524` → **#140**;
+`DECISIONS.md:579` `tasks/88:25` → **#134**; `eval/RUNS.md:1807` → **#133**;
+`tasks/97:25` → **#140**.
+
+**Where the sentence is about the act of allocation rather than a pointer** — `tasks/65:8`,
+`tasks/69:8,41,48`, `tasks/80:8`, `tasks/97:8,25` — the old number is kept and the current one
+added beside it. Erasing it would falsify a true statement about what was allocated; leaving it
+alone would point a reader at a stranger.
+
 ### The 15, and the single property that identifies them
 
 | | |
