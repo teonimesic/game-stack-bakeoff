@@ -1264,6 +1264,60 @@ rounds on this 1 pull request the counter read **9, then 8, then 6** — so 4 of
 on 1 PR, and the third round consumed 2. **The cost is per review round, not per pull request,
 and it is not 1 per push**; anything that assumes a fixed rate should read the counter instead.
 
+> **That counter is not a durable artifact, and `tasks/109` had to stop depending on it.**
+> Re-read from PR #1's stored reviews and issue comments on 2026-08-23, the text is no longer
+> anywhere in either — CodeRabbit edits its summary comment in place, so what was true when it
+> was read is unrecoverable afterwards. The measurement above stands as what was observed; the
+> procedure bounds **review rounds per task at 2** rather than reading a counter it cannot rely
+> on finding.
+
+---
+## An agent hands back a pull request, and the queue has 5 statuses — decided 2026-08-23
+
+**The operator's specification:** *"agents should pick up tasks, then submit PRs, then trigger
+code rabbit reviews, then address whatever coderabbit recommends, then submit it as ready to be
+merged for you to verify and merge"*, with the ticket moving through *todo, in progress, in
+review, in testing, done*.
+
+Before this, an agent committed to a `task-<id>-<slug>` branch and the orchestrator merged it
+with `git merge --no-ff`. No pull request was opened and nothing external read the diff.
+
+| Decided | Rejected, and why |
+|---|---|
+| `STATUSES = ("todo", "in_progress", "in_review", "in_testing", "done")` | Keeping `open`/`in_flight` as the stored names and adding only the 2 new states. It costs no migration, and it leaves the tool's vocabulary permanently disagreeing with the operator's, so every document carries a translation table — the shape this project calls a rule that must be re-derived by each reader |
+| **`open` and `in_flight` are accepted permanently and map on read**, not for a migration window | A clean cutover. The queue is shared across worktrees while each worktree holds its own possibly-older `tasks.py`: an agent forked before the rename runs `start`, writes `in_flight`, and every peer's `check` goes red at once on a file none of them touched |
+| `check` **fails** an `in_review` ticket with no `pr` field | Leaving the link to the report. The state exists so the orchestrator can find the pull request from the ticket; without the field it is a status that has stopped being a locator |
+| The heartbeat's metric **keys keep the old names** (`tasks_open`, `tasks_inflight`) while the statuses are renamed | Renaming the keys with the statuses. The heartbeat's output is read as a diff against the previous hour, and a renamed key is one series ending at 0 and another starting from nothing — 12 tasks' worth of apparent movement in an hour where nothing happened |
+| Merging through `gh pr merge`, not `git merge --no-ff` | A local merge. The pull request is the durable record of what was reviewed and what was declined; a local merge closes it by inference |
+| The reviewer's comments are **weighed against `AGENTS.md` and `DECISIONS.md`, and declined in the thread when they contradict one** | Applying every suggestion. An agent that complies by default will eventually loosen a test, which the global instructions forbid outright |
+
+**The verification standard does not move.** `dispatch/SKILL.md` says *verify against the
+artifacts, not against the report*, and a review is a second opinion on the code with no access
+to the artifacts. *"It passed review"* is exactly the shape this project calls a mechanism that
+runs and reports success.
+
+**How an agent knows a review has finished**, and this is the part that was measured rather than
+designed: the reviews API returns a full 40-byte `commit_id` per review, and `gh pr view --json
+headRefOid` returns the full sha GitHub thinks is the head. Comparing those two is the check.
+`tasks/108`'s poll loop compared a **7-character** sha against the **5-character** abbreviation in
+the walkthrough prose and reported *"not reviewed"* through 8 polls after the review had landed —
+rule 12 against a poll loop, when the API had the exact address all along. Pinned on PR #1, whose
+answer was known in advance: `true` for the head that was reviewed, `false` for `941e5f5`, the
+commit that was pushed and never reviewed.
+
+**The deadlock to design against is the reviewer's auto-pause**, not a slow review. CodeRabbit
+pauses a branch it considers under active development, and the notice lands in the PR's *issue*
+comments rather than in its reviews — so an agent that pushes a fix per comment can wait forever
+for a review that will never come because it was too productive. The procedure batches fixes into
+one push per round, detects the pause by its own text, and resumes with `@coderabbitai review`.
+
+| Would re-open this | The observation |
+|---|---|
+| The 5-value vocabulary | An orchestrator finding it still cannot tell whose turn it is, or a state that no ticket ever occupies for more than a moment. `in_review` and `in_testing` are cheap to retire; `todo`/`in_progress` are not |
+| The legacy aliases | Nothing. They cost one dict and they close a class of failure that is invisible until it hits every agent at once |
+| The 15-minute bound on the wait | Two tasks in a row handing back `in_testing` with no review. That is evidence about the reviewer, and the fix is not a longer wait |
+| Merging through `gh pr merge` | A conflict pattern the PR route makes worse than the local one. Conflicts already resolve locally on the branch and then merge through the PR |
+
 ---
 ## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
 

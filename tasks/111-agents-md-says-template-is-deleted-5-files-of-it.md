@@ -1,7 +1,7 @@
 ---
 id: 111
 title: AGENTS.md says template*/ is deleted; 5 files of it are still tracked on main
-status: open
+status: todo
 priority: 3
 refs: AGENTS.md line 28, DECISIONS.md 'The four template*/ trees and the spec-change suite are retired', .gitignore
 done_when: either the 5 remaining template-ts/ and template-unity/ paths are removed from git tracking and origin/main, or AGENTS.md line 28 and the DECISIONS.md retirement section are corrected to state what is actually still there and why it was kept. Whichever is chosen, git ls-tree -r --name-only origin/main | grep '^template' and the text of AGENTS.md must agree, and the answer must be checked against origin/main rather than a worktree

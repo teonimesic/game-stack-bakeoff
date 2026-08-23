@@ -1,6 +1,6 @@
 ---
 name: work
-description: "Work one item from the open-work queue end to end: read the ticket, do it, verify it in both directions, and hand back a branch the orchestrator can merge. Invoked as /work <id>."
+description: "Work one item from the open-work queue end to end: read the ticket, do it, verify it in both directions, open a pull request, address the review, and hand it back for the orchestrator to verify and merge. Invoked as /work <id>."
 when_to_use: "You have been dispatched to do a single queued task and given its id. Also use it yourself when picking up work from the queue rather than reconstructing the procedure."
 argument-hint: "<task-id>"
 ---
@@ -26,6 +26,20 @@ either disagree, they win and this skill is the bug.
 4. Whatever the ticket's `refs` names. Cite by path; two files are named `IMPROVEMENTS.md`.
 
 Then `python3 eval/tools/tasks.py start <id>`.
+
+**The ticket's status is how everyone else knows where this work is.** Five values, and you
+move it through four of them; the orchestrator sets the fifth:
+
+| status | means | who sets it |
+|---|---|---|
+| `todo` | nobody has it | `add` |
+| `in_progress` | you are working it | **you**, `tasks.py start <id>` |
+| `in_review` | a pull request is open and the review loop is running | **you**, `tasks.py review <id> "<pr url>"` (§6) |
+| `in_testing` | you are finished; it is waiting on the orchestrator | **you**, `tasks.py testing <id> "<evidence>"` (§7) |
+| `done` | merged | the orchestrator, at merge |
+
+`check` fails an `in_review` ticket that names no pull request — the state exists so the PR is
+reachable from the ticket without reading the queue.
 
 ## 2. Know where you are standing
 
@@ -81,17 +95,9 @@ The steps are the ticket's. These are the properties every result here is held t
 | Regime boundaries in `eval/RUNS.md` | They say which runs may be compared with which. |
 | Files another agent is editing | Ask the orchestrator, or file a task. A conflict in a doc that states what is true now costs more than the edit is worth. |
 
-## 5. Finish
+## 5. Land the work on a branch
 
-```bash
-python3 eval/tools/tasks.py done <id> "what established it"
-```
-
-Evidence means a measurement, a control, a file — never "completed". **No backticks in that
-string**: they execute as command substitution and silently strip text from a durable record
-(#80).
-
-Then, in the same session as the work:
+In the same session as the work:
 
 - **Update the ticket with what you learned** — see the box at the top. Anything the next agent
   would otherwise re-derive belongs in the file.
@@ -101,10 +107,123 @@ Then, in the same session as the work:
 - Run the gates unpiped: `docstat.py --sweep`, `tasks.py check`, and whatever the area's own
   `AGENTS.md` names.
 
-**Commit on `task-<id>-<slug>`. Do not push. Do not merge.** The orchestrator merges after
-verifying the result against the artifacts rather than against your report.
+**Commit on `task-<id>-<slug>`.** Use `git commit -F` with a file: backticks in `-m` are executed
+by the shell and silently strip text (#80).
 
-## 6. Report
+**Never merge.** Nothing below changes that — a review is a second opinion on the code, and the
+orchestrator's verification against the artifacts is the measurement.
+
+## 6. Open the pull request, and address the review
+
+This repository is `teonimesic/game-stack-bakeoff`, `gh` is authenticated, and CodeRabbit is
+installed and reviews automatically on open. **No API route can tell you the app is authorised
+before you try** — `/repos/../installation` needs an App JWT, `/repos/../hooks` is empty because
+Apps do not use repo webhooks, and `/user/installations` is 403 under `gh`'s token. Opening the
+PR is the test (`tasks/108`).
+
+```bash
+git push -u origin task-<id>-<slug>
+gh pr create --base main --head task-<id>-<slug> \
+  --title "Task <id>: <the ticket's title>" --body-file <a file you wrote>
+python3 eval/tools/tasks.py review <id> "<the URL gh printed>"
+```
+
+**`--body-file`, never `--body`** — the body will contain paths, flags and code, and backticks in
+an argument are command substitution (#80). Put in it: the ticket id, its `done_when` verbatim,
+what you established with the numbers, and the control in both directions. The reviewer is
+configured to read `tasks/`, so it can check the diff against the brief — but only if the PR says
+which ticket it is.
+
+### Waiting for the review
+
+**Bounded, and pinned on a case whose answer you already know.** The address is the full 40-byte
+`commit_id` the reviews API returns, compared against the sha GitHub thinks is the head — not the
+5-character abbreviation in the walkthrough text, which is what made a poll loop report *"not yet
+reviewed"* through 8 polls after the review had landed (`tasks/108`, AGENTS.md rule 12).
+
+```bash
+REPO=teonimesic/game-stack-bakeoff
+PR=<n>
+HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
+gh api "repos/$REPO/pulls/$PR/reviews" \
+  --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .commit_id] | index(\"$HEAD\") != null"
+```
+
+It prints `true` or `false` and exits 0 either way, so read the **word**, not the exit code — and
+never wrap it in `|| true`, which would turn an API failure into a plausible `false` that polls
+forever. Verified against the merged PR #1 on 2026-08-23: `true` for the head it was reviewed at,
+`false` for `941e5f5`, the commit that was pushed and never reviewed.
+
+| | |
+|---|---|
+| how long it takes | **~150s** end to end on a 2-file diff: acknowledged at 31s, review at 119s after that (`tasks/108`) |
+| poll | every 30s |
+| give up after | **15 minutes** per round. That is 6x the measured time; longer buys nothing and idles the queue |
+
+### The two ways this deadlocks, and what you do
+
+**1. The reviews auto-pause.** CodeRabbit pauses a branch it considers under active development
+— *"To avoid overwhelming you with review comments due to an influx of new commits"*. **This is
+the most likely way the flow hangs, and it is triggered by being productive.** The notice is in
+the PR's issue comments, not in the reviews:
+
+```bash
+gh api "repos/$REPO/issues/$PR/comments" --jq '.[].body' > /tmp/pr-comments.txt
+grep -c "review paused by coderabbit.ai" /tmp/pr-comments.txt
+```
+
+Written to a file first and grepped unpiped, because a pipeline's exit status is the last stage's.
+If it is paused, post `@coderabbitai review` as a PR comment and resume polling. **Push once per
+round, not once per fix** — batching the fixes is what keeps the pause from firing at all.
+
+**2. The wait expires.** Do not extend it and do not loop again. Say in the PR thread that you
+waited 15 minutes and got no review, set the ticket to `in_testing` with that fact in the
+evidence, and report it. **A no-review is a result the orchestrator can act on; an agent still
+waiting is not.**
+
+**Rounds cost more than pushes.** The plan allows 10 included reviews per hour and a single PR
+consumed 4 of them over 3 rounds — the counter went 9, 8, 6, so a round can cost 2. Budget
+**two review rounds per task**; if the third round is still finding things, that is a signal to
+hand back and say so rather than to keep spending an hour's quota on one ticket.
+
+> **The counter is not a durable artifact.** `tasks/108` read it out of the review body; on
+> 2026-08-23 it was no longer anywhere in PR #1's stored reviews or comments, because CodeRabbit
+> edits its summary comment in place. Do not build a check on reading it — bound the rounds
+> instead.
+
+### Which recommendations to act on
+
+**The reviewer is a second reader, not an authority.** This project's standard is higher than
+*the reviewer said so*, and the two useful comments PR #1 received both came from rules this
+repository supplied to it (`AGENTS.md` through `code_guidelines`, and a `**/*.md` path
+instruction) rather than from generic review.
+
+| the comment | what you do |
+|---|---|
+| Names a real defect — a wrong path, a check that cannot fail, a false statement | Fix it, push, and let the next round see it |
+| Contradicts `AGENTS.md`, a folder-scoped `AGENTS.md`, or a recorded `DECISIONS.md` entry | **It is wrong. Do not comply.** Reply in the thread naming the rule and why, and leave the code alone |
+| Would loosen a test, widen an assertion, or excuse a failure | **Refuse**, and say so. Every reason not to count a failure is a channel a bug can widen (rule 7) |
+| Style, wording, reordering in a document | Ignore. The prose here is the product and `.coderabbit.yaml` already tells it so; a comment of this shape is a config defect worth a task |
+| Touches `eval/starters/*/` | Never act on it without the ticket saying so. Editing a starter is a regime boundary |
+
+**Reply to what you decline.** An unanswered comment is indistinguishable from an unread one, and
+the orchestrator would have to re-derive your reasoning from the diff.
+
+## 7. Hand it back
+
+```bash
+python3 eval/tools/tasks.py testing <id> "what established it"
+```
+
+Evidence means a measurement, a control, a file — never "completed". **No backticks in that
+string**: they execute as command substitution and silently strip text from a durable record
+(#80).
+
+`in_testing` is the signal, and it is the whole reason the state exists: the orchestrator can see
+which branches are its turn without opening a single pull request. **You never set `done`** — that
+is the orchestrator's, at merge, after verifying the result against the artifacts.
+
+## 8. Report
 
 To `main`, in this shape:
 

@@ -8,13 +8,18 @@ thing it needed, and a file nobody finishes reading protects nothing -- the same
 project already recorded for documentation. So: one file per task under `tasks/`, and a query
 tool that prints the minimum.
 
-    python3 eval/tools/tasks.py              # one line per open task
+    python3 eval/tools/tasks.py              # one line per task that is not done
     python3 eval/tools/tasks.py next         # the single item to work on, in full
     python3 eval/tools/tasks.py show 04      # one task, in full
-    python3 eval/tools/tasks.py start 04
-    python3 eval/tools/tasks.py done 04 "what established it"
+    python3 eval/tools/tasks.py start 04                       # -> in_progress
+    python3 eval/tools/tasks.py review 04 "<pull request url>"  # -> in_review
+    python3 eval/tools/tasks.py testing 04 "what established it"  # -> in_testing
+    python3 eval/tools/tasks.py done 04 "what established it"     # -> done, at merge
     python3 eval/tools/tasks.py add "title" --why "..." --done-when "..." [--priority 2]
     python3 eval/tools/tasks.py check        # lint; exit 1 if anything is malformed
+
+The five statuses and what each one means are on `STATUSES` below. `.claude/skills/work/SKILL.md`
+and `.claude/skills/dispatch/SKILL.md` are the two procedures that drive the transitions.
 
 `check` fails when a task has no `done_when`. A task that cannot be completed is a permanent
 excuse, which is the task-list version of a criterion that cannot fail.
@@ -83,7 +88,41 @@ except ModuleNotFoundError as exc:      # loud, never a fallback -- see the modu
     ) from exc
 
 ROOT = Path(__file__).resolve().parents[2]
-STATUSES = ("open", "in_flight", "done")
+
+# THE STATUS VOCABULARY, AND WHY IT IS FIVE VALUES.
+#
+# It was `("open", "in_flight", "done")` until 2026-08-23. Three values cannot express the
+# middle of the flow the operator specified that day: an agent opens a pull request, a reviewer
+# comments on it, the agent addresses the comments, and only then is the work waiting on the
+# orchestrator to verify and merge. Under three values everything from "an agent picked this
+# up" to "this is reviewed and waiting on you" is one indistinguishable `in_flight`, so the
+# orchestrator cannot tell which branches are ITS turn without opening every pull request.
+#
+#   todo         nobody has it
+#   in_progress  an agent is working it
+#   in_review    a pull request is open and the review loop is running
+#   in_testing   the agent has finished; the orchestrator has to verify and merge
+#   done         merged
+#
+# LEGACY NAMES ARE ACCEPTED PERMANENTLY, NOT FOR A MIGRATION WINDOW. `check` fails any status
+# not in STATUSES, and the queue is SHARED across every agent worktree while each worktree
+# carries its own, possibly older, copy of this file. An agent forked before the rename runs
+# `start`, writes `in_flight` into the shared queue, and every peer's `check` goes red at once
+# on a file none of them touched. The alias costs one dict and closes that class outright.
+STATUSES = ("todo", "in_progress", "in_review", "in_testing", "done")
+LEGACY_STATUSES = {"open": "todo", "in_flight": "in_progress"}
+
+
+def _status(v) -> str:
+    """The canonical status for a value read off disk.
+
+    Legacy names map. Anything else passes through UNCHANGED rather than defaulting to a valid
+    state, so `check` still reports a typo by name -- normalising an unknown value into
+    `todo` would be a fail-open channel (AGENTS.md rule 7): the queue would look well-formed
+    and one task would sit in a state nobody chose.
+    """
+    s = _scalar(v).strip()
+    return LEGACY_STATUSES.get(s, s)
 
 # One frontmatter grammar, used by the reader and the writer alike.
 _FM_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.S)
@@ -463,6 +502,12 @@ def _parse(p: Path) -> dict:
     meta: dict = {"path": p, "body": body.strip()}
     for k, v in fm.items():
         meta[str(k).strip()] = _scalar(v)
+    # ONE place normalises the legacy vocabulary, and it is the reader. Every caller below --
+    # `check`, `next`, `list`, the marks, the summary -- then compares against STATUSES only,
+    # so none of them has to carry its own copy of the alias table. A second copy is how the
+    # rename would half-land: `check` accepting `in_flight` while `next` never offers one.
+    if "status" in meta:
+        meta["status"] = _status(meta["status"])
     # The id is bare digits on disk, so YAML hands it back as an int for `01`-`07` (octal)
     # and `10`+ (decimal), and as a str only for `08`/`09`. `_id_text` is the single place
     # that turns any of those back into the padded string `show`, `start` and `done` match on
@@ -478,22 +523,33 @@ def _load() -> list[dict]:
                   key=lambda t: (int(t.get("priority", 9) or 9), t.get("id", "")))
 
 
+#: One glyph per status, and every status has one. `.get(..., "[?]")` is the only branch that
+#: can print `[?]`, and after `_parse` normalises the legacy names the only way to reach it is
+#: a status `check` would already have failed -- which is the intent: an unknown state is
+#: visible in the listing rather than rendered as `todo`.
+MARKS = {"todo": "[ ]", "in_progress": "[~]", "in_review": "[r]",
+         "in_testing": "[t]", "done": "[x]"}
+
+
 def _line(t: dict) -> str:
-    mark = {"open": "[ ]", "in_flight": "[~]", "done": "[x]"}.get(t.get("status", "open"), "[?]")
+    mark = MARKS.get(t.get("status", "todo"), "[?]")
     return f"  {mark} {t.get('id','??')}  p{t.get('priority','?')}  {t.get('title','(no title)')}"
 
 
 def cmd_list(status: str | None) -> int:
     ts = [t for t in _load() if not t.get("malformed")]
+    status = _status(status) if status else None
     show = [t for t in ts if status is None or t.get("status") == status]
     if status is None:
         show = [t for t in ts if t.get("status") != "done"]
     for t in show:
         print(_line(t))
-    n_open = sum(1 for t in ts if t.get("status") == "open")
-    print(f"\n{len(show)} shown; {n_open} open, "
-          f"{sum(1 for t in ts if t.get('status') == 'in_flight')} in flight, "
-          f"{sum(1 for t in ts if t.get('status') == 'done')} done")
+    # Counted from STATUSES rather than from three hand-written comprehensions, so a sixth
+    # state cannot be added to the vocabulary and left out of the summary -- which is how a
+    # task in a new state would vanish from the one line an orchestrator actually reads.
+    n = {s: sum(1 for t in ts if t.get("status") == s) for s in STATUSES}
+    n_open = n["todo"]
+    print(f"\n{len(show)} shown; " + ", ".join(f"{n[s]} {s}" for s in STATUSES))
     if n_open < 3:
         print("Fewer than 3 open. Running out has never yet been true here — re-read "
               "eval/FINDINGS.md for anything filed and never acted on.")
@@ -503,10 +559,16 @@ def cmd_list(status: str | None) -> int:
 def cmd_show(tid: str) -> int:
     for t in _load():
         if t.get("id") == tid:
-            print(f"{t.get('id')}  [{t.get('status','open')}]  priority {t.get('priority','?')}")
+            print(f"{t.get('id')}  [{t.get('status','todo')}]  priority {t.get('priority','?')}")
             print(f"{t.get('title','')}\n")
             if t.get("refs"):
                 print(f"refs: {t['refs']}")
+            # The pull request, when there is one. Printed next to `refs` because the whole
+            # point of storing it is that the ticket and the PR are reachable from each other:
+            # the orchestrator finds the PR from the ticket, and CodeRabbit reads the ticket
+            # from the PR body.
+            if t.get("pr"):
+                print(f"pr: {t['pr']}")
             print(f"done when: {t.get('done_when','MISSING')}\n")
             print(t.get("body", ""))
             return 0
@@ -516,7 +578,7 @@ def cmd_show(tid: str) -> int:
 
 def cmd_next() -> int:
     for t in _load():
-        if t.get("status") == "open":
+        if t.get("status") == "todo":
             return cmd_show(t["id"])
     print("nothing open")
     return 0
@@ -646,7 +708,7 @@ def _write_task(a, slug: str, nid_int: int) -> int:
             continue
         # Written through the serialiser, so a title or done-when containing ": " -- which is
         # how 7 of them were already written -- comes out quoted instead of unparseable.
-        body = _render({"id": nid, "title": a.title, "status": "open",
+        body = _render({"id": nid, "title": a.title, "status": "todo",
                         "priority": a.priority, "refs": a.refs or "",
                         "done_when": a.done_when},
                        f"\n{a.why or ''}\n")
@@ -699,7 +761,14 @@ def cmd_check() -> int:
             bad.append(f"{t.get('id')}: no `done_when` — a task that cannot be completed "
                        f"is a permanent excuse")
         if t.get("status") not in STATUSES:
-            bad.append(f"{t.get('id')}: status {t.get('status')!r} not in {STATUSES}")
+            bad.append(f"{t.get('id')}: status {t.get('status')!r} not in {STATUSES} "
+                       f"(legacy {sorted(LEGACY_STATUSES)} are accepted and map on read)")
+        # A ticket in `in_review` with no `pr:` is the one state that cannot be acted on: the
+        # orchestrator's whole reason for the state is to find the pull request from the
+        # ticket. It is not merely untidy -- it is a status that has stopped being a locator.
+        if t.get("status") == "in_review" and not (t.get("pr") or "").strip():
+            bad.append(f"{t.get('id')}: status in_review with no `pr` - the state exists so "
+                       f"the pull request is reachable from the ticket; set it with `review`")
         if not t.get("title"):
             bad.append(f"{t.get('id')}: no title")
     # THE BODY IS ITS OWN TICKET. Both halves of commit 436bf64, which `check` read as clean.
@@ -760,8 +829,18 @@ def main() -> int:
     sub.add_parser("next")
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("start"); s.add_argument("id")
+    # THE TWO MIDDLE TRANSITIONS. `review` takes the pull request because the state is
+    # useless without it, and `testing` takes evidence for the same reason `done` does: it is
+    # the agent's statement of what established the result, and it is what the orchestrator
+    # verifies against the artifacts before merging. Storing it at `testing` rather than at
+    # `done` puts it in the file at the moment the agent still has the measurement in hand.
+    s = sub.add_parser("review"); s.add_argument("id"); s.add_argument("pr")
+    s = sub.add_parser("testing"); s.add_argument("id"); s.add_argument("evidence")
     s = sub.add_parser("done"); s.add_argument("id"); s.add_argument("evidence")
-    s = sub.add_parser("list"); s.add_argument("--status", choices=STATUSES)
+    # Legacy names are accepted here too, so a habit or an old script does not fail at the
+    # command line for a value the reader would have mapped anyway.
+    s = sub.add_parser("list")
+    s.add_argument("--status", choices=STATUSES + tuple(LEGACY_STATUSES))
     s = sub.add_parser("add")
     # `--why` is REQUIRED because it is what `add` writes into the body, and `check` now fails
     # on an empty body. A tool that creates a file its own lint rejects is a fail-open channel
@@ -780,7 +859,11 @@ def main() -> int:
     if a.cmd == "show":
         return cmd_show(a.id)
     if a.cmd == "start":
-        return _set(a.id, status="in_flight")
+        return _set(a.id, status="in_progress")
+    if a.cmd == "review":
+        return _set(a.id, status="in_review", pr=a.pr)
+    if a.cmd == "testing":
+        return _set(a.id, status="in_testing", established_by=a.evidence)
     if a.cmd == "done":
         return _set(a.id, status="done", established_by=a.evidence)
     if a.cmd == "add":

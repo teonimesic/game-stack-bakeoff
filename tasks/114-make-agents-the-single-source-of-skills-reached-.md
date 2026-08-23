@@ -1,7 +1,7 @@
 ---
 id: 114
 title: Make .agents the single source of skills, reached from .claude by symlink rather than copied
-status: open
+status: todo
 priority: 1
 refs: '.claude/skills/ (9 skills, a real directory), .agents/skills/ (untracked, regenerated 2026-08-23 11:46), eval/tools/docstat.py GATED_DIRS and the skill-location gate, AGENTS.md ''Everything belonging to this project lives inside this project'', DECISIONS.md, eval/findings #99'
 done_when: exactly one real directory holds the nine SKILL.md files and every other path to them is a symlink; Claude Code is verified to actually load a skill through whatever indirection is chosen, by invoking one and observing it, not by reasoning about it; the docstat skill-location gate accepts the new layout and still goes RED on a genuine second copy, both demonstrated; and if the verification shows Claude Code cannot follow the indirection, that is recorded with what was tried and the layout stays as it is

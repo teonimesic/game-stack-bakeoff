@@ -1,7 +1,7 @@
 ---
 name: dispatch
-description: "Send one queued task to an agent, and take its branch back. Covers making the ticket current before dispatch, the launch itself, and verifying and merging the result. Invoked as /dispatch <id>."
-when_to_use: "You are orchestrating and want work started on a queued task; an agent has reported and its branch needs verifying and merging; the queue is idle and the heartbeat says to pick something."
+description: "Send one queued task to an agent, and take its pull request back. Covers making the ticket current before dispatch, the launch itself, and verifying and merging the result. Invoked as /dispatch <id>."
+when_to_use: "You are orchestrating and want work started on a queued task; an agent has reported and its pull request needs verifying and merging; the queue is idle and the heartbeat says to pick something."
 argument-hint: "<task-id>"
 ---
 
@@ -73,21 +73,73 @@ and every future reader, gets it for free.
 | `subagent_type` | `general-purpose` |
 | `description` | `Task <id> — <a few words>` |
 
-Then `python3 eval/tools/tasks.py` to confirm it shows `in_flight`, and keep dispatching. **Never
-leave the queue idle behind one item** — a task in the queue was authorised when it was filed.
+Then `python3 eval/tools/tasks.py` to confirm it shows `in_progress`, and keep dispatching.
+**Never leave the queue idle behind one item** — a task in the queue was authorised when it was
+filed.
 
-## 4. Take the branch back
+## 4. Take the pull request back
 
-When the agent reports, **verify against the artifacts, not against the report.** Run its
-controls yourself; a result you have not reproduced is a claim.
+**The queue tells you whose turn it is.** Five statuses, and only one of them is yours:
+
+| status | what it means for you |
+|---|---|
+| `in_progress` | the agent is working. Nothing to do |
+| `in_review` | its pull request is open and the review loop is running. Nothing to do — the `pr` field in the ticket is the link, and `check` fails a ticket in this state that has none |
+| `in_testing` | **yours.** The agent has finished and addressed its review |
+| `done` | merged. You set this |
+
+```bash
+python3 eval/tools/tasks.py list --status in_testing
+```
+
+That is the whole reason the vocabulary grew from 3 values to 5 on 2026-08-23: under `in_flight`
+you could not tell an agent still working from one waiting on you without opening its PR.
+
+**Then verify against the artifacts, not against the report.** Run its controls yourself; a
+result you have not reproduced is a claim.
+
+> **A CodeRabbit review does not shorten this step and must not be read as if it does.** It is a
+> second opinion on the code, not a measurement of the claim, and it has no access to the
+> artifacts your verification runs against. *"It passed review"* is precisely the shape this
+> project calls a mechanism that runs and reports success.
+
+Read the PR thread for one thing beyond that: **comments the agent declined, and why.** A
+declined comment naming a rule is the flow working; a declined comment with no reply is a gap in
+the handback.
+
+**An agent may hand back `in_testing` saying no review arrived within its 15-minute bound.** That
+is the outcome the wait is designed to produce and it is not a failure of the task. Merge on your
+own verification as you would have before the flow existed, and if it happens twice in a row that
+is evidence about the reviewer — a task, with the two PR numbers in it.
+
+### Merging
+
+**Merge through the pull request, not with a local `git merge`.** The PR is the durable record
+of what was reviewed and what was declined, and a local merge closes it as *"merged"* by
+inference rather than by fact.
 
 ```bash
 git add tasks/ && git commit -m "Queue: agents' status writes through the shared queue"
-git merge --no-ff task-<id>-<slug>
+git push                                   # the queue commit must reach main before the merge
+gh pr merge <n> --merge --delete-branch
+python3 eval/tools/tasks.py done <id> "what you verified, and how"
 ```
 
-The queue commit comes first because agents close tasks in the **main** checkout, and an
-uncommitted `tasks/` blocks the merge.
+The queue commit comes first because agents write status into the **main** checkout, and an
+uncommitted `tasks/` blocks everything after it.
+
+**Remove the worktree BEFORE deleting the branch.** `gh pr merge --delete-branch` deleted the
+remote branch and failed on the local one while an agent worktree still held it (`tasks/108`):
+
+```bash
+git worktree remove --force <path>
+git branch -d task-<id>-<slug>
+```
+
+**When the PR conflicts with `main`**, `gh` cannot merge it and the resolution is still local:
+`git fetch`, merge `origin/main` into the task branch, resolve with the table below, push, and
+merge the PR. Resolving on the branch keeps the resolution inside the reviewed record instead of
+appearing on `main` unreviewed.
 
 **Conflicts you will meet every time, and how they resolve:**
 
@@ -120,9 +172,9 @@ the bodies moved. Renumbering means the heading, the index row, **and** every ci
 Then, unpiped: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`. Renumbering
 creates stale citations that still *resolve* — `--renumbered` is what finds them.
 
-Finally: `git worktree remove --force`, `git branch -d`, `git push`, and write a commit message
-that records **what was established and what it cost**, not what was changed. Use `git commit -F`
-with a file: backticks in `-m` are executed by the shell and silently strip text (#80).
+Whatever you write as a merge or resolution message records **what was established and what it
+cost**, not what was changed — and goes in through `git commit -F` with a file, because backticks
+in `-m` are executed by the shell and silently strip text (#80).
 
 ## 5. Go back to step 1 before you report
 
