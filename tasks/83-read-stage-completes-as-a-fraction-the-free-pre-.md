@@ -1,0 +1,10 @@
+---
+id: 83
+title: Read stage.completes as a fraction - the free pre-test that decides whether a harder task is worth buying
+status: open
+priority: 2
+refs: DECISIONS.md decision 'A harder task is PRICED here, and gated behind a free pre-test', task 76, eval/judge/bot_platformer.py, eval/judge/RUBRIC.md g4 section, eval/runs/wg-g4c-2026-08-21T02-26-46
+done_when: 'the eight surviving wg-g4c work trees are re-driven by a bot that crosses gaps (task 76 closed and bot_mutants.py green in both halves), stage.completes is recorded per submission as fraction-of-goal, and the result is stated as ONE of three named outcomes: SPREAD, in which case promote stage.completes to scored with a mutant and a variant and retire the harder-task decision in DECISIONS.md; ALL EIGHT AT 1.000, in which case a harder task is justified and this task reports by how much the bar must move; or FLAT AT A LOW FRACTION, in which case the bot is still the constraint and no task change is warranted. Eight numbers without a verdict on which of the three it is does not close this, and neither does a verdict without the eight numbers.'
+---
+
+Task 74 priced a harder task at 421 dollars for one clean 8-cell field and 698.21 all-in at the only precedent, and found that the money is only worth spending if a GRADED criterion can discriminate at all - which nothing in the corpus has ever shown. stage.completes is the only tier-2 criterion not at the ceiling (0 of 8 on wg-g4c) and the only g4 requirement stated as a goal with a direction. Its stored evidence already yields eight distinct fractions, 14.3 to 29.0 percent of the way to the goal, and that spread is an artifact: the bot walks right until it falls in a hole, so the scalar ranks the field on where each submission put its first pit. This task is that same reading taken again once the bot can actually pursue the goal. It costs no trials - the eight wg-g4c work trees survive under the work root. BLOCKED ON 76: doing it before the bot crosses a gap reproduces the artifact.

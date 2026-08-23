@@ -1,7 +1,7 @@
 ---
 id: 77
 title: AGENTS.md says the sweep checks file paths; docstat.py says NO PATH CHECK
-status: open
+status: in_flight
 priority: 3
 refs: AGENTS.md, eval/tools/docstat.py, .claude/skills/audit-docs/SKILL.md
 done_when: AGENTS.md no longer claims a path check that docstat.py does not implement - either the sentence is corrected to name what the sweep actually covers, or the path check is reinstated with the positive control the earlier measurement lacked. Verify by grepping both files and quoting the two lines side by side.
