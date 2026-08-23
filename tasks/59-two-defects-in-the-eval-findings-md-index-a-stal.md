@@ -1,7 +1,7 @@
 ---
 id: 59
 title: 'Two defects in the eval/FINDINGS.md index: a stale range and a table split in half'
-status: open
+status: in_flight
 priority: 4
 refs: eval/FINDINGS.md, AGENTS.md read-before-changing table, eval/tools/docstat.py
 done_when: eval/FINDINGS.md's opening line names the highest finding number actually present, and the index renders as one table - verified by parsing the file and asserting the row count equals the number of entries found under eval/findings/, with the same assertion added to docstat.py --sweep so it cannot drift again
@@ -58,3 +58,33 @@ Note that `eval/tools/docstat.py` was under active edit on 2026-08-23; rebase be
 **Do not touch anything else in `eval/FINDINGS.md` or `eval/findings/` while in there.** The
 retraction and withdrawal language is the subject matter, and a tidying pass through it is how
 the most valuable text in the repository gets lost. This task is a blank line and two numbers.
+
+## Status when dispatched, 2026-08-23 — BOTH DEFECTS ARE ALREADY FIXED
+
+Re-measured before dispatch, against the committed file:
+
+| the ticket's defect | now |
+|---|---|
+| stated range disagreed with the highest finding | `Findings #19-#118`, and the highest present is **118** — agrees |
+| a blank line split the index into two tables | **0** blank lines between adjacent `\| **NN** \|` rows |
+
+Both were repaired incidentally while merging other work, not by anyone working this ticket.
+`docstat.py --sweep` also already asserts the range and reconciles body against index in
+`_check_findings_integrity()`, and it has caught real drift five times since it landed.
+
+**So what remains is only the third clause of `done_when`, and it is the one that matters:**
+nothing asserts the index renders as **one table**. A blank line between two rows is invisible
+to a row-count check — every row still parses, and every citation still resolves — while a
+markdown renderer shows two tables and the second has no header. That is exactly how the defect
+arrived and why nobody noticed.
+
+**What to do:** add that assertion to `_check_findings_integrity()` in `eval/tools/docstat.py`,
+where the other findings-index checks already live. Do not build a second mechanism.
+
+**Prove it can fail.** The repository is clean right now, so a check written against it is a
+check nobody has seen go red: plant a blank line between two index rows, confirm the sweep exits
+1 and names the line, remove it, confirm exit 0. A gate that is green on arrival and never tested
+is the shape this project keeps finding.
+
+**Do not touch the finding entries themselves** — `eval/findings/` and `eval/FINDINGS.md` are the
+archive. This adds a check over the index; it does not edit the log.

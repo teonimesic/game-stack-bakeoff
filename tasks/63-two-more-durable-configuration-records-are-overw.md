@@ -1,0 +1,10 @@
+---
+id: 63
+title: 'Two more durable configuration records are overwritten in place: REPRODUCIBILITY.json and MEASURED.json'
+status: open
+priority: 5
+refs: 'eval/judge/field_sweep.py, eval/tools/backup_evidence.py, eval/findings/documentation.md #119, DECISIONS.md'
+done_when: Both writers route through tools/manifest.py write_manifest or an equivalent append-only path, with a control that fails on the pre-repair writer the way manifest_selftest.py does. If either is decided to be genuinely regenerable and not worth guarding, that is an acceptable outcome - but it must be recorded in DECISIONS.md with the argument, not left as silence, since the whole point of the resource-shaped guard is that a record nobody protected looks identical to one nobody needed.
+---
+
+Task 30 fixed the run manifest and stated the guard as the resource: any durable record of what a measurement was configured to be is append-only. A survey of every JSON writer in the harness found two more with the same overwrite shape, both left alone because they were outside task 30 and neither is currently known to have lost anything. (1) field_sweep.py writes REPRODUCIBILITY.json to an operator-supplied --out; re-running a sweep into the same directory replaces the previous sweep's reproducibility verdict, and that verdict is the gate-0 record for a set of judge rounds that cost real money. (2) backup_evidence.py writes MEASURED.json at the destination root on every sync; each sync erases what the previous one measured, which is exactly the question #116 turned on - what the copy held at an earlier time. Both are regenerable in principle and neither is, in practice, because the inputs move. Checked and found SOUND, for the record: judge pack mapping.json is destroyed by build_pack's rmtree, but each stored round copies order_seed into its own record (field.py line 865), so a rebuilt pack does not orphan a stored round; prompts/index.json has been kept-not-overwritten since #57; runner.py floors.json lands in a fresh scratch directory.

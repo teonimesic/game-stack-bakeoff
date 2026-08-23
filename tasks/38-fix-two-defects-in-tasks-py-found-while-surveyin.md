@@ -1,10 +1,11 @@
 ---
 id: 38
 title: Fix two defects in tasks.py found while surveying doc tooling
-status: in_flight
+status: done
 priority: 4
 refs: research/11-doc-linting-for-agents.md, eval/tools/tasks.py
 done_when: tasks.py add run from inside an agent worktree exits 0 and prints the created path, and tasks.py check no longer warns on a done_when whose escape branch is phrased outside the ESCAPE keyword list, pinned in both directions against task 32's wording and against a done_when with no escape branch at all
+established_by: 'Defect 1 was already fixed by task 41 in 466d436; re-established rather than assumed, with a scratch main-plus-worktree pair where 466d436^ exits 1 having written the file and HEAD exits 0 printing the path, both kept as control rows. Defect 2 was real but masked by cmd_check skipping done tasks: run against the wordings directly it warned on tasks 32, 35 and 58, all three of which carry an escape branch. Escape detection now tests the closed class of English conditional and alternative function words instead of nine phrases, four of which were sentences copied off tasks 01 and 08; addresses and the at-all idiom are removed first, which also killed the only reachability warning check was printing (task 59, where under eval/findings/ was read as a threshold). Warnings over the 60 queue files go 6 to 2, both survivors genuine. New eval/tools/tasks_control.py, the first control this tool has had: 20 measurements, 0 FAILED, 0 NOT CHECKED, covering byte-for-byte round trip over all 60 queue files, add from an agent worktree with the pre-fix copy as positive control, check still failing on a duplicate id and a missing done_when and a bad status against a well-formed negative control, and reachability in both directions over ten wordings. Five mutants, all killed by the row naming their mechanism; two wordings were added because a mutant survived without them. The shared queue is untouched by the control. Separately measured and deliberately left alone: _set rewriting the whole file costs nothing, since start then done on a real 102-line task file produced one-line diffs and moved the blame of zero unchanged lines, 100 of 102 staying on the authoring commit, so a targeted write would restore no recall and would give up what makes the YAML round trip safe.'
 ---
 ## What is this thing?
 
