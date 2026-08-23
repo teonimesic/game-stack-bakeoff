@@ -174,13 +174,14 @@ Do not "fix" these by adding them back. Each was measured and removed:
   disclaimer silence every aspect check in its file, and the control went green.
 - **A bare `aspect`-headed table, for the census check.** A table listing five of the six
   ids with no exhaustiveness claim in prose above it goes unreported. The structural
-  trigger was written and measured at **9 false positives** on live docs (task 92) — every
+  trigger was written and measured at **9 false positives** on live docs (task 92, #137) — every
   one a legitimate per-aspect *results* table over the subset a round actually ran. The
   census check reads the sentence, so **write the claim above the table or it is unguarded.**
 - **Any wording that counts aspects without asserting what the set IS.** `All five aspects
   were run`, `six aspects x 5 repeats`, `which aspects are included` are true sentences and
   stay green. The trigger asks for an existence, identity or definition predicate with the
-  list adjacent — a quantifier-based one was measured at 26 false positives and 0 true.
+  list adjacent — three separate quantifier-based drafts were measured at 26, 31 and 27
+  false positives and **0 true positives each** (#137).
 - **Root blocks indented 1-3 spaces, in general.** The indent check asks only about a
   continuation under a **2+ digit** ordered marker, which is the only form with a true
   positive here. The broad form fires on `tasks/` files where nothing is wrong — 2-space

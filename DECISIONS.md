@@ -521,7 +521,7 @@ for as long as two documents said five. A census claim is only visible because s
 **declared** it exhaustive, which is the same mechanism the withdrawal register rests on.
 
 **The census trigger is scoped to the PREDICATE, not to the quantifier, and that is a measured
-choice rather than a stylistic one (task 92).** It shipped as three alternations — the three
+choice rather than a stylistic one (task 92, #137).** It shipped as three alternations — the three
 wordings the two defective documents happened to use — and of 14 planted census claims, each
 false in exactly the way the check exists to catch, it fired on **2**. These two passed:
 

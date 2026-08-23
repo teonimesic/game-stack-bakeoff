@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#136 from building and running this evaluator. **Check whether a
+Findings #19-#137 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -213,6 +213,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **134** | The gate over the findings figure checked the RANGE and the COUNT went stale beside it, spelled in words where no check could read it — and the first mutant showed the check had two implementations | [certifies-nothing](findings/certifies-nothing.md) |
 | **135** | A locator answering two questions kept one counter, so a published agreement figure was one too high | [certifies-nothing](findings/certifies-nothing.md) |
 | **136** | The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available | [certifies-nothing](findings/certifies-nothing.md) |
+| **137** | The census gate could catch only the wordings of the two documents it was built from — 4 of 15 planted censuses, 0 of the 11 nobody had in front of them — and the obvious widening turns 27 correct lines red with no true positive among them | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

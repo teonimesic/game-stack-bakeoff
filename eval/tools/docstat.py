@@ -1094,7 +1094,9 @@ def _check_regime_ordinals() -> list[str]:
 #: the exact way this check exists to catch, it fired on 2. `The five judge aspects are
 #: X.`, `There are five aspects: X.` and `The full list of aspects is X.` all passed.
 #: That is AGENTS.md's most-repeated defect, a trigger written as an enumeration of the
-#: instances someone had seen, and it fails on the first instance they had not.
+#: instances someone had seen, and it fails on the first instance they had not. Published
+#: as FINDINGS #137, where the old trigger is re-measured against the 15 red pins below:
+#: it reds 4, and all 4 are the wordings quoted from the two documents it was built from.
 #:
 #: The obvious repair is the one that does not work, and it was measured before this one
 #: was written. A trigger built on the QUANTIFIER - a cardinal or `all`/`every`/`each`
