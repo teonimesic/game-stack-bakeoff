@@ -90,6 +90,13 @@ def audit(config: dict, paths: list[str]) -> list[tuple[str, int]]:
 
 
 def run(config: dict, paths: list[str], quiet: bool = False) -> int:
+    """Red if any instruction is dead, and red if there are no instructions to audit.
+
+    The empty case is not a clean bill of health, it is `total=0 passed=0` — the shape this
+    project calls a mechanism that runs, reports success and measures nothing. It arrives by
+    a typo in `reviews:` or `path_instructions:` deleting the whole block, which is precisely
+    when a green audit is most misleading.
+    """
     rows = audit(config, paths)
     dead = 0
     for pattern, n in rows:
@@ -98,26 +105,53 @@ def run(config: dict, paths: list[str], quiet: bool = False) -> int:
         if not quiet:
             detail = f"{n} tracked files" if ok else "MATCHES NOTHING TRACKED"
             print(f"  {'ok  ' if ok else 'RED '} {pattern:<34} {detail}")
+    if not rows:
+        if not quiet:
+            print("  RED  no reviews.path_instructions at all - nothing was audited")
+        return 1
     if not quiet:
         print(f"\n{len(rows)} path instructions, {dead} dead")
     return 1 if dead else 0
 
 
+def _rename(real: str, broken: str):
+    """Mutant: point one existing instruction at an address the tree does not have.
+
+    Raises if it does not hit exactly 1 instruction, so a mutant that has quietly stopped
+    describing the config fails the pin instead of passing it by not applying.
+    """
+
+    def apply(cfg: dict) -> None:
+        hit = [pi for pi in cfg["reviews"]["path_instructions"] if pi["path"] == real]
+        if len(hit) != 1:
+            raise ValueError(f"expected 1 instruction on {real!r}, found {len(hit)}")
+        hit[0]["path"] = broken
+
+    return apply
+
+
+def _drop_all(cfg: dict) -> None:
+    """Mutant: delete the whole block, which is how a green audit comes to measure nothing."""
+    cfg["reviews"]["path_instructions"] = []
+
+
 def control(config: dict, paths: list[str]) -> int:
     """Pin the gate in both directions.
 
-    Green on the shipped config is necessary and not sufficient: a check over an empty list of
-    instructions is also green. Each mutant kills exactly 1 address, and a different one, so a
-    gate hard-coded to watch a single row cannot survive all of them.
+    Green on the shipped config is necessary and not sufficient, so the pins cover both ways
+    it could be hollow. Each rename kills exactly 1 address, and a different one, so a gate
+    hard-coded to watch a single row cannot survive them all; `no_path_instructions_at_all`
+    is the `total=0 passed=0` case, and it is here because the gate returned success on it
+    until PR #4's review said so.
     """
     mutants = [
         (
             "skills_instruction_back_to_the_symlink",
-            ".agents/skills/**/SKILL.md",
-            ".claude/skills/**/SKILL.md",
+            _rename(".agents/skills/**/SKILL.md", ".claude/skills/**/SKILL.md"),
         ),
-        ("starters_instruction_misspelled", "eval/starters/**", "eval/starter/**"),
-        ("tasks_instruction_misspelled", "tasks/**", "task/**"),
+        ("starters_instruction_misspelled", _rename("eval/starters/**", "eval/starter/**")),
+        ("tasks_instruction_misspelled", _rename("tasks/**", "task/**")),
+        ("no_path_instructions_at_all", _drop_all),
     ]
 
     print("shipped config, expected GREEN")
@@ -128,21 +162,18 @@ def control(config: dict, paths: list[str]) -> int:
     if not rows:
         print("  PIN FAILED: 0 instructions read, so green means nothing")
 
-    for name, real, broken in mutants:
+    for name, apply in mutants:
         mutated = copy.deepcopy(config)
-        hit = 0
-        for pi in mutated["reviews"]["path_instructions"]:
-            if pi["path"] == real:
-                pi["path"] = broken
-                hit += 1
-        if hit != 1:
-            print(f"{name}: PIN FAILED, expected 1 instruction on {real!r}, found {hit}")
+        try:
+            apply(mutated)
+        except (KeyError, TypeError, ValueError) as exc:
+            print(f"{name}: PIN FAILED, mutant would not apply: {exc}")
             failures += 1
             continue
         got = run(mutated, paths, quiet=True)
         ok = got == 1
         failures += 0 if ok else 1
-        print(f"{name}: {real} -> {broken}: exit {got} {'RED as required' if ok else 'SURVIVED'}")
+        print(f"{name}: exit {got} {'RED as required' if ok else 'SURVIVED'}")
 
     print(f"\n{len(mutants) + 1} pins, {failures} failed")
     return 1 if failures else 0

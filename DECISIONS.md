@@ -1349,8 +1349,10 @@ left `.claude/skills` a symlink, which git tracks as **1** mode-120000 blob: the
 matching the skills to matching **0** tracked files, and the rule stopped existing silently. This
 is `AGENTS.md` rule 12 — the address is an input to the check — so it is now asserted in code
 rather than promised in a comment. `python3 eval/tools/coderabbit_config.py` reds any path
-instruction covering 0 tracked files; `--control` pins it green on the shipped config and red on
-**3** mutants, each killing a different address. `path_filters` is deliberately out of its scope:
+instruction covering 0 tracked files, **and on a config with no path instructions at all** — the
+`total=0 passed=0` case, which it returned success on until PR #4's review caught it. `--control`
+is **5** pins: green on the shipped config over its 8 instructions, and red on 4 mutants — 3
+renames each killing a different address, plus the emptied block. `path_filters` is out of scope:
 an *exclusion* matching nothing is a guard held against a future state, and `!eval/runs/**` is one
 on purpose.
 
