@@ -1,7 +1,7 @@
 ---
 id: 80
 title: 'godot just verify is red on a pristine starter: test-render fails, and the gate control has been reporting it'
-status: open
+status: in_flight
 priority: 2
 refs: eval/tools/starter_gate_control.py, eval/starters/godot/justfile line 120, tasks/67
 done_when: the cause of test-render exiting 1 on an untouched godot starter copy is identified and either repaired so starter_gate_control is 29 of 29 green, or recorded as an environment property with the condition that reproduces it and a control showing the other three arms are not subject to it
