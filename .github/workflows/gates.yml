@@ -108,6 +108,11 @@ jobs:
       - name: cost_census --selftest (README's cost result, pinned both ways)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/cost_census.py --selftest
+      # The selftest going green establishes nothing on its own. This is the producer for
+      # the mutant count DECISIONS.md publishes, and it needs no corpus either.
+      - name: cost_census_mutants (can that selftest fail?)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/cost_census_mutants.py
 
       # ---- the controls that check the checkers ------------------------------------
       - name: findings_control

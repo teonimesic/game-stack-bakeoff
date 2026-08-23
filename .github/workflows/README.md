@@ -15,7 +15,7 @@ deliberately left out** — a gate excluded and recorded is fine; one silently a
 |---|---|---|---|
 | `.githooks/pre-commit` | **1.7s** | the findings log, the withdrawal register, the queue — the CONTENT you are about to commit | every commit, once installed |
 | `.githooks/pre-push` | **14.3s** | the above plus `docstat --sweep` | every push, once installed |
-| `.github/workflows/gates.yml` | **42s** | everything above, plus every control that checks a CHECKER | pull request; push to `main` |
+| `.github/workflows/gates.yml` | **39.5s** | everything above, plus every control that checks a CHECKER | pull request; push to `main` |
 | `.github/workflows/controls.yml` | **685s** | the mutant suites and the skill-layout control | pull request and push touching `eval/**`, `.agents/**` or `.claude/**`; nightly; manual |
 
 **The two CI budgets are the SUM of the rows measured below**, on the operator's machine, not a
@@ -23,6 +23,13 @@ wall clock from a GitHub runner. `controls.yml` is `226.8 + 319.7 + 124.7 + 6.1 
 largest term is now `tasks_mutants`, which pays for every row added to `tasks_control` 25 times
 over. The recorded CI wall clocks are in the run table at the foot of this file and are the
 authority on what a runner actually takes.
+
+> **`gates.yml` read `42s` until task 123, and the 17 rows below it summed to 37.9s** — the
+> sentence above says the budget IS the sum, and nothing re-added it, so it drifted. Adding two
+> rows (`cost_census.py --selftest` and `cost_census_mutants.py`, 1.6s together) took the true
+> sum to **39.5s**, which is what the table now says. **A sum stated in prose beside the rows it
+> is a sum of has no producer and will disagree with them** — the same defect task 123 was filed
+> to fix one directory over. Re-add the `CI fast` and `CI slow` columns whenever a row moves.
 
 The principle the hooks are drawn on: **a hook checks the content, CI additionally checks
 the checkers.** A control over a tool changes only when the tool changes, and paying for it
@@ -86,6 +93,7 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `prompt_guard.py` | 0 | 0.1s | CI fast |
 | `manifest_selftest.py` | 0 | 0.3s | CI fast |
 | `cost_census.py --selftest` | 0 | 0.1s | CI fast |
+| `cost_census_mutants.py` | 0 | 1.5s | CI fast |
 | `findings_control.py` | 0 | 0.7s | CI fast |
 | `withdrawn_control.py` | 0 | 3.8s | CI fast |
 | `triage_control.py` | 0 | 8.4s | CI fast |

@@ -1969,7 +1969,17 @@ choice. A floor is a property of a population: pooling across runs mixes budget-
 only when every stack ran in it, with at least 2 trials per cell, under **one** `terminal_reason`.
 A cell holding a single trial has **no gap** and is refused rather than contributing $0.00 — that
 would deflate the floor and inflate the ratio, which is fail-open in the direction that
-manufactures a difference. `--selftest` pins that direction against 14 mutants and 3 variants.
+manufactures a difference.
+
+**The mutant count is `python3 eval/tools/cost_census_mutants.py`, and it did not start that way.**
+The sweep was first run from a scratchpad and the count published here by hand; CodeRabbit then
+read the selftest's own comments and reported **11** against a published **14**, and neither number
+was checkable, because the mutants died with the session. That is this section's own subject —
+*a count with no producer goes stale forever* — committed inside the section. The suite is now
+shipped, the count is `len(MUTANTS)`, and running it immediately found what the hand sweep had
+hidden: **2 of the mutants were exiting non-zero via a traceback rather than reddening a named
+check**, which a by-hand pass scores as "caught". The 3 **variants** stay inside
+`cost_census.selftest` because a variant must *pass*.
 
 **To re-open:** an adjudication of what the 7 groups say about ordering — which is queued as an
 offline task and needs no spend — or a matrix that lands an eighth qualifying group.

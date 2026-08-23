@@ -108,8 +108,12 @@ def trial_paths(runs_dir: Path) -> tuple[list[Path], list[Path]]:
     return counted, skipped
 
 
-def load_records(runs_dir: Path) -> tuple[list[tuple[str, dict]], list[Path]]:
-    """Every stored trial record as (run path relative to runs_dir, parsed), plus skips."""
+def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Path]]:
+    """Every stored trial record as (run path relative to runs_dir, file, parsed), plus skips.
+
+    The file path travels with the record because every downstream refusal has to name it:
+    an error that says only "a record has no stack" is a bug report nobody can act on.
+    """
     if not runs_dir.is_dir():
         raise CostCensusError(
             f"no runs directory at {runs_dir} (it is gitignored; an agent worktree does "
@@ -121,7 +125,7 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, dict]], list[Path]]:
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CostCensusError(f"{path}: {exc}") from exc
-        out.append((str(path.parent.parent.relative_to(runs_dir)), data))
+        out.append((str(path.parent.parent.relative_to(runs_dir)), path, data))
     if not out:
         raise CostCensusError(
             f"{runs_dir} holds no **/trials/*.json — refusing to report 0 "
@@ -202,6 +206,11 @@ def group_result(run: str, game: str, cells: dict[str, list[dict]]) -> dict:
         "cell_gap_ratio": (max(gaps) / min(gaps)) if min(gaps) else None,
         "between_stack_range_usd": between,
         "range_pct_of_floor": (100.0 * between / floor) if floor else None,
+        # The RATIO is undefined at a zero floor; the COMPARISON is not. A group with a
+        # $0.00 floor and a positive range exceeds its floor as completely as a group can,
+        # and counting exceedance off the percentage silently dropped exactly those groups
+        # — fail-open, in the direction that understates how much the stacks disagree.
+        "range_exceeds_floor": between > floor,
         "r_cost_turns": r_cost_turns,
         "r_cost_turns_n": len(paired),
         "widest_turn_span": None if widest is None else {
@@ -215,8 +224,39 @@ def group_result(run: str, game: str, cells: dict[str, list[dict]]) -> dict:
 
 def cost_census(runs_dir: Path, terminal_reason: str = "completed",
                 min_stacks: int = 4, min_trials_per_cell: int = 2) -> dict:
+    # A threshold below 2 cannot define the measure this tool exists to compute, and both
+    # are reachable from the CLI. `--min-trials-per-cell 1` admits a cell with no gap and
+    # scores it $0.00 — the exact fail-open the thin-cell guard exists to prevent, reachable
+    # by a flag; `--min-stacks 1` reports a "between-stack range" over one stack, which is
+    # 0.00 by construction and reads as agreement. Refuse before measuring, not after.
+    if min_stacks < 2:
+        raise CostCensusError(
+            f"--min-stacks {min_stacks}: a between-stack range needs at least 2 stacks; "
+            f"over 1 it is $0.00 by construction and reads as the stacks agreeing")
+    if min_trials_per_cell < 2:
+        raise CostCensusError(
+            f"--min-trials-per-cell {min_trials_per_cell}: a within-cell gap needs at "
+            f"least 2 trials; a 1-trial cell has NO gap, and admitting it as $0.00 "
+            f"deflates the floor and inflates the ratio")
+
     records, skipped = load_records(runs_dir)
-    wholegame = [(run, d) for run, d in records if WHOLEGAME_KEY in d]
+    wholegame = []
+    for run, path, d in records:
+        if WHOLEGAME_KEY not in d:
+            continue
+        # A record that parsed is not a record that can be grouped. Missing `stack` was an
+        # uncaught KeyError and a non-numeric cost an uncaught TypeError, and main() catches
+        # only CostCensusError — so both surfaced as a traceback rather than as a named,
+        # fail-closed measurement error naming the file. Validate while `path` is in scope.
+        stack = d.get("stack")
+        if not isinstance(stack, str) or not stack:
+            raise CostCensusError(
+                f"{path}: whole-game record has no usable `stack` (got {stack!r})")
+        cost = d.get("agent", {}).get("cost_usd")
+        if cost is not None and (isinstance(cost, bool) or not isinstance(cost, (int, float))):
+            raise CostCensusError(
+                f"{path}: `agent.cost_usd` is {cost!r}, which is not a number")
+        wholegame.append((run, d))
 
     by_group: dict[tuple[str, str], dict[str, list[dict]]] = collections.defaultdict(
         lambda: collections.defaultdict(list))
@@ -254,6 +294,13 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
     for g in groups:
         for i, stack in enumerate(g["cheapest_to_dearest"]):
             ranks[stack].append(i + 1)
+    # NO MEAN RANK. The groups span 4 runs and 4 games under different budget-cap regimes
+    # and are not a population anyone has shown homogeneous (AGENTS.md rule 4), and a mean
+    # is the shape that gets re-quoted with its caveat stripped. The rank VECTOR and a count
+    # of firsts carry the same information, cannot be mistaken for a statistic, and are what
+    # the adjudication this feeds actually needs.
+    rank_vectors = {s: v for s, v in sorted(ranks.items())}
+    times_cheapest = {s: sum(1 for r in v if r == 1) for s, v in rank_vectors.items()}
 
     return {
         "read_on": _dt.date.today().isoformat(),
@@ -274,7 +321,10 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
             "n_groups": len(groups),
             "range_pct_of_floor_min": min(ratios) if ratios else None,
             "range_pct_of_floor_max": max(ratios) if ratios else None,
-            "groups_where_range_exceeds_floor": sum(1 for r in ratios if r > 100.0),
+            # Counted off the COMPARISON, never off the percentage: a zero-floor group has
+            # no percentage and still exceeds its floor.
+            "groups_where_range_exceeds_floor": sum(
+                1 for g in groups if g["range_exceeds_floor"]),
             "r_cost_turns_min": min(rs) if rs else None,
             "r_cost_turns_max": max(rs) if rs else None,
             "widest_turn_span_anywhere": max((s["span"] for s in spans), default=None),
@@ -282,7 +332,8 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
             "cell_spread_min": min(spreads) if spreads else None,
             "cell_spread_max": max(spreads) if spreads else None,
             "cell_gap_ratio_max": max(gap_ratios) if gap_ratios else None,
-            "mean_cost_rank": {s: sum(v) / len(v) for s, v in sorted(ranks.items())},
+            "cost_rank_per_group": rank_vectors,
+            "times_cheapest": times_cheapest,
         },
     }
 
@@ -291,6 +342,23 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
 
 def _fmt_r(value: float | None) -> str:
     return "undefined" if value is None else f"{value:.3f}"
+
+
+def _fmt(value: float | None, spec: str, suffix: str = "") -> str:
+    """Format a value that may legitimately be undefined.
+
+    Every aggregate here can be `None` on a real population — a zero floor gives no ratio
+    and no cell-gap ratio, and a population where every cell's cheapest trial cost $0.00
+    gives no spread. Formatting `None` with `:.0f` is a TypeError, so the DATA path would
+    be correct and the tool would still die on the way to the terminal.
+    """
+    return "undefined" if value is None else f"{value:{spec}}{suffix}"
+
+
+def _fmt_interval(low: float | None, high: float | None, spec: str, suffix: str = "") -> str:
+    if low is None or high is None:
+        return "undefined"
+    return f"{_fmt(low, spec, suffix)} - {_fmt(high, spec, suffix)}"
 
 
 def render(c: dict) -> str:
@@ -330,14 +398,16 @@ def render(c: dict) -> str:
             f"  between-stack range (max stack mean - min stack mean)"
             f"   ${g['between_stack_range_usd']:8.2f}",
             f"  range as a percentage of the floor"
-            f"                       {'undefined' if ratio is None else f'{ratio:8.0f}%'}"
-            + ("" if ratio is None or ratio <= 100 else "   (range EXCEEDS the floor)"),
+            f"                       {_fmt(ratio, '8.0f', '%'):>9}"
+            # The MARKER comes off the comparison, not the percentage, so a zero-floor
+            # group is still marked as exceeding its floor.
+            + ("   (range EXCEEDS the floor)" if g["range_exceeds_floor"] else ""),
             f"  r(cost, turns)                                           "
             f"{_fmt_r(g['r_cost_turns']):>9}   (n={g['r_cost_turns_n']})",
             "  widest cell gap over tightest, inside this group          "
             + ("undefined ($0.00 tightest cell)" if g["cell_gap_ratio"] is None
-               else f"{g['cell_gap_ratio']:.1f}x   <- how wrong a one-cell floor "
-                    "could be here"),
+               else f"{_fmt(g['cell_gap_ratio'], '.1f', 'x')}   <- how wrong a one-cell "
+                    "floor could be here"),
         ]
         if g["widest_turn_span"]:
             w = g["widest_turn_span"]
@@ -352,25 +422,32 @@ def render(c: dict) -> str:
     if a["n_groups"]:
         lines += [
             f"  range as a percentage of the floor   "
-            f"{a['range_pct_of_floor_min']:.0f}% - {a['range_pct_of_floor_max']:.0f}%; "
-            f"the range EXCEEDS the floor in {a['groups_where_range_exceeds_floor']} "
+            f"{_fmt_interval(a['range_pct_of_floor_min'], a['range_pct_of_floor_max'], '.0f', '%')}"
+            f"; the range EXCEEDS the floor in {a['groups_where_range_exceeds_floor']} "
             f"of {a['n_groups']}",
             f"  r(cost, turns)                       "
             f"{_fmt_r(a['r_cost_turns_min'])} - {_fmt_r(a['r_cost_turns_max'])}",
             f"  widest turn span in any one cell     "
             f"{a['widest_turn_span_anywhere']} turns",
             f"  per-cell spread, over {a['cells']} cells       "
-            f"{a['cell_spread_min']:.2f}x - {a['cell_spread_max']:.2f}x",
+            f"{_fmt_interval(a['cell_spread_min'], a['cell_spread_max'], '.2f', 'x')}",
             f"  worst one-cell floor error           "
-            f"{a['cell_gap_ratio_max']:.1f}x, inside a single group "
+            f"{_fmt(a['cell_gap_ratio_max'], '.1f', 'x')}, inside a single group "
             f"(never compared across groups — gap sizes are regime-bound)",
-            "  mean cost rank per stack (1 = cheapest in its group)   "
-            + ", ".join(f"{s} {v:.2f}" for s, v in a["mean_cost_rank"].items()),
             "",
-            "  the rank line is a read of the stack means, NOT a test: the groups are not "
-            "independent",
-            "  (3 share one run, 2 share another) and n=2 per cell. It says what the "
-            "orderings were.",
+            "  cost rank per group (1 = cheapest in that group), in group order:",
+        ]
+        lines += [f"    {s:6} {v}   cheapest in {a['times_cheapest'][s]} of {a['n_groups']}"
+                  for s, v in a["cost_rank_per_group"].items()]
+        lines += [
+            "",
+            "  THOSE ROWS ARE A READ OF THE STACK MEANS, NOT A TEST, and there is "
+            "deliberately no mean",
+            "  rank: the groups span several runs and games under different budget caps and "
+            "are not a",
+            "  population anyone has shown homogeneous, so a mean over them would be the one "
+            "number here",
+            "  that could be re-quoted as a result. Every cell is n=2.",
         ]
     return "\n".join(lines)
 
@@ -397,6 +474,7 @@ def _rec(game: str, stack: str, cost: float, turns: int | None = None,
 
 def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
     """Pin the extraction on a tree whose answer is stated before it is measured."""
+    import shutil
     import tempfile
 
     failures: list[str] = []
@@ -420,7 +498,8 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
     EXPECTED_GROUP_FIELDS = (
         "run", "game", "trials", "stacks", "per_stack", "within_cell_floor_usd",
         "cell_gap_ratio", "between_stack_range_usd", "range_pct_of_floor",
-        "r_cost_turns", "r_cost_turns_n", "widest_turn_span", "cheapest_to_dearest")
+        "range_exceeds_floor", "r_cost_turns", "r_cost_turns_n", "widest_turn_span",
+        "cheapest_to_dearest")
 
     def measure(label: str, runs_dir: Path, **kw) -> dict:
         try:
@@ -437,6 +516,24 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
 
         def __missing__(self, key):
             return None
+
+    # Every across-groups field this selftest reads. Same purpose as EXPECTED_GROUP_FIELDS,
+    # and it exists because the group-level guard alone was not enough: the shipped mutant
+    # suite caught two mutants dying on `across_groups["cost_rank_per_group"]` rather than
+    # reddening a row, which is the drift the group-level guard was added for, one level up.
+    EXPECTED_ACROSS_FIELDS = (
+        "n_groups", "range_pct_of_floor_min", "range_pct_of_floor_max",
+        "groups_where_range_exceeds_floor", "r_cost_turns_min", "r_cost_turns_max",
+        "widest_turn_span_anywhere", "cells", "cell_spread_min", "cell_spread_max",
+        "cell_gap_ratio_max", "cost_rank_per_group", "times_cheapest")
+
+    def across(label: str, result: dict) -> dict:
+        a = result.get("across_groups", {})
+        missing = [k for k in EXPECTED_ACROSS_FIELDS if k not in a]
+        if missing:
+            failures.append(f"{label}: across_groups is missing field(s) {missing}")
+            return _Absent(a)
+        return a
 
     def only_group(label: str, result: dict) -> dict:
         groups = result["groups"]
@@ -521,8 +618,40 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               c["excluded_by_terminal_reason"], {"max_turns": 1})
         check("spec-change record never entered", c["wholegame_records"], 9)
         check("agent-authored trials/ skipped", c["skipped_agent_authored"], 1)
-        check("range exceeds floor here",
-              c["across_groups"]["groups_where_range_exceeds_floor"], 1)
+        a = across("known-answer tree", c)
+        check("range exceeds floor here", a["groups_where_range_exceeds_floor"], 1)
+        check("and the per-group flag agrees", g["range_exceeds_floor"], True)
+        # No mean rank is published. The rank VECTOR and a count of firsts say the same
+        # thing and cannot be re-quoted as a statistic over a population nobody has shown
+        # homogeneous (AGENTS.md rule 4).
+        check("a mean rank is not published at all", "mean_cost_rank" in a, False)
+        check("the rank vector is, in group order", a["cost_rank_per_group"],
+              {"godot": [3], "rust": [4], "ts": [1], "unity": [2]})
+        check("with a count of firsts", a["times_cheapest"],
+              {"godot": 0, "rust": 0, "ts": 1, "unity": 0})
+
+        # ---- THE THRESHOLDS. Both are CLI-reachable and both can be set to a value that
+        # cannot define the measure. `--min-trials-per-cell 1` admits a cell with no gap and
+        # scores it $0.00 — the thin-cell fail-open, reached by a flag instead of by data.
+        for kwargs, want in (({"min_trials_per_cell": 1}, "min-trials-per-cell"),
+                             ({"min_trials_per_cell": 0}, "min-trials-per-cell"),
+                             ({"min_stacks": 1}, "min-stacks"),
+                             ({"min_stacks": 0}, "min-stacks")):
+            try:
+                cost_census(runs, **kwargs)
+                failures.append(f"{kwargs}: measured instead of refusing")
+            except CostCensusError as exc:
+                if want not in str(exc):
+                    failures.append(f"{kwargs}: refusal does not name {want}: {exc}")
+            except Exception as exc:  # noqa: BLE001 - wrong class is also a failure
+                failures.append(f"{kwargs}: raised {type(exc).__name__}, not "
+                                f"CostCensusError: {exc}")
+        # The guard must not be so eager that it refuses a legitimate threshold. 2 is the
+        # smallest value that CAN define the measure, and it must be accepted.
+        c_two = measure("min_stacks=2, min_trials_per_cell=2", runs,
+                        min_stacks=2, min_trials_per_cell=2)
+        check("the smallest thresholds that define the measure are accepted",
+              len(c_two["groups"]) >= 1, True)
 
         # Direction 3b, the VARIANT: had the max_turns record been let in, the answer
         # would have changed. Pin that it WOULD have — otherwise the exclusion above is
@@ -597,11 +726,30 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                 _write(zero / "run-z" / "trials" / f"gZf__{stack}__t{t}.json",
                        _rec("gZf", stack, 10.0 + i, 100 + i))
         gz = only_group("zero-floor tree", measure("zero-floor tree", zero))
+        czero = measure("zero-floor tree", zero)
         check("a zero floor is reported as zero", gz["within_cell_floor_usd"], 0.0)
         check("a between-stack range still exists", gz["between_stack_range_usd"], 3.0)
         check("but the ratio is undefined, not a number", gz["range_pct_of_floor"], None)
         check("and so is the cell-gap ratio, whose divisor is also 0",
               gz["cell_gap_ratio"], None)
+        # THE RATIO IS UNDEFINED; THE COMPARISON IS NOT. $3.00 of range over a $0.00 floor
+        # exceeds it as completely as a group can. Counting exceedance off the percentage
+        # dropped exactly these groups — fail-open, understating how much the stacks
+        # disagree — so both the per-group flag and the across-groups count are pinned here.
+        check("a zero-floor group still EXCEEDS its floor", gz["range_exceeds_floor"], True)
+        check("and is counted as such across groups",
+              across("zero-floor tree", czero)["groups_where_range_exceeds_floor"], 1)
+        # And render() must survive it. The data path being right is not enough if the tool
+        # dies formatting None with :.0f on the way to the terminal.
+        rendered = ""
+        try:
+            rendered = render(czero)
+        except Exception as exc:  # noqa: BLE001 - any failure rendering is a failure
+            failures.append(f"render on a zero-floor tree raised "
+                            f"{type(exc).__name__}: {exc}")
+        check("render says undefined rather than crashing", "undefined" in rendered, True)
+        check("render still marks the exceedance",
+              "range EXCEEDS the floor" in rendered, True)
 
         # Direction 9: records with no num_turns give r over the subset, refused below 3.
         noturns = Path(tmp) / "noturns"
@@ -633,6 +781,43 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("nested run found and named by its relative path",
               [(grp["run"], grp["game"]) for grp in cnest["groups"]],
               [("archive-w/run-d", "gD")])
+
+        # ---- Direction 10b: A RECORD THAT PARSES IS NOT A RECORD THAT CAN BE GROUPED.
+        # `main()` catches only CostCensusError, so a whole-game record with no `stack` was
+        # an uncaught KeyError and a non-numeric cost an uncaught TypeError — a traceback
+        # where a named, fail-closed measurement error belongs. Both must name the file.
+        for bad, label in (
+                ({"game": "gB", "agent": {"cost_usd": 1.0,
+                                          "terminal_reason": "completed"}}, "stack"),
+                ({"game": "gB", "stack": "", "agent": {"cost_usd": 1.0,
+                                                       "terminal_reason": "completed"}},
+                 "stack"),
+                ({"game": "gB", "stack": 7, "agent": {"cost_usd": 1.0,
+                                                      "terminal_reason": "completed"}},
+                 "stack"),
+                ({"game": "gB", "stack": "ts", "agent": {"cost_usd": "40.00",
+                                                         "terminal_reason": "completed"}},
+                 "cost_usd"),
+                # A bool IS an int in Python. `cost_usd: true` would average as 1.0.
+                ({"game": "gB", "stack": "ts", "agent": {"cost_usd": True,
+                                                         "terminal_reason": "completed"}},
+                 "cost_usd")):
+            shaped = Path(tmp) / "shaped"
+            if shaped.exists():
+                shutil.rmtree(shaped)
+            _write(shaped / "run-s" / "trials" / "bad_record.json", bad)
+            try:
+                cost_census(shaped)
+                failures.append(f"malformed `{label}` {bad!r}: measured instead of raising")
+            except CostCensusError as exc:
+                if "bad_record.json" not in str(exc) or label not in str(exc):
+                    failures.append(f"malformed `{label}`: refusal does not name the file "
+                                    f"and the field: {exc}")
+            except Exception as exc:  # noqa: BLE001 - wrong class is also a failure
+                failures.append(f"malformed `{label}`: raised {type(exc).__name__}, not "
+                                f"CostCensusError: {exc}")
+        # A record with NO cost field at all is a different case and stays an exclusion,
+        # not a refusal — it is absent, not wrong. Variant B above pins that.
 
         # Direction 11: a malformed record fails loudly, naming its file. Swallowing it
         # would drop a record from a population without changing anything a reader can see.
