@@ -195,6 +195,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
 | `eval/FINDINGS.md` | Findings #19-#141, including retractions. **Read this before trusting any number anywhere.** |
+| `.coderabbit.yaml` | What a pull request here is reviewed for. Exclusion-only, because the same patterns drive a sparse checkout: it drops the archives and the committed trial records, and redirects the review on `eval/starters/` from "could this be better" to parity and the regime-boundary gates. Live since PR #1, 2026-08-23; the reasoning and 2 reversal conditions are in `DECISIONS.md`. |
 
 ## Start here
 
