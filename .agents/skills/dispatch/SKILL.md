@@ -73,6 +73,21 @@ and every future reader, gets it for free.
 | `subagent_type` | `general-purpose` |
 | `description` | `Task <id> — <a few words>` |
 
+**Concurrency is how the review pool gets spent, and it is yours to control — not the agent's.**
+Every dispatched agent opens a pull request and runs up to 5 review rounds, a round can cost more
+than one review, and they all draw on one shared hourly allowance. Four agents finishing together
+is four PRs in review at once.
+
+**Nothing can read that allowance.** The counter CodeRabbit once printed lives in a summary
+comment it overwrites in place, and it is in none of the stored pull requests (#158). So it cannot
+be budgeted against, only observed: **if reviews stop arriving on several PRs at once, that is the
+pool, not a clean review.** The two are indistinguishable from inside an agent, which is why the
+agent-side rule is to hand back and report rather than wait.
+
+Capping rounds per PR does not control this — the number of PRs in review at once does. Stagger
+dispatches when a wave would land together, and prefer fewer agents on bigger tickets over many on
+small ones.
+
 Then `python3 eval/tools/tasks.py` to confirm it shows `in_progress`, and keep dispatching.
 **Never leave the queue idle behind one item** — a task in the queue was authorised when it was
 filed.

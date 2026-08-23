@@ -306,10 +306,17 @@ that you waited 15 minutes and got no review, set the ticket to `in_testing` wit
 the evidence, and report it. **A no-review is a result the orchestrator can act on; an agent
 still waiting is not.**
 
-**Rounds cost more than pushes.** The plan allows 10 included reviews per hour and a single PR
-consumed 4 of them over 3 rounds — the counter went 9, 8, 6, so a round can cost 2. Budget
-**two review rounds per task**; if the third round is still finding things, that is a signal to
-hand back and say so rather than to keep spending an hour's quota on one ticket.
+**The ceiling is 5 rounds per task, and it is a ceiling rather than a target.** Stop as soon as a
+round comes back clean. If you reach 5 and it is still finding real defects, hand back and say so
+— the ticket is bigger than it was filed as, and the orchestrator needs to know that.
+
+**Rounds are drawn from a pool shared with every other agent, and a round can cost more than one
+review.** One PR consumed 4 reviews over 3 rounds. **You cannot see the pool** — the counter that
+once showed it is written into a summary comment CodeRabbit overwrites in place, and it appears
+in none of the stored pull requests today (#158). So do not budget against a number you cannot
+read: keep your own rounds few because they are shared, and if reviews stop arriving, treat it as
+the pool being exhausted rather than as a clean review (the two look identical from here — see the
+deadlock section).
 
 > **The counter is not a durable artifact.** `tasks/108` read it out of the review body; on
 > 2026-08-23 it was no longer anywhere in PR #1's stored reviews or comments, because CodeRabbit
@@ -318,17 +325,28 @@ hand back and say so rather than to keep spending an hour's quota on one ticket.
 
 ### Which recommendations to act on
 
-**The reviewer is a second reader, not an authority.** This project's standard is higher than
-*the reviewer said so*, and the two useful comments PR #1 received both came from rules this
-repository supplied to it (`AGENTS.md` through `code_guidelines`, and a `**/*.md` path
-instruction) rather than from generic review.
+**Keep going until the review has nothing left to say, up to 5 rounds.** A comment naming a real
+defect is fixed, pushed, and seen by the next round. **A clean round is the goal**, not an
+accident — hand back when the reviewer stops finding things, not when you run out of patience.
+
+**Do not assume your standard is higher than the reviewer's.** It is a second reader with no
+stake in what you just wrote, which is exactly what makes it useful, and on this repository its
+comments have found real fail-open defects, a control that was green for the wrong reason, and a
+gate that broke the very rule it was written to enforce. **The default is that it is right and
+you are wrong.** Start there and let it change your mind, rather than treating each comment as
+something to get past.
+
+**Declining is for a conflict you can demonstrate**, not for disagreement. If you decline, the
+reply has to carry the evidence — the rule it contradicts, the measurement that refutes it, the
+mutant that shows its suggestion fails. A decline with only an opinion behind it is a comment you
+lost an argument with.
 
 | the comment | what you do |
 |---|---|
 | Names a real defect — a wrong path, a check that cannot fail, a false statement | Fix it, push, and let the next round see it |
 | Contradicts `AGENTS.md`, a folder-scoped `AGENTS.md`, or a recorded `DECISIONS.md` entry | **It is wrong. Do not comply.** Reply in the thread naming the rule and why, and leave the code alone |
 | Would loosen a test, widen an assertion, or excuse a failure | **Refuse**, and say so. Every reason not to count a failure is a channel a bug can widen (rule 7) |
-| Style, wording, reordering in a document | Ignore. The prose here is the product and `.coderabbit.yaml` already tells it so; a comment of this shape is a config defect worth a task |
+| Readability of a document — hard to follow, more complex than its content warrants, over-specific, narrating past events, or explaining itself | **Act on it.** `.coderabbit.yaml` asks for these on purpose since 2026-08-23. A document states the choices in force, the current state and how to do things; it is not a log of what happened or of its own contents |
 | Touches `eval/starters/*/` | Never act on it without the ticket saying so. Editing a starter is a regime boundary |
 
 **Reply to what you decline.** An unanswered comment is indistinguishable from an unread one, and
