@@ -33,6 +33,10 @@ silently ignored, which is the accepted-but-ignored-flag shape. Run it by hand a
 https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json when you edit that
 block.
 
+The audited repository is ONE input. `--root` selects it, and the config is that root's own
+`.coderabbit.yaml` — there is deliberately no way to point the two at different trees, because a
+config from one repository checked against another's file list returns a confident green.
+
 Usage:
     python3 eval/tools/coderabbit_config.py            # gate: exit 1 if any instruction is dead
     python3 eval/tools/coderabbit_config.py --control  # pin it red and green; exit 1 if a pin fails
@@ -48,7 +52,14 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG = ROOT / ".coderabbit.yaml"
+CONFIG_NAME = ".coderabbit.yaml"
+
+# ONE ADDRESS, NOT TWO. This took a `--config` alongside `--root` until PR #4's review: the
+# config could then be read from one tree and the file list from another, and the audit would
+# report green because the unrelated repository happened to satisfy the loaded patterns. That
+# is rule 12 - the address is an input to the check - committed inside the gate written to
+# enforce rule 12. The repair is structural rather than an equality assertion: with the config
+# derived from the root there is no second address left to disagree.
 
 
 def tracked_files(root: Path) -> list[str]:
@@ -139,15 +150,21 @@ def control(config: dict, paths: list[str]) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--config", default=str(CONFIG))
-    ap.add_argument("--root", default=str(ROOT))
+    ap.add_argument(
+        "--root",
+        default=str(ROOT),
+        help=f"repository to audit; its {CONFIG_NAME} and its git file list, never a mixed pair",
+    )
     ap.add_argument("--control", action="store_true", help="pin the gate red and green")
     args = ap.parse_args()
 
-    root = Path(args.root)
-    config = yaml.safe_load(Path(args.config).read_text())
+    root = Path(args.root).resolve()
+    config_path = root / CONFIG_NAME
+    if not config_path.is_file():
+        raise SystemExit(f"no {CONFIG_NAME} in {root} - that is an error, not an empty audit")
+    config = yaml.safe_load(config_path.read_text())
     paths = tracked_files(root)
-    print(f"{args.config} against {len(paths)} tracked files in {root}\n")
+    print(f"{config_path} against {len(paths)} tracked files in {root}\n")
     return control(config, paths) if args.control else run(config, paths)
 
 
