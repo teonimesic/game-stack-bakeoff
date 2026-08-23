@@ -132,6 +132,12 @@ jobs:
       - name: sweep_bounds_control (the sweep still stops, and not on a money figure)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/sweep_bounds_control.py
+      # A missing `agent.cost_usd` printed `n/a` in the row and summed as 0.00 into the
+      # total below it. This pins the aggregation against that in a temp tree, with the
+      # old expression evaluated beside it as the mutant.
+      - name: runstat --selftest (an unmeasured figure is not a zero)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/runstat.py --selftest
 
       # ---- the controls that check the checkers ------------------------------------
       - name: findings_control

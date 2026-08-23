@@ -234,7 +234,7 @@ Two arms, because a control that only exercises the happy path shares the assump
 exists to test.
 
 **Resource use, at the measured $5.29 per call:** a (game, aspect) that resolves in 4 rounds is
-~$21; one that runs to `MAX_RUNS = 24` is ~$127. Five aspects on one game is therefore somewhere
+~$21; one that runs to `MAX_RUNS = 24` is ~$127. 5 aspects on 1 game is therefore somewhere
 between **$105 and $635**, and which end depends on the answer — which is the point of sampling
 until the decision resolves rather than a fixed number of times.
 
@@ -305,7 +305,7 @@ paragraph read *"under a $150 ceiling the affordable experiment is..."*, which a
 budget nobody is charged. There is no such ceiling and there never was one: the figures are
 token valuations (#159), and what a sweep really commits is wall clock and rate-limit capacity.
 
-The recommendation is unchanged, because it never rested on the money. **One game, five aspects,
+The recommendation is unchanged, because it never rested on the money. **1 game, 5 aspects,
 `--max-runs` cut to about 6** — roughly 30 calls — reaches gates 1 to 4 on that game and reports
 `UNRESOLVED` for pairs that need more, and the reason to prefer it is the paragraph above: the
 close case is where this project keeps landing and depth added later re-reads stored rounds for
@@ -324,8 +324,11 @@ takes. `UNRESOLVED` is not a tie and must not be written as one.
 
 **At affordable N it can detect an ordering but cannot statistically prove a tie.** A Wilson 95%
 half-width at p=0.5 is 0.186 at n=24 and 0.098 at n=96 — so a ±0.10 statistical tie needs about
-**96 rounds per aspect**, roughly $1,150 of token valuation and, more to the point, 96 sequential
-calls against one account's rate limit.
+**96 rounds per aspect**. At the measured mean of $4.38 per field call that is **~$420** of
+token valuation (96 x 4.38 = 420.48) and, more to the point, 96 sequential calls against one
+account's rate limit. This line said *$1,150* until 2026-08-23: that is 96 calls priced at the
+**$12 per-call ceiling**, not at anything measured, and the RESULT section 190 lines below had
+already corrected it to $420 while this paragraph went on stating the old figure.
 
 The honest claims available at n=24 are therefore *"no ordering was found, ±0.19"* or *"the judge
 never separated this pair at all"*. `n_for_statistical_tie` is reported so the size of the
@@ -514,7 +517,9 @@ Unchanged. `verify_blind.py`, unpiped, after any starter or fixture change.
 subjective layer alongside it. **Measured cost: $2.82-$5.29 per field call (mean $4.38),
 450-572 s wall.** That is the number to plan with; every earlier figure here was an estimate.
 At the mean, 3 games x 5 aspects x 2 orders is about **$130**, and the ~96 rounds per aspect a
-statistical tie would need is about **$420 per aspect**, not the $1,150 previously quoted.
+statistical tie would need is about **$420 per aspect** — 96 calls at the measured $4.38 mean.
+The figure quoted before this measurement was $1,150, which is the same 96 calls priced at the
+$12 per-call ceiling.
 
 **Gate 1, ceiling — PASSES, narrowly, on both aspects measured.**
 

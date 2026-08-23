@@ -163,7 +163,7 @@ re-invented.
 | How the subjective layer works, and its gates | `eval/judge/JUDGING.md` |
 | What each criterion asks and what the tiers weigh | `eval/judge/RUBRIC.md` |
 | What resource every run used, and what it may be compared with | `eval/RUNS.md` |
-| What the `$` figures mean — **every one is `tokval`**, a list-price valuation of tokens on a subscription account, never an expenditure (#159) | `eval/tools/tokenvalue.py --definition` |
+| What the `$` figures this project GENERATES mean — every one is `tokval`, a list-price valuation of tokens on a subscription account, never an expenditure (#159). A price quoted from outside — a vendor's licence fee in `research/` — is real money and is not this | `eval/tools/tokenvalue.py --definition` |
 | What is decided and why | `DECISIONS.md` |
 | What went wrong and what it taught | `eval/FINDINGS.md` |
 
@@ -497,12 +497,15 @@ Two refinements that pattern does not cover:
    the failure this rule exists to prevent. At 1000 turns every outcome is interpretable; at 250
    one of them is not.
 
-   **And that ceiling turned out not to be one.** `--max-budget-usd` names a list-price valuation
-   of tokens on a subscription account, so it bounded nothing real; it only *instructed* the
-   agent to conserve (#159). Raising a ceiling is self-diagnosing, as above; **a ceiling in a
-   unit that does not bind is not self-diagnosing at all**, because the outcome it reports is
-   about the instruction, not about the resource. `DECISIONS.md` records that no run here is
-   bounded by a money figure.
+   **And that ceiling was measuring the wrong thing, which is not the same as doing nothing.**
+   `--max-budget-usd` really does terminate a trial — `budget_exhausted` is a stored terminal
+   reason and one run has a trial in it — and it is *also* visible to the agent and instructs it.
+   What it cannot do is protect a resource: the figure it names is a list-price valuation of
+   tokens on a subscription account (#159). So it truncates and instructs while protecting
+   nothing, which is the worst of the three. Raising a ceiling is self-diagnosing, as above;
+   **a ceiling in a unit that does not bind is not**, because the outcome it reports is about
+   the instruction rather than about the resource. `DECISIONS.md` records that no run here is
+   bounded by a money figure, and the standing configuration passes no such flag.
 
 9. **A repeated identical measurement across independent subjects is not corroboration. It is
    the signature of a shared cause, and the shared cause is usually the instrument.** Six

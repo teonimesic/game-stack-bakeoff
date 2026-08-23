@@ -86,9 +86,9 @@ an incident that teaches nothing.
 **Do not pass `--max-budget-usd`.** The only limit is the turn count, which is invisible to the
 agent and therefore instructs nothing.
 
-Two facts settle this, and the second one retired an entire section of this file.
+2 facts settle this, and the second one retired an entire section of this file.
 
-**`--max-budget-usd` is visible to the agent; `--max-turns` is not.** Verified three ways
+**`--max-budget-usd` is visible to the agent; `--max-turns` is not.** Verified 3 ways
 (7.31 → `EXACT=7.31`; 41.77 → `EXACT=41.77`; absent → `NONE`). So a cap is an **instruction**,
 there is no neutral value, and usage responds to it — Tetris ran $23.20 at $25 and $35.66 at $48,
 **1.54×** (FINDINGS #33). A cap change is therefore a task change, and runs under different caps
@@ -114,8 +114,8 @@ with no budget communicated at all. Calibrate with one trial before committing a
 report the measured figure rather than extrapolating from a capped run — those numbers are
 measurements of their caps. The largest single trial ever recorded is **$72.83 over 369 turns**
 (`g3_arena__rust__t0`, uncapped, 1000-turn limit); at that trial's 0.1974/turn, 1000 turns is a
-**~197** backstop rather than a ceiling. One datum, one stack, one game: rust is the cell with the
-most headroom, so treat it as the expensive end and re-read it against the full set.
+**~197** backstop rather than a ceiling. **n=1** — 1 datum, 1 stack, 1 game — and rust is the cell
+with the most headroom, so treat it as the expensive end and re-read it against the full set.
 
 Record which limit bound each trial. `max_turns` and `budget_exhausted` are different populations
 and both are different from `completed`.

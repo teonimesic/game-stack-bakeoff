@@ -38,12 +38,16 @@ last stage's.
 
 `--max-budget-usd` is *visible to the agent and instructs it*; `--max-turns` is invisible
 and merely truncates. Any stated budget is an instruction — a large cap is still an
-instruction, only an absent one is neutral. Measured rate is **0.197 tokval/turn**, so 1000
-turns is a ~197 backstop rather than a ceiling.
+instruction, only an absent one is neutral. Measured rate is **0.197 tokval/turn** — read off
+`g3_arena__rust__t0` in `wg-arena3d-2026-08-15T12-46-30`, the one uncapped 1000-turn trial:
+72.83 over 369 turns, and `python3 eval/tools/runstat.py --run-dir runs/wg-arena3d-2026-08-15T12-46-30`
+prints both. **n=1, one stack, one game** — so 1000 turns is a ~197 backstop of the same
+uncertainty, not a ceiling.
 
-**And no run here is bounded by a money figure at all.** `agent.cost_usd` is a list-price
-valuation of tokens on a subscription account, so a budget cap protects nothing and only
-instructs (#159, `DECISIONS.md`). What bounds a run is turns, wall clock and rate-limit
+**And no run here is bounded by a money figure.** A stated cap does two things — it terminates
+the trial (`budget_exhausted`) and it instructs the agent — and neither of them protects
+anything, because `agent.cost_usd` is a list-price valuation of tokens on a subscription
+account (#159, `DECISIONS.md`). What bounds a run is turns, wall clock and rate-limit
 capacity.
 
 Do not raise the turn limit while leaving a low budget cap: that governs by the visible

@@ -149,16 +149,17 @@ tool exits 2 on a missing tree rather than reporting 0, so run it against the ma
 
   That is this file's own meta-lesson biting: **a rule whose trigger is written as the
   instance that produced it must be re-derived by every reader who meets a different
-  instance.** The trigger is now the RESOURCE — money per call — not the mechanism.
+  instance.** The trigger is now the RESOURCE — account capacity consumed per call — not the
+  mechanism.
 
-- **What ONE INVOCATION generated and what a FIELD is worth are two questions, and neither is
+- **What ONE INVOCATION generated and what a FIELD is worth are 2 questions, and neither is
   an amount owed.** A round already on disk contributes 0 to the invocation that reuses it, so the
   invocation counter cannot double-count work already done. That counter is
   `charged_to_ceiling_usd`; the field's own figure is `field_cost_usd`, summed from the rounds
   themselves. `python3 judge/judge_ledger.py --tree runs/` reports both per directory and is
   the producer for every judge figure in `RUNS.md`. **Never quote a summary file's counter as
-  the field's figure** — stored under one name, it put $21.05 into three live documents for ten
-  calls worth $31.66, and five of eleven stored sweeps carry the same shape (#121).
+  the field's figure** — stored under one name, it put $21.05 into 3 live documents for 10
+  calls worth $31.66, and **5 of 11** stored sweeps carry the same shape (#121).
 
 - **A budget flag is visible to the callee, so it is an instruction, not just a ceiling**
   (#33). `--per-call-budget` is still passed to the judge as `--max-budget-usd 12.0`, and it is

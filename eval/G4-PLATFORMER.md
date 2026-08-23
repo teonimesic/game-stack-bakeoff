@@ -51,11 +51,11 @@ cap), so its cost is **unmeasured** and a calibration trial comes first (`PROTOC
 
 ## Why this game and not another
 
-Pong, 3D Tetris and the arena shooter have tied on the deterministic tiers across three games,
-four stacks and two cap regimes. Every deviation found so far has been a grader defect, not a
-submission defect. A fourth game is only worth a whole matrix if it stresses machinery the other three
-do **not**, because "the same four templates solve another task they all find easy" is a result
-we already have three times. (This read *"only worth $250-300 if..."* until 2026-08-23. The
+Pong, 3D Tetris and the arena shooter have tied on the deterministic tiers across 3 games,
+4 stacks and 2 cap regimes. Every deviation found so far has been a grader defect, not a
+submission defect. A fourth game is only worth a whole matrix if it stresses machinery the other
+3 do **not**, because "the same 4 templates solve another task they all find easy" is a result
+we already have 3 times. (This read *"only worth $250-300 if..."* until 2026-08-23. The
 argument never rested on the figure and does not now: what is being weighed is days of wall
 clock against whether the answer could come out differently.)
 

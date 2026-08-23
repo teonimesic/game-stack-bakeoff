@@ -1035,6 +1035,7 @@ def cmd_report(a: argparse.Namespace) -> int:
         reasons[key] = reasons.get(key, 0) + 1
     for (stack, reason), n in sorted(reasons.items()):
         print(f"{stack:<8} {reason:<28} {n}")
+    print(f"\n{tokenvalue.DEFINITION}")
 
     inst = [r["eval"]["judge"].get("instability") for r in scored_rows
             if r.get("eval") and r["eval"]["judge"].get("instability") is not None]

@@ -53,6 +53,8 @@ Usage, from eval/:
     python3 tools/docstat.py --renumbered --at REV   # ... as of any revision
     python3 tools/docstat.py --withdrawn        # live docs restating a retired figure
     python3 tools/docstat.py --withdrawn --at REV    # ... as of any revision
+    python3 tools/docstat.py --money            # live docs calling a token valuation money
+    python3 tools/docstat.py --money --at REV        # ... as of any revision
     python3 tools/docstat.py --all
 
 A THIRD KIND OF QUESTION, added 2026-08-23. WITHDRAWAL: is a figure or a claim that was
@@ -4008,7 +4010,9 @@ def main() -> int:
     ap.add_argument("--money", action="store_true",
                     help="live documents that state a `$` figure and call it an "
                          "expenditure; every one here is a list-price valuation of "
-                         "tokens on a subscription account (#159)")
+                         "tokens on a subscription account (#159). --at REV reads the "
+                         "corpus at a revision, which is where the red control lives: "
+                         "--money --at f598726 reports 21 blocks")
     ap.add_argument("--at", default="HEAD", metavar="REV",
                     help="revision --renumbered reads (default HEAD); the positive control "
                          "is a revision where a known-stale citation still stands")

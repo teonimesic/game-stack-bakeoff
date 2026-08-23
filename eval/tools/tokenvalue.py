@@ -99,6 +99,11 @@ EVAL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #: expression, or `$` followed by a digit.
 MONEY_SIGIL = re.compile(r"\$\{[a-z_]", re.I)
 MONEY_LITERAL = re.compile(r"\$\d")
+#: The same sigil in the two non-f-string forms. `"$%.2f" % spent` and `"${:.2f}".format(x)`
+#: are money labels that `MONEY_LITERAL` cannot see - `$` there is followed by `%` or `{:`,
+#: never by a digit. Discovery and the sigil check have to know the same 3 forms, or a
+#: module found by one passes the other.
+MONEY_PERCENT = re.compile(r"\$%[-+ #0-9.]*[fgdeEs]|\$\{[^A-Za-z{}\n][^{}\n]{0,10}\}")
 
 #: Lines a producer may legitimately carry a `$`-shaped string on: the ones quoting a
 #: SHELL variable or a shell prompt, and this module's own documentation of the defect.
@@ -118,9 +123,33 @@ def _producer_problems() -> list[str]:
         for i, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
             if _SHELL_VAR.search(line):
                 continue
-            if MONEY_SIGIL.search(line) or MONEY_LITERAL.search(line):
+            if (MONEY_SIGIL.search(line) or MONEY_LITERAL.search(line)
+                    or MONEY_PERCENT.search(line)):
                 problems.append(f"{rel}:{i}: money sigil in a producer: {line.strip()[:100]}")
     return problems
+
+
+#: How a module can render one of these figures. THREE FORMS, because the first version
+#: knew only f-strings — so `print("$%.2f" % cost_usd)` in an unlisted module was invisible
+#: to discovery, never read by `_producer_problems`, and `--selftest` stayed green. That is
+#: the variant direction: not "can the check fail?" but "can it still pass on input it
+#: mishandles?" Python has exactly these three ways to interpolate into a string, so this is
+#: a closed class rather than a list of the shapes anyone happened to write.
+_VALUE = r"(?:cost_usd|costUSD|_usd\b|\bspent\b)"
+_FORMS = (
+    # f"... {expr_naming_a_value} ..."
+    re.compile(rf"""f["'][^"'\n]*\{{[^{{}}\n]*{_VALUE}"""),
+    # "..." % expr   /   "...".format(expr)
+    re.compile(rf"""%[-+ #0-9.]*[fgd][^\n]*%[^\n]*{_VALUE}"""),
+    re.compile(rf"""\.format\([^)\n]*{_VALUE}"""),
+    # "$%.2f" % value  -- the percent form with the sigil, on one line
+    re.compile(rf"""["'][^"'\n]*%[-+ #0-9.]*[fgd][^"'\n]*["']\s*%[^\n]*{_VALUE}"""),
+)
+
+
+def formats_a_value(text: str) -> bool:
+    """Does this source render one of these figures into a string, by any of the 3 forms?"""
+    return any(rx.search(text) for rx in _FORMS)
 
 
 def _unlisted_producers() -> list[str]:
@@ -128,7 +157,8 @@ def _unlisted_producers() -> list[str]:
 
     A list is an enumeration, and an enumeration goes stale silently. This re-derives the
     population from the tree so a new producer shows up as a problem rather than as
-    nothing.
+    nothing — and it asks about all three ways Python interpolates a value into a string,
+    not only the one the first version happened to check.
     """
     # This module defines the format, so its own regex text mentions the field names it
     # is looking for. Excluding it is not an exemption from the sigil rule above - that
@@ -145,8 +175,7 @@ def _unlisted_producers() -> list[str]:
             rel = os.path.normpath(os.path.relpath(path, EVAL))
             if rel in listed:
                 continue
-            text = open(path, encoding="utf-8", errors="replace").read()
-            if re.search(r"""f["'][^"'\n]*\{[^{}\n]*(?:cost_usd|spent|_usd)""", text):
+            if formats_a_value(open(path, encoding="utf-8", errors="replace").read()):
                 found.append(rel)
     return found
 
@@ -198,6 +227,27 @@ def selftest() -> int:
     # --- the RED direction: the check must be able to fail ------------------
     check("MONEY_LITERAL catches a re-introduced sigil",
           bool(MONEY_LITERAL.search('print(f"total $27.68")')))
+
+    # --- the VARIANT the first version could not ask -----------------------
+    # A mutant deletes the mechanism; only a variant asks whether the check still passes on
+    # input it mishandles. Discovery knew f-strings alone, so a module rendering the same
+    # figure by `%` or `.format()` was invisible: unlisted, unread, and green.
+    check("VARIANT: the percent form is discovered",
+          formats_a_value('print("$%.2f" % rec["cost_usd"])'))
+    check("VARIANT: the .format form is discovered",
+          formats_a_value('print("{:.2f}".format(total_cost_usd))'))
+    check("the f-string form is still discovered",
+          formats_a_value('print(f"{r[\'cost_usd\']:.2f}")'))
+    check("a module that renders no such value is not discovered",
+          not formats_a_value('print("hello %s" % name)\nx = cost_usd\n'))
+    # And the sigil check has to see the percent form too, or the variant above finds the
+    # module and the row that matters still passes it.
+    check("MONEY_PERCENT catches a percent-form sigil",
+          bool(MONEY_PERCENT.search('print("$%.2f" % spent)')))
+    check("MONEY_PERCENT catches a .format-form sigil",
+          bool(MONEY_PERCENT.search('print("${:.2f}".format(spent))')))
+    check("MONEY_PERCENT does not fire on a plain percentage",
+          not MONEY_PERCENT.search('print(f"{pct:.0f}% of the floor")'))
     check("MONEY_SIGIL catches an interpolated sigil",
           bool(MONEY_SIGIL.search('print(f"${spent:.2f}")')))
     check("a shell variable is not a money sigil",

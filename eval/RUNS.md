@@ -3,17 +3,18 @@
 Every agent run, what resource it used, and what it may be compared with. Read before pooling
 any two runs — most of these are **not** comparable, and the reasons are specific.
 
-> ## THE UNIT, once, for every `$` figure in this file
+> **THE UNIT, once, for every `$` figure in this file: `$n` is `tokval`** — the list price the
+> tokens would carry at published API rates, on a subscription account where no money moves per
+> token. It is `sum(modelUsage[*].costUSD)`, which the CLI computes from the token counts
+> whatever the billing arrangement, and it is the only per-trial resource number the harness has.
+> The token counts are real and every comparison below stands; the unit is a valuation, not a
+> bill, and **no decision may rest on one as money** (FINDINGS #159).
 >
-> **`$n` here is `tokval`: the list price the tokens would carry at published API rates, on a
-> subscription account where no money moves per token.** It is `sum(modelUsage[*].costUSD)`,
-> which the CLI computes from the token counts whatever the billing arrangement, and it is the
-> only per-trial resource number the harness has. The token counts are real and every
-> comparison below stands; the unit is a valuation, not a bill, and **no decision may rest on
-> one as money** (FINDINGS #159). The figures are left in `$n` form rather than annotated on each
-> of the **130** lines that carries one (`grep -c '\$[0-9]' eval/RUNS.md`): per-run rows are what
-> a reader compares runs by, and a note on every line would be worse than the defect. `python3 eval/tools/tokenvalue.py --definition` prints this sentence;
-> every producer prints it beside its output.
+> The figures stay in `$n` form rather than being annotated on each of the **130** lines that
+> carries one (`grep -c '\$[0-9]' eval/RUNS.md`): per-run rows are what a reader compares runs
+> by, and a note on every line would be worse than the defect.
+> `python3 eval/tools/tokenvalue.py --definition` prints this, and every producer prints it
+> beside its own output.
 
 **Two columns, not one.** `records` is the valuation represented by the run's surviving trial
 JSONs (`agent.cost_usd`); `built log` is the same quantity summed from the `[built]` lines of
@@ -60,7 +61,7 @@ smaller than its own lower bound is a reading of the wrong artifact, not a corre
 >
 > | | |
 > |---|---|
-> | three runs that did not yet exist | `wg-g4`, `wg-g4b`, `wg-g4c` — **$698.21**, 29% of the project's agent-trial total |
+> | 3 runs that did not yet exist | `wg-g4`, `wg-g4b`, `wg-g4c` — **$698.21**, 29% of the project's agent-trial total |
 > | one run that was still building | the `wg-*` rows summed to $1,433.84 that day and sum to **$1,614.27** now. `wg-audio48` was in flight and `archive-arena2d` was later split out of it — the moving-row hazard this file warns about a few paragraphs below, realised in this file's own headline |
 >
 > `README.md`'s "~$1,794" is the same figure at a later moment and is corrected there too. The
@@ -509,7 +510,7 @@ this would be the **fifteenth**, and it must land in all four arms in the same w
 `starter_parity.py` and `verify_blind.py` re-run. Because it breaks comparability, the
 before-side cannot be an existing run: the most recent clean 8-cell field, `wg-g4c-2026-08-21`,
 is **$421.00** of agent trials and sits behind four subsequent starter boundaries. So the
-experiment is **two fresh matrices** — days of wall clock and two matrices' worth of rate-limit
+experiment is **2 fresh matrices** — days of wall clock and 2 matrices' worth of rate-limit
 capacity, which is what is actually scarce (#159) — plus judge sweeps, to move a number that
 `tasks/46` itself forbids reporting
 beside any tier-1 or tier-2 figure — because a higher disclosure rate is evidence the reporting
@@ -1271,7 +1272,7 @@ stored result files on 2026-08-16.
 > each quoted $46.79 as the cost of *the* eight-submission tetris field; the cost of that field
 > is $33.63. Corrected 2026-08-23, FINDINGS #121.
 >
-> The three `g1_pong` calls are also the only judge rounds in this project with **no surviving
+> The 3 `g1_pong` calls are also the only judge rounds in this project with **no surviving
 > artifact** — no `g1_pong__*__seed*.json` from 2026-08-16 exists anywhere (task 04, closed by
 > re-running them into `wg-funframes-crossgame/pong/` for $17.66). So $13.16 is in this ledger
 > and in no round file, and every other figure below is read from round files.
@@ -1303,7 +1304,7 @@ see the note after the table.
 | `wg-g4c-2026-08-21T02-26-46/judge-blind-2026-08-23` | 4 | $27.68 | 27.68 |
 | **all judge rounds on disk** | **97** | **$334.41** | |
 
-> **These 97 rounds are twelve populations, not one.** They judge four different games with
+> **These 97 rounds are 12 populations, not one.** They judge 4 different games with
 > different aspect sets over packs from 10 KB to 3.3 MB, across the #95 re-pack boundary. The
 > total is additive and safe because token counts add; a per-call mean over it is rule 4 and
 > `judge_ledger.py` refuses to print one.
@@ -1312,7 +1313,7 @@ see the note after the table.
 > `charged_to_ceiling_usd` — what the last invocation generated, which is what the retired
 > `--max-cost` ceiling was enforced against. A round already on disk contributes 0 on purpose so
 > it cannot be counted twice, so on a **resumed** sweep the counter is smaller than the field
-> figure by exactly the carried rounds. Five directories here are resumes, $69.93 in total. It
+> figure by exactly the carried rounds. 5 directories here are resumes, $69.93 in total. It
 > was stored under the name `measured_cost_usd`, and that name is why $21.05 reached print
 > (FINDINGS #121). The ceiling it was enforced against no longer exists: `field_sweep.py` is
 > bounded by `--max-rounds` and `--max-wall-min`, and writes both into the summary (#159).
@@ -1364,9 +1365,9 @@ A pooled per-call mean over all aspects would have priced `idiomatic` at a third
 judge consumes is what it has to read. `build_pack` reports `evidence_counts` before a single
 round runs; project from that.
 
-Two projections made from the wrong basis, both recorded because both were acted on:
+2 projections made from the wrong basis, both recorded because both were acted on:
 
-- three `g1_pong` calls (mean $4.39) projected a five-aspect `--max-runs 6` sweep at ~$131; the
+- 3 `g1_pong` calls (mean $4.39) projected a 5-aspect `--max-runs 6` sweep at ~$131; the
   first `g2_tetris3d` call measured **$8.08** and re-projected it at **~$256**, past the ceiling
   it was authorised under — a ceiling since retired, because it was denominated in a unit
   nobody is charged (#159);

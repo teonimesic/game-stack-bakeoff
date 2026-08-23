@@ -126,7 +126,7 @@ costed from what this run measured:
   instructions, and this pool was built conflict-free on purpose. Two contradictions already
   exist in the always-loaded set (tasks 77 and 79) and are a cheaper subject than count.
 
-## Cost
+## Token valuation
 
 $9.06 over 104 trials. **Per arm, never pooled** — the spread is 5×, so a single mean would
 misprice every arm:

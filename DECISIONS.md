@@ -2055,16 +2055,20 @@ agent was told to conserve something that is not scarce and produced less for no
 | | |
 |---|---|
 | builds | `MAX_BUDGET_USD = None`, `--max-turns 1000`. Turns are invisible to the agent and truncate rather than instruct |
-| judge sweeps | `--max-rounds` and `--max-wall-min`, both optional because every mode is finite by construction, and both written into the summary beside `stopped_by`. `--max-cost` is deleted; it never fired — 0 of 12 stored summaries are short of their configuration. `--per-call-budget` still reaches each judge as `--max-budget-usd 12.0` and bounds nothing here: it is held at its stored value so new rounds stay comparable with the 97 on disk, and changing what the judge is told needs a pre-registration of its own |
+| judge sweeps | `--max-rounds` and `--max-wall-min`, both optional because every mode is finite by construction, and both written into the summary beside `stopped_by`. `--max-cost` is **retained as a named refusal** — it exits 2 naming its replacement rather than being deleted into argparse's generic "unrecognized arguments" — and it never fired: 0 of 12 stored summaries are short of their configuration. `--per-call-budget` still reaches each judge as `--max-budget-usd 12.0` and bounds nothing here: it is held at its stored value so new rounds stay comparable with the 97 on disk, and changing what the judge is told needs a pre-registration of its own |
 | what may bound a run | turns, wall clock, rate-limit capacity — the things that are actually finite |
 
 **The unit has a name and a producer.** Every `$n` in this project is **`tokval`** —
 `sum(modelUsage[*].costUSD)`, the list price the tokens would carry at published API rates.
+This covers the figures **this project generates**; a price quoted from outside — W4 Games'
+console licence fees in `research/03-rust-engines.md` — is real money and is not `tokval`.
 `eval/tools/tokenvalue.py` is the single definition; every producer formats through it, prints
 the definition beside its output, and `--selftest` reads all 11 producer sources to assert none
-of them prints a money sigil. `python3 eval/tools/docstat.py --money` asks the same question of
-the live documents — 21 blocks red when it was written, 0 false positives, 0 today — and runs
-inside `--sweep`.
+of them prints a money sigil in any of the 3 forms Python can interpolate one. `python3 eval/tools/docstat.py --money` asks the same question of
+the live documents, and runs inside `--sweep`. **Its red control is history rather than a
+fixture:** `--money --at f598726`, the commit before the repair, reports **21** blocks; at `HEAD`
+it reports **0**. Ten in-memory pins run alongside it, because a trigger returning 0 on a clean
+corpus reads exactly like one that cannot fire.
 
 **The gate's trigger is the NOUN, not the sigil, and the candidates were chosen on live-corpus
 counts.** Requiring every `$` figure to be respelled would be a find-and-replace over

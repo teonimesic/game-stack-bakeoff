@@ -115,7 +115,7 @@ reorder it whenever the play-bot was improved, so it was measuring the bot ([#13
 
 **What is being done about it: nothing is currently running against the stack question, and no
 trial is scheduled.** `python3 eval/tools/tasks.py list` holds no item that would buy a new stack
-measurement — the one open item on the result is the offline re-adjudication of the cost route in
+measurement — the **1** open item on the result is the offline re-adjudication of the cost route in
 the row above, which needs no new trial — and [`eval/IMPROVEMENTS.md`](eval/IMPROVEMENTS.md)'s latest
 iterations are repairs to the blinding. The work in flight is on the instrument and on these
 documents. Committing to an answer is the operator's call, and what it would take is in the table

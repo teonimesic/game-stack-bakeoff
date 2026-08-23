@@ -8,9 +8,15 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | pushes and pull requests **touching `eval/`, `.agents/`, `.github/`**, plus nightly at 06:17 UTC and on demand |
-| checks | 31 documentation, queue and selftest gates | 5 mutant and control suites |
+| checks | 32 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **51.9s** | **685s** |
+| takes | **57s** | **669s** |
+
+**The two timings are read from a run, not remembered.** Both are from the pull-request runs of
+`41488aa` on 2026-08-23 — `gates` [run 32670423986](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423986),
+`controls` [run 32670423981](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423981) —
+and `gh pr checks <n>` prints them for any pull request. They move whenever a step is added, so
+re-read them rather than carrying them forward.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, and every `*_control.py` and `*_selftest.py` that

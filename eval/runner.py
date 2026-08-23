@@ -947,6 +947,10 @@ def report(run_dir: Path) -> None:
         print("WARNING: no floors.json - run `check-suite` first or scores are inflated\n")
     hdr = (f"{'arm':<20} {'pass':>7} {'rate':>6} {'95% CI':>14} {'score':>7} "
            f"{'±SE':>6} {tokenvalue.UNIT:>7} {'turns':>6} {'wall':>7}")
+    # The column is labelled; the label has to say what it means somewhere, or a reader
+    # meets a unit this project invented and no definition of it. Same as runstat.py and
+    # judge_ledger.py.
+    print(tokenvalue.DEFINITION)
     print(hdr)
     print("-" * len(hdr))
     for arm, ts in sorted(by_arm.items()):

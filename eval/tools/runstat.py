@@ -195,27 +195,39 @@ def report(run_dir: str) -> None:
         # 8.20 describes no trial that has ever run - rule 4 firing INSIDE the partition
         # the tool already makes. So the mean is suppressed unless the group is
         # homogeneous in the only way that is cheap to check: did the trial do anything.
+        #
+        # AND A MISSING FIGURE IS NOT A ZERO. `r["cost"] or 0.0` printed `n/a` in the row
+        # above and then summed the same record as 0.00 into the total and the mean below -
+        # the `|| echo 0` shape AGENTS.md rule 3 forbids by name, turning an unread value
+        # into a plausible in-range one. `None` is carried through grouping; every line
+        # states how many records it could not read, and a group with nothing readable gets
+        # no total at all rather than 0.00.
         by_term = collections.defaultdict(list)
         for r in rows:
-            by_term[r["term"]].append((r["cost"] or 0.0, r["turns"] or 0))
+            by_term[r["term"]].append((r["cost"], r["turns"] or 0))
         print()
         for term, cs in sorted(by_term.items(), key=lambda kv: str(kv[0])):
-            costs = [c for c, _ in cs]
-            started = [c for c, n in cs if n > 1]
-            never = [c for c, n in cs if n <= 1]
+            unmeasured = sum(1 for c, _ in cs if c is None)
+            miss = f"  ({unmeasured} unmeasured, excluded)" if unmeasured else ""
+            costs = [c for c, _ in cs if c is not None]
+            started = [c for c, n in cs if n > 1 and c is not None]
+            never = [c for c, n in cs if n <= 1 and c is not None]
             head = (f"  {str(term):<18} n={len(cs):<3} "
-                    f"total {tokenvalue.fmt(sum(costs), width=8)}")
-            if started and never:
+                    f"total {tokenvalue.fmt(sum(costs) if costs else None, width=8)}")
+            if not costs:
+                print(f"{head}  NO READABLE FIGURE in {len(cs)} record(s)")
+            elif started and never:
                 # Two populations under one label. Report both; refuse the pooled mean.
                 print(f"{head}  MEAN SUPPRESSED - {len(started)} trial(s) ran, "
-                      f"{len(never)} never got a turn")
+                      f"{len(never)} never got a turn{miss}")
                 print(f"  {'':<18} ran:   n={len(started)} "
                       f"total {tokenvalue.fmt(sum(started), width=8)}  "
                       f"mean {tokenvalue.fmt(sum(started)/len(started), width=7)}")
                 print(f"  {'':<18} never: n={len(never)} "
                       f"total {tokenvalue.fmt(sum(never), width=8)}")
             else:
-                print(f"{head}  mean {tokenvalue.fmt(sum(costs)/len(costs), width=7)}")
+                print(f"{head}  "
+                      f"mean {tokenvalue.fmt(sum(costs)/len(costs), width=7)}{miss}")
     else:
         print("  no trial records yet")
 
@@ -268,11 +280,89 @@ def report(run_dir: str) -> None:
         print(f"    {e}   (check ancestry before assuming it is ours)")
 
 
+def selftest() -> int:
+    """Can an unmeasured token value still reach a total? Both directions, in a temp tree.
+
+    A record whose `agent.cost_usd` is missing printed `n/a` in the per-trial row and was
+    summed as `0.00` into the group total and the mean below it - the `|| echo 0` shape
+    AGENTS.md rule 3 forbids by name, and the one that turns an unread value into a
+    plausible in-range one. The MUTANT here is the old expression itself: it is evaluated
+    beside the real aggregation on the same records, and the two must disagree.
+    """
+    import contextlib
+    import io as _io
+    import json as _json
+    import tempfile
+
+    rows_out: list[tuple[str, bool, str]] = []
+
+    def check(name: str, ok: bool, detail: str = "") -> None:
+        rows_out.append((name, ok, detail))
+
+    def run(records: list[dict]) -> str:
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "trials"))
+            for i, rec in enumerate(records):
+                with open(os.path.join(td, "trials", f"t{i}.json"), "w") as fh:
+                    _json.dump(rec, fh)
+            buf = _io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                report(td)
+            return buf.getvalue()
+
+    def rec(cost, turns, term="completed", tid="x"):
+        agent = {"num_turns": turns, "terminal_reason": term}
+        if cost is not None:
+            agent["cost_usd"] = cost
+        return {"trial_id": tid, "stack": "rust", "wall_s": 600, "agent": agent}
+
+    # --- one readable record and one that is not ---------------------------
+    out = run([rec(10.0, 100, tid="a"), rec(None, 50, tid="b")])
+    check("the unreadable row prints n/a, not 0.00", "n/a" in out, out)
+    check("the group total is the readable record alone", "total    10.00" in out, out)
+    check("the group says how many it could not read", "1 unmeasured, excluded" in out, out)
+    # THE MUTANT, evaluated on the same records: `c or 0.0` averages 10 and 0 to 5.00.
+    check("MUTANT: the old expression would have printed a 5.00 mean",
+          f"{(10.0 + 0.0) / 2:.2f}" == "5.00")
+    check("and 5.00 is not in the real output", "5.00" not in out, out)
+
+    # --- nothing readable at all -------------------------------------------
+    out = run([rec(None, 100, tid="a"), rec(None, 90, tid="b")])
+    check("a group with no readable figure gets no total",
+          "NO READABLE FIGURE in 2 record(s)" in out, out)
+    check("... and prints n/a where the total would be",
+          "total      n/a" in out, out)
+    check("... rather than 0.00", "total      0.00" not in out, out)
+
+    # --- the green direction: nothing missing, nothing suppressed ----------
+    out = run([rec(10.0, 100, tid="a"), rec(20.0, 90, tid="b")])
+    check("a fully measured group totals and means normally",
+          "total    30.00" in out and "mean   15.00" in out, out)
+    check("... and says nothing about unmeasured records",
+          "unmeasured" not in out, out)
+
+    bad = [r for r in rows_out if not r[1]]
+    for name, ok, detail in rows_out:
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+        if not ok and detail:
+            print("      ---- output ----")
+            for ln in detail.strip().split("\n")[:14]:
+                print(f"      {ln}")
+    print(f"\n{len(rows_out) - len(bad)}/{len(rows_out)} pins green")
+    return 1 if bad else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir")
     ap.add_argument("--watch", type=int, metavar="SECONDS")
+    ap.add_argument("--selftest", action="store_true",
+                    help="pin the aggregation against a missing token value, in a temp "
+                         "tree, in both directions")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     while True:
         run_dir = args.run_dir or newest_run()
