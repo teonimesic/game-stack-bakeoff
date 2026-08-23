@@ -750,13 +750,23 @@ class PlatformerBot(Bot):
         `enemy.damages_player`, `invuln.window`, `knockback.applied` and
         `gameover.triggers` went red with "0 player_hit events over 4097 ticks" (task 76).
 
-        The third copy, `_approach`, was **never called** - `git log -S"self._approach"`
-        finds no commit in which the string appears, and a spy on the method counts 0
-        calls across a whole session while a spy on this one counts 390. It was deleted
-        with this repair. Its docstring carried the most detailed account of the gap
-        defect in the file, which is why the account is here now, and it is why a repair
-        aimed at it moved nothing: not because a second loop shadowed it, which is what
-        the archive concluded, but because nothing ran it.
+        The third copy, `_approach`, was **never called**, and that is FINDINGS #133. It
+        is defined in five of the six commits that have ever touched this file and no
+        tree at any of them contains a CALL SITE - `self._approach(` - only the `def`
+        line and comments naming it. Say it that way rather than "the string does not
+        appear": `git log -S"self._approach"` now returns the commit that added THIS
+        SENTENCE, so the phrasing that was here refuted itself. A spy on the method
+        counts 0 calls across a full 20-of-20 session while a spy on this one counts 390,
+        and the spy is pinned the other way too - calling `_approach` directly takes its
+        counter 0 -> 1, so the zero is the code's and not the instrument's.
+
+        It was deleted with this repair. Its docstring carried the most detailed account
+        of the gap defect in the file, which is why the account is here now, and it is
+        why a repair aimed at it moved nothing: not because a second loop shadowed it,
+        which is what the archive concluded, but because nothing ran it. At `9fc044a`
+        `_edge_distance` was reachable only from `_approach` and measured 0 calls, so the
+        re-grade quoted as evidence that gap-crossing "fixed nothing on its own" could
+        not have come out any other way.
 
         Returns an empty dict when the target is already within `stop_at`, so a caller
         can add its own keys (an attack, a stall jump) on top.

@@ -2167,6 +2167,13 @@ The gap-crossing code written for the wrong hypothesis is kept: it establishes t
 needs it. But it is **not** what fixed this, and it fixed nothing on its own — measured, the
 re-grade with gap-crossing alone left `ts__t0` byte-identical at 0.793.
 
+> **That last sentence is not evidence, and #133 is why.** At the commit this finding was
+> published from, the gap-crossing code sat entirely inside `_approach` — a method with no
+> caller — and `_edge_distance` measures **0 calls** across a full session there. Byte-identical
+> was the only obtainable result. The height fix in `_nearest` is live (391 and 1796 calls) and
+> the conclusion above still stands on it; what does not stand is falsifying the pit hypothesis
+> by re-grading code that could not run.
+
 ### The third cause was a fourth, a fifth and a sixth
 
 `g4_platformer__unity__t0` was filed as one more cause. It is a chain, and each link only became
@@ -2179,6 +2186,12 @@ visible once the one before it was removed:
 | 3 | it *is* the pit case after all | hp dropped at ticks 103/146/189/232, evenly spaced, all at **x≈272** after a fall to y=-32: fall in, respawn, walk right, fall in again | — |
 | 4 | the jump fired **too early** | at `_EDGE_JUMP_WITHIN = 48` the bot left the ground 48 units before a 78.5-unit gap and landed in it; at 24, 12 and 6 it crossed with **full health** | threshold → 20 |
 | 5 | `_combat` is a **second** movement loop | `_approach` got the fix; `attack.damages` did not move **at all** — byte-identical evidence — because `_combat` re-implements "walk toward the target" inline | same edge logic added |
+
+> **Row 5's repair was right and its stated cause was wrong — #133.** `_approach` had no caller
+> in any commit that ever contained it (0 calls, spied, in a full session; positive controls
+> `_nearest` 391 and `_walk_toward` 390). A repair to it moved nothing whether or not `_combat`
+> re-implemented the loop. **A second copy of a loop and an unreachable copy of a loop are
+> indistinguishable by a score diff**, which is exactly the observation that was made.
 
 Then instrumentation — printing target, position and inputs every tick rather than proposing a
 sixth hypothesis — found the two that mattered, and **one of them was introduced by fix 1**:
@@ -3516,3 +3529,95 @@ Three details worth keeping:
 - **Every other check in `aspects_selftest.py` stays green on the mutant that reproduces this
   exact state.** That is why it survived as a comment: the file had a check for everything except
   whether the field was read.
+
+## 133. The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available
+
+`PlatformerBot._approach` existed for five of the six commits that have touched
+`eval/judge/bot_platformer.py`. It was never called from anywhere, in any of them. Two
+conclusions in this log rest on repairs made to it, and both are nulls that no code could have
+made non-null.
+
+### The census, over the file's whole history
+
+Six commits have touched `eval/judge/bot_platformer.py`. `_approach` is defined in five
+(`a3d0fd1`, `9fc044a`, `307c957`, `a0d6a01`, `d2b683f`) and appears in those trees **only as its
+own `def` line and as two comments naming it**. No file in any of those trees contains
+`self._approach(`. `git log --all -S"self._approach"` returns two commits — `58dc6cd` and the
+merge that carried it — and both added the *docstring quoting that command*, not a call site.
+
+Instrumented rather than read. A spy wrapping the method on the class, driven through a full
+`ref_platformer` probe session:
+
+| tree | session | `_approach` | positive controls |
+|---|---|---|---|
+| `d2b683f` — immediately before task 76 | 20 of 20 criteria pass | **0 calls** | `_nearest` 391, `_edge_distance` 72, `_combat` 1, `_hurt` 1 |
+| `9fc044a` — the commit that published **#82** | 20 of 20 criteria pass | **0 calls** | `_nearest` 1796, `_combat` 1, `_hurt` 1 |
+| today, `_approach` deleted | 20 of 20 criteria pass | absent | `_walk_toward` 390, `_edge_distance` 171, `_nearest` 391 |
+
+**The zero is pinned in both directions.** A counter that stays at 0 because the wrapper was
+installed somewhere the code never reaches is indistinguishable from a method with no caller, so
+the same spy calls `_approach` through the class attribute after the session: `0 -> 1`. The
+wrapper was on the attribute a caller would have used.
+
+The spy's own first run is worth one line, because it is the failure this project keeps meeting.
+`_nearest` and `_edge_distance` are `@staticmethod`s; wrapping them as plain functions shifted
+every argument by one, and the session came back **20 criteria, 0 passed** — which reads exactly
+like a bot defect and is entirely an instrument defect. Re-wrapping them as staticmethods gives
+20 of 20.
+
+### What rested on it — two nulls, not one
+
+**1. Row 5 of the `g4_platformer__unity__t0` (`wg-g4c-2026-08-21`) chain, above.** It reads: *"`_approach` got the fix;
+`attack.damages` did not move at all — byte-identical evidence — because `_combat`
+re-implements 'walk toward the target' inline."* `_combat` does re-implement it, and adding the
+edge logic there is what made the crossing work. But the stated **cause** cannot be right. A
+repair to `_approach` moved nothing because nothing ran `_approach`; it would have moved nothing
+had `_combat` never existed.
+
+**2. The stronger one, in #82's own section.** *"Measured, the re-grade with gap-crossing alone
+left `ts__t0` byte-identical at 0.793"* — quoted as evidence that the pit hypothesis was the
+wrong cause. At `9fc044a` the gap-crossing mechanism was **entirely unreachable**:
+`_edge_distance`'s only call site in that tree is line 734, inside `_approach`; `_EDGE_JUMP_WITHIN`
+is read only at line 735, also inside `_approach`; and the spy measures `_edge_distance` at **0
+calls** across a full session. Against that tree, byte-identical was the only result obtainable.
+
+**#82's headline stands and is not being retracted.** The height fix in `_nearest` is live — 391
+and 1796 calls above — and it is what carried `ts__t0` from 0.793 to 1.000. What does not stand
+is the sentence that falsified the pit hypothesis by re-grading: it was a null from an unreached
+path, and the exact tree that re-grade ran against was not recorded, so the most that can be said
+is that the committed tree could not have produced anything else.
+
+**3. `tasks/18` carried it as an open hypothesis** for as long as it was open: *"THE LIKELY
+MECHANISM: `_approach` walks toward its chosen target and only swings when within `stop_at*1.6`
+of THAT enemy."* A true description of the source and a false description of the run. The loop
+with that behaviour was `_combat`.
+
+### The shape
+
+> **A second copy of a loop and an unreachable copy of a loop are indistinguishable by a score
+> diff.** Both make a repair produce byte-identical output. Separating them costs one call
+> counter; the project proposed a further hypothesis instead, twice.
+
+> **Before reading an unchanged result as evidence about a hypothesis, establish that the code
+> you changed EXECUTED.** A null from an unreached path and a null from a wrong hypothesis are
+> the same byte string, and the second is the interesting one only if the first has been ruled
+> out.
+
+This refines the lesson recorded two sections up — *"ten lines of instrumentation against the
+actual artifact beat two rounds of inference from its output"*. That instrumentation printed
+position, target and inputs: it answered *where is the bot* and could not have answered *which
+loop is driving it*. **Instrument the call graph, not only the state.**
+
+### The mechanism, and what it finds today
+
+A dead-private-method census over `eval/judge/` is about fifty lines of `ast`: collect every
+`_name` defined in a class, collect every attribute and name reference in the tree, subtract.
+Against `9fc044a` it names `PlatformerBot._approach` — the tree that published #82, flagged by a
+check that could have run before the re-grade was interpreted. Over 121 private methods it
+returns three there and **two today**: `ArenaBot._turn_corner` and `Bot._num`.
+
+Neither of the two is this defect. `_turn_corner`'s cluster (`_corners`, `_far_corner`,
+`_turn_corner` — `_far_corner` is called only by `_turn_corner`) is a design `_chase`'s own
+docstring records as *measured and discarded*; `_num` is an unused base-class helper. **Dead code
+is not the finding. A conclusion drawn from a repair to dead code is.** Filed as its own task,
+with the census above, so the detector is not re-derived.
