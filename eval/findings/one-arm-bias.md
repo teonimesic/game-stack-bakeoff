@@ -1690,3 +1690,84 @@ principle.
 > was added for an unrelated question — did a bigger pack make the judge read more? — and it is
 > the only reason this defect could be bounded at all rather than left as a class-wide suspicion.
 > **Capture what the instrument did, not only what it concluded.**
+
+## 95. A judge pack is a numbering, not a set, so re-evaluating a run left nine passes stacked on disk
+
+`anonymise.build_pack` did `dest.mkdir(parents=True, exist_ok=True)` and never removed what was
+already there. That reads as harmless — the same submission produces the same files, so the
+second pass overwrites the first. It is not, because **a label is a position, not an identity**:
+files are written as `bucket/NN.ext` with `NN` counted within the bucket, so the moment the
+*picked set* changes between two passes the numbering shifts underneath and the earlier pass's
+files survive under labels the new manifest does not list.
+
+The picked set changes for ordinary reasons: a starter edit (#77), a new `exclude_origins`, an
+extension added to `CODE_EXT`, `.codex` moving into `SKIP_DIRS` (#83), the character budget being
+removed (#69).
+
+Measured 2026-08-23. Six runs hold judge packs on disk, 68 submissions between them. **43 carry a
+manifest and can be checked at all**; the other 25 (`wg-matrix-2026-08-13` 24, `wg-calib` 1)
+predate the manifest and are *unmeasurable, not clean* — they already refuse for a different
+reason. Of the 43, **35 are clean** (`wg-arena3d` 8, `wg-audio` 11, `wg-audio48` 16) and 8 are
+not, all of them `wg-g4c-2026-08-21`, which was evaluated nine times straddling both the #69 cap
+removal and the #83 leak repair and carries **23 stale files in 222 — 10.4%**, stack-correlated:
+
+| stack | stale files |
+|---|---|
+| unity | 10 |
+| godot | 8 |
+| ts | 3 |
+| rust | 2 |
+
+Twelve are byte-identical to a live file, so the judge sees the same code twice under two names.
+Eleven carry content no manifest lists, and **seven of the eight submissions hold a `.codex`
+hooks config naming their own trial id verbatim** — `g4_platformer__rust__t0` and the rest, the
+#83 answer key, sitting in the stored pack six days after #83 was closed. No file the manifest
+lists carries either pattern.
+
+**Blinding survives, by a mechanism that is not the repair.** `field.build_pack` runs
+`neutralise()` on every file as it copies, and both `_TRIAL_ID_RE` and `_WORK_PATH_RE` rewrite
+these to `SUBMISSION` and `/WORKTREE`; grepping a freshly built `architecture` and `idiomatic`
+pack for either pattern returns nothing inside the pack directory. #83's own fix — adding
+`.codex` to `SKIP_DIRS` — did not hold, because it only governs what the *next* pass picks and
+nothing removed what earlier passes had already written.
+
+### The `.src` collisions are the symptom, and they are worse than duplication
+
+`architecture` is `blind_language`, so `field.build_pack` rewrites every pack file to `.src`.
+Across the 43 checkable submissions, rebuilding the labels from the **manifests** collides
+**0 times**; rebuilding them from **disk** collides **15** — all 15 in `wg-g4c` — and every
+colliding pair is one live file and one stale one. Files are copied in
+`sorted(rglob)` order and last write wins, so in **7 of the 15** the stale file overwrites the
+live one — `Assets/Editor/Probe.cs`, `Assets/Editor/Json.cs` and `tools/audio-manifest.mjs`
+among them. The `architecture` pack for that field holds 215 files where `idiomatic`'s holds
+230: unity loses 8, godot 6, ts 1, rust 0.
+
+That is #62's shape through a third mechanism — the amount of itself each submission is shown is
+unequal and stack-correlated — so **no cross-stack `idiomatic` or `architecture` ordering on
+`wg-g4c` is defensible.** Reliability measurements are unaffected and the reason is worth
+stating precisely rather than assuming: the pack is a deterministic function of a static input,
+so every repeat of one round reads the identical field.
+
+### Why every gate the project owns was blind to it
+
+`pack_completeness` reads `files_dropped_for_length`, a number `anonymise` computes about **its
+own input**, and #69 made that 0 by construction. Nothing read the destination. Nine passes
+returned normally; `build_pack` has no failure mode here at all.
+
+> **A gate that reads a component's input cannot see what its output accumulated.** The
+> completeness gate was repurposed in #69 to assert an invariant about the input and was
+> reasonable on its own terms; what was missing is that the pack on disk is a *different object*
+> from the manifest describing it, and only one of them was ever opened.
+
+`field.pack_matches_manifest` now opens the directory and asserts set equality per submission,
+`field.py packcheck --run R` runs it standalone, and `field.build_pack` refuses a field whose
+packs do not match — including a pack with no manifest at all, which is **unmeasurable, not
+clean** (25 stored submissions predate the manifest and already refuse for a different reason).
+`--allow-truncated` does not excuse it: that escape exists for the capped-vs-uncapped control,
+where truncation is the experiment, and a stale file is not an experimental condition.
+
+**The fixture had to be a variant, not a mutant** (rule 15). Deleting the clearing code cannot
+manufacture the input that produces this; only running the real function twice over one
+destination with a *changed exclusion set* can. `judge/pack_selftest.py` does that, and against
+the unfixed function it fails 4 of 7 expectations; the same three-pass check run over the 16 real
+submissions of two runs fails **8 of 8** before the fix and **0 of 16** after.

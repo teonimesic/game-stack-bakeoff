@@ -249,17 +249,23 @@ def _write_task(a, slug: str, nid_int: int) -> int:
         except FileExistsError:
             nid_int += 1
             continue
-        # Relative to the SHARED queue's own root, not to ROOT. When called from an agent
-        # worktree those are different directories, and `relative_to(ROOT)` raised
-        # ValueError *after* the file had been written: the task was created and the
-        # command exited 1 with a traceback.
+        # THE QUEUE IS IN THE MAIN CHECKOUT, so from an agent worktree TASKS is not under
+        # ROOT and `relative_to` raises -- AFTER the file has been written and before the
+        # return, so `add` created the task and exited 1 with a traceback.
         #
-        # That is worse than a cosmetic bug. A successful write reporting failure invites a
-        # retry, and the retry files a second task -- reintroducing the duplicate this
-        # shared queue exists to prevent, through the status channel instead of the
-        # filesystem. It is also rule 7: a failure signal that does not mean failure is a
-        # channel a bug can widen.
-        print(f"created {(TASKS / f'{nid}-{slug}.md').relative_to(TASKS.parent)}")
+        # An exit code that says "failed" over a completed write is the worst shape a
+        # report can take: it invites a retry, and the retry files a SECOND task,
+        # reintroducing through the status channel the duplicate this shared queue exists
+        # to prevent. Rule 7 -- a failure signal that does not mean failure is a channel a
+        # bug can widen.
+        #
+        # Printing the ABSOLUTE path from a worktree is deliberate, not a fallback: it is
+        # the only output that makes visible that the file went somewhere other than here.
+        created = TASKS / f"{nid}-{slug}.md"
+        try:
+            print(f"created {created.relative_to(ROOT)}")
+        except ValueError:
+            print(f"created {created}")
         return 0
     print("could not allocate a free task id after 50 attempts", file=sys.stderr)
     return 1

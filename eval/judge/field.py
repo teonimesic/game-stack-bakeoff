@@ -199,6 +199,83 @@ def pack_completeness(run: Path, game: str) -> dict[str, Any]:
     }
 
 
+def pack_matches_manifest(run: Path, game: str) -> dict[str, Any]:
+    """Does each stored judge pack hold exactly the files its own manifest lists?
+
+    THIS READS THE PACK. `pack_completeness` reads `files_dropped_for_length` - a number
+    `anonymise.build_pack` computed about its INPUT - and that number is 0 by construction
+    since #69. A gate that reads its input instead of its output cannot see a file that
+    arrived from somewhere else, which is why 23 stale files in `wg-g4c` survived nine
+    evaluations and every gate the project owns.
+
+    The mechanism: `build_pack` used to `mkdir(exist_ok=True)` and never clear, and labels
+    are `bucket/NN.ext` counted within the bucket. Change the picked SET between two passes
+    - a starter edit, a new exclusion, an extension added to `CODE_EXT` - and the numbering
+    shifts, so the earlier pass's files stay under labels the new manifest does not list.
+    The judge then reads code no manifest accounts for, twelve of the 23 being a second
+    copy of a live file under a second name.
+
+    Three verdicts, and the middle one must not be collapsed into either neighbour:
+
+    | state | meaning |
+    |---|---|
+    | `clean` | disk set == manifest set for every submission, frames included |
+    | `unmeasurable` | a pack exists but its report has no manifest - 25 stored submissions predate it. NOT clean |
+    | stale/missing | named per submission and counted per stack, because the deficit was stack-correlated both times (#62 and this one) |
+    """
+    import json as _j
+    per: dict[str, dict[str, Any]] = {}
+    unmeasurable: list[str] = []
+    for d in sorted((run / "artifacts").glob(f"{game}__*")):
+        code = d / "eval" / "judge_pack" / "code"
+        if not code.is_dir():
+            continue
+        rep = d / "eval" / "report.json"
+        pack = {}
+        if rep.is_file():
+            try:
+                pack = _j.loads(rep.read_text()).get("pack") or {}
+            except (OSError, _j.JSONDecodeError):
+                pack = {}
+        manifest = pack.get("manifest")
+        if manifest is None:
+            unmeasurable.append(d.name)
+            continue
+        listed = {e["label"] for e in manifest}
+        disk = {str(p.relative_to(code)) for p in code.rglob("*") if p.is_file()}
+        fdir = d / "eval" / "judge_pack" / "frames"
+        frames_disk = sum(1 for p in fdir.glob("*.png")) if fdir.is_dir() else 0
+        per[d.name] = {
+            "stack": d.name.split("__")[1] if "__" in d.name else "?",
+            "files_on_disk": len(disk),
+            "files_in_manifest": len(listed),
+            "stale": sorted(disk - listed),
+            "missing": sorted(listed - disk),
+            "frames_on_disk": frames_disk,
+            "frames_in_manifest": pack.get("frames"),
+        }
+    by_stack: dict[str, int] = {}
+    for v in per.values():
+        if v["stale"]:
+            by_stack[v["stack"]] = by_stack.get(v["stack"], 0) + len(v["stale"])
+    stale_total = sum(len(v["stale"]) for v in per.values())
+    missing_total = sum(len(v["missing"]) for v in per.values())
+    frames_wrong = sorted(k for k, v in per.items()
+                          if v["frames_in_manifest"] is not None
+                          and v["frames_on_disk"] != v["frames_in_manifest"])
+    return {
+        "per_submission": per,
+        "unmeasurable": unmeasurable,
+        "stale_total": stale_total,
+        "missing_total": missing_total,
+        "stale_by_stack": by_stack,
+        "frames_mismatched": frames_wrong,
+        "files_on_disk": sum(v["files_on_disk"] for v in per.values()),
+        "clean": (bool(per) and not unmeasurable and not stale_total
+                  and not missing_total and not frames_wrong),
+    }
+
+
 def pack_parity(run: Path, game: str) -> dict[str, Any]:
     """Capture geometry across the submissions a frames-reading aspect will be shown.
 
@@ -292,6 +369,37 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                 f"somewhere in anonymise.build_pack and the judge is again being shown "
                 f"an alphabetically-selected subset of each submission. Do not judge this "
                 f"field. Find the cap. See FINDINGS #62 for what it cost last time.")
+
+        # AND THE SAME QUESTION ASKED OF THE OUTPUT. The gate above reads a count
+        # `anonymise` wrote about its input; this one reads the directory the judge is
+        # about to be handed. They are not redundant - the first is 0 by construction and
+        # the second found 23 files it could never have seen.
+        #
+        # `--allow-truncated` does NOT excuse this. That escape exists for the
+        # capped-vs-uncapped control, where the truncation is the experiment; a stale file
+        # is not an experimental condition, it is a pack that does not know what is in it.
+        parity = pack_matches_manifest(run, game)
+        if parity["unmeasurable"]:
+            raise RuntimeError(
+                f"{game}: pack/manifest parity is UNMEASURABLE for "
+                f"{len(parity['unmeasurable'])} submission(s) - "
+                f"{', '.join(parity['unmeasurable'])} have a judge pack on disk and no "
+                f"`pack.manifest` in eval/report.json, so nothing can say whether what "
+                f"the judge would read is what was packed. Re-pack the run (evaluate or "
+                f"regrade writes the manifest) rather than judging it. This is not a "
+                f"clean field; it is an unmeasured one.")
+        if not parity["clean"]:
+            raise RuntimeError(
+                f"{game}: STALE FILES IN THE JUDGE PACKS - {parity['stale_total']} file(s) "
+                f"in {parity['files_on_disk']} on disk are under labels no manifest lists "
+                f"(by stack: {parity['stale_by_stack']}), {parity['missing_total']} listed "
+                f"file(s) are absent, frames mismatched on {parity['frames_mismatched']}. "
+                f"`anonymise.build_pack` wrote each re-evaluation ON TOP of the previous "
+                f"one until 2026-08-23, so a run evaluated more than once carries earlier "
+                f"passes under shifted labels. Re-pack the run before judging it: the "
+                f"amount of itself each submission is shown is otherwise unequal and "
+                f"stack-correlated, which is FINDINGS #62's shape through a third "
+                f"mechanism.")
 
     order = list(subs)
     random.Random(order_seed).shuffle(order)
@@ -1147,6 +1255,14 @@ def main() -> int:
     g = sub.add_parser("gates")
     g.add_argument("--results", type=Path, nargs="+", required=True)
 
+    pc = sub.add_parser(
+        "packcheck",
+        help="does every stored judge pack in a run hold exactly what its manifest "
+             "lists? Reads the packs on disk. Exit 1 if not - so run it UNPIPED.")
+    pc.add_argument("--run", type=Path, required=True)
+    pc.add_argument("--game", nargs="*",
+                    help="default: every game with submissions in the run")
+
     a = ap.parse_args()
     if a.cmd == "pack":
         info = build_pack(a.run, a.game, a.out, a.order_seed,
@@ -1179,6 +1295,31 @@ def main() -> int:
         out["independence"] = independence(ok)
         print(json.dumps(out, indent=2))
         return 0
+    if a.cmd == "packcheck":
+        games = a.game or sorted({p.name.split("__")[0]
+                                  for p in (a.run / "artifacts").glob("*__*")})
+        bad = 0
+        for game in games:
+            res = pack_matches_manifest(a.run, game)
+            if not res["per_submission"] and not res["unmeasurable"]:
+                print(f"{game}: no judge packs on disk - nothing to check")
+                continue
+            dirty = {k: v for k, v in res["per_submission"].items()
+                     if v["stale"] or v["missing"]}
+            print(f"{game}: submissions={len(res['per_submission'])} "
+                  f"files_on_disk={res['files_on_disk']} "
+                  f"stale={res['stale_total']} missing={res['missing_total']} "
+                  f"by_stack={res['stale_by_stack']} "
+                  f"unmeasurable={len(res['unmeasurable'])} clean={res['clean']}")
+            for k, v in sorted(dirty.items()):
+                print(f"    {k}: disk={v['files_on_disk']} "
+                      f"manifest={v['files_in_manifest']} stale={v['stale']} "
+                      f"missing={v['missing']}")
+            for k in res["unmeasurable"]:
+                print(f"    {k}: pack on disk, NO manifest - unmeasurable, not clean")
+            if not res["clean"]:
+                bad += 1
+        return 1 if bad else 0
     return 2
 
 

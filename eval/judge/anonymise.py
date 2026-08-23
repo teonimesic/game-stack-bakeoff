@@ -164,9 +164,32 @@ def build_pack(submission: Path, starter: Path, dest: Path, frames_dir: Path | N
     `files_dropped_for_length` is still reported, and is now always 0 by construction.
     That is deliberate - the completeness gate asserts it, so a budget reintroduced later
     cannot truncate silently. See `eval/IMPROVEMENTS.md`.
+
+    THE DESTINATION IS CLEARED, NOT ADDED TO. It used to be `mkdir(exist_ok=True)`, and
+    a pack is not a set of files - it is a NUMBERING: labels are `bucket/NN.ext` counted
+    within the bucket, so the moment the picked set changes between two passes the
+    numbering shifts and the previous pass's files stay behind under labels the new
+    manifest does not list. `wg-g4c` was evaluated nine times across the #69 cap removal
+    and the #83 leak repair and ended with 23 files in 222 that no manifest accounts for,
+    stack-correlated, twelve of them a second copy of a live file under a second name and
+    eleven carrying content nothing lists - including the `.codex` hook scripts #83
+    removed. Every one of those nine passes returned normally: this class is invisible to
+    an exit code and to every count the function reports about its own input, which is why
+    `field.pack_matches_manifest` reads the directory instead.
     """
-    dest.mkdir(parents=True, exist_ok=True)
-    (dest / "code").mkdir(exist_ok=True)
+    # A pack destination is disposable by definition; the thing being packed is not.
+    # Clearing a directory that CONTAINS the submission would delete the evidence, and
+    # this is the one place where getting the address wrong is unrecoverable (rule 12).
+    _dest = dest.resolve()
+    for name, src in (("submission", submission), ("starter", starter)):
+        if src.exists() and (_dest == src.resolve() or _dest in src.resolve().parents):
+            raise ValueError(
+                f"refusing to build a pack into {dest}: it contains the {name} "
+                f"{src}, and building a pack clears its destination")
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    (dest / "code").mkdir()
 
     sub_files = _walk(submission)
     starter_files = _walk(starter) if starter.exists() else {}

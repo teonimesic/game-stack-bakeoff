@@ -76,13 +76,30 @@ directory, and every criterion id the rubric defines.
 
 ## Anonymisation
 
-`anonymise.py` strips identifying structure before judging. Two things it has got wrong before:
+`anonymise.py` strips identifying structure before judging. Three things it has got wrong before:
 
 - **Check `CODE_EXT` covers the stack's extensions.** A missing extension produced an empty file
   pack that the judge scored confidently at 0.08.
 - **A criterion cannot ask about something anonymisation destroys.** `code.navigable` asked about
   file layout, which is exactly what the anonymiser removes; every run argued with the
   anonymisation instead of answering.
+- **A pack is a NUMBERING, not a set of files.** Labels are `bucket/NN.ext` counted within the
+  bucket, so any change to the picked set — a starter edit, an exclusion, a new extension, a
+  directory added to `SKIP_DIRS` — shifts the numbering and would strand the previous pass's
+  files under labels the new manifest does not list. `build_pack` clears its destination for that
+  reason; `wg-g4c` accumulated 23 stale files in 222 across nine passes before it did (#95).
+
+**Verify a stored pack by opening it, not by reading what `anonymise` said about its input.**
+
+```
+python3 judge/field.py packcheck --run runs/<run>          # unpiped: exit 1 means not clean
+```
+
+`pack_completeness` reads `files_dropped_for_length`, which #69 made 0 by construction — a gate
+on the function's *input*. `pack_matches_manifest` reads the directory the judge will be handed
+and asserts set equality per submission; `field.build_pack` refuses a code field that fails it,
+and `--allow-truncated` does not excuse it. A pack with no manifest is **unmeasurable, not
+clean**. `judge/pack_selftest.py` pins both halves and must stay green.
 
 `evaluate.py` returns `usable: false` and excludes a tier with weight renormalisation rather than
 scoring an empty pack.

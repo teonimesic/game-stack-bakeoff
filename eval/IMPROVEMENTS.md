@@ -815,3 +815,48 @@ Next agent starts at axis 2 and should read, in order: `~/Documents/heavenstudio
 then `template/docs/`, then `scripts/` (4 files), against this project's `template*/AGENTS.md`.
 **Read-only. Never write to that path.** Axis 3 (reporting under uncertainty) is partly pre-empted
 by the both-ways section above. Axis 4 (harness mechanics) now has a concrete lead: task 28.
+
+## Iteration 13: the completeness gate reads the function's INPUT, so add one that reads its output
+
+**Context.** Iteration 11a repurposed `pack_completeness` to assert `files_dropped_for_length == 0`,
+so a reintroduced character budget could not truncate silently. That reasoning was sound and the
+gate still earns its place. What it did not ask is whether the *pack on disk* is the pack the
+manifest describes — and it could not, because every number it reads was computed by `anonymise`
+about the files it picked, before it wrote anything.
+
+**What the gap cost.** `anonymise.build_pack` never cleared its destination, so nine evaluations
+of `wg-g4c` left 23 files in 222 under labels no manifest lists, stack-correlated 10/8/3/2
+(unity/godot/ts/rust), including seven copies of the `.codex` answer key #83 was closed on. Every
+pass returned normally. **No gate the project owns opened the directory** (#95).
+
+> **A gate on a component's input cannot see what its output accumulated.** The manifest and the
+> pack are different objects and only one of them was ever read.
+
+**Change.** `field.pack_matches_manifest` opens each stored pack and asserts set equality against
+its manifest, per submission, frames included. `field.build_pack` refuses a code field that fails
+it. `field.py packcheck --run R` runs it standalone. Three verdicts, and the middle one is not
+collapsed into either neighbour: `clean`, `unmeasurable` (a pack with no manifest — 25 stored
+submissions predate it), stale/missing named per submission and counted per stack.
+
+`--allow-truncated` deliberately does **not** excuse it. That escape exists for the
+capped-vs-uncapped control, where truncation is the experiment; a stale file is not an
+experimental condition, and every reason not to count a failure is a channel a bug can widen.
+
+**Falsification, and why a mutant was not enough.** A mutant that deletes the clearing code cannot
+manufacture the input that produces this defect — the input is a *second pass with a changed file
+set* (rule 15). `judge/pack_selftest.py` runs the real function twice over one destination with a
+changed exclusion set, in both directions, plus frames, plus a planted stale file against a clean
+negative control, plus a hand-rebuilt pre-fix pack that the check must still catch.
+
+| run | result |
+|---|---|
+| `pack_selftest.py` against the unfixed function | **4 of 7 expectations unmet** |
+| `pack_selftest.py` after the fix | 0 unmet, exit 0, mutant still caught |
+| three passes over 8 real `wg-g4c` submissions, unfixed | **8 of 8 fail** |
+| the same over 16 real submissions of two runs, fixed | **0 of 16 fail** |
+
+**What would have caught it earlier.** Not a better gate — a cheaper habit. The `.src` filename
+collisions this surfaced through had been visible in any pack listing; across the 43 checkable
+submissions the labels collide **0 times** rebuilt from the manifests and **15 times** rebuilt
+from disk. **List the artifact, do not only read the code that wrote it** — the same move that
+found the mapping file inside a pack.
