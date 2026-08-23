@@ -44,12 +44,16 @@ pull request, did the LATEST PUSH touch one of the workflow's filter paths, or w
 bought by the accumulated whole-PR diff? The reasoning it feeds is in
 `.github/workflows/README.md`.
 
---selftest pins both directions offline, in ~0.06s and without touching a file. Mutants that
-must be caught: truncation instead of rounding up, and five ways `controls.yml`'s filter can
-lose a path. Variants that must still PASS: an in-flight job, a job of exactly 60s, a 22s job,
-a filename that merely starts with a filtered directory's letters, and a reordered, re-quoted
-or commented filter. The variants are not decoration -- the substring check this replaced went
-red on a re-quote, which is a gate firing where nothing is wrong.
+--selftest pins both directions offline, in ~0.06s and without touching a file. **8 mutants**
+that must be caught: truncation instead of rounding up; 4 ways `controls.yml`'s filter can
+lose a path; and 3 ways a workflow can leave `ubuntu-latest` while the file still contains
+the string -- a second job on macOS, a stale comment beside a changed `runs-on`, and a list
+form carrying a non-ubuntu label. Plus a compare list at the endpoint's 300-file cap, which
+must be refused rather than scored. **4 variants** that must still PASS: an in-flight job, a
+job of exactly 60s, a 22s job, a filename that merely starts with a filtered directory's
+letters, and a reordered, re-quoted or commented filter. The variants are not decoration --
+the substring check this replaced went red on a re-quote, which is a gate firing where
+nothing is wrong.
 
 Usage:
     python3 eval/tools/ci_minutes.py                 # the census, from the API
@@ -66,6 +70,7 @@ import argparse
 import datetime as dt
 import json
 import math
+import os
 import pathlib
 import subprocess
 import sys
@@ -180,19 +185,36 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     has no need to touch a file at all.
     """
     problems: list[str] = []
-    for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
-        if text is None:
-            continue
-        if "ubuntu-latest" not in text:
-            problems.append(f"{label} is not on ubuntu-latest; the 1x multiplier is wrong")
-
     try:
         import yaml
     except ImportError:  # pragma: no cover - pyyaml is installed in CI and locally
         return problems + [
-            ("pyyaml is missing, so the filter could not be parsed. "
-             "That is a refusal, not a passing filter check.")
+            ("pyyaml is missing, so the workflows could not be parsed. "
+             "That is a refusal, not a passing check.")
         ]
+
+    # EVERY `jobs.*.runs-on`, not `"ubuntu-latest" in text`. The substring form passes a
+    # workflow holding one ubuntu job and one macOS job -- and macOS bills at 10x, Windows
+    # at 2x, so the whole 1x multiplier under this tool's total would be wrong while the
+    # check stayed green. It also passes on a stale COMMENT mentioning ubuntu-latest next
+    # to a `runs-on: macos-latest`. Raised by CodeRabbit on PR #10; it is the same
+    # substring-versus-parse defect already fixed for `paths:` below, one check away.
+    for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
+        if text is None:
+            continue
+        wf = yaml.safe_load(text) or {}
+        jobs = wf.get("jobs")
+        if not isinstance(jobs, dict) or not jobs:
+            problems.append(f"{label} declares no parseable `jobs:`")
+            continue
+        for job_name, job in jobs.items():
+            runs_on = job.get("runs-on") if isinstance(job, dict) else None
+            labels = runs_on if isinstance(runs_on, list) else [runs_on]
+            if [x for x in labels if x != "ubuntu-latest"]:
+                problems.append(
+                    f"{label}: job `{job_name}` runs on {runs_on!r}, not ubuntu-latest. "
+                    f"macOS bills at 10x and Windows at 2x, so the 1x multiplier this tool "
+                    f"applies would be wrong")
 
     doc = yaml.safe_load(controls_text) or {}
     # YAML 1.1 resolves a bare `on:` key to the boolean True, so `doc["on"]` is a KeyError
@@ -267,6 +289,17 @@ def path_filter_audit(runs: list[dict], compare) -> dict:
                 )
                 continue
             files = compare(prev["head_sha"], r["head_sha"])
+            # The truncation guard lives HERE, at the point the verdict is decided, and
+            # not only in the API adapter that happens to be today's `compare`. Truncation
+            # only does damage by turning an unknown into `no-match`, and that conversion
+            # happens on the next line -- so this is the address the check belongs at
+            # (AGENTS.md rule 12), and any `compare` implementation is covered by it.
+            if len(files) >= COMPARE_FILE_LIMIT:
+                raise DataError(
+                    f"run {r['id']}: the compare returned {len(files)} files, at or past the "
+                    f"{COMPARE_FILE_LIMIT}-file cap the endpoint imposes. A truncated list is "
+                    f"indistinguishable from a complete one and would score `no-match` -- a "
+                    f"wrong answer, not a missing one. Refusing to classify this push.")
             hit = [f for f in files if matches_filter(f)]
             rows.append(
                 {
@@ -339,8 +372,30 @@ def fetch_billable_field(run_ids: list[int]) -> dict[int, int]:
     return seen
 
 
+# GitHub's compare endpoint returns at most this many entries in `files`, and `--paginate`
+# does NOT paginate that array -- it paginates commits. A push larger than this whose only
+# filtered path sits past the cut would come back with no match and be scored `no-match`,
+# which is a silent misclassification rather than an error. Raised by CodeRabbit on PR #10.
+COMPARE_FILE_LIMIT = 300
+
+
 def compare_via_api(base: str, head: str) -> list[str]:
-    return _gh(f"repos/{REPO}/compare/{base}...{head}", ".files[]?.filename")
+    """The push's own changed files, or a refusal if the list may be truncated.
+
+    FAILS CLOSED AT THE BOUNDARY. A truncated list cannot be distinguished from a complete
+    one by its contents, so the only safe reading of `len(files) >= 300` is "I do not know".
+    Measured over the 13 compares this audit performs on 2026-08-23, the largest returned
+    **59** files, so no published figure here is affected -- but a check that is correct
+    only for the data that happens to exist is the shape this repository exists to catch.
+    """
+    files = _gh(f"repos/{REPO}/compare/{base}...{head}", ".files[]?.filename")
+    if len(files) >= COMPARE_FILE_LIMIT:
+        raise DataError(
+            f"compare {base[:12]}...{head[:12]} returned {len(files)} files, at or past the "
+            f"{COMPARE_FILE_LIMIT}-file cap the endpoint imposes. The list may be truncated, "
+            f"and a truncated list scores as `no-match` -- which is a wrong answer, not a "
+            f"missing one. Refusing to classify this push.")
+    return files
 
 
 # ---------------------------------------------------------------- the controls
@@ -433,6 +488,18 @@ def _selftest() -> int:
                     "  pull_request:\n"),
             "the runner moved off ubuntu-latest":
                 live.replace("runs-on: ubuntu-latest", "runs-on: macos-latest"),
+            # The two the substring form passed. A mixed workflow still CONTAINS
+            # "ubuntu-latest"; so does a macOS job with a stale comment beside it.
+            "a second job on macOS alongside the ubuntu one":
+                live.replace("jobs:\n  controls:\n    runs-on: ubuntu-latest",
+                             "jobs:\n  extra:\n    runs-on: macos-latest\n"
+                             "  controls:\n    runs-on: ubuntu-latest"),
+            "macOS with a stale ubuntu-latest comment beside it":
+                live.replace("runs-on: ubuntu-latest",
+                             "runs-on: macos-latest  # was ubuntu-latest"),
+            "runs-on given as a list containing a non-ubuntu label":
+                live.replace("runs-on: ubuntu-latest",
+                             "runs-on: [ubuntu-latest, self-hosted]"),
         }
         variants = {
             "the paths are reordered": live.replace(
@@ -485,6 +552,27 @@ def _selftest() -> int:
 
     def fake_compare(base, head):
         return diffs[(base, head)]
+
+    # The truncation guard, both directions. A compare list at the endpoint's cap may be
+    # short of its own tail, and a missing filtered path there scores `no-match` -- a wrong
+    # answer wearing the shape of a right one. 299 must classify; 300 must refuse.
+    def capped_compare(_base, _head):
+        return [f"docs/f{i}.md" for i in range(COMPARE_FILE_LIMIT)]
+
+    try:
+        path_filter_audit(audit_runs[:3], capped_compare)
+        failures.append("a compare list at the 300-file cap was classified, not refused")
+    except DataError:
+        pass
+
+    def under_cap_compare(_base, _head):
+        return [f"docs/f{i}.md" for i in range(COMPARE_FILE_LIMIT - 1)]
+
+    try:
+        under = path_filter_audit(audit_runs[:3], under_cap_compare)
+        check("299 files still classify, as no-match", under["no_match"], 2)
+    except DataError:
+        failures.append("FALSE POSITIVE: a 299-file compare was refused as truncated")
 
     aud = path_filter_audit(audit_runs, fake_compare)
     check("only controls PR runs are in scope", aud["controls_pr_runs"], 3)
@@ -604,10 +692,21 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.cache:
+        # ONE WRITER PER PATH, AND AN ATOMIC PUBLISH. The name used to be a fixed
+        # `minutes.json`, so two invocations sharing a --cache directory wrote the same
+        # path and either could replace the other's evidence, while an interrupted write
+        # left a half-file that parses as nothing. The snapshot is the record of what the
+        # instrument consumed; it is worth less than nothing if it can be a blend of two
+        # runs. The name now carries the reading's own instant, so each invocation owns
+        # its artifact, and `os.replace` makes the publish all-or-nothing.
         d = pathlib.Path(args.cache)
         d.mkdir(parents=True, exist_ok=True)
-        target = d / ("path_filter.json" if args.path_filter else "minutes.json")
-        target.write_text(json.dumps(payload, indent=2))
+        kind = "path_filter" if args.path_filter else "minutes"
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        target = d / f"{kind}-{stamp}-{os.getpid()}.json"
+        tmp = target.with_suffix(".json.partial")
+        tmp.write_text(json.dumps(payload, indent=2))
+        os.replace(tmp, target)
         print(f"\n  raw JSON written to {target}")
     return 0
 
