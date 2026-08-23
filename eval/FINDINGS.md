@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#145 from building and running this evaluator. **Check whether a
+Findings #19-#146 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -221,6 +221,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **143** | Every stale citation a merge could not adjudicate was a task citing the number it had allocated itself, and none of the live documents was wrong | [certifies-nothing](findings/certifies-nothing.md) |
 | **144** | A count with a producer still goes stale, because the producer bounds the staleness and does not prevent it | [certifies-nothing](findings/certifies-nothing.md) |
 | **145** | A claim with only one possible value is not a claim, and nothing can check it — which is why a sentence about a deleted mechanism outlived the mechanism | [certifies-nothing](findings/certifies-nothing.md) |
+| **146** | Four gates check that a finding citation still means what it meant, and none checks that it means anything at all | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

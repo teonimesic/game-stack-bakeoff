@@ -4217,3 +4217,57 @@ A second stale claim surfaced in the same constant: both code briefs told the ju
 with a real file extension, but only one aspect blinds extensions. It cannot be fixed by printing
 the true suffix — one brief serves eight submissions from four stacks, so **any** real suffix names
 an arm. The example is now suffix-free.
+
+---
+
+## 146. Four gates check that a finding citation still means what it meant, and none checks that it means anything at all
+
+`docstat.py` has four questions about finding numbers. Do the bodies and the index agree
+(`--findings`). Does every live document state the same range. Did a number get reassigned since a
+citation was written (`--renumbered`). Has a retired figure been restated (`--withdrawn`).
+
+Every one of them is about a number that **exists**. Planted in a live document as a control:
+
+    A fabricated citation planted for a control (#999).
+
+`--sweep` **0**. `--findings` **0**. `--renumbered` **0**. The register is untouched, the range
+sentences still agree, the index still matches the bodies, and a reader following `(#999)` finds
+nothing at all.
+
+`--renumbered` is the one that looks like it should catch this, and it structurally cannot: it
+derives from **git renumber events**, so a number that never moved is invisible to it, and a
+number that never existed moved least of all.
+
+> **A citation gate that verifies provenance does not verify existence.** These are different
+> questions and the first one is much easier, which is why it got built. Landing a citation here
+> is worth exactly as much as the care of the person who read the destination.
+
+### The obvious repair is 18 false positives to 2 true, and that is the point
+
+Check every `#NN` in a live document against the published range. Measured over the 53 live
+markdown files: **20 rows, 2 true positives.** The other 18 are rule numbers (`rule #7`), task
+ids, table-row references, GitHub issue numbers and one *"the #1 risk"*. `#` before a number is
+not a finding citation in this repository; it is four other things as well.
+
+That is **#140's open-class trap in a new place** — the third measured instance today, after the
+aspect-census quantifier and the bare-flag trigger. The property being triggered on, *"a number
+preceded by a hash"*, is an open class, and an open-class trigger fires on correct input. **Do not
+build this check without measuring it first**, and if it is built, the closed class has to be
+something narrower than the hash — proximity to a findings word, or a deliberate citation syntax
+the documents adopt.
+
+The extraction was pinned in both directions before the count was believed: **20 clean, 21 with a
+plant, 20 after restore** (rule 12's corollary).
+
+### The two true positives are unrepairable, which is the cost
+
+`eval/RUNS.md` cites `#17` twice, below the published range of #19–#145, and **no finding #17
+exists**. It is not task 17 either — that ticket is about backing up `eval/runs`. Both lines were
+written in the initial squashed commit, so blame cannot recover what was meant.
+
+**They cannot be fixed by renumbering**, because `AGENTS.md` forbids renumbering a finding to
+satisfy a citation: the number in `eval/findings/` is published and the citation is what is wrong.
+And they cannot be fixed by reading, because the intended target is unknown. **A dangling citation
+found two months late is a permanent hole** — which is the argument for the check that the
+false-positive count says cannot yet be built, and the reason this finding records the tension
+rather than resolving it.
