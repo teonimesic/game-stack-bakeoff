@@ -1,7 +1,7 @@
 ---
 id: 78
 title: Only the rust guide tells the agent the Stop hook re-runs verify; the hook is live in all four
-status: open
+status: in_flight
 priority: 3
 refs: eval/starters/*/AGENTS.md, eval/starters/*/.claude/settings.json, tasks/67
 done_when: either the three guides that omit it gain the sentence and starter_parity plus verify_blind and starter_gate_control are re-run with an eval/RUNS.md regime note, or the omission is recorded as deliberate with the reason and a measurement of whether the sentence changes what an agent does
