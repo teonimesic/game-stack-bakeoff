@@ -188,7 +188,7 @@ measurements, from the 2 pull requests this repository has had:
 **CodeRabbit says *"I am not going to review this"* in an issue comment, never in the reviews
 array** — so to a poll that only reads reviews, "declined" and "not yet" are the same answer.
 Both notices it has actually posted here are a **GitHub alert callout with a heading**, and
-GitHub's alert vocabulary is a closed class of five. So: extract the heading, and **read it.**
+GitHub's alert vocabulary is a closed class of 5. So: extract the heading, and **read it.**
 
 ```bash
 gh api "repos/$REPO/issues/$PR/comments" --jq \
@@ -221,7 +221,8 @@ this repository has had: **`Reviews paused`** on #1, **`Review limit reached`** 
 > **1** — matching a comment *I* had posted, which quoted the string while explaining the bug.
 > A check on an unfiltered comment stream is a check the agent can trip by describing it.
 
-The two headings seen so far:
+The headings seen so far, and what each means. **This table is its own census** — a heading
+you meet that is not a row here is new, and the row to add is what you learn from its body:
 
 | heading | why | what you do |
 |---|---|---|

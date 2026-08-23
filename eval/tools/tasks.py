@@ -809,6 +809,16 @@ def cmd_evidence(tid: str, status: str, value: str) -> int:
         emptied a session's findings into it, which is the whole reason `note` was built
         (task 113). Accepting a heredoc here would re-open that with a nicer syntax.
 
+    `\\r` COUNTS AS A LINE BREAK, and testing for `\\n` alone did not see it. A lone carriage
+    return is an old-Mac line ending, it carries a second line, and `strip()` removes it only
+    at the ends. Raised by review on PR #6 (task 120) and pinned in `evidence_rows`.
+
+    WHITESPACE AROUND THE EVIDENCE IS TRIMMED, NOT REFUSED, and that is deliberate: a heredoc
+    always ends in a newline and a redirected file often ends in a blank line, so refusing
+    those would make `-` unusable for the case it exists for. `strip()` can only ever remove
+    whitespace, so nothing a caller wrote is lost to it -- the refusal above still fires on
+    any line break that survives the trim, which is the case that matters.
+
     The net effect on the call that lost the record: `done <id> - < account.md` exits 1 and
     says where the account goes, instead of exiting 0 having stored one character.
 
@@ -822,10 +832,11 @@ def cmd_evidence(tid: str, status: str, value: str) -> int:
               f"later reader trusts about what closed this task, and `{status}` with "
               f"nothing in it is a write that looks like a record", file=sys.stderr)
         return 1
-    if "\n" in text:
+    if "\n" in text or "\r" in text:
+        n = 1 + text.count("\n") + text.count("\r") - text.count("\r\n")
         print(f"{tid}: `established_by` is one unbroken line of prose in YAML frontmatter "
-              f"and this is {1 + text.count(chr(10))} lines. Put the account in the ticket "
-              f"BODY with `tasks.py note {tid} -`, then pass a one-line summary here.",
+              f"and this is {n} lines. Put the account in the ticket BODY with "
+              f"`tasks.py note {tid} -`, then pass a one-line summary here.",
               file=sys.stderr)
         return 1
     return _set(tid, status=status, established_by=text)

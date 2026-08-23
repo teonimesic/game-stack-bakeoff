@@ -132,6 +132,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import yaml
+
 #: THIS FILE'S OWN DIRECTORY, and it is the GIT ADDRESS -- directions 2 and 5 read real
 #: blobs out of this repository's history. It deliberately does NOT move with `--tasks-py`:
 #: a mutated copy lives in a tempdir that is not a checkout, and following it there would
@@ -346,7 +348,6 @@ def _values_survive(p: Path) -> bool:
     except T._Malformed:
         return False
     import io
-    import yaml
     reloaded = yaml.safe_load(io.StringIO(T._render(fm, body)).read().split("---\n")[1])
     return {str(k): T._scalar(v) for k, v in (reloaded or {}).items()} == \
            {str(k): T._scalar(v) for k, v in fm.items()}
@@ -611,7 +612,6 @@ def _fm_values(text: str) -> dict:
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     if not m:
         return {"(no frontmatter)": text[:40]}
-    import yaml
     try:
         fm = yaml.safe_load(m.group(1))
     except Exception:                                           # noqa: BLE001
@@ -830,7 +830,6 @@ def _snapshot_briefs(commit: str) -> tuple[dict[str, str], dict[str, str]]:
                      re.S)
         if not m:
             continue
-        import yaml
         try:
             fm = yaml.safe_load(m.group(1))
         except Exception:
@@ -1138,11 +1137,15 @@ def evidence_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]
         return p.returncode, ((p.stdout or "") + (p.stderr or "")).strip(), target.read_text()
 
     def stored(text: str) -> str | None:
-        """`established_by` as YAML sees it. Read through the parser, never off a line."""
+        """`established_by` as YAML sees it. Read through the parser, never off a line.
+
+        Off a line it would be `^established_by: (.*)$`, which is the reader `tasks.py`
+        already had to stop using: a value containing `": "` came back truncated and looked
+        fine (task 40). A row about a durable record must not read it the lossy way.
+        """
         m = T._FM_RE.match(text)
         if not m:
             return None
-        import yaml                                            # noqa: PLC0415
         v = (yaml.safe_load(m.group(1)) or {}).get("established_by")
         return None if v is None else str(v)
 
@@ -1172,7 +1175,7 @@ def evidence_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]
     for name, argv, stdin in (
             (f"`done 70 -` on a {len(_ACCOUNT)}-character multi-line account",
              ("done", "70", "-"), _ACCOUNT),
-            (f"`testing 70 -` on the same account (the sibling, not just the reported one)",
+            ("`testing 70 -` on the same account (the sibling, not just the reported one)",
              ("testing", "70", "-"), _ACCOUNT),
             ("`done 70 \"\"` (empty inline)", ("done", "70", ""), None),
             ("`done 70 \"   \"` (whitespace inline)", ("done", "70", "   "), None),
@@ -1227,10 +1230,42 @@ def evidence_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]
                  and _ACCOUNT.strip() in after_n,
                  f"exit {rc_n}, account in body: {_ACCOUNT.strip() in after_n}"))
 
-    # And the queue the refusals left behind still lints, so a refused `done` is not a ticket
+    # WHITESPACE IS NOT CONTENT, AND `\r` IS NOT WHITESPACE FOR THIS PURPOSE. A heredoc always
+    # ends in a newline and a redirected file often ends in a blank line, so trimming is what
+    # makes `done <id> -` usable at all -- but `strip()` only ever removes whitespace, so
+    # nothing a caller wrote can be lost to it. A LONE `\r` is the exception and the reason
+    # for the second half of the test in `cmd_evidence`: it is an old-Mac line break, it
+    # carries a second line, and `"\n" in text` cannot see it. Raised by review on PR #6; the
+    # rest of that comment is declined in the thread, this half is a real hole.
+    for name, stdin, want_rc in (
+            ("a trailing blank line is trimmed, not refused", _INLINE + "\n\n", 0),
+            ("a leading blank line is trimmed, not refused", "\n" + _INLINE, 0),
+            ("a lone CR carries a second line and IS refused", "first\rsecond\n", 1)):
+        rc_w, out_w, after_w = probe(TASKS_PY, "done", "70", "-", stdin=stdin)
+        got_w = stored(after_w)
+        ok = (rc_w == want_rc and (got_w == _INLINE if want_rc == 0
+                                   else after_w == original))
+        rows.append((f"stdin whitespace: {name}", rc_w, ok,
+                     f"exit {rc_w}, established_by={str(got_w)[:50]!r}"
+                     if want_rc == 0 else
+                     f"exit {rc_w}, file unchanged: {after_w == original}; "
+                     f"{out_w.splitlines()[-1][:70] if out_w else ''}"))
+
+    # THE QUEUE A REFUSED `done` LEAVES BEHIND still lints, so a refusal is not a ticket
     # somebody has to repair by hand.
+    #
+    # THE ROW'S NAME IS AN ADDRESS AND IT WAS POINTING SOMEWHERE ELSE. Until PR #6's review
+    # this ran straight after the `note` probe above, so it linted the ticket a SUCCESSFUL
+    # note had left -- green, and about a fixture the name does not describe. That is
+    # AGENTS.md rule 12 inside a control: a sound method aimed at an address nobody checked.
+    # The refusal now happens here, on this fixture, with its own assertions kept.
+    rc_r, out_r, after_r = probe(TASKS_PY, "done", "70", "-", stdin=_ACCOUNT)
+    rows.append(("the refusal this `check` row is about: exit 1, ticket byte-identical", rc_r,
+                 rc_r == 1 and after_r == original,
+                 f"exit {rc_r}, file unchanged: {after_r == original}; "
+                 f"{out_r.splitlines()[-1][:70] if out_r else ''}"))
     rc_c, out_c = _run_tool(main / "eval/tools/tasks.py", "check")
-    rows.append(("`check` is clean on the ticket a refused `done` left behind", rc_c,
+    rows.append(("`check` is clean on the ticket that refusal left behind", rc_c,
                  rc_c == 0 and "well-formed" in out_c,
                  f"exit {rc_c}: {out_c.splitlines()[-1][:80] if out_c else '(none)'}"))
     return rows, unchecked

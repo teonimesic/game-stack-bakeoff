@@ -217,11 +217,19 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # 1-character record into an error that names `note`. Without it the account goes into
     # YAML frontmatter instead -- tasks 105 and 106's workaround, with nicer syntax.
     "evidence_multiline_allowed": (
-        '    if "\\n" in text:',
+        '    if "\\n" in text or "\\r" in text:',
         "    if False:  # MUTANT: a whole account goes into the frontmatter line",
         ("`done 70 -` on a 2280-character multi-line account",
          "`testing 70 -` on the same account",
          "names the alternative")),
+    # THE `\r` HALF ON ITS OWN. Testing for `\n` alone is what the first version did, and it
+    # is invisible to every account fixture here because they all use `\n`: a lone carriage
+    # return is an old-Mac line break carrying a second line straight into the frontmatter.
+    # Raised by review on PR #6, so the row it kills is the one added for it.
+    "evidence_cr_ignored": (
+        '    if "\\n" in text or "\\r" in text:',
+        '    if "\\n" in text:  # MUTANT: a lone CR is not a line break',
+        ("a lone CR carries a second line",)),
     # THE SECOND HALF OF EVERY REFUSAL ROW, isolated. Exit 1 is not the claim: the claim is
     # exit 1 AND the ticket untouched. The pre-fix code moved the ticket to `done` while
     # destroying the record, so a refusal that still flips the status would leave the
