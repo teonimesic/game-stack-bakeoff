@@ -4453,3 +4453,52 @@ same to every check here.**
 were found by a person looking — one while configuring a reviewer, one because a dispatched agent
 reported a contradiction the orchestrator had asserted the opposite of an hour earlier. The
 ignore rule closes the recurrence path it names and no other; the general class stands open.
+
+---
+
+## 150. A control that builds its expectation from its subject cannot fail, and rule 12 is what talks you into writing one
+
+`AGENTS.md` rule 12 says: when a path, root or endpoint is spelled in two files, **assert them
+equal in code** — a comment promising they match is not a defence. It is one of the most-cited
+rules here.
+
+Applied to a control, it produces a control that cannot fail.
+
+A new `tasks.py note` subcommand appends a section to a ticket. Its control asserted the appended
+bytes. Building the expected suffix by calling the subject's own `_note_block()` is *exactly* what
+rule 12 asks for — one address for the format, no second copy to drift.
+
+Then the mutant that deletes the newline separating the new section from the body came back
+**SURVIVED, 0 red rows of 49**. The mutant had edited the check. Subject and expectation moved
+together, so no mutation of the format could ever be seen.
+
+> **Rule 12 is about one FACT at one address. An expectation is not a second copy of the fact —
+> it is the second, INDEPENDENT statement of it, and independence is the whole content of a
+> control.** Where a value is *derived*, share the address. Where a value is *asserted*, never.
+
+Repaired with a literal expected block and a regex written independently of the producer. The same
+mutant is now caught with 5 rows red. Rule 12 in `AGENTS.md` now carries the exception.
+
+This is the third control-shaped defect in two days and they form a set:
+
+| | what could not fail, and why |
+|---|---|
+| #147 | the positive control was built on a defect somebody was supposed to fix, so closing the defect invalidated it — and it printed `ok` while breaking |
+| this one | the control imported its expectation from its subject, so the mutant edited the check |
+| below | the mutant runner read row names from a lossy address, so red rows were invisible to it |
+
+### The same shape one layer out, latent rather than active
+
+The mutant runner decided which rows a mutant turned red by parsing its summary line with
+`^  FAIL (.+?): ` — non-greedy, so it stopped at a row name's **first** `": "`. Every row named
+`round trip: ...` arrived as five characters. Two new mutants each turned **7 rows red and both
+reported SURVIVED**.
+
+**No previously shipped mutant changes verdict**, because none of the seven names they are keyed
+on contains `": "`. So this had never fired — a latent fail-open channel that would have activated
+the first time somebody named a row with a colon in it, which is a formatting choice nobody would
+think of as a decision. Now reads the table rather than the summary.
+
+> A mutant runner that cannot see a red row reports `SURVIVED`, which is the one word that means
+> *your check has a hole*. **The failure mode of a mutation harness is to accuse the thing it was
+> built to defend.**
