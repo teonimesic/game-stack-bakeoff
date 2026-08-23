@@ -1,10 +1,11 @@
 ---
 id: 66
 title: The .codex answer key is still in two runs' stored judge packs, and a re-grade would read it
-status: in_flight
+status: done
 priority: 2
 refs: 'eval/FINDINGS.md #83, eval/judge/field.py build_pack, eval/judge/repack.py, tasks/42'
 done_when: wg-matrix and wg-audio48 either hold packs with no trial-id, work-root or .codex pattern in any file, verified by grep over every pack in both runs, or are marked in eval/RUNS.md as carrying the key with the per-stack counts stated and re-grading them barred
+established_by: repack.py dry-run refuses 24 of 24 in wg-matrix (no pack.manifest) and 16 of 16 in wg-audio48 (12 on files_dropped_for_length 1-11, 4 on a missing starter baseline commit); all 40 work trees have a .git with no HEAD and 0 loose objects against wg-g4c's 8 with HEAD and 87-211, so the baseline is destroyed and re-packing is the wrong repair; radius measured per pack at 18 of 24 and 6 of 16 with per-stack counts; field.build_pack sees=code already refuses all five game fields in both runs while the same call on wg-g4c builds 199 files; both runs marked and barred in eval/RUNS.md
 ---
 
 ## What this is

@@ -61,3 +61,83 @@ divergence rather than drift — the capability register it prints, which cites 
 design, and a parity gate over their prose would fail on correct input, which is how a gate gets
 disabled. The question is whether a specific section is missing by accident, not whether the
 documents match.
+
+---
+
+## What was found, 2026-08-23 — the title of this ticket is wrong
+
+**The section is not missing. No starter was edited.**
+
+The ts guide opens with `## Commands` at line 8 — the same position as `## The one command` in the
+other three, first section straight after the identical preamble — and it carries the same
+contract:
+
+| guide | heading | the sentence |
+|---|---|---|
+| rust | `## The one command` | "`just verify` green means done; red means not done. Nothing else counts as evidence…" |
+| ts | `## Commands` | "`just verify` green means done. Red means not done. Nothing else is evidence…" |
+| unity | `## The one command` | "Green means done. Red means not done. Nothing else counts as evidence…" |
+| godot | `## The one command` | "Green means done. Red means not done. Nothing else counts as evidence…" |
+
+A heading rename, not a forgotten copy. The one-arm cost this ticket feared does not exist: **no
+arm ran without the one-command contract.**
+
+**The other half of the ticket is also wrong, in the opposite direction.** It says "Gameplay is
+not correctness" is present in all four *on re-measurement* and does not reproduce. Re-run here,
+`starter_parity` still reports it absent from unity — because unity carries it as a **bold
+paragraph at the end of `## Testing`** (`eval/starters/unity/AGENTS.md:123`), not under its own
+heading. The ticket measured *content* and the tool measures *headings*, and neither said which.
+Both rows are the same shape: same guidance, different structure.
+
+**So the defect is in the instrument, not in the guides.** The near-miss note keys on heading
+text — the one thing `starter_parity`'s own comment says equality may not be demanded of — and it
+printed *"check whether this is a section one guide never got"* on two rows that were both
+answered no, and would have re-printed it every run forever. A check that asks a question it
+cannot answer is not a check.
+
+## What was changed
+
+Nothing under `eval/starters/`. No regime boundary; `eval/RUNS.md` untouched.
+
+- `eval/judge/starter_parity.py` — `ADJUDICATED_HEADINGS` plus a pure `heading_findings()`. A
+  near miss is looked up, and the adjudication is then **verified against the guides**: the entry
+  names the sentence that carries the guidance, and it must be present in all four every run. If
+  it is absent from the stack that lacks the heading, that is the forgotten copy and the tool goes
+  **red**; absent from a stack that has the heading, the entry names the wrong sentence and it
+  also goes red. An entry whose row stops firing is noted as removable. Unadjudicated rows stay
+  notes, so a legitimate rename cannot turn the gate red (#44, #57, #72).
+- `eval/judge/parity_selftest.py` — 13 new expectations, both directions. The one that matters is
+  the **variant**: ts's contract sentence deleted, heading still absent, tool must go red. The
+  pre-change code prints the identical note either way, so a mutant of it establishes nothing.
+- `eval/judge/AGENTS.md` — where to point `verify_blind.py`, see below.
+- `eval/AGENTS.md` — the near-miss axis is adjudicated, and why unadjudicated rows stay notes.
+
+## Two things the next agent must not re-derive
+
+**1. `verify_blind.py` run against an in-repo starter is red for all four stacks, always.** Check
+2 walks every ancestor for `judge/`, and `eval/starters/<stack>` has `eval/judge/RUBRIC.md` up its
+path. Copy the starters somewhere outside the repository and pass those paths — done that way it
+is **green on all four** (canary absent, rubric unreachable, 81 criterion ids absent). The error
+text points at `--work-root`, which is `wholegame.py`'s flag, not this tool's. Now recorded in
+`eval/judge/AGENTS.md`.
+
+**2. `starter_gate_control.py` is at `eval/tools/`, not `eval/judge/`,** and the claim above that
+"all four gates were green as of 2026-08-23" does not hold for godot: the row `godot: GREEN on
+pristine (the same just verify must also exit 0)` **FAILED**, `just verify` exiting 1 on a
+pristine tree. It cannot be caused by this task's change — the only files touched are two in
+`eval/judge/`, and `starter_gate_control.py` imports neither. Pre-existing and unrelated; filed
+separately.
+
+## What was deliberately not changed, and why
+
+The ts heading was **not** renamed to `## The one command`. That is a starter edit — a regime
+boundary, an `eval/RUNS.md` note, three gates — bought for a cosmetic convergence, on documents
+`DECISIONS.md` says are stack-native by design and this ticket says must not be made identical.
+It would also not have fixed the unity row.
+
+**A real one-arm asymmetry was found and left alone, because it is out of scope:** rust's guide is
+the only one of the four that tells the agent *"A Stop hook re-runs it when you try to finish, so
+ending the turn red does not work."* The hook is live in all four — `.claude/hooks/verify-gate.sh`
+present and wired under `"Stop"` in all four `.claude/settings.json` — so three arms run a
+mechanism their guide never mentions. That is 1-of-4, so the near-miss heuristic cannot see it,
+and it is a sentence rather than a heading. Filed separately.

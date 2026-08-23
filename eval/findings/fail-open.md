@@ -660,3 +660,41 @@ that logs *"silent launch NOT requested"*. The device is still open at zero volu
 > `-disable-audio` was right to add, has never been wrong in its effect, and acquired a reason
 > nobody could check. When the reason is the only thing carrying the claim, the reason is the
 > thing that has to be measured.
+
+## 125. The guard was stated as a resource and implemented as a layout, so reusing it would have broken two readers
+
+Task 30 established the right rule: **any durable record of what a measurement was configured to
+be is append-only.** That is resource-shaped — it names the property, not the file — and it was
+written that way deliberately, because #57 named *prompts* and #77 named *judge packs* and
+neither trigger reached `suite.json` sitting eleven lines away.
+
+Task 63 then found two more records with the same shape and applied that guard. **Applying it
+verbatim would have been a defect wearing the shape of a fix.**
+
+`write_manifest` pins the canonical name to the **first** record written. That is correct for
+`runs/<run>/suite.json`, where the directory is named for one launch and a later launch is the
+intruder. It is wrong for a destination that is *re-synced*, and it breaks two documented readers:
+
+- `eval/PROTOCOL.md` tells a reader to take the evidence count from `MEASURED.json`. Pinned to
+  the first sync ever, it returns a stale number **and nothing disagrees with it.**
+- `judge_ledger.explain_gap` looks for carried-over rounds at the **head** of the mtime order,
+  because the counter belongs to the last invocation. Against a first-invocation counter the gap
+  becomes the **suffix**, so every resumed sweep returns `UNEXPLAINED` and exits 1.
+
+> **A rule stated as a resource can still be implemented as a layout, and the implementation is
+> what gets reused.** The next person applies the guard, not the sentence — so if the guard
+> encodes one arrangement, the sentence's generality is decorative.
+
+Repaired by carrying **both** shapes in `tools/manifest.py`, pinned and rolling, with the
+criterion written between them: *does the directory have an identity the record is named for?*
+Four call sites, each reverted to its pre-repair line in turn, each turning the suite red on the
+expectation that names it.
+
+The ticket named two records; the two writers hold **six**, all with the overwrite shape.
+`MANIFEST.sha256` is arguably the most valuable of them — it is the only per-file record of what
+a copy held, and #116's stale prefix was a file that *changed* at the destination under a
+correctly green SHA-256 check.
+
+**What is unmeasurable, and stated rather than estimated:** whether either record has actually
+lost anything historically. The pre-repair writers left no trace of what they replaced, which is
+the defect itself, so the loss is unbounded below and unmeasurable above.

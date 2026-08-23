@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#124 from building and running this evaluator. **Check whether a
+Findings #19-#125 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -201,6 +201,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **122** | Retiring a suite would have deleted the only copy of what its trials were asked to do: 71 stored trials record `task: "t1_rally"` and 0 files under `eval/runs/` contain the prompt | [documentation](findings/documentation.md) |
 | **123** | In 68 trials the 0.31-weighted tier deducted for a property of a playable game five times, and every one was a lint finding, a unit test or an ink-coverage window | [certifies-nothing](findings/certifies-nothing.md) |
 | **124** | The findings index split into two tables and the sweep that checks the log was green on it — every row resolved, and what broke was the thing holding them together | [documentation](findings/documentation.md) |
+| **125** | A guard stated as a resource was implemented as a layout, so reusing it verbatim would have broken two documented readers | [fail-open](findings/fail-open.md) |
 
 ---
 
