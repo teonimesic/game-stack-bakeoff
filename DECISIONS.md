@@ -1595,13 +1595,29 @@ to the artifacts. *"It passed review"* is exactly the shape this project calls a
 runs and reports success.
 
 **How an agent knows a review has finished**, and this is the part that was measured rather than
-designed: the reviews API returns a full 40-character `commit_id` per review, and `gh pr view --json
-headRefOid` returns the full sha GitHub thinks is the head. Comparing those two is the check.
-`tasks/108`'s poll loop compared a **7-character** sha against the **5-character** abbreviation in
-the walkthrough prose and reported *"not reviewed"* through 8 polls after the review had landed —
-rule 12 against a poll loop, when the API had the exact address all along. Pinned on PR #1, whose
-answer was known in advance: `true` for the head that was reviewed, `false` for `941e5f5`, the
-commit that was pushed and never reviewed.
+designed: **a landed review has two shapes, and reading only one of them times out on the good
+outcome.** The address is always the full 40-character head sha from `gh pr view --json
+headRefOid` — `tasks/108`'s poll loop compared a **7-character** sha against the **5-character**
+abbreviation in the walkthrough prose and reported *"not reviewed"* through 8 polls after the
+review had landed, rule 12 against a poll loop when the API had the exact address all along. But
+comparing it against the reviews API's `commit_id` is only half the check: **when CodeRabbit finds
+nothing actionable it creates no review object at all** and edits its summary issue comment
+instead. So the check is a disjunction — a `coderabbitai[bot]` review object at the head sha, **or**
+a `coderabbitai[bot]` issue comment naming the head sha that does not carry the *review in progress*
+marker — and it reports **which arm fired**.
+
+Both arms are necessary, measured over all 6 pull requests this repository has had (`tasks/121`):
+the review arm fires on #1, #2 and #4 and cannot fire on #5 or #6, which have no review object at
+head; the comment arm fires on #5 and #6 and cannot fire on #1, whose summary comment contains no
+40-character sha at all. #3 fires neither, correctly — 2 commits were pushed after its last review
+and never reviewed. The single-arm version burned its full 15-minute deadline on #5 and #6, on the
+*clean* outcome, which is the common one.
+
+| Rejected | Why |
+|---|---|
+| *"the summary comment names the head sha"* on its own | **Fail-open, and it fired on first use** — it reported `LANDED` 31 seconds after a push, mid-review, because CodeRabbit writes the head sha into the comment while the round runs and the *"No actionable comments"* line below it is still the previous round's verdict |
+| Dropping the 40-character guard now that a second arm exists | `contains("")` is true for every string, so an empty head would report every pull request reviewed. The reviews arm failed *closed* on the same input; adding the comment arm made that guard protect against a fail-open defect rather than a slow one |
+| Reading the deadlock notices through the same check | *Reviews paused* and *Review limit reached* carry **zero** 40-character shas between them — which is why they cannot trip the comment arm, and why they still need their own heading extractor |
 
 **The deadlock to design against is the reviewer's auto-pause**, not a slow review. CodeRabbit
 pauses a branch it considers under active development, and the notice lands in the PR's *issue*
