@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t19",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B4"
+  ],
+  "padded": false,
+  "seed": 639359282,
+  "elapsed_s": 9.1,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py` \u2014 it resolves the given directory, reads top-level `cost_usd` from each `*.json` file directly inside it, and writes `summary.json` (with `source_dir`, `total`, `mean`) to the current working directory. Not executed, as requested.",
+  "stderr_tail": "",
+  "prompt_chars": 702,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    source_dir = Path(sys.argv[1]).resolve()\n\n    values = []\n    for path in sorted(source_dir.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        with path.open() as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\n        \"source_dir\": str(source_dir),\n        \"total\": total,\n        \"mean\": mean,\n    }\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f, indent=2)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.051176,
+  "input_tokens": 690,
+  "output_tokens": 594,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-az189b3b/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

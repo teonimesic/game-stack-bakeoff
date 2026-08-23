@@ -1,0 +1,45 @@
+{
+  "trial_id": "k2__t2",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "B4",
+    "F4"
+  ],
+  "padded": false,
+  "seed": 467495315,
+  "elapsed_s": 9.5,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It resolves the given directory, reads each top-level `*.json` file's `cost_usd` key (skipping files without it or with parse errors), and writes `total`, `mean`, and `source_dir` (absolute resolved path) to `summary.json` in the current working directory. All lines are within 88 characters.",
+  "stderr_tail": "",
+  "prompt_chars": 760,
+  "artifact_written": true,
+  "artifact_src": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    source_dir = Path(sys.argv[1]).resolve()\n\n    values = []\n    for json_path in sorted(source_dir.glob(\"*.json\")):\n        if not json_path.is_file():\n            continue\n        try:\n            with json_path.open(\"r\", encoding=\"utf-8\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError):\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values) if values else 0\n    mean = total / len(values) if values else 0\n\n    summary = {\n        \"source_dir\": str(source_dir),\n        \"total\": total,\n        \"mean\": mean,\n    }\n\n    with open(\"summary.json\", \"w\", encoding=\"utf-8\") as f:\n        json.dump(summary, f, indent=2)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.054141,
+  "input_tokens": 707,
+  "output_tokens": 734,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-m3bm3ai3/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}

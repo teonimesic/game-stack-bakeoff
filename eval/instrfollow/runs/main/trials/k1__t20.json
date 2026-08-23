@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t20",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B7"
+  ],
+  "padded": false,
+  "seed": 619630450,
+  "elapsed_s": 17.0,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It lists `*.json` files directly in the given directory, collects each file's top-level `cost_usd` if present, and writes `{\"total\": ..., \"mean\": ...}` to `summary.json`. It uses `os.O_CREAT | os.O_EXCL` to open `summary.json`, so if that file already exists the open fails, the script prints an error and exits 1 without touching the existing file \u2014 satisfying the single-writer requirement.",
+  "stderr_tail": "",
+  "prompt_chars": 692,
+  "artifact_written": true,
+  "artifact_src": "#!/usr/bin/env python3\nimport json\nimport os\nimport sys\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        return 1\n\n    directory = sys.argv[1]\n\n    try:\n        entries = os.listdir(directory)\n    except OSError as e:\n        print(f\"error: cannot list directory {directory!r}: {e}\", file=sys.stderr)\n        return 1\n\n    values = []\n    for name in sorted(entries):\n        if not name.endswith(\".json\"):\n            continue\n        path = os.path.join(directory, name)\n        if not os.path.isfile(path):\n            continue\n        try:\n            with open(path, \"r\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError) as e:\n            print(f\"warning: skipping {path!r}: {e}\", file=sys.stderr)\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n\n    # Exclusive creation makes this the sole writer of summary.json: if it\n    # already exists, os.open raises and nothing about the file is touched.\n    try:\n        fd = os.open(\"summary.json\", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)\n    except FileExistsError:\n        print(\"error: summary.json already exists; refusing to overwrite\", file=sys.stderr)\n        return 1\n\n    with os.fdopen(fd, \"w\") as f:\n        json.dump(summary, f)\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+  "cost_usd": 0.075385,
+  "input_tokens": 692,
+  "output_tokens": 1763,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

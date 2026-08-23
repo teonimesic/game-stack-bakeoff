@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t15",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B4"
+  ],
+  "padded": false,
+  "seed": 1131104,
+  "elapsed_s": 13.3,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It resolves the input directory to an absolute path, reads each `*.json` file directly inside it (skipping unreadable/invalid ones and subdirectories), collects numeric `cost_usd` values, and writes `summary.json` in the CWD with `source_dir` (absolute resolved path), `total`, and `mean` (0 if no values found).",
+  "stderr_tail": "",
+  "prompt_chars": 702,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(f\"Usage: {sys.argv[0]} <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    source_dir = Path(sys.argv[1]).resolve()\n\n    costs = []\n    for path in sorted(source_dir.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        try:\n            with path.open(\"r\", encoding=\"utf-8\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError):\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            value = data[\"cost_usd\"]\n            if isinstance(value, (int, float)) and not isinstance(value, bool):\n                costs.append(value)\n\n    total = sum(costs)\n    mean = total / len(costs) if costs else 0\n\n    summary = {\n        \"source_dir\": str(source_dir),\n        \"total\": total,\n        \"mean\": mean,\n    }\n\n    with open(\"summary.json\", \"w\", encoding=\"utf-8\") as f:\n        json.dump(summary, f, indent=2)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.060681,
+  "input_tokens": 690,
+  "output_tokens": 1055,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-ptk2ltia/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t27",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B8"
+  ],
+  "padded": false,
+  "seed": 72734127,
+  "elapsed_s": 10.0,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It globs `*.json` files directly in the given directory, extracts `cost_usd` where present, and writes `summary.json` (in the CWD) with `total`, `mean`, and `errors` (filenames that failed to read/parse as JSON). Not run, per your instruction.",
+  "stderr_tail": "",
+  "prompt_chars": 694,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    directory = Path(sys.argv[1])\n\n    values = []\n    errors = []\n\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        try:\n            with path.open(\"r\", encoding=\"utf-8\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError):\n            errors.append(path.name)\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\n        \"total\": total,\n        \"mean\": mean,\n        \"errors\": errors,\n    }\n\n    with open(\"summary.json\", \"w\", encoding=\"utf-8\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.053178,
+  "input_tokens": 690,
+  "output_tokens": 693,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

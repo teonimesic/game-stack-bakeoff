@@ -1,0 +1,45 @@
+{
+  "trial_id": "k2__t1",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "B6",
+    "B3"
+  ],
+  "padded": false,
+  "seed": 710718463,
+  "elapsed_s": 17.9,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It exits non-zero (no `summary.json` written) if the given directory doesn't exist or if no `.json` file yields a numeric `cost_usd`; otherwise it writes `summary.json` with `total`, `mean`, and `n` (the count the mean was computed over).",
+  "stderr_tail": "",
+  "prompt_chars": 856,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    target_dir = Path(sys.argv[1])\n    if not target_dir.is_dir():\n        print(f\"error: {target_dir} is not a directory\", file=sys.stderr)\n        sys.exit(1)\n\n    values = []\n    for path in sorted(target_dir.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        try:\n            data = json.loads(path.read_text())\n        except (OSError, json.JSONDecodeError):\n            continue\n        if not isinstance(data, dict) or \"cost_usd\" not in data:\n            continue\n        value = data[\"cost_usd\"]\n        if isinstance(value, (int, float)) and not isinstance(value, bool):\n            values.append(value)\n\n    n = len(values)\n    if n == 0:\n        print(\"error: no cost_usd values found\", file=sys.stderr)\n        sys.exit(1)\n\n    total = sum(values)\n    mean = total / n\n\n    summary = {\"total\": total, \"mean\": mean, \"n\": n}\n    Path(\"summary.json\").write_text(json.dumps(summary))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.073419,
+  "input_tokens": 731,
+  "output_tokens": 1640,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

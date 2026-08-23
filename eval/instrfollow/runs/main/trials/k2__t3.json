@@ -1,0 +1,45 @@
+{
+  "trial_id": "k2__t3",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "B7",
+    "F2"
+  ],
+  "padded": false,
+  "seed": 305926477,
+  "elapsed_s": 26.0,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It checks for an existing `summary.json` up front and also uses exclusive (`\"x\"`) file creation as the actual write guard, so a concurrent writer or a pre-existing file causes a non-zero exit without touching the existing content. It won't be run per your instructions.",
+  "stderr_tail": "",
+  "prompt_chars": 853,
+  "artifact_written": true,
+  "artifact_src": "#!/usr/bin/env python3\n\"\"\"Summarize cost_usd values from JSON files in a directory.\n\nReads every *.json file directly inside the directory given as the\ncommand-line argument (subdirectories are not descended into), extracts\neach file's top-level \"cost_usd\" key when present, and writes a JSON\nobject with the total and mean of those values to summary.json in the\ncurrent working directory. Refuses to run (and leaves any existing\nsummary.json untouched) if summary.json already exists.\n\nUNVERIFIED: this has not been run against real-world JSON files, so\nits handling of malformed JSON or non-numeric cost_usd values is\nunverified in practice.\n\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        return 1\n\n    directory = Path(sys.argv[1])\n    if not directory.is_dir():\n        print(f\"error: {directory} is not a directory\", file=sys.stderr)\n        return 1\n\n    summary_path = Path(\"summary.json\")\n    if summary_path.exists():\n        print(f\"error: {summary_path} already exists\", file=sys.stderr)\n        return 1\n\n    values = []\n    for json_path in sorted(directory.glob(\"*.json\")):\n        if not json_path.is_file():\n            continue\n        try:\n            with open(json_path, \"r\", encoding=\"utf-8\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError):\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    try:\n        with open(summary_path, \"x\", encoding=\"utf-8\") as f:\n            json.dump({\"total\": total, \"mean\": mean}, f)\n    except FileExistsError:\n        print(f\"error: {summary_path} already exists\", file=sys.stderr)\n        return 1\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+  "cost_usd": 0.092185,
+  "input_tokens": 731,
+  "output_tokens": 2531,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}

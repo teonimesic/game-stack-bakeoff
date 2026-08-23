@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t2",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B10"
+  ],
+  "padded": false,
+  "seed": 231843847,
+  "elapsed_s": 9.7,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It reads `cost_usd` from each top-level `*.json` file directly inside the given directory, then writes `{\"total\": ..., \"mean\": ...}` to `summary.json` in the current working directory, with no stdout output on success.",
+  "stderr_tail": "",
+  "prompt_chars": 604,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    directory = Path(sys.argv[1])\n\n    values = []\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        with open(path) as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.051567,
+  "input_tokens": 670,
+  "output_tokens": 620,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

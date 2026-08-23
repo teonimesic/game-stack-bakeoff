@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t5",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B6"
+  ],
+  "padded": false,
+  "seed": 906618711,
+  "elapsed_s": 17.5,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It checks that the given directory exists first (`is_dir()`); if not, it prints an error to stderr and exits with status 1 without touching `summary.json`. It also refuses to write a bogus zero-value summary if no `cost_usd` values are found, exiting non-zero instead. The file was not run.",
+  "stderr_tail": "",
+  "prompt_chars": 692,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    target_dir = Path(sys.argv[1])\n\n    if not target_dir.is_dir():\n        print(f\"error: directory not found: {target_dir}\", file=sys.stderr)\n        sys.exit(1)\n\n    values = []\n    for path in sorted(target_dir.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        with path.open(\"r\", encoding=\"utf-8\") as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    if not values:\n        print(f\"error: no cost_usd values found in {target_dir}\", file=sys.stderr)\n        sys.exit(1)\n\n    total = sum(values)\n    mean = total / len(values)\n\n    summary = {\"total\": total, \"mean\": mean}\n\n    with open(\"summary.json\", \"w\", encoding=\"utf-8\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.069712,
+  "input_tokens": 695,
+  "output_tokens": 1481,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

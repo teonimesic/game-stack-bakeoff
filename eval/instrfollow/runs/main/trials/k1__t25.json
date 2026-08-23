@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t25",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B3"
+  ],
+  "padded": false,
+  "seed": 189314325,
+  "elapsed_s": 13.1,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It reads `sys.argv[1]` as the directory, globs `*.json` files directly inside it (non-recursive), collects `cost_usd` values from files where that top-level key exists, and writes `summary.json` with `n` (int count), `total`, and `mean` (`None` if `n` is 0, to avoid a division-by-zero and avoid reporting a meanless mean).",
+  "stderr_tail": "",
+  "prompt_chars": 697,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    directory = Path(sys.argv[1])\n\n    values = []\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        try:\n            data = json.loads(path.read_text())\n        except (OSError, json.JSONDecodeError):\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    n = len(values)\n    total = sum(values)\n    mean = total / n if n else None\n\n    summary = {\"n\": n, \"total\": total, \"mean\": mean}\n    Path(\"summary.json\").write_text(json.dumps(summary))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.059095,
+  "input_tokens": 689,
+  "output_tokens": 986,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

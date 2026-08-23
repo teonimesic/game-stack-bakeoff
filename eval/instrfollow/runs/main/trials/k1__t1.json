@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t1",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "F5"
+  ],
+  "padded": false,
+  "seed": 18504172,
+  "elapsed_s": 8.0,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py` \u2014 reads `cost_usd` from each top-level `*.json` file in the given directory and writes `{\"total\": ..., \"mean\": ...}` to `summary.json`.",
+  "stderr_tail": "",
+  "prompt_chars": 610,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport os\nimport sys\n\n\ndef main():\n    directory = sys.argv[1]\n    values = []\n    for name in os.listdir(directory):\n        if not name.endswith(\".json\"):\n            continue\n        path = os.path.join(directory, name)\n        if not os.path.isfile(path):\n            continue\n        with open(path, \"r\") as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.048868,
+  "input_tokens": 671,
+  "output_tokens": 486,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}

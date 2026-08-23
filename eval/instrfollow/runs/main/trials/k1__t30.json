@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t30",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "F1"
+  ],
+  "padded": false,
+  "seed": 9069881,
+  "elapsed_s": 11.5,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py` \u2014 it globs `*.json` files directly in the given directory, sums and averages the `cost_usd` values found, and writes `{\"total\": ..., \"mean\": ...}` to `summary.json`. The docstring is dated 2026-08-23. Not executed, as requested.",
+  "stderr_tail": "",
+  "prompt_chars": 618,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"Summarize cost_usd values from JSON files in a directory (written 2026-08-23).\n\nReads every *.json file directly inside the directory given as the first\ncommand-line argument, collects the top-level \"cost_usd\" value from each\nfile that has one, and writes {\"total\": ..., \"mean\": ...} to summary.json\nin the current working directory.\n\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    directory = Path(sys.argv[1])\n\n    costs = []\n    for path in directory.glob(\"*.json\"):\n        if not path.is_file():\n            continue\n        with open(path) as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            costs.append(data[\"cost_usd\"])\n\n    total = sum(costs)\n    mean = total / len(costs) if costs else 0\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump({\"total\": total, \"mean\": mean}, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.05344,
+  "input_tokens": 679,
+  "output_tokens": 709,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}

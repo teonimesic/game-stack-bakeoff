@@ -462,6 +462,27 @@ def sign_test(diffs: list[float]) -> tuple[int, int, float]:
     return pos, neg, min(1.0, 2 * binom_sf(k, n))
 
 
+def newcombe(k1: int, n1: int, k2: int, n2: int) -> tuple[float, float]:
+    """95% CI for p1 - p2, two independent proportions (Newcombe's hybrid-score method).
+
+    THIS IS THE ONE THE TICKET NEEDS, and a plain significance test is not. The
+    pre-registered null outcome is "no measurable relationship, EFFECT BOUNDED" -- and a
+    p-value bounds nothing. At a ceiling, `sum/n = 1.0` in both arms, every difference
+    test returns "no difference" and the honest question is how large a decline the
+    design could have missed. That is what an interval answers and a test does not.
+
+    Normal-approximation intervals collapse to zero width at p=1, which would report a
+    perfect bound from a handful of trials. The Wilson-score legs do not.
+    """
+    p1, p2 = (k1 / n1 if n1 else 0.0), (k2 / n2 if n2 else 0.0)
+    l1, u1 = wilson(k1, n1)
+    l2, u2 = wilson(k2, n2)
+    d = p1 - p2
+    lo = d - math.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2)
+    hi = d + math.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2)
+    return (max(-1.0, lo), min(1.0, hi))
+
+
 def statcheck() -> int:
     """Pin the three statistics against values computed independently.
 
@@ -515,6 +536,28 @@ def statcheck() -> int:
     print(f"  {'PASS' if wide else 'FAIL'}  boot_ci on a split sample is wide: "
           f"[{lo:.3f}, {hi:.3f}]")
     ok = ok and wide
+
+    # Newcombe. At a shared ceiling the difference is 0 and the interval must NOT be,
+    # which is the whole reason it is here. With both arms perfect, the lower leg is
+    # exactly -(1 - wilson_lo of the arm being subtracted).
+    # The legs are ASYMMETRIC, and getting that backwards is easy: the lower leg (the
+    # largest decline in arm 1) is limited by how low arm 1 could plausibly be, which
+    # is the arm with the LARGER n and therefore the tighter Wilson leg. I wrote this
+    # pin the other way round first and the code was right, not the expectation.
+    lo, hi = newcombe(128, 128, 32, 32)
+    chk("newcombe(128/128, 32/32) lo", lo, -(1.0 - wilson(128, 128)[0]))
+    chk("newcombe(128/128, 32/32) hi", hi, 1.0 - wilson(32, 32)[0])
+    nonzero = lo < -0.01
+    print(f"  {'PASS' if nonzero else 'FAIL'}  at a shared ceiling the bound is still "
+          f"informative: [{lo:.4f}, {hi:.4f}]")
+    ok = ok and nonzero
+    # And it must widen as n falls -- a bound from 4 trials must not look like a bound
+    # from 128.
+    lo_small, _ = newcombe(8, 8, 4, 4)
+    wider = lo_small < lo
+    print(f"  {'PASS' if wider else 'FAIL'}  the bound widens at small n: "
+          f"[{lo_small:.4f}, ...] vs [{lo:.4f}, ...]")
+    ok = ok and wider
 
     print("\nstatcheck:", "clean" if ok else "FAILED")
     return 0 if ok else 1
@@ -738,6 +781,24 @@ def cmd_analyse(a) -> int:
         print(f"  {ins.id:<5}{ins.cls:<4}{p1:>7.2f}({len(a1):>2}){p16:>7.2f}"
               f"({len(a16):>2}){p16 - p1:>9.2f}")
 
+    # THE BOUND. The ticket's null outcome is "no measurable relationship, effect
+    # bounded", and a sign test bounds nothing -- at a ceiling it returns p=1 for a
+    # design that could not have detected a 40-point drop and for one that could have
+    # detected a 2-point drop, identically.
+    r1 = [o for o in obs if o[0] == "k1"]
+    r16 = [o for o in obs if o[0] == "k16"]
+    if r1 and r16:
+        k_1, n_1 = sum(1 for o in r1 if o[3]), len(r1)
+        k_16, n_16 = sum(1 for o in r16 if o[3]), len(r16)
+        lo, hi = newcombe(k_16, n_16, k_1, n_1)
+        print(f"\nPOOLED k16 - k1: {k_16}/{n_16} - {k_1}/{n_1} = "
+              f"{k_16/n_16 - k_1/n_1:+.4f}")
+        print(f"  95% CI (Newcombe): [{lo:+.4f}, {hi:+.4f}]")
+        print(f"  -> the largest DECLINE consistent with this data is "
+              f"{abs(lo)*100:.1f} percentage points.")
+        print("     A decline larger than that would have shown up; a smaller one "
+              "would not.")
+
     if diffs:
         pos, neg, p = sign_test(diffs)
         lo, hi = boot_ci(diffs)
@@ -803,6 +864,29 @@ def cmd_analyse(a) -> int:
     # (rule 4). The pilot measured $0.054 at k1 and $0.322 at k16 -- a 6x spread that a
     # single mean would hide, and anyone pricing a follow-up from that mean would
     # misprice every arm.
+    # POSITION WITHIN THE BLOCK. Free, because order was randomised and recorded, and it
+    # tests a second published effect on the same data: arXiv:2307.03172 reports a
+    # U-shape by position, arXiv:2402.08939 that reordering logically equivalent
+    # premises alone changes accuracy. Reported for the k16 arm only, which is the only
+    # arm where position has a range worth speaking of.
+    k16t = [t for t in trials if t["arm"] == "k16"]
+    if k16t:
+        buckets = defaultdict(lambda: [0, 0])
+        for t in k16t:
+            for pos, iid in enumerate(t["instructions"], 1):
+                c = t["evaluation"]["checks"].get(iid)
+                if c is None:
+                    continue
+                b = buckets[(pos - 1) // 4]        # quartiles of the block
+                b[1] += 1
+                b[0] += bool(c["passed"])
+        print("\nPOSITION IN THE k16 BLOCK (quartiles; order was randomised per trial)")
+        for q in sorted(buckets):
+            k, n = buckets[q]
+            lo, hi = wilson(k, n)
+            print(f"  positions {q*4+1:>2}-{q*4+4:<2}  {k:>4}/{n:<4} = {k/n:.3f}"
+                  f"  [{lo:.3f}, {hi:.3f}]")
+
     # ACCIDENTAL COMPLIANCE, and the leakage control. Needs `regrade` to have stored
     # `evaluation_all`; it is silent rather than wrong when that is absent.
     have_all = [t for t in trials if t.get("evaluation_all")]

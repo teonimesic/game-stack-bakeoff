@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t17",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B5"
+  ],
+  "padded": false,
+  "seed": 151874091,
+  "elapsed_s": 10.0,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It reads `sys.argv[1]` as the target directory, iterates non-recursively over `*.json` files, collects `cost_usd` from any dict that has it, and writes `{\"total\": ..., \"mean\": ...}` to `summary.json` in the current working directory. Every `def` (`load_costs`, `main`) has a return-type annotation.",
+  "stderr_tail": "",
+  "prompt_chars": 648,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef load_costs(directory: Path) -> list[float]:\n    costs: list[float] = []\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        with path.open() as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            costs.append(data[\"cost_usd\"])\n    return costs\n\n\ndef main() -> None:\n    directory = Path(sys.argv[1])\n    costs = load_costs(directory)\n    total = sum(costs)\n    mean = total / len(costs) if costs else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.053894,
+  "input_tokens": 682,
+  "output_tokens": 755,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      }
+    }
+  }
+}

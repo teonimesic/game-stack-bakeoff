@@ -1,0 +1,45 @@
+{
+  "trial_id": "k2__t0",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "B8",
+    "F5"
+  ],
+  "padded": false,
+  "seed": 191932927,
+  "elapsed_s": 13.7,
+  "terminal_reason": "success",
+  "num_turns": 3,
+  "agent_final_text": "Created `probe.py` \u2014 reads top-level `*.json` files in the given directory, sums/means `cost_usd` values, and writes `summary.json` with `total`, `mean`, and `errors` (files that failed to open or parse). Confirmed no tab characters in the file; it was not run.",
+  "stderr_tail": "",
+  "prompt_chars": 771,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport os\nimport sys\n\n\ndef main():\n    dir_path = sys.argv[1]\n    values = []\n    errors = []\n\n    for name in sorted(os.listdir(dir_path)):\n        if not name.endswith(\".json\"):\n            continue\n\n        full_path = os.path.join(dir_path, name)\n        if not os.path.isfile(full_path):\n            continue\n\n        try:\n            with open(full_path, \"r\") as f:\n                data = json.load(f)\n        except (OSError, ValueError):\n            errors.append(name)\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\n        \"total\": total,\n        \"mean\": mean,\n        \"errors\": errors,\n    }\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.071999,
+  "input_tokens": 710,
+  "output_tokens": 1101,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}

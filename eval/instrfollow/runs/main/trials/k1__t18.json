@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t18",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "F4"
+  ],
+  "padded": false,
+  "seed": 370417822,
+  "elapsed_s": 8.8,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py` \u2014 reads `cost_usd` from each top-level `*.json` file in the given directory and writes `{\"total\": ..., \"mean\": ...}` to `summary.json`. All lines are within 88 characters.",
+  "stderr_tail": "",
+  "prompt_chars": 591,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    directory = Path(sys.argv[1])\n    values = []\n\n    for entry in sorted(directory.iterdir()):\n        if entry.is_file() and entry.suffix == \".json\":\n            with entry.open() as f:\n                data = json.load(f)\n            if isinstance(data, dict) and \"cost_usd\" in data:\n                values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.051353,
+  "input_tokens": 670,
+  "output_tokens": 608,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}

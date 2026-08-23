@@ -1,0 +1,38 @@
+{
+  "trial_id": "k1__t11",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "F2"
+  ],
+  "padded": false,
+  "seed": 988213711,
+  "elapsed_s": 14.1,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Wrote `probe.py`. It reads top-level `*.json` files in the given directory, collects each file's `cost_usd` value when present, and writes `{\"total\": ..., \"mean\": ...}` to `summary.json` in the cwd. The docstring includes the required `UNVERIFIED:` line noting that behavior on malformed/missing-key JSON files hasn't been tested. Not executed, per your instructions.",
+  "stderr_tail": "",
+  "prompt_chars": 694,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"Summarize the cost_usd values found in the top-level JSON files of a directory.\n\nReads every ``*.json`` file directly inside the directory given as the first\ncommand-line argument (subdirectories are not searched), collects the\ntop-level ``cost_usd`` value from each file that has one, and writes a JSON\nobject with the ``total`` and ``mean`` of those values to ``summary.json`` in\nthe current working directory.\n\nUNVERIFIED: behavior when a *.json file fails to parse as JSON, or has no\ntop-level cost_usd key, has not been tested against real malformed input.\n\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(f\"usage: {sys.argv[0]} <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    directory = Path(sys.argv[1])\n    values = []\n\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        try:\n            with path.open(\"r\", encoding=\"utf-8\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError):\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n\n    with open(\"summary.json\", \"w\", encoding=\"utf-8\") as f:\n        json.dump(summary, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.06274,
+  "input_tokens": 692,
+  "output_tokens": 1158,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  }
+}
