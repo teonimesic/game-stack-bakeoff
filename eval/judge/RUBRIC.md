@@ -88,7 +88,7 @@ of every command, and the nine **capture and performance fields** below.
 ### The performance fields — captured since 2026-08-23, scored by nothing
 
 `judge/capability.py` is the contract: same names, same units, all four arms, measured
-from **outside** the submission so no arm can fail to report one (#95, DECISIONS.md).
+from **outside** the submission so no arm can fail to report one (#97, DECISIONS.md).
 Read a stored run with `python3 judge/capability.py --runs eval/runs`.
 
 | field | unit | from |

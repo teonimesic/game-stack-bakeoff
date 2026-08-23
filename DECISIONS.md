@@ -517,7 +517,7 @@ performance fields. Rejected, and the reason generalises past this case:
 
 Two consequences that made the choice cheap as well as right: no starter changes, so this is **not
 a regime boundary** and every stored run stays in the comparison; and four of the nine fields turn
-out to have been recorded on all 68 stored submissions already, unread (#95).
+out to have been recorded on all 68 stored submissions already, unread (#97).
 
 `judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
 `no_stack_correlated_gap()`, which fails if a declared field is ever absent for any reason other
@@ -593,7 +593,7 @@ real baseline: every `subprocess.run` under the lint root states its `check=`, a
 `except Exception` that remains carries a `# noqa: BLE001` naming why the exception set is open
 there. A new hit from either rule is therefore a site nobody has considered. The other 44
 findings — `B905`, `F401`, `F541`, `B007`, `B023`, `F841` — were **not** triaged and are a
-standing backlog, not a clean baseline. The reasoning is in #104 and in `eval/tools/lint.py`.
+standing backlog, not a clean baseline. The reasoning is in #105 and in `eval/tools/lint.py`.
 
 **`eval/judge/fixtures/` is out of scope**, alongside `eval/runs/`. Those are stand-in
 *submissions* — the same class of artifact as `eval/starters/*/`, one of them deliberately

@@ -240,7 +240,7 @@ throughput and start-up — with the same names and units on all four arms, meas
 the submission so no arm can fail to fill one (`eval/judge/capability.py`, DECISIONS.md). Swept
 over the 68 stored submissions the gate is clean, and **62 of them captured at exactly the starter
 default of 640x400**. Four of the nine fields turned out to have been written on every submission
-since the first matrix with no reader at all (FINDINGS #95). **There is deliberately no frametime
+since the first matrix with no reader at all (FINDINGS #97). **There is deliberately no frametime
 or fps field:** the TypeScript arm films on SwiftShader while the other three film on the M3 Max,
 so any render timing would report the backend rather than the stack.
 

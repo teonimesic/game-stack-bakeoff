@@ -479,7 +479,7 @@ Two refinements that pattern does not cover:
     68 stored trials moved **no ordering at any weight**, which sounds like a clean bill of health
     and is not. In 7 of 10 groups tier 1 returned a **single value across every submission**, so
     the weight was inert for the reason that matters least: there was nothing for it to weigh
-    (#90).
+    (#92).
 
     The check is free, it is offline, and it comes out either way — which is what makes it worth
     running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the
