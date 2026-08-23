@@ -25,8 +25,11 @@ The frontmatter of a task file was gated from the start; its BODY was not, and t
 only part an agent is actually briefed from. On 2026-08-23 commit `436bf64` appended task 71's
 entire 59-line brief to `tasks/70-set-a-size-...md` -- a filename guessed from a queue listing
 title, which is AGENTS.md rule 12 -- and created `tasks/71-...md` with no body at all. `check`
-exited 0 on both files for a day, while task 71's agent worked from an empty ticket and
-`show 70` rendered a brief about trial disclosures.
+exited 0 on both files for the 25m48s they stood on main -- `436bf64` 09:12:56 to `28f6598`
+09:38:44 (#141) -- while `show 70` rendered a brief about trial disclosures. The duration is
+the wrong measure anyway: the dispatched agent forked at `23be12c` (09:14:41), after the
+misfile, and delivered at `c2bc8ce` (09:38:42), so ALL of task 71's execution ran against an
+empty ticket.
 
 So two failures, and they are the two halves of that one commit:
 

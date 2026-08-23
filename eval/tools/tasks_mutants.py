@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The five mutants of `tasks.py` that `tasks_control.py`'s rows are supposed to catch.
+"""The mutants of `tasks.py` that `tasks_control.py`'s rows are supposed to catch.
 
 WHY THIS EXISTS. Task 82 built direction 5 of `tasks_control.py` and killed five mutants
 with it -- by hand, in one session. What it left behind was a SENTENCE in a closed ticket's
@@ -17,7 +17,7 @@ red. A mutant is CAUGHT only if the row NAMING ITS MECHANISM is among them -- no
 something, somewhere, failed. A control that is red for a reason it did not name is not
 controlling that reason (`findings_control.py` learned this with three surviving mutants).
 
-    python3 eval/tools/tasks_mutants.py                 # baseline, then all five
+    python3 eval/tools/tasks_mutants.py                 # baseline, then every mutant
     python3 eval/tools/tasks_mutants.py --mutate NAME   # one
     python3 eval/tools/tasks_mutants.py --list
 
@@ -65,7 +65,7 @@ QUEUE = _t.TASKS
 #: The counts in the comments are what task 82 recorded by hand on 2026-08-23 and what this
 #: file measures now. Where they differ, the measurement is in the ticket.
 MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
-    # The half that actually hurt. `check` read commit 436bf64 as clean for a day while
+    # The half that actually hurt. `check` read commit 436bf64 as clean for 25m48s (#141) while
     # task 71's agent worked from a body of "\n\n"; containment cannot see an empty body,
     # because an empty body resembles nothing.
     "no_empty_body": (
@@ -102,23 +102,49 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "{_scalar(meta_or_fm.get('done_when'))}\"",
         "    return _scalar(meta_or_fm.get('body'))  # MUTANT: body, not title+done_when",
         ("FAILS on the real 436bf64 pair", "threshold, upper side")),
+    # The REPORTING of the reachability warning, as distinct from the predicate behind it.
+    # This mutation was this file's own inert mutation until `tasks/106`: direction 4 called
+    # `reachability_warning` in process over 12 wordings and no row ran `check` end to end,
+    # so `tasks.py` computed every warning, printed none, and the 34 rows that file then had
+    # all stayed green -- exit 0, 0 FAILED. It
+    # is a real mutant now because direction 4c reads `check`'s stdout on a scratch queue.
+    "warn_never_printed": (
+        "    if warn:",
+        "    if False:  # MUTANT: warnings computed, never printed",
+        ("end to end on an UNREACHABLE done_when",)),
+    # The other half of direction 4c: its QUIET rows must be able to go red too, or they are
+    # a negative control that cannot fail. Dropping the escape class accuses every done_when
+    # that carries a universal, which is what task 38 was filed about -- so the row that must
+    # notice is the one whose wording has both a universal and an escape (task 32's).
+    "escape_ignored": (
+        "    if not risky or _words(prose, HYPOTHETICAL):",
+        "    if not risky:  # MUTANT: an escape branch no longer silences anything",
+        ("end to end on a universal WITH an escape branch",)),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it
-#: and requires the report to read SURVIVED with a non-zero exit -- because "all five
-#: caught" from a harness structurally incapable of saying anything else is rule 1's
-#: `total=0 passed=0`, and every mutant above is a NEGATIVE control.
+#: and requires the control to come back FULLY GREEN -- exit 0, no red row at all -- because
+#: "every mutant caught" from a harness structurally incapable of saying anything else is
+#: rule 1's `total=0 passed=0`, and every mutant above is a NEGATIVE control.
 #:
-#: It is a real, measured gap rather than a synthetic no-op. Direction 4 calls
-#: `reachability_warning` IN PROCESS; no row runs `check` end to end on an unreachable
-#: done_when. So `check` can compute all its warnings and print none, and all 28 rows stay
-#: green. That gap is recorded, not fixed, for the reason `tasks/105` states: closing it is
-#: a row in `tasks_control.py`, and this file would then need a different inert mutation.
-#: If someone does close it, `--selftest` goes red saying exactly that.
+#: IT IS INERT BY CONSTRUCTION, AND THAT IS THE CHANGE `tasks/106` PAID FOR. Until then this
+#: was a real coverage gap -- `if warn:` -> `if False:`, warnings computed and never printed
+#: -- on the argument that a measured gap beats a synthetic no-op. The argument is wrong for
+#: a POSITIVE control, because it couples the runner's own control to a defect somebody is
+#: supposed to fix: closing the gap (direction 4c) turned the inert mutation into a caught
+#: one and broke `--selftest` by design, and the work of closing it then had to carry a
+#: second, unrelated repair. A positive control must not have an expiry date.
+#:
+#: A TRAILING COMMENT ON `MISFILED_MARGIN`'s LINE cannot expire: it changes no value, so no
+#: behavioural row can ever go red on it, and no future row can "cover" it. The line is
+#: chosen deliberately: `margin_up` and `margin_down` mutate THE SAME LINE and are both
+#: caught, so SURVIVED here cannot be read as "nothing tests that line". It separates the
+#: two claims the old design conflated -- *the runner can report a survivor* (here) and
+#: *tasks.py has an untested mechanism* (a task in `tasks/`, where it can be fixed).
 SELFTEST_MUTANT = (
-    "    if warn:",
-    "    if False:  # INERT: warnings computed, never printed",
-    "reachability WARNS")
+    "MISFILED_MARGIN = 0.25",
+    "MISFILED_MARGIN = 0.25  # INERT: a comment changes no value. margin_up and "
+    "margin_down mutate this same line and are both caught.")
 
 #: `  FAIL <row name>: <detail>` in tasks_control.py's summary block. Anchored at the line
 #: start so a detail string containing the word FAIL cannot manufacture a row.
@@ -189,20 +215,35 @@ def selftest(tmp: Path) -> int:
     """Can this runner report a SURVIVOR, and does it refuse a mutant that has drifted?
 
     Both are asked of the runner, not of `tasks.py`. A file that can only print CAUGHT
-    proves nothing by printing CAUGHT five times.
+    proves nothing by printing CAUGHT six times.
+
+    INERT IS A PROPERTY OF THE WHOLE REPORT, NOT OF ONE ROW NAME. This used to ask "did the
+    row I named go red?", which is the enumeration failure AGENTS.md's rule audit describes.
+    Measured while closing `tasks/106`: the new end-to-end row DID go red under the old
+    inert mutation, the row it named did not, and `--selftest` printed `ok` over a mutation
+    that had stopped being inert. The question is whether ANY row went red.
     """
     bad = []
-    old, new, claimed = SELFTEST_MUTANT
-    MUTANTS["_selftest_inert"] = (old, new, (claimed,))
+    old, new = SELFTEST_MUTANT
+    MUTANTS["_selftest_inert"] = (old, new, ())
     try:
-        caught = _cycle(tmp, "_selftest_inert")
+        copy = _write_copy(tmp, "_selftest_inert", "_selftest_inert")
     finally:
         del MUTANTS["_selftest_inert"]
-    print(f"\n  {'FAIL' if caught else 'ok  '} the INERT mutation is reported as SURVIVED")
-    if caught:
-        bad.append("the inert mutation was reported CAUGHT. Either a row now covers it -- "
-                   "in which case pick a new inert mutation, the gap is closed -- or this "
-                   "runner is calling something a kill that is not one.")
+    rc, out, failed, rows = _grade(copy)
+    inert = rc == 0 and not failed
+    print(f"\n=== INERT MUTATION: {'SURVIVED' if inert else 'CAUGHT'} "
+          f"(exit {rc}, {len(failed)} red of {len(rows)})")
+    print(f"    adds: {new.strip()[:110]}")
+    for f in failed:
+        print(f"    red   {f}")
+    if not inert:
+        _report(out)
+    print(f"\n  {'ok  ' if inert else 'FAIL'} the INERT mutation leaves EVERY row green")
+    if not inert:
+        bad.append("the inert mutation was CAUGHT. It changes no value, so this is the "
+                   "harness or the anchor, not a gap somebody closed: read the red rows "
+                   "above before picking a different mutation.")
 
     # A mutant whose anchor has drifted must REFUSE, not quietly apply nothing. A no-op
     # mutant reports a pass for a check that never changed.
@@ -227,7 +268,7 @@ def selftest(tmp: Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--mutate", metavar="NAME", help="one mutant instead of all five")
+    ap.add_argument("--mutate", metavar="NAME", help="one mutant instead of every one")
     ap.add_argument("--list", action="store_true", dest="list_mutants")
     ap.add_argument("--selftest", action="store_true",
                     help="this runner's own two controls: an INERT mutation must be "

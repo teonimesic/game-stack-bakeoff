@@ -54,6 +54,15 @@ THE FIVE DIRECTIONS
    an escape branch and still fire on the two originals, on a bare universal and on a bare
    threshold. Only direction 4b -- must still WARN -- keeps a repair from being a deletion.
 
+   4a and 4b call `reachability_warning` IN PROCESS, so between them they pin the PREDICATE
+   and never ask whether `check` REPORTS what the predicate returns. That gap was measured,
+   not suspected: replacing `if warn:` in `cmd_check` with `if False:` left `tasks.py`
+   computing every warning and printing none, and all 34 rows this file then had stayed
+   green -- exit 0, 0 FAILED (`tasks/106`). 4c runs `check` end to end on a scratch queue and
+   reads its STDOUT, in both directions: the warning text printed on an unreachable
+   done_when, and absent on a reachable one. Both rows also assert exit 0, because this is a
+   smell and not a gate; a repair that turned it into a failure would go red here.
+
 5. THE MISFILED-BODY CHECK, both ways, ON THE REAL BLOBS. `check` must fail on the actual
    `436bf64` pair naming both halves, and go quiet on the same two tickets as `28f6598`
    repaired them. `MISFILED_MARGIN` is pinned from BOTH sides -- the true positive at 0.36
@@ -403,6 +412,59 @@ def check_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
 
 
 # --------------------------------------------------------------------------- direction 4
+def _wording(name: str) -> str:
+    """One `WORDINGS` row's done_when, BY NAME. Never a second copy of the text.
+
+    4c has to be pinned on the same wordings 4a/4b are, or the two halves of this direction
+    drift apart and each stays green on its own copy -- rule 12, one value at two addresses.
+    A missing name is a hard failure rather than a skipped row: a pin that silently stops
+    pointing at anything is the shape this whole file exists to catch.
+    """
+    for n, _must_warn, dw in WORDINGS:
+        if n == name:
+            return dw
+    raise SystemExit(f"WORDINGS has no row named {name!r}, which direction 4c is pinned on")
+
+
+def reachability_printed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """4c: does `check` PRINT what `reachability_warning` returns?
+
+    One task per scratch queue, so nothing else in `check` can be the reason a row is red:
+    a single ticket has no neighbour to lose a containment comparison against, and its body
+    is non-empty. `status: open`, because `cmd_check` skips `done` deliberately.
+    """
+    rows = []
+    # Two quiet rows, not one, and they are quiet for DIFFERENT reasons. The first carries no
+    # universal and no threshold, so the predicate never gets as far as looking for an escape
+    # branch; the second is a real done_when that carries both a universal AND an escape, so
+    # it is the only one of the three that can go red if the escape class is dropped. A
+    # negative control that cannot be made to fail is rule 1's `total=0 passed=0`, and
+    # `tasks_mutants.py` runs a mutant against each of these three rows.
+    cases = [
+        ("an UNREACHABLE done_when: the warning text is PRINTED", True,
+         _wording("universal, no escape at all")),
+        ("a done_when with no universal at all: nothing is printed", False,
+         _wording("plain artifact condition")),
+        ("a universal WITH an escape branch (task 32's real wording): nothing is printed",
+         False, _wording("32 real, escape says 'If no tool'")),
+    ]
+    for i, (label, must_print, dw) in enumerate(cases):
+        main, _ = _scratch_pair(tmp / f"warnprint{i}")
+        shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+        (main / "tasks" / "70-a.md").write_text(_task_file("70", done_when=dw))
+        rc, out = _run_tool(main / "eval/tools/tasks.py", "check")
+        # The HEADER and the per-task LINE, both. The header alone would survive a loop that
+        # printed a count and no warnings; the line alone would survive a message that named
+        # no task. `70:` is the id `check` must attribute it to.
+        printed = "reachability warning(s):" in out and "70: done_when says" in out
+        rows.append((f"`check` end to end on {label}", rc,
+                     rc == 0 and printed == must_print,
+                     f"want exit 0 and the warning "
+                     f"{'PRINTED' if must_print else 'ABSENT'}; got exit {rc}, "
+                     f"printed={printed}: {out.splitlines()[0][:90] if out else '(none)'}"))
+    return rows, []
+
+
 def reachability_rows() -> tuple[list[tuple], list[str]]:
     rows, unchecked = [], []
     for name, must_warn, dw in WORDINGS:
@@ -698,6 +760,7 @@ def main(argv: list[str]) -> int:
                    lambda: add_rows(tmp, a.skip_prefix),
                    lambda: check_rows(tmp),
                    lambda: reachability_rows(),
+                   lambda: reachability_printed_rows(tmp),
                    lambda: misfiled_rows(tmp),
                    lambda: coverage_rows()):
             r, u = fn()

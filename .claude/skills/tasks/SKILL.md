@@ -268,14 +268,21 @@ Never read exit 3 as a pass.
 control that has quietly stopped measuring passes:
 
 ```bash
-python3 eval/tools/tasks_mutants.py --selftest   # 5 mutants, each killed by its own row
+python3 eval/tools/tasks_mutants.py --selftest   # every mutant, killed by the row naming it
 ```
 
 It writes a mutated **copy** of `tasks.py` into a tempdir and runs `tasks_control.py`
 against it with `--tasks-py`; the repository's own file is never written to, and the run
 asserts it is byte-identical afterwards. `--selftest` adds this runner's own positive
-control: an **inert** mutation that must be reported as `SURVIVED`, since a harness that
-can only print `CAUGHT` proves nothing by printing it five times.
+control: an **inert** mutation — a trailing comment on `MISFILED_MARGIN`'s line — that must
+leave **every** row green, since a harness that can only print `CAUGHT` proves nothing by
+printing it. It is inert *by construction* rather than by being an open coverage gap: the
+gap it used to stand on was closed by direction 4c, and that broke `--selftest` (`tasks/106`).
+
+The warning is pinned **twice, in different ways**, and the second is not redundant:
+`reachability_warning` in process over the wordings, and `check` run end to end on a scratch
+queue asserting the warning text reaches stdout. Without the second, `if warn:` → `if False:`
+in `cmd_check` computes every warning, prints none, and every row stays green.
 
 > **It is a smell, not a verdict.** Plenty of universals are perfectly reachable, and a
 > warning here means *go and check whether the data can reach this*, not *this is wrong*.
@@ -293,8 +300,10 @@ not.
 The frontmatter was gated from the start. The **body** — the only part an agent is actually
 briefed from — was not, and on 2026-08-23 commit `436bf64` appended task 71's entire 59-line
 brief to `tasks/70-set-a-size-...md`, a filename guessed from a queue listing title, and created
-`tasks/71-...md` with no body at all. `check` exited **0** on both for a day, while task 71's
-agent worked from an empty ticket and `show 70` rendered a brief about trial disclosures.
+`tasks/71-...md` with no body at all. `check` exited **0** on both for the **25m48s** they stood
+on main — `436bf64` 09:12:56 to `28f6598` 09:38:44 (#141) — while `show 70` rendered a brief
+about trial disclosures. Duration is the wrong measure anyway: the dispatched agent forked
+*after* the misfile, so **all** of task 71's execution ran against an empty ticket.
 
 Two failures now, one per half:
 
