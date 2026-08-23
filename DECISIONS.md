@@ -1150,9 +1150,11 @@ The retirement commit `e86e09d` was complete: `git ls-tree -r e86e09d` matches *
 had been hiding its build output** — `template-ts/.gitignore` listed `public/main.js` and
 `.eslintcache`, `template-unity/.gitignore` listed `/tools/analyzer/bin/` — so a `git add -A`
 at merge time saw an eslint cache, a 1.2M bundle and a compiled analyzer with its `.pdb` for the
-first time, and staged them. For eleven days `AGENTS.md` stated `template*/` is deleted while
-5 paths were tracked on `origin/main`, and nothing could disagree: no gate reads the tree for a
-claim a document makes about it. The 5 are now removed, and the root `.gitignore` carries
+first time, and staged them. From `f315f7e` (2026-08-23 08:35 -0300) until this repair the same
+day, `AGENTS.md` stated `template*/` is deleted while 5 paths were tracked on `origin/main`, and
+nothing could disagree: **no gate reads the tree for a claim a document makes about it.** It was
+caught by a person configuring a code reviewer, not by a check. The 5 are now removed, and the
+root `.gitignore` carries
 `template*/` so a leftover build tree in an old checkout cannot be re-committed. Reproduced in
 both directions on 2026-08-23: with the entry, `git add -A` over three replanted artefacts stages
 nothing; without it, the same command un-deletes all three.
