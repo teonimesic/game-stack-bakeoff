@@ -3273,6 +3273,9 @@ fired on correct input and were disabled for it.
 rust guide mentions that a Stop hook re-runs the gate when you try to finish, while the hook is
 live in all four. A heading heuristic is structurally blind to it.
 
+> **"live in all four" was overturned by #130** — it was inferred from the file being present and
+> wired. The asymmetry above is unaffected; only the word "live" is.
+
 ## 127. The producer built to stop a count going stale globbed one level deep, and the cross-check that certified it had been produced by the same glob
 
 `census.py` exists because `README.md`'s opening counts had no producer and outlived their scope
@@ -3482,6 +3485,14 @@ exactly the three guides, green after.
 so that control had been passing for the wrong reason. It was repaired rather than relaxed, which
 is the distinction that matters: a control that cannot fail is not evidence, and the fix is to
 make it able to, not to accept its green.
+
+**The half that outlives this hook.** A silent success path does not merely leave the question
+open now — it forecloses it *retrospectively*, because the evidence that would answer it was never
+written. Every trial in the archive is permanently unable to say whether its gate ran, and no
+re-reading changes that; the only repair is an audit trail added before the next run, which is
+`tasks/84`. That is `AGENTS.md`'s *record the inputs a component actually consumed, not merely the
+output it produced*, arriving one archive too late — the same shape as the judge rounds with no
+file-open log, which are unassessable for the same reason.
 
 ## 132. A field name that collided with an unrelated one let a false claim about it survive every grep
 

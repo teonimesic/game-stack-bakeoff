@@ -848,7 +848,7 @@ answer key, and the 23 files are kept verbatim under
 A fresh grep of the re-packed code for the trial-id and `game-research-work` patterns returns 0
 hits in all eight submissions.
 
-> **"Clean" there means TRIAL-ID clean, and it is not the same as language-blind (#130).** The
+> **"Clean" there means TRIAL-ID clean, and it is not the same as language-blind (#131).** The
 > re-packed `wg-g4c` code still carried its stacks' toolchain names — `CARGO_MANIFEST_DIR`,
 > `crates/sim`, `clippy.toml`, `WinitPlugin` — because `neutralise` matched a list of spellings
 > and none of those spellings were on it. **All 8 of this field's packs carried at least one, and
@@ -886,7 +886,7 @@ and refuses rather than guessing when the corroboration is unavailable.
 > from this field requires a *new* round. `fun`, `fun_frames`, `ux` and `audio` never read
 > `judge_pack/code` and are unaffected either way.
 
-> **⚠️ AN `architecture` ORDERING FROM THIS FIELD IS NOT LANGUAGE-BLIND (#130).** All 8 packs
+> **⚠️ AN `architecture` ORDERING FROM THIS FIELD IS NOT LANGUAGE-BLIND (#131).** All 8 packs
 > carried their stack's toolchain names, one-armed: 13 and 10 leaking files in the two Rust
 > submissions against 2-3 in the other six. Every one of the 9 stored `architecture` rounds that
 > left a file-open log opened at least one, in the Rust submissions specifically. `neutralise` is
@@ -1634,7 +1634,7 @@ re-runs `just verify` when you try to finish, so ending the turn red does not wo
 guide has carried it since the hook was written; the other three never did. Task 78, found by
 task 67.
 
-**The hook itself is unchanged and was already live in all four arms.**
+**The hook itself is unchanged and wired identically in all four arms.**
 `.claude/hooks/verify-gate.sh` is present in every starter and wired under `"Stop"` in every
 `.claude/settings.json` — the four settings files are byte-identical — and `wholegame.py` passes
 `--setting-sources project`, which loads them. So three arms have been running under a gate their
@@ -1642,41 +1642,38 @@ guide never mentioned. That is a difference between arms that nobody chose, and 
 this is a repair rather than a wording change: the hook is **harness**, identical in all four
 trees, not a stack-native fact like Bevy's API delta or Godot's headless limitation.
 
+**Wired is not ran, and no stored artifact separates them — FINDINGS #130.** This section said
+*"was already live in all four arms"* until 2026-08-23; that was inferred from the file being
+present and wired, which is rule 2. A Stop hook that exits 0 leaves nothing behind anywhere, so
+the exposure above is established for the **wiring** and unmeasured for the **running**.
+
 Wording is stack-native, as `DECISIONS.md` requires; only the silence is removed. Unity's sentence
 adds that each blocked attempt costs another batchmode editor launch; godot's adds that each one
 opens the window its own guide already documents.
 
 ### What the stored trials can and cannot say about it
 
-The obvious question — *does the sentence change what an agent does?* — **the stored evidence
-cannot answer, and the reason is that the outcome has no variance, not that the effect is small.**
+**Nothing, and the reason is that the outcome has no variance — not that the effect is small.
+The measurement, its extraction control and its two live probe arms are FINDINGS #130.**
 
-A Stop-hook block is recorded in the session transcript as a `user` entry with `isMeta: true`
-whose content begins `"Stop hook feedback:"`. Counting those across every stored trial transcript:
-
-| population | trials | Stop-gate blocks |
-|---|---|---|
-| trials with a stored per-trial starter baseline, guide **mentions** the hook (rust) | 4 | **0** |
-| the same, guide **silent** (ts, unity, godot) | 8 | **0** |
-
-The 20 stored baselines (`wg-g4`, `wg-g4b`, `wg-g4c`) are the only trials where the exposure is
-provable from artifacts rather than from today's working tree, and 12 of them reached a stop at
-all — the other 8 are `wg-g4b`'s `api_error` population, which never got there. Zero events in
-both arms is a null with **n=0 outcomes**, not a measured no-difference.
-
-Across the whole archive only **19 transcripts** carry any block, every one of them dated
-2026-08-11 or 2026-08-12 (`bakeoff-*` and the first `wholegame-work` run). No transcript from
-`wg-matrix` (2026-08-13) onward carries one.
+In the only population where the exposure is provable from artifacts rather than from today's
+working tree — the 12 trials with a stored per-trial starter baseline that reached a stop — the
+gate blocked **0 times in both arms**: 0 of 4 rust, 0 of 8 ts/unity/godot. Zero events in both
+arms is a null with **n=0 outcomes**, not a measured no-difference.
 
 **Do not read that as "the gate is dead", and do not read it as "the gate is working" either.**
-Measured directly, at CLI 2.1.220 — the version every stored transcript records — with the
-harness's own flags: a Stop hook that blocks produces a visible `Stop hook feedback` entry and the
-agent acts on it; **a Stop hook that exits 0 leaves nothing in the transcript at all.** The two
-arms of that control are in the task 78 record. So "no block" is consistent with *verify was green
-at every stop* and with *the hook did not run*, and no stored artifact separates them. What is
-established is that the guards cannot have short-circuited in `wg-g4c`: every arm's precondition
-held in the live work trees (ts `node_modules`, unity `Library`, rust `CARGO_TARGET_DIR`, godot
-`just` on `PATH`).
+#130 measured both directions live at the CLI version every stored transcript records: a blocking
+Stop hook is visible in the transcript, and one that exits 0 leaves nothing anywhere. So "no
+block" is equally consistent with *verify was green at every stop* and with *the hook did not
+run*.
+
+The one thing about the runs themselves that *is* established, and does not follow from #130:
+each hook short-circuits on a per-stack warm guard, and none of those guards can have
+short-circuited in `wg-g4c` — ts `node_modules`, unity `Library`, rust `CARGO_TARGET_DIR` and
+`just` on `PATH` all held in the live work trees.
+
+**What this ledger takes from it:** no before/after comparison across this break can be settled by
+re-reading the stored trials, in either direction.
 
 ### What it invalidates, and what it does not
 
