@@ -12,7 +12,9 @@ just verify
 ```
 
 Green means done. Red means not done. Nothing else counts as evidence — not "it
-runs", not "it looks right", not your own reasoning about the code.
+runs", not "it looks right", not your own reasoning about the code. A Stop hook
+re-runs it when you try to finish, so ending the turn red does not work — and
+because `verify` renders, each attempt opens the window described below.
 
 Warm `verify` is **~3 seconds**; there is no compile step and no cold-build
 cliff, so run it often. `just check` (~0.3s) and `just test-sim` (~1s) are the

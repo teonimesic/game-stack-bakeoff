@@ -1477,6 +1477,108 @@ do is still in `eval/suites/` — which is why those files were kept when the tr
 Every whole-game figure in this file is `eval/starters/*`, untouched.
 
 
+## THE TS, UNITY AND GODOT STARTER GUIDES CHANGED ON 2026-08-23 — a FIFTEENTH comparability break
+
+**The ordinal is free.** The section above deletes `template*/` and says explicitly that doing so
+is *not* a fifteenth boundary, because a boundary bounds future comparisons and there is no future
+run to bound. This one does bound future runs.
+
+**No trial after this date is comparable with one before it on turns or cost, on ts, unity or
+godot.** Each of those three `starters/*/AGENTS.md` gained a sentence saying that a **Stop hook
+re-runs `just verify` when you try to finish, so ending the turn red does not work.** The rust
+guide has carried it since the hook was written; the other three never did. Task 78, found by
+task 67.
+
+**The hook itself is unchanged and was already live in all four arms.**
+`.claude/hooks/verify-gate.sh` is present in every starter and wired under `"Stop"` in every
+`.claude/settings.json` — the four settings files are byte-identical — and `wholegame.py` passes
+`--setting-sources project`, which loads them. So three arms have been running under a gate their
+guide never mentioned. That is a difference between arms that nobody chose, and it is the reason
+this is a repair rather than a wording change: the hook is **harness**, identical in all four
+trees, not a stack-native fact like Bevy's API delta or Godot's headless limitation.
+
+Wording is stack-native, as `DECISIONS.md` requires; only the silence is removed. Unity's sentence
+adds that each blocked attempt costs another batchmode editor launch; godot's adds that each one
+opens the window its own guide already documents.
+
+### What the stored trials can and cannot say about it
+
+The obvious question — *does the sentence change what an agent does?* — **the stored evidence
+cannot answer, and the reason is that the outcome has no variance, not that the effect is small.**
+
+A Stop-hook block is recorded in the session transcript as a `user` entry with `isMeta: true`
+whose content begins `"Stop hook feedback:"`. Counting those across every stored trial transcript:
+
+| population | trials | Stop-gate blocks |
+|---|---|---|
+| trials with a stored per-trial starter baseline, guide **mentions** the hook (rust) | 4 | **0** |
+| the same, guide **silent** (ts, unity, godot) | 8 | **0** |
+
+The 20 stored baselines (`wg-g4`, `wg-g4b`, `wg-g4c`) are the only trials where the exposure is
+provable from artifacts rather than from today's working tree, and 12 of them reached a stop at
+all — the other 8 are `wg-g4b`'s `api_error` population, which never got there. Zero events in
+both arms is a null with **n=0 outcomes**, not a measured no-difference.
+
+Across the whole archive only **19 transcripts** carry any block, every one of them dated
+2026-08-11 or 2026-08-12 (`bakeoff-*` and the first `wholegame-work` run). No transcript from
+`wg-matrix` (2026-08-13) onward carries one.
+
+**Do not read that as "the gate is dead", and do not read it as "the gate is working" either.**
+Measured directly, at CLI 2.1.220 — the version every stored transcript records — with the
+harness's own flags: a Stop hook that blocks produces a visible `Stop hook feedback` entry and the
+agent acts on it; **a Stop hook that exits 0 leaves nothing in the transcript at all.** The two
+arms of that control are in the task 78 record. So "no block" is consistent with *verify was green
+at every stop* and with *the hook did not run*, and no stored artifact separates them. What is
+established is that the guards cannot have short-circuited in `wg-g4c`: every arm's precondition
+held in the live work trees (ts `node_modules`, unity `Library`, rust `CARGO_TARGET_DIR`, godot
+`just` on `PATH`).
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** No stored submission was written under this text, nothing
+  is re-graded, and no criterion reads a guide.
+- **Invalidated going forward, on three arms:** an agent told that ending the turn red does not
+  work has a reason to run the gate before finishing. Turn counts and costs on ts, unity and godot
+  before and after are not comparable. **Rust is unchanged**, so this is a three-arm break, the
+  first of that shape.
+- **Not measurable from re-grading.** Same as breaks eleven and thirteen: the doc half cannot be
+  verified offline.
+
+### The axis that now sees this shape
+
+`starter_parity.py` could not have caught it and never could have: its near-miss heading check
+fires only on a heading in every guide but one, and this was a **sentence** present in **one guide
+of four**. `mechanism_findings()` replaces that blind spot with the resource rather than the
+instance — *every hook event wired in every starter's `.claude/settings.json` must be named in
+every `AGENTS.md`* — so a hook added tomorrow is covered by the same row. An event wired on some
+stacks only is reported as a stack choice and never fails; an empty intersection says it compared
+nothing rather than reporting agreement.
+
+Pinned in both directions in `judge/parity_selftest.py` (**60 expectations, 0 failed**, up from
+44): the mutant is the sentence removed from each of the four guides in turn, all four red; the
+variants are a **different** event (`PreToolUse`) wired everywhere and named nowhere, which must
+also go red or the check is an assertion about the word "Stop"; a guide containing both "stop" and
+"hook" far apart, which must **not** count as a mention; and a reworded *"a hook on Stop"*, which
+must still count.
+
+Gates re-run after the change: `judge/starter_parity.py` — **red before the guide edits**, exit 1,
+one finding naming exactly `['godot', 'ts', 'unity']`; **exit 0 after**, "No drift detected on any
+measured axis", guides 2032–2273 words (1.12x, inside the 1.35x limit).
+`judge/verify_blind.py` on an out-of-repo copy of all four starters: **BLIND**, 81 criterion ids,
+4 trees, exit 0.
+
+`tools/starter_gate_control.py` over all four: **29 measurements, 1 FAILED, 0 NOT CHECKED**,
+exit 1. The one failure is `godot: GREEN on pristine (the same just verify must also exit 0)` —
+`test-render` exit 1 on an untouched tree. **It is not caused here and it is not new:** task 67
+measured the same row FAILED on 2026-08-23 before this task began, and filed it as `tasks/80`;
+`git diff main -- eval/starters` is three markdown sentences in three `AGENTS.md` and nothing else,
+and `starter_gate_control.py` reads none of them. The row that would have caught a defect from
+*this* change is a different one, and it is green on all four: **UNCHANGED by its own `just verify`
+on a pristine tree** — the ts arm runs prettier over the tree inside `verify`, so a reformatted
+`AGENTS.md` would have shown up there as a modified path (the #106 shape). No tracked file changed
+on any stack. Rust, ts and unity are green on every direction; the three NOT PINNED IN THE THIRD
+DIRECTION rows are the standing report, unchanged.
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.

@@ -49,10 +49,20 @@ windowed capture works. Material, not disqualifying.
 | Tasks are **independent**, run in **parallel**, in the **background** | [user] |
 | Prompts are **semantically identical but stack-native**, not byte-identical | [user] |
 | `--setting-sources project` is mandatory | [agent] |
+| **Stack-native covers stack facts, never harness facts.** A mechanism wired identically in all four starters must be described in all four guides | [agent] |
 
 Byte-identical prompts are not neutral — they end up written in one stack's vocabulary and bias the
 comparison. `--setting-sources project` is empirically verified: without it the operator's global
 `~/.claude/CLAUDE.md` leaks into every arm.
+
+The third row is where that principle was being over-applied. "Stack-native" is what licenses four
+different Bevy/three/Unity/Godot API sections and Godot's headless limitation — things true of one
+stack. It does **not** license one arm knowing about the Stop hook while three do not, which is
+what happened for as long as the hook existed (task 78): `.claude/hooks/verify-gate.sh` and the
+`"Stop"` wiring are byte-identical across the four trees, and only `starters/rust/AGENTS.md` said
+so. Wording still differs per stack; silence is the thing forbidden. Enforced as an axis rather
+than a habit — `judge/starter_parity.py::mechanism_findings`, keyed on **every event wired in
+every starter**, so the next hook is covered by the rule that caught this one.
 
 ## What the task asks for
 

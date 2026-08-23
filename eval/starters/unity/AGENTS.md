@@ -12,7 +12,10 @@ just verify
 ```
 
 Green means done. Red means not done. Nothing else counts as evidence — not
-"it compiles", not "it looks right", not your own reasoning about the code.
+"it compiles", not "it looks right", not your own reasoning about the code. A
+Stop hook re-runs it when you try to finish, so ending the turn red does not
+work — and each attempt costs another batchmode editor launch, so run it
+yourself rather than discovering it at the end.
 
 `just test-sim` (~5s, no GPU) is the fast inner loop. Every recipe launches a
 fresh batchmode editor; measured on an M3 Max, `verify` is ~12s warm and ~22s

@@ -15,7 +15,8 @@ task asks for; keep the harness, the boundaries and the verification loop.
 | `just warm`   | ~2min | One-time: install deps + Chromium. Run first if `node_modules/` is missing. |
 
 `just verify` green means done. Red means not done. Nothing else is evidence —
-not "it type-checks", not "it looks right", not your own reasoning.
+not "it type-checks", not "it looks right", not your own reasoning. A Stop hook
+re-runs it when you try to finish, so ending the turn red does not work.
 `just --list` has the rest (`bless`, `run`, `probe`, `film`).
 
 ## Layout
