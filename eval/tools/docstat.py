@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Analyse this project's documentation: structure, size, and names that do not exist.
 
+`--sweep` asks two kinds of question. REFERENCES: does a name used in a doc resolve?
+STRUCTURE: does a file parse as the thing it is being read as? The second kind was added
+2026-08-23 after eleven documentation linters were measured against this repository and
+produced over 14,000 alerts and two defects, both structural, both missed by every prose
+linter (research/11-doc-linting-for-agents.md).
+
 WHY THIS EXISTS
 ---------------
 The prose version of these checks lives in the `audit-docs` skill, and prose is executed
@@ -46,6 +52,12 @@ def is_vendored(p: str) -> bool:
 
 
 def project_docs() -> list[str]:
+    """Every project markdown file OUTSIDE a dot-directory.
+
+    `glob("**")` does not descend into `.claude/` or `.agents/`, so this list has never
+    contained a `SKILL.md` and the reference checks below have never read one. That is a
+    gap, not a policy - see the note in `gated_docs()`.
+    """
     out = []
     for p in glob.glob(os.path.join(ROOT, "**", "*.md"), recursive=True):
         if is_vendored(p) or f"{os.sep}runs{os.sep}" in p:
@@ -54,20 +66,84 @@ def project_docs() -> list[str]:
     return sorted(out)
 
 
+def _fence_mask(lines: list[str]) -> list[bool]:
+    """True for every line inside (or delimiting) a ``` fence.
+
+    ONE fence tracker, used by every check that reads markdown structure. Two spellings
+    of the same rule drift, and the drift is invisible until one of them reads a code
+    comment as prose — which is the defect this module was written for.
+    """
+    mask, fence = [], False
+    for l in lines:
+        if l.lstrip().startswith("```"):
+            mask.append(True)
+            fence = not fence
+            continue
+        mask.append(fence)
+    return mask
+
+
+# WHAT THE STRUCTURE GATES ARE POINTED AT, and what they are deliberately not.
+#
+# `--sweep`'s reference checks run over every project doc. The two STRUCTURE checks below
+# (skill frontmatter, list-continuation indent) run over a smaller set: the documents that
+# are read as instructions — skills, the open-work queue, and the always-on root docs.
+#
+# `eval/findings/`, `eval/FINDINGS.md` and `eval/RUNS.md` are excluded because they are the
+# ARCHIVE. A findings log records what was true when it was written, including the broken
+# shapes it is about; re-indenting one to satisfy a gate edits evidence. The reference
+# checks already exempt `findings/` for the same reason, one line at a time.
+#
+# Measured, 2026-08-23: the indent check finds 0 in this scope AND 0 across all 365 markdown
+# files in the main checkout, so the scope is not hiding false positives — it is a statement
+# about which files anyone is allowed to reformat.
+#
+# The root docs are addressed as A PROPERTY - any markdown file directly at the repo root -
+# not as the six names that happen to be there today. AGENTS.md's own audit: a trigger
+# written as an enumeration has to be re-derived by every reader who meets an item not on
+# the list, and the next always-on root doc would silently not be gated.
+GATED_DIRS = (".claude/skills", ".agents/skills", "tasks")
+
+
+def gated_docs() -> list[str]:
+    """Instruction documents the structure checks may hold to a format.
+
+    The skills live under DOT-directories, which `glob(**)` does not descend into, so
+    `project_docs()` has never contained a single `SKILL.md` and neither has any check
+    built on it. They are globbed explicitly here. Reading a scope off a helper whose
+    exclusions you have not checked is how a gate comes to run over 0 of its subjects.
+    """
+    out = []
+    for p in project_docs():
+        rel = os.path.relpath(p, ROOT)
+        if os.sep not in rel or rel.startswith(tuple(d + os.sep for d in GATED_DIRS)):
+            out.append(p)
+    for d in GATED_DIRS:
+        out += [p for p in glob.glob(os.path.join(ROOT, d, "**", "*.md"), recursive=True)
+                if p not in out]
+    return sorted(set(out))
+
+
+def skill_files() -> list[str]:
+    out = []
+    for d in (".claude/skills", ".agents/skills"):
+        out += glob.glob(os.path.join(ROOT, d, "*", "SKILL.md"))
+    return sorted(out)
+
+
 def headings(path: str) -> list[tuple[int, str, int]]:
     """Fence-aware. Returns (line_no, heading, section_chars).
 
-    A ``` line toggles fence state. Without this, any code comment starting with # is
-    read as a heading — the exact defect this module exists to prevent.
+    Without the fence mask, any code comment starting with # is read as a heading — the
+    exact defect this module exists to prevent.
     """
     lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
-    fence = False
+    fenced = _fence_mask(lines)
     hits: list[tuple[int, str]] = []
     for i, l in enumerate(lines):
-        if l.lstrip().startswith("```"):
-            fence = not fence
+        if fenced[i]:
             continue
-        if not fence and re.match(r"^#{1,6} ", l):
+        if re.match(r"^#{1,6} ", l):
             hits.append((i, l))
     out = []
     for k, (i, l) in enumerate(hits):
@@ -169,8 +245,139 @@ FOREIGN_FLAG_PREFIXES = (
 )
 
 
+def _check_skill_frontmatter() -> list[str]:
+    """Every SKILL.md must expose metadata a YAML parser can actually read.
+
+    THE DEFECT THIS WAS BOUGHT WITH: 5 of 7 project skills, and 5 of 6 of their
+    `.agents/` duplicates, had frontmatter no external tool could parse — an unquoted
+    scalar containing `": "`, e.g. `description: Add a game task...: prompt rules that`.
+    At load time the whole block is dropped and the skill gets EMPTY metadata, so it is
+    never selected, and nothing in the file looks wrong. Seven prose linters read those
+    files and reported them clean; only a schema parser saw it (research/11, §1.2).
+
+    WHAT WOULD MAKE THIS FIRE FALSELY: nothing that is also valid YAML. This is the one
+    check here with no judgement in it — the value either `safe_load`s or it does not.
+
+    Failing CLOSED when PyYAML is absent is deliberate. A structure check that quietly
+    skips itself is the vacuous pass this whole module exists to prevent.
+    """
+    problems, files = [], skill_files()
+    if not files:
+        return [f"no SKILL.md found under {' or '.join(GATED_DIRS[:2])} - "
+                f"the frontmatter check has nothing to read (wrong root?)"]
+    try:
+        import yaml
+    except ImportError:
+        return ["PyYAML is not importable, so SKILL.md frontmatter was NOT checked. "
+                "Install it (pip install pyyaml) rather than ignoring this line: an "
+                "unparseable skill loads with empty metadata and never gets selected."]
+    for p in files:
+        rel = os.path.relpath(p, ROOT)
+        text = open(p, encoding="utf-8", errors="replace").read()
+        m = re.match(r"^---\n(.*?)\n---\s*?\n", text, re.S)
+        if not m:
+            problems.append(f"{rel}: no YAML frontmatter block; the skill loads with no "
+                            f"name or description and is never selected")
+            continue
+        try:
+            meta = yaml.safe_load(m.group(1))
+        except Exception as e:
+            problems.append(f"{rel}: frontmatter does not parse as YAML "
+                            f"({str(e).splitlines()[0]}). A value containing `: ` must be "
+                            f"quoted; unparsed frontmatter is DROPPED, not reported")
+            continue
+        if not isinstance(meta, dict):
+            problems.append(f"{rel}: frontmatter parses as {type(meta).__name__}, not a "
+                            f"mapping of fields")
+            continue
+        # name and description are what the loader selects a skill BY. Measured
+        # 2026-08-23: present in 13 of 13 skill files, so this costs 0 false positives.
+        for k in ("name", "description"):
+            if not str(meta.get(k) or "").strip():
+                problems.append(f"{rel}: frontmatter has no `{k}`")
+    return problems
+
+
+def _check_list_indent() -> list[str]:
+    """Ordered-list continuations that fall outside the item they belong to.
+
+    THE DEFECT: `AGENTS.md` rules 1-9 use one-digit markers, whose continuation indent is
+    3 spaces. Rules 10-16 use two-digit markers, which need 4. Every continuation there
+    was indented 3, so lazy continuation held the FIRST paragraph of each rule and every
+    paragraph after a blank line detached to top level - five of them, structurally no
+    longer part of the rule they argue for (research/11, §1.1). markdownlint reported it
+    as 22 confusing MD029 alerts inside 9,697; remark-preset-lint-recommended called the
+    file completely clean while remark's own parser was detaching the paragraphs.
+
+    NARROW BY MEASUREMENT, not by taste. The broad form - "no root-level block indented
+    1-3 spaces" - fires where nothing is wrong. Task 36 measured it at 15 hits across 10
+    files in `tasks/` and inspected every one; an independent implementation of the same
+    idea, run here on 2026-08-23 over the gated scope, measured 7, also all in `tasks/`.
+    The two counts differ because "root-level" is a judgement call and the broad form is
+    made of judgement calls - which is the point. Neither set contains this defect: they
+    are 2-space lists and prose introduced by a paragraph ending in a colon, with no
+    ordered item above them. Nothing lost a parent.
+
+    A gate that fails on correct input gets disabled, which is why the path check above was
+    deleted rather than tuned. So this asks only the question that has a true positive:
+    does a 2+ DIGIT top-level ordered marker have a continuation indented less than its
+    own marker width?
+
+    Measured with THIS code, 2026-08-23: 0 hits across all 365 markdown files in the main
+    checkout with the scope removed, and 5 hits - at exactly the five lines §1.1 names -
+    against a reconstruction of the pre-task-36 AGENTS.md.
+    """
+    marker = re.compile(r"^(\d{2,})([.)])( {1,4})\S")
+    docs = gated_docs()
+    # THE ADDRESS IS AN INPUT TO THE CHECK (#60). An empty corpus passes silently and is
+    # indistinguishable from a clean one, so say so instead of returning green.
+    if not docs:
+        return [f"no instruction docs found under {', '.join(GATED_DIRS)} or at the repo "
+                f"root - the list-indent check read an empty corpus (wrong root?)"]
+    problems = []
+    for p in docs:
+        rel = os.path.relpath(p, ROOT)
+        lines = open(p, encoding="utf-8", errors="replace").read().split("\n")
+        fenced = _fence_mask(lines)
+        i = 0
+        while i < len(lines):
+            m = marker.match(lines[i])
+            if not m or fenced[i]:
+                i += 1
+                continue
+            # CommonMark: continuation lines belong to the item only if indented to the
+            # column its content starts at - digits + delimiter + the spaces after it.
+            need = len(m.group(1)) + 1 + len(m.group(3))
+            j, blank = i + 1, False
+            while j < len(lines):
+                l = lines[j]
+                if fenced[j]:
+                    j += 1
+                    continue
+                if not l.strip():
+                    blank = True
+                    j += 1
+                    continue
+                ind = len(l) - len(l.lstrip(" "))
+                # Indent 0 after a blank ENDS the list, which is how lists are meant to
+                # end - not a defect. Only 1..need-1 is the half-attached case: it looks
+                # indented, and it is outside the item.
+                if ind == 0:
+                    break
+                if blank and ind < need:
+                    problems.append(
+                        f"{rel}:{j + 1}: continuation indented {ind} under a "
+                        f"{len(m.group(1))}-digit marker `{m.group(1)}{m.group(2)}` "
+                        f"needing {need} - this block detaches from item "
+                        f"{m.group(1)} in every CommonMark parser: {l.strip()[:48]}")
+                blank = False
+                j += 1
+            i = j
+    return problems
+
+
 def cmd_sweep() -> int:
-    """Names in docs that do not resolve.
+    """Names in docs that do not resolve, and files that do not parse as what they are.
 
     Deliberately CONSERVATIVE. Every category here has produced a real defect, but a
     false positive costs more than a false negative: it trains the reader to skip the
@@ -285,16 +492,24 @@ def cmd_sweep() -> int:
                 f"while reading multiple rounds. A label is scoped to ONE round - join "
                 f"on submissions[].submission instead (#70).")
 
+    # STRUCTURE, not references. Both of these are schema questions with a demonstrated
+    # true positive in this repository and no judgement in the answer; see their
+    # docstrings for the defect each was bought with and its measured false-positive count.
+    problems += _check_skill_frontmatter()
+    problems += _check_list_indent()
+
     if problems:
-        print(f"{len(problems)} unresolved reference(s):\n")
+        print(f"{len(problems)} unresolved reference(s) or structure defect(s):\n")
         for x in problems:
             print(f"  {x}")
         print("\nA document naming something that does not exist is confidently wrong,")
-        print("and it will be followed. See FINDINGS #38.")
+        print("and it will be followed. See FINDINGS #38. A document that does not parse")
+        print("as what it is read as is worse: it looks right to everyone but the parser.")
         return 1
 
     print(f"sweep clean: {len(docs)} docs checked; {len(flags)} of our flags, "
-          f"{len(aspects)} aspects known")
+          f"{len(aspects)} aspects known; structure: {len(skill_files())} SKILL.md "
+          f"frontmatter, {len(gated_docs())} instruction docs for list indent")
     return 0
 
 
