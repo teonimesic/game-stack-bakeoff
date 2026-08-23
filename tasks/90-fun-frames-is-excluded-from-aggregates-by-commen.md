@@ -1,7 +1,7 @@
 ---
 id: 90
 title: fun_frames is excluded from aggregates by comment only - nothing enforces it
-status: open
+status: in_flight
 priority: 3
 refs: eval/judge/aspects.py, eval/judge/field_ranks.py, eval/judge/RUBRIC.md
 done_when: 'either FUN_FRAMES sets diagnostic_only and every aggregate over aspects reads it, or the guard is removed from the comment and replaced with what actually holds. Whichever way, pinned in both directions: a mutant that pools the control must go red, and a variant that pools five scored aspects with one of them missing must stay green. field_ranks.py must state, in its output, which aspects a pooled figure is over'

@@ -1,10 +1,11 @@
 ---
 id: 39
 title: Measure whether instruction count predicts rule compliance in this project's own docs
-status: in_flight
+status: done
 priority: 5
 refs: research/11-doc-linting-for-agents.md, AGENTS.md, eval/PROTOCOL.md
 done_when: a design exists naming the instructions to be varied, the compliance measure, the control arm and the cost; then either a run reports a compliance-vs-instruction-count relationship with n per arm, or it reports no measurable relationship with the effect bounded - both close the task
+established_by: '104 trials, 9.06 USD, eval/instrfollow/runs/main, all terminal_reason=success. 320 of 320 instruction-instances complied; every arm 1.000 at k=1,2,4,8,16 and at the padded length control. Newcombe 95pct CI on k16-k1 over the 14 instructions with a measured given-vs-not-given effect: -0.0332 to +0.1206, so the largest decline consistent with the data is 3.3 percentage points. Design pre-registered in eval/instrfollow/DESIGN.md before any trial ran; the within-instruction paired estimand removes the count-vs-content confound the ticket flagged as a possible non-termination. Controls green both directions offline via run.py gates: gold 16/16, sixteen mutants each flipping exactly one checker, variant 16/16, unparseable artifact 0/16. Census: the always-loaded set holds 73-113 instructions against ManyIFEval''s ceiling of 10, so the gap above k=16 is untested and is recorded as a re-open condition in DECISIONS.md. Two contradictions in the always-loaded set verified against source and filed as tasks 77 and 79.'
 ---
 ## What is this thing?
 
@@ -127,3 +128,20 @@ Both were caught by RENDERING the prompt and reading it, not by reasoning about 
 `python3 eval/instrfollow/run.py padcheck` is the standing control and must stay green. Its
 residual limitation, and the direction the residual biases the result, is stated in `DESIGN.md`
 -- read it before quoting the length arm.
+
+### The result, 2026-08-23
+
+`eval/instrfollow/RESULT.md`. 104 trials, $9.06, all `terminal_reason=success`.
+**320 of 320 instruction-instances complied; every arm 1.000.** Largest decline consistent
+with the data: **3.3 percentage points** over the 14 instructions the not-given control
+shows are doing work. Length and block position moved nothing either.
+
+This is the ticket's second pre-registered outcome -- no measurable relationship, effect
+bounded -- and it closes the ticket.
+
+**What is still open, and it is the interesting half.** The always-loaded set holds 73-113
+instructions; this reached 16. Anyone wanting to close that gap needs INSTRUCTIONS, not
+trials: the pool must grow past 32 live ones, and 2 of this run's 16 were already satisfied
+by default, so a nominal pool of 100 is perhaps 85 live. Cost rises steeply with k --
+measured $0.056 at k1, $0.273 at k16 -- so price a k32 pilot rather than extrapolating.
+Recorded as a re-open condition in `DECISIONS.md`.

@@ -1,7 +1,7 @@
 ---
 id: 92
 title: The aspect-census trigger is an enumeration of the three wordings it was built against
-status: open
+status: in_flight
 priority: 3
 refs: eval/tools/docstat.py _ASPECT_CENSUS_RX, AGENTS.md the enumeration-as-trigger rule, tasks/79
 done_when: either the trigger matches a census claim written in a wording nobody enumerated - proved by planting at least three phrasings not in the current pattern and confirming each goes red - with the false-positive count re-measured over the whole corpus and reported, or the enumeration is recorded as deliberate with the measured false-positive cost of widening it

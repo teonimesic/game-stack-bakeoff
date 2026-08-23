@@ -1,0 +1,10 @@
+---
+id: 93
+title: Publish the finding that tasks.py check exited 0 on a ticket carrying another ticket's brief
+status: open
+priority: 3
+refs: tasks/82, eval/tools/tasks.py misfiled_body, .claude/skills/tasks/SKILL.md, commit 436bf64
+done_when: eval/FINDINGS.md carries a numbered finding for the queue lint reading exit 0 over commit 436bf64's two malformed task files, with the number allocated against main at the time of writing and the index row present so docstat.py --sweep stays green; or, if a peer has already published the same observation under another number, that number is recorded here instead and this closes
+---
+
+Task 82 repaired the defect and gated it, but did not publish the finding, and the reason is worth stating: main's highest finding number moved from #128 to #131 during the task, so allocating one from a forked branch is how eleven collisions happened on 2026-08-23 and docstat.py --sweep fails on a duplicate. WHAT THE FINDING IS. tasks.py check gated a task file's FRONTMATTER from the start and never read its BODY - the only part an agent is actually briefed from. Commit 436bf64 appended task 71's entire 59-line brief to tasks/70-set-a-size-....md, a filename guessed from a queue listing title, and created tasks/71-....md with no body at all. check exited 0 on both, for a day, while task 71's dispatched agent worked from an empty ticket and tasks.py show 70 rendered a brief about trial disclosures. This is the project's signature pattern - a mechanism that runs, reports success and measures nothing - landing on the queue lint itself, and it is AGENTS.md rule 12's first table row happening a second time. THE REPAIR IS ALREADY DONE and is not what needs publishing: eval/tools/tasks.py now fails on an empty body and on a body that restates another task's title and done_when, pinned both ways by eval/tools/tasks_control.py at 28 measurements, 0 FAILED, 0 NOT CHECKED, with five mutants each killed by the row naming its mechanism. WHAT NOT TO DO. Do not renumber anything to make a citation resolve, and do not reuse a gap below the maximum - read the highest number from main immediately before writing, per the work skill.
