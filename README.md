@@ -51,14 +51,16 @@ And the three graders, which the rest of the file calls **tiers**:
 
 **Four well-built templates on Opus are indistinguishable on every task put to them.**
 
-Five separate instruments were pointed at the question. Four of them reach the same null by
-different routes; the fifth turned out not to be usable at all.
+Five separate instruments were pointed at the question. **Three** of them reach the same null by
+different routes. The fourth — cost — rested on a figure from the single most favourable of the
+seven comparable groups, and now supports only the weaker statement in its row. The fifth is not
+usable at all.
 
 | the instrument | what it says | how to re-derive it |
 |---|---|---|
 | **the play-bot tier is at its ceiling** | Tier 2 is the only scored tier, and it returns **one value for every submission in 5 of 10 (run, game) groups**. Tier 1, before it became a gate, returned one value in **7 of 10** — and in **0 of 10** did both tiers vary among the trials the play-bot could measure, so the weighted sum never had two signals to combine ([#92], [#123]). It saturates because the task is *finished*, not because there are too few questions: four harder criteria, built from things the newest game's prompt asks for and no criterion checked, passed **8 of 8** ([#128]) | `eval/judge/tier2_census.py`, `eval/judge/tier1_census.py` |
 | **the two trials of a cell are different work the instrument mostly cannot separate** | Compared criterion by criterion, the two independent trials in a cell agree on **verdicts** far more often than on **evidence** — most of the evidence strings differ, and differ in substance. That control is what makes the agreement readable: identical verdicts on identical artifacts would say nothing. "Mostly", not "never" | `python3 eval/judge/paired_verdicts.py --runs-root <main checkout>/eval/runs` — per (run, game), tier set stated, never pooled. `--selftest` pins its extraction on fixtures whose answers are written into the checks, and the retired unscoped figures are `WR-paired-verdict-tie` and `WR-paired-evidence-diff` in [`eval/withdrawn.json`](eval/withdrawn.json) |
-| **token usage does not discriminate, and never can** | On the one measure taken on all four stacks at once, the **between-stack range is 42% of its own noise floor**, and usage varies **205–370 turns within a single stack**. It cannot separate stacks and no number of extra trials would fix that ([#63]). **This row said "cost" and quoted dollars until 2026-08-23; there is no spend to quote** — the account is a subscription, and the harness's `cost_usd` is a list-price valuation of token counts ([#159]). Its "cost tracks turns at r = 0.971" was arithmetic, not a result: the figure is computed from tokens, and tokens scale with turns | no producer prints this; [#63] holds the method and the per-stack table |
+| **token usage does not separate the stacks, but it does not show them equal either** | Across the **7** groups where all four stacks ran at once, the between-stack range runs **42% to 254%** of the within-cell noise floor and **exceeds** that floor in **5 of 7** — the 42% this row used to lead with is the *lowest* of the seven, not a typical one. Usage varies by up to **165 turns** inside one stack's cell, so it is dominated by a per-agent choice. **This row said "cost" and quoted dollars until 2026-08-23; there is no spend** — the account is a subscription and `cost_usd` is a list-price valuation of token counts ([#159]). Its old "tracks turns at r = 0.971" was arithmetic rather than a result: the figure is computed from tokens, and tokens scale with turns | `python3 eval/tools/cost_census.py` |
 | **a fourth game, unseen by the templates, changes nothing** | The fourth game was written *after* all four templates were frozen, so it is the first with no history of having been shaped — however unintentionally — around what the templates already did well. It reproduces the null | [`eval/judge/RUBRIC.md`](eval/judge/RUBRIC.md) for its criteria, [`eval/G4-PLATFORMER.md`](eval/G4-PLATFORMER.md) for its design |
 | **the LLM judge is not a fifth route** | No subjective aspect separates the stacks either — but that can no longer be offered as independent corroboration, because **the blinding failed and every one of the 84 stored judge packs carried text naming the stack**. | [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md); `eval/judge/field_ranks.py --rounds <stored rounds>` |
 
@@ -109,20 +111,22 @@ reorder it whenever the play-bot was improved, so it was measuring the bot ([#13
 | **make the play-bot tier harder** | both in-rubric repairs were tried and measured. Promoting a withheld criterion moves every score in a group by the same amount; four harder criteria passed 8 of 8 | **closed.** It is not a shortage of criteria ([#128]) |
 | **a harder game, or a fifth one** | one clean eight-cell field — 8 trials, historically 205–370 turns each. The cost is agent time and rate-limit capacity, not money ([#159]) | **not bought.** An offline pre-test ran first and came out *against* it ([#139]) |
 | **the LLM judge** | roughly **96 rounds per aspect** for a statistical tie ([`eval/judge/JUDGING.md`](eval/judge/JUDGING.md) prices it), and every stored round would have to be re-run, because none was blind | **not started** |
-| **cost** | nothing would settle it. Cost is a proxy for turns, and turns are a per-agent choice | **closed** ([#63]) |
+| **cost** | it was closed on one group's ratio, and that group turns out to be the lowest of the 7 like it — across the 7 the between-stack range exceeds the within-cell floor in 5. Re-deciding it needs no new trial, only an adjudication of what the stored groups say | **re-opened**, offline, by `python3 eval/tools/cost_census.py` ([#63]) |
 
 **What is being done about it: nothing is currently running against the stack question, and no
-trial is scheduled.** `python3 eval/tools/tasks.py list` holds no item that would produce a new
-stack measurement, and [`eval/IMPROVEMENTS.md`](eval/IMPROVEMENTS.md)'s latest iterations are
-repairs to the blinding. The work in flight is on the instrument and on these documents. Buying
-an answer is the operator's call, and the price is in the table above.
+trial is scheduled.** `python3 eval/tools/tasks.py list` holds no item that would buy a new stack
+measurement — the one open item on the result is the offline re-adjudication of the cost route in
+the row above, which spends nothing — and [`eval/IMPROVEMENTS.md`](eval/IMPROVEMENTS.md)'s latest
+iterations are repairs to the blinding. The work in flight is on the instrument and on these
+documents. Buying an answer is the operator's call, and the price is in the table above.
 
 ## What this does and does not license
 
 - **It does not say the stacks are equal.** A null from an instrument with no resolution inside a
   cell is that instrument's noise floor, not a measurement of equality.
 - **It does say no ordering here is reportable.** The subjective ordering flips depending on which
-  aspects are counted, the deterministic tiers are saturated, and cost is noise.
+  aspects are counted, the deterministic tiers are saturated, and cost tracks how many turns an
+  agent chose to take rather than anything the rubric scores.
 - **It says the starters work.** Four independent stacks, four games, agents completing every task
   to a standard that saturates every mechanical check built to catch them failing.
 - **Two trials per cell detects large gaps only.** If two stacks land close, this design cannot

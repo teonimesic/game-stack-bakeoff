@@ -107,6 +107,17 @@ when the run directory changes. Full recipe and rationale in `PROTOCOL.md`.
 **Anything that spends money per call**, whatever runs it — an agent trial, a judge field
 call, a calibration probe. Trials are ~$11-73 each; judge field calls are $2.82-$8.08.
 
+**Whether cost SEPARATES the stacks is a different question from what anything cost, and its
+producer is `python3 tools/cost_census.py`.** It groups the stored trials by `(run directory,
+game)`, computes each group's within-cell noise floor and its between-stack range, and prints
+`r(cost, turns)` beside them. **Never quote a between-stack cost figure without its floor, and
+never quote one group's floor as the floor** — a floor is a property of a population, not of the
+cells you happened to sample. #63 measured a one-cell floor estimate wrong by **7.2x**; over all
+7 stored groups the tool's `worst one-cell floor error` line reads **33.0x**, so #63's number was
+the mild case. It compares gaps only **inside** a group, because gap sizes are bound to a
+budget-cap regime (#33) and a cross-group ratio would be arithmetic on incomparable dollars. The
+tool exits 2 on a missing tree rather than reporting 0, so run it against the main checkout.
+
 - **Report measured cost and get authorisation before launching anything that spends at
   scale.**
 - **Prefer offline re-grading to any re-run.** `judge/regrade_wholegame.py` and `regrade.py`
