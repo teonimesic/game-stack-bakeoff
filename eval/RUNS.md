@@ -49,7 +49,7 @@ smaller than its own lower bound is a reading of the wrong artifact, not a corre
 > | | |
 > |---|---|
 > | three runs that did not yet exist | `wg-g4`, `wg-g4b`, `wg-g4c` — **$698.21**, 29% of the project's agent spend |
-> | one run that was still building | the `wg-*` rows summed to $1,433.84 that day and sum to **$1,614.27** now. `wg-audio48` was in flight and `archive-arena2d` was later split out of it — the moving-row hazard this file warns about four lines below, realised in this file's own headline |
+> | one run that was still building | the `wg-*` rows summed to $1,433.84 that day and sum to **$1,614.27** now. `wg-audio48` was in flight and `archive-arena2d` was later split out of it — the moving-row hazard this file warns about a few paragraphs below, realised in this file's own headline |
 >
 > `README.md`'s "~$1,794" is the same figure at a later moment and is corrected there too. The
 > judge half of the line said **$46.79**, which is one day's calls quoted as all of them and is
@@ -67,10 +67,14 @@ The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 tha
 > prints each trial rounded to the cent and the records carry full precision. Stated rather than
 > reconciled — a figure quietly adjusted to match another figure is no longer a reading.
 
-> **A row for a live run is a moving number.** `wg-audio48` is still building its last four arena
-> trials. An earlier version of this file recorded *$571.15, 19 completed, 5 api_error* — read from
-> disk correctly, describing a state that lasted minutes. Mark in-flight rows provisional; a run's
-> spend is final only when its terminal reasons are.
+> **A row for a live run is a moving number.** `wg-audio48` was still building its last four arena
+> trials when this warning was written. An earlier version of this file recorded *$571.15, 19
+> completed, 5 api_error* — read from disk correctly, describing a state that lasted minutes. Mark
+> in-flight rows provisional; a run's spend is final only when its terminal reasons are.
+>
+> **It then happened to the headline, twice, and the second time nobody noticed for eight days.**
+> The row settled; the total above it did not, because the total had no producer and no read date.
+> Both now have one.
 
 ## What may be compared with what
 
