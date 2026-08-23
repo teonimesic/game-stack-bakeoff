@@ -463,6 +463,40 @@ costs the reader the control they never ran — `--sweep` printed `6 aspects kno
 for as long as two documents said five. A census claim is only visible because somebody
 **declared** it exhaustive, which is the same mechanism the withdrawal register rests on.
 
+**The census trigger is scoped to the PREDICATE, not to the quantifier, and that is a measured
+choice rather than a stylistic one (task 92).** It shipped as three alternations — the three
+wordings the two defective documents happened to use — and of 14 planted census claims, each
+false in exactly the way the check exists to catch, it fired on **2**. These two passed:
+
+```
+The five judge aspects are `architecture`, `audio`, `fun`, `idiomatic` and `ux`.
+There are five aspects: `architecture`, `audio`, `fun`, `idiomatic`, `ux`.
+```
+
+The obvious repair fails harder: a trigger built on the quantifier, a cardinal or `all`
+governing `aspects`, caught 10 of the 14 and turned **26 correct live lines red, with no true
+positive among them** — in this corpus a counted plural `aspects` almost always describes what
+*ran*, *cost* or *failed*, as in DECISIONS.md's own `All five aspects were run over a full
+eight-submission field`. What a census has and a run description does not is an existence,
+identity or definition predicate in the present tense with the enumeration adjacent, and
+copula / existential / `define` are closed classes, which is what makes that statable as a
+property instead of a growing wordlist. **Measured after the change: 14 of 15 plants red, 0 red
+across the 152-document swept corpus, and 6 across all 2090 markdown files in the checkout —
+all 6 archive-exempt and all 6 true statements of a superseded census.**
+
+> **The fence above is load-bearing, and the widened trigger's first live firing proved it.**
+> This paragraph quotes two false censuses as examples, `--sweep` went red on it, and that is
+> the check working: a live document may not state a census it does not mean, and the declared
+> way to show one is inside a ``` fence, where a line is an example rather than a claim. The
+> same exemption is why the archive may quote the superseded five freely.
+
+**What it deliberately still misses, with the price of closing it.** A bare `aspect`-headed
+table listing five ids with no sentence above it is invisible. The structural trigger for that
+was written and measured at **9 false positives** on live docs — every one a legitimate
+per-aspect results table over the subset a particular round ran. Nine false positives to close
+a gap that has never occurred is the trade this file already refused when the path check was
+deleted rather than tuned quiet.
+
 Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
 gate that fails on correct input gets disabled*:
 
