@@ -5025,3 +5025,56 @@ Adding the recipe turned the flag gate red on the CLI flags the recipe legitimat
 exemption matches by **equality**, not by prefix: a prefix entry for a real flag would silently
 exempt every future flag sharing its stem. Four new pins, and a mutant reverting to prefix
 matching turns exactly the two new ones wrong.
+
+---
+
+## 161. No stored judge sweep recorded the bound it ran under, so whether any was truncated had to be reconstructed from what it did
+
+Every judge sweep ran under two money ceilings — a total and a per-call budget — and a sweep that
+hits one stops part-way through its evidence. The obvious question is whether any stored sweep was
+truncated that way, because a truncated field is an incomplete measurement wearing the same
+filename as a complete one.
+
+**No stored summary records the ceiling it ran under.** 0 of the stored sweep summaries carry the
+bound or a reason for stopping. The question could not be read; it had to be **reconstructed from
+behaviour** — a truncated sweep completes fewer rounds than its configuration called for, so
+`repeats` against `--repeats`, `orders` against `games × aspects × orders`, and a sequential run
+against its configured pairs.
+
+The answer is **0 of 12 truncated**, and the extraction was proved before the zero was believed:
+two synthetic summaries whose answers were stated in advance — 2 rounds of a configured 5, and 3
+attempted of 4 — are both reported short. So the zero is a reading rather than a blind spot, which
+is the difference between this null and `total=0 passed=0`.
+
+> **A component that records its output but not its constraints leaves a question that can only be
+> answered by inference.** This project already knows the general form — *capture what the
+> instrument DID, not only what it concluded* — and had applied it to which files a judge opened,
+> which is what made #83 boundable. The **bound** is the same class of input and nobody recorded
+> it.
+>
+> The cost of the gap is not the answer, which came back clean. It is that a clean answer obtained
+> by inference stays weaker than a recorded one forever, and no later work can strengthen it.
+
+Closed at source: the sweep now writes its bounds and its reason for stopping into every summary,
+so the next occurrence is a lookup.
+
+### Two figures the same work found, both against a producer that already existed
+
+- `eval/RUNS.md` stated the judge totals as **93 rounds over 11 sweep directories**. The producer
+  says **97 over 12** — a whole sweep directory absent from the table, with its rounds and their
+  valuation. Not a rounding disagreement: a missing population.
+- One mean is written **4.39** in one document and **4.38** in another, from the same division,
+  rounded up in one place and truncated in the other. The rounds behind it have no surviving
+  artifact, so **which is right is a decision rather than an edit** — filed rather than guessed.
+
+### The gate that came out of it, and its class was chosen on the count
+
+Live documents may no longer describe a token valuation as expenditure. The trigger was measured
+before it shipped: `cost` gives 39 hits and is mostly not about money; `price` gives 15 and reddens
+a real console price in a research brief; adding `pay` costs 2 false positives on idioms for no
+true positive. **Shipped: `spend`/`charged`/`billed`/`expenditure` — 21 blocks, 0 false positives**,
+all 21 repaired.
+
+Its control is **history rather than a fixture**: the gate reports 21 against the tree as it stood
+before the repair and 0 at HEAD, verified here in both directions. A pin built from a synthetic
+document would have proved only that the regex matches itself.
