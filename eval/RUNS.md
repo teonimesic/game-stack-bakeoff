@@ -1481,6 +1481,49 @@ do is still in `eval/suites/` — which is why those files were kept when the tr
 Every whole-game figure in this file is `eval/starters/*`, untouched.
 
 
+## THE GODOT RENDER TESTS AND FOCUS GUARD CHANGED ON 2026-08-23 — a FIFTEENTH comparability break
+
+Task 80, FINDINGS #132. **No Godot `verify.green` result from before this date is comparable with
+one after it, and the reason is that before it the result was not a constant.**
+
+`starters/godot/tools/no_raise.gd` is an `[autoload]`, so it ran in every godot process rather
+than only in `just run`. Its last-resort escalation MINIMISES the window; macOS then stops
+producing frames and returns the last image drawn, so `capture_frame` handed the same stale
+picture to every rendering test. Whether the escalation fires is a race with macOS activation.
+
+Measured on fresh `wholegame.prepare` copies, harness uninvolved:
+
+| tree | `just test-render` |
+|---|---|
+| pristine, before — every Godot trial since the autoload arrived on 2026-08-17 | **5 of 12 FAILED**, 3 passed / 6 failed each time |
+| pristine, before, forced onto the minimise branch | **8 of 8 FAILED** |
+| pristine, before, minimise removed (`NO_FOCUS` flag kept) | 0 of 12 failed |
+| pristine, after | **16 of 16 green**, all 9 tests measured, 9 of the 16 on the minimise branch |
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score, but only because the direction is known.** The defect can
+  only turn a green `verify` red, never the reverse — a frozen frame fails six tests, it does not
+  pass any that should fail. A stored Godot `verify.green` of **False** is therefore not safe to
+  read as a statement about the submission; a **True** is.
+- **Invalidated going forward:** a Godot trial after this date faces a `just verify` whose render
+  half is stable, so its turn count is not comparable with one that may have spent turns chasing
+  an arena transform that was never wrong.
+- **Not affected: the other three stacks**, and this is measured rather than reasoned. Only godot
+  opens a render window. In the same `starter_gate_control.py` run that failed this row before the
+  repair, rust, ts and unity were green on **21 of 21** measurements.
+- **The golden frame is unchanged and was not re-blessed.**
+
+### The second change in the same file, which is not a scoring change at all
+
+Under `--headless` there is no window, but the dummy `DisplayServer` answers
+`window_is_focused()` with **true**, so `check`, `test-sim`, `probe` and `probe-file` each printed
+*"window raised anyway; minimised to return focus"* — a claim to have minimised a window they
+never had. It was the LAST line those recipes emitted, so it is what `starter_gate_control.py`
+recorded as their evidence, and it landed on `just probe`'s **stdout**, documented as carrying
+nothing but JSON trace lines. Pinned both ways by parsing every stdout line of `just probe`:
+before, 4 lines of which 1 is not JSON; after, 3 lines of which 0 are.
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.

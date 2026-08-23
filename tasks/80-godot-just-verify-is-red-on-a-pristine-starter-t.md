@@ -55,3 +55,62 @@ that — and `just verify` is not. Those are different recipes, and the gate con
 verify direction only under task 51. **So this row has been red since it was first measured, and
 was reported as green in a summary I wrote before running it to completion.** Establish how long
 it has actually been failing before assuming it is new.
+
+## The cause, measured 2026-08-23 — do not re-derive any of this
+
+**The row is not deterministic, which is why one run of the gate control is not a measurement of
+it.** On an idle machine `just test-render` on a pristine copy failed **5 of 12** times. A single
+green run of `starter_gate_control --stack godot` proves nothing about this row; count over
+repetitions, and read the tool's exit code — never a `grep -c FAILED`, because the summary line
+contains that word whatever the result.
+
+**The cause is `eval/starters/godot/tools/no_raise.gd`, and it fires through the window.** It is
+declared under `[autoload]` in `project.godot`, so it runs in EVERY godot process and not only
+`just run`. When the `WINDOW_FLAG_NO_FOCUS` flag fails to stop the window taking focus, its last
+resort is to MINIMISE the window to hand the keyboard back. **macOS stops producing frames for a
+minimised window and keeps returning the last image it drew**, so
+`get_viewport().get_texture().get_image()` returns a STALE image rather than null — and null is
+the only thing `capture_frame` ever checked for.
+
+The signature is unmistakable once seen: the golden test's `frame.actual.png` carries the HUD text
+**`tick 1  marker -3, 0`** — the tick-1 probe capture taken at the top of `run_all` — while the
+test asked for seed 5 at tick 90. Six of nine tests fail, each blaming something real and
+innocent (the arena transform, the particle system, a HUD that "is not showing the state"), and
+**the two that PASS are the two reproducibility tests**, because a frozen frame is perfectly
+reproducible. That is rule 9 inside one process.
+
+The one-line tell in any transcript: a failing run prints `[no_raise] flag INSUFFICIENT - window
+raised anyway; minimised to return focus`; a passing run prints `flag sufficient`.
+
+Pinned in both directions, single variable, on the pristine tree:
+
+| `tools/no_raise.gd` | `just test-render` |
+|---|---|
+| as shipped | 5 of 12 FAILED |
+| minimise removed, `NO_FOCUS` flag kept | 0 of 12 failed |
+| forced to always minimise | 8 of 8 FAILED, 3 passed / 6 failed every time |
+
+**The minimise is not dead weight — measure before removing it.** `lsappinfo front` polled at
+10 Hz through a run: with the escalation live the frontmost application returns from `godot` to
+the operator's after ~0.35 s; with it removed `godot` stays frontmost to process exit.
+
+## What was changed
+
+- `eval/starters/godot/tests/render_test.gd` — `capture_frame` now asserts its own precondition
+  via `_ensure_drawing_window()`: a capture needs a window that is DRAWING, so a minimised one is
+  restored and re-framed. Written as the precondition and **not** as a fix for `no_raise`, so a
+  window minimised by anything else is covered. It deliberately consumes no `SETTLE_ATTEMPTS`:
+  exhausting them returns a null frame, which `run_all` reports as nine SKIPs and **exit 0** — a
+  green that measured nothing. Measured: restoring does not hand focus back to godot.
+- `eval/starters/godot/tools/no_raise.gd` — returns early under the headless display driver.
+  There is no window under `--headless`, but the dummy `DisplayServer` still answers
+  `window_is_focused()` with **true**, so `check`, `test-sim`, `probe` and `probe-file` each
+  printed a claim to have minimised a window they never had. That is the LAST line those recipes
+  emit, so it is what the gate control recorded as their evidence, and it lands on `just probe`'s
+  STDOUT, which this template's guide documents as carrying nothing but JSON trace lines
+  (`eval/judge/probe.py` files it under "stdout pollution"). Pinned both ways with `json.loads`
+  over every stdout line: pre-repair 4 lines, 1 not JSON; post-repair 3 lines, 0.
+- `eval/tools/starter_gate_control.py` — `--log-dir`, and `_run` writes the full output of every
+  invocation there, streams kept apart. **This ticket asked for that first and it was skipped**,
+  which cost an hour rebuilding the same capture outside the tool. A row's last line is `just`'s
+  own `error: recipe X failed on line N`, which names the recipe and never the reason.
