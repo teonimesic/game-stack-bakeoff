@@ -165,8 +165,8 @@ HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid) || ex
 [ ${#HEAD} -eq 40 ] || { echo "no head sha - an error, not a poll result"; exit 1; }
 
 REVIEWS=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews") || exit 1
-BY_REVIEW=$(jq -s "[.[][] | select(.user.login==\"coderabbitai[bot]\") | .commit_id]
-                   | index(\"$HEAD\") != null" <<<"$REVIEWS") || exit 1
+BY_REVIEW=$(jq -s "[.[][] | select(.user.login==\"coderabbitai[bot]\") | select(.body != \"\")
+                   | .commit_id] | index(\"$HEAD\") != null" <<<"$REVIEWS") || exit 1
 case "$BY_REVIEW" in true|false) ;; *) echo "reviews query returned no boolean - an error"; exit 1;; esac
 
 COMMENTS=$(gh api --paginate "repos/$REPO/issues/$PR/comments") || exit 1
@@ -193,6 +193,24 @@ reviews at `per_page=2`: **2** records unpaginated against **10** paginated. `gh
 alongside `--jq`, so the pages are aggregated by an external `jq -s` reading a **here-string, not a
 pipe** — a pipeline's exit status is the last stage's (rule 3), and each of the 4 commands keeps its
 own `|| exit 1`.
+
+> **`select(.body != "")` is not tidying, and leaving it out is how you get a review you never
+> had.** When `coderabbitai[bot]` **replies to a comment**, GitHub creates a review object to hold
+> the reply and stamps it with the pull request's **current head** — body empty, one reply comment,
+> no top-level comments. Without the guard that object is indistinguishable from a review of that
+> head. Measured on this very procedure: declining 3 of a round's comments drew 3 replies, and the
+> poll reported `LANDED` **33 seconds** after the next push, on a round that had not started.
+>
+> The body separates them with no overlap — `DECISIONS.md` states the counts and the command that
+> re-derives them, because the population grows with every review. **PR #4's head carries only a
+> reply container**, so without the guard the arm reports a review of a head that never had one, and
+> only the comment arm makes that verdict true.
+>
+> This is the deadlock section's own warning one arm over: *a check on an unfiltered stream is a
+> check the agent can trip by describing it.* There it was a comment quoting the string; here it is
+> **replying to the reviewer at all**, which §6 tells you to do. The failure direction if the guard
+> is ever wrong — a real review with an empty body, of which there are 0 in 22 — is a timeout, not
+> a false pass.
 
 **The in-progress clause is load-bearing, and the obvious fix without it is fail-open.** CodeRabbit
 writes the head sha into the summary comment **while the round is still running** — the line

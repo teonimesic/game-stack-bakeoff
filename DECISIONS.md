@@ -1602,27 +1602,52 @@ abbreviation in the walkthrough prose and reported *"not reviewed"* through 8 po
 review had landed, rule 12 against a poll loop when the API had the exact address all along. But
 comparing it against the reviews API's `commit_id` is only half the check: **when CodeRabbit finds
 nothing actionable it creates no review object at all** and edits its summary issue comment
-instead. So the check is a disjunction — a `coderabbitai[bot]` review object at the head sha, **or**
-a `coderabbitai[bot]` issue comment naming the head sha that does not carry the *review in progress*
-marker — and it reports **which arm fired**. The recipe is in `.agents/skills/work/SKILL.md`; this
-entry is what it has to satisfy.
+instead. So the check is a disjunction — a `coderabbitai[bot]` review object **with a non-empty
+body** at the head sha, **or** a `coderabbitai[bot]` issue comment naming the head sha that does not
+carry the *review in progress* marker — and it reports **which arm fired**. The recipe is in
+`.agents/skills/work/SKILL.md`; this entry is what it has to satisfy.
+
+**A review object is not the same thing as a review.** When `coderabbitai[bot]` replies to a
+comment, GitHub creates a review object to hold the reply and stamps it with the pull request's
+**current head**: empty body, 1 reply, no top-level comments. So the review arm reads
+`select(.body != "")`. Without it, declining 3 of a round's comments made the poll report `LANDED`
+33 seconds after the next push, on a round that had not started.
+
+The body separates the two cleanly. Counted 2026-08-23 over every pull request this repository has
+had — **23** `coderabbitai[bot]` review objects, **15** real with bodies of 2829-18578 characters
+and **8** reply containers whose body length is **0**, with no overlap:
+
+```bash
+ALL=""; for PR in $(gh pr list --repo "$REPO" --state all --limit 100 --json number --jq '.[].number'); do
+  P=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews") || exit 1; ALL="$ALL$P"; done
+jq -s '[.[][] | select(.user.login=="coderabbitai[bot]")]
+       | {objects: length, real: ([.[]|select(.body != "")]|length),
+          containers: ([.[]|select(.body == "")]|length),
+          real_body_min: ([.[]|select(.body != "")|(.body|length)]|min),
+          container_bodies: ([.[]|select(.body == "")|(.body|length)]|unique)}' <<<"$ALL"
+```
+
+**The count grows with every review, so re-run it rather than quoting this line.** The first two
+times it was stated here it was wrong in both directions — counted by eye off a printed table
+rather than by the command, at `16 real, 6 containers` against a true `14, 8`. That is this file's
+own rule about quantities, failing on the session that was writing it down.
 
 **Neither arm alone covers this repository's own pull requests.** Both arms against every PR at its
 head sha, 2026-08-23 (`tasks/121`):
 
-| PR | review object at head | comment names head, not in progress | fires |
+| PR | real review object at head | comment names head, not in progress | fires |
 |---|---|---|---|
 | #1 | yes, 3 objects | **no** — its body carries only `4f95b`, and no 40-character sha at all | review |
 | #2 | yes | — | review |
 | #3 | **no** | **no** | **neither, correctly** — 2 commits were pushed after the last review at 16:25:14Z and never reviewed |
-| #4 | yes | — | review |
+| #4 | **no** — its only object at head is a reply container | yes | comment |
 | #5 | **no**, 0 review objects | yes | comment |
 | #6 | **no**, 2 objects and neither at head | yes | comment |
-| #7 | yes | — | review |
 
-The version that read only the review arm returned `false` on #5 and #6 — 2 of the 5 heads that had in fact been
-reviewed — and would have spent its full 15-minute deadline on each, on the *clean* outcome, which
-is the common one.
+The version that read only the review arm returned `false` on #5 and #6 — 2 of the 5 heads that had
+in fact been reviewed — and would have spent its full 15-minute deadline on each, on the *clean*
+outcome, which is the common one. It also returned `true` on #4, where no review of that head
+exists; the comment arm is what makes that verdict true.
 
 | Rejected | Why |
 |---|---|
@@ -1630,6 +1655,7 @@ is the common one.
 | Dropping the 40-character guard now that a 2nd arm exists | `contains("")` is true for every string, so an empty head would report every pull request reviewed. The reviews arm failed *closed* on the same input; adding the comment arm made that guard protect against a fail-open defect rather than a slow one |
 | Reading page 1 only, as the original did | `gh api` returns 30 records without `--paginate`, and the review at the head sha is the newest — the first to fall off. PR #6's reviews at `per_page=2`: 2 records unpaginated, 10 paginated |
 | `gh api --paginate --slurp --jq` | `gh` rejects `--slurp` alongside `--jq`. The pages are aggregated by an external `jq -s` over a here-string rather than a pipe, because a pipeline's exit status is the last stage's |
+| Counting any `coderabbitai[bot]` review object, as the original did | A reply creates one, stamped with the current head. **The agent trips this by following §6 of the skill, which tells it to reply to what it declines** — the same shape as the comment arm's `select(.user.login...)`, which the agent tripped by quoting the string it was matching |
 | Reading the deadlock notices through the same check | *Reviews paused* and *Review limit reached* carry **0** 40-character shas between them — which is why they cannot trip the comment arm, and why they still need their own heading extractor |
 
 **The deadlock to design against is the reviewer's auto-pause**, not a slow review. CodeRabbit
