@@ -31,6 +31,14 @@ could not start and the gate still reported no drift (#108). An agent worktree h
 arm cannot run its tests there. `judge/parity_selftest.py` pins both directions and must stay
 green.
 
+**A near-miss AGENTS.md heading — one in every guide but one — is a QUESTION, not a finding, and
+it is answered once in `starter_parity.ADJUDICATED_HEADINGS`.** The four guides are stack-native
+by decision, so the same guidance legitimately appears under a different heading or inside
+another section; both rows the axis produced when it was first wired to a report were that, not
+forgotten copies (task 67). An adjudication records the *sentence* that carries the guidance and
+the tool re-reads it out of all four guides every run, so an entry that stops being true goes red
+rather than quiet. Unadjudicated rows stay notes: a heading rename must not turn a gate red.
+
 ## Checking a run
 
 **`python3 tools/runstat.py`** — the only correct status check. Do not hand-roll one at a

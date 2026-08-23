@@ -62,6 +62,131 @@ def agents_md(repo: Path) -> dict[str, Any]:
                                                        re.M)]}
 
 
+def guide_text(repo: Path) -> str:
+    p = repo / "AGENTS.md"
+    return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+
+
+#: NEAR-MISS HEADINGS THAT HAVE BEEN ADJUDICATED, AND THE SENTENCE THAT SETTLES EACH.
+#:
+#: The near-miss note below keys on heading TEXT. Heading text is the one thing this file
+#: already says equality may not be demanded of - the four guides are stack-native by
+#: decision (`DECISIONS.md`, "Prompts are semantically identical but stack-native, not
+#: byte-identical"), so a heading present in three guides and absent from the fourth is
+#: two different situations wearing the same shape:
+#:
+#:   a FORGOTTEN COPY   an edit landed in three guides and not the fourth. One arm ran
+#:                      without guidance the other three had. A real difference between
+#:                      arms that nobody chose.
+#:   a WORDING CHOICE   the fourth guide covers the same ground under its own heading, or
+#:                      inside another section. Nothing is missing.
+#:
+#: Both rows measured on 2026-08-23 are the second kind, and the note could not say so:
+#: it printed "check whether this is a section one guide never got" and re-asked every
+#: run, forever, for two questions already answered.
+#:
+#: THE ENTRY IS NOT THE VERDICT - `substance` IS. Each entry names the sentence that
+#: carries the guidance, and `heading_findings` reads it out of every guide on every run.
+#: An adjudication that stops being true goes RED instead of going stale, which is the
+#: property the rust row of `starters/_shared/launch.just` did not have: it asserted "no
+#: audio feature, nothing to silence" for four matrices and nothing read it.
+#:
+#: Keyed (heading, the one stack whose guide lacks that heading).
+ADJUDICATED_HEADINGS: dict[tuple[str, str], dict[str, str]] = {
+    ("The one command", "ts"): {
+        "substance": "green means done",
+        "why": ("the ts guide opens with `## Commands` in the same position - first "
+                "section, straight after the preamble - and it is the same contract: a "
+                "command table, then `just verify` green means done, red means not done, "
+                "nothing else is evidence. A heading rename, not a missing section"),
+    },
+    ("Gameplay is not correctness", "unity"): {
+        "substance": "gameplay is not correctness",
+        "why": ("the unity guide carries the paragraph in bold at the end of `## Testing` "
+                "rather than under its own heading, with the same argument and the same "
+                "instruction - assert on the consequence you care about, measured over a "
+                "run, not on the constant you changed"),
+    },
+}
+
+
+def heading_findings(hsets: dict[str, set[str]], texts: dict[str, str],
+                     register: dict[tuple[str, str], dict[str, str]] | None = None,
+                     ) -> tuple[list[str], list[str]]:
+    """Adjudicate near-miss headings. Returns (problems, notes).
+
+    A near miss is a heading in every guide but one. Whether that matters is a question
+    about the GUIDANCE, not about the heading, so the answer is looked up in `register`
+    and then CHECKED against the guides themselves:
+
+      unadjudicated   a note, never a failure. Renaming a heading is legitimate and a
+                      guard that fires on correct input is a guard that gets switched off
+                      (#44, #57, #72). The note says NOT ADJUDICATED so it is visibly a
+                      question rather than a verdict.
+      adjudicated     the registered sentence must be present in EVERY guide. Absent from
+                      the stack that lacks the heading, it is the forgotten copy after
+                      all; absent from one that has it, the entry names the wrong
+                      sentence. Either way the register is wrong and the tool goes red.
+      dead entry      the row no longer fires - the heading was renamed or added. Noted
+                      so the entry can be deleted rather than left asserting nothing.
+    """
+    reg = ADJUDICATED_HEADINGS if register is None else register
+    problems: list[str] = []
+    notes: list[str] = []
+    stacks = sorted(hsets)
+    n = len(stacks)
+    if n < 3:
+        return problems, notes
+
+    fired: set[tuple[str, str]] = set()
+    near = sorted({h for h in set().union(*hsets.values())
+                   if len([s for s in stacks if h in hsets[s]]) == n - 1})
+    for h in near:
+        without = sorted(s for s in stacks if h not in hsets[s])
+        adj = reg.get((h, without[0]))
+        head = (f"AGENTS.md heading in {n - 1} of {n} guides, absent from {without}: "
+                f"{h!r}")
+        if adj is None:
+            notes.append(f"{head} - NOT ADJUDICATED, reported and not failed. Wording "
+                         f"differs by stack by design, so this is a question, not a "
+                         f"finding: read {without[0]}'s guide and decide whether the "
+                         f"section is covered elsewhere or was never copied. Record the "
+                         f"answer in starter_parity.ADJUDICATED_HEADINGS so it is asked "
+                         f"once")
+            continue
+        fired.add((h, without[0]))
+        phrase = adj["substance"].lower()
+        absent = [s for s in stacks if phrase not in texts.get(s, "").lower()]
+        if absent:
+            # WHICH of the two failures this is, decided here rather than left to the
+            # reader: they need opposite repairs, and a message that lists both is a
+            # message that gets skimmed.
+            if without[0] in absent:
+                why_red = (f"{without[0]} has neither the heading nor {adj['substance']!r}"
+                           f", so this IS the forgotten copy the axis exists to find - the "
+                           f"guidance is missing from one arm and the other three have it. "
+                           f"Put it in {without[0]}'s guide (a starter edit: regime "
+                           f"boundary, eval/RUNS.md note, re-run the gates)")
+            else:
+                why_red = (f"{sorted(absent)} HAS the heading but not {adj['substance']!r}"
+                           f", so the register names a sentence that is not this section's "
+                           f"substance. Re-key the entry to a sentence all "
+                           f"{len(stacks)} guides really carry - do not delete the check")
+            problems.append(f"{head} - the adjudication for it is NO LONGER TRUE. "
+                            f"{why_red}")
+        else:
+            notes.append(f"{head} - ADJUDICATED as wording, not a forgotten copy: "
+                         f"{adj['why']}. Verified this run: all {n} guides contain "
+                         f"{adj['substance']!r}")
+
+    for (h, s) in sorted(reg):
+        if s in hsets and (h, s) not in fired:
+            notes.append(f"AGENTS.md heading adjudication {(h, s)!r} no longer fires - "
+                         f"{h!r} is no longer a near miss absent from {s!r}. The entry now "
+                         f"asserts nothing; delete it, or re-key it if the heading moved")
+    return problems, notes
+
+
 def harness_files(repo: Path) -> dict[str, bool]:
     return {
         "stop_hook": (repo / ".claude" / "hooks" / "verify-gate.sh").exists(),
@@ -320,20 +445,35 @@ def main() -> int:
 
     # 2b. AGENTS.md HEADINGS. Collected since this tool was written, named in its own
     # docstring, and read by nothing until 2026-08-23 - the same defect as the test-count
-    # exit code, one axis over. Reported, never failed: three of the four guides head the
-    # determinism section with three different sentences ON PURPOSE, so heading TEXT is not
-    # a key that equality may be demanded of. What is worth a human's eye is the shape a
-    # forgotten copy leaves - a section that reached every stack but one.
-    if len(present) >= 3:
-        hsets = {s: set(report["stacks"][s]["agents_md"]["headings"]) for s in present}
-        near = sorted({h for h in set().union(*hsets.values())
-                       if len([s for s in present if h in hsets[s]]) == len(present) - 1})
-        for h in near:
-            without = sorted(s for s in present if h not in hsets[s])
-            notes.append(f"AGENTS.md heading in {len(present) - 1} of {len(present)} "
-                         f"guides, absent from {without}: {h!r} - reported, not failed; "
-                         f"wording differs by stack by design, so check whether this is a "
-                         f"section one guide never got")
+    # exit code, one axis over. Three of the four guides head the determinism section with
+    # three different sentences ON PURPOSE, so heading TEXT is not a key that equality may
+    # be demanded of; what is worth a human's eye is the shape a forgotten copy leaves - a
+    # section that reached every stack but one.
+    #
+    # A near miss alone cannot tell those apart, and printing the question every run is not
+    # a check. `heading_findings` looks the row up in ADJUDICATED_HEADINGS and then
+    # verifies the adjudication against the guides, so a verdict that stops being true goes
+    # red instead of going quiet.
+    hsets = {s: set(report["stacks"][s]["agents_md"]["headings"]) for s in present}
+    htexts = {s: guide_text(a.starters / s) for s in present}
+    hprob, hnotes = heading_findings(hsets, htexts)
+    problems.extend(hprob)
+    notes.extend(hnotes)
+    # WHAT THE AXIS DID, not only what it concluded: which rows it saw and which
+    # adjudication it verified, so a later reader can ask what was checked on a given run
+    # rather than trusting that it was.
+    report["heading_near_misses"] = {
+        h: sorted(s for s in present if h not in hsets[s])
+        for h in sorted({h for h in set().union(*hsets.values()) if len(present) >= 3
+                         and len([s for s in present if h in hsets[s]]) == len(present) - 1})
+    }
+    report["heading_adjudications"] = {
+        f"{h} :: {s}": {**adj,
+                        "substance_present_in": sorted(
+                            k for k in present
+                            if adj["substance"].lower() in htexts[k].lower())}
+        for (h, s), adj in ADJUDICATED_HEADINGS.items() if s in present
+    }
 
     # 3. TEST COUNTS - and the point of this block is that `0/0` is not one of the answers
     measured: dict[str, tuple[int, int]] = {}
