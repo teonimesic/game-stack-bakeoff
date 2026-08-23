@@ -2408,3 +2408,47 @@ This is the same shape as #82's cause 6 one level up. There, the bot's own input
 criterion unmeasurable; here, the *level's* legitimate geometry did. **Both are the instrument
 scoring conformity to its own expectations** — and in both, the submission was correct and said
 so in its own source.
+## 91. Three of four mutants were inert because the real data never reached the branch they broke
+
+A `.gitignore` matcher decides which files get copied to the evidence backup, so a
+false positive there silently drops evidence. It was controlled the way this project controls
+things: real path lists from all five distinct shipped `.gitignore` files, reproduced in scratch
+repos, with **git itself** adjudicating — 7,461 paths, 11 fixtures, all agreeing.
+
+Then four mutants, each removing one mechanism the matcher relies on:
+
+| mutant | breaks | result |
+|---|---|---|
+| `depth` | unanchored patterns match only at the root | **killed** — 4 fixtures red |
+| `dir_only` | `.godot/` also matches a plain file | survived |
+| `anchored` | `/Library/` matches at any depth | survived |
+| `last_wins` | first matching pattern wins, not the last | survived |
+
+Three survived, and not because the matcher was wrong. **They were inert.** No shipped
+`.gitignore` contains a negation, so precedence never decides anything. No work tree contains a
+*file* named `Library` or `.godot`, so directory-only matching never discriminates. No work tree
+has a nested `Assets/Library/`, so anchoring never bites. Each mutant removed a mechanism that no
+input in the corpus exercises, and 10/10 green after the removal is the literal truth.
+
+The fix was not a better mutant. It was one synthetic fixture of nine paths — a file named
+`Library`, an `Assets/Library/foo.dll`, a `deep/node_modules/…`, and `*.log` with `!important.log`
+— adjudicated by git like the rest. All four mutants died immediately, each naming the one path it
+now got wrong.
+
+> **A mutant removes a mechanism; only an input decides whether the mechanism was ever load-bearing.
+> A surviving mutant is ambiguous between "the check is blind" and "the corpus is silent", and those
+> demand opposite responses.** The corpus was silent, and nothing in a green suite said so.
+
+This is AGENTS.md rule 15 arriving from the other side. That rule was written about false
+negatives — a mutant cannot manufacture an input the check mishandles. Here the mutant could not
+manufacture an input the check *handles*, and so certified a branch that had never run. Same
+missing half, opposite sign.
+
+The uncomfortable part is that the corpus was the strongest kind available: **real files, from
+real trials, across all four stacks, judged by the reference implementation.** Realism bought
+nothing here, because a real corpus is a sample of what happened, not of what the code must
+handle. The moment a fifth template ships a `!keep.this`, precedence starts deciding what gets
+backed up — and the only thing that would have noticed is the nine synthetic paths.
+
+**When a mutant survives, do not first ask whether the check is weak. Ask whether any input
+reaches the code you deleted** — the answer is cheaper to get and it is the more common cause.
