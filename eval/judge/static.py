@@ -44,43 +44,21 @@ _spec.loader.exec_module(_runner)  # type: ignore[union-attr]
 parse_test_counts = _runner.parse_test_counts
 parse_skipped = _runner.parse_skipped
 
-
-#: WHAT THE STORED CAPTURE SAMPLES, AND WHAT IT DROPS.
+#: WHAT THE STORED CAPTURE SAMPLES, AND WHAT IT DROPS - defined ONCE, in `runner.py`, and
+#: imported here. Both harnesses store command output: this one records what the GRADER ran,
+#: `runner.py` records what the AGENT's own gate said. They had the same merged-buffer defect
+#: (#100, then #114), and two truncation policies in one repository is how it recurred. The
+#: rationale, the budgets and the measurement live in `runner.py` beside the function.
 #:
-#: A truncation policy is a sampling policy, so this one states what it takes. Per stream,
-#: independently: the FIRST `STREAM_HEAD_CHARS` characters and the LAST `STREAM_TAIL_CHARS`.
-#: What is dropped is the MIDDLE of a stream that exceeds the two together, replaced by a
-#: marker naming exactly how many characters and lines went. The full length of each stream
-#: is stored beside the sample, so "what was dropped" is a recorded number rather than an
-#: inference from a string that happens to be 4000 long.
-#:
-#: The head, because a compiler's first diagnostic and a runner's banner are there. The tail,
-#: weighted heavier, because verdicts are: `Summary [...] 41 tests run`, the last failing
-#: assertion, and every starter's `✅ verify passed`.
-#:
-#: The budget is PER STREAM and that is the point of #100. Before this, `to_dict` kept the
-#: last 4000 characters of `stdout + stderr` as ONE buffer, so a command that floods one
-#: stream discarded the whole of the other: 15 of 16 green Rust `just verify` records held no
-#: trace of the recipe's own completion line, because `cargo-nextest` writes progress to
-#: stderr. Raising the cap would only move that boundary - the rule that stdout is sacrificed
-#: first would survive it. With independent budgets, neither stream can starve the other
-#: however lopsided they are.
-#:
-#: `judge/capture_selftest.py` pins both directions, and holds the mutant that proves the
-#: checks can fail.
-STREAM_HEAD_CHARS = 1000
-STREAM_TAIL_CHARS = 3000
-
-
-def _sample_stream(text: str, head: int = STREAM_HEAD_CHARS,
-                   tail: int = STREAM_TAIL_CHARS) -> str:
-    if len(text) <= head + tail:
-        return text
-    middle = text[head:len(text) - tail]
-    return (f"{text[:head]}\n"
-            f"... [{len(middle)} characters, {middle.count(chr(10))} lines elided from the "
-            f"middle of this stream] ...\n"
-            f"{text[len(text) - tail:]}")
+#: These are aliases, not copies, and `runner_capture_selftest.py` asserts they are the same
+#: function object. `_sample_stream` stays a module-level name here because `to_dict` looks it
+#: up at call time, which is the seam `judge/capture_selftest.py`'s mutant replaces.
+STREAM_HEAD_CHARS = _runner.STREAM_HEAD_CHARS
+STREAM_TAIL_CHARS = _runner.STREAM_TAIL_CHARS
+_sample_stream = _runner._sample_stream
+capture_fields = _runner.capture_fields
+stored_stdout = _runner.stored_stdout
+stored_output = _runner.stored_output
 
 
 @dataclass
@@ -117,31 +95,14 @@ class Cmd:
         return self.note if self.note else self.out + self.err
 
     def to_dict(self) -> dict[str, Any]:
+        # `sample=_sample_stream` is a call-time lookup of this module's global, so a mutant
+        # replacing `static._sample_stream` is still caught. The keys and the recorded
+        # lengths come from `runner.capture_fields`, so a grader record and a spec-change
+        # record are the same shape by construction rather than by agreement.
         return {"name": self.name, "argv": self.argv, "exit": self.code,
                 "seconds": round(self.seconds, 1),
-                "stdout": _sample_stream(self.out), "stderr": _sample_stream(self.err),
-                "stdout_chars": len(self.out), "stderr_chars": len(self.err),
-                "note": self.note or None,
+                **capture_fields(self.out, self.err, self.note, sample=_sample_stream),
                 "peak_rss_mb": self.peak_rss_mb, "cpu_seconds": self.cpu_seconds}
-
-
-def stored_stdout(cmd: dict[str, Any]) -> str | None:
-    """The stdout sample of a stored command record, or None if it cannot be known.
-
-    None for a record written before #100 was repaired: those merged the two streams before
-    truncating, so a missing line there is not evidence the command did not print it. Any
-    check over the stored corpus has to treat those as UNMEASURABLE rather than as empty -
-    the same distinction `pack_completeness` draws, and for the same reason.
-    """
-    return cmd.get("stdout") if "stdout_chars" in cmd else None
-
-
-def stored_output(cmd: dict[str, Any]) -> str:
-    """Everything textual in a stored command record, either shape, for a human or a grep."""
-    if "stdout_chars" in cmd:
-        return "".join(p for p in (cmd.get("stdout") or "", cmd.get("stderr") or "",
-                                   cmd.get("note") or "") if p)
-    return cmd.get("tail") or ""
 
 
 #: `ru_maxrss` is BYTES on macOS/BSD and KILOBYTES on Linux. There is no portable

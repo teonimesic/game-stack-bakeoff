@@ -78,6 +78,38 @@ call, a calibration probe. Trials are ~$11-73 each; judge field calls are $2.82-
 - Each trial gets a fresh template copy with a baseline commit, so `git diff HEAD` isolates exactly
   what the agent did.
 
+## What a trial record holds of the commands it ran
+
+`sh()` returns an **`Sh`**, not a string: the exit code and **both streams, kept apart**.
+
+- **`Sh.text` is what gets PARSED** — stdout then stderr, or the harness's note alone on a
+  timeout, byte for byte the merged buffer `parse_test_counts`, `parse_skipped` and every
+  diagnostic print were handed before #114. Nothing about the stored shape can move a score.
+- **`Sh.record(**extra)` is what gets STORED** — `self_verify` and `holdout` in every
+  `trials/*.json`. Each stream is sampled on its **own** budget (`STREAM_HEAD_CHARS` head,
+  `STREAM_TAIL_CHARS` tail, the elided middle counted in the marker), each stream's full length
+  is recorded as `stdout_chars` / `stderr_chars`, and the harness's own words go in `note` —
+  never into a stream the command did not write.
+
+It used to be one `tail` field: `self_verify` kept the last 4000 characters of `stdout + stderr`
+and `holdout` the last 5000. **A truncation policy is a sampling policy**, and that one sampled
+whichever stream the toolchain happened to write second. Over the 46 stored green `self_verify`
+records, the 2 with no trace of the recipe's own `✅ verify passed` are exactly the 2 that hit the
+cap, and both are the Rust template, because `cargo-nextest` fills stderr (#100, #114).
+**Raising a cap is not a fix for that class of defect** — it moves the boundary and leaves the
+rule that stdout is sacrificed first, still stack-correlated.
+
+**The policy is defined once, here in `runner.py`, and `judge/static.py` imports it.** Both
+harnesses store command output; giving them two similar policies is how #100 came back.
+`runner_capture_selftest.py` pins both directions and asserts there is still only one copy;
+`--submission STACK=PATH` is its positive control and runs the real `just verify`.
+
+Reading the stored corpus: **`stored_stdout()` returns `None` for a pre-repair record**, because
+a line missing from a merged buffer is not evidence the command never printed it — those records
+are unmeasurable, not empty, and they cannot be repaired because the discarded stdout was never
+written down. `stored_output()` reads either shape. Every sweep over `runs/**/trials/*.json` must
+partition on which shape it is reading.
+
 ## Controls
 
 Every task needs all three. A negative control alone is not enough — a task whose tests can never

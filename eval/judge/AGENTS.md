@@ -46,6 +46,13 @@ replaced by a marker naming how many characters and lines went, and the full len
 recorded beside it as `stdout_chars` / `stderr_chars`. The harness's own words — a timeout, a
 binary that could not be spawned — go in `note`, never into a stream the command did not write.
 
+**There is exactly one copy of that policy and it is not here.** `STREAM_HEAD_CHARS`,
+`STREAM_TAIL_CHARS`, `_sample_stream`, `capture_fields`, `stored_stdout` and `stored_output` are
+defined in **`runner.py`** and imported by this module, because the spec-change harness stores
+command output too and had the identical defect (#114). Two truncation policies in one repository
+is how #100 recurred; `runner_capture_selftest.py` asserts each of those names is still defined in
+`runner.py` rather than re-implemented here.
+
 It used to be one `tail` field holding the last 4000 characters of `stdout + stderr`. **A
 truncation policy is a sampling policy**, and that one sampled *whichever stream the tool happened
 to write second*: 15 of 16 green Rust `verify` records kept no trace of the recipe's own
@@ -62,7 +69,8 @@ stdout was never written down — so the corpus is mixed and any sweep over it m
 which shape it is reading.
 
 `judge/capture_selftest.py` pins both directions (a flood on either stream keeps the other) and
-carries the mutant that proves those checks can fail. It must stay green.
+carries the mutant that proves those checks can fail. `runner_capture_selftest.py` does the same
+through the other harness's entry point. Both must stay green.
 
 ## The judge is diagnostic only
 

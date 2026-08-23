@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#113 from building and running this evaluator. **Check whether a
+Findings #19-#114 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -188,6 +188,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **111** | The reference half of the doc sweep had never read a skill: its corpus was built with `glob`, which does not descend into dot-directories, so 0 of the always-loaded instruction documents were ever checked | [certifies-nothing](findings/certifies-nothing.md) |
 | **112** | The repaired capture page had a second live copy, and no commit in the project's history had ever touched it — a fork, not a mirror, so nothing could be gated on equality | [documentation](findings/documentation.md) |
 | **113** | A withdrawn tier-3 figure is still the published separation result in three live documents, and a cross-document consistency check cannot see it because propagation IS agreement | [certifies-nothing](findings/certifies-nothing.md) |
+| **114** | The runner's merged capture is repaired and the reader audit found the field had no readers at all, which is why a stack-correlated loss survived four matrices | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 
