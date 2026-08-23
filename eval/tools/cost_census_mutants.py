@@ -62,6 +62,7 @@ the worst quantity here to get silently wrong: every mutant below returns a numb
 | `margin_where_it_lost` | measuring the margin only where the leader leads | the gap in a group the leader **lost** counted as evidence for it |
 | `no_groups_guard` | the refusal on an empty population | a p-value over no groups. It is caught by the *message*: a second guard also refuses here, so a type-only check passes while the reader is told the wrong thing |
 | `stack_set_guard` | the one-stack-set refusal | labels permuted across groups holding different stacks, which is undefined |
+| `limit_checked_after_allocation` | deciding exact-vs-sampled **before** allocating | the sampled path builds `k!` vectors per cluster on its way to discovering it should not have. Measured at k=10 over one cluster: **2085 MB** peak RSS against **24 MB**. Both structures return the same numbers, so only a pin on the RESOURCE can see it (rule 13) |
 | `drop_ordering_field` | an ordering field the selftest reads, renamed | `drop_field` one level down |
 
 **`drop_field` is the one that is about the selftest rather than about the tool**, and it is
@@ -91,7 +92,7 @@ its rows can go red:
 **Needs no corpus.** `cost_census.py --selftest` builds its own trees under `tempfile`, so
 this runs anywhere, including an agent worktree with no `eval/runs/`.
 
-    python3 eval/tools/cost_census_mutants.py          # every mutant, 6.4s
+    python3 eval/tools/cost_census_mutants.py          # every mutant, 18s
     python3 eval/tools/cost_census_mutants.py --list   # the count and the names only
 """
 
@@ -233,6 +234,12 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "stack_set_guard": (
         "    if len(stack_sets) != 1:\n        raise CostCensusError(",
         "    if False:\n        raise CostCensusError("),
+    "limit_checked_after_allocation": (
+        "    if exact:\n        perms = list(itertools.permutations(range(k)))\n"
+        "        per_cluster = [[relabel(p, col) for p in perms] for col in cols]",
+        "    perms = list(itertools.permutations(range(k)))\n"
+        "    per_cluster = [[relabel(p, col) for p in perms] for col in cols]\n"
+        "    if exact:"),
     "fragility_from_closed_form": (
         "        worst = max(worst, _permutation_test(sub, sum(min(c) for c in sub), k)"
         '["p_floor"])',

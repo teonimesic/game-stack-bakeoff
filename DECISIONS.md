@@ -2115,7 +2115,7 @@ defensible and they do not agree:
    **0.25**. At the honest unit the question is **not answered no — it is unasked.**
 
 **And the lead is inside the noise.** Where TypeScript leads at all, its margin over the
-runner-up is **15% to 94% of that group's own within-cell floor — above it in 0 of 5**. A
+runner-up is **14.9% to 93.7% of that group's own within-cell floor — above it in 0 of 5**. A
 consistent ordering and a lead that beats the noise are different claims, and only the first was
 ever on the table.
 

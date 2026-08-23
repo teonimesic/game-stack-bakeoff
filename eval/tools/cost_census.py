@@ -416,7 +416,14 @@ ALPHA = 0.05
 # sample, and the result says which one it is. A sampled p reported as exact is a number
 # that gets acted on. 4 stacks over 4 clusters is 331,776, comfortably under.
 EXACT_ASSIGNMENT_LIMIT = 2_000_000
-SAMPLE_DRAWS = 200_000
+
+# Sized from the precision the answer needs, not picked round. The only decision taken from
+# a p here is against ALPHA, and the binomial standard error of a sampled p at 0.05 is
+# sqrt(0.05 * 0.95 / n) — 0.00097 at 50,000 draws, which is 50x finer than the distance
+# between the attainable p-values this design produces (0.0156, 0.0625, 0.25). It was
+# 200,000 for no stated reason, at 4x the cost, and the sampled path is walked m+1 times per
+# clustering because the fragility floor re-runs it with one cluster dropped.
+SAMPLE_DRAWS = 50_000
 SAMPLE_SEED = 20260823
 
 
@@ -507,34 +514,47 @@ def _permutation_test(cols: list[list[float]], obs_leader: float,
                     `p_any` equal to it is a test that returned its most extreme outcome
                     with no margin left.
     """
-    perms = list(itertools.permutations(range(k)))
-    per_cluster = []
-    for col in cols:
-        vectors = []
-        for p in perms:
-            v = [0.0] * k
-            for j in range(k):
-                v[p[j]] += col[j]
-            vectors.append(tuple(v))
-        per_cluster.append(vectors)
+    # DECIDE THE MODE FROM ARITHMETIC, BEFORE ALLOCATING ANYTHING. The exact path
+    # materialises k! vectors per cluster; at k=10 that is 3,628,800 of them, so a
+    # limit checked after the build is a limit the process can run out of memory
+    # reaching. The count is a factorial power — compute it, do not enumerate to find it.
+    total = math.factorial(k) ** len(cols)
+    exact = total <= EXACT_ASSIGNMENT_LIMIT
 
     # Permutations are chosen independently per cluster, so the smallest total any single
     # stack can be driven to is the sum of each cluster's smallest column. Computed in
     # closed form rather than read off the enumeration, so the two disagree if either is
     # wrong.
     attainable_min = sum(min(col) for col in cols)
+    leader_idx = min(range(k), key=lambda j: sum(col[j] for col in cols))
 
-    total = len(perms) ** len(cols)
-    exact = total <= EXACT_ASSIGNMENT_LIMIT
+    def relabel(perm, col: list[float]) -> tuple[float, ...]:
+        """One cluster's column sums under one relabelling: column j goes to stack p[j]."""
+        v = [0.0] * k
+        for j in range(k):
+            v[perm[j]] += col[j]
+        return tuple(v)
+
     if exact:
+        perms = list(itertools.permutations(range(k)))
+        per_cluster = [[relabel(p, col) for p in perms] for col in cols]
         draws = itertools.product(*per_cluster)
         n_draws = total
     else:
+        # Lazy: one shuffled label order per cluster per draw, nothing materialised.
         rng = random.Random(SAMPLE_SEED)
         n_draws = SAMPLE_DRAWS
-        draws = ([rng.choice(vs) for vs in per_cluster] for _ in range(n_draws))
+        order = list(range(k))
 
-    leader_idx = min(range(k), key=lambda j: sum(col[j] for col in cols))
+        def sampled():
+            for _ in range(n_draws):
+                combo = []
+                for col in cols:
+                    rng.shuffle(order)
+                    combo.append(relabel(order, col))
+                yield combo
+
+        draws = sampled()
     n_named = n_any = n_floor = 0
     for combo in draws:
         v = [0.0] * k
@@ -1615,6 +1635,31 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               (run7["attainable_min_rank_sum"], run7["p_floor"]), (3.5, 0.5))
         check("O7 nor is the fragility floor",
               run7["p_floor_dropping_one_cluster"], 1.0)
+
+        # ---- O7b. THE SAMPLED PATH MUST NOT ALLOCATE THE EXACT PATH FIRST. `k=10` over one
+        # cluster is 3,628,800 assignments, which is above the limit and therefore sampled
+        # — but only if the mode is decided before `k!` vectors per cluster are built.
+        # Measured: deciding first peaks at 24 MB, building first at 2085 MB. This pins the
+        # RESOURCE rather than the return value, because both structures return the same
+        # numbers (rule 13: guard the resource, and verify on the path that holds it).
+        import resource as _resource
+
+        def _peak_mb() -> float:
+            # ru_maxrss is BYTES on macOS and KILOBYTES on Linux. Reading it as one unit on
+            # both makes this pin off by 1024x on one of them — passing vacuously on Linux.
+            raw = _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss
+            return raw / (1 << 20) if sys.platform == "darwin" else raw / 1024
+
+        before = _peak_mb()
+        big = _permutation_test([[float(j) for j in range(10)]], 0.0, 10)
+        grew = _peak_mb() - before
+        check("the sampled path reports the right size without enumerating it",
+              (big["exact"], big["assignments"], big["draws"]),
+              (False, 3628800, SAMPLE_DRAWS))
+        if grew > 200:
+            failures.append(
+                f"sampled mode grew peak RSS by {grew:.0f} MB: it materialised the exact "
+                f"path before checking the limit (deciding first measures ~2 MB here)")
 
         # ---- O8. Two refusals. Both would otherwise return a plausible in-range p, and
         # both must be a NAMED CostCensusError — a KeyError several frames down exits
