@@ -1215,3 +1215,75 @@ collisions this surfaced through had been visible in any pack listing; across th
 submissions the labels collide **0 times** rebuilt from the manifests and **15 times** rebuilt
 from disk. **List the artifact, do not only read the code that wrote it** — the same move that
 found the mapping file inside a pack.
+
+---
+
+## Iteration 14: a blinding specified as a PROPERTY and implemented as a SUFFIX
+
+**Hypothesis, stated so it could have come out against the change.** `architecture` is the one
+aspect judged with `blind_language=True`, and its whole blinding was `tgt.with_suffix(".src")`.
+If that rename were sufficient, a sweep of the stored packs for arm-naming extension tokens
+*after* `neutralise` would return a small number explainable as noise. If it were a label rather
+than a blinding, the number would be large and would sit in cross-file references — the places a
+rename cannot reach.
+
+**Measurement.** All 84 stored `judge_pack/code` directories, every file, `neutralise` applied:
+**2,083 arm-naming extension tokens**. The four the ticket named reproduce to the digit — `.ts`
+973, `.gd` 583, `.rs` 258, `.cs` 62 = 1,876 — over **76** packs, not the 78 the ticket claimed;
+the count reproduced and the pack union did not.
+
+**The part that was not in the hypothesis, and matters more than the part that was.** The densest
+leak is not in agent-authored code. `field.build_pack` writes `CHANGED.txt` itself from
+`git diff --stat`, and in the 8 stored `architecture` packs that one harness-written file carries
+80 `.cs`, 78 `.gd`, 60 `.meta`, 43 `.ts` and 43 `.rs` — a complete list of the real authored
+paths, sitting in a directory whose every file had just been renamed to `.src`.
+
+> **When you ask what a pack leaks, ask what the PACKER added, not only what the submission
+> carried.** Every blinding gate in this repository reads the submission's files. None reads the
+> harness's own contributions to the same directory.
+
+**Change.** `field.blind_extensions()`, applied through one `_text()` helper so no channel can be
+blinded and another not, and reached only where `blind_language` is set — the repair could not go
+in `neutralise`, which runs for every aspect and would have blinded `idiomatic`, whose entire
+question is whether Rust reads like Rust.
+
+**Two vocabularies, and neither derives the other.** What is *arm-exclusive* comes from the four
+starters and is audited mechanically by the selftest, so the next engine format is a red test.
+What can also be a *member name* comes only from the corpus, and it is what stops the obvious
+version of this repair being worse than the leak: `.lock` is 108 `Mutex::lock()` calls and **0**
+filenames, `.anim` is 128 `player.anim` accesses and **0** filenames. A starter census would have
+listed both.
+
+| run | result |
+|---|---|
+| `blind_ext_selftest.py` against the unrepaired `field.py` | **16 of 24 files leak, 28 tokens**, all 8 `CHANGED.txt` among them |
+| after the change | 0 unmet expectations |
+| mutant (`blind_extensions` neutered) | check 1 goes red — 16 files, 28 tokens |
+| variant (`blind_language=False`) | byte-identical to `neutralise` alone; 16 files still name their extensions |
+| re-sweep, 84 stored packs | 2,083 → **0**, with 81 `import.meta` declined and reported on its own line |
+
+**And the thing the fixture could not have told me, found by pointing the finished repair at a
+real run.** Two defects, neither reachable from the test data:
+
+1. **`field.py pack` was passing the aspect's `sees` and not its `blind_language`.** The one
+   entry point a human types produced a completely unblinded `architecture` pack — 199 of 207
+   files keeping their real suffix, 663 extension tokens in content. `field_sweep.py` passed
+   both properties at all three of its call sites, so no stored round is affected, and that is
+   precisely why it survived: every test called `build_pack` directly, where the argument is
+   explicit. **When an object gains a property, grep for every reader of its siblings.**
+2. **`(?!\s*\()` was a false negative.** `// Usage: node tools/audio-manifest.mjs   (or: just
+   audio-manifest)` is a filename, three spaces, and a parenthesis; the method-call guard read
+   it as a call. One occurrence in 84 packs, and no fixture in this repository produces that
+   shape. **A mutant asks whether a check can fail; only a variant asks whether it can still
+   pass** — and the variant that found it was the finished code aimed at real data.
+
+| control on a real run (`wg-g4c/g4_platformer`, 207 files) | result |
+|---|---|
+| `--aspect architecture`, before | 199 language-naming filenames, 663 extension tokens |
+| `--aspect architecture`, after | **0** filenames, **11** tokens, all `import.meta` |
+| `--aspect idiomatic`, before vs after | `diff -r` **exit 0** — byte-identical, the aspect that must not be blinded is untouched |
+
+**What is still open, stated rather than left implicit.** The directory half — `public` 1,148,
+`Assets` 128, `res://` 34 — is untouched at 1,561 segments (task 95). And **no stored
+`architecture` round is language-blind**: this repair licenses new rounds and repairs none, which
+is now written into `eval/RUNS.md` beside the `neutralise` caveat that has the same shape.

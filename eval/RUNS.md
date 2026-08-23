@@ -893,6 +893,17 @@ and refuses rather than guessing when the corroboration is unavailable.
 > repaired and a re-sweep of all 84 stored packs reports 0, so **a round run from now on is
 > blind; no round already stored is.** `idiomatic` is unaffected — it is not blinded to language
 > by design.
+>
+> **A SECOND, INDEPENDENT REASON, and it is not confined to this field (task 87).** The
+> `blind_language` rename covered the extension of the file the judge opens and none of the ones
+> its content names — cross-file references in comments, import specifiers, and the `CHANGED.txt`
+> the packer writes from `git diff --stat`, which lists every authored path with its true suffix.
+> **2,083 arm-naming extension tokens across all 84 stored packs**, 0 after
+> `field.blind_extensions` (2026-08-23). This one has no one-armed skew and no exception: **every
+> `architecture` round stored in this repository read a field carrying its arms' file
+> extensions**, whatever `neutralise` did or did not catch. The directory half of the leak —
+> `public`, `Assets`, `res://` — is still open at 1,561 segments (task 95), so a new round is
+> *more* blind than a stored one and is not yet fully blind.
 
 **A code-aspect ordering is now available on this field, from a new round.** Before the re-pack
 the `architecture` pack held 215 files against `idiomatic`'s 230, because stale copies collided
