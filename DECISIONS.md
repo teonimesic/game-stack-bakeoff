@@ -300,9 +300,24 @@ gate that fails on correct input gets disabled*:
 
 - It asks about a continuation under a **2+ digit** ordered marker, not about indented blocks in
   general. The general form fires on `tasks/` files where nothing is wrong.
-- It does not read `eval/findings/`, `eval/FINDINGS.md` or `eval/RUNS.md`. The archive records
-  what was true when it was written, including the broken shapes it is about; reformatting one to
-  satisfy a gate edits evidence.
+- The **formatting** rules do not read `eval/findings/`, `eval/FINDINGS.md` or `eval/RUNS.md`.
+  The archive records what was true when it was written, including the broken shapes it is
+  about; reformatting one to satisfy a gate edits evidence.
+
+  This exempts the archive from **house style, not from being findable.** Four checks do read
+  it, and each asks whether a citation still resolves rather than whether the prose is tidy:
+  a finding number is defined once; every number has exactly one row in the `eval/FINDINGS.md`
+  index and vice versa; that index renders as **one table**; and every live statement of the
+  range — `AGENTS.md`, `README.md` and the index's own opening line — names the same highest
+  number.
+
+  The last two are the ones the others could not see. A blank line between two rows ends the
+  table under CommonMark, so the rows below become a second, headerless table that no renderer
+  shows as part of the index — while the row count, the set reconciliation and `grep` are all
+  unchanged. And the range was spelled in three files with only one of them checked, so the
+  index was repaired while `AGENTS.md` went on saying `#19-#110`. Both were green on a real
+  defect, so both now carry a red control: **`--sweep` runs the pins itself** on every
+  invocation, and `docstat.py --selftest` prints them.
 
 ### A citation of a renumbered finding is reported, never gated — decided 2026-08-23
 

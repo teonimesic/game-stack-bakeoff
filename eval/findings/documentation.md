@@ -1186,3 +1186,40 @@ both commits that ever touched them (`a3d0fd1`, `ee8625f`) are on `origin/main`,
 `git branch -r --contains` rather than assumed. #104's work tree was never committed and had no
 such property. **A deletion whose recovery has been verified and a deletion whose recovery is
 assumed look identical until someone needs the file.**
+
+## 124. The index of the findings log split into two tables, and the sweep that checks the log was green on it
+
+`eval/FINDINGS.md` is the index: one row per finding, and the only route from a citation to
+the entry it names. A blank line between two rows **ends the table** under CommonMark, so
+everything below becomes a second table with no header — an index that visibly stops.
+
+It happened, and `docstat.py --sweep` **was green on it for as long as it stood.** The gap was
+measured before it was closed: with the committed file, a blank line planted between the `#105`
+and `#106` rows left the sweep at **exit 0**.
+
+Three reasons it was invisible, and the third is the transferable one:
+
+- `grep` sees no difference. Every row still matches, so any row-based check passes.
+- The existing reconciliation compares **sets** — body against index. A number indexed *twice*
+  collapses in a set, both differences come back empty, and both rows resolve. **Only counting
+  sees it.**
+- The range sentence is spelled in **three** live files and only one was ever checked. That is
+  why the index got repaired while `AGENTS.md` went on saying `#19-#110`.
+
+> **A structural defect in a document is invisible to every check that reads it as records.**
+> The rows were all present, all correct, and all resolvable. What was broken was the thing
+> holding them together, which no query over the rows can ask about.
+
+Repaired with a contiguity check, a duplicate-**row** check distinct from the set
+reconciliation, and a range check over all three files that also fires if a file stops stating
+a range at all — so it cannot go quiet by the sentence being deleted. The pins run inside
+`--sweep` on every invocation rather than in a command someone has to remember, because a gate
+whose ability to fail is never exercised is the shape this project keeps finding.
+
+Two green cases matter as much as the red: a blank line **after** the last row legally ends the
+table and must stay silent, as must a `| **7** |` row inside a fence. An earlier draft got both
+wrong.
+
+Also recorded, because it is the rule-12 shape wearing an answer:
+`grep -rhno "^## #?[0-9]+" eval/findings/*.md | sort -n | tail -1` returns the highest **line
+number**, not the highest finding. It gave 117 against a true 118.
