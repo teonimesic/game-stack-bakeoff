@@ -21,6 +21,15 @@ It is `71 over 12 run directories, $153.82`. Do not reach for a glob instead:
 did until 2026-08-23, agreeing to the digit with a `RUNS.md` figure produced the same wrong way
 (#126). Search at any depth or use the producer.
 
+> **A run directory is not always a child of `runs/`, and there is more than one wrapper.**
+> Naming the archive alone is the enumeration failure this file's own meta-lesson describes:
+> `runs/wg-g4c-capgate/` wraps `capped/` and `uncapped/`, and it holds no `trials/` at all, so
+> the second wrapper is invisible to any check keyed on the first one's shape. The three tree
+> walkers are now depth-independent and each prints what it skipped — `tools/census.py`,
+> `tools/manifest.py audit` (19 run directories before, **23** after, no verdict changed) and
+> `judge/tier1_census.py` (68 submissions before and after, over **84** gradings on disk).
+> Any new walker over `runs/` gets the same treatment and a fixture with a nested run in it.
+
 **`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
 suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded
 on: the trial JSON stores `task: "t1_rally"` and no prompt (#119). Nothing launches from them and

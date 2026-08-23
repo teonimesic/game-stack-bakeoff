@@ -76,7 +76,7 @@ Two offline sweeps answer it, both re-runnable and both able to come out the oth
 | tool | what it reports today |
 |---|---|
 | `weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` | 10 groups, **FLIPS=0** at every weight in (0,1); **7 of 10 UNIDENTIFIABLE** — tier 1 returns a single value across the whole group, so the weight cannot act (#92) |
-| `tier1_census.py --runs-root <main checkout>/eval/runs` | 68 stored trials, **7 with any tier-1 failure**. In **0 of 10** groups do both tiers vary among the trials tier 2 could measure. Verdict **FLOOR-ONLY** |
+| `tier1_census.py --runs-root <main checkout>/eval/runs` | 68 stored submissions, **7 with any tier-1 failure**. In **0 of 10** groups do both tiers vary among the trials tier 2 could measure. Verdict **FLOOR-ONLY** |
 
 **Read the caveat on the first before quoting it.** `weight_sensitivity.py` sweeps the
 *open* interval, because w1=0 and w1=1 discard a tier outright and are not candidate
@@ -118,9 +118,26 @@ gate = PASS iff every SCORED tier-1 criterion passed
   failing only other criteria have tier 2 > 0 (5 of 5). `render.frames` is **not** blocking:
   the bot drives the probe, not the film.
 
-**What would re-open this.** `tier1_census.py` prints `DISCRIMINATES` the day any group has
-both tiers varying among measurable trials — which is what adding a tier-1 criterion with
-real headroom would do. The decision then has to be re-made, not inherited. `gate_selftest.py`
+**What would re-open this.** `tier1_census.py` prints `DISCRIMINATES` on its **headline**
+verdict the day any group has both tiers varying among measurable trials — which is what
+adding a tier-1 criterion with real headroom would do. The decision then has to be re-made,
+not inherited.
+
+> **The headline, not the second line.** The tool also prints *"verdict if every grading
+> were pooled instead"*, and that one already reads `DISCRIMINATES`. It is not a trigger: it
+> pools 16 superseded `wg-g4c-capgate` gradings of 8 work trees `wg-g4c` already contributes.
+> Those gradings are dated **2026-08-21**; `bot_platformer.py` was repaired four times on
+> 2026-08-22 (#82, #89 and task 18). 14 of the 16 agree with the 2026-08-23 grading of the
+> same work tree to the digit. The 2 that disagree are `ts__t0` at 0.70 and `unity__t0` at
+> 0.85, both 1.00 after the repair. `unity__t0` lost exactly `attack.damages`,
+> `score.on_kill` and `knockback.applied` — the three criterion ids those commits name;
+> `ts__t0` lost those three and `enemy.damages_player`, `invuln.window`,
+> `gameover.triggers`, which are the criteria the target-selection repair (#82) governs
+> without naming. The headline counts one row per submission, most recent
+> grading; the pooled line exists so the difference is visible rather than chosen quietly
+> (task 75).
+
+`gate_selftest.py`
 pins the gate in both directions: mutants that make it unable to fail, and variants — the
 lock exception, an audio-less task, a broken film recipe — that it must still pass.
 

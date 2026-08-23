@@ -322,6 +322,46 @@ def test_audit(tmp: Path) -> None:
     check("MARKER_STALE" in codes(stale) and stale.severity == "error",
           "changing the directory under a marker re-reddens it (the marker is not a mute)")
 
+    print("\naudit - a run directory is not always a child of runs/ (task 75)")
+    # Answers stated before the tool is asked:
+    #   archive-w/wg-nested-...   a real run, one level deeper. MUST be examined.
+    #   archive-w/work/decoy      under an agent-authored name. MUST be pruned by name.
+    #   <a real run>/work/decoy2  inside a run's own subtree. MUST never be reached,
+    #                             because the walk stops at the run above it.
+    nested = make_run(root, "archive-w/wg-nested-2026-08-20T10-00-00",
+                      declared=(["g1_pong"], ["rust"], 2),
+                      present=(["g1_pong"], ["rust"], 2),
+                      started=dt.datetime(2026, 8, 20, 10, 0, 4, tzinfo=dt.timezone.utc))
+    make_run(root, "archive-w/work/decoy", declared=(["g1_pong"], ["rust"], 1),
+             present=(["g1_pong"], ["rust"], 1),
+             started=dt.datetime(2026, 8, 20, 10, 0, 0, tzinfo=dt.timezone.utc))
+    make_run(root, f"{ok_utc.name}/work/decoy2", declared=(["g1_pong"], ["rust"], 1),
+             present=(["g1_pong"], ["rust"], 1),
+             started=dt.datetime(2026, 8, 20, 10, 0, 0, tzinfo=dt.timezone.utc))
+    found, pruned = M.find_run_directories(root)
+    check(nested in found, "a run nested inside a wrapper directory is found")
+    check(not any("decoy" in str(p) for p in found),
+          "neither agent-authored decoy is mistaken for a run")
+    check(any(p.name == "work" for p in pruned),
+          "the pruned agent-authored directories are returned, not discarded")
+
+    audits, _ = M.audit_tree_with_skips(root)
+    nested_audit = next(a for a in audits if a.run_dir == nested)
+    check(nested_audit.name == f"archive-w/{nested.name}",
+          "a nested run is reported by its path relative to the swept root (rule 12)")
+    check(nested_audit.severity == "ok", "and the nested run measures clean")
+
+    # MUTANT: the pre-repair discovery, one level with iterdir(). It must lose the
+    # nested run - a green audit over a tree it never opened is the defect (#126).
+    original = M.find_run_directories
+    M.find_run_directories = lambda rd: (
+        [d for d in sorted(Path(rd).iterdir()) if M.is_run_directory(d)], [])
+    mutant_audits, _ = M.audit_tree_with_skips(root)
+    M.find_run_directories = original
+    check(len(mutant_audits) == len(audits) - 1
+          and not any(a.run_dir == nested for a in mutant_audits),
+          "MUTANT: the one-level iterdir sweep silently drops the nested run")
+
     print("\naudit - the address is an input to the check (AGENTS.md rule 12)")
     nothing = tmp / "no-such-runs"
     rc = M.main(["audit", "--runs-dir", str(nothing)])
