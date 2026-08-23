@@ -438,16 +438,17 @@ negation — so the synthetic fixture is what makes the suite mean anything. Run
 touching the matcher; a green suite with an inert mutant is the "passes and measures nothing"
 shape.
 
-**Measured 2026-08-22, and re-measured after the concurrent write described below:**
+**Measured 2026-08-22/23. The evidence count moves — see the drift note below — so these are a
+snapshot, and `MEASURED.json` at the destination is what any particular copy actually contains:**
 
 | | files | size |
 |---|---|---|
-| total | 368,571 → 369,332 | 138.146 GB |
-| **evidence** | 13,431 → **14,192** | 1.100 → **1.109 GB** |
+| total | ~369,300 | 138.146 GB |
+| **evidence** | 13,431 → 14,192 → **14,196** across four hours | ~**1.109 GB** |
 | regenerable | 355,140 | 137.046 GB |
 
-The right-hand figures are the verified copy; `MEASURED.json` at the destination always states
-what the last verified run actually contained.
+**Never quote the evidence count from this table.** Read it from `MEASURED.json`, which is written
+only by a verification that passed.
 
 99.20% of `eval/runs/` is build output — 133.344 GB of it cargo target dirs from old
 `t1_rally`/`t2_net`/`t3_powerup` spec-change trials. **The often-quoted "129 GB" and "138 GB" are
