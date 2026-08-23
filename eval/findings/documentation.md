@@ -558,3 +558,115 @@ and would pass vacuously.
 
 The last four are variants, not mutants: they ask whether the check can still *pass* on input
 it must not fire on, which is the half that catches false positives (rule 15).
+
+---
+
+
+## 112. The repaired capture page had a second live copy, and no commit in the project's history had ever touched it
+
+Task 31 repaired three defects in the TypeScript capture page (#101) and, in the same session,
+filed task 48 because `template-ts/src/view/harness.ts` carried the identical pre-fix code.
+That ticket was right, and the interesting part is not the duplicate — it is **why a duplicate
+of a defect under active repair could sit in a tracked, buildable, `just verify`-green tree
+without anything noticing.**
+
+### The state, established in the real page before anything was changed
+
+The seam `evaluateInCapturePage` was added first and nothing else, so the reading is of the
+page the harness actually builds, not of a replica that would share its assumptions (#37):
+
+| property | `template-ts`, pre-fix | after the port |
+|---|---|---|
+| `location.origin` | `"null"` | `http://harness.localhost` |
+| `document.baseURI` | `about:blank` | `http://harness.localhost/` |
+| `fetch('./index.html')` | **THREW: Failed to parse URL** | `status 200` |
+| `window.__determinismApplied` | absent — the init script never ran | `true` |
+| `Math.random` is the injected LCG | **false** | `true` |
+| `performance.now()` across a 60 ms wall sleep | **130.9 → 194.4** | `0 → 0` |
+| `Date.now()` | `1787476067666` (real epoch) | `0` |
+
+The clocks were **not frozen**. They were on wall time, in a harness whose stated purpose is
+reproducibility — #101's shape reproduced independently, in a second tree, a day later.
+
+### What made it invisible, in numbers
+
+- **`wholegame.py` cannot reach it.** `STARTERS = HERE / "starters" / s` is the only starter
+  address in the file, and no `run` subcommand takes a template path. Confirmed by reading, not
+  assumed: no whole-game number is affected, then or now.
+- **One executable reference to `template*/` exists in the whole repository** —
+  `eval/run-bakeoff.sh`, driving `runner.py --template`. The spec-change suite it feeds has not
+  been run since **2026-08-12**; every run since is `wg-*`.
+- **0 of the 105 commits since the initial import touched any `template*/` directory. 6 touched
+  `eval/starters/`.** That is the same asymmetry as #99 (0 content-bearing edits against 6) with
+  a different subject.
+- **No gate compares the two.** `starter_parity.py` defaults to `eval/starters` and measures the
+  four *stacks* against each other, never a stack against its own second tree. `verify_blind.py`
+  takes explicit paths. `docstat.py --sweep` reads `template-ts/AGENTS.md` for names that do not
+  resolve, which a stale-but-coherent document passes.
+
+### Where this is NOT #99, and it changes what can be done about it
+
+`.agents/skills/` was a **copy**: one source of truth, one degraded duplicate, so "sync or
+delete" were the only two options and deletion won. These two trees are a **fork**. Measured
+across the pair, excluding `node_modules`:
+
+| | count |
+|---|---|
+| files only in `template-ts` | 3 |
+| files only in `eval/starters/ts` | 7 |
+| shared paths, byte-identical | 15 |
+| shared paths, differing | 18 |
+| changed lines across the shared paths | **1119** |
+
+`template-ts` is a finished Pong; `eval/starters/ts` is a game-agnostic placeholder with a probe
+and film contract. Most of that 1119 is *supposed* to differ. **So no content-parity gate can be
+written over these trees until someone decides what agreement is supposed to mean** — and a gate
+that is red on the day it lands is a gate that gets switched off (`DECISIONS.md`).
+
+That is the generalisable part:
+
+> **"Is there a second copy?" and "is there a second implementation?" have different answers and
+> different remedies. A copy can be gated on equality. A fork cannot be gated on anything until
+> the shared part is named, and naming it is a judgement, not a scan.**
+
+The instrument was the shared part here — the capture harness — and nothing had ever said so.
+After the port, `src/view/harness.ts` differs between the trees on **prose only**: `just film`
+and "ball" against "marker", 22 lines, no executable difference. `src/view/capture.ts`'s
+`declare global` block is identical.
+
+### The naming collision that kept it out of view
+
+`DECISIONS.md`, `README.md`, `starter_parity.py` and this log all say **"template"** for
+`eval/starters/*/`. `DECISIONS.md`'s *"The templates are measured at each stack's best"*
+(2026-08-22) was implemented by task 26 entirely inside `eval/starters/`. `README.md`'s
+*"What does a building agent read? → `template*/AGENTS.md`"* has been wrong for every whole-game
+run since 2026-08-12. A reader auditing "the templates" reads the starters and finds them
+current; the directory literally named `template-ts/` is not what they looked at.
+
+> **When two directories share a colloquial name, every audit of one is evidence about the other
+> that nobody collected.**
+
+### Controls
+
+The suite is the starter's `capture-environment.test.ts`, ported and re-pointed at this tree's
+background colour. Mutants restore one removed mechanism each; the file is written back in a
+`finally`.
+
+| control | expected | got |
+|---|---|---|
+| pristine, ported tree | 8 green | 8 green |
+| M1 `setContent` instead of `route`+`goto` — literally the pre-fix page | red | **red, 7 of 8 failed** |
+| M2 clocks pinned to a constant instead of virtual | red | red, the clock test |
+| M3 `__capturePreload` fired but not awaited | red | red, the failing-preload test |
+| M4 document-root containment removed | red | red, the escape test |
+| *variant:* a legitimate nested asset `./sprites/x.png` | 200, not 403 | 200 |
+| *variant:* golden frame after the port | unchanged, not re-blessed | unchanged |
+| *variant:* `just verify` on the ported tree | green | green, 53 sim + 13 render |
+| `verify_blind.py` on an out-of-repo copy | BLIND | BLIND, exit 0 |
+| the same copy with the canary planted | CONTAMINATED | exit 1 |
+
+**M3 reddens 1 test here and reddened 2 in the starter.** The second one asserts a preload
+counter *after* `captureFrame` returns, and an unawaited hook has often finished by then — it is
+a race, not a second pin. The mechanism is held by the failing-preload test, which is
+deterministic. Recorded rather than tuned: a mutant sweep whose counts are quietly matched
+across trees is reporting the tuning.

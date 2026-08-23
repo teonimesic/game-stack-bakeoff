@@ -25,6 +25,47 @@ evidence — not "it type-checks", not "it looks right", not your own reasoning.
 **Put game logic in `src/sim`.** A rule in `src/view` cannot be tested without a
 browser and will not be replayable or networkable.
 
+## The capture page: assets, and the one thing it will not do
+
+`tests/render` renders in a headless page served from `public/` at a real
+origin, so **a relative asset URL resolves exactly as it does under `just run`**
+— `./sprites/hero.png` is the same file in both. `TextureLoader`, `GLTFLoader`
+and plain `fetch` all work.
+
+**But `capture()` is synchronous.** It steps the simulation, renders one frame
+and reads the pixels back inside a single call, which is what makes a captured
+frame a pure function of `(seed, ticks, inputs)`. A loader, an `<img>` decode or
+a `fetch` resolves on a LATER task, so it cannot finish inside a capture: start
+one there and the frame is taken with the texture still pending, showing an
+untextured quad in every captured PNG while `just run` looks perfect.
+
+So load assets in **`window.__capturePreload`**, which the harness awaits once
+before each capture. Resolve your loaders there into a module-level cache that
+`createView()` can then read synchronously:
+
+```ts
+let sheet: THREE.Texture | null = null;
+window.__capturePreload = async () => {
+  sheet ??= await new THREE.TextureLoader().loadAsync('./sprites/hero.png');
+};
+```
+
+If the hook throws, the capture fails loudly rather than capturing a frame with
+its assets missing. Generating art in code (`DataTexture`, `CanvasTexture`) is
+still the simplest thing that works and needs no hook at all.
+
+**Time in a captured frame is virtual.** `performance.now()` and `Date.now()`
+return the time of the tick being captured, not wall time — the same tick always
+gives the same reading, so captures stay reproducible, but the value _advances_
+from one captured tick to the next. `Math.random()` is seeded for the same
+reason. Note that each capture builds a **fresh view with no history**, so
+`clock.getDelta()` has nothing to measure: drive animation from the simulation
+tick, or from the absolute time, not from a frame-to-frame delta.
+
+`tests/render/capture-environment.test.ts` pins all of this — the origin, the
+seeded generator, the virtual clock and the preload hook — from inside the real
+capture page. Do not weaken it.
+
 ## The firewall around src/sim
 
 Three overlapping mechanisms; each catches what the others miss. You will be told
