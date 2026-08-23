@@ -1873,3 +1873,126 @@ trial gets. Pinned three ways on 2026-08-23:
 
 The third row is the one that earns the second direction. A mutant — deleting the reload call —
 cannot produce it; only a variant that manufactures the input the gate mishandles can (rule 15).
+
+---
+
+## 101. The TypeScript capture page never ran its own determinism script, and the defect that was filed instead was the opposite of the truth
+
+Task 31 filed two measured one-arm defects in the TS capture harness. **One is real, one is
+false, and reproducing the false one found a third that is worse than either.**
+
+| filed | verdict, measured on the harness's exact page |
+|---|---|
+| D1 — `page.setContent` leaves origin `null`, so loader-based assets render nothing into any filmed PNG | **TRUE.** `location.origin` is the string `"null"`, `document.baseURI` is `about:blank`, a relative `fetch` **throws at URL parsing** (`Failed to parse URL from ./sprites/hero.png`) before any request, and `TextureLoader` reports a bare `error` with no cause |
+| D2 — `performance.now` is frozen to 0, so a clock-driven `AnimationMixer` shows the bind pose in every frame | **FALSE.** `performance.now()` measured 231.6 then 293.7 ms across a 60 ms sleep. `Clock.getDelta()` returned real deltas. Nothing was frozen |
+
+D2 is false because **`DETERMINISM_SCRIPT` never ran at all.** `addInitScript` executes on
+document creation, and `harnessPage()` registered it and then called `page.setContent` — which
+does not navigate. The script was registered against an `about:blank` document that was never
+created afresh, so it was dead. A three-arm control settles it:
+
+| page setup | `__determinismApplied` | `Math.random()` | `Date.now()` |
+|---|---|---|---|
+| (a) the harness's own order, `addInitScript` → `setContent` | **false** | 0.2508 (unseeded) | 1787465478119 |
+| (b) `addInitScript` → `goto` → `setContent` | true | 0.0000078 (seeded) | 0 |
+| (c) no init script registered at all | **false** | 0.8130 | 1787465478195 |
+
+**(a) is indistinguishable from (c).** The harness whose entire purpose is reproducibility was
+running with an unseeded `Math.random` and both clocks on wall time, in every TS trial, since the
+capture path was written.
+
+> **A defect report is evidence about the reporter's page, not about yours.** D2 was filed as
+> "measured live through Playwright with the harness's exact page setup". It reproduces only if
+> the probe navigates — and a probe that calls `goto` has, without meaning to, repaired the very
+> defect it is standing on. Rule 14 with the axis rotated: a control that *sets up* differently
+> tests a different machine. Re-establish the state on the real path before trusting the
+> mechanism named in a report, including your own.
+
+### The radius: zero, on all 26 stored TypeScript submissions
+
+The part that decides whether anything published needs marking. Established four ways, and every
+one of them says the same thing.
+
+| probe | result |
+|---|---|
+| three loaders constructed anywhere in `src/view` (comments and string literals stripped; stripper positive-controlled) | **0 of 26**. The only two `TextureLoader` mentions in the corpus are both inside doc comments explaining why the loader is *avoided* |
+| `AnimationMixer` or a three `Clock` constructed in capture-reachable view code (import graph walked from `capture.ts`) | **0 of 26** |
+| entropy or wall-clock reads in capture-reachable view code — the radius of the *real* defect | **0 of 26** |
+| the filmed frames themselves, measured rather than inferred | **206 of 216 TS frames are distinct**; mean adjacent-frame diff 0.0370 and non-background fraction 0.229, both second-highest of the four arms |
+
+**No published number rests on a TS submission's frames being static or empty, because no TS
+submission's frames are static or empty.** Nothing needs retracting.
+
+The frame measurement is the one that matters, because it is the only one that reads the
+consequence instead of the cause. Its one TS-specific outlier — mean distinct colours 174 against
+rust 713 and godot 616 — is **not** attributable to either defect: Unity is lower still at 50, and
+`research/10-stack-capability-matrix.md` §9 already attributes the colour spread to SwiftShader.
+Filming on a CPU rasteriser is a standing confound on this arm and it must be ruled out before any
+TS rendering difference is read as a harness defect.
+
+### Why the radius is zero is not luck, and is the useful part
+
+`capture()` is **synchronous** — it steps, renders and reads back inside one call — and it builds
+a fresh view each time. Both properties are visible to an agent through its own render tests, and
+the two agents who came nearest an asset pipeline diagnosed the constraint unprompted and designed
+around it, in `agent.final_text` and in source comments that nothing reads:
+
+- `wg-g4/g4_platformer__ts__t1`: *"the art is generated in-process rather than loaded — because
+  `capture()` renders one frame synchronously with no history, so a view-side timer would have
+  nothing to count and an `<img>` would still be decoding"*
+- `wg-g4c/g4_platformer__ts__t0`, in `src/view/hero-sheet.ts`: *"An `<img>` or a `TextureLoader`
+  resolves on a later task, so every captured frame would show an untextured quad"*
+
+That is rule 11 twice more. **A defect whose radius is zero because every subject worked around it
+is still a defect — it is a tax paid in turns, and nothing counts a turn spent designing around
+the harness.**
+
+### The repair, and why the two fixes could not be shipped separately
+
+All three defects are one edit apart, and **fixing the origin ACTIVATES the frozen clock.** Going
+to a real origin makes `addInitScript` fire, at which point `performance.now = () => 0` stops
+being dead code and starts freezing time for real — introducing the filed defect D2 as a genuine
+regression. Sequencing:
+
+1. `page.route` serves a real origin from `public/`; `addInitScript` is registered **before**
+   `page.goto`. One change fixes D1 and the dead script.
+2. The clocks become **virtual, not frozen**: `Date.now`/`performance.now` read `__nowMs`, which
+   `captureFrame` sets to `(ticks / TICK_HZ) * 1000`. A pure function of the request, so still
+   deterministic, but it *advances* from one filmed frame to the next.
+3. `window.__capturePreload` — optional, awaited once per capture — is where an asset-loading view
+   resolves loaders into a cache that the synchronous `createView` can read. A failing preload
+   throws rather than filming a frame with its assets missing (rule 7).
+
+All three are **harness-side**, per task 25: a mechanism in the harness cannot go missing in a
+stack-correlated way, whereas a rule in `AGENTS.md` that the agent must remember can.
+
+### Both directions, pinned
+
+`tests/render/capture-environment.test.ts` — 8 tests asking what the *page* can do, as opposed to
+what the renderer drew. They run inside the real capture page via `evaluateInCapturePage`,
+because **a replica page built "the same way" shares whatever assumption is wrong and agrees with
+the harness** (#37). Three mutants, each restoring one repaired defect:
+
+| mutant | result |
+|---|---|
+| M1 `setContent` instead of `goto` (restores D1 *and* the dead script) | **RED** on 7 tests |
+| M2 `performance.now = () => 0` (restores D2 as filed) | **RED** on the clock test |
+| M3 preload hook not awaited | **RED** on 2 tests |
+
+The regression direction holds too: `just verify` is green at 53 sim + 14 render, **the golden
+frame still matches**, `just film` writes its 12 PNGs, and `starter_gate_control.py --stack ts` is
+green-and-still-red-on-a-plant.
+
+One test in the first draft was **vacuous** and the mutants caught it: "the determinism script
+actually ran" compared the seeded sequence against a fallback that was never set, so it stayed
+green under M1. It now asserts the injected LCG's own recurrence,
+`seed = (seed * 16807) % 2147483647`, which the platform generator cannot satisfy. *The mutant
+sweep's value here was not finding the defect — it was finding the test that could not see it.*
+
+### The accepted limitation, stated rather than fixed
+
+`capture()` remains synchronous, and that is deliberate: a fresh view rendering one frame with no
+history is what makes a captured frame a pure function of `(seed, ticks, inputs)`. So a loader
+still cannot complete *inside* a capture — it must resolve in `__capturePreload` first. Recorded
+in the TS starter's `AGENTS.md` with the reason, because it is now a documented capability with a
+documented shape rather than a silent failure.

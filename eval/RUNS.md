@@ -875,6 +875,45 @@ shipped passes the green direction while **failing the red one — `just check` 
 unparseable autoload.**
 
 
+## THE TS CAPTURE PAGE CHANGED ON 2026-08-23 — a TENTH comparability break
+
+**No TypeScript trial after this date is comparable with one before it on turns or cost**, and
+the capture page's *capabilities* differ. `starters/ts/src/view/harness.ts` built the page with
+`page.setContent`, which has three consequences that were all live in every TS trial to date:
+
+| property | before | after |
+|---|---|---|
+| document origin | `"null"`, `baseURI` `about:blank` | `http://harness.localhost`, served from `public/` by `page.route` |
+| relative asset URL | **`fetch` THROWS at URL parsing**; every three loader fails with a bare `error` | resolves as it does under `just run` |
+| `DETERMINISM_SCRIPT` | **never ran** — `addInitScript` was registered against a page that was never navigated. `Math.random` unseeded, both clocks on wall time | runs; `addInitScript` now precedes `page.goto` |
+| `performance.now()` / `Date.now()` | wall time (because the script was dead) | virtual: `(ticks / TICK_HZ) * 1000`, a pure function of the request |
+| async assets | impossible | `window.__capturePreload`, awaited once per capture |
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** Radius measured across **all 26 stored TS whole-game
+  submissions** and it is **zero on every probe** — no three loader constructed in any
+  capture-reachable view file, no `AnimationMixer` or `Clock`, no entropy or wall-clock read. The
+  filmed frames agree: **206 of 216 TS frames are distinct**, with adjacent-frame diff and
+  non-background fraction both second-highest of the four arms. **No published number rests on a
+  TS submission's frames being static or empty** (FINDINGS #101).
+- **Invalidated going forward:** a TS trial after this date can ship an asset pipeline. Before it,
+  agents that tried had to discover the constraint and design around it — two of them did,
+  explicitly, in `agent.final_text`. That cost is unmeasured, the same way #98's is.
+- **Not affected:** the other three stacks. The change is confined to `starters/ts/`.
+- **Still true, and now documented rather than silent:** `capture()` is synchronous and builds a
+  fresh view per frame, so a loader must resolve in `__capturePreload` and `clock.getDelta()` has
+  no history to measure. Recorded in the TS starter's `AGENTS.md`.
+
+Gates re-run after the change, all green: `judge/verify_blind.py` on an out-of-repo copy (BLIND,
+81 ids), `judge/starter_parity.py` ("No drift detected on any measured axis", ts now 67/67 tests),
+and `tools/starter_gate_control.py --stack ts` green on pristine **and** still red on a planted
+error. Pinned in both directions by `tests/render/capture-environment.test.ts` (8 tests) against
+three mutants, each restoring one repaired defect — M1 `setContent` reddens 7, M2 the frozen clock
+reddens the clock test, M3 an unawaited preload reddens 2. The golden frame is unchanged, so the
+edit is rendering-neutral.
+
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.

@@ -28,7 +28,12 @@ in the type signatures.
 // playwright 1.62.1
 chromium.launch({ args }); // headless by default
 page.addInitScript(source); // runs BEFORE page scripts, on every
-// navigation — must precede setContent
+// NAVIGATION — and `setContent` is not one.
+// Register it, then `goto`. Registering it
+// before a bare `setContent` leaves it DEAD,
+// and a dead init script is invisible: the
+// page just quietly keeps the real clock and
+// an unseeded Math.random. See FINDINGS #101.
 page.addScriptTag({ content }); // injects a bundle into the page
 page.evaluate(fn, arg); // arg and result cross as JSON
 ```
