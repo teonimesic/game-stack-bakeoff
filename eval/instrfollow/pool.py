@@ -552,7 +552,11 @@ def evaluate(src: str, ids: list[str] | None = None) -> dict:
         ins = BY_ID[iid]
         try:
             ok, ev = ins.checker(art)
-        except Exception as exc:            # a checker that raises is a FAIL, not a skip
+        # BLE001 deliberately: a checker that raises on an artifact it did not expect
+        # must score that instruction FAILED, not abort the run and not be skipped.
+        # Narrowing this would let one unanticipated exception discard a whole paid-for
+        # trial, and skipping would be the fail-open channel rule 7 names.
+        except Exception as exc:  # noqa: BLE001
             ok, ev = False, f"checker raised {exc.__class__.__name__}: {exc}"
         res[iid] = {"passed": bool(ok), "evidence": str(ev)[:200], "cls": ins.cls,
                     "runs_artifact": ins.runs_artifact}
