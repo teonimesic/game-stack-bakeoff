@@ -452,8 +452,8 @@ snapshot, and `MEASURED.json` at the destination is what any particular copy act
 
 | | files | size |
 |---|---|---|
-| total | ~369,300 | 138.146 GB |
-| **evidence** | 13,431 → 14,192 → **14,196** across four hours | ~**1.109 GB** |
+| total | 369,410 | 138.164 GB |
+| **evidence** | 13,431 → 14,192 → 14,196 → **14,270** | ~**1.118 GB** |
 | regenerable | 355,140 | 137.046 GB |
 
 **Never quote the evidence count from this table.** Read it from `MEASURED.json`, which is written
@@ -470,13 +470,33 @@ the only copy of what the agent wrote, and the rule above keeps its source while
 caches. `wholegame.py` does not have this problem: its work trees live under `--work-root`, outside
 the repo, and each submission is archived as `artifacts/<tid>/submission.tar.gz`.
 
-### Re-sync after any run completes, before the work root is reclaimed
+### Re-sync whenever the evidence set has grown or changed — whatever made it move
 
     python3 tools/backup_evidence.py --dest /Users/stefano/game-research-evidence
 
-It classifies, rsyncs, and then **verifies by reading the destination back** in three tiers —
-inventory, SHA-256 of every file on both sides, and opening a sample: `json.load` on the harness's
-own records, and extracting tarballs and decompressing members. It never deletes from the source.
+> **The trigger is the RESOURCE — files `evidence_set.py` classifies as evidence — not any
+> activity that happens to produce them.** If what you just did changed which bytes are in that
+> set, re-sync. You do not need to decide whether it counts as a run.
+
+This section read *"re-sync after any run completes"* until 2026-08-23, and that is an
+enumeration of one occasion (#115). The most irreplaceable class this project holds was created
+by a **repair**, not a run: `starter-baselines/` was written at 04:24 on 2026-08-23 to preserve
+the root commits before the work roots were reclaimed, 7.5 MB that exist nowhere else (#104), and
+the copy verified at 00:08 that morning did not contain a single byte of it. Nothing was broken;
+the rule was read and could not fire, because a repair is not a run.
+
+The cheap, mechanical version of the trigger, which needs no judgement at all:
+
+    python3 tools/backup_evidence.py --dest /Users/stefano/game-research-evidence --verify-only
+
+**`--verify-only` answers the trigger rather than assuming it.** It re-classifies and reports what
+is missing at the destination; a non-zero count *is* the signal to re-sync. Run it whenever you
+are unsure, and after anything that wrote, rewrote, quarantined or archived under `eval/runs/`.
+
+It classifies, rsyncs, and then **verifies by reading the destination back** in four tiers —
+inventory, SHA-256 of every file on both sides, opening the harness's own JSON records and
+extracting tarballs, and re-deriving every starter baseline's provenance. It never deletes from
+the source.
 
 **rsync's exit code is not the check.** A copy that reports success and wrote nothing is the same
 defect class as a gate that passes and measures nothing, and it is discovered on the day the
@@ -484,10 +504,38 @@ original is gone. Pinned both ways 2026-08-22: a clean run verified 14,192 files
 deleted, one tarball truncated and 100 bytes flipped inside a JSON, tiers 1, 2 and 3 each caught
 their own and the tool exited 1.
 
-That sweep also found a **false positive worth keeping in mind**: `tsconfig.json` is JSONC, so a
-blanket `json.load` over every `.json` reported 26 corrupt files on a byte-perfect copy. The
-semantic tier now checks only JSON the *harness* wrote — derived from the work-tree set, not
-listed. A verifier that cries wolf on a good copy gets ignored on a bad one.
+**Tier 4 asks whether a baseline is still the commit it claims to be**, not whether its bytes
+arrived. For every `<tid>.starter-baseline.tar.gz` it recomputes the git blob id of each member
+*from the destination's bytes* and matches it against the `ls-tree` in the companion
+`.blobs.txt`, whose first line carries the root commit id. It is **not sampled** — the class is
+7.5 MB and cannot be reconstructed, and a sample of an irreplaceable class tells you about the
+sample. `tools/backup_evidence_control.py` pins it: nine fixture cases built from a real git repo
+(a flipped byte inside a member, a dropped member, an added member, a rewritten ls-tree oid, a
+garbled commit header, an empty ls-tree, a truncated gzip, a missing companion — and the genuine
+pair, which must come back clean), plus `--runs-root`, under which all 22 real baselines verify.
+Five mutants each survive nothing: every one is caught by exactly the case that names its
+mechanism.
+
+That 2026-08-22 sweep also found a **false positive worth keeping in mind**: `tsconfig.json` is
+JSONC, so a blanket `json.load` over every `.json` reported 26 corrupt files on a byte-perfect
+copy. The semantic tier now checks only JSON the *harness* wrote — derived from the work-tree set,
+not listed. A verifier that cries wolf on a good copy gets ignored on a bad one.
+
+### The copy is additive, so it becomes a superset — and that has to be visible
+
+rsync runs without `--delete` and nothing here removes from the destination, which is the right
+default: this copy exists to survive an `rm -rf`, and a mirror that faithfully reproduces a
+deletion protects against nothing. The cost is that when a file leaves the source, the copy keeps
+it, and a stale file at the destination is indistinguishable from a current one.
+
+`backup_evidence.py` therefore reports **destination-only files** every run and writes the full
+list to `DEST_ONLY.txt` at the destination. It is an inventory, not a defect, and it does not fail
+the tool. As of 2026-08-23 it holds **23** paths: the stale judge-pack files `judge/repack.py`
+removed from `wg-g4c` that morning, which the source keeps under
+`wg-g4c-*/repack-2026-08-23-stale-files-removed/`. Anyone re-packing from the second copy rather
+than the source would resurrect exactly what was removed, so read `DEST_ONLY.txt` before treating
+the copy as equivalent to the original. **Decide per path, at the source. Never reconcile by
+deleting at the destination** — that turns an inventory question into lost evidence.
 
 ### The current copy is NOT a backup, and must not be reported as one
 
@@ -503,7 +551,7 @@ It protects against `rm -rf`, a bad `git clean`, and the reclamation below. It p
 **What would make it a backup** — any one of these:
 
 - an external disk, then `backup_evidence.py --dest /Volumes/<disk>/game-research-evidence`. The
-  whole set is 1.109 GB, so any USB stick does it;
+  whole set is 1.118 GB, so any USB stick does it;
 - a private GitHub repo. Every evidence file is **under 50 MB** (largest 44.21 MB, a Unity
   `submission.tar.gz`), so no LFS — measured, not assumed. This is the one thing the original task
   forbade, on the strength of the 129 GB figure that turned out to describe the build output;
@@ -515,8 +563,22 @@ While this was being measured the set grew from 13,431 files to 14,192 — anoth
 wrote 761 files into `wg-aspect-reliability/packcheck/` at 23:59. Nothing in the harness marks a
 run directory quiescent. `backup_evidence.py` classifies once and verifies against that same list,
 so each run is internally consistent; what it cannot promise is that no *later* write is missing.
-Re-sync after a run completes, and treat `MEASURED.json` at the destination as the statement of
-what the copy actually contains.
+Treat `MEASURED.json` at the destination as the statement of what the copy actually contains.
+
+**A concurrent write is not only a missing file — it can be a file that verifies and is a
+prefix.** The 00:08 copy caught `wg-aspect-reliability/REPRODUCIBILITY.json` at **220 bytes** and
+`sweep.log` at **88**, while the sweep still had 3 hours 39 minutes to run; both sides hashed
+equal and tier 2 was correctly green. They are 49,666 and 8,070 bytes now. A SHA-256 match proves
+the copy equals the source *at classification time* and says nothing about whether the source was
+finished. So **check for recent writes before spending on a copy**, and re-sync afterwards
+regardless:
+
+    find eval/runs -type f -newermt '<15 minutes ago, as an ISO timestamp>' \
+      -not -path '*/targets/*' -not -path '*/node_modules/*' | wc -l
+
+Spell the timestamp out. `find` on this machine is **bfs**, which rejects GNU's `-newermt '-15
+minutes'` — and piped into `wc -l` that rejection prints a confident `0`, which is rule 3's
+fallback shape reached without anyone writing `|| echo 0`.
 
 ## After a run: reclaiming disk, without deleting evidence
 
