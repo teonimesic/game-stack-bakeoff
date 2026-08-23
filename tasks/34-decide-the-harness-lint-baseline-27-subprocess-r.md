@@ -1,7 +1,7 @@
 ---
 id: 34
 title: "Decide the harness lint baseline: 27 subprocess.run calls ignore their exit status"
-status: open
+status: in_flight
 priority: 2
 refs: eval/tools/prune_scan.py cat_lint, AGENTS.md rule 3, eval/findings/fail-open.md
 done_when: either the 27 PLW1510 and 29 BLE001 sites are triaged with each one fixed or explicitly justified in a comment, or the rule is dropped from the pinned set with the reason recorded; and a lint recipe exists that a session can run

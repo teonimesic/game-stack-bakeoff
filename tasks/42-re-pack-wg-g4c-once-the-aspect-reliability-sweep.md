@@ -1,7 +1,7 @@
 ---
 id: 42
 title: Re-pack wg-g4c once the aspect-reliability sweep is finished, and compute the exclusion set rather than guessing it
-status: open
+status: in_flight
 priority: 2
 refs: eval/RUNS.md wg-g4c-2026-08-21, eval/FINDINGS.md #95 #77 #83, eval/judge/field.py packcheck
 done_when: the sweep process is confirmed gone (not inferred from its log), then wg-g4c is re-packed with the exclusion set computed and shown rather than assumed; python3 judge/field.py packcheck --run runs/wg-g4c-2026-08-21T02-26-46 run UNPIPED reports clean=True stale=0 and exits 0; the .codex hooks configs are gone from every submission's pack, checked by grepping the packs on disk for the trial-id and game-research-work patterns; and eval/RUNS.md's stale-files block is replaced with what is then true, stating that any judge round stored before the re-pack read a field that no longer exists

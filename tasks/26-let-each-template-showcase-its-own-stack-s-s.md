@@ -1,6 +1,6 @@
 ---
 id: 26
-status: open
+status: in_flight
 priority: 3
 title: Let each template showcase its own stack's strengths
 refs: blocked by tasks 24 and 25; eval/RUNS.md regime rules
