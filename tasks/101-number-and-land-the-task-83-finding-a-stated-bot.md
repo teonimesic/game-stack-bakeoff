@@ -8,3 +8,24 @@ done_when: 'The finding has a number taken from the highest in eval/FINDINGS.md 
 ---
 
 Task 83 measured it and no finding number was taken, because ten tasks were in flight and several allocate numbers - the collision mode the work skill warns about. The claim: the play-bot's traversal ceiling was declared and documented as a LEVEL property (pits the bot cannot cross) when it was a property of the INPUT the bot sent - _walk_toward presses jump for one tick and the character is airborne on the next, so the guard never re-fires, and all 8 wg-g4c submissions implement a variable-height jump. Measured over the eight: a one-tick press reaches 29.0 to 88.4 units, holding the control while still rising reaches 93.5 to 141.8, and the widest gap in any of the eight levels is 110. No level was ever uncrossable and every one of them stopped the bot. The second half is the control failure: stage.completes passes on ref_platformer under the broken bot AND the repaired one, so the reference could never have detected this - eval/G4-PLATFORMER.md predicted that in writing when the criterion was designed. Shape is #37 with a key press instead of a code path, and the file to match is certifies-nothing.
+
+## Updated at merge, 2026-08-23 — the number is already allocated, do not take another
+
+**The finding is published as #139**, in `eval/findings/certifies-nothing.md`, with its index row
+in `eval/FINDINGS.md`. The orchestrator allocated it when task 83's branch was merged, because
+three collisions on one number happened in a single afternoon and the merging tree is the only
+one that holds every peer's claim.
+
+**So the numbering half of `done_when` is met and what remains is the citing.** Task 83 edited
+`DECISIONS.md`, `eval/judge/RUBRIC.md` and `eval/G4-PLATFORMER.md` while the finding had no
+number, so those files carry the measurements with **no citation to point at**. Add `(#139)` where
+each states one, and check the claim beside it still matches the finding body — several of task
+83's numbers were re-measured during the work.
+
+**File conflict, live:** task 102 is being dispatched in parallel and also edits `DECISIONS.md`
+and `eval/judge/RUBRIC.md`. If it is still in flight, do `eval/G4-PLATFORMER.md` first and expect
+to merge `main` before finishing.
+
+**What not to conclude:** #139 does not say the play-bot should be repaired in the scored path.
+`_walk_toward` is deliberately untouched — a one-tick jump press moves scored criteria, which is a
+regime question and not this ticket's.
