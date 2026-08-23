@@ -1,6 +1,16 @@
-# g4 — 2D sprite platformer with attacks (BUILT, for review before launch)
+# g4 — 2D sprite platformer with attacks (BUILT, RUN, and it tied)
 
-**Status: the grader is built and pinned. Nothing has been launched.**
+**Status: launched 2026-08-17, complete 2026-08-21.** Three runs; costs and comparability in
+`eval/RUNS.md`, the result in `DECISIONS.md` ("A saturated tier 2 is reported as a completion
+certificate", and the g4 bullet under "Open"). All 8 `wg-g4c` submissions return **tier 2 =
+1.000** — the scored tier under the gate scheme — and 20 of the 20 scored g4 criteria have never
+failed (#128), so the fourth game tied like the other three.
+
+**Everything below this line is the pre-launch brief, preserved as written**, because its value
+is that it was written before the result: the cost projection the actuals have since overtaken,
+and the pre-registration in "What would make this game worth its cost even if it ties", whose
+answer is now known. Read it as a record of what was expected, not as a statement of what is
+true now.
 
 | piece | state |
 |---|---|

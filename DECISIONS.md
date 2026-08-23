@@ -733,22 +733,18 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
 - **The rubric ceiling — MEASURED and now DECIDED on both tiers, but only one of them is fixed.**
-  Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`** and on all 16 of `wg-audio48` —
-  40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92). **What to
-  do about it was decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not
-  score" above, and #123). The ceiling did not go away; it stopped being reported as a score.
-  **Tier 2 is still at the ceiling on 24 of 56** — `wg-audio48` and `wg-g4c` entire — and tier 2
-  now carries the whole weight, so **`overall` is a constant 1.000 for all 16 `wg-audio48` trials
-  and all 8 of `wg-g4c`.** That is the open half, and it is the more serious one: an instrument
-  whose only scored tier saturates on a whole run cannot rank anything in it. The remedy is harder
-  play-bot criteria or harder tasks, not a weight.
-  40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92) — and
-  became a gate on 2026-08-23. **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials**,
-  and it now carries the whole weight. That half is not fixed and will not be fixed inside the
-  rubric: both in-rubric repairs were measured and neither works (#128), so a saturated group is
-  reported as a completion certificate (see "A saturated tier 2 is reported as a completion
-  certificate" above). **What stays open is the task**, priced by task 74 — not the criteria and
-  not the weights.
+  Tier 1 is at the ceiling on **61 of 68 stored submissions**, and returns a *single* value across
+  every measurable trial in **7 of the 10 (run, game) groups** — the 7 failures sit in 3 groups
+  (`python3 eval/judge/tier1_census.py --runs-root <checkout>/eval/runs`, re-read 2026-08-23; #92
+  is the narrower reading, over the 56 matrix trials that existed then). **What to do about it was
+  decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not score" above, and
+  #123). The ceiling did not go away; it stopped being reported as a score.
+  **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials** (`python3
+  eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`, same day), and it now carries the
+  whole weight. That half is not fixed and will not be fixed inside the rubric: both in-rubric
+  repairs were measured and neither works (#128), so a saturated group is reported as a completion
+  certificate (see "A saturated tier 2 is reported as a completion certificate" above). **What
+  stays open is the task**, priced by task 74 — not the criteria and not the weights.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for **$33.63** — the sum of that field's own stored rounds. The $46.79 previously here was the whole of 2026-08-16 across two games (#121). Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53).
@@ -787,8 +783,19 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   reasoning: all **7 of 7** `quiet_fraction_of_run` figures and **4 of 4** `events_per_second`
   figures quoted in #68's evidence appear in `wg-audio48`'s stored telemetry and **none** appears
   in `wg-matrix`'s. **#68 stands as reported.**
-- **g4, the platformer, is designed and NOT launched.** Launching needs approval and at least
-  two calibration trials in different cells; the honest cost range is $800-1,900 (#42).
+- **g4, the platformer — LAUNCHED, and the question it was added to answer is ANSWERED: no.**
+  Three runs and **$698.21** of agent trials: `wg-g4` $211.64 (4 of 8 cells, stopped), `wg-g4b`
+  $65.57 (8/8 `api_error`, a null), `wg-g4c` $421.00 (8/8 `completed`) — re-derived 2026-08-23 by
+  summing `total_cost_usd` over `eval/runs/wg-g4*/artifacts/*/agent_result.json`, which reproduces
+  `eval/RUNS.md`'s per-trial $36.16-$77.60 for `wg-g4c`. **#42's $800-1,900 priced a 24-trial
+  matrix and is not the comparable figure**; what was bought is one 8-cell field plus two runs
+  that produced nothing gradeable. **The result is a tie**: all 8 `wg-g4c` submissions return
+  **tier 2 = 1.000** — the scored tier under the gate scheme — and 20 of the 20 scored g4
+  criteria have never failed (#128), so a game exercising
+  sprite animation, hitboxes and platform collision separated the stacks no better than Pong,
+  Tetris and arena did. See "A saturated tier 2 is reported as a completion certificate" above.
+  **What stays open is a harder task, priced and not bought** — the row in "Reversal conditions"
+  below states what would buy it.
 
 ## Code-reading aspects are within-stack only — permanently, not pending a better anonymiser
 
