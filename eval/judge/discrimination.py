@@ -86,6 +86,15 @@ def load(run_dir: str, adjudications_apply: bool):
                     # means every tier-1 criterion passed.
                     "gate_green": all(c["passed"] for c in r["programmatic"]["criteria"]),
                     "n_scored": len(scored),
+                    # THE ADJUDICATED PASS COUNT, CARRIED AS AN INTEGER. `overall_adj`
+                    # above goes through `overall_score`, which rounds to 4 decimals,
+                    # and `ranking_test` compares a gap against `1/N` -- at N=13 a
+                    # one-criterion gap arrives as 1.0000-0.9231=0.0769 against a
+                    # threshold of 0.076923..., so the documented boundary case read
+                    # DOES NOT CROSS on real data while the selftest, which built
+                    # 12/13 unrounded, read CROSSES. Tier 2 IS a pass count; the test
+                    # now does its arithmetic in counts and cannot round at all.
+                    "n_passed_adj": adj_pass,
                     "prog": pr, "bot_raw": r["tier_scores"]["playbot"], "bot_adj": pb_adj,
                     "fails": [c["id"] for c in scored if not c["passed"]],
                     "evidence_by_id": {c["id"]: c.get("evidence", "")
@@ -118,22 +127,45 @@ def ranking_test(rows: list[dict]) -> str:
     within-cell floor is one absolute difference per stack, averaged over stacks.
     CROSSES here means the ban is re-opened for that group and the mechanism behind the
     gap must then be named - not that a ranking has been established.
+
+    THE ARITHMETIC IS IN INTEGER PASS COUNTS, AND THAT IS NOT TIDINESS. Tier 2 IS a pass
+    count over N criteria, but the score reaches this function through
+    `evaluate.overall_score`, which ROUNDS TO 4 DECIMALS. At N=13 a one-criterion gap
+    arrives as 1.0000-0.9231 = 0.0769 against a threshold of 0.076923..., so the
+    boundary case this test documents read DOES NOT CROSS on real data - while the
+    selftest, which constructed `12/13` unrounded and never went through `load()`, read
+    CROSSES. A tolerance cannot fix that: 1e-9 is four orders of magnitude below the
+    rounding error, and a tolerance wide enough to absorb it would swallow real gaps.
+    So, with `s_i = p0+p1` and `d_i = |p0-p1|` per stack and `k` stacks, the condition
+    `(max_s - min_s)/2N - mean(d)/N >= 1/N` is multiplied through by the positive `2kN`:
+
+        k * (max_s - min_s)  -  2 * sum(d)  >=  2k
+
+    Every term is an integer and the boundary is exact. Found in review of task 122.
+
+    THE DENOMINATOR IS ESTABLISHED OVER THE SELECTED STACKS, NOT THE GAME. `N` used to be
+    `max(n_scored)` across every row in the game and the gating happened afterwards, so
+    the threshold could come from a submission that had been removed from the comparison
+    (AGENTS.md rule 4: never compute over a population you have not established is
+    homogeneous). A group whose selected stacks disagree on `N` is NOT ASKED and says so.
     """
     out = ["=== THE RANKING TEST: adjudicated, gate-green, completed (DECISIONS.md) ==="]
     by_game = defaultdict(list)
     for r in rows:
         by_game[r["game"]].append(r)
     for g, rs in sorted(by_game.items()):
-        n_scored = max((r["n_scored"] for r in rs), default=0)
-        quantum = 1.0 / n_scored if n_scored else 0.0
         by_stack = defaultdict(list)
         for r in rs:
             by_stack[r["stack"]].append(r)
         ok = {s: v for s, v in by_stack.items()
               if len(v) == 2 and all(x["gate_green"] for x in v)}
         gated = sorted(set(by_stack) - set(ok))
-        head = (f"{g:<13} N={n_scored} criteria, one criterion = {quantum:.4f}; "
-                f"gate-green stacks {sorted(ok) or '-'}")
+        ns = sorted({x["n_scored"] for v in ok.values() for x in v})
+        n_scored = ns[0] if len(ns) == 1 else 0
+        quantum = 1.0 / n_scored if n_scored else 0.0
+        head = (f"{g:<13} N={n_scored or '?'} criteria"
+                + (f", one criterion = {quantum:.4f}" if n_scored else "")
+                + f"; gate-green stacks {sorted(ok) or '-'}")
         out.append(head)
         if gated:
             out.append(f"              gated out (tier-1 FAIL, or not a pair): {gated} "
@@ -141,14 +173,19 @@ def ranking_test(rows: list[dict]) -> str:
         if len(ok) < 2:
             out.append("              -> NOT ASKED: fewer than two gate-green stacks")
             continue
-        w = st.fmean(abs(v[0]["overall_adj"] - v[1]["overall_adj"]) for v in ok.values())
-        means = [st.fmean(x["overall_adj"] for x in v) for v in ok.values()]
-        b = max(means) - min(means)
-        # A gap of EXACTLY one criterion crosses, and both sides are k/N floats, so a
-        # bare `>=` decides the boundary on rounding: 1.0 - 12/13 comes out 6e-17 below
-        # 1/13. The selftest's BOUNDARY row caught that; the tolerance is what fixed it.
-        crosses = (b - w) >= quantum - 1e-9
-        note = "" if len(ok) == 4 else f" ({len(ok)} stacks - not a four-way comparison)"
+        if len(ns) != 1:
+            out.append(f"              -> NOT ASKED: the selected stacks disagree on the "
+                       f"criterion count {ns} - there is no single `1/N` to beat")
+            continue
+        # INTEGER ARITHMETIC. See the docstring: floats round, and the rounding is larger
+        # than any tolerance that would still leave the test able to refuse.
+        sums = {s: v[0]["n_passed_adj"] + v[1]["n_passed_adj"] for s, v in ok.items()}
+        diffs = [abs(v[0]["n_passed_adj"] - v[1]["n_passed_adj"]) for v in ok.values()]
+        k = len(ok)
+        crosses = k * (max(sums.values()) - min(sums.values())) - 2 * sum(diffs) >= 2 * k
+        w = st.fmean(diffs) / n_scored
+        b = (max(sums.values()) - min(sums.values())) / (2 * n_scored)
+        note = "" if k == 4 else f" ({k} stacks - not a four-way comparison)"
         out.append(f"              within-cell floor={w:.4f}  between-stack range={b:.4f}"
                    f"  range-floor={b - w:.4f}  vs one criterion {quantum:.4f}")
         out.append(f"              -> {'CROSSES' if crosses else 'DOES NOT CROSS'}"
@@ -261,17 +298,34 @@ def main(run_dir: str) -> int:
     return 0
 
 
-def _row(game: str, stack: str, trial: str, score: float, gate: bool, n: int) -> dict:
-    return {"game": game, "stack": stack, "trial": trial, "overall_adj": score,
-            "gate_green": gate, "n_scored": n}
+def _row(game: str, stack: str, trial: str, passed: int, gate: bool, n: int) -> dict:
+    """A row as `load()` builds one, INCLUDING the rounding.
+
+    `passed` is the adjudicated pass COUNT, because that is the quantity that exists;
+    `overall_adj` is then derived through the same `overall_score` the real path uses.
+    The previous version took a float and the callers handed it `12/13` unrounded, so
+    the BOUNDARY row exercised a value `load()` can never produce and asserted a verdict
+    the tool did not have on real data (AGENTS.md rule 12: a control that does not share
+    the subject's path is testing a different subject).
+    """
+    return {"game": game, "stack": stack, "trial": trial,
+            "overall_adj": overall_score({"programmatic": 1.0, "playbot": passed / n}),
+            "n_passed_adj": passed, "gate_green": gate, "n_scored": n}
 
 
 def ranking_test_selftest() -> int:
     """Can `ranking_test` say CROSSES at all?
 
-    Over every stored run it says DOES NOT CROSS nine times out of nine. That is the
+    Over every stored run it says DOES NOT CROSS every time it is asked. That is the
     shape of a check that cannot fail (rule 1) and of a census reporting its instrument
     (rule 12), and the two are indistinguishable from outside without this.
+
+    **Every row is built by `_row`, which derives its score through `overall_score`, the
+    same rounding the real `load()` applies.** The first version of this selftest took
+    floats and was handed `12/13` unrounded, so BOUNDARY passed against a value that
+    cannot come out of `load()` while the runtime answered DOES NOT CROSS on the very
+    case the docstring documents. A control that does not travel the subject's path is a
+    control over a different subject.
     """
     failed = 0
 
@@ -283,23 +337,35 @@ def ranking_test_selftest() -> int:
 
     # POSITIVE. Four gate-green stacks, zero within-cell noise, one stack two criteria
     # below the rest. 2/13 = 0.1538 > 1/13.
-    rows = ([_row("g", s, t, 1.0, True, 13) for s in "abc" for t in "01"]
-            + [_row("g", "d", t, 11 / 13, True, 13) for t in "01"])
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", t, 11, True, 13) for t in "01"])
     out = ranking_test(rows)
     check("POSITIVE: a two-criterion gap on a silent floor CROSSES", "CROSSES" in out
           and "DOES NOT CROSS" not in out, out.strip().splitlines()[-1].strip())
 
-    # THE QUANTUM. Same shape, gap of exactly one criterion. range-floor == 1/N, so it
-    # crosses on the >= boundary; at anything smaller it must not.
-    rows = ([_row("g", s, t, 1.0, True, 13) for s in "abc" for t in "01"]
-            + [_row("g", "d", t, 12 / 13, True, 13) for t in "01"])
-    check("BOUNDARY: a gap of exactly one criterion crosses",
-          "-> CROSSES" in ranking_test(rows))
+    # THE QUANTUM, ON THE PATH `load()` ACTUALLY PRODUCES. A gap of exactly one criterion
+    # must cross. Through `overall_score`'s 4-decimal rounding the float form of this is
+    # 1.0000-0.9231 = 0.0769 against 1/13 = 0.076923..., which is why the comparison is
+    # in integer counts; this row is the one that was green on unrounded input while the
+    # runtime said DOES NOT CROSS.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", t, 12, True, 13) for t in "01"])
+    check("BOUNDARY: a gap of exactly one criterion crosses, through load()'s rounding",
+          "-> CROSSES" in ranking_test(rows),
+          f"scores {rows[0]['overall_adj']} vs {rows[-1]['overall_adj']}")
+
+    # VARIANT, and the other side of that boundary: anything SHORTER than one criterion
+    # must not cross. Without it, "crosses at 1/N" and "crosses at anything" look alike.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "ab" for t in "01"]
+            + [_row("g", "c", "0", 13, True, 13), _row("g", "c", "1", 12, True, 13)])
+    out = ranking_test(rows)
+    check("VARIANT: half a criterion of range does NOT cross", "DOES NOT CROSS" in out,
+          out.strip().splitlines()[-2].strip())
 
     # VARIANT: the gap is real but the within-cell floor is just as large. This is the
     # pre-registered `range <= noise` rule and it must still refuse.
-    rows = ([_row("g", s, t, 1.0, True, 13) for s in "abc" for t in "01"]
-            + [_row("g", "d", "0", 1.0, True, 13), _row("g", "d", "1", 11 / 13, True, 13)])
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", "0", 13, True, 13), _row("g", "d", "1", 11, True, 13)])
     out = ranking_test(rows)
     check("VARIANT: a gap no larger than its own within-cell floor does NOT cross",
           "DOES NOT CROSS" in out, out.strip().splitlines()[-1].strip())
@@ -307,18 +373,34 @@ def ranking_test_selftest() -> int:
     # MUTANT: the same crossing gap, but the low stack failed the tier-1 gate. A gate
     # failure is not a rank, so the group must fall back to the three that are green -
     # and they are tied.
-    rows = ([_row("g", s, t, 1.0, True, 13) for s in "abc" for t in "01"]
-            + [_row("g", "d", t, 11 / 13, False, 13) for t in "01"])
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", t, 11, False, 13) for t in "01"])
     out = ranking_test(rows)
     check("MUTANT: a gate-FAIL stack is gated out, not ranked last",
           "DOES NOT CROSS" in out and "gated out" in out)
     check("...and it is named where it went, not silently dropped", "'d'" in out)
 
     # A group with one gate-green stack is not asked at all - never answered NO.
-    rows = ([_row("g", "a", t, 1.0, True, 13) for t in "01"]
-            + [_row("g", "b", t, 0.5, False, 13) for t in "01"])
+    rows = ([_row("g", "a", t, 13, True, 13) for t in "01"]
+            + [_row("g", "b", t, 7, False, 13) for t in "01"])
     check("NOT ASKED beats a false negative when there is nothing to compare",
           "NOT ASKED" in ranking_test(rows))
+
+    # THE DENOMINATOR IS THE SELECTED STACKS'. A gated-out submission with a different
+    # criterion count must not set the threshold the survivors are judged against; and
+    # if the SURVIVORS disagree, there is no single 1/N and the group is NOT ASKED.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "ab" for t in "01"]
+            + [_row("g", "c", t, 11, True, 13) for t in "01"]
+            + [_row("g", "d", t, 40, False, 40) for t in "01"])
+    out = ranking_test(rows)
+    check("a gated-out stack's criterion count does not set the threshold",
+          "N=13 criteria" in out and "-> CROSSES" in out,
+          out.strip().splitlines()[1].strip())
+    rows = ([_row("g", "a", t, 13, True, 13) for t in "01"]
+            + [_row("g", "b", t, 40, True, 40) for t in "01"])
+    check("VARIANT: selected stacks disagreeing on N is NOT ASKED, not a verdict",
+          "NOT ASKED" in ranking_test(rows) and "disagree on the criterion count"
+          in ranking_test(rows))
 
     print(f"discrimination ranking_test selftest: {'FAILED' if failed else 'OK'}")
     return 1 if failed else 0

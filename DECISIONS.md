@@ -1673,19 +1673,26 @@ ancestor of the tree. `landed_status` returns **three values**:
 |---|---|---|
 | `LANDED` | a `task-<id>-*` ref is an ancestor | counted |
 | `ORPHANED` | such a ref exists and none of them is | **exit 1**, naming the ref |
-| `NOT_CHECKED` | no such ref survives | counted and printed, **never a pass** |
+| `NOT_CHECKED` | no such ref survives, **or git could not answer** | counted and printed, **never a pass** |
+
+`merge-base --is-ancestor` uses exit 0 and 1 for the answer and everything else for a failure, so
+`_is_ancestor` is three-valued too. Collapsing 128 into "not an ancestor" would make `check`
+exit 1 naming a ticket whose ancestry it never established — rule 2, a state inferred from
+something that is not a report of it.
 
 | Decided | Rejected, and why |
 |---|---|
 | Three values | Two. A merged branch is normally deleted, so a two-valued check would report **112 of the 119** closed tickets as verified while verifying nothing — rule 1's `total=0 passed=0` with a plausible denominator |
 | The trigger is *a `done` ticket whose branch is not an ancestor* | Anything keyed on the ticket's `pr` field, or on merge-commit messages. Both are open classes of text; a ref name and an ancestry test are closed |
 | `main`, `origin/main`, **and the invoking checkout's `HEAD`**, any of which counts | `main` alone. It makes the gate unfixable from the branch that fixes it: the agent landing an orphan cannot turn its own `check` green before the orchestrator merges, and a gate that stays red through correct work gets bypassed as a habit. In the main checkout and in CI all three are the same commit, so the condition is unchanged exactly where it is enforced |
-| The caller's `HEAD` is resolved **at the caller's address**, and the bases are de-duplicated **by SHA** | A bare `HEAD` in the list, which is what the first version held. `TASKS` is the main checkout, so `HEAD` asked there is `main` under another name — a second opinion that was a restatement of the first, printed as two bases where there was one (rules 9 and 12). Worktrees share one object database, so a SHA needs no second git dir |
+| The caller's `HEAD` is taken from **both the process's working directory and the file's own checkout**, de-duplicated **by SHA**, and **each is required to exist in the repository the ancestry query runs against** | Any single address. A bare `HEAD` asked at `TASKS` is `main` under another name — two bases printed where there is one (rules 9 and 12). `ROOT` alone is worse: it comes from `__file__`, and the work skill tells an agent to run the **main** copy of the tool, under which its own branch is never consulted and the orphan it just landed cannot be cleared. The existence check is not defensive tidiness — without it a SHA from an unrelated checkout becomes a base, every `merge-base` exits 128, and the three-valued reader turns **the whole gate silent**, which reads as a clean queue. `tasks_control`'s own caller-HEAD row caught that |
 | It **fails** rather than warns | A warning. The false-positive count is 0, and the one true positive is a published tool that existed on no branch anyone would look at |
 
 **Measured on the live queue before it shipped**, 2026-08-23, `python3 eval/tools/tasks.py check`
 over 121 tickets: **119 `done` — 6 LANDED, 1 ORPHANED, 112 NOT_CHECKED. 0 false positives, 1 true
-positive**, and the true positive is task 70. Measuring first is not a formality here: the
+positive**, and the true positive is task 70. **That population moves within the hour** — a peer
+closing a ticket took it to 120 `done` / 8 LANDED before this was merged — which is why the census
+is printed on every run rather than pinned anywhere. Measuring first is not a formality here: the
 obvious widening of the census trigger turned **27 correct lines red with no true positive among
 them** (#140), and the flag gate's was **8 false positives against 0 true** (#142). Both of those
 triggers were open classes of English; a ref name and an ancestry test are not.
@@ -1707,11 +1714,17 @@ the right one rather than needing a wider tolerance.
 > opinion, and a green CI run does not cover this. The same run also showed `main` failing to
 > resolve there and `origin/main` carrying it, which is what that fallback is for.
 
-Pinned in both directions by `tasks_control.py` direction 11 — 11 predicate rows including the
-`task-7-` / `task-70-` prefix variants in both directions, and 4 end-to-end rows on a real scratch
-repository — and by four mutants in `tasks_mutants.py`: excusing an orphan, accusing a deleted
-branch, computing the census without printing it, and de-duplicating the bases by name. All four
-are caught.
+Pinned in both directions by `tasks_control.py` direction 11 — predicate rows including the
+`task-7-` / `task-70-` prefix variants in both directions and the three-valued `is_ancestor`, plus
+end-to-end rows on real scratch repositories, one of which runs the tool with its cwd in a
+worktree the file does not live in. The control goes 79 rows to 100. Seven mutants in
+`tasks_mutants.py` cover it: excusing an orphan, accusing a deleted branch, computing the census
+without printing it, de-duplicating the bases by name, reading a git error as "not an ancestor",
+asking the caller's HEAD only at the file's address, and accepting a base from a foreign
+repository. **One of them survived first time** — the error-branch mutant — because the rows
+pinned `landed_status`'s handling of a `None` and never ran `_is_ancestor` itself. A consumer
+pinned without its producer is the `tasks/106` shape, and it is why that row now calls the
+function against a real repository where a missing ref exits 128.
 
 | Would re-open this | The observation |
 |---|---|
@@ -1951,8 +1964,30 @@ Two things that reading cost, both kept because the next agent would otherwise r
   Gating on tier 1 removes it here; the excuse pattern itself is untouched and still live.
 - **The ranking test said `DOES NOT CROSS` every time it was asked**, which is the shape of a
   check that cannot fail. `python3 eval/judge/discrimination.py --selftest` now proves it can, on
-  the boundary case as well as the obvious one — and caught a float comparison that decided an
-  exactly-one-criterion gap by rounding.
+  the boundary case as well as the obvious one.
+
+> **The boundary row was green against a value the tool could not produce, and that is the
+> sharper lesson.** `ranking_test` compared floats against `1/N`, and every score reaches it
+> through `evaluate.overall_score`, **which rounds to 4 decimals**. At `N=13` a one-criterion gap
+> arrives as `1.0000 - 0.9231 = 0.0769` against a threshold of `0.076923…`, so on real data the
+> documented boundary case read **`DOES NOT CROSS`** — while the selftest, which built `12/13`
+> unrounded and never went through `load()`, read `CROSSES`. A tolerance could not fix it: the
+> shipped `1e-9` is four orders of magnitude below the rounding error, and a tolerance wide
+> enough to absorb it would swallow real gaps. **Tier 2 IS a pass count, so the test now does its
+> arithmetic in integer counts** — `k·(max_s − min_s) − 2·Σd ≥ 2k` — and cannot round at all;
+> `_row` builds every selftest row through `overall_score` so the control travels the subject's
+> path. **No stored verdict changed**: 8 groups asked, 0 cross, before and after.
+>
+> Two rules fired here and neither was mine to claim. **A control that does not travel the
+> subject's path is a control over a different subject** (rule 12), and *a mutant asks whether a
+> check can fail; only a variant asks whether it can still pass on an input it mishandles* (rule
+> 15) — the input being an ordinary rounded score. Both were found by the pull-request reviewer,
+> on PR #8, from this repository's own rules.
+
+- **The denominator was taken from the whole game and the gating happened afterwards**, so `1/N`
+  could come from a submission that had been removed from the comparison. It is now established
+  over the selected stacks, and a group whose survivors disagree on `N` is `NOT ASKED` with the
+  counts printed rather than silently reduced to one of them (rule 4).
 
 ## Keeping this current
 

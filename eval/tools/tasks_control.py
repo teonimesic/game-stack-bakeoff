@@ -1308,6 +1308,22 @@ LANDED_CASES = (
      "abc", ["refs/heads/task-70-merged"], "NOT_CHECKED"),
 )
 
+#: `is_ancestor` is THREE-VALUED and `None` means git could not answer. These pin the
+#: third value, which no row above can reach because `_ANCESTORS` is a set and a set
+#: membership test is total. Found in review of task 122: `merge-base --is-ancestor`
+#: exits 128 when a ref vanishes between the listing and the query, and reading that as
+#: "not an ancestor" makes `check` exit 1 naming a ticket whose ancestry it never
+#: established.
+LANDED_UNKNOWN_CASES = (
+    ("git failing to answer is NOT_CHECKED, never ORPHANED",
+     "70", ["refs/heads/task-70-vanished"], lambda r: None, "NOT_CHECKED"),
+    ("VARIANT: one unanswerable ref does not suppress a real LANDED on another",
+     "70", ["refs/heads/task-70-vanished", "refs/heads/task-70-merged"],
+     lambda r: None if "vanished" in r else True, "LANDED"),
+    ("VARIANT: a genuine False is still ORPHANED - the repair is not a blanket excuse",
+     "70", ["refs/heads/task-70-stray"], lambda r: False, "ORPHANED"),
+)
+
 
 # --------------------------------------------------------------------------- direction 11
 def landed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
@@ -1330,6 +1346,58 @@ def landed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
         got, cand = T.landed_status(tid, refs, lambda r: r in _ANCESTORS)
         rows.append((f"landed_status: {name}", 0, got == want,
                      f"want {want}, got {got} on {cand or '(no ref)'}"))
+    for name, tid, refs, anc, want in LANDED_UNKNOWN_CASES:
+        got, cand = T.landed_status(tid, refs, anc)
+        rows.append((f"landed_status: {name}", 0, got == want,
+                     f"want {want}, got {got} on {cand or '(no ref)'}"))
+
+    # THE PRODUCER OF THE THIRD VALUE, not only its consumer. The rows above hand
+    # `landed_status` a lambda returning None, so they never run `_is_ancestor` and a
+    # mutant collapsing its error branch SURVIVED them -- measured, not supposed. These
+    # call it against the real repository, where `merge-base --is-ancestor` on a
+    # nonexistent ref exits 128 (verified: 0 self, 1 not-an-ancestor, 128 missing).
+    real = _scratch_pair(tmp / "isanc")[0]
+    subprocess.run(["git", "-C", str(real), "branch", "-q", "orphan-tip", "HEAD"],
+                   check=True, capture_output=True)
+    base = [("main", subprocess.run(["git", "-C", str(real), "rev-parse", "main"],
+                                    check=True, capture_output=True,
+                                    text=True).stdout.strip())]
+    saved_tasks = T.TASKS
+    try:
+        T.TASKS = real / "tasks"
+        got_missing = T._is_ancestor("refs/heads/no-such-branch-here", base)
+        got_true = T._is_ancestor("refs/heads/orphan-tip", base)
+    finally:
+        T.TASKS = saved_tasks
+    rows.append(("_is_ancestor returns None (not False) when git cannot answer", 0,
+                 got_missing is None, f"got {got_missing!r} for a nonexistent ref"))
+    rows.append(("VARIANT: _is_ancestor still returns True for a real ancestor", 0,
+                 got_true is True, f"got {got_true!r}"))
+
+    # THE CALLER'S HEAD IS ASKED AT THE PROCESS'S ADDRESS, NOT ONLY THE FILE'S. `ROOT`
+    # comes from `__file__`, and the work skill tells an agent to run the MAIN copy of
+    # the tool by absolute path -- under which `ROOT` is the main checkout and the
+    # agent's own branch is never consulted, so the orphan it just fixed stays red and
+    # the documented repair path is dead. Both addresses are asked now, and this row is
+    # a real worktree whose HEAD is NOT reachable from the main checkout's.
+    main2, wt2 = _scratch_pair(tmp / "callerhead")
+    shutil.copy(TASKS_PY, main2 / "eval/tools/tasks.py")
+    g2 = ["git", "-C", str(wt2)]
+    (wt2 / "only-on-the-worktree.txt").write_text("x\n")
+    subprocess.run([*g2, "add", "-A"], check=True, capture_output=True)
+    subprocess.run([*g2, "commit", "-qm", "work only the worktree has"],
+                   check=True, capture_output=True)
+    wt_head = subprocess.run([*g2, "rev-parse", "HEAD"], check=True,
+                             capture_output=True, text=True).stdout.strip()
+    # Run the MAIN checkout's copy, with the WORKTREE as the working directory -- the
+    # exact shape the skill recommends.
+    p = subprocess.run([sys.executable, str(main2 / "eval/tools/tasks.py"), "check"],
+                       cwd=str(wt2), capture_output=True, text=True)
+    seen = ((p.stdout or "") + (p.stderr or ""))
+    rows.append(("the caller's cwd HEAD is a base, not just the file's checkout",
+                 0, wt_head[:9] in seen,
+                 f"worktree HEAD {wt_head[:9]} named: {wt_head[:9] in seen}; "
+                 f"{next((ln for ln in seen.splitlines() if 'done` tickets' in ln), seen[:90])}"))
 
     # 11b. A real repository: `merged` is on main, `orphan` is not, and the queue names both
     # as `done`. Two tickets in one queue, so the same run shows the gate firing on one and

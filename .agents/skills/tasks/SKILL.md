@@ -294,36 +294,30 @@ before concluding the hour was idle.
 
 Raise a priority when evidence arrives, not when it has been sitting a while.
 
-## `done` is a claim about the tree, and `check` now tests it
+## `done` is a claim about the tree, and `check` tests it
 
-A ticket reading `done` says the work is merged. Nothing compared that against the tree until
-2026-08-23, and **task 70 sat closed for a day over 678 insertions `main` had never seen** —
-including a 458-line tool that existed on no other branch. It was found by a person clearing
-stale worktrees, which is not a mechanism.
+**Authoritative: `DECISIONS.md`, *"A closed ticket is checked against the tree"*.** It holds the
+incident, the census, the bases, the false-positive count and the reversal conditions; if this
+section and that entry disagree, **the entry wins and this is the bug.** What follows is the
+procedure only.
 
-`check` now asks, for every `done` ticket, whether any `task-<id>-*` ref — local or on a remote
-— is an ancestor of `main`, of `origin/main`, or of the HEAD of the checkout you invoked it from.
-**Three values, and the third is the one that matters:**
+`check` classifies every `done` ticket's `task-<id>-*` branch into **three** values, and the
+third is the one to understand:
 
-| | |
+| | what you do |
 |---|---|
-| `LANDED` | counted |
-| `ORPHANED` | **exit 1**, naming the ref. Read the branch diff before believing either side |
-| `NOT_CHECKED` | no such ref survives — counted and printed, **never a pass** |
+| `LANDED` | nothing |
+| `ORPHANED` | **`check` exits 1.** Read the branch diff before believing either side — the queue and the tree disagree and neither is automatically right |
+| `NOT_CHECKED` | nothing, but **do not read it as a pass.** It is the normal answer, because a merged branch is usually deleted |
 
-Most closed tickets have had their branch deleted, so `NOT_CHECKED` is the normal answer: **112
-of 119** when this shipped, against 6 `LANDED` and 1 `ORPHANED`, with **0 false positives**. A
-two-valued version would have reported those 112 as verified while verifying nothing.
+**Run it where the branches are.** A verdict is relative to the refs the caller can see, so a
+branch that exists only in one clone is invisible everywhere else — **including CI, where the
+defect this was built for reads `NOT_CHECKED`.** A green CI run does not cover this; the git hook
+in the checkout holding the branches is what does. The measurement behind that is in
+`DECISIONS.md`.
 
 **It asks reachability, not content.** A branch merged `-s ours`, or one a later commit reverted,
 reads `LANDED` with its work absent; a squash merge would read `ORPHANED` with its work present.
-The derivation and what would re-open it are in `DECISIONS.md`.
-
-> **Run it where the branches are.** A verdict is relative to the refs the caller can see, and a
-> local-only branch is invisible to CI: on the same commit, the operator's checkout read
-> **7 LANDED / 112 NOT CHECKED** and CI read **6 LANDED / 113 NOT CHECKED**, because task 70's
-> branch was never pushed. **The very defect this catches reads `NOT CHECKED` in CI.** A green CI
-> run does not cover this; the git hook in the checkout holding the branches is what does.
 
 ## Reachability: `check` warns, it cannot decide
 

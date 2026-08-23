@@ -37,8 +37,13 @@ THREE THINGS IT REFUSES TO SMOOTH OVER, each of which produced a wrong published
    `trials/<tid>.json`, not from the report, and a cell with an unknown or non-completed
    reason is excluded and listed. `wg-g4c-capgate` is the case that matters: its two
    arms have no trial JSONs, return byte-identical diff lists to each other, and read
-   12 of 140 - six times the floor anything else shows. Whatever they are, they are not
-   two independent trials, and pooling them would raise the floor with copies.
+   12 of 140 - 8.57%, THREE times the 2.86% that is the highest rate any real cell pair
+   shows. Whatever they are, they are not two independent trials, and pooling them would
+   raise the floor with copies.
+
+   This said "six times" until it was re-derived, and the error is refusal 2 above being
+   broken by the sentence that explains refusal 3: six is 12 against 2, the largest
+   verdict-diff COUNT elsewhere, over denominators of 140 and 88.
 
 A criterion recorded by only ONE trial of a pair is not a difference and is not counted;
 it is a suite change between the two gradings, reported as `unpaired-criteria`.
