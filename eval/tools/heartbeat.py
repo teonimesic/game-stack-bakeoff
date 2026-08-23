@@ -126,22 +126,69 @@ def _tasks() -> dict[str, int]:
     return counts
 
 
+def _results() -> dict[str, int]:
+    """Counts of OUTPUTS, not source.
+
+    These are the most important metrics here and the ones most easily lost. Judge rounds
+    land as JSON *inside existing run directories*, so they move neither a directory count
+    nor any source-line count. An hour in which ten rounds landed was reported as "NO NEW
+    WORK" because the snapshot counted only source.
+
+    That was the THIRD time an enumerated snapshot missed the next location -- after
+    `launch.just` (missed because the file list went by extension) and `eval/tools`
+    (missed because the list went by directory). Counting what the work PRODUCES closes
+    the class, where adding one more directory to a list would only have postponed it.
+
+    `eval/runs/` is deliberately untracked and large, so these are read from disk rather
+    than from git. That is the one place a filesystem walk is the right instrument.
+    """
+    runs = ROOT / "eval" / "runs"
+    if not runs.is_dir():
+        return {"runs": 0, "judge_rounds": 0, "graded_submissions": 0}
+    return {
+        "runs": sum(1 for p in runs.glob("wg-*") if p.is_dir()),
+        "judge_rounds": sum(1 for _ in runs.rglob("*__seed*.json")),
+        "graded_submissions": sum(1 for _ in runs.rglob("report.json")),
+    }
+
+
+def _criteria() -> int:
+    """Distinct criterion ids across the play-bots and the programmatic checks."""
+    ids: set[str] = set()
+    judge = ROOT / "eval" / "judge"
+    for p in list(judge.glob("bot_*.py")) + [judge / "checks.py"]:
+        if p.exists():
+            ids.update(re.findall(r'"([a-z]+\.[a-z_]+)"', p.read_text(encoding="utf-8")))
+    return len(ids)
+
+
 def collect() -> dict[str, int]:
     tracked = _tracked_files()
     n_findings, highest = _findings()
     tasks = _tasks()
-    judge = [p for p in tracked
-             if p.suffix == ".py" and "eval/judge/" in p.as_posix()]
-    return {
+
+    def _lines_under(rel: str) -> int:
+        return _count_lines([p for p in tracked
+                             if p.suffix == ".py" and rel in p.as_posix()])
+
+    m = {
         "findings": n_findings,
         "findings_highest": highest,
         "tasks_open": tasks["open"],
         "tasks_inflight": tasks["in_flight"],
         "tasks_done": tasks["done"],
-        "judge_code": _count_lines(judge),
+        "judge_code": _lines_under("eval/judge/"),
+        "tools_code": _lines_under("eval/tools/"),
+        "criteria": _criteria(),
+        "skills": sum(1 for p in (ROOT / ".claude" / "skills").glob("*")
+                      if (p / "SKILL.md").exists()),
+        "improv_eval": _count_lines([ROOT / "eval" / "IMPROVEMENTS.md"]),
+        "improv_root": _count_lines([ROOT / "IMPROVEMENTS.md"]),
         "project_lines": _count_lines(tracked),
         "tracked_files": len(tracked),
     }
+    m.update(_results())
+    return m
 
 
 def main() -> int:
