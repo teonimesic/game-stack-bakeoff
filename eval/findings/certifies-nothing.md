@@ -2539,3 +2539,46 @@ The positive control — a constructed pair whose tiers disagree, crossing at w1
 kept green across that change, which is the only reason the narrowing is known to have
 removed false alarms rather than the tool's ability to see anything at all. `--selftest`
 carries 12 checks including that control and a regression guard for the endpoint bug.
+
+## 94. A guard that succeeded three times while three agents took the same number
+
+`tasks.py add` allocated task ids and defended the allocation with an exclusive create
+(`O_EXCL`) plus retry-on-collision. It was written after two agents in one checkout both
+created a `12` and one task vanished silently, and it fixed that.
+
+On 2026-08-23 the queue moved to one-agent-per-task, each agent in its own git worktree.
+**Three agents filed a "task 27" within the same hour. All three `O_EXCL` calls succeeded.
+No retry fired, nothing collided, and nothing reported a problem** — because `tasks/` is a
+tracked directory and each worktree therefore had its own copy. The guard was protecting
+one directory while the thing that needed protecting was the *numbering*, which is shared.
+
+The same day, and for the same reason, three branches independently allocated findings
+**#89, #90 and #91**. Four identifiers had to be renumbered by hand at merge time, every
+one of them found by a person reading a diff.
+
+> **A guard on a copy certifies nothing about the original.** When work forks, ask which
+> state is per-fork and which is global; a guard placed on the per-fork copy will pass
+> every time and defend nothing.
+
+This is the RESOURCE-versus-INSTANCE failure (rule 6) with a new instance, and the earlier
+wording could not have caught it: the guard named a directory because at the time there was
+only one. It is also #37's shape — every check agreed and every check was wrong — arriving
+by a different route, since three independent successes read as three confirmations.
+
+**Repaired structurally rather than clerically.** Renumbering at merge time treats a design
+fault as a clerical one and would have recurred on the next parallel run. `tasks.py` now
+resolves `tasks/` to the **main worktree** from wherever it is invoked, so there is one
+queue that every agent reads and writes. Agents also see each other's newly filed tasks,
+which prevents duplicated *work* and not merely duplicated *numbers* — two of the three
+task 27s were about genuinely different things, but nothing would have stopped them being
+about the same thing.
+
+Allocation is additionally serialised by a lock in the repository's **common git dir**,
+which every worktree shares, and ids are allocated above everything git has ever tracked
+under `tasks/` so a merged-and-pruned branch cannot free a number that a document cites.
+
+Pinned: `tasks.py check` now fails on duplicate ids, verified red with a planted duplicate
+and green after its removal. The shared-queue resolution was verified by running the new
+tool from inside an agent worktree — the first attempt tested the worktree's STALE copy of
+the tool and reported the fix absent, which is #60's "a control run after the fix tests the
+fix" with the staleness on the other side.

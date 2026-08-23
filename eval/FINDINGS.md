@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#93 from building and running this evaluator. **Check whether a
+Findings #19-#94 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -168,6 +168,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **91** | Three of four mutants were inert because the real data never reached the branch they broke | [certifies-nothing](findings/certifies-nothing.md) |
 | **92** | A scored tier that returns the same number for every submission, and the weight in front of it | [certifies-nothing](findings/certifies-nothing.md) |
 | **93** | `suite.json` describes the last thing written into the directory, not the run | [documentation](findings/documentation.md) |
+| **94** | A guard that succeeded three times while three agents took the same number | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

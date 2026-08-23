@@ -34,6 +34,20 @@ grep -rl "FINDINGS.md #66" tasks/                           # what refers to a f
 **Read one task, not the queue.** `show ID` or the file itself. Reading all of them to pick one
 is the cost this layout exists to remove.
 
+### The queue is shared, and lives in the main checkout
+
+`tasks.py` resolves `tasks/` to the **main worktree** wherever you run it from, including from
+inside an agent worktree. There is one queue and every agent reads and writes it.
+
+**So filing or closing a task appears as an uncommitted change in the MAIN checkout, not on
+your branch.** That is deliberate: the queue's state is a fact about the project, not about one
+branch's work, and it is why you can see what a peer filed a minute ago.
+
+It was not always so, and the failure is worth knowing. When `tasks/` was per-worktree, three
+agents each filed a "task 27" in one hour and every exclusive-create guard succeeded, because
+each was guarding its own copy (#94). If you ever find yourself renumbering ids at merge time,
+something has forked the queue again.
+
 ## Working it
 
 **A task in this queue is authorised. Filing it was the decision.** Start it, do it, close it.

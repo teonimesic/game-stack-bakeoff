@@ -25,12 +25,76 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-TASKS = ROOT / "tasks"
 STATUSES = ("open", "in_flight", "done")
+
+
+def _main_worktree() -> Path:
+    """The MAIN checkout, even when called from inside an agent's worktree.
+
+    THE QUEUE IS SHARED STATE. IT MUST NOT BE PER-BRANCH.
+
+    Under one-agent-per-task each agent gets its own worktree, and a tracked `tasks/`
+    directory is therefore COPIED into each one. Three agents filed a "task 27" on
+    2026-08-23 and none of them collided with anything, because they were writing to three
+    different copies. Renumbering them at merge time is possible -- it was done four times
+    that day -- but it treats a structural problem as a clerical one.
+
+    A queue that forks per branch is not a queue. Agents cannot see what their peers have
+    just filed, so they duplicate the WORK as well as the number, and every merge fights
+    over the same files.
+
+    So all reads and writes go to the main worktree's `tasks/`, by absolute path, from
+    wherever they are invoked. `git worktree list --porcelain` lists the main worktree
+    first; that is the documented order, not an accident of parsing.
+
+    The consequence, and it is deliberate: filing or closing a task shows up as an
+    uncommitted change in the MAIN checkout, not in the agent's branch. That is correct.
+    The queue's state is a fact about the project, not about one branch's work.
+    """
+    try:
+        out = subprocess.run(["git", "-C", str(Path(__file__).resolve().parent),
+                              "worktree", "list", "--porcelain"],
+                             capture_output=True, text=True, check=True).stdout
+        for line in out.split("\n"):
+            if line.startswith("worktree "):
+                return Path(line[len("worktree "):].strip())
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        pass
+    return ROOT          # not a git checkout: degraded, but no worse than before
+
+
+TASKS = _main_worktree() / "tasks"
+
+
+def _taken_ids() -> set[int]:
+    """Ids in use: the shared queue, plus every id git has ever tracked under `tasks/`.
+
+    History matters as much as the current directory. A merged-and-pruned branch still
+    contributed its id, and reusing a number that a finding or a commit message already
+    cites would silently repoint the citation at different work.
+    """
+    taken: set[int] = set()
+    for p in TASKS.glob("*.md"):
+        m = re.match(r"(\d+)", p.stem)
+        if m:
+            taken.add(int(m.group(1)))
+    try:
+        out = subprocess.run(["git", "-C", str(ROOT), "log", "--all", "--pretty=format:",
+                              "--name-only", "--diff-filter=A", "--", "tasks/"],
+                             capture_output=True, text=True, check=True).stdout
+        for line in out.split("\n"):
+            m = re.match(r"tasks/(\d+)", line.strip())
+            if m:
+                taken.add(int(m.group(1)))
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        pass
+    return taken
 
 
 def _parse(p: Path) -> dict:
@@ -119,18 +183,58 @@ def _set(tid: str, **kw) -> int:
 def cmd_add(a) -> int:
     """Create a task file, refusing to overwrite one that appeared while we looked.
 
-    The id is computed by reading the directory, so two writers racing compute the SAME
-    number - and `write_text` would then silently overwrite the loser. That happened on
-    2026-08-22: two agents both created a `12` and one task vanished without any error.
-    A silent-overwrite path is exactly what this project does not leave lying around.
+    Writes go to the ONE shared queue (`_main_worktree`), which is what actually fixes the
+    2026-08-23 collision -- three agents each created a `task 27` because each had its own
+    copy of `tasks/`. With a single directory the remaining races are ordinary, and three
+    layers cover them:
 
-    So: exclusive create (O_EXCL), and on collision take the next free id and try again.
-    The check is on the ID, not the filename, because the same id with a different slug is
-    still the same task number.
+    1. The id is allocated above everything in the shared queue AND everything git has ever
+       tracked under `tasks/`, so a merged-and-pruned branch cannot free a cited number.
+    2. A lock in the repository's COMMON git dir -- shared by every worktree -- serialises
+       concurrent allocation. `mkdir` is atomic, so it is the lock primitive.
+    3. Exclusive create (`O_EXCL`) on the file itself, for a photo-finish inside the lock.
     """
     TASKS.mkdir(exist_ok=True)
     slug = re.sub(r"[^a-z0-9]+", "-", a.title.lower()).strip("-")[:48]
-    nid_int = max([int(t["id"]) for t in _load() if t.get("id", "").isdigit()] + [0]) + 1
+
+    # The common dir is shared by every worktree; `TASKS` is not. Locking the shared thing
+    # is the entire point -- a lock inside a worktree protects it from nobody.
+    lock = None
+    try:
+        common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--git-common-dir"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+        lock = (ROOT / common).resolve() / "tasks-id.lock"
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        lock = None
+    held = False
+    if lock is not None:
+        for _ in range(100):
+            try:
+                lock.mkdir()
+                held = True
+                break
+            except FileExistsError:
+                time.sleep(0.05)
+            except OSError:
+                break
+        else:
+            # A lock we waited out is more likely stale than contended. Say so and carry
+            # on: refusing to file a task because of a leftover directory would be a guard
+            # that costs more than the failure it prevents.
+            print(f"note: {lock} held for 5s; proceeding — layers 1 and 3 still apply",
+                  file=sys.stderr)
+    try:
+        nid_int = max(_taken_ids() | {0}) + 1
+        return _write_task(a, slug, nid_int)
+    finally:
+        if held:
+            try:
+                lock.rmdir()
+            except OSError:
+                pass
+
+
+def _write_task(a, slug: str, nid_int: int) -> int:
     for _ in range(50):
         nid = f"{nid_int:02d}"
         if any(TASKS.glob(f"{nid}-*.md")):
@@ -153,6 +257,17 @@ def cmd_add(a) -> int:
 
 def cmd_check() -> int:
     bad = []
+    # DUPLICATE IDS. The shared queue makes these hard to create; this makes them
+    # impossible to keep. Four had to be renumbered by hand on 2026-08-23 and every one was
+    # found by a person looking, which is not a mechanism. A duplicate id is worse than a
+    # missing task: citations resolve to two different pieces of work and both look right.
+    by_id: dict[str, list[str]] = {}
+    for t in _load():
+        by_id.setdefault(str(t.get("id", "??")), []).append(t["path"].name)
+    for tid, names in sorted(by_id.items()):
+        if len(names) > 1:
+            bad.append(f"id {tid} used by {len(names)} files: {', '.join(sorted(names))} — "
+                       f"citations to this number resolve to more than one task")
     for t in _load():
         if t.get("malformed"):
             bad.append(f"{t['path'].name}: {t['malformed']}")
