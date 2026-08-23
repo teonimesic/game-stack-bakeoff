@@ -146,14 +146,28 @@ grader owns its own three, listed in `judge/AGENTS.md`.
   cleanly while holding two spliced documents, and its in-range values were published as fact.
   Write atomically — temp file plus `os.replace`.
 
-- **Any durable record of what a measurement was CONFIGURED to be is append-only.** A second
-  launch adds a record; it never replaces one. The resource, not a list of files: suite
-  manifests, prompt snapshots, blinding mappings, control floors, regime notes. `cmd_build`
-  guarded the prompt snapshot (#57) and overwrote `suite.json` eleven lines below it, so five
-  stored run directories describe a launch that is not the one they are named for, and
-  `wg-arena3d`'s manifest hides a two-wave build that #49 had to reconstruct by hand (#93,
-  #119). Write these through `tools/manifest.py write_manifest()`, which reserves the name
-  with `O_EXCL` and puts a re-launch in `suite-<stamp>.json` carrying `supersedes`.
+- **Any durable record of what a measurement was CONFIGURED to be, or of what it MEASURED, is
+  append-only.** A second launch adds a record; it never replaces one. The resource, not a list
+  of files: suite manifests, prompt snapshots, blinding mappings, control floors, regime notes,
+  judge-sweep summaries, backup verification records. `cmd_build` guarded the prompt snapshot
+  (#57) and overwrote `suite.json` eleven lines below it, so five stored run directories
+  describe a launch that is not the one they are named for, and `wg-arena3d`'s manifest hides a
+  two-wave build that #49 had to reconstruct by hand (#93, #120).
+
+  **`tools/manifest.py` is the single writer, and it holds two shapes. Which one you want is
+  decided by whether the directory has an identity the record is named for.**
+
+  | | canonical name holds | writer | used by |
+  |---|---|---|---|
+  | **pinned** | the FIRST record; a re-launch goes to `<stem>-<stamp>` | `write_manifest()` | `runs/<run>/suite.json` — the directory is named for one launch, and a later one must not take the name |
+  | **rolling** | the LATEST record; the one it replaces is kept as `<stem>-<stamp>` | `write_rolling_json()`, `write_rolling()` | judge-sweep `GATES/SEQUENTIAL/REPRODUCIBILITY.json`, and `MANIFEST.sha256`/`DEST_ONLY.txt`/`MEASURED.json` at the evidence destination — these directories accumulate and their record states the position as of the last invocation |
+
+  Both reserve the sibling name atomically (`O_EXCL`, or `os.link` for the rolling one), so
+  nothing can lose the race with itself. **Pinning where rolling belongs is not a safe default:**
+  `PROTOCOL.md` tells a reader to take the evidence count from `MEASURED.json`, and pinning that
+  name to the first sync would protect every record and hand the documented reader a stale
+  number. `judge_ledger.read_counter` reads the canonical summary for the same reason — pin it
+  and every resumed sweep comes back `UNEXPLAINED`.
 
   **`python3 tools/manifest.py audit` sweeps `runs/` offline** and asks two things of every
   manifest: does it describe the reports beside it, and does it belong to the directory it

@@ -37,6 +37,14 @@ A MANIFEST.sha256 is written next to the copy so a THIRD location — an externa
 disk, another machine — can be verified against this one later without either
 being trusted a priori.
 
+THE THREE DESTINATION RECORDS ARE APPEND-ONLY. `MANIFEST.sha256`, `DEST_ONLY.txt`
+and `MEASURED.json` each state what this copy held at one moment, and each used to
+be overwritten by the next sync. They now go through `manifest.write_rolling*`:
+the canonical name holds the latest verification, and the record it replaces is
+kept beside it as `<stem>-<stamp>`. Nothing at the destination is destroyed, and
+the names `eval/PROTOCOL.md` tells a reader to consult still hold current
+statements — see `manifest.py` for why append-only has two shapes.
+
 Exit status is 0 only if every tier passed.
 """
 
@@ -56,6 +64,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import evidence_set as ES  # noqa: E402
+import manifest as MF  # noqa: E402
 
 CHUNK = 1 << 20
 
@@ -384,18 +393,38 @@ def main() -> int:
               f"defect. Nothing is deleted; decide per path at the source.")
 
     # ---- manifest ----------------------------------------------------------
+    # ---- the three destination records --------------------------------------
+    #
+    # ALL THREE ARE APPEND-ONLY, and they take the ROLLING shape: the canonical name
+    # holds the LATEST verification and the record it replaces is kept beside it as
+    # `<stem>-<stamp>`. `eval/PROTOCOL.md` tells a reader in as many words to read the
+    # evidence count from `MEASURED.json`, so pinning the canonical name to the first
+    # verification - the shape `suite.json` uses - would protect the record and make the
+    # documented reader quote a stale number. `tools/manifest.py` holds both shapes and
+    # the criterion for choosing between them.
+    #
+    # Before this, each sync erased what the previous one measured. That is exactly the
+    # question #116 turned on: `wg-aspect-reliability/REPRODUCIBILITY.json` was copied at
+    # 220 bytes against a source that is 49,666, and it hashed EQUAL on both sides
+    # because the source was mid-write. Only a record of what the copy held at an earlier
+    # time can show that a destination file changed under a verification that was
+    # correctly green at the time (task 63).
+    #
+    # `MANIFEST.sha256` is ~1.1 MB and `--verify-only` is meant to be run freely, so an
+    # identical restatement writes nothing at all - see `manifest.write_rolling`.
     ok = not (missing or wrong_size or bad_hash or json_bad or tar_bad or base_bad)
     if ok:
         dest_root.mkdir(parents=True, exist_ok=True)
-        (dest_root / "MANIFEST.sha256").write_text("\n".join(manifest) + "\n")
-        (dest_root / "DEST_ONLY.txt").write_text(
+        MF.write_rolling(dest_root / "MANIFEST.sha256", "\n".join(manifest) + "\n")
+        MF.write_rolling(dest_root / "DEST_ONLY.txt",
             "# Files at this destination that the current evidence set does not\n"
             "# contain. Written by backup_evidence.py; nothing here was deleted.\n"
             f"# {time.strftime('%Y-%m-%dT%H:%M:%S%z')}  source {src_root}\n"
             + "".join(f"runs/{r}\n" for r in dest_only))
-        (dest_root / "MEASURED.json").write_text(json.dumps({
+        MF.write_rolling_json(dest_root / "MEASURED.json", {
             "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "source": str(src_root),
+            "destination": str(dest_root),
             "evidence_files": len(rels),
             "evidence_bytes": part.evidence_bytes,
             "regenerable_files_not_copied": part.regenerable_files,
@@ -409,7 +438,7 @@ def main() -> int:
             "starter_baselines_present": len(baselines),
             "starter_baseline_blobs_rederived": blobs_checked,
             "destination_only_files": len(dest_only),
-        }, indent=2))
+        })
         print(f"\nOK — {len(manifest):,} files verified by content at "
               f"{dest_runs}")
         print(f"manifest: {dest_root / 'MANIFEST.sha256'}")

@@ -34,6 +34,36 @@ does can shorten, replace or truncate a record already on disk. The precedent is
 `cmd_build`: the prompt snapshot has been kept-not-overwritten since #57, for exactly this
 reason, and the manifest three lines below it was not.
 
+## Append-only has TWO shapes, and choosing the wrong one makes a live name stale
+
+The property being protected is *no record on disk is destroyed*. Two different file
+layouts both satisfy it, and they differ in **what the canonical name means afterwards**:
+
+| | canonical name holds | superseded record goes to | writer |
+|---|---|---|---|
+| **pinned** | the FIRST record | `<stem>-<stamp>` (the new one) | `write_manifest()` |
+| **rolling** | the LATEST record | `<stem>-<stamp>` (the old one) | `write_rolling_json()` / `write_rolling()` |
+
+**The criterion is whether the directory has an identity the record is named for.**
+`runs/wg-g4-2026-08-17T09-38-32/suite.json` is *the manifest of the launch the directory
+is named after*; a later launch into it is an intruder and must not take the name, which
+is why `write_manifest` pins. A judge sweep directory and a backup destination have no such
+identity: they accumulate, and their summary describes the accumulation **as of the last
+invocation**. Pinning there would silently make the canonical name the oldest statement, and
+`eval/PROTOCOL.md` instructs a reader in as many words to *"never quote the evidence count
+from this table - read it from `MEASURED.json`"*. A guard that turns that instruction into
+a stale number has protected the record and broken the reader.
+
+Both shapes live here, in one file, deliberately: two similar policies written in two
+places is how #100 came back and how `suite.json` came to be guarded in one harness and
+overwritten in the other (#120).
+
+`write_rolling()` hard-links the existing file aside before `os.replace` puts the new one
+under the canonical name, so the preservation happens *first* and is atomic. **An identical
+restatement is not a new record**: when the bytes match what is already there, nothing is
+written and nothing is rolled, so `--verify-only` re-run against an unchanged evidence set
+does not accumulate a megabyte of identical checksum manifests.
+
 ## What the audit asks
 
 Two independent questions, because neither one alone finds all five affected directories:
@@ -101,6 +131,13 @@ LOCAL_UTC_OFFSET_HOURS = -3
 
 MARKER_NAME = "MANIFEST-DEFECT.json"
 CANONICAL = "suite.json"
+
+# Keys under which a record may state when it was made, read in this order. A record
+# carrying none of them is stamped from its mtime, which is strictly weaker: a `cp`
+# rewrites every mtime in glob order and produces a clean, ordered, meaningless
+# chronology - the defect `judge_ledger.MIN_SPLIT_S` was bought with. An embedded field
+# travels with the bytes; an mtime does not.
+RECORD_TIME_KEYS = ("started_at", "verified_at", "written_at", "generated_at")
 _STAMP_RE = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})")
 
 # Keys that make a manifest a WHOLEGAME manifest. `runner.py` writes a different, smaller
@@ -136,10 +173,14 @@ def _reserve(path: Path) -> bool:
     return True
 
 
-def _atomic_write(path: Path, obj: dict) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(obj, indent=2) + "\n")
+def _atomic_bytes(path: Path, data: bytes) -> None:
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp.write_bytes(data)
     os.replace(tmp, path)
+
+
+def _atomic_write(path: Path, obj: dict) -> None:
+    _atomic_bytes(path, (json.dumps(obj, indent=2) + "\n").encode())
 
 
 def write_manifest(run_dir: Path, payload: dict, *, name: str = CANONICAL,
@@ -179,6 +220,114 @@ def write_manifest(run_dir: Path, payload: dict, *, name: str = CANONICAL,
               f"  reports now beside it may come from more than one launch, and\n"
               f"  `tools/manifest.py audit` will say so (FINDINGS #93).\n")
     return candidate
+
+
+# ------------------------------------------------------- the rolling append-only path
+
+def record_stamp(path: Path) -> str:
+    """When the record at `path` was made, as a compact UTC stamp for a filename.
+
+    Prefers a timestamp the record carries in its own bytes over the filesystem's mtime,
+    for the reason in `RECORD_TIME_KEYS`. Returns `unstamped` rather than raising: a
+    record whose time cannot be established still has to be KEPT, and refusing to name it
+    would be a reason to destroy it, which is the one outcome this module exists to
+    prevent (AGENTS.md rule 7).
+    """
+    path = Path(path)
+    obj = read_json(path)
+    if obj is not None:
+        for k in RECORD_TIME_KEYS:
+            v = obj.get(k)
+            if isinstance(v, str):
+                s = _iso_compact(v)
+                if s != "unstamped":
+                    return s
+    try:
+        mt = path.stat().st_mtime
+    except OSError:
+        return "unstamped"
+    return dt.datetime.fromtimestamp(mt, dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def keep_previous(path: Path) -> Path | None:
+    """Preserve whatever is at `path` under a stamped sibling. Returns the sibling.
+
+    `None` means there was nothing there - not that nothing was kept.
+
+    `os.link` is the reservation: it fails with `FileExistsError` if the sibling name is
+    taken, so choosing the name and claiming it are one operation, exactly as `O_EXCL` is
+    for `write_manifest`. It also costs nothing for a large file and leaves the old inode
+    reachable after `os.replace` renames a new file over the canonical path.
+
+    The fallback matters on a real destination: this project's evidence copy is meant to
+    move to an external disk, and exFAT has no hard links.
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+    base = f"{path.stem}-{record_stamp(path)}"
+    n = 1
+    while True:
+        cand = path.with_name(f"{base}{path.suffix}" if n == 1
+                              else f"{base}-{n}{path.suffix}")
+        try:
+            os.link(path, cand)
+            return cand
+        except FileExistsError:
+            n += 1
+        except OSError:
+            if _reserve(cand):
+                _atomic_bytes(cand, path.read_bytes())
+                return cand
+            n += 1
+
+
+def write_rolling(path: Path, data: bytes | str, *,
+                  quiet: bool = False) -> tuple[Path, Path | None]:
+    """Write `data` to `path`, keeping the copy it replaces. Returns `(path, kept)`.
+
+    The canonical name holds the LATEST record; see the module docstring for when that is
+    the right shape and when `write_manifest` is. `kept` is `None` when there was nothing
+    to keep, and also when the new bytes are identical to the bytes already there - an
+    identical restatement is not a new record, and in that case nothing is written at all,
+    so the mtime goes on recording when the content last CHANGED.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = data if isinstance(data, bytes) else data.encode()
+    if path.exists() and path.read_bytes() == payload:
+        return path, None
+    kept = keep_previous(path)
+    _atomic_bytes(path, payload)
+    if kept is not None and not quiet:
+        print(f"  {path.name} already existed and was NOT overwritten in place: the "
+              f"record it replaces is kept as {kept.name}.")
+    return path, kept
+
+
+def write_rolling_json(path: Path, payload: dict, *,
+                       quiet: bool = False) -> tuple[Path, Path | None]:
+    """`write_rolling` for a JSON record, which can name what it superseded.
+
+    The key is `superseded_record`, NOT `supersedes`: `write_manifest` writes `supersedes`
+    on the sibling to name the canonical file it did not take, and here it is the
+    canonical file naming the sibling. Same word, opposite direction - so it gets a
+    different word, because a reader who has met one of these will meet the other.
+
+    There is no identical-bytes short-circuit here, and it would never fire if there were:
+    every caller's payload carries one of `RECORD_TIME_KEYS`, so two writes differ in at
+    least that field.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    kept = keep_previous(path)
+    rec = dict(payload)
+    rec["superseded_record"] = kept.name if kept is not None else None
+    _atomic_bytes(path, (json.dumps(rec, indent=2) + "\n").encode())
+    if kept is not None and not quiet:
+        print(f"  {path.name} already existed and was NOT overwritten in place: the "
+              f"record it replaces is kept as {kept.name}.")
+    return path, kept
 
 
 # --------------------------------------------------------------------------- read path

@@ -56,7 +56,28 @@ import tempfile
 #: Summary files a sweep writes beside its rounds. These are NOT rounds and must never be
 #: counted as ones - each mode writes a different name, which is why this is a set rather
 #: than the one filename whichever mode you happened to be looking at wrote.
-SUMMARIES = ("SEQUENTIAL.json", "GATES.json", "REPRODUCIBILITY.json")
+SUMMARY_STEMS = ("SEQUENTIAL", "GATES", "REPRODUCIBILITY")
+SUMMARIES = tuple(f"{s}.json" for s in SUMMARY_STEMS)
+
+
+def is_summary(basename: str) -> bool:
+    """Is this a sweep summary - canonical, or a superseded copy of one?
+
+    A summary is append-only from 2026-08-23 (task 63): re-running a sweep into a
+    directory keeps the record it replaces as `REPRODUCIBILITY-<stamp>.json` rather than
+    destroying it. Those siblings are summaries too, and a name test that knew only the
+    three canonical names would hand every one of them to `load_rounds` as a candidate
+    round.
+
+    It would survive that today only because `load_rounds` ALSO tests the shape. A check
+    that is correct because a second, unrelated check happens to cover it is one edit away
+    from being wrong, and the edit would show up as a widened denominator rather than as
+    an error.
+    """
+    if not basename.endswith(".json"):
+        return False
+    stem = basename[: -len(".json")]
+    return any(stem == s or stem.startswith(s + "-") for s in SUMMARY_STEMS)
 
 #: Keys under which a summary may carry the invocation counter. The old name is read
 #: because every stored summary uses it; the new one is written from 2026-08-23.
@@ -88,7 +109,7 @@ def load_rounds(d: str) -> list[dict]:
     """
     out = []
     for f in sorted(glob.glob(os.path.join(d, "*.json"))):
-        if os.path.basename(f) in SUMMARIES:
+        if is_summary(os.path.basename(f)):
             continue
         try:
             j = json.load(open(f, errors="replace"))
@@ -119,6 +140,14 @@ def read_counter(d: str) -> tuple[str | None, float | None]:
     Returns None rather than 0.0 when no summary exists. A directory of rounds with no
     summary is unjudged, not free, and `0.0` would read as agreement - rule 3's sibling,
     a fallback that turns an absence into a plausible in-range number.
+
+    ONLY THE CANONICAL NAMES ARE READ, and that is the whole reason the summaries take
+    the ROLLING append-only shape rather than the pinned one `suite.json` uses. This
+    function's question is "what did the LAST invocation charge to its ceiling", against
+    which the gap to `field_cost_usd` is the carried-over prefix. Pin the canonical name
+    to the FIRST invocation instead and the gap becomes the SUFFIX, which `explain_gap`
+    looks for at the head and cannot find - every resumed sweep would come back
+    UNEXPLAINED and exit 1. See `tools/manifest.py` for the two shapes.
     """
     for name in SUMMARIES:
         p = os.path.join(d, name)
@@ -361,12 +390,36 @@ def selftest() -> int:
         check("copied.gap", round(r["gap_usd"], 2), 1.00)
         check("copied.verdict", r["verdict"], "AMBIGUOUS")
 
-        # 9. A CLEAN TREE WALK finds every directory holding rounds and no others - the
+        # 9. A SUPERSEDED SUMMARY IS STILL A SUMMARY. Sweep summaries became append-only
+        #    on 2026-08-23, so a re-run leaves `REPRODUCIBILITY-<stamp>.json` beside the
+        #    canonical one. Neither may be counted as a round, and the counter must come
+        #    from the canonical file - the LATEST invocation - not from the sibling.
+        #    Without `is_summary` the sibling reaches the shape test, which is a second
+        #    check doing this one's job.
+        s = os.path.join(td, "superseded"); os.makedirs(s)
+        _write(s, "r0.json", _round(4.00), 1000)
+        _write(s, "REPRODUCIBILITY-20260820T100000Z.json",
+               {"mode": "repeats", "measured_cost_usd": 1.00})
+        _write(s, "REPRODUCIBILITY.json",
+               {"mode": "repeats", "charged_to_ceiling_usd": 4.00,
+                "superseded_record": "REPRODUCIBILITY-20260820T100000Z.json"})
+        r = audit(s)
+        check("superseded.n", r["n_rounds"], 1)
+        check("superseded.summary", r["summary"], "REPRODUCIBILITY.json")
+        check("superseded.counter", r["charged_to_ceiling_usd"], 4.00)
+        check("superseded.verdict", r["verdict"], "AGREES")
+        check("is_summary.canonical", is_summary("GATES.json"), True)
+        check("is_summary.sibling", is_summary("GATES-20260820T100000Z-2.json"), True)
+        # And it must NOT swallow a round whose name merely starts the same way.
+        check("is_summary.round", is_summary("g1_pong__fun__seed0.json"), False)
+        check("is_summary.notjson", is_summary("GATES.txt"), False)
+
+        # 10. A CLEAN TREE WALK finds every directory holding rounds and no others - the
         #    parent `td` holds only subdirectories and must not appear.
         found = {os.path.basename(x["dir"]) for x in walk(td)}
         check("walk.dirs", found,
               {"agrees", "resumed", "missing", "unexplained", "nosummary", "shape",
-               "post", "copied"})
+               "post", "copied", "superseded"})
 
     for f in fails:
         print(f"  FAIL {f}")

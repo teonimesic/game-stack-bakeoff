@@ -715,6 +715,44 @@ the overwrite. Then promoting it is a restoration rather than a reconstruction, 
 distinction this decision rests on disappears.
 
 ---
+## Append-only has two shapes, and the directory decides which — decided 2026-08-23
+
+The guard from the decision above is stated as a resource: *any durable record of what a
+measurement was configured to be, or of what it measured, is append-only.* Two more writers had
+the overwriting shape and are now covered — judge-sweep summaries (`GATES.json`,
+`SEQUENTIAL.json`, `REPRODUCIBILITY.json`) and the three records at the evidence destination
+(`MANIFEST.sha256`, `DEST_ONLY.txt`, `MEASURED.json`). **Neither is regenerable in practice: the
+inputs move.** A sweep's gate-0 verdict belongs to the rounds that existed when it ran, and what
+the copy held last week cannot be recomputed from what it holds today.
+
+**They do NOT take the same layout as `suite.json`, and that is the decision.** `write_manifest`
+pins the canonical name to the *first* record. Applied here it would have been a defect wearing
+the shape of a fix:
+
+| | pinning would have done | consequence |
+|---|---|---|
+| `MEASURED.json` | canonical = the first sync ever | `PROTOCOL.md` instructs a reader to take the evidence count from that name; it would hand back a stale number, and nothing would disagree with it |
+| sweep summaries | canonical = the first invocation's ceiling counter | `judge_ledger.explain_gap` looks for the carried-over rounds at the *head*; against a first-invocation counter the gap is the *suffix*, so every resumed sweep returns `UNEXPLAINED` and exits 1 |
+
+So `tools/manifest.py` carries both, in one file, with the criterion written next to them:
+**pinned where the directory has an identity the record is named for** (a run directory is named
+for one launch, and a later launch must not take the name); **rolling where the directory
+accumulates** and its record states the position as of the last invocation. Nothing is destroyed
+under either.
+
+Two consequences worth stating because they are the ones that would otherwise be re-derived. An
+**identical restatement is not a new record** — `write_rolling` compares the bytes and writes
+nothing when they match, which is what keeps `--verify-only` from adding a 1.1 MB checksum
+manifest every time it is run against an unchanged set. And the kept copy is stamped from a
+timestamp **inside** the record where there is one, falling back to mtime only for plain text: a
+`cp` rewrites every mtime in glob order and produces a clean, ordered, meaningless chronology,
+which is the defect `judge_ledger.MIN_SPLIT_S` exists for.
+
+**What this does not do.** Stored records written before the repair are untouched — no sweep
+directory was given a reconstructed history, for the same reason no stored manifest was repaired.
+The guard is forward-only.
+
+---
 ## The harness lint baseline is a recipe, not a gate — decided 2026-08-23
 
 **`python3 eval/tools/lint.py` is the recipe.** It runs the pinned rule set over the harness and
