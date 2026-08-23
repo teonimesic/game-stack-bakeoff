@@ -2137,7 +2137,7 @@ a separate decision: it can only ever be asked of runs graded after today.
 
 ---
 
-## 106. Two of the four pristine starters are not format-clean, so `just verify` rewrites a file the agent never touched — and that hunk is in every stored trial diff
+## 106. Two of the four pristine starters are not format-clean, so `just verify` rewrites a file the agent never touched — and the hunk lands in the diff that separates authored work from template code
 
 `eval/AGENTS.md`: *"Each trial gets a fresh template copy with a baseline commit, so
 `git diff HEAD` isolates exactly what the agent did."* That sentence is the mechanism by which
@@ -2156,6 +2156,11 @@ file taken out of git rather than from a working tree:
 
 ts and unity were **not** checked, because both formatters need dependencies installed
 (`prettier` via pnpm, `tools/fmt.mjs`). The ratio is 2 of 2 checkable, not 2 of 4 established.
+
+**Resolved 2026-08-23:** the control below installs each stack's formatter via its own
+`just warm` and measured all four. ts and unity are **format-clean** — `just verify` leaves
+both pristine trees byte-identical, and in both the planted mis-formatting was rewritten, so
+the formatter is proved to have run rather than assumed. The ratio is **2 of 4**.
 
 ### Why it is not cosmetic
 
@@ -2184,7 +2189,75 @@ five. The generalisation is not "also check `fmt`" — it is:
 
 Repaired in both arms as part of task 26 (RUNS.md's eleventh comparability break), which is the
 only reason it surfaced: `just verify` rewrote `main.rs` under a change to `Cargo.toml`, and the
-hunk had nothing to do with the change. **A control for it is filed, not written.**
+hunk had nothing to do with the change.
+
+### The control, 2026-08-23 (task 51)
+
+`tools/starter_gate_control.py` gained the direction it was missing. It now takes a tree
+`wholegame.prepare` built — the same copy a trial gets, git baseline and all — hashes everything
+`git ls-files -c -o --exclude-standard` would carry, runs `just verify`, and hashes again. Any
+added, removed or modified path fails the row and is **named**.
+
+**`just warm` is measured the same way, and that was not in the task.** Writing the check made
+the address obvious: what is being guarded is *the tree that becomes the trial diff*, not one
+recipe (rule 13). Every starter's guide tells an agent to run `warm` once and the matrix's Bash
+allowlist permits it, so a `warm` that rewrites a tracked file contaminates the diff exactly as
+`fmt` did — Unity's asset import writing a missing `.meta`, which is tracked, is the case with a
+name. The first version of this control took its baseline *after* `warm`, which would have hidden
+anything `warm` did behind the pristine row. All four are clean on both recipes.
+
+**Red before green, on the real pre-repair text rather than on a proxy** (rule 14). The two
+defects were restored into the starters in a worktree and the control run against them: it
+reported `FAIL rust: UNCHANGED by its own just verify on a pristine tree ... M
+crates/game/src/main.rs` and `FAIL godot: ... M tools/no_raise.gd`, exit 1 in both cases. Only
+then were the starters restored and the green taken.
+
+**A green tree is not evidence on its own** — a formatter that never ran leaves it unchanged too,
+which is `total=0 passed=0` wearing a different hat. So each stack also carries an `FMT_PLANTS`
+entry, a whitespace mis-formatting `verify` must undo, and the green row is only reported at all
+once the plant has been rewritten. Where it is not, the arm prints **NOT CHECKED** and the tool
+exits 3; `precampaign_smoke.py` reads anything non-zero as FAILED, so an unmeasured arm cannot
+read green on the way into a campaign (#61).
+
+One ordering detail, found by getting it wrong: the plant is anchored in the file's **formatted**
+text, read *after* `verify` has had its pass. Anchoring it in the tree as found makes the red half
+unmeasurable on exactly the tree this exists to catch — on the pre-repair godot starter the anchor
+(two blank lines before `func`) is the very thing that is missing, and the first version of the
+function answered NOT CHECKED where the truth was FAILED.
+
+### The blast radius, measured — 6 of 90 stored trial diffs, not all of them
+
+**The heading of this finding over-claimed and is corrected here.** "Every stored trial diff
+carries that hunk" was written from the mechanism, not from a count. The count, taken over all 90
+stored `diff.patch` files (extraction proved first on one row whose answer was known in advance —
+`wg-g4c/g4_platformer__godot__t0` must show `tools/no_raise.gd | 1 +`):
+
+| run | trials carrying a #106 hunk | what the diff shows |
+|---|---|---|
+| `wg-g4b-2026-08-17` | rust t0, t1 | the collapsed `no_raise_correction` signature, 5 lines inside a file every rust agent rewrites anyway |
+| `wg-g4c-2026-08-21` | rust t0, t1 | the same |
+| `wg-g4c-2026-08-21` | godot t0, t1 | **a whole extra file row**, `tools/no_raise.gd \| 1 +` |
+| everything else (84 diffs) | none | — |
+
+The reason is a date, not luck: the stored per-trial starter baselines say `wg-g4`
+(2026-08-17 morning) was **format-clean** in rust and `wg-g4b` (same evening) onward was not, so
+the defect entered with the no-raise starter edit that RUNS.md already records as the seventh
+comparability break. `wg-g4b`'s two godot trials ran on a dirty starter and produced 0-byte
+`diff.patch` files — all eight of that run's cells ended `api_error` on an external quota limit,
+which is what its `RUNS.md` entry records — so 8 trials met the defect and 6 recorded it.
+
+It reached a judge. `field.py` writes `diff.stat` into the pack as `CHANGED.txt`, headed *"Files
+this submission's author changed"*, and the false row is visible in the stored packs under
+`runs/wg-aspect-reliability/packcheck/idiomatic/{B,E}/CHANGED.txt`.
+
+**No score is retracted, and the reason is stated rather than assumed.** In rust the hunk adds
+~5 lines to `crates/game/src/main.rs`, a file whose real authored change is 87 and 143 lines — it
+adds no row and moves no file count. In godot it adds one row of `1 +` to a list of 51-57 rows
+totalling ~4,500 insertions. Both are far below anything a 0-4 subjective score resolves, and
+`repack.py`'s existing #77 guard cannot catch either, because the file is not byte-identical to
+the baseline: it is the baseline plus a formatter's opinion. What is corrected here is the
+**scope claim**, which someone reading the old heading would have used to justify a re-grade of
+90 submissions instead of understanding that 6 are affected and none materially.
 
 ---
 

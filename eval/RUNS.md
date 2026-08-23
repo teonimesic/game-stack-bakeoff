@@ -479,6 +479,23 @@ defect into a genuine submission defect — the project's third. See the regime 
 design, for the same reason it was demoted (RUBRIC.md). It is not a failure and must not be
 reported as one.
 
+### Four of its eight stored diffs credit the author with a hunk the template's own gate wrote
+
+Measured 2026-08-23 under task 51, over all 90 stored `diff.patch` files in `runs/`. The
+starters this run was built from were not format-clean, and `fmt` is the first dependency of
+`just verify` in every stack, so the agent's first `verify` rewrote a file it had never opened
+(#106). In `wg-g4c` that lands in `rust__t0`, `rust__t1`, `godot__t0` and `godot__t1` — and in
+`wg-g4b`'s two rust trials, the only other run affected. It is visible in the judge packs as
+`tools/no_raise.gd | 1 +` under *"Files this submission's author changed"*
+(`runs/wg-aspect-reliability/packcheck/idiomatic/{B,E}/CHANGED.txt`).
+
+**Nothing here is retracted and no re-grade is warranted.** The rust hunk is ~5 lines inside a
+file whose authored change is 87 and 143 lines, adding no row; the godot hunk is one row of
+`1 +` among 51-57 rows and ~4,500 insertions. #106 carries the full census and the reasoning.
+Recorded here because it is a property of *these two runs' evidence*, and the stored per-trial
+starter baselines date it precisely: `wg-g4` was format-clean and everything from `wg-g4b`
+onward was not, which is the same starter edit as the seventh comparability break.
+
 ### THE CODE PACKS WERE RE-PACKED ON 2026-08-23. Every judge round stored before then read a field that no longer exists
 
 **The packs are clean now.** `python3 judge/field.py packcheck --run runs/wg-g4c-2026-08-21T02-26-46`,
@@ -553,6 +570,11 @@ correct when written and describes packs that no longer exist.
 weekly account quota was exhausted, which terminated the supervising session and every trial
 with it. The starters under test were the repaired ones, and they behaved correctly for the
 53 minutes they ran.
+
+**Its two rust diffs carry a template hunk** — the #106 formatting rewrite `just verify` performs
+on a starter that is not format-clean, measured 2026-08-23 (see the `wg-g4c` entry above for the
+census and why nothing is retracted). The six zero-turn rows produced 0-byte `diff.patch` files
+and carry nothing. Neither observation changes the null: this run has no usable trials either way.
 
 > **Do not read two 53-minute rust trials as evidence about rust.** They are a truncated
 > sample of a build that never finished, and the six zero-turn rows are not trials at all.

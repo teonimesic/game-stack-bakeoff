@@ -149,9 +149,11 @@ Both in `eval/suites/wholegame_prompts.py`.
 | `AUDIO_NOTE["rust"]`: *"Audio is Bevy's `AudioPlayer`"* | `bevy_audio` is not in `features = ["2d","png","libm"]`. `AudioPlayer` does not exist until the agent adds the `audio` feature |
 | `AUDIO_NOTE["unity"]`: *"Audio is `AudioSource`/`AudioClip`"* | `com.unity.modules.audio` is absent; measured, `UnityEngine.AudioModule` is not among `View`'s 40 module references |
 
-**This is not new**, and it is important that it is not: `eval/judge/starter_parity.py:110-115`
-already records it — *"rust … and unity … cannot, and the task asks every agent for audio on a
-SCORED criterion. Reported, not failed."* The survey confirms it from the other direction and
+**This is not new**, and it is important that it is not: the capability register in
+`eval/judge/starter_parity.py` (`_capabilities`, and the note it prints) already records it —
+audio is *"the row with a SCORED criterion behind it"*, and a stack that cannot make sound
+without a pin change is reported, not failed. Cited by symbol rather than by line, because the
+line range this used to name had already moved. The survey confirms it from the other direction and
 adds one measured trap: **`SystemInfo.supportsAudio` returns `True` on Unity** while no audio
 API is reachable. Godot and TypeScript need no change to make sound.
 

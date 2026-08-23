@@ -875,6 +875,12 @@ before every trial.
    task 47: green on pristine, red on a plant, and — on godot, the only stack whose `check` is a
    hand-written file loop rather than a compiler — the plant still slipping past a repair that
    narrows the gate's scope, which is what makes the RED row a discriminator rather than a mutant.
+   A fourth since task 51, and it points at a different recipe: `just warm` and `just verify`
+   must leave a pristine tree byte-identical. All three earlier directions read `just check`,
+   which compiles and never writes, while `verify` runs `fmt` first in all four stacks and had
+   been rewriting a file the agent never opened into the stored trial diff (#106). Its green
+   half is gated on a planted mis-formatting the formatter must undo, because an arm with no
+   formatter installed leaves the tree clean too.
 
 ### What was adopted, concretely
 

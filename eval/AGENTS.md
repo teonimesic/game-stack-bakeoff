@@ -17,6 +17,14 @@ design. Stored results live in `runs/<name>/`, one directory per run — that is
 a trial. Any edit changes the thing being measured, must not happen mid-run, and requires
 re-running `judge/verify_blind.py`. `judge/starter_parity.py` checks the four stay comparable.
 
+**Run `judge/starter_parity.py` where the four toolchains are installed.** Its test axis is now
+three-valued — a real count, `UNMEASURABLE`, or an explicit `--skip-tests` non-measurement — and
+`UNMEASURABLE` fails the tool, because `0/0` printed as a test count for a stack whose runner
+could not start and the gate still reported no drift (#108). An agent worktree has no
+`node_modules`: that is untracked and lives only in the checkout it was installed in, so the TS
+arm cannot run its tests there. `judge/parity_selftest.py` pins both directions and must stay
+green.
+
 ## Checking a run
 
 **`python3 tools/runstat.py`** — the only correct status check. Do not hand-roll one at a

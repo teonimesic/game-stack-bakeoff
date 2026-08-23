@@ -11,8 +11,8 @@ relaxes one on the grounds that it looks paranoid.
 **Run `python3 tools/precampaign_smoke.py` first.** It exercises every command that is run
 once per campaign — `plan` for each game, `prompt_guard --snapshot`, `starter_parity`,
 `starter_gate_control`, `verify_blind`, `audio_selftest`, `capture_selftest`,
-`sequential_selftest`, `docstat --sweep` — **unpiped, reading each exit code**, and it exists
-because two of them were
+`parity_selftest`, `sequential_selftest`, `docstat --sweep` — **unpiped, reading each exit
+code**, and it exists because two of them were
 silently broken:
 
 - `plan` had crashed with a `TypeError` since the no-cap regime made `MAX_BUDGET_USD` `None`.
@@ -20,6 +20,12 @@ silently broken:
   once per campaign, so nobody found out (#56).
 - `starter_parity` had been exiting 1 on a condition `DECISIONS.md` formally accepts, making it
   permanently red and therefore unread (#57).
+
+**Run it from a checkout whose toolchains are installed**, not from an agent worktree.
+`starter_parity` now goes RED when a stack's `just test` cannot run at all, because `0/0` used to
+print as a test count and read as agreement (#108); `node_modules` is untracked, so in a worktree
+the TS arm genuinely cannot run its tests. If you mean to skip that axis, pass `--skip-tests` —
+it stays green and puts the non-measurement in the report.
 
 > **A command run once per campaign can be broken by an unrelated change and stay broken for
 > months. The interval between the break and the next use is the whole exposure.** A green row
@@ -36,7 +42,7 @@ Then run every check below. Each has cost trials at least once.
 | **Run `audio_selftest.py` and `bot_mutants`** and read both exit codes. | A criterion that cannot fail is worse than absent. | 15 criteria across 3 matrices |
 | **Confirm starters are untouched since the last blind check.** | Editing a starter changes the thing being measured. | the `determinism.replay` leak |
 | **Snapshot rendered prompts** — `python3 tools/prompt_guard.py --snapshot runs/<run>/prompts` | What the agents actually received, for diffing later. A shared `_preamble()` changes every game at once. | one experiment nearly run with two variables (#41) |
-| **Establish the MACHINE is healthy, per stack, and read the exit codes unpiped.** `syspolicyd` CPU-vs-elapsed, load average, and — the two that matter — **compile and exec a trivial NEW binary in each toolchain**, and run `just verify` in each of the four starters. | A daemon pegged for ten days gated `execve` of freshly created binaries. Rust and TS link new binaries every build; Unity and Godot run pre-existing ones, so it is invisible on half the arms and looks like a stack difference on the other half. | **half of `wg-arena3d`** — two arms shipped work that had never been compiled or run (#49) |
+| **Establish the MACHINE is healthy, per stack, and read the exit codes unpiped.** `syspolicyd` CPU-vs-elapsed, load average, and — the two that matter — **compile and exec a trivial NEW binary in each toolchain**, and run `just verify` in each of the four starters — `starter_gate_control.py`, which `precampaign_smoke.py` already runs, now does that part for you and additionally fails if `verify` **rewrote** the pristine tree (#106). | A daemon pegged for ten days gated `execve` of freshly created binaries. Rust and TS link new binaries every build; Unity and Godot run pre-existing ones, so it is invisible on half the arms and looks like a stack difference on the other half. | **half of `wg-arena3d`** — two arms shipped work that had never been compiled or run (#49) |
 | **Sweep for orphaned engine processes**, including `runs/_control/` and any tree no reaper covers. **Check each hit's cwd and ancestry before believing it is yours** — a `jq` that had been running 17 minutes looked like a hung trial and belonged to a different project on the same machine. | A Godot process orphaned to launchd ran 2d 21h through two matrices. | wall-clock validity of two runs |
 
 ## Concurrency for engine stacks
