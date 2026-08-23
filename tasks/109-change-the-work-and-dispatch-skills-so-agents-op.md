@@ -121,3 +121,60 @@ WHAT EACH OUTCOME MEANS
 - **The waiting step turns out to be unworkable** (no reliable way to know a review has finished)
   — that is a real finding about the design, not a failure. Record what you measured, and propose
   what the orchestrator does instead.
+
+## UNBLOCKED at dispatch, 2026-08-23 — task 108 landed and the review flow is proven
+
+`tasks/108` is **done and merged**. Everything below is measured on this repository, not assumed:
+
+| | |
+|---|---|
+| the CodeRabbit app | **already authorised** on `teonimesic/game-stack-bakeoff`, plan covers this private repo |
+| the first PR ever opened here | **#1**, merged |
+| acknowledgement | **31 seconds** after opening |
+| finished review | **119 seconds** after that |
+| review rounds on that one PR | **3**, producing **2 actionable comments, both true positives, 0 false positives** |
+| config in force | `.coderabbit.yaml` at the repo root, `profile: chill`, `review_details: true` |
+
+**Both true positives came through the two mechanisms the config sets up** — one from
+`code_guidelines.filePatterns`, one from a `**/*.md` path instruction. A default configuration
+would have had neither rule available, so the config is load-bearing rather than decorative.
+
+### Four things measured under 108 that change how you write the waiting step
+
+1. **Reviews arrive in roughly 150 seconds on a small diff.** That is the number to size a bounded
+   wait against — not a guess, and not an unbounded poll.
+2. **The rate limit is per REVIEW ROUND, not per push.** The plan allows 10 included reviews per
+   hour; the counter read **9, then 8, then 6** across 3 rounds on a single PR. **Read it from the
+   review body** rather than assuming one review per push. An agent that pushes ten times to
+   address comments can exhaust the hour on one ticket.
+3. **CodeRabbit AUTO-PAUSES reviews on a branch under active development.** PR #1 currently
+   carries: *"It looks like this branch is under active development... CodeRabbit has automatically
+   paused this review."* — with `@coderabbitai resume` and `@coderabbitai review` as the
+   commands. **This is the single most likely way the flow deadlocks**: an agent pushes fixes,
+   the reviews pause, and the agent waits forever for a review that will never come because it
+   was too productive. Handle it explicitly.
+4. **No GitHub API route answers "is the app authorised."** `/repos/../installation` → 401 (needs
+   an App JWT), `/repos/../hooks` → `[]` (Apps do not use repo webhooks), `/user/installations` →
+   403 with `gh`'s OAuth token. **Opening a PR is the only test.** Do not write a precondition
+   check the agent cannot perform.
+
+### The instrument defect 108's own agent hit, which your polling step will hit too
+
+Their poll script compared a **7-character sha** against the walkthrough's **5-character
+abbreviation** and reported "not reviewed" through 8 polls *after the review had landed*. Rule 12
+against their own instrument. **Whatever you write to detect "the review is done", prove it on a
+case whose answer you already know** — PR #1 is merged and reviewed, so it is available as exactly
+that fixture.
+
+### The merge path is now known to work
+
+PR #1 was merged with `gh pr merge 1 --merge --delete-branch` from the orchestrator side. Note it
+**failed to delete the local branch** because an agent worktree still held it — so the orchestrator
+step order is: remove the worktree, then delete the branch. Fold that into `dispatch/SKILL.md`.
+
+### Still true, and still the point
+
+The verification standard does not move. `dispatch/SKILL.md` says *verify against the artifacts,
+not against the report*, and a CodeRabbit review is **a second opinion on the code, not a
+measurement of the claim.** Say so in the skill. "It passed review" is precisely the shape this
+project calls a mechanism that runs and reports success.
