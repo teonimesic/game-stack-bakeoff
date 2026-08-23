@@ -1,12 +1,12 @@
 ---
 id: 109
 title: Change the work and dispatch skills so agents open PRs and address a CodeRabbit review before handing back
-status: in_testing
+status: done
 priority: 2
 refs: BLOCKED BY tasks/108 - do not start until a real PR here has received a CodeRabbit review. .claude/skills/work/SKILL.md, .claude/skills/dispatch/SKILL.md, AGENTS.md
 done_when: work/SKILL.md and dispatch/SKILL.md describe the PR flow end to end including how an agent waits for a review, how it decides which recommendations to act on, and what it does when the review never arrives; the flow has been run end to end on at least one real task and the resulting PR is cited; and the failure modes are stated with what an agent does in each rather than left to be re-derived
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/2
-established_by: 'PR 2 on teonimesic/game-stack-bakeoff, opened by the procedure this branch adds: 2 review rounds, 9 actionable comments, 8 acted on, 1 declined twice with the measurement that 4 lines of that shape stand at the merge base and no ruff config or gate exists. tasks_control.py 50 measurements 0 FAILED 0 NOT CHECKED exit 0, including direction 7 which reads each transition back off disk and asserts heartbeat TASK_METRIC equals tasks STATUSES. tasks_mutants.py --selftest 12 mutants 0 survived, inert mutation SURVIVED, exit 0. tasks.py check exit 0 over the live shared queue, which still holds legacy open and in_flight values written by peers. Broken state established first: over a queue with 1 file in each of the 5 states the old heartbeat counted 3 of 5. Review detection pinned on merged PR 1 in both directions, true for the head it was reviewed at and false for 941e5f5 which was pushed and never reviewed.'
+established_by: 'Five statuses shipped with review and testing transitions; PR #2 opened, reviewed over 2 rounds, 9 comments with 8 acted on and 1 declined with a measurement; heartbeat counted 3 of 5 states before the repair and is now asserted equal to tasks.STATUSES with a tasks_unknown bucket, published as FINDINGS 151; tasks_control 62 measurements 0 FAILED, tasks_mutants 16 mutants 0 survived, all doc gates 0.'
 ---
 
 The operator specified the flow on 2026-08-23: agents should pick up tasks, then submit PRs, then trigger CodeRabbit reviews, then address whatever CodeRabbit recommends, then submit it as ready to be merged for the orchestrator to verify and merge. Today agents hand back a raw branch and the orchestrator merges it with git merge --no-ff; no pull request is ever opened and nothing external reviews the work. The two skills are the only place this workflow is written down, so this is where it changes.
