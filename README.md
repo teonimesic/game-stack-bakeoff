@@ -142,7 +142,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
   ~96 judge rounds per aspect and the deterministic tiers cannot do it at any n.
 - **It does say no ordering here is reportable.** The subjective ordering flips depending on
   which aspects are counted; the deterministic tiers are saturated; cost is noise.
-- **It says the templates work.** Four independent stacks, three games, agents completing every
+- **It says the starters work.** Four independent stacks, three games, agents completing every
   task to a standard that saturates every mechanical check built to catch them failing.
 
 ---
@@ -153,11 +153,11 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 |---|---|
 | `research/` | Eleven briefs answering the original questions, plus `DECISION.md`. Every claim dated and sourced; unverified claims labelled. `DECISION.md` opens with a retraction — it decided on paper, and two of its eliminations were wrong. `10-stack-capability-matrix.md` is what each stack can do **at its pinned version**. |
 | `eval/starters/<stack>/` | **What a whole-game trial actually copies**, one per stack. `wholegame.py` reads only this directory. Game-agnostic: a placeholder, the harness, the boundary and the `verify` gate. This is the product that every run since 2026-08-12 has measured. |
-| `template/`, `template-ts/`, `template-unity/`, `template-godot/` | The **original four templates** — a finished Pong per stack, forked from before the starters existed. **Read only by `eval/run-bakeoff.sh` → `runner.py --template`**, the spec-change suite, which has not run since 2026-08-12. Rust + Bevy 0.19, TypeScript + three.js, Unity 6 (`noEngineReferences: true`), Godot 4.7 (a 65-rule `tools/boundary.gd`). Whether these should still exist as a second tree is open — FINDINGS #112. |
+| ~~`template*/`~~ | **Deleted 2026-08-23.** The four original trees — a finished Pong per stack — were a fork of the starters with one dormant consumer, and nothing pulled them back into line: 0 of 105 commits touched them while 6 touched `eval/starters/` (#112). Recoverable from git; see `DECISIONS.md`. Their suite's stored results, prompts and answer key all stay — `eval/suites/`, `eval/holdout*/`, `eval/runs/bakeoff-*` (#119). |
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#121, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#122, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -165,7 +165,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 - **What went wrong and what it taught?** → `eval/FINDINGS.md`
 - **Why this stack?** → `research/DECISION.md` (the *prior*; the bake-off is the evidence)
 - **What can each stack actually do at its pinned version?** → `research/10-stack-capability-matrix.md`
-- **What does a building agent read?** → `eval/starters/<stack>/AGENTS.md` for a whole-game trial, which is every run since 2026-08-12; `template*/AGENTS.md` only for the spec-change suite
+- **What does a building agent read?** → `eval/starters/<stack>/AGENTS.md`. That is the whole population: every run since 2026-08-12 is a whole-game trial, and the second tree the spec-change suite read was deleted on 2026-08-23
 - **How is a submission graded?** → `eval/judge/RUBRIC.md`
 - **How does subjective judging work, and what is being changed?** → `eval/judge/JUDGING.md`
 
@@ -452,7 +452,7 @@ placeholders, tautological tests, and pixel-identical frames that no determinist
 ## Running things
 
 ```bash
-cd template && just verify            # the one gate (any template)
+cd eval/starters/rust && just verify   # the one gate (any starter)
 
 cd eval
 # whole-game matrix
@@ -460,9 +460,10 @@ python3 wholegame.py run    --stacks rust,ts,unity,godot --games g1_pong --trial
 python3 wholegame.py evaluate --run-dir runs/<name> --eval-parallel 1
 python3 wholegame.py report   --run-dir runs/<name>
 
-# spec-change bake-off
-python3 runner.py check-suite --suite suites/core.toml --template ../template
-python3 runner.py run         --suite suites/core.toml --template ../template --trials 3
+# spec-change bake-off - RETIRED 2026-08-23, launch path deleted with the templates.
+# Its 71 stored trials are still readable, and so is what they were asked to do.
+python3 runner.py report --run-dir runs/bakeoff-ts-2026-08-11T15-33-41
+python3 regrade.py --run-dir runs/<name> --suite suites/bakeoff-ts.toml
 
 # the subjective layer runs SEPARATELY, after the deterministic tiers, under a ceiling
 python3 judge/field_sweep.py --run runs/<name> --games g1_pong \

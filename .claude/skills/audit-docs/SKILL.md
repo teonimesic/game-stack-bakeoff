@@ -135,8 +135,9 @@ which a gate has never been seen to fail. Plant the defect each names before tru
 Do not "fix" these by adding them back. Each was measured and removed:
 
 - **Paths.** Docs legitimately write them relative to a context stated in prose or a table
-  cell: `README.md` names `tools/boundary.gd` in a row about `template-godot/`, where it
-  exists. Measured 0 true positives, 2 false. A check that cannot be made reliable is
+  cell: `README.md` named `tools/boundary.gd` in a row about `template-godot/`, where it
+  existed (that row is gone with the tree, #119; the example stands as the reason).
+  Measured 0 true positives, 2 false. A check that cannot be made reliable is
   removed, not tuned until it is quiet — tuning until quiet is how a check comes to pass
   vacuously.
 - **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.

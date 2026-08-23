@@ -44,7 +44,7 @@ For every failure the run produced, in this order:
 
 Work down; stop when the evidence runs out.
 
-**The templates** (`template*/`, `eval/starters/*/`) — did agents fight the harness, or
+**The starters** (`eval/starters/*/`) — did agents fight the harness, or
 work around something the starter should have provided? A defect that misleads a building
 agent is a *product* defect, not a grader one: `just film` omitting the HUD meant an agent
 could delete working code chasing a ghost. Any edit here changes the thing being measured

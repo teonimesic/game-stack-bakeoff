@@ -1,5 +1,19 @@
 # Stack bake-off design
 
+> ### RETIRED 2026-08-23 — history, kept because 71 stored trials are read against it
+>
+> This describes the **spec-change** suite: three small tasks against a finished Pong, run by
+> `eval/runner.py --template`. It **cannot be run**: the four `template*/` trees were deleted
+> (`DECISIONS.md`, #119), and `eval/run-bakeoff.sh` with them. It has not run since 2026-08-12.
+>
+> **Its answer, and the reason it was not repeated: it did not separate the four stacks.** All
+> four scored 6/6. `eval/AGENTS.md` states the design limit — this suite resolves large gaps only.
+>
+> Still live, and what to read instead: **`eval/PROTOCOL.md`** for the whole-game matrix that
+> replaced it, and `eval/RUNS.md` for what every run cost. Still readable from here: the 71 trials
+> in `eval/runs/{bakeoff,core}-*`, via `runner.py report` and `regrade.py`, with the task text in
+> `eval/suites/`.
+
 Purpose: pick the template's stack on measured agent performance, not on paper tradeoffs.
 
 ## Why a bake-off at all

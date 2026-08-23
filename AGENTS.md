@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | Current status and where things live |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#121, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#122, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -25,7 +25,7 @@ only apply there — read the one for the directory you are working in.
 | `eval/` | Running trials, cost, controls, offline re-grading, concurrency |
 | `eval/judge/` | The three grading tiers, blinding, rubric changes |
 | `research/` | The briefs, and how claims in them must be sourced |
-| `template*/`, `eval/starters/*/` | **Not for you.** Those `AGENTS.md` files are the product — what a building agent reads during a trial. Editing one changes the thing being measured, and requires re-running `eval/judge/verify_blind.py` |
+| `eval/starters/*/` | **Not for you.** Those `AGENTS.md` files are the product — what a building agent reads during a trial. Editing one changes the thing being measured, and requires re-running `eval/judge/verify_blind.py`. This was two trees per stack until 2026-08-23; `template*/` is deleted (`DECISIONS.md`, #119) |
 
 `eval/runs/**` holds stored results, including per-trial copies of the starters. Nothing in there
 is guidance; it is data.

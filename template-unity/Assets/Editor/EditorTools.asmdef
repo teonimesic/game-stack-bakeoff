@@ -1,7 +1,0 @@
-{
-  "name": "EditorTools",
-  "rootNamespace": "Pong.EditorTools",
-  "references": ["Sim", "View"],
-  "includePlatforms": ["Editor"],
-  "autoReferenced": false
-}

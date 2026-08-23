@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#121 from building and running this evaluator. **Check whether a
+Findings #19-#122 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -198,6 +198,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **119** | A claim withdrawn in the archive was still cited as current in three live documents six days later, and every citation resolved — so the fix is a declared withdrawal register, keyed on an id, not any consistency check | [documentation](findings/documentation.md) |
 | **120** | One function guarded the prompt snapshot and overwrote the manifest eleven lines below it — 5 affected directories, not #93's 3, and #93's third row is a UTC string compared against a local-time name | [documentation](findings/documentation.md) |
 | **121** | A budget ceiling and a bill are different questions, and one variable answered both under the bill's name — three accountings of one judge field, 5 of 11 stored sweeps under-reporting by $69.93, and a published $46.79 that is two games | [limits-and-cost](findings/limits-and-cost.md) |
+| **122** | Retiring a suite would have deleted the only copy of what its trials were asked to do: 71 stored trials record `task: "t1_rally"` and 0 files under `eval/runs/` contain the prompt | [documentation](findings/documentation.md) |
 
 ---
 

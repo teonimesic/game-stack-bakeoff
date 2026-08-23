@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 """
-Agent evaluation harness.
+The spec-change harness. RETIRED as a way to LAUNCH trials on 2026-08-23; still
+the way to READ the ones it launched, and still the home of the capture policy.
+
+WHAT IS GONE AND WHAT IS NOT
+  * The four trees this drove - `template/`, `template-ts/`, `template-unity/`,
+    `template-godot/` - were deleted on 2026-08-23. `run` and `check-suite`
+    therefore have no `--template` to point at and refuse to start; `main()`
+    says so rather than letting `copytree` raise. The trees are recoverable from
+    git (`git log -- template-ts`), which is why deleting them was safe.
+  * `report` still reads `runs/<name>/`, and `regrade.py` still recomputes
+    verdicts over the 71 stored trials in 12 spec-change run directories.
+  * `judge/static.py` imports this module's capture policy by path. That is a
+    LIVE dependency of the whole-game grader and the reason this file stays
+    whole: two truncation policies in one repository is #100, which came back
+    as #114.
+  * The task text the 71 trials were given is NOT in any of them - the record
+    stores `task: "t1_rally"` and nothing else. `suites/*.toml` and
+    `suites/prompts.py` are the sole copy, so they stay (#119).
 
 Measures how well a blank Claude Code session performs game-dev tasks inside a
 template, so the template and its instructions can be iterated on empirically.
@@ -35,9 +52,10 @@ Design decisions, each traceable to research/05-eval-harness-design.md:
     you can prove the target tests fail before the fix.
 
 Usage:
-    ./runner.py check-suite --suite suites/core.toml --template ../template
-    ./runner.py run  --suite suites/core.toml --template ../template --trials 3
-    ./runner.py report --run-dir runs/<name>
+    ./runner.py report --run-dir runs/<name>          # still works
+
+    ./runner.py check-suite --suite ... --template ...   # needs a template tree
+    ./runner.py run         --suite ... --template ...   # there is no longer one
 """
 
 from __future__ import annotations
@@ -1033,6 +1051,23 @@ def main() -> int:
 
     suite = load_suite(args.suite)
     template = args.template.resolve()
+
+    # The four trees this harness was built to drive were deleted on 2026-08-23
+    # (DECISIONS.md, #119). Without this, `prepare_repo`'s `copytree` raises a
+    # bare FileNotFoundError three frames down and a reader has to guess whether
+    # they mistyped a path or the suite no longer exists. Say which.
+    if not template.is_dir():
+        print(f"no template tree at {template}\n\n"
+              "The spec-change suite was retired on 2026-08-23: template/, "
+              "template-ts/, template-unity/ and template-godot/ were deleted, "
+              "and nothing else in this repository is a --template tree. "
+              "eval/starters/*/ are NOT substitutes - they are the whole-game "
+              "product and carry no finished game for a spec change to modify.\n"
+              "To restore a tree: git checkout <commit-before-retirement> -- "
+              "template-ts/ (139 commits of history; the trees are pushed).\n"
+              "To read what this harness already produced: runner.py report "
+              "--run-dir runs/<name>, or regrade.py.", file=sys.stderr)
+        return 2
 
     if args.cmd == "check-suite":
         print(f"negative control for '{suite.name}' - held-out tests must FAIL "
