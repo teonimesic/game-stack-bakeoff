@@ -187,6 +187,105 @@ def heading_findings(hsets: dict[str, set[str]], texts: dict[str, str],
     return problems, notes
 
 
+#: A MECHANISM THAT ACTS ON EVERY ARM MUST BE DESCRIBED TO EVERY ARM.
+#:
+#: The heading axis above is structurally blind to this shape and always will be. It fires
+#: on a heading present in every guide but one; the Stop hook was a SENTENCE, present in
+#: ONE guide of four (`eval/starters/rust/AGENTS.md:12`), while `.claude/settings.json`
+#: wired the hook identically in all four - the four files are byte-identical. So three
+#: arms ran under a gate that refuses to let the turn end while `just verify` is red, and
+#: their guides never said so (task 78, found by task 67).
+#:
+#: What makes that a defect rather than stack-native wording: the hook is HARNESS, not
+#: stack. `DECISIONS.md` puts the four guides at each stack's own best and forbids making
+#: them identical - that covers Bevy API notes and Godot's headless limitation, things
+#: that are true of one stack. A hook event wired in all four settings files is true of all
+#: four, and telling one arm about it is a difference between arms nobody chose.
+#:
+#: So the trigger here is the RESOURCE, never the instance: any event wired in EVERY
+#: starter, not "Stop". An event wired in some starters and not others is a stack-specific
+#: mechanism and is reported as a note - the same call `CORE_RECIPES` makes one axis up.
+HOOK_MENTION_WINDOW = 40  #: chars allowed between the event name and the word "hook"
+
+
+def wired_hook_events(repo: Path) -> set[str]:
+    """Hook events this starter's `.claude/settings.json` wires, e.g. {"Stop"}.
+
+    Reads the ARTIFACT, never a doc (the rule the capability register above states):
+    a guide can claim a hook exists, and only the settings file makes one run.
+    """
+    p = repo / ".claude" / "settings.json"
+    try:
+        hooks = json.loads(p.read_text(encoding="utf-8")).get("hooks", {})
+    # Absent or unreadable (OSError), not JSON (JSONDecodeError), or JSON that is not an
+    # object (AttributeError). All three mean "no event established here", which the
+    # caller must not read as "wired in every stack" - hence the intersection below.
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return set()
+    return {k for k, v in hooks.items() if v} if isinstance(hooks, dict) else set()
+
+
+def mechanism_findings(events: dict[str, set[str]], texts: dict[str, str],
+                       ) -> tuple[list[str], list[str]]:
+    """Every hook event wired in EVERY guide's starter must be named in EVERY guide.
+
+    Returns (problems, notes). The mention test is deliberately loose about wording and
+    strict about substance: the event name and the word "hook" within
+    `HOOK_MENTION_WINDOW` characters of each other, either order, on one line. Four
+    stack-native guides may phrase it four ways - "A Stop hook re-runs it", "a hook on
+    Stop" - and none of them may leave it out.
+    """
+    problems: list[str] = []
+    notes: list[str] = []
+    stacks = sorted(events)
+    if len(stacks) < 2:
+        return problems, notes
+
+    everywhere = set.intersection(*(events[s] for s in stacks))
+    somewhere = set().union(*(events[s] for s in stacks)) - everywhere
+
+    # AN EMPTY INTERSECTION IS NOT AGREEMENT. `wired_hook_events` returns an empty set
+    # for an absent, unreadable or non-object settings file, so a tree that lost its
+    # `.claude/` entirely would make this axis silently vacuous - green over nothing, the
+    # shape rule 1 is about and the one the test-count axis was already caught doing.
+    if not everywhere:
+        notes.append(
+            f"hook parity: NO event is wired in all {len(stacks)} starters "
+            f"({ {s: sorted(events[s]) for s in stacks} }), so this axis compared nothing "
+            f"this run. That is a statement about the inputs, not about the guides - an "
+            f"absent or unparseable .claude/settings.json reads exactly like a starter "
+            f"that wires no hook")
+
+    for ev in sorted(everywhere):
+        e = re.escape(ev)
+        w = HOOK_MENTION_WINDOW
+        pat = re.compile(rf"\b{e}\b[^\n]{{0,{w}}}?\bhooks?\b|\bhooks?\b[^\n]{{0,{w}}}?\b{e}\b",
+                         re.I)
+        silent = sorted(s for s in stacks if not pat.search(texts.get(s, "")))
+        if silent:
+            told = sorted(set(stacks) - set(silent))
+            problems.append(
+                f"a {ev!r} hook is wired in ALL {len(stacks)} starters' "
+                f".claude/settings.json, and {silent} never mention it in AGENTS.md "
+                f"(only {told} do). A mechanism that acts on every arm must be described "
+                f"to every arm: an agent told that ending the turn red does not work has a "
+                f"reason to run the gate before finishing, and the arms that are not told "
+                f"do not. Stack-native wording is fine - silence is not. Fix: name the "
+                f"{ev!r} hook in {silent}'s guide (a starter edit: regime boundary, "
+                f"eval/RUNS.md note, re-run verify_blind, starter_parity and "
+                f"starter_gate_control)")
+        else:
+            notes.append(f"hook parity: a {ev!r} hook is wired in all {len(stacks)} "
+                         f"starters and named in all {len(stacks)} guides")
+
+    for ev in sorted(somewhere):
+        has = sorted(s for s in stacks if ev in events[s])
+        notes.append(f"hook parity: {ev!r} is wired on {has} only - reported, never failed. "
+                     f"A mechanism present on some stacks and not others is a stack "
+                     f"choice; only one wired EVERYWHERE is guidance every arm is owed")
+    return problems, notes
+
+
 def harness_files(repo: Path) -> dict[str, bool]:
     return {
         "stop_hook": (repo / ".claude" / "hooks" / "verify-gate.sh").exists(),
@@ -474,6 +573,16 @@ def main() -> int:
                             if adj["substance"].lower() in htexts[k].lower())}
         for (h, s), adj in ADJUDICATED_HEADINGS.items() if s in present
     }
+
+    # 2c. HOOK MECHANISMS vs THE GUIDES. The heading axis cannot see this shape - it needs
+    # a heading in n-1 of n guides, and the Stop hook was a sentence in 1 of 4 (task 78).
+    # The key is the wired event, read out of settings.json, so the axis covers a hook
+    # added tomorrow rather than the one that produced it.
+    hev = {s: wired_hook_events(a.starters / s) for s in present}
+    mprob, mnotes = mechanism_findings(hev, htexts)
+    problems.extend(mprob)
+    notes.extend(mnotes)
+    report["wired_hook_events"] = {s: sorted(v) for s, v in hev.items()}
 
     # 3. TEST COUNTS - and the point of this block is that `0/0` is not one of the answers
     measured: dict[str, tuple[int, int]] = {}

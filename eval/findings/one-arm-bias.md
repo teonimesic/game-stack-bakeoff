@@ -2496,3 +2496,140 @@ Two subsidiary results worth keeping:
   `wholegame.py` to the root `AGENTS.md` for an unrelated reason made a latent `--wildcards`
   false positive fire for the first time since the check was written. **A suppression does not
   remove a defect; it defers the moment you meet it.**
+## 131. The anonymiser's stack vocabulary was a list of SPELLINGS, so the Rust arm shipped its build tool's name into 22 blind packs — and every architecture round that left a file-open log opened one
+
+`architecture` is the only aspect judged with `blind_language=True`. Its pack renames every
+source file to `.src`, and the only thing standing between the judge and the stack's name in the
+file's **contents** is `anonymise.neutralise()`.
+
+`neutralise` matched a list of regexes, one per observed spelling: `\bbevy\b` **and** `\bBevy\b`,
+`\bwinit\b` but not `Winit`, and no rule at all for `cargo` or `crates`. `_` is a word character,
+so `\b` cannot end a match inside `CARGO_MANIFEST_DIR` even if the case had matched.
+
+Reproduced on the live function, not on a stored artefact:
+
+```
+in : CARGO_MANIFEST_DIR=/x/crates/game BEVY_ASSET_ROOT=/y
+out: CARGO_MANIFEST_DIR=/x/crates/game BEVY_ASSET_ROOT=/y
+```
+
+### What reached the judge
+
+Measured by applying `neutralise` to every file of all **84** stored `judge_pack/code`
+directories under `eval/runs` and searching the OUTPUT:
+
+| token | occurrences | arm |
+|---|---|---|
+| `CARGO_*` (`MANIFEST_DIR`, `TARGET_DIR`, `TARGET_TMPDIR`, `BIN_EXE_*`) | 145 | rust |
+| `crates/sim`, `crates/game` | 115 | rust |
+| `clippy.toml` | 76 | rust |
+| `Winit`, `WinitPlugin` | 60 | rust |
+| `Rust` in prose | 179 | all four |
+| `TypeScript` in prose | 30 | unity, ts |
+| `node_modules`, `pnpm`, `@typescript-eslint`, `Playwright` | 13 | ts |
+| `BEVY_ASSET_ROOT` | 2 | rust |
+| `gdlintrc` | 1 | godot |
+
+**It is one-arm bias, not a uniform leak.** In the `wg-g4c` `g4_platformer` field the two Rust
+submissions carried 13 and 10 leaking files; the six others carried 0-3.
+
+### Which rounds read one — answered from the file-open log, not guessed
+
+Intersecting each stored `architecture` round's `files_opened` against the index of that
+submission's leaking pack files:
+
+| | |
+|---|---|
+| stored `architecture` rounds | 13 |
+| rounds with a file-open log | **9** |
+| of those, rounds that opened at least one leaking file | **9 of 9** |
+| rounds without a log — permanently **unassessable** | 4 (`wg-tetris-judge-2026-08-17`, pre and post) |
+
+Every one of the nine opened a leaking file **in the Rust submissions specifically**, 3 to 9 of
+them per round. The five `wg-aspect-reliability` repeats are the run whose fresh `architecture`
+ordering `eval/RUNS.md` reports as available.
+
+**The intersection is against the packs as they stand today, and for eight of the nine rounds
+that is not byte-exactly what they were shown.** Stated rather than buried:
+
+- The `wg-g4c` pack files on disk were written at **2026-08-23T07:18Z**; the five
+  `wg-aspect-reliability` rounds were judged **05:23-05:57Z**, 81 to 115 minutes earlier. They
+  read the pre-re-pack field. The re-pack is documented as label-preserving — it reproduces the
+  stored label -> origin mapping for all eight submissions — so the label a round opened still
+  names the same origin file, and the three files the re-pack excluded as starter drift are all
+  `ts` view files, so the Rust result above cannot move. What is *not* recoverable is the exact
+  bytes of the 23 orphaned files the re-pack removed, which could only add leaking files.
+- The four `wg-funframes-crossgame` rounds store no `run` and no `judged_at` at all, so the pack
+  is identified by submission name across 2-3 candidate directories.
+
+Neither caveat touches the finding that matters: the leaking text is env-var names, workspace
+directories and lint-config filenames **in the submissions' own source**, which no re-pack
+altered.
+
+### The repair, and why it is not two more words
+
+Adding `cargo` and `crates` to the list would have been the third time this defect was fixed at
+the instance — #32 fixed the file that failed, #83's own note records `UnityCsReference`
+surviving because `\bUnity\b` does not match inside it.
+
+`_STACK_NAMES` is now a list of **names** — one lowercase entry per engine, language, package
+manager, build tool, workspace directory, linter, formatter and test runner belonging to exactly
+one arm — and the matching is the property: *a name matches wherever it forms a whole identifier
+segment, in any case convention, in any position inside an identifier or a path.* Segments split
+on `_`, digit boundaries and camel/Pascal boundaries, so one entry covers `cargo`, `Cargo`,
+`CARGO`, `CARGO_MANIFEST_DIR` and `cargoRoot` at once, and multi-segment entries cover
+`TypeScript`, `MonoBehaviour`, `GDScript` and `node_modules` without a spelling each. Longest
+window wins, which retires the load-bearing rule ordering that used to leave
+`bevyengine/engine#6183` half-substituted.
+
+### The half that is not a mutant
+
+**A case-insensitive substring search would have been a worse bug than the leak**, and the
+corpus says so:
+
+| would have been rewritten | occurrences | what it actually is |
+|---|---|---|
+| `immunity` -> `imm<engine>` | 54, all four arms | the English word |
+| `Vec3.UnitY` | 4 | `Unit` + `Y`, a math constant in the Unity arm's own vector type |
+| `main.tscn`, `bestScore`, `addInitScript` | 146 | segments that merely contain `tsc` |
+| `is_three_dimensional`, `Three tests enforce`, `you trust this macro` | 297 | English |
+
+Segmentation rejects all of them, and a one-letter segment is refused inside a multi-segment
+window — which is precisely what separates `Unit|Y` from `Type|Script`. `three` and `node` are
+excluded from the vocabulary outright and kept as two literal patterns, because no segmentation
+saves an English numeral or the scene-tree noun.
+
+`judge/anonymise_selftest.py` pins both halves against **real stored pack text rather than
+tokens anyone thought of**: 128 lines the old rewriter left carrying a stack name, none of which
+may survive; 400 lines where a stack name sits inside an innocent word, every one of which must
+come out byte-identical; a mutant per name (all 38 live); and idempotence, because
+`field.build_pack` neutralises a file `anonymise.build_pack` already neutralised.
+
+`verify_blind.check_pack_skill` iterated `_STACK_RE` — the regex list — and would therefore have
+gone on scanning for four patterns while the rewriter knew 38 names. It calls
+`find_stack_names()` now. Control: the pre-fix vocabulary returns **zero** hits on
+`Run with CARGO_MANIFEST_DIR set to the workspace root`; the current one reports `'CARGO'`.
+
+### After
+
+Re-sweeping the same 84 packs: **0 packs carry a stack name**, by the module's own detector and
+by an independent stem list fixed before the repair was written. 139 distinct lines change and
+all 139 replace a genuine stack name — no English word and no identifier is corrupted.
+
+Two residues are enumerated rather than claimed clean:
+
+1. `immunity` (50) and `Vec3.UnitY` (4) still contain the letters `unity`. Harmless: they are not
+   the name, and rewriting them is the defect above.
+2. **File extensions inside file CONTENT are not scrubbed and are a real, unrepaired leak** —
+   1,876 occurrences of `.ts`, `.gd`, `.rs`, `.cs` in comments and import specifiers across 78 of
+   84 packs (`import { f32 } from './vec2.ts'`, `` `tests/render_test.gd` ``). For an aspect whose
+   whole blinding is renaming files to `.src`, a comment naming `sim/tuning.gd` defeats it. This
+   is not a stack *name* and the repair belongs in `field.build_pack`'s `blind_language` branch,
+   not in `neutralise`, which runs for every aspect. Filed as task 87.
+
+One behaviour deliberately changed and worth stating: `\bUnity\w+\b -> EngineThing` used to
+collapse every `Unity`-prefixed identifier to a single token, so `UnityCG.cginc` and
+`UnityObjectToClipPos` both became `EngineThing`. They are now `EngineCG.cginc` and
+`EngineObjectToClipPos`. The name is gone either way; the old form destroyed the distinction
+between two different identifiers and, by this module's own argument, a token that obviously
+stands in for something advertises that a substitution happened.

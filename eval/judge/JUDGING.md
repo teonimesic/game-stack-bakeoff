@@ -118,6 +118,11 @@ that would score every submission zero for a thing nobody asked for.
 Implemented in `aspects.py` (the questions), `field.py` (packing, running, gates) and
 `field_sweep.py` (a whole matrix with a measured cost ceiling).
 
+**Six aspects exist, and all six are runnable.** Five are opinions; `fun_frames` is `fun`'s
+control and is listed last for that reason, not because it is optional. The count is
+`len(ASPECTS)` and `docstat.py --sweep` fails on any live doc that claims to name them all
+and does not — this table said five for as long as `ASPECTS` held six.
+
 | aspect | sees | evidence in the pack |
 |---|---|---|
 | `idiomatic` | source | anonymised source + `CHANGED.txt` (what the author actually wrote) |
@@ -125,6 +130,7 @@ Implemented in `aspects.py` (the questions), `field.py` (packing, running, gates
 | `fun` | frames + telemetry | the 12 filmed frames, and `telemetry.json` measured from the play-bot's own driven run |
 | `ux` | frames | the 12 filmed frames |
 | `audio` | audio | `audio.json`: per-clip duration, RMS, peak, and which clips are the same sound as which |
+| `fun_frames` | frames | the same 12 frames, **with `telemetry.json` withheld** — `fun`'s control, briefed byte-identically to it. See the pre-registration below |
 
 **The frames are not equivalent across arms, and every aspect that reads them is told so.**
 Measured 2026-08-23 (task 68, FINDINGS #107): one arm's `just film` runs the whole app per tick so

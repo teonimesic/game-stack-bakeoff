@@ -275,8 +275,15 @@ UX = Aspect(
 #:   rankings agree  -> the telemetry contributed nothing; `fun` is `ux` with extra evidence
 #:   rankings differ -> the telemetry is doing work, and `fun`'s pacing claim has support
 #:
-#: It is a control, not a sixth opinion. It must never be pooled with the other five, and it
-#: is `diagnostic_only` so no aggregate can absorb it by accident.
+#: It is a control, not a sixth opinion. It must never be pooled with the other five - and
+#: NOTHING ENFORCES THAT, so read this as a warning rather than as a guarantee. This comment
+#: used to end "and it is `diagnostic_only` so no aggregate can absorb it by accident"; the
+#: field above is never set on it (it is `frozenset()`, checked 2026-08-23) and no code in
+#: the tree reads `Aspect.diagnostic_only` at all - the only readers of that name are
+#: `probe.py` and the play bots, a different mechanism that happens to share the field name.
+#: `field_ranks.py` without `--per-aspect` pools every round in the directory it is handed,
+#: which on `runs/wg-aspect-reliability` is 30 rounds of which 5 are this control. Task 90
+#: carries the repair; until it lands, an aggregate over aspects is the reader's job to check.
 FUN_FRAMES = replace(
     FUN,
     id="fun_frames",

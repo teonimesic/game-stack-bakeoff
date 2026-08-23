@@ -153,7 +153,34 @@ directory, and every criterion id the rubric defines.
 
 ## Anonymisation
 
-`anonymise.py` strips identifying structure before judging. Three things it has got wrong before:
+`anonymise.py` strips identifying structure before judging.
+
+**What `neutralise` matches is a PROPERTY, and `_STACK_NAMES` is a list of names, not of
+spellings.** A name matches wherever it forms a whole identifier segment — segments split on
+`_`, digit boundaries and camel/Pascal boundaries — in any case convention, in any position
+inside an identifier or a path. One entry therefore covers `cargo`, `Cargo`, `CARGO`,
+`CARGO_MANIFEST_DIR` and `cargoRoot`, and a multi-segment entry covers `TypeScript`,
+`MonoBehaviour`, `GDScript` and `node_modules`. **Never repair a leak by adding the spelling you
+just saw** — that is the third time this defect was fixed at the instance (#32, #83, #130).
+
+Two consequences to know before touching it:
+
+- **A case-insensitive substring search is a worse bug than the leak it fixes.** It rewrites
+  `immunity`, `Vec3.UnitY`, `main.tscn`, `bestScore` and `is_three_dimensional`. `three` and
+  `node` are excluded from the vocabulary outright, as literal patterns, because no segmentation
+  saves an English numeral or the scene-tree noun.
+- **`find_stack_names()` is the audit, and it is deliberately the same code path as the
+  rewrite.** A detector with its own vocabulary agrees with the rewriter by construction and
+  measures nothing. What makes it informative is running it over **real stored pack text**, which
+  is what `anonymise_selftest.py` does: 128 lines the old rewriter left carrying a stack name,
+  400 lines where a stack name sits inside an innocent word and which must come out
+  byte-identical, a mutant per name, and idempotence. It must stay green.
+
+**File extensions inside file CONTENT are a known, unrepaired leak** — 1,876 occurrences of
+`.ts`/`.gd`/`.rs`/`.cs` in comments and imports across 78 of 84 stored packs, which defeats an
+aspect whose whole blinding is renaming files to `.src`. See task 87.
+
+Three more things it has got wrong before:
 
 - **Check `CODE_EXT` covers the stack's extensions.** A missing extension produced an empty file
   pack that the judge scored confidently at 0.08.

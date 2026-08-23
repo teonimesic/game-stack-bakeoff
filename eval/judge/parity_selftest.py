@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -209,6 +210,103 @@ def test_heading_adjudication() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# HOOK MECHANISM PARITY. Pure inputs, so this half always runs.
+#
+# The input that produced the defect: a Stop hook wired identically in all four
+# `.claude/settings.json` and described in ONE guide of four (task 78). The heading axis
+# above cannot see it in either dimension - it needs a heading, and it needs n-1 of n.
+#
+# So the pair that matters here is not one mutant. It is:
+#   MUTANT   delete the sentence from a guide -> the check must go red
+#   VARIANT  a DIFFERENT event, wired everywhere and named nowhere -> must also go red,
+#            or the check is an assertion about the word "Stop" rather than about the
+#            resource (AGENTS.md: write the trigger as the resource, never the instance)
+#   VARIANT  a mention where the event name and the word "hook" are merely both present
+#            somewhere in a long guide -> must NOT count. That is the input a substring
+#            test mishandles, and only a variant can ask about it.
+#   POSITIVE a per-stack mechanism must NOT fire, or the check re-imposes a common floor
+# --------------------------------------------------------------------------- #
+
+def test_hook_mechanism_parity() -> None:
+    print("\n[a hook wired in every starter must be named in every guide]")
+    _, texts = _real_guides()
+    events = {s: sp.wired_hook_events(STARTERS / s) for s in sp.STACKS}
+
+    # -- the artifact, read from the real trees ---------------------------------------- #
+    expect("all four starters wire a Stop hook in .claude/settings.json",
+           all("Stop" in events[s] for s in sp.STACKS), str(events))
+
+    # -- POSITIVE: the shipped guides now all name it ---------------------------------- #
+    problems, notes = sp.mechanism_findings(events, texts)
+    expect("the shipped starters raise NO hook-parity problem", problems == [],
+           str(problems))
+    expect("...and the axis says what it verified, not merely that it passed",
+           any("named in all 4 guides" in n for n in notes), str(notes))
+
+    # -- MUTANT: take the sentence out of one guide ------------------------------------ #
+    for victim in sp.STACKS:
+        gutted = dict(texts)
+        gutted[victim] = re.sub(r"(?i)stop hook", "gate", texts[victim])
+        problems, _ = sp.mechanism_findings(events, gutted)
+        expect(f"a guide that stops mentioning the Stop hook goes RED ({victim})",
+               any(victim in p and "Stop" in p for p in problems), str(problems))
+
+    # -- VARIANT: a different event, wired everywhere, named nowhere ------------------- #
+    # If this passes, the check is about the string "Stop" and not about the mechanism.
+    ev2 = {s: events[s] | {"PreToolUse"} for s in sp.STACKS}
+    problems, _ = sp.mechanism_findings(ev2, texts)
+    expect("an event nobody has documented yet also goes RED - the trigger is the wired "
+           "event, not the word 'Stop'",
+           any("PreToolUse" in p for p in problems), str(problems))
+    expect("...and it names every guide that is silent, not just one",
+           any(all(s in p for s in sp.STACKS) for p in problems if "PreToolUse" in p),
+           str([p for p in problems if "PreToolUse" in p]))
+
+    # -- VARIANT: both words present, but not as a mention ----------------------------- #
+    # The input a naive `"stop" in text and "hook" in text` test gets wrong. Every guide
+    # here contains the word "hook" (the harness file is named in several) and the word
+    # "stop" appears in ordinary prose.
+    far = dict(texts)
+    far["ts"] = re.sub(r"(?i)stop hook", "gate", texts["ts"]) + (
+        "\n\nStop when the tests are green.\n\n" + "filler. " * 60 + "\n\nA hook is a file "
+        "under .claude/hooks.\n")
+    expect("the variant really has both words in the guide",
+           "stop" in far["ts"].lower() and "hook" in far["ts"].lower())
+    problems, _ = sp.mechanism_findings(events, far)
+    expect("...and two words far apart do NOT count as naming the mechanism",
+           any("ts" in p and "Stop" in p for p in problems), str(problems))
+
+    # -- POSITIVE: a mechanism only one stack wires is a stack choice, never a failure -- #
+    ev3 = {s: set(events[s]) for s in sp.STACKS}
+    ev3["unity"] = ev3["unity"] | {"SessionStart"}
+    problems, notes = sp.mechanism_findings(ev3, texts)
+    expect("an event wired on ONE stack only raises no problem", problems == [],
+           str(problems))
+    expect("...and is reported as a stack choice",
+           any("SessionStart" in n and "unity" in n for n in notes),
+           str([n for n in notes if "SessionStart" in n]))
+
+    # -- an empty intersection must SAY it compared nothing ---------------------------- #
+    problems, notes = sp.mechanism_findings({s: set() for s in sp.STACKS}, texts)
+    expect("no wired event anywhere is reported as 'compared nothing', not as agreement",
+           problems == [] and any("compared nothing" in n for n in notes), str(notes))
+
+    # -- wording may differ; silence may not ------------------------------------------- #
+    reworded = dict(texts)
+    reworded["godot"] = re.sub(r"(?i)\bstop hook\b", "hook on Stop", texts["godot"])
+    # The check BEFORE the check: an earlier version of this control substituted a phrase
+    # that did not occur (the guide breaks the line inside it), so the guide was unchanged
+    # and the expectation below passed for the wrong reason. A control that cannot fail is
+    # the defect this whole file is about.
+    expect("the reworded guide no longer contains the literal phrase",
+           "stop hook" not in reworded["godot"].lower()
+           and "hook on stop" in reworded["godot"].lower())
+    problems, _ = sp.mechanism_findings(events, reworded)
+    expect("...and stack-native wording still counts as naming the mechanism",
+           problems == [], str(problems))
+
+
+# --------------------------------------------------------------------------- #
 # The real variant: the ts starter with and without its dependency tree.
 # --------------------------------------------------------------------------- #
 
@@ -324,6 +422,7 @@ def main() -> int:
         root = Path(td)
         test_status_classification(root)
         test_heading_adjudication()
+        test_hook_mechanism_parity()
         if not a.no_e2e:
             test_variant_toolchain_absent(root)
             test_skip_tests_opt_out(root)

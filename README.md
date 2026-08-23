@@ -193,8 +193,8 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#129, including retractions. **Read this before trusting any number anywhere.** |
-| `eval/FINDINGS.md` | Findings #19-#129, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#131, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#131, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -413,8 +413,9 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
   calibration trial before any full relaunch is committed.
 
 - **The subjective layer's specialist judges.** Six aspects exist and are runnable —
-  `fun`, `ux`, `audio`, `idiomatic`, `architecture`, and `fun_frames` (the `diagnostic_only`
-  control for `fun`). None is scored. They run separately from `wholegame.py evaluate`, via
+  `fun`, `ux`, `audio`, `idiomatic`, `architecture`, and `fun_frames` (`fun`'s control, which
+  must never be pooled with the other five — kept out by discipline, not by code; task 90).
+  None is scored. They run separately from `wholegame.py evaluate`, via
   `judge/field_sweep.py`, under a cost ceiling.
 
   **Reliability is no longer the blocker, for any of them.** Measured 2026-08-23 for $100.84

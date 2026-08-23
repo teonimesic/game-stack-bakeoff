@@ -293,6 +293,69 @@ def test_audit(tmp: Path) -> None:
           "a pre-wholegame manifest is reported as unmeasurable, not as an error")
     check(M.audit_run(legacy).severity == "skip",
           "LEGACY_SHAPE does not turn the sweep red")
+    # Question 1 is unaskable here; question 2 is NOT, and `audit_run` used to return
+    # before reaching it. The clean case must SAY which channel placed it - "not asked"
+    # and "asked and clean" printing the same word is the defect, not the answer.
+    legacy_detail = next(i.detail for i in M.audit_run(legacy).issues
+                         if i.code == "LEGACY_SHAPE")
+    check("placement asked via suite" in legacy_detail,
+          "a LEGACY_SHAPE line names the placement channel that ran (task 85)")
+
+    print("\naudit - question 2 is asked of EVERY manifest shape (task 85)")
+    # The stored spec-change manifests hold `suite`, `template`, `trials` and nothing
+    # else: no started_at, no run_dir. `runner.py` builds the directory as
+    # f"{suite.name}-{stamp}", so `suite` is the only channel that can place them.
+    #
+    # Answers stated before the tool is asked:
+    #   core-2026-08-10T09-34-03    suite="core"  -> placed, clean          (above)
+    #   bakeoff-rust-2026-...       suite="core"  -> SUITE_MISPLACED, error
+    #   archive-nostamp             no stamp at all, no channel -> UNPLACEABLE, warn
+    suite_moved = make_run(root, "bakeoff-rust-2026-08-11T14-41-00", declared=None,
+                           present=["t1_rally__baseline__t0"],
+                           started=dt.datetime(2026, 8, 11, tzinfo=dt.timezone.utc),
+                           legacy=True)          # make_run writes suite="core"
+    sm = M.audit_run(suite_moved)
+    check("SUITE_MISPLACED" in codes(sm) and sm.severity == "error",
+          "a legacy manifest sitting in another suite's directory -> SUITE_MISPLACED")
+    check(any("core" in i.detail and "bakeoff-rust" in i.detail
+              for i in sm.issues if i.code == "SUITE_MISPLACED"),
+          "and the detail names both the manifest's suite and the directory's")
+
+    # No stamp in the name at all: every channel is unavailable, and that must be SAID
+    # rather than silently passing. This path had no test before task 85.
+    nostamp = root / "archive-nostamp"
+    (nostamp / "trials").mkdir(parents=True, exist_ok=True)
+    (nostamp / "suite.json").write_text(json.dumps(
+        {"suite": "core", "template": "/t", "trials": 2}))
+    (nostamp / "trials" / "t1_rally__baseline__t0.json").write_text('{"trial_id": "x"}')
+    ns = M.audit_run(nostamp)
+    check("UNPLACEABLE" in codes(ns) and ns.severity != "error",
+          "a manifest no channel can place is reported UNPLACEABLE, as a warning")
+    ns_detail = next(i.detail for i in M.audit_run(nostamp).issues
+                     if i.code == "LEGACY_SHAPE")
+    check("placement asked via no channel" in ns_detail,
+          "and its LEGACY_SHAPE line says no channel was available")
+
+    # The suite channel must not fire on a shape that does not carry `suite` - a
+    # wholegame manifest in a directory whose name is nothing like its games.
+    wg = make_run(root, "wg-nothing-like-a-suite-2026-08-20T10-00-00",
+                  declared=(["g1_pong"], ["rust"], 2),
+                  present=(["g1_pong"], ["rust"], 2),
+                  started=dt.datetime(2026, 8, 20, 10, 0, 2, tzinfo=dt.timezone.utc))
+    check("SUITE_MISPLACED" not in codes(M.audit_run(wg)),
+          "the suite channel stays silent on a manifest that has no suite field")
+
+    # MUTANT: the pre-repair `audit_run`, which returned on LEGACY_SHAPE before asking
+    # question 2. It must go BLIND to the misplaced legacy manifest above - a skip that
+    # prints the same word as a clean run is the defect this closes.
+    original_placement = M._placement_issues
+    M._placement_issues = lambda run_dir, canonical: ([], [])
+    mutant = M.audit_run(suite_moved)
+    M._placement_issues = original_placement
+    check(codes(mutant) == {"LEGACY_SHAPE"} and mutant.severity == "skip",
+          "MUTANT: skipping question 2 reports the misplaced legacy manifest as 'skip'")
+    check("SUITE_MISPLACED" in codes(M.audit_run(suite_moved)),
+          "and restoring it makes the same directory red again")
 
     orphan = make_run(root, "wg-orphan-2026-08-20T10-00-00", declared=None,
                       present=["g1_pong__rust__t0"],

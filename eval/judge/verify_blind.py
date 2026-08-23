@@ -154,12 +154,15 @@ def check_pack_skill(pack_dirs: list[Path]) -> list[str]:
                     f"the trial directory")
             if code_dir:
                 continue
-            for rx, _ in anonymise._STACK_RE:
-                m = rx.search(text)
-                if m:
-                    problems.append(
-                        f"STACK TOKEN {m.group(0)!r} in pack file {rel} - this text is "
-                        f"shown to a blinded judge")
+            # `find_stack_names` and not `_STACK_RE`: the regex list is now only the
+            # residual literal forms, and iterating it here would scan for four patterns
+            # while the rewriter knows 38 names. That is the #83 shape one level up - a
+            # checker with a narrower vocabulary than the thing it checks reports clean
+            # on exactly the leaks that motivated the repair (task 73).
+            for tok in anonymise.find_stack_names(text)[:1]:
+                problems.append(
+                    f"STACK TOKEN {tok!r} in pack file {rel} - this text is "
+                    f"shown to a blinded judge")
     return problems
 
 
