@@ -284,14 +284,14 @@ the numbers below are one reading, and its window is part of the number.
 | `gates` / `push` | 14 | 14 |
 
 **This table went from 207 to 220 in the three hours it took to write this section**, because
-four agents were pushing throughout. That is not a caveat on the number — it is the reason the
+4 agents were pushing throughout. That is not a caveat on the number — it is the reason the
 number needs a command rather than a paragraph, and the reason every figure here carries the
 window it was read over.
 
 **Do not turn 220 into a monthly rate, and do not restore the one this section used to
 carry.** The window is three hours on the day CI was built, and it includes the CI's own
-bring-up — seven `controls` runs on `task-110-ci-and-hooks` alone. The projection that stood
-here was arithmetic over two guessed run-rates; nothing produced either, and the copy of it
+bring-up — 7 `controls` runs on `task-110-ci-and-hooks` alone. The projection that stood
+here was arithmetic over 2 guessed run-rates; nothing produced either, and the copy of it
 in `tasks/110`'s body disagreed with the copy in this file, which is what an unproduced
 number does. **No monthly rate is derivable from three hours**, so the honest statement is a
 measured total with its window and the command that re-derives it. If a rate is ever needed,
@@ -318,7 +318,15 @@ on pull requests, 6 were the first on their branch (no predecessor push, so they
 construction) and **2 of the remaining 13** were bought by the accumulated diff — both on
 `task-110-ci-and-hooks`, both from a push touching only `.github/workflows/README.md`. And
 `gates` — which has no path filter — ran exactly as many times as `controls` on all five
-branches, so once a PR's diff matches, the slow tier does run on every subsequent push.
+branches (7/7, 1/1, 3/3, 3/3, 4/4), so once a PR's diff matches, the slow tier does run on
+every subsequent push.
+
+**The audit measures the latest push's diff and never computes the accumulated one, which is
+the point rather than a gap.** A `pull_request` workflow is dispatched only when its `paths:`
+filter matches, and that filter is defined over the accumulated diff — so a run's *existence*
+already establishes that the accumulated diff matched. The tool supplies the other half: that
+the push which triggered it matched nothing. Computing the accumulated diff too would
+re-derive what the run's existence states.
 
 So the mechanism in the ticket is real. **The change was still rejected, on two measurements.**
 
@@ -334,8 +342,20 @@ base moves. In both windows a latest-push filter would have skipped:
 
 Both would have skipped a run whose merge inputs had genuinely moved. `tasks_mutants.py`
 mutates a copy of `eval/tools/tasks.py` and `skill_layout_control.py` reads exactly those
-skill paths, so neither is a near-miss. Across the day, **264 of 429 `main` commits touch a
-filtered path**, so this exposure is continuous rather than a coincidence of two windows. It
+skill paths, so neither is a near-miss. Across 2026-08-23, **270 of 437 `main` commits — 62% —
+touch a filtered path**, so the exposure is continuous rather than a coincidence of two
+windows. Re-derive it, and expect the two counts to have grown while the ratio holds:
+
+    while read -r s; do
+      total=$((total+1))
+      git show --pretty= --name-only "$s" \
+        | grep -qE '^(eval/|\.agents/|\.claude/|\.github/workflows/controls\.yml)' \
+        && hit=$((hit+1))
+    done < <(git log origin/main --since=2026-08-23T00:00:00Z --format=%H)
+    echo "$hit of $total"
+
+**Ask it per sha, not over the concatenated file list** — `grep -c` on the latter counts
+changed *files* and silently answers a different question. It
 is also the defect class this repository has already been bitten by once: run `32649830893`
 went red on the merge alone, and the section above calls that the strongest argument in this
 file for CI existing.
@@ -346,7 +366,7 @@ minimum of one minute per job, so:
 | design | saves | costs | net |
 |---|---|---|---|
 | a separate gating job, then `controls` | the 2 skipped runs, 16 min | +1 min × 25 `controls` jobs = **+25 min** | **+9 min — worse than doing nothing** |
-| one job, `if:` on the five gate steps | ~14 min (a skipped run still pays the 36s setup floor) | a **green `controls` run that executed no gate** | 6.4% of 220, for a run that reports success and measures nothing |
+| one job, `if:` on the 5 gate steps | ~14 min (a skipped run still pays the 36s setup floor) | a **green `controls` run that executed no gate** | 6.4% of 220, for a run that reports success and measures nothing |
 
 The setup floor is measured on run `32657248359`: 36s of checkout, `setup-python`, pip, `just`
 and ffmpeg against 549s of actual gates. A skipped run cannot cost less than a minute.
@@ -354,7 +374,7 @@ and ffmpeg against 549s of actual gates. A skipped run cannot cost less than a m
 **What it would cost to change, if the constraint ever binds.** The `before`/`after` shas are
 present in the `pull_request` payload only for `action: synchronize` — `opened` and `reopened`
 would have to fall back to running everything — so the implementation is a step computing the
-range plus a fallback, in a workflow whose current filter is four lines of YAML. The lever to
+range plus a fallback, in a workflow whose current filter is 4 lines of YAML. The lever to
 reach for first is not this one: **`controls` / `pull_request` is 141 of 220 minutes**, and
 dropping that trigger for the nightly alone is a two-line change that saves 64% rather than
 7.2%. It also trades away per-PR feedback, which is why it is a lever and not a decision.

@@ -225,6 +225,26 @@ def path_filter_audit(runs: list[dict], compare) -> dict:
     on a branch has no predecessor, so its push range IS the whole-PR diff; it matches by
     construction and is reported in its own bucket rather than counted as evidence either
     way.
+
+    IT DELIBERATELY DOES NOT COMPUTE THE ACCUMULATED PULL-REQUEST DIFF, and a `no-match`
+    row is still evidence about it. The inference has two halves, and only one of them is
+    a measurement:
+
+      1. the run EXISTS, with `event: pull_request`. GitHub dispatches a `pull_request`
+         workflow only when its `paths:` filter matches, and that filter is defined over
+         the accumulated diff. So the accumulated diff matched -- observed, not computed.
+      2. the latest push's own diff matched NOTHING filtered -- measured here.
+
+    Together: the run was bought by something other than the push that triggered it, and
+    the only thing that can buy it is the accumulated diff. Computing that diff as well
+    would re-derive half of what the run's existence already states.
+
+    THE RANGE IS ONE PUSH ONLY BECAUSE `controls` RAN ON EVERY PUSH, which is checked
+    rather than assumed: `gates` carries no path filter, and its run count equals
+    `controls`' on every branch measured (7/7, 1/1, 3/3, 3/3, 4/4 on 2026-08-23). Were
+    that to stop holding, consecutive `controls` runs would bracket more than one push and
+    a `no-match` row would understate rather than overstate -- it fails toward reporting
+    fewer wasted runs, never more.
     """
     controls = [
         r for r in runs if r.get("name") == "controls" and r.get("event") == "pull_request"
