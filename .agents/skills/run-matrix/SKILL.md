@@ -1,7 +1,7 @@
 ---
 name: run-matrix
 description: Launch, watch, diagnose or stop a whole-game evaluation matrix in eval/. Covers the pre-launch checks, the standing turn/budget configuration, the 30-minute heartbeat, wedge diagnosis and safe stopping.
-when_to_use: Starting a matrix, a calibration trial, or a re-run of failed cells; a build looks stalled or wedged; choosing --max-turns or --max-budget-usd; killing a run safely. Trigger phrases: run the matrix, launch trials, is the run stuck, why is it hanging, stop the build, how many parallel.
+when_to_use: "Starting a matrix, a calibration trial, or a re-run of failed cells; a build looks stalled or wedged; choosing --max-turns or --max-budget-usd; killing a run safely. Trigger phrases: run the matrix, launch trials, is the run stuck, why is it hanging, stop the build, how many parallel."
 argument-hint: [run-dir]
 ---
 
