@@ -1,7 +1,7 @@
 ---
 id: 88
 title: 'README says thirty-seven numbered findings; the log runs to #129'
-status: open
+status: in_flight
 priority: 3
 refs: README.md line 539 area, AGENTS.md 'Read before changing anything' table, eval/FINDINGS.md, eval/tools/census.py
 done_when: census.py (or docstat.py) emits a findings count and a highest-number over eval/FINDINGS.md plus eval/findings/, README.md and AGENTS.md quote it with the command written beside it as the AGENTS.md rule requires, and a control shows the producer disagrees when a finding is added or renumbered

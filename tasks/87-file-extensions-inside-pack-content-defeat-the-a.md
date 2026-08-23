@@ -1,7 +1,7 @@
 ---
 id: 87
 title: 'File extensions inside pack CONTENT defeat the architecture aspect''s blinding: 1,876 occurrences of .ts/.gd/.rs/.cs across 78 of 84 stored packs'
-status: open
+status: in_flight
 priority: 2
 refs: 'eval/judge/field.py build_pack blind_language, eval/judge/anonymise.py CODE_EXT, eval/FINDINGS #130'
 done_when: a rewrite of extension references applies only where blind_language is true, pinned by a selftest that fails before the change and passes after, and by a variant proving a non-blind aspect's pack is byte-unchanged; a re-sweep of stored packs reports the count under the blind path; and the decision about what an extension inside a string literal or a data file should become is stated rather than left to the regex
