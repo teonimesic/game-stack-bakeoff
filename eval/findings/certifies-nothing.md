@@ -2982,3 +2982,100 @@ the control"* went red; the same sentence in the past tense was green. Widened t
 | phantom flag appended to a SKILL.md | exit 1 |
 | **mutant**: same phantom, `reference_docs` reverted to `project_docs` | **exit 0** — the corpus change is what carries it, not the fence edit |
 | documented `JUDGING.md` control, re-run under fence masking | exit 1, unchanged |
+
+---
+
+## 112. A withdrawn figure is still the published tier-3 separation result in three live documents, and the quantity it names has no producer anywhere in the repository
+
+`README.md`'s headline table withdrew "between-stack range of mean ranks 1.70, mean gap 2.05" on
+2026-08-22, on the ground that it named no scope and did not reproduce. **The same pair is still
+stated as a current measurement in three places**, none of them marked:
+
+| where | how it reads |
+|---|---|
+| `DECISIONS.md`, tier-3 weight | "Its between-stack range (1.70 rank positions) is smaller than its within-stack spread (2.05)" |
+| `eval/judge/JUDGING.md`, "Does any aspect separate the four stacks?" | a two-row table, 1.70 and 2.05 |
+| `README.md`, In flight | the same two-row table, 250 lines below its own withdrawal |
+
+`eval/IMPROVEMENTS.md` restates it too and is exempt: it is an iteration log, and a log records
+what was believed at the time.
+
+### Why it was never caught, and why a consistency check cannot catch it
+
+The obvious gate is cross-document agreement: extract labelled figures from the live documents
+and flag the labels that disagree. It was built and measured before being proposed. Over the six
+live documents it found **52 table labels of 25 characters or more carrying a number, one
+disagreement, and that one a false positive** — two rows of one legitimate table with different
+scopes. It did not find this defect and **cannot**: the four restatements agree with each other
+to the digit. The corrected value lives in prose, in a cell the extractor does not read as a
+figure.
+
+> **A stale number that has been copied forward is CONSISTENT. Propagation and agreement are the
+> same observation, so a consistency check scores its worst case as clean.** What separates them
+> is not the values, it is whether a withdrawal was ever declared — which is a fact about the
+> record, not about the numbers, and no amount of reading the numbers will recover it.
+
+### What the stored evidence actually says
+
+`judge/field_ranks.py` was written for this and recomputes the pair from stored rounds. The
+method turns out to be two independent choices — `score` or `rank`, and whether the spread is
+taken before or after averaging the rounds — so there are four figures, not one. All eight,
+over both stored fields of `wg-tetris-judge-2026-08-17`, `g2_tetris3d`, 5 aspects x 2 orders,
+10 usable rounds each:
+
+| field | score/pool | score/perround | rank/pool | rank/perround |
+|---|---|---|---|---|
+| `pre` | 0.350 / 0.725 | 0.950 / 0.775 | **1.900 / 2.275** | 3.300 / 2.825 |
+| `post` | 0.700 / 0.675 | 0.850 / 0.875 | **2.100 / 1.925** | 3.300 / 3.325 |
+
+**None is 1.70 / 2.05.** The two in bold are what `README.md`'s headline table already reports,
+and they reproduce exactly — so the withdrawal was right and its replacement is sound.
+
+A census of every stored judge round in the project — **93, identified by shape rather than by
+filename** — finds no other five-aspect two-order `g2_tetris3d` field. There is nowhere else the
+pair could have come from.
+
+### The extraction was proved on ten known answers before any of that was believed
+
+`JUDGING.md` states a per-aspect table three lines above the pooled figure. Recomputed under
+`score` + `perround`, **all ten of its cells reproduce exactly** — architecture 0.50/0.50, audio
+0.75/0.62, fun 1.25/1.50, idiomatic 0.75/0.38, ux 1.50/0.88 — and under no other method. That
+is what identified the method at all, and it is the reason the pooled disagreement is a defect in
+the document rather than a bug in the reader. Rule 12's corollary, run deliberately: the first
+attempt used `rank` and matched **none** of the ten, and its pooled answer still agreed with
+`README.md` to four digits, which would have been read as confirmation.
+
+> **The per-aspect table and the pooled line that summarises it were computed by different
+> methods, and only the table is reproducible.** The pooled line looks like the aggregate of the
+> rows above it. It is not the aggregate of anything.
+
+### The inequality is load-bearing and method-dependent
+
+`DECISIONS.md` does not merely quote the pair, it rests a decision on the direction: between
+smaller than within, therefore no separation, therefore weight 0.00. Across the eight readings
+that direction **holds in four and reverses in four** — including reversing under `score` +
+`perround` on `pre`, the one method proved to reproduce `JUDGING.md`'s own table (0.950 against
+0.775).
+
+The decision survives, on grounds that do not depend on it: `README.md`'s reading that the two
+sit within ~10% of each other in both fields, and #83, under which neither round is defensible as
+blind at all. **The conclusion is safe and the stated reason is not, and those are different
+claims.** A justification that reverses under a method change was never evidence for the thing it
+was cited for.
+
+### Why the figure could drift at all
+
+No script in this repository produced it. `judge/discrimination.py` computes a between-stack
+range on the deterministic tiers and nothing computed one on judge ranks, so the number was
+derived by hand, quoted forward four times, and withdrawn in one of the four. **A quantity with
+no producer cannot be re-derived, so it cannot be checked, so it survives** — the same shape as
+the four other unreproducible aggregates `README.md` has already withdrawn.
+
+`judge/field_ranks.py` is the producer. Offline, free, `--selftest` with six controls including a
+mutant, a permutation variant, and a negative control proving the usable-round filter can change
+an answer.
+
+### The repair is not a find-and-replace
+
+Choosing what replaces the pair means choosing which of four methods the project reports, and
+that decision belongs with the document that defines the aspect layer. Task 54.
