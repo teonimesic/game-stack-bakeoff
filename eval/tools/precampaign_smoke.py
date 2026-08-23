@@ -177,13 +177,27 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
     # both rows want a checkout, not an agent worktree.
     out.append(("parity_selftest (test axis: measured, unmeasurable, and opted out)",
                 ["python3", "judge/parity_selftest.py"], EVAL))
-    # ~160s, and it belongs to this file's class exactly: nothing ever ran a starter's
-    # OWN gate on a PRISTINE copy, because the grader only ever runs it on submissions,
-    # where red is the answer you are looking for. The godot template shipped `just check`
-    # exiting 1 on an untouched tree for four months, handing that one arm
-    # build.compiles=False and verify.green=False in the tier weighted 0.31 (#98).
-    out.append(("starter_gate_control (pristine green + planted red on 4 stacks, plus "
-                "the plant-discriminates row on godot)",
+    # It belongs to this file's class exactly: nothing ever ran a starter's OWN gate on a
+    # PRISTINE copy, because the grader only ever runs it on submissions, where red is the
+    # answer you are looking for. The godot template shipped `just check` exiting 1 on an
+    # untouched tree for four months, handing that one arm build.compiles=False and
+    # verify.green=False in the tier weighted 0.31 (#98).
+    #
+    # THE COST ROSE FROM ~160s TO ROUGHLY 15-20 MINUTES on 2026-08-23, because it now also
+    # runs `just verify` twice per stack: `verify` is the recipe an agent and the Stop hook
+    # actually run, `fmt` is its first dependency in all four stacks, and a starter that is
+    # not format-clean therefore has its own gate rewrite a file the agent never opened
+    # into the stored trial diff (#106). It is the right place to pay that: this file
+    # runs once, immediately before a matrix that costs hours and hundreds of dollars and
+    # whose diffs are the artifact the comparison rests on.
+    #
+    # It exits 3 when nothing failed but an arm could not be measured (a formatter its
+    # `just warm` did not install). This file reads anything non-zero as FAILED, which is
+    # the wanted behaviour: an unmeasured arm must not read green on the way into a
+    # campaign (#61).
+    out.append(("starter_gate_control (pristine green + planted red on 4 stacks, the "
+                "plant-discriminates row on godot, and `just warm` / `just verify` "
+                "leaving each pristine tree unchanged)",
                 ["python3", "tools/starter_gate_control.py"], EVAL))
     # verify_blind on COPIES outside the repo: pointed at `starters/` in place it
     # reports RUBRIC REACHABLE from an ancestor, which is true and not the question.
