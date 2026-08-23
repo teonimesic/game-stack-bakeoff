@@ -65,6 +65,31 @@ the word "Stop", so the next hook is covered by the row that caught this one. Wo
 stack-native; silence is what fails. An event wired on some stacks only is a stack choice and is
 reported, never failed.
 
+**WHAT THE STOP GATE DID IS NOW AN ARTIFACT, and its address is `runs/<run>/artifacts/<trial>/
+hook_log.tsv`.** A Stop hook that exits 0 leaves no trace in the transcript or anywhere else, so
+"no block" could never tell a green gate from a gate that never ran, and every trial before
+2026-08-23 is permanently in that state (task 84, the eighteenth comparability break in
+`RUNS.md`). Each hook now appends `invoked` plus one of `pass` / `block` / `skip` / `no_project_dir`,
+and `wholegame.py` summarises it into `trials/<trial>.json` under **`stop_hook`**.
+
+Three things about reading it:
+
+- **`log: "absent"` is a third value.** It is not `invocations: 0` and it is certainly not "the
+  gate passed" — it means the hook never ran, or the CLI never passed the variable, or the trial
+  predates this. Anything testing for truthiness collapses the one distinction the log exists to
+  make.
+- **`skip` names the guard that fired.** Every hook short-circuits on a warm guard (`target/`,
+  `node_modules/`, `Library/`, `just` on `PATH`), and a short-circuit was indistinguishable from a
+  pass in every artifact the project stored.
+- **The log MUST stay outside the trial tree**, which becomes the graded diff (#106).
+  `wholegame.hook_log_path` refuses to launch if the address is inside it, and every trial record
+  carries `stop_hook.leaked_into_tree` measured against `tree.txt` and `diff.stat` after the fact.
+
+`tools/hook_audit_control.py` pins all of it offline in both directions — green, blocked and cold
+arms with distinct logs, a mutant with the logging deleted, and variants for append-not-truncate
+and for the unset-variable fallback. `--live` adds the one row a shim cannot fake: that the CLI
+really hands `$STARTER_HOOK_LOG` to a hook it spawns (~$0.05).
+
 ## Checking a run
 
 **`python3 tools/runstat.py`** — the only correct status check. Do not hand-roll one at a
