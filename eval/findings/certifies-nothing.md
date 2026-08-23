@@ -4828,3 +4828,67 @@ here that tests it at all.**
 **The hooks are written and deliberately not installed.** `core.hooksPath` is shared configuration
 that would arm every concurrent agent worktree at once — the operator's to run, not a dispatched
 agent's.
+
+---
+
+## 156. Two checks for the same damage are each blind to the other's only known instance, so the obvious move — merging them into one rule — would lose one
+
+An edit that half-overwrites a paragraph leaves debris. This project has met the damage twice, in
+two shapes:
+
+- a **stranded tail** — a fragment left behind when the sentence above it was rewritten
+- a **duplicated fragment** — a run of words appearing twice inside one paragraph, the second
+  draft written over the first and not quite covering it
+
+They read as one defect with two faces, and the natural instinct on seeing the second gate written
+is: *these should be one parameterised rule.*
+
+Run each against the other's real blob — the argument order matters, and getting it wrong returns
+0 for everything, which is how this was nearly mis-measured:
+
+| | stranded-tail blob | fragment blob |
+|---|---|---|
+| stranded-tail check | **1** | 0 |
+| duplicate-fragment check | 0 | **4** |
+
+**Each fires on its own instance and is blind to the other's.** The stranded tail repeats a run of
+exactly **six** words, so a 12-word window scores 0 on it at every setting from 7 upward. The
+fragment defect spans two sentence boundaries, so a suffix-of-the-previous-sentence rule scores 0
+on it at any threshold.
+
+> **Merging them would not generalise the rule; it would delete a row.** Two checks whose union is
+> the coverage and whose intersection is empty look redundant from the outside and are not, and
+> nothing about either one's code says so. **The cell that proves it is now a pin, not a
+> sentence** — a future agent who proposes the merge gets a red row instead of an argument.
+
+### The window was chosen on the live false-positive count, and the boundary is an argument
+
+10 words → 1 hit. 11 → 0. 12 → 0. 16 → 0 *and blind to the defect.* Shipped at 12: one word of
+margin over the last measured hit.
+
+That single hit at 10 is worth stating, because it is not noise. It is an **antithesis** — a
+passage where repetition *carries* the argument, a 10-word run in a blockquote that repeats itself
+deliberately. The check cannot distinguish deliberate repetition from debris, and at 10 words it
+does not have to be wrong to be unusable.
+
+This is the **fifth** trigger of this family measured before shipping. The tally across two days:
+26, 8 and 49 false positives on the three open-class triggers, and **0** on both closed-class ones
+(#140, #142, #146, #152). The pattern is now strong enough to state as a prior: **a trigger drawn
+from a property of the text scores zero; a trigger drawn from a vocabulary or a token class does
+not.**
+
+### Three of the ticket's own predictions were wrong, and all three were corrected against measurement
+
+- Two predicted corpus hits **never existed** — the fence handling is already a line-state parser,
+  so nothing had to be written.
+- **Frontmatter was an unanticipated third exclusion.** A YAML header reads as one block, so a
+  task file restating its own `done_when` inside `established_by` scores as duplication. Fixed as
+  *one block per key* rather than as a header mask — masking also measures 0, and per-key is
+  strictly more coverage for the same measured cost.
+- The shorter-window figures the ticket carried **do not reproduce**; they came from a prototype
+  without the table exclusion.
+
+A ticket's numbers are a starting hypothesis. **Three of these were carried into a ticket in good
+faith and none survived contact with the corpus** — which is the argument for re-measuring rather
+than implementing to spec, and the same lesson #152 records about a ticket that specified its own
+trigger.

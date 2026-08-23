@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#155 from building and running this evaluator. **Check whether a
+Findings #19-#156 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -231,6 +231,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **153** | Moving a directory disarmed a review rule in a different file, and the rule went on being cited by the reviewer that no longer applied it | [certifies-nothing](findings/certifies-nothing.md) |
 | **154** | The first red control came out green, and green was the reassuring answer — a deliberate break planted at an address the check does not read | [certifies-nothing](findings/certifies-nothing.md) |
 | **155** | A pull-request run tests the merge, and the first thing it caught existed in neither branch | [certifies-nothing](findings/certifies-nothing.md) |
+| **156** | Two checks for the same damage are each blind to the other's only known instance, so merging them into one rule would lose one | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
