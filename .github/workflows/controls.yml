@@ -39,19 +39,39 @@ jobs:
   controls:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0   # tasks_mutants exits 2 on a shallow clone -- measured
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
       - run: python3 -m pip install --disable-pip-version-check pyyaml==6.0.2
 
+      # `just` is NOT a stack toolchain here. bot_mutants drives eval/judge/fixtures/*,
+      # whose justfiles run `python3` and nothing else -- `just` is only the recipe runner.
+      # It refuses to run without it (exit 2, fail-closed), which is how CI found this.
+      # Pinned to the operator's version so a recipe cannot behave differently in the two
+      # places. Downloaded to a file rather than piped into tar: a pipeline's exit status
+      # is the last stage's (AGENTS.md rule 3).
+      - name: fetch just 1.58.0
+        run: curl -fsSL -o /tmp/just.tar.gz https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz
+      - name: install just
+        run: sudo tar -xzf /tmp/just.tar.gz -C /usr/local/bin just
+      - name: just --version
+        run: just --version
+
+      # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
+      # others. Without it a broken run reports one failure per push, and clearing three
+      # takes three pushes on a metered account.
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
+        if: ${{ !cancelled() }}
         run: python3 eval/judge/bot_mutants.py
       - name: tasks_mutants (the five mutants tasks_control's rows must catch)
+        if: ${{ !cancelled() }}
         run: python3 eval/tools/tasks_mutants.py
       - name: judge/audio_selftest
+        if: ${{ !cancelled() }}
         run: python3 eval/judge/audio_selftest.py
       - name: judge/rusage_selftest
+        if: ${{ !cancelled() }}
         run: python3 eval/judge/rusage_selftest.py

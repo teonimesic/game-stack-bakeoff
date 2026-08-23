@@ -103,6 +103,34 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `lint.py --gate` (the whole pinned set) | 64 findings with a standing untriaged backlog. See below |
 | anything that spends money or drives the `claude` CLI | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py`. The operator's call, every time |
 
+## What CI found on its first run
+
+The fast tier was green first time. The slow tier was **red, correctly**: `bot_mutants.py`
+exited 2 with `` `just` is not on PATH; these tests cannot run ``.
+
+That is worth recording rather than just fixing. `just` had never been named anywhere as a
+dependency of the mutant suite, because on every machine that had ever run it `just` was
+already installed for the four stacks. **`eval/judge/fixtures/*` are pure Python** — their
+justfiles run `python3` and nothing else — so `just` here is a recipe runner, not a stack
+toolchain, and installing it does not breach the no-toolchains rule. It is pinned to
+**1.58.0**, the operator's version, and fetched to a file rather than piped into `tar`,
+because a pipeline's exit status is the last stage's.
+
+The suite refuses to run rather than reporting zero mutants, which is why this surfaced as a
+red build instead of a green one over an empty population.
+
+Two other things the first runs settled:
+
+- `actions/checkout@v4` and `actions/setup-python@v5` annotate every run with a Node 20
+  deprecation. Both are now `@v5`/`@v6`. An annotation on every run is how a reader learns to
+  skip the output.
+- `python-version: '3.14'` resolved to **3.14.7** on the runner against the operator's
+  **3.14.6**. Same minor, and both workflows say `'3.14'` deliberately — pinning the patch
+  would go stale silently and buy nothing these gates can see.
+
+Every gate step carries `if: ${{ !cancelled() }}`, so one red gate does not hide the verdict
+of the others. Without it a broken run reports one failure per push.
+
 ## `fetch-depth: 0` is measured, not cargo-culted
 
 `actions/checkout` clones at depth 1 by default. Several gates read blobs at named
