@@ -26,12 +26,20 @@ python3 tools/linkcheck.py            # every relative link in the live docs: pa
 python3 tools/linkcheck.py --selftest # its controls, three link shapes, both directions
 ```
 
-`--sweep` asks two kinds of question:
+`--sweep` asks three kinds of question:
 
 | | asks | bought with |
 |---|---|---|
 | **references** | does a harness flag or an aspect id a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
 | **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
+| **integrity** | is the text itself intact, or did an edit leave debris behind? | an edit rewrote a wrapped sentence in `eval/FINDINGS.md` and left its last line stranded at line 6, where every session is told to read first |
+
+**The integrity question is the one no consistency check can ask.** A half-sentence left by a
+botched edit states nothing, so it disagrees with nothing — it is damage rather than a wrong
+claim, and it survived precisely because every other gate here looks for disagreement. The
+trigger is *repetition*: a prose line whose text already appears in the paragraph above it. It
+runs over the **archive as well as the live docs**, which the formatting gates do not, because
+the one instance was in the archive and debris is not evidence.
 
 **`--sweep` deliberately does not check file paths, and `linkcheck.py` is what covers the gap
 for links** — a phantom `eval/RUBRIC.md` passed a green sweep. It resolves the path *and* the

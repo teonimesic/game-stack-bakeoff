@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Analyse this project's documentation: structure, size, and names that do not exist.
 
-`--sweep` asks two kinds of question. REFERENCES: does a name used in a doc resolve?
+`--sweep` asks three kinds of question. REFERENCES: does a name used in a doc resolve?
 STRUCTURE: does a file parse as the thing it is being read as? The second kind was added
 2026-08-23 after eleven documentation linters were measured against this repository and
 produced over 14,000 alerts and two defects, both structural, both missed by every prose
 linter (research/11-doc-linting-for-agents.md).
+
+INTEGRITY: is the text intact, or did an edit leave debris behind? See `_check_orphaned_tail`.
+This is the kind no consistency check can ask, because debris states nothing and therefore
+disagrees with nothing - the reason a stranded half-sentence sat at line 6 of eval/FINDINGS.md,
+the file every session is told to read first, through every gate in this module.
 
 WHY THIS EXISTS
 ---------------
@@ -608,6 +613,170 @@ def _check_list_indent() -> list[str]:
                 j += 1
             i = j
     return problems
+
+
+# THE ORPHANED EDIT TAIL, and why the trigger is not the one task 99 asked for.
+#
+# The defect: an edit rewrites a sentence that was WRAPPED across several lines and replaces
+# only the lines it touched, leaving the last wrapped line of the OLD sentence stranded below
+# the new one. It is not a wrong claim and not a stale number, so no withdrawal register entry
+# and no consistency check applies - it is text corruption, and it sat at line 6 of
+# `eval/FINDINGS.md`, the file every session is told to read first.
+#
+# `tasks/99` specified the trigger as "a strict suffix of the sentence ending on the line
+# above". MEASURED AGAINST THE REAL BLOB, THAT TRIGGER DOES NOT FIRE. At `1f6fb65` the
+# stranded line 6 is
+#
+#     number has been retracted before trusting it.**
+#
+# and the sentence ending on line 5 is "...`docstat.py --withdrawn` enforces it over the live
+# documents." The fragment is a suffix of the sentence that was DELETED, whose head ("**Check
+# whether a") still sits on line 3 - not of anything ending on line 5. Writing the ticket's
+# trigger would have produced a check that is green on the only defect anyone has ever seen,
+# which is the failure mode this file exists to catch. The ticket is the bug; this is the note.
+#
+# THE PROPERTY ACTUALLY SHIPPED: an unfenced, non-structural prose line of >=5 words whose
+# normalised text already appears verbatim in the same paragraph above it. The orphan is a
+# REPETITION - that is what an editor leaving half a replaced sentence behind produces - and
+# repetition is a closed property of the text, not a vocabulary. AGENTS.md's census-trigger
+# rule asks for a closed class chosen on its live-corpus false-positive count, and this is the
+# first trigger tried here that opens at 0 rather than at 8, 18 or 26 (#140, #142, #146).
+#
+# MEASURED 2026-08-23 over all 180 reference docs (live AND archive) at HEAD: 0 hits. The
+# tighter variant that also requires the line to END its paragraph is likewise 0, so the
+# looser one ships - same measured cost, strictly more coverage.
+#
+# SCOPE IS `reference_docs()`, WHICH INCLUDES THE ARCHIVE, and that is deliberate against the
+# usual rule two hundred lines up. The structure checks exempt `eval/findings/` because
+# re-indenting an archived entry edits evidence. A half-sentence left by a botched edit is not
+# evidence of anything - it is damage - and the one instance was in the archive. A findings
+# entry QUOTING such a defect would sit in a fence, which is masked.
+_ORPHAN_MIN_WORDS = 5
+
+# Anything a markdown structure puts at the start of a line. A table row, a list item or a
+# heading repeating text within one paragraph is ordinary formatting, not a stranded edit.
+_ORPHAN_STRUCTURAL_RX = re.compile(r"^\s*(\||>|#|[-*+]\s|\d+[.)]\s|\[|!\[|:?-{3,})")
+
+
+def _orphan_normalise(s: str) -> str:
+    """Prose content of a line, with the punctuation an edit boundary disturbs removed.
+
+    The stranded line and its origin differ by exactly the debris of the cut: the orphan ends
+    `trusting it.**` where the surviving copy reads `trusting it** - `. Emphasis runs,
+    backticks and terminal punctuation are therefore stripped on both sides. Case is folded
+    because a re-wrapped sentence may capitalise a word that was mid-sentence before.
+    """
+    s = s.replace("`", "")
+    s = re.sub(r"[*_]{1,3}", "", s)
+    s = re.sub(r"\s+", " ", s.lower()).strip()
+    return s.strip(".,;:!?—–- ")
+
+
+def _check_orphaned_tail(text: str, rel: str) -> list[str]:
+    """Prose lines that repeat text already present in the paragraph above them.
+
+    A FUNCTION OF ITS INPUTS, not of the repository, so the pins can hand it the historical
+    blob that carries the real defect rather than a retyped imitation of it.
+    """
+    lines = text.split("\n")
+    mask = _fence_mask(lines)
+    problems = []
+    for i, line in enumerate(lines):
+        if i == 0 or mask[i] or not line.strip():
+            continue
+        if _ORPHAN_STRUCTURAL_RX.match(line):
+            continue
+        cand = _orphan_normalise(line)
+        if len(cand.split()) < _ORPHAN_MIN_WORDS:
+            continue
+        # The paragraph: contiguous non-blank, unfenced lines immediately above. Scoping to
+        # the paragraph rather than the document is what keeps a sentence legitimately
+        # restated later in a long file from reading as damage.
+        above, j = [], i - 1
+        while j >= 0 and lines[j].strip() and not mask[j]:
+            above.append(lines[j])
+            j -= 1
+        if not above:
+            continue
+        if cand in _orphan_normalise(" ".join(reversed(above))):
+            problems.append(
+                f"{rel}:{i + 1}: this line repeats text already in the paragraph above it, "
+                f"which is what an edit that rewrote a wrapped sentence and left its last "
+                f"line behind produces: {line.strip()[:60]}")
+    return problems
+
+
+def _orphan_tail_pins(verbose: bool = False) -> list[str]:
+    """Pin the orphaned-tail check in both directions, red from a real blob.
+
+    THE RED CASE IS A BLOB, NOT A RECONSTRUCTION. `1f6fb65:eval/FINDINGS.md` is the tree as it
+    stood with the defect in it; the fix landed as a side effect of an unrelated commit, so
+    HEAD cannot supply it. A defect retyped from memory is a defect whose shape the author has
+    already decided, and the check would then be pinned against its own assumptions.
+
+    The expectation is stated HERE - line 6, and the words on it - rather than computed from
+    the blob by the same code under test. A control that imports its expectation from its
+    subject is not a control (AGENTS.md rule 12, task 113).
+
+    The GREEN cases are the half that matters. Each is an input this trigger could plausibly
+    mishandle, and repetition is common in correct markdown: tables restate terms, lists
+    restate stems, fenced blocks contain literal duplicate lines, and a document may say the
+    same sentence twice in two different paragraphs. All four must stay quiet.
+    """
+    out: list[str] = []
+
+    def case(name: str, text: str, expect_red: bool, rel: str = "pin.md"):
+        got = _check_orphaned_tail(text, rel)
+        good = bool(got) == expect_red
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: {len(got)} hit(s), "
+                  f"expected {'>=1' if expect_red else '0'}")
+        if not good:
+            out.append(f"the orphaned-tail pin '{name}' came out wrong: {len(got)} hit(s), "
+                       f"expected {'>=1' if expect_red else '0'} - {got[:1]}")
+
+    # `_git` returns "" on a non-zero exit and never raises, so the failure to guard against
+    # is an EMPTY STRING, not an exception. Guarding the exception instead would leave the
+    # red pin silently unrun on a shallow clone: `_check_orphaned_tail("")` returns no hits,
+    # and no hits with nothing to find is indistinguishable from a check that cannot fire.
+    blob = _git("show", "1f6fb65:eval/FINDINGS.md")
+    if not blob.strip():
+        # Unproven is a problem, not a pass. A shallow clone reaches this, so does a
+        # rewritten history, and in both cases nothing has shown this check fires at all.
+        out.append("the orphaned-tail red pin could not read 1f6fb65:eval/FINDINGS.md, so "
+                   "the check is unproven - nothing here shows it can fire")
+    else:
+        hits = _check_orphaned_tail(blob, "eval/FINDINGS.md")
+        want = "eval/FINDINGS.md:6:"
+        if not any(h.startswith(want) for h in hits):
+            out.append(f"the orphaned-tail red pin did not flag line 6 of "
+                       f"1f6fb65:eval/FINDINGS.md, the one instance of this defect the "
+                       f"project has seen - it found {hits or 'nothing'}")
+        elif verbose:
+            print(f"PASS  red, real blob 1f6fb65:eval/FINDINGS.md line 6: {hits[0][-60:]}")
+
+    head = os.path.join(ROOT, "eval", "FINDINGS.md")
+    if os.path.exists(head):
+        case("green, the same file at HEAD with the orphan gone",
+             open(head, encoding="utf-8", errors="replace").read(), False, "eval/FINDINGS.md")
+
+    case("red, a stranded tail planted in ordinary prose",
+         "The gate reads the stored manifest and compares it with what the\n"
+         "run actually wrote, so a truncated upload is visible.\n"
+         "run actually wrote, so a truncated upload is visible.\n", True)
+    case("green, a duplicate line inside a fence",
+         "Sample output:\n\n```\ntotal=0 passed=0 skipped=0 in this build\n"
+         "total=0 passed=0 skipped=0 in this build\n```\n", False)
+    case("green, a table restating a term in consecutive rows",
+         "| what | why |\n|---|---|\n| the manifest of what was dropped | the manifest of "
+         "what was dropped |\n", False)
+    case("green, the same sentence in two different paragraphs",
+         "A control shares the assumptions of the thing it controls.\n\n"
+         "A control shares the assumptions of the thing it controls.\n", False)
+    case("green, list items sharing a stem",
+         "- the judge reads the pack and scores the field\n"
+         "- the judge reads the pack and scores the field\n", False)
+    return out
 
 
 # A row of the "Every finding" index in eval/FINDINGS.md, and the GFM delimiter row that
@@ -2680,6 +2849,8 @@ def cmd_selftest() -> int:
     failed += _findings_census_pins(verbose=True)
     print()
     failed += _bare_flag_pins(verbose=True)
+    print()
+    failed += _orphan_tail_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -2994,6 +3165,13 @@ def cmd_sweep() -> int:
     problems += _check_aspect_census(corpus, aspects)
     problems += _aspect_census_pins(aspects)
 
+    # Runs over `corpus`, which is `reference_docs()` - live AND archive. See the comment on
+    # `_check_orphaned_tail` for why the archive is in scope here when the other structure
+    # checks exempt it, and for the 0-false-positive measurement that let it ship.
+    for _rel, _text in sorted(corpus.items()):
+        problems += _check_orphaned_tail(_text, _rel)
+    problems += _orphan_tail_pins()
+
     # THE WITHDRAWAL REGISTER GATES, unlike `--renumbered` next to it, because its verdict
     # has no judgement in it: a declared entry either occurs in a live block that cites its
     # id or it does not. It was wired in only after it was measured RED on real data - the
@@ -3060,6 +3238,8 @@ def cmd_sweep() -> int:
           f"{len(aspects)} aspects known and every exhaustive census of them checked "
           f"against that set (pinned red and green); structure: {len(skill_files())} SKILL.md "
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
+          f"{len(refs)} docs for a stranded edit tail "
+          f"(pinned red on the real blob 1f6fb65:eval/FINDINGS.md and green; --selftest), "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
           f"(pinned red and green; --selftest to read the pins); {_findings_summary()}; "
           f"{wsummary}; renumber triage: {len(_load_triage())} adjudicated row(s), each "

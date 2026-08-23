@@ -608,6 +608,46 @@ gate that fails on correct input gets disabled*:
   prints them, and `eval/tools/findings_control.py` runs the command out of process against a
   tree whose answer is written down first.
 
+### A stranded edit tail is caught as a REPETITION, over live and archive — decided 2026-08-23
+
+An edit that rewrites a sentence **wrapped across several lines** and replaces only the lines it
+touches leaves the last line of the old sentence stranded below the new one. One instance is
+known: line 6 of `eval/FINDINGS.md`, the file every session is told to read first. It is not a
+wrong claim and not a stale number, so neither the withdrawal register nor any consistency check
+applies — a half-sentence disagrees with nothing.
+
+**`tasks/99` specified the trigger as *"a strict suffix of the sentence ending on the line
+above"*, and measured against the real blob that trigger does not fire.** At `1f6fb65` the
+stranded line reads `number has been retracted before trusting it.**`, while the sentence ending
+on the line above it ends `...enforces it over the live documents.` The fragment is a suffix of
+the sentence that was **deleted**, whose head still sits three lines up — not of anything ending
+above it. Writing the ticket's trigger would have shipped a gate that is green on the only
+instance of the defect anyone has seen. **The ticket was the bug, and the reason it was caught is
+that the red pin was required to come from a blob rather than a reconstruction:** a defect retyped
+from memory would have been retyped into the shape the trigger already assumed.
+
+The property shipped instead: an unfenced, non-structural prose line of **≥5 words whose
+normalised text already appears verbatim in the paragraph above it**. The orphan is a
+*repetition* — that is what half a replaced sentence is — and repetition is a closed property of
+the text rather than a vocabulary, which is what the census-trigger section above asks for.
+**Measured over all 180 reference documents at HEAD: 0 false positives.** The tighter variant
+additionally requiring the line to end its paragraph also measures 0, so the looser one ships —
+same measured cost, strictly more coverage. This is the first open-shaped trigger tried here that
+opens at 0 rather than at 8, 18 or 26 (#140, #142, #146).
+
+**Scope includes the archive, deliberately against the rule two sections up.** The formatting
+gates exempt `eval/findings/` because reformatting an archived entry edits evidence. A
+half-sentence left by a botched edit is not evidence of anything — it is damage — and the one
+instance was *in* the archive. A findings entry quoting such a defect would sit in a fence, which
+is masked.
+
+The pins are in `_orphan_tail_pins`, run by `--sweep` on every invocation and printed by
+`--selftest`: red on the real blob, green on the same file at HEAD, and four green variants that
+are ordinary markdown repetition — a duplicate line inside a fence, a table restating a term in
+consecutive rows, a sentence repeated in two *different* paragraphs, and two list items sharing a
+stem. The corpus traversal is controlled separately from the function: an orphan planted in
+`README.md` and in `eval/findings/documentation.md` takes `--sweep` to exit 1 naming both.
+
 ### The producer for the findings count is `docstat.py --findings` — decided 2026-08-23
 
 `census.py` counts the stored tree and refuses in an agent worktree, where `eval/runs/` is
