@@ -2684,3 +2684,57 @@ Three further things the sweep settled, none of which was assumed:
 
 Nothing here is a criterion, deliberately: capture is cheap and reversible, scoring is a regime
 boundary, and a criterion introduced alongside its own measurement has no baseline.
+
+---
+
+## 102. A submission the judge never disagreed with gets an error bar of zero, and then out-resolves everything
+
+`separation()` asks whether any pair of submissions is resolved, `gap > SE_i + SE_j`, with
+`SE = SD/sqrt(n)` per submission. Measuring all six aspects at n=5 (task 23) put **eight
+submissions x five rounds x six aspects** through it for the first time, and two properties of
+the statistic showed up that one aspect on one field could not have shown.
+
+### 1. SE = 0 is reachable, and it is not a measurement of certainty
+
+Five identical integers give `statistics.stdev([2,2,2,2,2]) == 0.0`, hence `SE == 0.0`, hence
+that submission resolves against **every** other submission whose mean differs by anything at
+all. Five equal draws from a coarse integer scale are weak evidence that the true SD is zero;
+what they mostly show is that the scale has fewer levels than the field has distinctions.
+
+Five of the six aspects have at least one such submission. Discounting every resolved pair that
+touches one:
+
+| aspect | resolved | touching a zero-SE submission | survive |
+|---|---|---|---|
+| `fun` | 23/28 | 7 | 16 |
+| `audio` | 21/28 | 11 | **10** |
+| `ux` | 20/28 | 6 | 14 |
+| `idiomatic` | 13/28 | 0 | 13 |
+| `fun_frames` | 12/28 | 7 | **5** |
+| `architecture` | 10/28 | 7 | **3** |
+
+`architecture` loses 7 of its 10. **The verdict survives everywhere — every aspect still resolves
+at least three pairs — but the count does not**, and the count is what gets quoted.
+
+### 2. The count is not monotone in n, over nested subsets of the same rounds
+
+Truncating each aspect to its first k of the same five stored rounds — no new evidence, strictly
+less of it — the resolved-pair count *falls* somewhere in the range for four of six aspects:
+`ux` 7, 19, **15**, 20; `audio` 13, 18, **23**, 21; `architecture` 4, 12, **8**, 10; `idiomatic`
+15, 21, **11**, 13.
+
+Adding a round can move a mean onto a new fifth and *widen* an SD at the same time, and the
+second effect can win. So the pair count is an estimate with its own noise, not a tally.
+
+> **A gate may be sound and its headline number still be over-precise.** `separates_field` is
+> a verdict and it was stable under both effects; "20 of 28" reads like a count of facts and is
+> an estimate that moves by 4-8 pairs under n, and by up to 7 under one arithmetic edge case.
+> **Report the verdict; report the count only with what moves it.**
+
+### What this does not say
+
+It is not an argument for going back to `ceiling()`, which failed gate 0 on four of these six
+aspects on byte-identical input. Both defects here are in *how the number is read*, and neither
+changed a single aspect's verdict. The repair is a reporting discipline, not a code change:
+`separation()` already returns `marginal_pairs` for exactly this reason, and the zero-SE count
+belongs beside it.

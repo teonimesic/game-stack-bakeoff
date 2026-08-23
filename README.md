@@ -353,10 +353,24 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
   to a stated budget. Whether spend actually tracks the cap is being measured by a single
   calibration trial before any full relaunch is committed.
 
-- **The subjective layer's specialist judges.** Five aspects exist and are runnable —
-  `fun`, `ux`, `audio`, `idiomatic`, `architecture`. None is scored, and none has passed its
-  validation gates. They run separately from `wholegame.py evaluate`, via
+- **The subjective layer's specialist judges.** Six aspects exist and are runnable —
+  `fun`, `ux`, `audio`, `idiomatic`, `architecture`, and `fun_frames` (the `diagnostic_only`
+  control for `fun`). None is scored. They run separately from `wholegame.py evaluate`, via
   `judge/field_sweep.py`, under a cost ceiling.
+
+  **Reliability is no longer the blocker, for any of them.** Measured 2026-08-23 for $100.84
+  (`runs/wg-aspect-reliability`, task 23): six aspects x 5 repeats of one field in one
+  presentation order on `wg-g4c` / `g4_platformer`, the only field carrying evidence for all
+  six. **All six separate the field** — within-submission SD 0.418 (`audio`) to 0.536 (`fun`),
+  resolving 10 to 23 of 28 pairs. **None is in the "cannot ever resolve" branch.** Before this,
+  `separation()` had been run on one aspect and one field, so five of six had no measured
+  reliability at all. It also refutes #74's reading of `idiomatic` as saturated: bunching within
+  a round is not indistinguishability across rounds, because a mean over five rounds lands on
+  fifths. Three caveats that cut against it — zero-SE submissions, a non-monotone pair count,
+  and gate 0 failing on four of six — are in `judge/JUDGING.md` and FINDINGS #102.
+
+  **This says nothing about the stacks.** Separation is a property of the instrument, not an
+  ordering, and **tier 3 stays at weight 0.00**.
 
   **Verified before spending anything: 12 of the 15 (game, aspect) combinations build a
   non-empty pack.** The three that do not are `g3_arena` × `fun`, `ux` and `audio`, because
