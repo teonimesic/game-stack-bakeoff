@@ -213,7 +213,7 @@ including a positive control, a variant and three mutants. Over 68 stored trials
   g4 prompt states and no criterion checks, were driven against all 8 `wg-g4c` submissions:
   attack cannot be re-triggered mid-swing, enemies patrol, the `land` event fires, and replay
   determinism under a played 900-tick tape instead of the idle 300. **8/8 pass on every one**, and
-  the reference passes them too, so they can go green and nothing goes red (#126).
+  the reference passes them too, so they can go green and nothing goes red (#128).
 
 > A binary criterion asks whether a mechanic exists. When every submission implements every
 > mechanic, a tier made of them returns one number — and it is right to.
@@ -420,7 +420,7 @@ The platformer stresses machinery the other three games do not: sprite sheets an
 machines, attack hitboxes with active frames, knockback and invulnerability windows, platform
 collision. Pong, Tetris and arena all tied; a game exercising different systems was the most
 plausible remaining route to discrimination. **It has now been run once and it tied too** — all 8
-`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#126). The
+`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#128). The
 hypothesis was worth testing and is answered: different systems do not separate these stacks.
 
 Repeated judging resolves per **pair** with a Wilson interval, not per score, and stops sampling a
@@ -521,7 +521,7 @@ for as long as two documents said five. A census claim is only visible because s
 **declared** it exhaustive, which is the same mechanism the withdrawal register rests on.
 
 **The census trigger is scoped to the PREDICATE, not to the quantifier, and that is a measured
-choice rather than a stylistic one (task 92, #137).** It shipped as three alternations — the three
+choice rather than a stylistic one (task 92, #140).** It shipped as three alternations — the three
 wordings the two defective documents happened to use — and of 14 planted census claims, each
 false in exactly the way the check exists to catch, it fired on **2**. These two passed:
 
@@ -576,7 +576,7 @@ gate that fails on correct input gets disabled*:
   unchanged. The range was spelled in three files with only one of them checked, so the
   index was repaired while `AGENTS.md` went on saying `#19-#110`. And **a range is not a
   count**: `#19-#132` is equally true of 114 findings and of 40, which is how `README.md`
-  carried a count of *thirty-seven* for eleven days past a green range gate (#133,
+  carried a count of *thirty-seven* for eleven days past a green range gate (#134,
   `WR-readme-findings-count`). Each was green on a real defect, so each now carries a red
   control: **`--sweep` runs the pins itself** on every invocation, `docstat.py --selftest`
   prints them, and `eval/tools/findings_control.py` runs the command out of process against a
@@ -629,6 +629,31 @@ someone wanted it to be:
 the citation is what is wrong. The renumber map is derived from git on every run and is not written
 down anywhere — a hand-kept list of moved numbers would go stale exactly like the citations it
 describes.
+
+### The undecidable half's verdicts are recorded, because they cannot be derived — decided 2026-08-23
+
+The list that can never reach zero has a second cost: it gives the reader no way to tell a row
+somebody has already adjudicated from one nobody has ever looked at. Task 102 read all **51** rows
+at that revision — **15 were wrong**, and the other **36** cost a full pass to establish and were
+about to cost the next reader the same pass. `_check_renumbered_citations` already exhausts what
+history can say about them; what decides a row is reading its sentence against the heading in
+`eval/findings/`. So the verdict is **recorded**, in `eval/renumber_triage.json`, on the same
+principle as the withdrawal register above: *the only detectable property of an adjudication is
+that somebody wrote it down.* `--renumbered` prints `UNTRIAGED` first and the recorded verdicts
+after, so what a reader must read is what is new.
+
+**Keyed by the citing text, never by a line number.** A line number is invalidated by any edit
+above it, which would unpair every entry in a document and present 36 adjudicated rows as
+untouched — a wall of false work, indistinguishable from real work. The anchor must itself contain
+the citation, so it cannot drift onto a neighbouring sentence.
+
+**The register gates inside `--sweep`, and only on whether an entry still resolves** — its file
+exists, its anchor matches exactly one line, and that anchor contains the citation it claims. The
+*verdict* is a judgement and is never re-checked. `eval/tools/triage_control.py` runs 14 controls,
+each red demonstrated before the green was believed, plus the two variants that decide the design:
+a citation whose line number moved by 40 lines still pairs, and so does one sitting past column
+96 — the excerpt `--renumbered` prints is truncated there, and matching against it instead of
+against the line put 4 adjudicated rows in the untriaged list on the first run.
 
 ### A withdrawal is declared in a register, and the live/archive split is a decision — decided 2026-08-23
 
@@ -694,7 +719,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92) — and
   became a gate on 2026-08-23. **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials**,
   and it now carries the whole weight. That half is not fixed and will not be fixed inside the
-  rubric: both in-rubric repairs were measured and neither works (#126), so a saturated group is
+  rubric: both in-rubric repairs were measured and neither works (#128), so a saturated group is
   reported as a completion certificate (see "A saturated tier 2 is reported as a completion
   certificate" above). **What stays open is the task**, priced by task 74 — not the criteria and
   not the weights.

@@ -1804,7 +1804,7 @@ affected.
 
 ## THE GODOT RENDER TESTS AND FOCUS GUARD CHANGED ON 2026-08-23 — a SEVENTEENTH comparability break
 
-Task 80, FINDINGS #132. **No Godot `verify.green` result from before this date is comparable with
+Task 80, FINDINGS #133. **No Godot `verify.green` result from before this date is comparable with
 one after it, and the reason is that before it the result was not a constant.**
 
 `starters/godot/tools/no_raise.gd` is an `[autoload]`, so it ran in every godot process rather

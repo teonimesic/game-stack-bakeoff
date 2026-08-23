@@ -44,6 +44,14 @@ corpora on first run, plus two more that landed while it was being written (#118
 Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
 the citation is what is wrong.
 
+**The undecidable half is a standing list, so read only what it prints as `UNTRIAGED`.** The
+verdicts already reached are in `eval/renumber_triage.json`, keyed by the citing text — task 102
+read all 51 rows, repaired 15 and recorded 36. When you adjudicate a fresh row, add the entry;
+`--sweep` gates on an entry whose sentence no longer exists, and `tools/triage_control.py` is
+its 14 controls. **Every one of the 15 that were wrong was a task citing the number it had
+allocated itself** — the author's own worktree numbering was never committed, so history has no
+answer, and the row you should suspect first is a `tasks/` file talking about its own finding.
+
 **`--withdrawn` asks the fourth kind: is a figure that was RETIRED still stated as current?**
 No consistency check can ask this. When a stale figure propagates, the copies **agree** — with
 each other and with the original, to the digit — so propagation and consistency are the same
@@ -211,14 +219,14 @@ Do not "fix" these by adding them back. Each was measured and removed:
   disclaimer silence every aspect check in its file, and the control went green.
 - **A bare `aspect`-headed table, for the census check.** A table listing five of the six
   ids with no exhaustiveness claim in prose above it goes unreported. The structural
-  trigger was written and measured at **9 false positives** on live docs (task 92, #137) — every
+  trigger was written and measured at **9 false positives** on live docs (task 92, #140) — every
   one a legitimate per-aspect *results* table over the subset a round actually ran. The
   census check reads the sentence, so **write the claim above the table or it is unguarded.**
 - **Any wording that counts aspects without asserting what the set IS.** `All five aspects
   were run`, `six aspects x 5 repeats`, `which aspects are included` are true sentences and
   stay green. The trigger asks for an existence, identity or definition predicate with the
   list adjacent — three separate quantifier-based drafts were measured at 26, 31 and 27
-  false positives and **0 true positives each** (#137).
+  false positives and **0 true positives each** (#140).
 - **Root blocks indented 1-3 spaces, in general.** The indent check asks only about a
   continuation under a **2+ digit** ordered marker, which is the only form with a true
   positive here. The broad form fires on `tasks/` files where nothing is wrong — 2-space

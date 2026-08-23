@@ -507,7 +507,7 @@ value** — 35 of 68 trials — and of 11 trials that failed anything, 9 were se
 (single-valued on all 7 pairs where recorded), and four harder criteria built from requirements the
 g4 prompt states and no criterion checks passed **8/8** on the `wg-g4c` submissions. A binary
 criterion asks whether a mechanic exists; every submission implements every mechanic, so on a
-saturated group `overall` certifies completion and ranks nothing (#126, `DECISIONS.md`).
+saturated group `overall` certifies completion and ranks nothing (#128, `DECISIONS.md`).
 
 **Why the judge is unweighted** (see `DECISIONS.md` and FINDINGS #21) — two independent arguments,
 which fail differently:
