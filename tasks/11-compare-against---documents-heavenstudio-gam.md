@@ -67,14 +67,20 @@ comparative result. A forward pointer sits at the end of the axis-1 section.
 
 AXIS 4 — harness mechanics: work roots, artifact durability, run ledgers, cost accounting.
 
-  Lead: task 28. Sanctioned reading: `evaluation/reports/` and the per-study `README.md`
-  dispositions ONLY — never the raw artifacts under `evaluation/runs/`, which are 30G.
+  Lead: task 30 (filed by axis 1 as "task 28"; the task-id namespace collided and the item was
+  renumbered, which is #118's shape in the one namespace its tool does not reach). Sanctioned
+  reading: `evaluation/reports/` and the per-study `README.md` dispositions ONLY — never the raw
+  artifacts under `evaluation/runs/`, which are 30G.
 
   One thread axis 3 opened and deliberately left, because it is cost accounting: the stored judge
   rounds' own `cost_usd` fields sum to $33.63 and $31.66 for the two `wg-tetris-judge-2026-08-17`
   fields, while their `SEQUENTIAL.json` records `measured_cost_usd` 25.55 and 21.05, and
   `README.md` quotes 21.05 and $46.79. Three accountings of one spend, and they disagree. Start
   there — it is a real defect with stored evidence, and it is exactly axis 4's subject.
+
+  RESOLVED 2026-08-23. Only the first is a cost; the second is an invocation ceiling counter that
+  charges a carried-over round $0.00 on purpose; the third is two games in one figure and the
+  counter quoted as a bill. FINDINGS #119, `eval/judge/judge_ledger.py`.
 
 ## Dispatch knowledge, 2026-08-23 — written back from a launch message
 
