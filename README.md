@@ -18,7 +18,7 @@ Last updated **2026-08-21**.
 
 | evidence | reading |
 |---|---|
-| **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **5/8** as of 2026-08-22. It read 4/8 before that and **4/8 was correct when written** — `ts__t0` rose to 1.000 only once the play-bot's targeting defect was repaired (#82). Of the three cells still below 1.000, one is a genuine submission defect (#66) and two are adjudicated to the instrument. **Not summed** — see below |
+| **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **6/8** as of 2026-08-22, and **tier 2 is 1.00 in all eight cells**. It read 4/8 and then 5/8 before that, and **both were correct when written** — the cells moved as the play-bot was repaired (#82) and then `knockback.applied` (#89). The two still below 1.000 fail only on tier 1: one is a genuine submission defect (#66), one is `render.nonempty`. **Not summed** — see below |
 | **the two trials of a cell agree on verdicts far more often than on evidence** | reported per scope, never pooled. `wg-matrix` (3 games, 436 paired criteria): **5** verdict differences against **332** differing evidence strings. `wg-audio48` (232 paired): **0** verdict differences, **120** differing evidence strings. So the submissions are genuinely different artifacts that the instrument mostly cannot separate — but "mostly", not "never" |
 | **cost: the between-stack range is 42% of its own noise floor** | measured on all four stacks at once (`wg-g4c`, 8/8 `completed`, $421.00): mean within-cell gap **$21.15**, between-stack range **$8.91** |
 | **no subjective aspect separates the stacks** | `wg-tetris-judge-2026-08-17`, 5 aspects × 2 orders, `g2_tetris3d` only — the sole field tier 3 had judged when this was measured (#71). Post-repair round: between-stack range of mean ranks **2.10** against a mean within-stack gap of **1.93**; pre-repair **1.90** against **2.27**. The two are within ~10% of each other in both, which is no separation. ⚠️ Both rounds are among those later shown to have opened pack files naming the submissions (#83), so this is **not** defensible as a blind result |
@@ -155,7 +155,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#88, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#89, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 

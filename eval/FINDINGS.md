@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#88 from building and running this evaluator. **Check whether a
+Findings #19-#89 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -163,6 +163,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **86** | What a round cannot say about itself, and why prose is not a substitute for a field | [documentation](findings/documentation.md) |
 | **87** | A directory's size is not the size of the thing you are protecting | [limits-and-cost](findings/limits-and-cost.md) |
 | **88** | #84's two other candidates were measured and both are clean | [certifies-nothing](findings/certifies-nothing.md) |
+| **89** | `knockback.applied` scored a deliberate design branch as an absent feature | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

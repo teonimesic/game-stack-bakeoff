@@ -2352,3 +2352,59 @@ gained height — reversed the result completely.
 > noticing a state shape that could not be right, the second by asking what the number was a
 > difference *of*. **When a measurement agrees with the hypothesis, that is the moment to check
 > what it is a measurement of.**
+
+---
+
+## 89. `knockback.applied` scored a deliberate design branch as an absent feature
+
+`g4_platformer__unity__t0` (`wg-g4c-2026-08-21`) failed `knockback.applied` with *"the enemy was
+on the right and the player's vx went 190.0 -> 0.0"*. The submission implements knockback
+correctly. `Sim.cs` has two damage paths:
+
+```csharp
+if (fromPit) { p.Position = p.Safe; p.Velocity = Vec2.Zero; }   // deliberate
+else { p.Velocity = new Vec2(knockDirX * KNOCKBACK_X, KNOCKBACK_Y); }
+```
+
+with the author's reasoning in the source: *"a pit instead puts the character back on the last
+wide platform it stood on, because falling forever is not a punishment, it is an ending."*
+
+The bot sampled **the first `player_hit`**, and on a level with pits that is a pit fall. It read a
+respawn — a designed choice — and reported absent knockback.
+
+> **The criterion assumed "the first hit" meant "hit by the enemy it was walking at".** The
+> level's own geometry breaks that assumption, and nothing in the criterion could notice, because
+> a `player_hit` event does not say what caused it.
+
+### Repaired by establishing the condition, per #29 and #34
+
+The sample is now taken only from a hit that is demonstrably an **enemy** hit — two necessary
+conditions, both from state the bot already has:
+
+- **contact**: an enemy within 40 units when the hit landed;
+- **no teleport**: the character's position did not jump. A respawn moves it ~85 units in one
+  tick against ~3 for walking, so the two are not close.
+
+And a session with no enemy hit at all now reports **`scored=False`, NOT MEASURED** rather than
+`False`. Absence of an observation is not evidence of an absent feature — scoring it as failure
+is the fail-open shape inverted, costing a correct submission a criterion it was never tested on.
+
+Verified on the two submissions that motivated it:
+
+| submission | result |
+|---|---|
+| `unity__t0` | **NOT MEASURED** — none of its 5 `player_hit` events in 275 ticks came from an enemy in contact |
+| `ts__t0` | **passes** — first enemy hit, vx **170.0 → -240.0**, knocked away |
+
+Pinned both ways: the mutant *"no impulse when hurt"* still reddens it, and the full suite is
+green — 36 criteria pinned in both directions, 4 variants, 3 session-lock controls, 0 unmet.
+
+### What it moved
+
+`g4_platformer__unity__t0` goes **0.966 → 1.000**, and the field reaches **6 of 8 at exactly
+1.000 with tier 2 at 1.00 in all eight cells**. The two cells still short fail only on tier 1.
+
+This is the same shape as #82's cause 6 one level up. There, the bot's own input policy made a
+criterion unmeasurable; here, the *level's* legitimate geometry did. **Both are the instrument
+scoring conformity to its own expectations** — and in both, the submission was correct and said
+so in its own source.

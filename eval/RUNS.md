@@ -459,13 +459,19 @@ Two further grader defects were adjudicated and repaired, and one template defec
 | `godot__t1` | 0.978 | 0.93 | 1.00 | `render.nonempty` (ink 0.881 vs window 0.001-0.85) |
 | `rust__t0` | **1.000** | 1.00 | 1.00 | — |
 | `rust__t1` | **1.000** | 1.00 | 1.00 | — |
-| `ts__t0` | 0.793 | 1.00 | 0.70 | six combat criteria — **the gap defect above** |
+| `ts__t0` | **1.000** | 1.00 | 1.00 | — |
 | `ts__t1` | **1.000** | 1.00 | 1.00 | — |
-| `unity__t0` | 0.896 | 1.00 | 0.85 | three combat criteria — **the gap defect above** |
-| `unity__t1` | 0.956 | 0.86 | 1.00 | `verify.green`, `lint.clean` — **template defect #66** |
+| `unity__t0` | **1.000** | 1.00 | 1.00 | — |
+| `unity__t1` | 0.956 | 0.86 | 1.00 | `verify.green`, `lint.clean` — a **genuine submission defect** since #66's repair |
 
-**Four of eight at exactly 1.000, and every remaining failure is adjudicated to the instrument
-or the template, none to the work.** ⚠️ **`unity__t1` was reclassified on 2026-08-22**: fixing
+**Six of eight at exactly 1.000 as of 2026-08-22**, after four play-bot repairs (#82) and the
+`knockback.applied` repair (#89). **Tier 2 is now 1.00 in all eight cells.** The two cells below
+1.000 fail only on tier 1: `godot__t1` on `render.nonempty`, and `unity__t1` on `verify`/`lint`,
+which is the project's third genuine submission defect.
+
+> Earlier versions of this table read 4 of 8 and then 5 of 8. **Both were correct when written**
+> — the cells moved because the *instrument* was repaired, not because the grading was wrong.
+> See the superseded-versus-withdrawn distinction in `README.md`. ⚠️ **`unity__t1` was reclassified on 2026-08-22**: fixing
 Unity's lint recipe (task 07) turned its `verify.green`/`lint.clean` failure from a template
 defect into a genuine submission defect — the project's third. See the regime note below.
 

@@ -879,10 +879,33 @@ class PlatformerBot(Bot):
                             contact_ticks += 1
                     t = s.step_raw(inputs)
                     if "player_hit" in t.events:
-                        if not hit_ticks:
+                        # KNOCKBACK MUST BE SAMPLED FROM AN ENEMY HIT, and "the first
+                        # player_hit" is not one. A level with pits produces `player_hit`
+                        # when the character falls in, and a submission may deliberately
+                        # respawn instead of applying an impulse:
+                        #
+                        #   /// a pit instead puts the character back on the last wide
+                        #   /// platform it stood on, because falling forever is not a
+                        #   /// punishment, it is an ending.
+                        #
+                        # That is `g4_platformer__unity__t0` (`wg-g4c-2026-08-21`), whose
+                        # Sim.cs applies real knockback for an enemy and zeroes velocity
+                        # for a pit. Reading its first hit scored a deliberate design
+                        # branch as an absent feature (#82).
+                        #
+                        # Two conditions, both necessary. Contact: an enemy was within
+                        # reach when the hit landed. No teleport: the character did not
+                        # jump position, which is what a respawn looks like - measured at
+                        # ~85 units in one tick against ~3 for walking.
+                        jumped = abs(_px(t) - _px(prev))
+                        from_enemy = (
+                            e is not None
+                            and abs((_f(e, "x") or 0.0) - _px(prev)) < 40.0
+                            and jumped < 30.0)
+                        if vx_before is None and from_enemy:
                             vx_before = _f(_player(prev), "vx")
                             vx_after = _f(_player(t), "vx")
-                            side = (_f(e, "x") or 0.0) - _px(prev) if e else None
+                            side = (_f(e, "x") or 0.0) - _px(prev)
                         hit_ticks.append(t.tick)
                     prev = t
                     if t.state.get("game_over") is True:
@@ -913,11 +936,24 @@ class PlatformerBot(Bot):
                 moved_away = (vx_before is not None and vx_after is not None
                               and side is not None
                               and (vx_after < -1.0 if side > 0 else vx_after > 1.0))
-                knock = Criterion(
-                    "knockback.applied", self._q("knockback.applied"), moved_away,
-                    f"on the first hit the enemy was on the "
-                    f"{'right' if (side or 0) > 0 else 'left'} and the player's vx went "
-                    f"{vx_before} -> {vx_after}")
+                # NO ENEMY HIT IS "NOT MEASURED", NOT "NO KNOCKBACK". If every hit in
+                # the session came from a pit, there is nothing to say about knockback,
+                # and saying "absent" would be scoring the absence of an observation.
+                if vx_before is None:
+                    knock = Criterion(
+                        "knockback.applied", self._q("knockback.applied"), False,
+                        f"NOT MEASURED: none of the {len(hit_ticks)} player_hit events in "
+                        f"{s.ticks_sent} ticks came from an enemy in contact - a hit with "
+                        f"no enemy within 40 units, or with the character's position "
+                        f"jumping (a respawn), is not a knockback sample. On a level with "
+                        f"pits this is the common case.",
+                        scored=False)
+                else:
+                    knock = Criterion(
+                        "knockback.applied", self._q("knockback.applied"), moved_away,
+                        f"on the first ENEMY hit (pit hits excluded) the enemy was on the "
+                        f"{'right' if (side or 0) > 0 else 'left'} and the player's vx "
+                        f"went {vx_before} -> {vx_after}")
 
                 if s.last.state.get("game_over") is not True:
                     over = Criterion(

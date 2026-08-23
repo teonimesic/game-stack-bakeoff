@@ -43,3 +43,8 @@ venv/
 # ---- machine-local, not shared ---------------------------------------------------------
 .claude/settings.local.json
 .DS_Store
+
+# Per-agent git worktrees. One-agent-per-task creates a checkout per agent under here;
+# committing them would put one agent's entire working copy inside another's history,
+# and `git add -A` in a wind-down would do it silently.
+.claude/worktrees/
