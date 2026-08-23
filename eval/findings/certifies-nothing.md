@@ -3131,3 +3131,44 @@ sound — bounded contribution 0.10 against a tightest adjacent gap of 0.0622, a
 noisiest exactly where it would matter, and #83 — and the fourth was a paraphrase of a figure
 computed by a method nobody had named. It is now the bound above, and it is stated with its
 producer, its field, its `value` and its `order`.
+
+## 117. Forty-four files failed loudly, nine failed silently, and the nine were the dangerous ones
+
+`tasks/` frontmatter was read by splitting each line on its first colon. Measured 2026-08-23
+while replacing that reader with `yaml.safe_load`:
+
+| behaviour under a real YAML parser | files |
+|---|---|
+| raised `ScannerError` — an unquoted value containing `": "` | 44 |
+| **parsed without error and returned a TRUNCATED value** | **9** |
+| already lossless | 5 |
+
+The 44 are a nuisance: any external tool refuses the file and says so. **The 9 are the finding.**
+` #` opens a comment in YAML, so
+
+    refs: eval/FINDINGS.md #53, blocked by task 01
+
+loads as `eval/FINDINGS.md`. The dependency and the finding number are gone, no error is raised,
+and the value that comes back is a plausible path. Every `refs` field in this project cites
+findings that way.
+
+> **A parser that refuses a file tells you it is broken. A parser that silently returns half of
+> it tells you nothing, and the half it returns looks like an answer.** When a format changes,
+> count the values that came back WRONG, not the files that failed.
+
+The reported headline — "21 files have unparseable frontmatter" — was itself an undercount of
+the same kind, because it counted only what raised. 53 of 58 files were affected once silent
+loss is counted.
+
+Two further defects were caught only by asserting that read-then-write reproduces the **bytes**,
+which a value-level round-trip cannot see: a `!!int '08'` tag loads through `int('08', 8)` and
+raises `ValueError`, not `YAMLError`, so it escaped the error handler entirely; and the id was
+wrapped only when YAML returned a `str`, true for `08`/`09` and false for `01`-`07`, so a file
+would have been quietly renumbered on its next write with every value intact.
+
+The `id` is deliberately left as bare digits rather than quoted, which is less correct in
+isolation. Three agents were mid-task on the previous tool, whose reader takes `'07'` literally,
+so quoting would have made their `done NN` answer "no task NN". **Measured rather than assumed:
+the old reader differs on 93 outputs against the migrated queue, and the id was the only
+difference with a functional consequence.** Quoting it is a one-line change once no worktree runs
+a pre-YAML copy.
