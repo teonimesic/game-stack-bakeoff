@@ -16,6 +16,7 @@ cd eval
 python3 tools/docstat.py --sweep      # references + structure; exit 1 if anything fails
 python3 tools/docstat.py              # size and token cost of every project doc
 python3 tools/docstat.py --outline FILE   # fence-aware heading map
+python3 tools/docstat.py --renumbered # citations of a finding number that has moved
 ```
 
 `--sweep` asks two kinds of question:
@@ -24,6 +25,19 @@ python3 tools/docstat.py --outline FILE   # fence-aware heading map
 |---|---|---|
 | **references** | does a flag, aspect or criterion a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
 | **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
+
+**`--renumbered` asks the third kind, and it is the one the other two cannot ask: does a
+name still mean what its author meant?** When two worktrees allocate the same finding number
+the merge renumbers one of them, and every document that already cited it now points at a
+stranger *while still resolving* — so nothing above can see it. It derives the map of moved
+numbers from git history, resolves each citation against the numbering its own authoring
+commit saw, and prints two lists: **decided** (a verdict, and the half `--sweep` echoes) and
+**undecidable** (a short list to read, because a merge writes the renumber and the citation
+in one commit and there is no ordering inside a commit). 27 stale citations across eight
+corpora on first run, plus two more that landed while it was being written (#117).
+
+Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
+the citation is what is wrong.
 
 **The references half reads the skills too, including this one** — since 2026-08-23 (task
 44). It did not before: the corpus was built with `glob`, `glob` does not descend into

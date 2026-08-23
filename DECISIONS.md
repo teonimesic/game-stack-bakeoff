@@ -274,6 +274,31 @@ gate that fails on correct input gets disabled*:
   what was true when it was written, including the broken shapes it is about; reformatting one to
   satisfy a gate edits evidence.
 
+### A citation of a renumbered finding is reported, never gated — decided 2026-08-23
+
+`docstat.py --renumbered` asks the one question the two above cannot: does a name still *mean* what
+its author meant? A finding number reassigned at merge leaves every earlier citation pointing at a
+stranger and **still resolving**, so no reference check can see it (#117).
+
+It is a warning in `--sweep` and a command of its own, on the same footing as `tasks.py check`'s
+reachability warning. Three reasons, and the first two are why it could not be a gate even if
+someone wanted it to be:
+
+- **Only about a third of what it reports is decidable.** The merge that renumbers writes the new
+  heading and the closing task's evidence string in one commit, and a commit has no internal order.
+  Where the citing author's tree was never committed at all — a collision live in two worktrees —
+  history holds no answer of any kind.
+- **Its evidence is `git blame`**, which dates the last edit of a line, not the writing of a
+  citation. `-w` closes the reformat case. Any other content edit that leaves the stale number in
+  place launders it, so the check fails closed: it loses recall, never accuses falsely.
+- The undecidable list **contains correct citations by construction** and can never reach zero. A
+  permanent block of output that cannot be cleared is how a reader learns to skip a command.
+
+**Never renumber a finding to make it green.** The number in `eval/findings/` is the published one;
+the citation is what is wrong. The renumber map is derived from git on every run and is not written
+down anywhere — a hand-kept list of moved numbers would go stale exactly like the citations it
+describes.
+
 ---
 
 ## Open
@@ -559,7 +584,7 @@ regenerable. **Reclaiming the 137 GB remains task 10's call**, and nothing was d
 **When to re-sync is decided by the resource, not by an activity — revised 2026-08-23.** The rule
 was *"after any run completes"*, and the starter baselines (7.5 MB, the only record of what
 starter each agent was given, #104) were created by a **repair**, so the copy verified complete at
-00:08 did not contain them at 04:24 (#115). The trigger is now *the evidence set has grown or
+00:08 did not contain them at 04:24 (#116). The trigger is now *the evidence set has grown or
 changed, whatever made it move*, with `backup_evidence.py --verify-only` as the mechanical form —
 it re-classifies and a non-zero missing count is the signal, so nobody has to judge what counts.
 

@@ -808,3 +808,145 @@ Unity trees lack a tarball, and `wg-g4`'s work root is the one that was copied. 
 written down at the destination rather than being true by accident.
 
 And the copy is still **same-disk**, still not a backup, and this task did not change that.
+
+---
+
+
+## 117. Fixing the collision is what created the dangling reference, and the dangling reference resolves
+
+`_check_findings_integrity` was added on 2026-08-23 because parallel agents in isolated worktrees
+each read the highest finding number from their own branch and take the next one (#94). It works:
+a duplicate number now fails `docstat.py --sweep`, and the resolution is to renumber one of the
+two findings at merge.
+
+**Nothing updates the documents that already cited the old number, and no sweep in this project
+could ever have seen that.** The citation still resolves. `#95` is a real finding; it is simply
+no longer the one the author meant. There is no broken link to detect — only a reference that
+changed meaning while staying well-formed, which is #80's shape moved from a stored record to a
+cross-reference.
+
+The cost is measurable in the direction that matters: a reader following task 42's `FINDINGS #103`
+landed on a finding about a merged capture buffer in `runner.py`, with no signal at all that they
+had been sent somewhere else.
+
+### The map, derived rather than listed
+
+`eval/tools/docstat.py --renumbered` replays every `## NN.` heading ever committed under
+`eval/findings/` and reports the numbers that have named more than one finding. **Ten events, all
+on 2026-08-23**, nine of them within six hours:
+
+| written as | now | the finding |
+|---|---|---|
+| 89 | 90 | #87's decomposition got the evidence boundary wrong |
+| 90 | 91 | three of four mutants were inert |
+| 90 | 92 | a scored tier that returns the same number for every submission |
+| 91 | 93 | `suite.json` describes the last thing written into the directory |
+| 95 | 97 | four of the nine performance fields had no reader |
+| 99 | 100 | the stored `verify.green` evidence drops the gate's own passed line |
+| 103 | 104 | the only record of the starter a run was given is a git commit |
+| 104 | 105 | of 27 unread exit statuses, 24 were deliberate |
+| 112 | 113 | a withdrawn figure is still published in three live documents |
+| 115 | 116 | the re-sync trigger named an event, not the resource |
+
+The map is **derived from history on every run and never written down**. A hand-kept table of
+renumbers is a second source of truth, and it would go stale in precisely the way the citations
+it describes went stale.
+
+### Decidable in one case out of three, and the tool says which
+
+A citation cannot be judged by whether it resolves. It has to be resolved against the numbering
+**its own author was looking at** — the findings tree at the commit that wrote the line — and that
+finding then followed to the number it carries today.
+
+| case | decidable? | why |
+|---|---|---|
+| citation and renumber in **different commits** | **yes** | the citing commit's tree names one finding; today's tree gives it a different number. No judgement in it |
+| both in the **same commit** | no | the merge lands the renumbered heading and the closing task's `established_by` string together, and there is no ordering inside a commit |
+| the author's tree was **never committed** | no | task 45 cited `#99` for a finding that was `#99` only in another agent's worktree. On every committed tree of that hour `#99` already meant the skills mirror |
+
+So the tool reports two lists: a verdict, and a short list for a person. It prints and does not
+gate — the second list contains correct citations by construction and can never reach zero, and a
+permanent block of output that cannot be cleared is how a reader learns to skip a command entirely.
+
+**The five citations repaired by hand on 2026-08-23 are the positive control, and they land on both
+sides of that boundary.** Run against `1120695^`, the commit before the repair: `eval/PROTOCOL.md`
+is decided, tasks 25, 34, 42 and 45 are undecidable, all five are reported. Run at HEAD, none of
+them appear. A check that cannot find a defect known to be there is reporting its own silence.
+
+### `blame -w` is load-bearing, and that is a finding in itself
+
+`AGENTS.md` rule 16's `(#90)` was written against a tree where `#90` was the weight-sensitivity
+finding, now `#92`. A later commit **re-indented rules 10-16 by one space and changed nothing
+else**. Plain `git blame` therefore dates that citation after the renumber and reads it as fresh;
+with `-w` it dates to the commit that wrote it and the staleness is visible.
+
+> **A whitespace-only edit must not be able to launder a claim about when something was written.**
+> Anything that dates evidence by `git blame` inherits this, and the failure is silent in the
+> direction that reports clean.
+
+The same shape in the other direction: a merge that renumbers is *also* where blame stops, so the
+check descends into the single parent that carries the line verbatim before reading a tree. Without
+that descent, every citation touched by a merge resolves against the merge's own tree — which is
+the tree that just disagreed with the author.
+
+### What it found, beyond what it was built for
+
+**27 stale citations across eleven files**, every one repaired here as a citation and never as a
+finding. The earlier cleanup pass grepped `tasks/` only; the other corpora had never been looked
+at, and one of them is the worst-hit document in the repository:
+
+| corpus | stale, repaired | reported and read as correct |
+|---|---|---|
+| `eval/IMPROVEMENTS.md` | 10 | 2 |
+| `tasks/` | 9 | 1 |
+| `DECISIONS.md` | 3 | 3 |
+| `README.md` | 1 | 3 |
+| `AGENTS.md` | 1 | 1 |
+| `CLEANUP-LOG.md` | 1 | 1 |
+| `eval/judge/RUBRIC.md` | 1 | 0 |
+| `eval/PROTOCOL.md` | 1 | 0 |
+| `research/11-doc-linting-for-agents.md` | 0 | 3 |
+| `eval/RUNS.md` | 0 | 2 |
+| `eval/findings/` (cross-references) | 0 | 3 |
+| `eval/FINDINGS.md`, `eval/judge/AGENTS.md` | 0 | 2 |
+
+`eval/IMPROVEMENTS.md` is the one nobody would have thought to grep: ten citations of `#112` in a
+single iteration, all meaning what is now `#113`, because that iteration and the renumber were
+three minutes apart.
+
+The right-hand column is not a residue to be cleaned up. `#99` cited in `AGENTS.md`, `DECISIONS.md`
+and `research/11` correctly means today's `#99`; `#112` in `README.md` and `eval/RUNS.md` correctly
+means today's `#112`, while `#112` in tasks 54 and 55 meant `#113`. The two are separated by reading
+the sentence, which is why that half of the output is addressed to a person.
+
+### The false-negative channel, named rather than discovered later
+
+**`tasks.py` rewrites a whole queue file when it writes one**, including re-quoting YAML scalars it
+did not otherwise touch. A closed task's `established_by` line is therefore blamed to the last queue
+write, not to the session that recorded the evidence. Measured: this check reports **12** `tasks/`
+citations at `1120695^` and **0 of those 12** today, on lines whose text is unchanged apart from a
+pair of quotes. Five were the known repairs and seven were correct citations, so nothing was lost —
+but the mechanism that hid them is indifferent to which kind they were.
+
+Generally: **any content edit that leaves a stale number in place moves the line past the renumber
+and launders it.** `-w` closes the whitespace case because that is the one an automated reformat
+produces. The rest is a fail-closed limit — it costs recall, never a false accusation — and it is
+the second reason this is a smell detector and not a gate.
+
+**Then it caught two nobody had noticed at all.** Rebasing onto `main` mid-task pulled in the tenth
+event — `115 -> 116`, landed an hour earlier — and the check immediately reported fresh stale
+citations in `DECISIONS.md` and `eval/PROTOCOL.md`, plus one in task 57's own evidence string. Not
+planted, not historical: **the defect was still actively producing instances while the check for it
+was being written.**
+
+### The rule this pays for
+
+> **A fix that resolves a collision by renaming one of the colliding things must find what already
+> cited the old name.** Renaming is not a repair on its own; it moves the damage downstream to
+> every reference, where it is invisible because the reference still resolves.
+
+This project has four identifier namespaces allocated by hand — task ids (#94), finding numbers,
+regime ordinals, pack labels (#70) — and **every one of them has collided.** Each now has a
+mechanism: a shared queue, a duplicate check, an ordinal check, a ban on joining rounds by label.
+Every one of those catches the collision. **This is the only one that asks what the collision
+broke.**
