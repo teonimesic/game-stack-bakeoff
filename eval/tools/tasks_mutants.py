@@ -276,7 +276,17 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         '    print(f"branches of `done` tickets: {landed} reachable from',
         '    _unused = (f"branches of `done` tickets: {landed} reachable from',
         ("PRINTS the three-valued census",
+         "bases coinciding are named ONCE",
          "VARIANT: with the branch deleted the same queue is NOT CHECKED, exit 0")),
+    # DE-DUPLICATING THE BASES BY NAME INSTEAD OF BY SHA, which is what the first version did:
+    # `HEAD` asked at the queue's address IS `main`, so the census line named two bases where
+    # there was one and read as corroboration (AGENTS.md rule 9). The names still resolve, so
+    # every verdict is unchanged and only the reporting is wrong -- the shape that survives
+    # anything not reading the line.
+    "bases_deduped_by_name": (
+        "            add(b, r.stdout.strip())",
+        "            add(b, b)  # MUTANT: the label stands in for the sha",
+        ("bases coinciding are named ONCE",)),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it

@@ -302,8 +302,8 @@ including a 458-line tool that existed on no other branch. It was found by a per
 stale worktrees, which is not a mechanism.
 
 `check` now asks, for every `done` ticket, whether any `task-<id>-*` ref — local or on a remote
-— is an ancestor of `main`, `origin/main` or `HEAD`. **Three values, and the third is the one
-that matters:**
+— is an ancestor of `main`, of `origin/main`, or of the HEAD of the checkout you invoked it from.
+**Three values, and the third is the one that matters:**
 
 | | |
 |---|---|

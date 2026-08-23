@@ -23,6 +23,25 @@ tier-2 criterion, run it** — the promotion column already says that scoring `l
 `score.rewards_clears` or `stage.completes` would move every score in its group by the same amount
 and separate nothing (#128).
 
+**The within-cell noise floor has a producer, and it is a RANGE over 9 groups, not one number.**
+`paired_verdicts.py --runs-root <main checkout>/eval/runs` counts, per (run, game) and per tier
+set, how often a cell's two trials disagree on `passed`. Three things it refuses to smooth over,
+each of which produced a published wrong number: **the tier set is part of the figure** (156 of
+`wg-matrix`'s widely-quoted 436 are LLM-judge criteria at weight 0.00, and `wg-audio48`'s 232
+contains none — the two were quoted side by side as one measurement); a cross-game sum is a
+**count, never a rate**; and a cell whose trials did not both `complete` is **not a cell**. Its
+`--selftest` pins the extraction on fixtures whose answers are written into the checks, and its
+5 corpus pins reproduce the published figures — run it with `--runs-root` before quoting any of
+them, because without the flag the pins are `NOT RUN`, which the output says and a reader may not
+assume.
+
+**Whether the deterministic tiers may rank stacks is `discrimination.py`'s `THE RANKING TEST`,
+not a judgement.** It compares only `completed`, **gate-green** cells — tier 1 gates, so a
+submission that does not build has no rank position — and requires the between-stack range to
+beat the within-cell floor by at least `1/N`, the smallest gap a pass count over `N` criteria can
+represent. `--selftest` proves it can say `CROSSES`, including on the exactly-one-criterion
+boundary. `NOT ASKED` (fewer than two gate-green stacks) is a third value and is not a pass.
+
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two
 sweeps behind it and what would re-open it are in `RUBRIC.md`. Two consequences you will meet

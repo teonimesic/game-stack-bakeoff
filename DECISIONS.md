@@ -1659,11 +1659,12 @@ the trend rather than a constant.
 ---
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23
 
-**Decided [agent], on measurement, after task 70 sat at `done` for a day with 678 insertions
-across 5 files that `main` had never seen** — including `eval/judge/paired_verdicts.py` at 458
-lines, which existed nowhere else. Nothing compared a closed ticket against the tree, and the
-failure is invisible from either side on its own: the queue says merged, and the tree disagrees
-by silence. It was found by a person clearing stale worktrees.
+**Decided [agent], on measurement, after task 70 sat at `done` over 678 insertions across 5 files
+that `main` had never seen** — including `eval/judge/paired_verdicts.py` at 458 lines, which
+existed nowhere else. The exposure was **4h 39m**, `bd2014c` at 09:37:02 to `5476723` at 14:16:06
+on 2026-08-23, and it ended because a person clearing stale worktrees happened to look. Nothing
+compared a closed ticket against the tree, and the failure is invisible from either side on its
+own: the queue says merged, and the tree disagrees by silence.
 
 `tasks.py check` now reads, for every `done` ticket, whether any `task-<id>-*` ref is an
 ancestor of the tree. `landed_status` returns **three values**:
@@ -1678,8 +1679,9 @@ ancestor of the tree. `landed_status` returns **three values**:
 |---|---|
 | Three values | Two. A merged branch is normally deleted, so a two-valued check would report **112 of the 119** closed tickets as verified while verifying nothing — rule 1's `total=0 passed=0` with a plausible denominator |
 | The trigger is *a `done` ticket whose branch is not an ancestor* | Anything keyed on the ticket's `pr` field, or on merge-commit messages. Both are open classes of text; a ref name and an ancestry test are closed |
-| `main`, `origin/main` **and** `HEAD`, any of which counts | `main` alone. It makes the gate unfixable from the branch that fixes it: the agent landing an orphan cannot turn its own `check` green before the orchestrator merges, and a gate that stays red through correct work gets bypassed as a habit. On the main checkout and in CI the two are the same commit, so the condition is unchanged exactly where it is enforced |
-| It **fails** rather than warns | A warning. The false-positive count is 0, and the one true positive cost a day of a published tool existing on no branch anyone would find |
+| `main`, `origin/main`, **and the invoking checkout's `HEAD`**, any of which counts | `main` alone. It makes the gate unfixable from the branch that fixes it: the agent landing an orphan cannot turn its own `check` green before the orchestrator merges, and a gate that stays red through correct work gets bypassed as a habit. In the main checkout and in CI all three are the same commit, so the condition is unchanged exactly where it is enforced |
+| The caller's `HEAD` is resolved **at the caller's address**, and the bases are de-duplicated **by SHA** | A bare `HEAD` in the list, which is what the first version held. `TASKS` is the main checkout, so `HEAD` asked there is `main` under another name — a second opinion that was a restatement of the first, printed as two bases where there was one (rules 9 and 12). Worktrees share one object database, so a SHA needs no second git dir |
+| It **fails** rather than warns | A warning. The false-positive count is 0, and the one true positive is a published tool that existed on no branch anyone would look at |
 
 **Measured on the live queue before it shipped**, 2026-08-23, `python3 eval/tools/tasks.py check`
 over 121 tickets: **119 `done` — 6 LANDED, 1 ORPHANED, 112 NOT_CHECKED. 0 false positives, 1 true
@@ -1697,9 +1699,10 @@ were squashed when this shipped, and if the repository starts squashing, the tri
 the right one rather than needing a wider tolerance.
 
 Pinned in both directions by `tasks_control.py` direction 11 — 11 predicate rows including the
-`task-7-` / `task-70-` prefix variants in both directions, and 3 end-to-end rows on a real scratch
-repository — and by three mutants in `tasks_mutants.py`: excusing an orphan, accusing a deleted
-branch, and computing the census without printing it. All three are caught.
+`task-7-` / `task-70-` prefix variants in both directions, and 4 end-to-end rows on a real scratch
+repository — and by four mutants in `tasks_mutants.py`: excusing an orphan, accusing a deleted
+branch, computing the census without printing it, and de-duplicating the bases by name. All four
+are caught.
 
 | Would re-open this | The observation |
 |---|---|

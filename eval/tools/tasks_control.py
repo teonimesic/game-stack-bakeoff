@@ -1358,9 +1358,16 @@ def landed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
     rows.append(("`check` end to end: exit 1, naming 71 and NOT 70", rc,
                  rc == 1 and "71: status done" in out and "70: status done" not in out,
                  f"exit {rc}: {[ln for ln in out.splitlines() if 'status done' in ln]}"))
+    census = next((ln for ln in out.splitlines() if "done` tickets" in ln), "(absent)")
     rows.append(("...and it PRINTS the three-valued census, LANDED count included", rc,
-                 "1 reachable from" in out and "NOT CHECKED" in out,
-                 next((ln for ln in out.splitlines() if "done` tickets" in ln), "(absent)")))
+                 "1 reachable from" in out and "NOT CHECKED" in out, census))
+    # The bases are DE-DUPLICATED BY SHA. Here the queue's `main` and the caller's HEAD are the
+    # same commit, so exactly one may be named: a census line claiming two bases where there is
+    # one reads as corroboration and is a restatement (AGENTS.md rule 9, and rule 12 on the
+    # address). This row is the reason the dedup compares SHAs and not the names.
+    rows.append(("bases coinciding are named ONCE, not as two agreeing opinions", rc,
+                 "reachable from main," in census,
+                 census))
 
     # THE VARIANT: delete the orphan branch and the same queue must go quiet -- NOT_CHECKED,
     # reported, exit 0. A gate that failed on every closed ticket whose branch is gone would

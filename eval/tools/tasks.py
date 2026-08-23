@@ -274,17 +274,50 @@ def _all_refs() -> list[str] | None:
 
 #: WHAT "LANDED" IS MEASURED AGAINST, in order, and every one that resolves is used.
 #
-# `main` is the condition as written: the queue says merged, so `main` should hold it. `HEAD`
-# is there because `main` ALONE makes the gate unfixable from the branch that fixes it -- the
-# agent landing an orphaned branch cannot turn its own `check` green before the orchestrator
-# merges, and a gate that stays red through correct work is a gate that gets bypassed. On the
-# main checkout and in CI the two are the same commit, so the condition is unchanged exactly
-# where it is enforced. `origin/main` covers a CI checkout with no local `main`.
-_LAND_BASES = ("main", "origin/main", "HEAD")
+# `main` is the condition as written: the queue says merged, so `main` should hold it.
+# `origin/main` covers a CI checkout with no local `main`.
+#
+# THE THIRD BASE IS THE CALLER'S OWN HEAD, AND IT IS RESOLVED AT THE CALLER'S ADDRESS, NOT THE
+# QUEUE'S. `TASKS` is the MAIN checkout, so a bare `HEAD` asked there is `main` under another
+# name -- which is what the first version of this list held, a second opinion that was a
+# restatement of the first (AGENTS.md rule 12: the address is an input to the check). Every
+# worktree of a repository shares one object database, so resolving the invoking worktree's
+# HEAD to a SHA and comparing against that is unambiguous and needs no second git dir.
+#
+# It earns its place because `main` alone makes the gate unfixable from the branch that fixes
+# it: the agent landing an orphaned branch cannot turn its own `check` green before the
+# orchestrator merges, and a gate that stays red through correct work is a gate that gets
+# bypassed. In the main checkout and in CI it resolves to the same commit as `main`, so the
+# condition is unchanged exactly where it is enforced.
+_LAND_BASES = ("main", "origin/main")
 
 
-def _resolved_bases() -> list[str]:
-    out = []
+def _caller_head() -> str | None:
+    """The SHA of HEAD in the checkout this command was invoked from."""
+    try:
+        r = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "-q",
+                            "HEAD^{commit}"], capture_output=True, text=True)
+    except (FileNotFoundError, OSError):
+        return None
+    return r.stdout.strip() or None
+
+
+def _resolved_bases() -> list[tuple[str, str]]:
+    """`(label, sha)` for every base that resolves, DE-DUPLICATED BY SHA.
+
+    Every base is carried as a SHA, not as the name it was written with, so a name that is
+    another name's commit is dropped instead of being printed as a second opinion -- which is
+    what a bare `HEAD` in `_LAND_BASES` was: asked at the queue's address it IS `main`, and the
+    census line named two bases where there was one.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(label: str, sha: str | None) -> None:
+        if sha and sha not in seen:
+            seen.add(sha)
+            out.append((label, sha))
+
     for b in _LAND_BASES:
         try:
             r = subprocess.run(["git", "-C", str(TASKS.parent), "rev-parse", "--verify",
@@ -292,15 +325,17 @@ def _resolved_bases() -> list[str]:
         except (FileNotFoundError, OSError):
             return []
         if r.returncode == 0:
-            out.append(b)
+            add(b, r.stdout.strip())
+    head = _caller_head()
+    add(f"this checkout's HEAD {head[:9]}" if head else "", head)
     return out
 
 
-def _is_ancestor(ref: str, bases: "tuple[str, ...] | list[str] | None" = None) -> bool:
-    for base in (_LAND_BASES if bases is None else bases):
+def _is_ancestor(ref: str, bases: "list[tuple[str, str]] | None" = None) -> bool:
+    for _label, rev in (_resolved_bases() if bases is None else bases):
         try:
             if subprocess.run(["git", "-C", str(TASKS.parent), "merge-base",
-                               "--is-ancestor", ref, base],
+                               "--is-ancestor", ref, rev],
                               capture_output=True, text=True).returncode == 0:
                 return True
         except (FileNotFoundError, OSError):
@@ -1140,7 +1175,8 @@ def cmd_check() -> int:
                        f"ancestor of main - the queue says this work is merged and the "
                        f"tree has never seen it. Read the branch diff before believing "
                        f"either side")
-    print(f"branches of `done` tickets: {landed} reachable from {'/'.join(bases) or '-'}, "
+    print(f"branches of `done` tickets: {landed} reachable from "
+          f"{' / '.join(lbl for lbl, _ in bases) or '-'}, "
           f"{notchecked} NOT CHECKED (no `task-<id>-*` ref survives - not a pass)"
           + ("" if refs is not None else " [git unavailable: nothing was checked]"))
     print()
