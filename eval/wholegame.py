@@ -500,12 +500,38 @@ def cmd_build(a: argparse.Namespace) -> int:
             print("REFUSING TO BUILD: the prompt snapshot did not write an index.")
             return 1
 
-    (run_dir / "suite.json").write_text(json.dumps({
+    # THE MANIFEST IS APPEND-ONLY, FOR THE SAME REASON THE SNAPSHOT ABOVE IS.
+    #
+    # The two guards were written eleven lines apart and only one of them existed. This
+    # exact function protected `prompts/` and then overwrote `suite.json`, and
+    # `runs/wg-g4-2026-08-17T09-38-32` records both halves to the millisecond:
+    # `prompts/index.json` at 09:38:32.783 UTC, the directory name to the second, and
+    # `suite.json` at 10:57:39.697 UTC - a second launch, 79 minutes later, whose
+    # configuration is now the only one the directory admits to (#93).
+    #
+    # The reason the snapshot was guarded and this was not is that #57 was written about
+    # PROMPTS. So the rule this now carries names the resource instead: **any durable
+    # record of what a measurement was configured to be is append-only.** A second launch
+    # adds `suite-<stamp>.json` and leaves `suite.json` byte-identical; `write_manifest`
+    # reserves the name with O_EXCL, so it cannot lose the race with itself.
+    _tools = Path(__file__).resolve().parent / "tools"
+    import importlib.util as _ilu2      # `tools/` is not a package; load by path.
+    import sys as _sys
+    _mspec = _ilu2.spec_from_file_location("_manifest", _tools / "manifest.py")
+    _manifest = _ilu2.module_from_spec(_mspec)
+    # REGISTER BEFORE EXEC. `@dataclass` resolves its own annotations through
+    # `sys.modules[cls.__module__]`, so a module loaded by path but never registered
+    # raises `AttributeError: 'NoneType' object has no attribute '__dict__'` at import.
+    # `prompt_guard.py` above gets away without this only because it defines no
+    # dataclass - which is luck, not a difference in the loading.
+    _sys.modules[_mspec.name] = _manifest
+    _mspec.loader.exec_module(_manifest)
+    _manifest.write_manifest(run_dir, {
         "stacks": stacks, "games": games, "trials": a.trials, "model": MODEL,
         "max_turns": MAX_TURNS, "max_budget_usd": MAX_BUDGET_USD,
         "work_root": str(work_root),
         "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-    }, indent=2))
+    })
 
     caps = Caps(BUILD_CAP, a.parallel)
     # Prefer the starter's own warm target dir: it is compiled from exactly the source

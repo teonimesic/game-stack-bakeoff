@@ -1042,9 +1042,20 @@ def main() -> int:
     stamp = dt.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     run_dir = (args.out / f"{suite.name}-{stamp}").resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "suite.json").write_text(json.dumps(
-        {"suite": suite.name, "template": str(template), "trials": args.trials},
-        indent=2))
+    # Append-only, through the SAME writer `wholegame.py` uses. This harness stamps its
+    # own run directory to the second, so a collision is unlikely rather than impossible -
+    # and the reason to route it here is not this call site's risk. Giving the two
+    # harnesses two similar manifest policies is how #100 came back, and it is how
+    # `suite.json` came to be guarded in one file and overwritten in the other (#119).
+    _tools = Path(__file__).resolve().parent / "tools"
+    import importlib.util as _ilu
+    _mspec = _ilu.spec_from_file_location("_manifest", _tools / "manifest.py")
+    _manifest = _ilu.module_from_spec(_mspec)
+    sys.modules[_mspec.name] = _manifest   # `@dataclass` resolves via sys.modules
+    _mspec.loader.exec_module(_manifest)
+    _manifest.write_manifest(run_dir, {
+        "suite": suite.name, "template": str(template), "trials": args.trials,
+        "started_at": dt.datetime.now(dt.timezone.utc).isoformat()})
     # Snapshot the control floors INTO this run. They are per-suite: the same
     # task can have a different floor on a different stack (a Rust holdout that
     # fails to compile scores 0/0, while the TypeScript equivalent runs and

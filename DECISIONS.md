@@ -278,7 +278,7 @@ gate that fails on correct input gets disabled*:
 
 `docstat.py --renumbered` asks the one question the two above cannot: does a name still *mean* what
 its author meant? A finding number reassigned at merge leaves every earlier citation pointing at a
-stranger and **still resolving**, so no reference check can see it (#117).
+stranger and **still resolving**, so no reference check can see it (#118).
 
 It is a warning in `--sweep` and a command of its own, on the same footing as `tasks.py check`'s
 reachability warning. Three reasons, and the first two are why it could not be a gate even if
@@ -644,6 +644,31 @@ and a bad `git clean`, and nothing else. This machine has no external disk, no `
 remote, and its only cloud target is the operator's personal iCloud Drive, which is not somewhere
 project evidence belongs. Every evidence file is under 50 MB, so an external disk or a private
 GitHub repo would each work without LFS; both need the operator's go-ahead.
+
+---
+## A wrong stored manifest is marked, never repaired — decided 2026-08-23
+
+**Configuration records in `eval/runs/` are append-only when written and read-only afterwards.**
+Six stored directories hold a manifest that does not describe them (#93, #119). None was edited.
+
+**Why not repair.** For `wg-matrix`, `wg-arena3d` and `wg-g4` the original was destroyed and no
+honest replacement exists — a manifest reconstructed today is an inference wearing the name of a
+contemporaneous record, and every later reader would take it at face value. For `wg-audio48` the
+original *does* survive as `suite-full-matrix.json`, and it was still not promoted: renaming it
+over `suite.json` would leave the directory looking as though nothing had ever gone wrong, which
+is the state the audit exists to distinguish from a healthy one.
+
+**What replaces the repair.** Each carries a `MANIFEST-DEFECT.json` written by
+`eval/tools/manifest.py mark`, holding what was measured, what survives, and — only under
+`reconstructed_*` keys, never under a `suite*.json` name — what the reports say the run was. The
+marker stores the exact issue list it acknowledges and the audit re-measures and compares every
+run, so it can acknowledge an unchanged known state and cannot hide a change. That is what keeps
+it from being a suppression list.
+
+**What would re-open it.** A stored manifest whose original is recoverable *byte for byte* from
+something written at run time — a build log quoting it, or a copy in the evidence set predating
+the overwrite. Then promoting it is a restoration rather than a reconstruction, and the
+distinction this decision rests on disappears.
 
 ---
 ## The harness lint baseline is a recipe, not a gate — decided 2026-08-23

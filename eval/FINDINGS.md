@@ -1,8 +1,9 @@
 # Eval findings
 
-Findings #19-#119 from building and running this evaluator. **Check whether a
+Findings #19-#120 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
+number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
 because the shapes repeat and the dates do not matter. Citations are by number and
@@ -195,6 +196,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **117** | Forty-four task files failed a YAML parse loudly and nine failed silently, returning a truncated value that looked like an answer | [certifies-nothing](findings/certifies-nothing.md) |
 | **118** | Fixing a finding-number collision by renumbering is what creates the dangling reference, and it still resolves — 10 renumbers, 27 stale citations across eight corpora, and the third of them that history cannot decide | [documentation](findings/documentation.md) |
 | **119** | A claim withdrawn in the archive was still cited as current in three live documents six days later, and every citation resolved — so the fix is a declared withdrawal register, keyed on an id, not any consistency check | [documentation](findings/documentation.md) |
+| **120** | One function guarded the prompt snapshot and overwrote the manifest eleven lines below it — 5 affected directories, not #93's 3, and #93's third row is a UTC string compared against a local-time name | [documentation](findings/documentation.md) |
 
 ---
 

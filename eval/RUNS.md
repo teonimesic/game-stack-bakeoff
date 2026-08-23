@@ -124,6 +124,13 @@ Every deduction in this matrix is on the 15-August side of that line.
 
 Full mechanism and quotes: FINDINGS #49.
 
+**Its `suite.json` records only the second wave.** `started_at` is `2026-08-16T13:47:06.522`,
+which is `g3_arena__unity__t0`'s start to 2 ms and 22 hours after the directory name — the
+16-August re-launch overwrote the manifest, so the directory's own record of what it was
+configured to be omits the four trials the warning above is about. The trial count matches, so
+nothing but that timestamp says so. `python3 tools/manifest.py audit` reports it; the directory
+carries a `MANIFEST-DEFECT.json` and the manifest itself was left as found (#119).
+
 > **Partition by `terminal_reason`, and also by anything about the world that changed while the
 > run was in flight.** A run is not a controlled experiment merely because it is one command.
 

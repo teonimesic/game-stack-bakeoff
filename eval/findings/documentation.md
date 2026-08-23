@@ -1020,3 +1020,103 @@ reports the withdrawn 1.70/2.05 pair published in `DECISIONS.md`, `README.md` an
 `eval/judge/JUDGING.md` — the exact three sites #113 names — and reports none of them today.
 `eval/tools/withdrawn_control.py` runs 33 controls and five mutants, each mutant flipping the
 control that names its mechanism.
+---
+
+## 120. One function guarded one durable record and destroyed the other, eleven lines apart
+
+Found while executing task 30, which was filed from #93. #93 said the manifest overwrite affected
+**three** stored directories and that each carried the same tell. Measured mechanically over all
+19 stored run directories, it is **five**, plus a sixth directory holding the other end of one of
+them, and the tell fires on a different set than #93 named.
+
+### The two lines
+
+`wholegame.py cmd_build` writes two durable configuration records into a run directory. The
+prompt snapshot has been kept-not-overwritten since #57 — *"a rewrite would erase the very drift
+it exists to catch"* — and eleven lines below it, `suite.json` was written unconditionally.
+
+`runs/wg-g4-2026-08-17T09-38-32` holds both halves to the millisecond:
+
+| record | mtime | matches |
+|---|---|---|
+| `prompts/index.json` | `2026-08-17T09:38:32.783 UTC` | the directory name, to the second |
+| `suite.json` | `2026-08-17T10:57:39.697 UTC` | its own `started_at`, 79 minutes later |
+
+A second launch went into that directory. The snapshot survived; the manifest was replaced, and
+the run the directory is named for now has no record of what it was configured to be.
+
+**The reason one was guarded and the other was not is that #57 was written about prompts, and #77
+— *keep manifests, not just scores* — was written about judge packs.** Neither trigger contained
+the word `suite.json`, so neither reached it. This is AGENTS.md's own meta-lesson producing a
+fresh instance eleven lines from its own fix.
+
+> **Any durable record of what a measurement was configured to be is append-only.** Not "manifests",
+> not "snapshots" — the resource. A second launch adds a record; it never replaces one.
+
+### What the census alone would have missed, and what the tell alone would have missed
+
+Two independent checks, and **neither finds all five**:
+
+| run | manifest vs reports beside it | `started_at` vs directory name |
+|---|---|---|
+| `wg-matrix-2026-08-13T14-02-50` | **MISMATCH** — declares 4, holds 24 | **+27668 s** |
+| `wg-audio48-2026-08-14T19-55-47` | **MISMATCH** — declares `g3_arena`, holds 16 reports and zero `g3_arena` | **+50225 s** |
+| `wg-g4-2026-08-17T09-38-32` | **INCOMPLETE** — declares 8, holds 4 | **+4747 s** |
+| `wg-arena3d-2026-08-15T12-46-30` | clean — declares 8, holds exactly those 8 | **+79236 s** |
+| `wg-audio-2026-08-14T12-29-42` | **INCOMPLETE** — declares 24, holds 11 | **clean, 1 s** |
+| `archive-arena2d-wg-audio48` | **no manifest at all** beside 8 reports | n/a |
+
+`wg-arena3d` is the one that matters. Its manifest **was** overwritten — `started_at`
+`2026-08-16T13:47:06.522` equals `g3_arena__unity__t0`'s start to 2 ms, because the run was built
+in two waves and the second rewrote the manifest — and the census clears it completely, because
+both waves declared the same shape. That two-wave line is the same one `RUNS.md` draws for #49,
+where it had to be reconstructed by hand from trial records and from what the agents said about
+themselves. It is one field comparison in the manifest.
+
+### #93's third row is wrong, and the reason is worth more than the row
+
+#93 listed `wg-audio-2026-08-14T12-29-42` as carrying the tell, on the strength of `15:29:43`
+inside a directory named `12-29-42`. **They are the same instant.** `started_at` is UTC and this
+machine is UTC-3; the delta is **1 second**, and the manifest is the original. Its real defect is
+smaller and different in kind — the run stopped after 11 of 24 declared trials, so the manifest
+overstates a run that never finished rather than describing a different one.
+
+The directory names are chosen by the operator on the `--run-dir` command line, and this project
+has stamped them **both ways**: `wg-calib`, `wg-cal48`, `wg-cal48b` and `wg-audio` in local time,
+`wg-g4b` and `wg-g4c` in UTC. Any check that assumes one basis reports a three-hour drift across
+half the corpus, which is rule 9's shape — a uniform answer across subjects that share only the
+instrument.
+
+> **A comparison between two timestamps written by different clocks is not a comparison until you
+> have said which clocks.** Two strings that do not look alike are not thereby different instants,
+> and "does not look like" is how this row got into a findings file.
+
+The audit takes the closer of the two bases. The separation is not marginal — consistent runs land
+at **1, 1, 1, 1, 12 and 24 seconds**, inconsistent ones at **4747, 27668, 50225 and 79236** — so
+the tolerance sits an order of magnitude clear of both edges. From schema 2 on, the manifest records
+its own `run_dir` and the question is an equality test with no clock in it; the stamp comparison is
+kept anyway, because a check that switched to the new field would be weaker on the 18 stored
+directories than on the ones written tomorrow.
+
+### The stored records are marked, not repaired
+
+`eval/runs` is evidence, and **a manifest reconstructed today is not the record that was written
+then.** For `wg-matrix`, `wg-arena3d` and `wg-g4` the original was destroyed and no honest
+replacement exists; for `wg-audio48` the original survives as `suite-full-matrix.json` and was
+*deliberately not* promoted, because renaming it over `suite.json` would erase the evidence that
+the canonical name had ever been wrong.
+
+Each of the six carries a `MANIFEST-DEFECT.json` recording what was found, what survives, and any
+reconstruction — clearly under `reconstructed_*` keys, never under a `suite*.json` name, because a
+file named like a manifest reads like one. The marker stores **the exact issue list it
+acknowledges**, and the audit re-measures and compares on every run: a marker that still matches
+downgrades the error, and a marker that no longer matches raises `MARKER_STALE`. It can only
+acknowledge an unchanged known state, never hide a change (rule 7).
+
+Mechanism, controls and the timezone reasoning: `eval/tools/manifest.py`, controls in
+`eval/tools/manifest_selftest.py`. The mutant there is the pre-repair writer itself, so the suite
+can demonstrate the defect rather than only the fix (rule 14) — and it immediately earned its keep
+on something else: `cmd_build` loads `tools/` modules by path, the first version of that loader did
+not register the module in `sys.modules`, and `@dataclass` resolves annotations through
+`sys.modules[cls.__module__]`. Every test that imported the module normally was green while the
+harness path raised at import.
