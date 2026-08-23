@@ -29,3 +29,27 @@ to merge `main` before finishing.
 **What not to conclude:** #139 does not say the play-bot should be repaired in the scored path.
 `_walk_toward` is deliberately untouched — a one-tick jump press moves scored criteria, which is a
 regime question and not this ticket's.
+
+## Updated at dispatch, 2026-08-23 (second time) — the blocker cleared, and the numbers moved
+
+**The file conflict with `tasks/102` is GONE.** It merged at `c34b014`. `DECISIONS.md` and
+`eval/judge/RUBRIC.md` are free, and 102 already repaired the stale `#126`/`#133`/`#137` citations
+in both — so **do not re-fix those**; check with `python3 eval/tools/docstat.py --renumbered`
+before touching any citation, and read `eval/renumber_triage.json`, which now records a verdict
+per row keyed by the citing text.
+
+**The finding is #139 and it is published.** Do not allocate a number. What remains is citing it
+in `DECISIONS.md`, `eval/judge/RUBRIC.md` and `eval/G4-PLATFORMER.md`.
+
+**The log has moved to #19-#145** since this ticket was written — #141 through #145 landed today.
+Any range or count you touch must come from `python3 eval/tools/docstat.py --findings`, not from
+this ticket and not from memory.
+
+**#144, landed today, is directly about the mistake this task could make.** A count with a
+producer still goes stale, because citing a producer is not running it — and the instruction-count
+figure it is about drifted twice inside one session. If you write any quantity, run its producer
+in the session you write it.
+
+**#139 does not say the play-bot should be repaired in the scored path.** It says the proposed
+`stage.completes` fraction was measuring the bot rather than the field. Landing the citation is
+not landing a repair, and proposing one is out of scope for this ticket.
