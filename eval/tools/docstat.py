@@ -40,6 +40,7 @@ undecidable. See `_check_renumbered_citations` for which half is which.
 from __future__ import annotations
 
 import argparse
+import collections
 import glob
 import os
 import re
@@ -446,6 +447,216 @@ def _check_list_indent() -> list[str]:
     return problems
 
 
+# A row of the "Every finding" index in eval/FINDINGS.md, and the GFM delimiter row that
+# has to sit above the first of them for any of it to be a table.
+_INDEX_ROW_RX = re.compile(r"^\| \*\*(\d+)\*\*")
+_TABLE_DELIM_RX = re.compile(r"^\|[\s:|-]+\|\s*$")
+
+
+def _index_rows(itext: str) -> list[tuple[int, int]]:
+    """(1-based line number, finding number) for every index row, fences excluded."""
+    lines = itext.split("\n")
+    fenced = _fence_mask(lines)
+    out = []
+    for i, ln in enumerate(lines):
+        if fenced[i]:
+            continue
+        m = _INDEX_ROW_RX.match(ln)
+        if m:
+            out.append((i + 1, int(m.group(1))))
+    return out
+
+
+def _check_index_renders_as_one_table(itext: str) -> list[str]:
+    """The FINDINGS.md index must be ONE table, not a run of rows that happens to grep.
+
+    THE DEFECT THIS EXISTS FOR, and why every other check here was blind to it.
+
+    On 2026-08-23 a blank line sat between the row for #105 and the row for #106. Under
+    CommonMark that ENDS the table: #19-#105 were one table and #106-#111 a second one
+    with no header row. Every renderer, every chunker and every markdown parser saw two
+    tables; the index a reader is shown stopped six findings short of the end.
+
+    Nothing caught it, and the reason generalises. A row-count check counts 100 rows either
+    way. The body-vs-index reconciliation above resolves every number either way. `grep`
+    finds every row either way. **A structural break is invisible to every check that reads
+    the file as a set of lines**, which is exactly how this one arrived and survived.
+
+    So this reads the file as a PARSER does. Two conditions, both of which the split
+    violated and neither of which any other check states:
+
+      1. the rows are contiguous - nothing between the first and the last that is not
+         itself a row, because a blank line, a heading or a paragraph in there starts a
+         second, headerless table;
+      2. a delimiter row (`|---|---|---|`) sits immediately above the first row, because
+         without one the whole block is a paragraph of pipes rather than a table at all.
+
+    Pinned in both directions by `_index_pins()`, which `cmd_sweep` runs every time and
+    `--selftest` prints: red on a planted blank line, a whitespace-only line, a prose line,
+    a deleted delimiter and a duplicated row; green on the committed index, on a blank line
+    after the LAST row (where the table legally ends) and on a row inside a ``` fence.
+    """
+    rows = _index_rows(itext)
+    if not rows:
+        # An index with no rows at all is already reported by the body-vs-index
+        # reconciliation in the caller, as one problem per unindexed finding. Saying it
+        # again here would bury that under a second phrasing of the same fact.
+        return []
+
+    lines = itext.split("\n")
+    problems: list[str] = []
+    rownum = dict(rows)                 # line number -> finding number
+    first, last = rows[0][0], rows[-1][0]
+
+    # (1) contiguity. Consecutive interrupting lines are collapsed into ONE report: a
+    # three-line paragraph dropped into the table is one break, not three.
+    gaps = [ln for ln in range(first, last + 1) if ln not in rownum]
+    run_start = None
+    for ln in gaps + [None]:
+        if run_start is None:
+            run_start, prev_ln = ln, ln
+            continue
+        if ln == prev_ln + 1:
+            prev_ln = ln
+            continue
+        # By line position, not by value: the neighbouring ROWS are what the break
+        # separates, whether or not the index happens to be in numeric order.
+        above = rownum[max(n for n in rownum if n < run_start)]
+        below = rownum[min(n for n in rownum if n > prev_ln)]
+        where = (f"line {run_start}" if run_start == prev_ln
+                 else f"lines {run_start}-{prev_ln}")
+        what = ("a blank line" if not lines[run_start - 1].strip()
+                else f"`{lines[run_start - 1].strip()[:40]}`")
+        problems.append(
+            f"eval/FINDINGS.md {where}: {what} interrupts the finding index between the "
+            f"rows for #{above} and #{below}. Under CommonMark that ENDS the table - "
+            f"#{below} onward become a SECOND table with no header, so every renderer and "
+            f"chunker shows an index that stops at #{above}. grep sees no difference, "
+            f"which is why this went unnoticed once already.")
+        run_start, prev_ln = ln, ln
+
+    # (2) the header delimiter. Rows with no `|---|` line above them are not a table.
+    above_line = lines[first - 2] if first >= 2 else ""
+    if not _TABLE_DELIM_RX.match(above_line.strip()):
+        problems.append(
+            f"eval/FINDINGS.md line {first}: the first index row (#{rownum[first]}) has no "
+            f"table delimiter row above it (found `{above_line.strip()[:40]}`). Without a "
+            f"`|---|---|---|` line the index is not a table at all - it renders as a "
+            f"paragraph of pipe characters.")
+    return problems
+
+
+def _index_row_count() -> int:
+    """Rows in the FINDINGS.md index, for the sweep to REPORT rather than merely assert.
+
+    A gate that prints only "clean" cannot be distinguished from one reading an empty
+    corpus. Printing the count is how a reader notices the day it says 0.
+    """
+    p = os.path.join(ROOT, "eval", "FINDINGS.md")
+    if not os.path.exists(p):
+        return 0
+    return len(_index_rows(open(p, encoding="utf-8", errors="replace").read()))
+
+
+def _check_index(itext: str, body: set[int]) -> list[str]:
+    """Everything the FINDINGS.md index must satisfy, as a function of TEXT and body numbers.
+
+    A FUNCTION OF ITS INPUTS, not of the repository, so that `--selftest` can hand it a
+    mutated copy of the index in memory. The alternative — planting a defect in the real
+    `eval/FINDINGS.md` and restoring it afterwards — writes to the ARCHIVE to test a gate,
+    and leaves it broken if the run dies in between. Nothing here opens a file.
+    """
+    problems: list[str] = []
+    rows = _index_rows(itext)
+    indexed = {n for _, n in rows}
+    for n in sorted(body - indexed):
+        problems.append(f"finding #{n} has a body but no row in eval/FINDINGS.md - it "
+                        f"is uncitable, which is how a finding becomes invisible")
+    for n in sorted(indexed - body):
+        problems.append(f"eval/FINDINGS.md indexes #{n} but no body defines it")
+
+    # The two set differences above cannot see a number indexed TWICE - a set collapses it,
+    # both differences come back empty, and both rows resolve. Only counting does, which is
+    # why the row count is asserted rather than inferred from the reconciliation. With the
+    # sets equal, this is exactly `len(rows) == len(body)`.
+    counts = collections.Counter(n for _, n in rows)
+    for n in sorted(n for n, c in counts.items() if c > 1):
+        at = ", ".join(str(ln) for ln, x in rows if x == n)
+        problems.append(f"eval/FINDINGS.md indexes #{n} on more than one row (lines {at}) "
+                        f"- the index has {len(rows)} rows for {len(body)} findings, and a "
+                        f"reader following the first row may land on a different entry "
+                        f"than one following the second")
+
+    # The stated range is NOT checked here. It used to be, for eval/FINDINGS.md only, which
+    # is how AGENTS.md and README.md carried `#19-#110` for a day after the index was
+    # repaired. `_check_stated_range` now asks it of all three live statements at once, with
+    # a line number - and a second phrasing of the same fact here would report it twice.
+    return problems + _check_index_renders_as_one_table(itext)
+
+
+# "Findings #19-#118" - the sentence that tells a reader where the log ends.
+_RANGE_RX = re.compile(r"Findings #(\d+)-#(\d+)")
+
+# The files that state that range and are read as CURRENT. Both defects in task 59 were
+# drift, and drift returns: the range was spelled in THREE files and only one of them was
+# ever checked, so `eval/FINDINGS.md` was repaired while `AGENTS.md` went on saying #110.
+# AGENTS.md rule 12 - when a value is spelled in two files, assert them equal in code; a
+# comment promising they match is not a defence.
+#
+# `tasks/`, `eval/findings/` and `CLEANUP-LOG.md` are deliberately NOT here. They quote
+# historical states on purpose - task 59's own body quotes "#19-#110" as the evidence for
+# the defect - and gating them would fail on correct input, which is how a gate gets
+# switched off. These three carry the opposite rule: `README.md` and `AGENTS.md` state what
+# is true now and replace superseded content rather than annotating it, so a range in them
+# that is not current is a defect by their own standard.
+RANGE_DOCS = ("AGENTS.md", "README.md", os.path.join("eval", "FINDINGS.md"))
+
+
+def _check_range_in(rel: str, text: str, highest: int) -> list[str]:
+    """One document's statement of the findings range, as a function of its TEXT.
+
+    Pure, for the same reason `_check_index` is: the pins feed it a mutated copy rather
+    than editing a live instruction document to prove a gate works.
+    """
+    problems = []
+    lines = text.split("\n")
+    fenced = _fence_mask(lines)
+    found = False
+    for i, ln in enumerate(lines):
+        if fenced[i]:
+            continue
+        m = _RANGE_RX.search(ln)
+        if not m:
+            continue
+        found = True
+        if int(m.group(2)) != highest:
+            problems.append(
+                f"{rel}:{i + 1} says the findings log covers #{m.group(1)}-#{m.group(2)}, "
+                f"but the highest finding in eval/findings/ is #{highest}. This sentence "
+                f"is what a session is told to trust to know where the log ends, and an "
+                f"undercount invites the next agent to reuse a number already taken.")
+    if not found:
+        problems.append(
+            f"{rel} no longer states the findings range at all (`Findings #A-#B`). Either "
+            f"the sentence was dropped - a reader has no way to tell where the log ends - "
+            f"or its wording changed and this check is now reading nothing.")
+    return problems
+
+
+def _check_stated_range(highest: int) -> list[str]:
+    """Every live statement of where the findings log ends must name the same number."""
+    problems = []
+    for rel in RANGE_DOCS:
+        p = os.path.join(ROOT, rel)
+        if not os.path.exists(p):
+            problems.append(f"{rel} is named as a place the findings range is stated, but "
+                            f"it does not exist at {p} - this check ran over nothing")
+            continue
+        text = open(p, encoding="utf-8", errors="replace").read()
+        problems += _check_range_in(rel, text, highest)
+    return problems
+
+
 def _check_findings_integrity() -> list[str]:
     """A finding number must identify exactly one finding, and be reachable from the index.
 
@@ -465,15 +676,21 @@ def _check_findings_integrity() -> list[str]:
     them resolves to two different pieces of work, and nothing downstream can tell which one
     an author meant.
 
-    Three questions, all cheap:
+    Four questions, all cheap:
       1. does any number appear twice in the bodies?
       2. is every body finding present in the FINDINGS.md index, and vice versa?
-      3. does the range stated in the FINDINGS.md header match the highest number?
+      3. does every LIVE statement of the range - three files - match the highest number?
+      4. does the index still render as ONE table?
 
-    (3) matters because the header is what a reader trusts to know where the log ends, and
-    it is edited by hand in three files. It has been wrong before.
+    (3) matters because that sentence is what a reader trusts to know where the log ends,
+    and it is edited by hand in three files. It has been wrong before, in two of the three:
+    `eval/FINDINGS.md` was repaired and `AGENTS.md` went on saying `#19-#110`, because only
+    the first was ever checked.
+
+    (4) is the one the other three cannot see. 1-3 read the index as a SET of numbers, and a
+    set is identical whether or not a blank line has split the rows into two tables — see
+    `_check_index_renders_as_one_table` for the split that stood undetected.
     """
-    import collections
     problems: list[str] = []
     fdir = os.path.join(ROOT, "eval", "findings")
     if not os.path.isdir(fdir):
@@ -504,18 +721,8 @@ def _check_findings_integrity() -> list[str]:
     index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
     if os.path.exists(index_path):
         itext = open(index_path, encoding="utf-8", errors="replace").read()
-        indexed = {int(m) for m in re.findall(r"^\| \*\*(\d+)\*\*", itext, re.M)}
-        body = set(seen)
-        for n in sorted(body - indexed):
-            problems.append(f"finding #{n} has a body but no row in eval/FINDINGS.md - it "
-                            f"is uncitable, which is how a finding becomes invisible")
-        for n in sorted(indexed - body):
-            problems.append(f"eval/FINDINGS.md indexes #{n} but no body defines it")
-        m = re.search(r"Findings #(\d+)-#(\d+)", itext)
-        if m and body and int(m.group(2)) != max(body):
-            problems.append(f"eval/FINDINGS.md says the log ends at #{m.group(2)}, but the "
-                            f"highest finding is #{max(body)}")
-    return problems
+        problems += _check_index(itext, set(seen))
+    return problems + _check_stated_range(max(seen))
 
 
 ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
@@ -910,6 +1117,135 @@ def cmd_renumbered(rev: str = "HEAD") -> int:
     return 0
 
 
+def _index_pins(verbose: bool = False) -> list[str]:
+    """Pin the FINDINGS-index checks in BOTH directions, against the real index.
+
+    RUN BY `--sweep` ITSELF, every time, and separately as `--selftest` when you want to
+    read the cases. A gate written while the repository is clean is a gate nobody has seen
+    go red — `--sweep` was green on the real two-table split for as long as it stood — and
+    a pin that has to be remembered is one that will be forgotten. This one costs
+    microseconds and no I/O beyond re-reading a file the sweep already read, so it runs
+    with the check rather than beside it.
+
+    The mutations are applied to a COPY of the index text in memory. Nothing is written to
+    `eval/FINDINGS.md`: it is the archive, and a selftest that edits it to prove a point is
+    one crash away from leaving it edited.
+
+    The GREEN cases are the half that matters most. A mutant asks whether a check can fail;
+    only a variant asks whether it can still pass on an input it mishandles (AGENTS.md rule
+    15), and both green cases here are inputs an earlier draft of this check got wrong: the
+    blank line that legitimately ENDS the table after its last row, and a fenced example
+    row that is not an index row at all.
+
+    Returns the list of pins that came out wrong; empty means the check demonstrably both
+    fires and stays quiet.
+    """
+    index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
+    if not os.path.exists(index_path):
+        return [f"the FINDINGS-index pins found no index at {index_path}, so the index "
+                f"checks are unproven - they cannot be shown to fire"]
+    orig = open(index_path, encoding="utf-8", errors="replace").read()
+    rows = _index_rows(orig)
+    if len(rows) < 3:
+        return [f"the FINDINGS-index pins parsed only {len(rows)} row(s) from "
+                f"eval/FINDINGS.md - the row pattern has changed and the pins are "
+                f"mutating nothing, so a green index check means nothing either"]
+    body = {n for _, n in rows}
+    mid = rows[len(rows) // 2]          # a row with rows on both sides of it
+    first, last = rows[0], rows[-1]
+
+    def with_line(at: int, text: str | None = None) -> str:
+        """A copy of the index with `text` inserted at 1-based line `at`, or that line cut."""
+        lines = orig.split("\n")
+        if text is None:
+            del lines[at - 1]
+        else:
+            lines.insert(at - 1, text)
+        return "\n".join(lines)
+
+    hi = max(body)
+
+    def idx(text: str):
+        return lambda: _check_index(text, body)
+
+    def rng(text: str):
+        return lambda: _check_range_in("AGENTS.md", text, hi)
+
+    stated = f"Findings #19-#{hi}"
+    cases = [
+        ("committed index, unmutated", idx(orig), False),
+        (f"blank line between the rows for #{mid[1]} and the next",
+         idx(with_line(mid[0] + 1, "")), True),
+        ("whitespace-only line between two rows (blank to CommonMark)",
+         idx(with_line(mid[0] + 1, "   ")), True),
+        ("prose line between two rows", idx(with_line(mid[0] + 1, "Added later.")), True),
+        ("the |---|---| delimiter row deleted", idx(with_line(first[0] - 1)), True),
+        ("blank line between the delimiter and the first row",
+         idx(with_line(first[0], "")), True),
+        (f"#{mid[1]} indexed on two rows - invisible to the set reconciliation",
+         idx(with_line(mid[0] + 1, orig.split("\n")[mid[0] - 1])), True),
+        ("GREEN: blank line after the LAST row, where the table legally ends",
+         idx(with_line(last[0] + 1, "")), False),
+        ("GREEN: an example row inside a ``` fence is not an index row",
+         idx(orig + "\n```markdown\n| **7** | an example row |\n```\n"), False),
+        # The stated range, which is spelled in three live files and drifted in two of them.
+        (f"a doc stating the range one short (#{hi - 1})",
+         rng(f"| `eval/FINDINGS.md` | Findings #19-#{hi - 1}, incl. retractions |"), True),
+        ("a doc that states no range at all",
+         rng("| `eval/FINDINGS.md` | the findings log |"), True),
+        (f"GREEN: a doc stating the current range ({stated})",
+         rng(f"| `eval/FINDINGS.md` | {stated}, incl. retractions |"), False),
+        ("GREEN: a stale range inside a ``` fence is an example, not a claim",
+         rng(f"{stated}\n\n```\nFindings #19-#42 from an old README\n```\n"), False),
+    ]
+
+    failed = []
+    for name, run, expect_red in cases:
+        got = run()
+        good = bool(got) == expect_red
+        if not good:
+            failed.append(
+                f"FINDINGS-index pin came out wrong: `{name}` produced {len(got)} "
+                f"problem(s) where {'at least one' if expect_red else 'none'} was "
+                f"expected. The check is no longer proven to "
+                f"{'fire' if expect_red else 'stay quiet'}, so its green is not evidence.")
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: "
+                  f"{len(got)} problem(s), expected {'>=1' if expect_red else '0'}")
+            for g in got:
+                print(f"        {g[:150]}")
+    return failed
+
+
+def _size_mtime(path: str) -> tuple[int, int] | None:
+    if not os.path.exists(path):
+        return None
+    st = os.stat(path)
+    return (st.st_size, st.st_mtime_ns)
+
+
+def cmd_selftest() -> int:
+    """`--selftest`: the pins with their cases printed, plus proof the archive was untouched.
+
+    The mtime/size assertion is not decoration. The obvious way to write this selftest is
+    to plant a defect in the real `eval/FINDINGS.md` and restore it afterwards, and the
+    obvious way is wrong: a crash between the two leaves the archive edited. This states
+    the property the in-memory design buys, in a form that would notice if someone later
+    "simplified" it back to writing on disk.
+    """
+    index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
+    before = _size_mtime(index_path)
+    failed = _index_pins(verbose=True)
+    after = _size_mtime(index_path)
+    untouched = before == after
+    print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
+          f"({before} -> {after}) - the pins mutate copies in memory, never the archive")
+    for f in failed:
+        print(f"  {f}")
+    print(f"{len(failed)} pin(s) came out wrong")
+    return 0 if not failed and untouched else 1
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -1110,6 +1446,12 @@ def cmd_sweep() -> int:
     problems += _check_findings_integrity()
     problems += _check_regime_ordinals()
 
+    # The findings-index checks carry their own red control, and it runs HERE rather than
+    # in a command someone has to remember. `--sweep` was green on a real two-table split
+    # for as long as that split stood; a check whose ability to fail is never exercised is
+    # the shape this project keeps finding. In memory, no I/O beyond one re-read.
+    problems += _index_pins()
+
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
     # it does not is that its evidence is `git blame`, which dates the last edit of a line
@@ -1143,7 +1485,9 @@ def cmd_sweep() -> int:
     print(f"sweep clean: references over {len(refs)} docs "
           f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
           f"flags, {len(aspects)} aspects known; structure: {len(skill_files())} SKILL.md "
-          f"frontmatter, {len(gated_docs())} instruction docs for list indent")
+          f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
+          f"{_index_row_count()} FINDINGS index rows in ONE table "
+          f"(pinned red and green; --selftest to read the pins)")
     return 0
 
 
@@ -1156,11 +1500,15 @@ def main() -> int:
     ap.add_argument("--at", default="HEAD", metavar="REV",
                     help="revision --renumbered reads (default HEAD); the positive control "
                          "is a revision where a known-stale citation still stands")
+    ap.add_argument("--selftest", action="store_true",
+                    help="pin the FINDINGS-index checks in both directions, in memory")
     ap.add_argument("--all", action="store_true")
     a = ap.parse_args()
 
     if a.outline:
         return cmd_outline(a.outline)
+    if a.selftest:
+        return cmd_selftest()
     if a.renumbered:
         return cmd_renumbered(a.at)
     if a.sweep:
