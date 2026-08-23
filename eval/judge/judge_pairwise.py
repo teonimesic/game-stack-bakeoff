@@ -126,13 +126,25 @@ def compare(a: dict, b: dict, game: str, model: str = MODEL,
             "--setting-sources", "project", "--strict-mcp-config",
             "--exclude-dynamic-system-prompt-sections", "--no-session-persistence",
             "--permission-mode", "acceptEdits"]
+    # check=False: the CLI exits non-zero for reasons that still produce a usable
+    # verdict (a budget or turn ceiling reached after the answer was written). The
+    # status is recorded on the unreadable-output path instead, where it separates
+    # "the judge said something we could not read" from "the judge never ran".
+    # The two failure modes are caught separately, and narrowly: a blind `except`
+    # here would report a BUG IN THIS FILE as an unusable comparison.
     try:
         p = subprocess.run(argv, cwd=pack, capture_output=True, text=True,
-                           timeout=timeout_s)
-        raw = json.loads(p.stdout)
-    except Exception as e:
+                           timeout=timeout_s, check=False)
+    except (subprocess.SubprocessError, OSError) as e:
         shutil.rmtree(pack, ignore_errors=True)
         return {"usable": False, "error": f"{type(e).__name__}: {e}",
+                "a": a["id"], "b": b["id"]}
+    try:
+        raw = json.loads(p.stdout)
+    except json.JSONDecodeError as e:
+        shutil.rmtree(pack, ignore_errors=True)
+        return {"usable": False, "error": f"{type(e).__name__}: {e}",
+                "cli_exit": p.returncode, "cli_stderr": p.stderr[-2000:],
                 "a": a["id"], "b": b["id"]}
     if isinstance(raw, list):
         r = [x for x in raw if isinstance(x, dict) and x.get("type") == "result"]
@@ -146,7 +158,11 @@ def compare(a: dict, b: dict, game: str, model: str = MODEL,
                 v = json.loads(cand[cand.find("{"): cand.rfind("}") + 1])
                 if "comparisons" in v:
                     payload = v; break
-            except Exception:
+            # Narrow: the brace-slice may not be JSON (JSONDecodeError) or may decode to
+            # a scalar, where `in` is not defined (TypeError). Anything else is a defect
+            # here and must not be swallowed -- an empty `payload` scores every criterion
+            # 0, which is a verdict, not an error.
+            except (json.JSONDecodeError, TypeError):
                 pass
     usage = raw.get("modelUsage") or {}
     shutil.rmtree(pack, ignore_errors=True)

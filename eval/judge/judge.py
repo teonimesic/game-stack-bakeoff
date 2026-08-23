@@ -255,8 +255,13 @@ def _run_claude_once(pack: Path, model: str, max_turns: int, budget: float,
         "--permission-mode", "acceptEdits",
     ]
     try:
+        # check=False: the CLI exits non-zero for reasons that still produce a usable
+        # verdict (a budget or turn ceiling reached after the answer was written), so
+        # raising on the status would discard rounds that are fine. It is recorded on
+        # the unparseable path, where it is the only thing separating "the judge said
+        # something we could not read" from "the judge never ran".
         p = subprocess.run(argv, cwd=pack, capture_output=True, text=True,
-                           timeout=timeout_s)
+                           timeout=timeout_s, check=False)
     except subprocess.TimeoutExpired:
         return {"is_error": True, "result": "judge timed out"}, "timeout"
     except OSError as e:
@@ -264,7 +269,8 @@ def _run_claude_once(pack: Path, model: str, max_turns: int, budget: float,
     try:
         data = json.loads(p.stdout)
     except json.JSONDecodeError:
-        data = {"is_error": True, "result": p.stdout[-3000:]}
+        data = {"is_error": True, "cli_exit": p.returncode,
+                "result": p.stdout[-3000:]}
     if isinstance(data, list):
         results = [d for d in data if isinstance(d, dict) and d.get("type") == "result"]
         data = results[-1] if results else (data[-1] if data else {})

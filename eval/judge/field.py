@@ -415,7 +415,7 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
         mapping[label] = sub.name
         out = dest / label
         out.mkdir()
-        n = {"code": 0, "frames": 0, "telemetry": 0, "audio": 0}
+        n = {"code": 0, "frames": 0, "telemetry": 0, "audio": 0, "code_unreadable": 0}
 
         if "code" in need:
             src = sub / "eval" / "judge_pack" / "code"
@@ -428,7 +428,15 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                 tgt.parent.mkdir(parents=True, exist_ok=True)
                 try:
                     tgt.write_text(neutralise(f.read_text(errors="ignore")))
-                except Exception:
+                # Narrow, and COUNTED. OSError is the real per-file failure here (an
+                # over-long name, an unreadable mode); it drops one file from what the
+                # judge is shown, and until 2026-08-23 it did so with nothing recorded
+                # anywhere -- an unequal amount of each submission reaching the judge is
+                # #62's shape. `code_unreadable` lands in the pack manifest beside
+                # `code`. A blind catch also covered `neutralise` raising, which would
+                # drop EVERY file and still report a built pack; that now crashes.
+                except OSError:
+                    n["code_unreadable"] += 1
                     continue
                 n["code"] += 1
             stat = sub / "diff.stat"
@@ -447,13 +455,20 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
             # Geometry per LABEL, not per submission id: the brief is blind, so the judge
             # is told "C is 420x640", never which stack C is. This leaks nothing it does
             # not already have - the size is visible in the PNGs it is about to open.
+            # The import is OUTSIDE the try on purpose: a blind catch around it turned
+            # "the judge's own PNG reader is broken" -- which blanks the geometry for
+            # EVERY submission at once -- into the same silence as one odd frame in one
+            # submission. Only the per-file read is allowed to fail quietly.
+            import png as _png
             try:
-                import png as _png
                 _f0 = sorted(fdir.glob("*.png"))
                 if _f0:
                     _im = _png.read(_f0[0])
                     geometry[label] = f"{_im.width}x{_im.height}"
-            except Exception:
+            # Narrow: an unreadable or non-baseline PNG (PngError) or an IO failure.
+            # Geometry is a LABEL in the brief, not a score, so its absence costs the
+            # judge one sentence about one submission.
+            except (_png.PngError, OSError):  # noqa: S110 — see above; nothing to log
                 pass
 
         if "telemetry" in need:
@@ -751,8 +766,13 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
     # its own sample, which makes the question load-bearing rather than curious: an
     # unchanged ordering means one thing if it read 30 files and another if it read 4.
     try:
+        # check=False: the CLI exits non-zero for reasons that still produce a usable
+        # verdict (a budget or turn ceiling reached after the answer was written), so
+        # raising on the status would discard rounds that are fine. What the status IS
+        # good for is telling an unusable round apart from a crashed one, so it is
+        # carried into every failure below instead of being dropped.
         p = subprocess.run(argv, cwd=pack, capture_output=True, text=True,
-                           timeout=timeout_s)
+                           timeout=timeout_s, check=False)
     except subprocess.TimeoutExpired:
         return {"usable": False, "error": "timeout"}
     except OSError as e:
@@ -768,7 +788,8 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         except json.JSONDecodeError:
             continue
     if not events:
-        return {"usable": False, "error": "unparseable", "raw": p.stdout[-2000:]}
+        return {"usable": False, "error": "unparseable", "raw": p.stdout[-2000:],
+                "cli_exit": p.returncode, "cli_stderr": p.stderr[-2000:]}
 
     reads: list[dict[str, Any]] = []
     for ev in events:

@@ -122,7 +122,10 @@ def main() -> int:
     if not audio.ffmpeg_available():
         print("ffmpeg is not installed; these tests cannot run", file=sys.stderr)
         return 2
-    if subprocess.run(["just", "--version"], capture_output=True).returncode != 0:
+    # check=False: a non-zero exit here means "just is absent", which is a skip (2), not
+    # a crash. The status is read on this line.
+    if subprocess.run(["just", "--version"], capture_output=True,
+                      check=False).returncode != 0:
         print("just is not installed; these tests cannot run", file=sys.stderr)
         return 2
 

@@ -169,7 +169,12 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
             submission_id=f"{game}-{submission.name}")
         rec["pack"] = {"built": True, "at": str(out / "judge_pack"),
                        **{k: v for k, v in pack_manifest.items() if k != "files"}}
-    except Exception as e:      # a pack failure must not lose the deterministic tiers
+    # noqa BLE001, deliberately blind: `build_pack` walks a submission the harness did
+    # not write and raises on its own guards (an empty pack, a leaked mapping) as well as
+    # on IO, so the set of exception types is open by construction. The failure is
+    # RECORDED, not swallowed -- `pack.built` is False with the type name, and the
+    # deterministic tiers, which are what most results rest on, still get written.
+    except Exception as e:  # noqa: BLE001
         rec["pack"] = {"built": False, "error": f"{type(e).__name__}: {e}"}
 
     # -- tier 3 ----------------------------------------------------------- #

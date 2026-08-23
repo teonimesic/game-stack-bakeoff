@@ -72,7 +72,12 @@ def _sees(aspect_id: str) -> str:
     try:
         from aspects import ASPECTS
         return ASPECTS[aspect_id].sees
-    except Exception:
+    # Narrow: `aspects` not importable from here (ImportError) or an aspect id this
+    # build does not know (KeyError). "code" is the conservative default -- it is the
+    # SMALLEST evidence set, so a wrong guess shows the adjudicator less, never more.
+    # A blind catch would have hidden an AttributeError from a renamed field behind the
+    # same silent default.
+    except (ImportError, KeyError):
         return "code"
 
 

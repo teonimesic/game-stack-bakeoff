@@ -69,7 +69,10 @@ def do_rsync(src_root: Path, dest_runs: Path, rels: list[str]) -> int:
     argv = ["rsync", "-a", "--from0", "--files-from=-",
             f"{src_root}/", f"{dest_runs}/"]
     print(f"  {' '.join(argv[:-2])} <{len(rels):,} paths> {src_root}/ {dest_runs}/")
-    r = subprocess.run(argv, input=payload)
+    # check=False: the exit code is this function's return value and the caller decides
+    # what a partial mirror means. A raise here would abort before the verify pass that
+    # says WHICH files are missing.
+    r = subprocess.run(argv, input=payload, check=False)
     return r.returncode
 
 
@@ -197,7 +200,12 @@ def main() -> int:
             with (dest_runs / rel).open() as fh:
                 json.load(fh)
             json_ok += 1
-        except Exception as e:
+        # noqa BLE001, deliberately blind: this is a VERIFIER, and a verifier that
+        # enumerates the ways a backup can be corrupt only checks the ways someone
+        # thought of. Every failure lands in `json_bad` with its message and is
+        # reported; nothing is swallowed, and the counts are printed as k/n so a
+        # verifier that opened nothing cannot read as a verifier that found nothing.
+        except Exception as e:  # noqa: BLE001
             json_bad.append(f"{rel}: {e}")
 
     tar_ok, tar_bad, members_total = 0, [], 0
@@ -218,7 +226,10 @@ def main() -> int:
                 raise ValueError("archive holds zero entries")
             members_total += n
             tar_ok += 1
-        except Exception as e:
+        # noqa BLE001, same reason as the JSON loop above: a truncated data stream, a
+        # bad gzip header and a member that will not extract raise different types and
+        # all mean the same thing here -- this archive will not re-judge.
+        except Exception as e:  # noqa: BLE001
             tar_bad.append(f"{rel}: {e}")
 
     print(f"  report/record JSON parsed  {json_ok}/{json_ok + len(json_bad)}")

@@ -159,20 +159,25 @@ def clone_pristine_target(dest: Path) -> Path | None:
     if dest.exists():
         shutil.rmtree(dest, ignore_errors=True)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # check=False on both: a failed clone is a documented outcome (None -> cold build),
+    # and the first call's non-zero status is the trigger for the non-CoW fallback.
+    # Both statuses are read on the lines below.
     r = subprocess.run(["cp", "-Rc", str(PRISTINE_TARGET), str(dest)],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, check=False)
     if r.returncode != 0:  # non-APFS filesystem, or out of space
         r = subprocess.run(["cp", "-R", str(PRISTINE_TARGET), str(dest)],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, check=False)
     return dest if r.returncode == 0 else None
 
 
 def sh(cmd: str, cwd: Path, timeout_s: int = 1800,
        target_dir: Path | None = None) -> tuple[int, str]:
+    # check=False: this function's whole contract is to HAND BACK the exit code. A
+    # non-zero build or test is the measurement, not an error.
     try:
         p = subprocess.run(
             cmd, cwd=cwd, shell=True, capture_output=True, text=True,
-            timeout=timeout_s, env=trial_env(target_dir),
+            timeout=timeout_s, env=trial_env(target_dir), check=False,
         )
         return p.returncode, (p.stdout + p.stderr)
     except subprocess.TimeoutExpired:
@@ -335,11 +340,14 @@ def revert_protected(repo: Path, task: Task) -> list[str]:
             reverted.append(f)
             # Tracked file: restore from the baseline commit. Untracked: delete.
             if git(repo, "ls-files", "--error-unmatch", f).strip() or True:
+                # check=False: a non-zero checkout means the path is untracked, and
+                # the unlink below IS the handler. The status is read on the next line.
                 r = subprocess.run(
                     ["git", "checkout", "HEAD", "--", f],
                     cwd=repo,
                     capture_output=True,
                     text=True,
+                    check=False,
                 )
                 if r.returncode != 0:
                     (repo / f).unlink(missing_ok=True)
@@ -525,10 +533,13 @@ def run_agent(work: Path, task: Task, arm: dict[str, Any], session_id: str,
         cmd += ["--allowedTools", *arm["allowed_tools"]]
     if arm.get("disallowed_tools"):
         cmd += ["--disallowedTools", *arm["disallowed_tools"]]
+    # check=False: an agent that stops on its budget or turn ceiling exits non-zero and
+    # has still produced a submission worth grading. Raising here would throw away the
+    # trial we paid for; the terminal reason comes out of the parsed result instead.
     try:
         p = subprocess.run(
             cmd, cwd=work, capture_output=True, text=True, timeout=task.timeout_s,
-            env=trial_env(target_dir),
+            env=trial_env(target_dir), check=False,
         )
         return parse_agent_result(p.stdout), p.stderr[-3000:]
     except subprocess.TimeoutExpired:

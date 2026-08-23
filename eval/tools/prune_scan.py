@@ -338,49 +338,111 @@ def cat_complexity() -> list[dict]:
     return sorted(out, key=lambda d: -d["complexity"])
 
 
-def cat_lint() -> list[dict]:
-    """ruff, grouped by rule. Reports its own absence rather than passing silently.
+#: THE PINNED RULE SET, and the single place it is spelled. `eval/tools/lint.py` imports
+#: these four names rather than restating them: a selection written in two files is a
+#: selection that will disagree with itself, and the disagreement would look like the
+#: codebase moving (AGENTS.md rule 12 -- the address is an input to the check).
+#:
+#: RULES ARE PINNED, and to CORRECTNESS rather than style. Two reasons.
+#:
+#: Determinism: with no `--select`, the set of rules is whatever the installed ruff
+#: defaults to, so the number moves when the tool updates and the movement looks like
+#: work. A measurement whose definition drifts is the `project_lines` failure again.
+#:
+#: Relevance: the default run reported 491 issues here, 132 of them percent-formatting.
+#: Mass-fixing those is churn -- tokens and review attention spent moving text -- and it
+#: would bury the handful that matter. The selected rules map onto failures this project
+#: has actually recorded:
+#:
+#:     F, E9      real bugs: undefined names, unused variables
+#:     PLW1510    `subprocess.run` without `check=` -- an ignored exit status, which is
+#:                rule 3 in `AGENTS.md` and has cost this project real measurements
+#:     BLE001     blind `except Exception` -- the fail-open shape (#31)
+#:     S110,S112  `try/except/pass` and `/continue` -- a swallowed failure that leaves a
+#:                plausible in-range value behind
+#:     B          bugbear: mutable defaults, loop-variable capture in closures
+LINT_SELECT = "F,E9,B,BLE001,PLW1510,S110,S112"
 
-    A linter that is not installed must not read as a clean bill of health -- that is the
-    `-disable-audio` failure (#61), where a flag accepted and ignored was indistinguishable
-    from a working guard.
+#: Scoped to the HARNESS. Everything excluded below is an object of measurement rather
+#: than an instrument, and linting the object of measurement is measuring the thing being
+#: measured.
+LINT_ROOT = ROOT / "eval"
+LINT_EXCLUDE = (
+    # Stored results. Data, including per-trial copies of the starters.
+    ROOT / "eval/runs",
+    # Stand-in SUBMISSIONS, the same class of artifact as `eval/starters/*/`: reference
+    # implementations the graders are validated against, one of which (`broken/`) is
+    # DELIBERATELY defective. Editing one invalidates the control it is, and a lint
+    # finding against a fixture is a finding about the thing being graded. They were in
+    # scope until 2026-08-23 and contributed 14 of the 30 BLE001 and 3 of the 11 B905,
+    # every one of them the two idioms a fixture needs: a test runner catching whatever a
+    # test raises, and an import fallback for the judge's PNG writer.
+    ROOT / "eval/judge/fixtures",
+)
 
-    Scoped to the harness. `template*/` and `eval/starters/*/` are the PRODUCT and have
-    their own per-stack lint recipes; linting them from here would be measuring the thing
-    being measured.
 
-    RULES ARE PINNED, and to CORRECTNESS rather than style. Two reasons.
+def ruff_exe() -> str | None:
+    return shutil.which("ruff") or shutil.which(str(Path.home() / ".local/bin/ruff"))
 
-    Determinism: with no `--select`, the set of rules is whatever the installed ruff
-    defaults to, so the number moves when the tool updates and the movement looks like work.
-    A measurement whose definition drifts is the `project_lines` failure again.
 
-    Relevance: the default run reported 491 issues here, 132 of them percent-formatting.
-    Mass-fixing those is churn -- tokens and review attention spent moving text -- and it
-    would bury the handful that matter. The selected rules are the ones that map onto
-    failures this project has actually recorded:
+def run_ruff(fmt: str = "json") -> tuple[int, str, str]:
+    """(returncode, stdout, stderr) for the pinned set. Raises OSError if ruff is gone.
 
-        F, E9      real bugs: undefined names, unused variables
-        PLW1510    `subprocess.run` without `check=` -- an ignored exit status, which is
-                   rule 3 in `AGENTS.md` and has cost this project real measurements
-        BLE001     blind `except Exception` -- the fail-open shape (#31)
-        S110,S112  `try/except/pass` and `/continue` -- a swallowed failure that leaves a
-                   plausible in-range value behind
-        B          bugbear: mutable defaults, loop-variable capture in closures
+    The ADDRESS is checked before the command is: ruff exits **0** with `[]` on a path
+    that does not exist, printing only a warning to stderr, so a wrong root here would
+    report a clean codebase forever -- #60's shape, in the instrument that is supposed to
+    find that shape (AGENTS.md rule 12).
     """
-    exe = shutil.which("ruff") or shutil.which(str(Path.home() / ".local/bin/ruff"))
-    if not exe:
-        return [{"rule": "(ruff not installed)", "count": 0,
-                 "hint": "uv tool install ruff — absence is not a clean result"}]
+    exe = ruff_exe()
+    if exe is None:
+        raise OSError("ruff is not installed")
+    if not LINT_ROOT.is_dir():
+        raise OSError(f"lint root does not exist: {LINT_ROOT} — ruff would exit 0 on it")
+    argv = [exe, "check", str(LINT_ROOT)]
+    for ex in LINT_EXCLUDE:
+        argv += ["--exclude", str(ex)]
+    argv += ["--select", LINT_SELECT, "--output-format", fmt]
+    # check=False: ruff exits **1** when it finds violations, which is the normal and
+    # expected result. `check=True` would raise on every non-clean run. The status that
+    # actually matters is 2 -- ruff refused to run -- and it is handled explicitly below
+    # rather than left to a CalledProcessError nobody catches.
+    r = subprocess.run(argv, capture_output=True, text=True, check=False)
+    return r.returncode, r.stdout, r.stderr
+
+
+def cat_lint() -> list[dict]:
+    """ruff over the harness, grouped by rule. Reports its own failure, never silence.
+
+    A linter that did not run must not read as a clean bill of health -- that is the
+    `-disable-audio` failure (#61), where a flag accepted and ignored was indistinguishable
+    from a working guard. Until 2026-08-23 that was controlled for only ONE way ruff can
+    fail to run (not installed). Two others returned an empty list, i.e. green:
+
+      * **exit 2** -- ruff refused the invocation (a removed or unknown rule selector).
+        stdout is empty, `json.loads(r.stdout or "[]")` yields `[]`, and the category
+        prints `lint (0)`. MEASURED: `--select E999` gives rc=2, stdout `''`.
+      * **a wrong root** -- ruff exits **0** with `[]` and only a stderr warning.
+        MEASURED: `ruff check /no/such/dir` gives rc=0, stdout `'[]'`.
+
+    Both are handled in `run_ruff`, which is also what `lint.py` calls, so the two
+    entry points cannot disagree about what was scanned.
+    """
     try:
-        r = subprocess.run([exe, "check", str(ROOT / "eval"),
-                            "--exclude", str(ROOT / "eval/runs"),
-                            "--select", "F,E9,B,BLE001,PLW1510,S110,S112",
-                            "--output-format", "json"],
-                           capture_output=True, text=True)
-        items = json.loads(r.stdout or "[]")
-    except (json.JSONDecodeError, OSError) as e:
-        return [{"rule": f"(ruff failed: {e})", "count": 0, "hint": "investigate"}]
+        rc, stdout, stderr = run_ruff()
+    except OSError as e:
+        hint = ("uv tool install ruff — absence is not a clean result"
+                if ruff_exe() is None else
+                "the lint ROOT is wrong, not the tool — fix LINT_ROOT")
+        return [{"rule": f"(ruff did not run: {e})", "count": 0, "hint": hint}]
+    if rc not in (0, 1):
+        return [{"rule": f"(ruff refused the invocation, exit {rc})", "count": 0,
+                 "hint": (stderr.strip().replace("\n", " ")[:120]
+                          or "no stderr — investigate, this is NOT a clean result")}]
+    try:
+        items = json.loads(stdout or "[]")
+    except json.JSONDecodeError as e:
+        return [{"rule": f"(ruff output is not JSON: {e})", "count": 0,
+                 "hint": "investigate — this is NOT a clean result"}]
     by_rule: dict[str, int] = defaultdict(int)
     for it in items:
         by_rule[f"{it.get('code')} {it.get('message', '')[:58]}"] += 1

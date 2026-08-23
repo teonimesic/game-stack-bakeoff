@@ -358,7 +358,12 @@ def analyse_frames(frames: list[Path]) -> dict[str, Any]:
     for f in frames:
         try:
             imgs.append(png.read(f))
-        except Exception as e:  # a corrupt PNG is a real finding, not a crash
+        # noqa BLE001, deliberately blind: these frames were produced by a submission,
+        # so "what can go wrong reading one" is not a set this file gets to enumerate.
+        # A corrupt PNG is a real finding about the submission, not a crash of the
+        # grader -- and it is RECORDED per frame in `errors`, then `if not imgs` turns a
+        # whole unreadable set into zeros with the reasons attached rather than silence.
+        except Exception as e:  # noqa: BLE001
             info["errors"].append(f"{f.name}: {e}")
     if not imgs:
         info.update(mean_ink=0.0, max_ink=0.0, mean_frame_delta=0.0, sizes=[])
