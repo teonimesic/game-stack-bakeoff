@@ -255,6 +255,74 @@ it and let the measurement report whether it bound.
 Runs **after** the seven arena trials, not alongside: `--parallel 2` was bought with wall clock
 to reduce concurrency risk, and a third concurrent trial spends that protection to save an hour.
 
+## DECLINED: requiring a finish-report section in the starters (`tasks/46`)
+
+The proposal was to make every starter demand a closing section — behaviour delivered, design
+choices, exact commands and results, artefact paths personally inspected, remaining risks — the
+way `game-research-gpt`'s template does, instead of hoping the agent volunteers one. The ticket
+pre-registered three outcomes and required the **baseline to be measured offline first**. It was,
+on 2026-08-23, and it decides the question without a matrix.
+
+**The census.** All 90 stored `agent_result.json` under `runs/**`, reading `.result` (the whole
+message) rather than `trials/*.json`'s tail-truncated `agent.final_text`. **15 store no message
+the agent wrote** — 6 `null`, 9 holding the API's own quota-limit string — and the remaining
+**75 are all `terminal_reason: completed`**. Each was read and hand-classified as disclosing, or
+not, *something the agent could not verify or a residual risk it was leaving behind*. The
+extraction was pinned first on rows whose answer the documents already state: the two `wg-g4c`
+Godot trials of #98, and the four `wg-arena3d` trials of rule 11. All six came back as predicted.
+
+| stack | n | disclosed | rate | in a headed section |
+|---|---|---|---|---|
+| godot | 15 | 3 | **20.0%** | 2 |
+| rust | 21 | 13 | **61.9%** | 3 |
+| ts | 23 | 4 | **17.4%** | 2 |
+| unity | 16 | 11 | **68.8%** | 3 |
+| **all** | **75** | **31** | **41.3%** | **10** |
+
+Four rows are arguable either way; classifying all four as disclosures gives 35/75 = 46.7%. The
+per-run spread is 0% (`archive-arena2d`, n=3) to 75% (`wg-arena3d` and `wg-g4c`, n=8 each).
+
+**That is the pre-registered "low and stack-correlated" outcome, whose instruction was to
+investigate the correlation before touching a starter. The investigation dissolves it.** Sorting
+the 31 disclosures by what they are *about*:
+
+| what could not be verified | godot | rust | ts | unity |
+|---|---|---|---|---|
+| the live path — window, keyboard, screenshot | 1 | 7 | 0 | **11** |
+| the audio, by ear | 2 | 2 | 0 | 0 |
+| the toolchain, which never ran (`wg-arena3d`, #49) | 0 | 2 | 2 | 0 |
+| a test-coverage gap | 0 | 1 | 2 | 0 |
+
+19 of 31 are the live path, and they are almost entirely Unity and Rust. The counter-check is
+mechanical and unambiguous: messages claiming the agent **drove the running application** — a
+real browser, a real keyboard, `just smoke` — number **15 of 23 for TypeScript and 0 of 52 across
+the other three stacks.** TypeScript ships to a browser an agent can automate; Rust and Unity
+ship a native window it cannot screenshot or type into. Godot sits between — its launch recipe
+already returns on its own and opens no audio device — which is why its two disclosures are
+about audio nobody could hear rather than a window nobody could see.
+
+> **The arms do not differ in how much they disclose. They differ in how much is left for them to
+> disclose.** Dropping `wg-arena3d` entirely, to control for the #49 machine defect, barely moves
+> it — godot 23.1%, rust 57.9%, ts 9.5%, unity 64.3%.
+
+**Why it is declined, in cost.** A starter edit is a regime boundary; this would be the
+**fifteenth**, and it must land in all four arms in the same words with `starter_parity.py` and
+`verify_blind.py` re-run. Because it breaks comparability, the before-side cannot be an existing
+run: the most recent clean 8-cell field, `wg-g4c-2026-08-21`, is **$421.00** of agent trials and
+sits behind four subsequent starter boundaries. So the experiment is **two fresh matrices, ≥$842
+of agent spend** plus judge sweeps, to move a number that `tasks/46` itself forbids reporting
+beside any tier-1 or tier-2 figure — because a higher disclosure rate is evidence the reporting
+changed, not that the work did.
+
+**What to do instead, and it is free.** The disclosures already exist in 31 of 75 completed
+trials, 10 of them under a dedicated heading, and **nothing in the grading pipeline reads them**
+(rule 11, `DECISIONS.md`, `PROTOCOL.md`, and this file all say to read the field; no code does).
+Raising a 41% rate the graders ignore buys less than reading the 41% that is already there.
+
+**Re-open it if** the harness gains a way for Rust and Unity agents to exercise their own live
+path. That change would remove the mechanism behind the entire spread above, and only then does
+a residual gap measure disclosure rather than verifiability.
+
 ## Cost by game and regime
 
 Completed trials only, per FINDINGS #22 — never pool across terminal reasons.

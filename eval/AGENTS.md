@@ -180,6 +180,26 @@ grader owns its own three, listed in `judge/AGENTS.md`.
 - Score per task first, then take the SE across tasks. Pooling across trials is inconsistent.
 - Use paired per-task differences for arm comparisons, and Wilson intervals for pass rates.
 
+**Reading the agent's own closing message — the address, and what is not one.** Four documents
+tell you to read it before grading (`PROTOCOL.md`, `DECISIONS.md`, root `AGENTS.md` rule 11,
+`G4-PLATFORMER.md`) and none says where it is. It is in **two** places, in two shapes:
+
+| where | what |
+|---|---|
+| `runs/*/artifacts/<trial>/agent_result.json` → **`.result`** | the whole message, untruncated |
+| `runs/*/trials/<trial>.json` → **`agent.final_text`** | the **last** 3000 characters of it (`wholegame.py`); the retired `runner.py` kept the last **1500** |
+
+A truncation policy is a sampling policy: **43 of the 90 stored whole-game messages exceed 3000
+characters**, so `final_text` is a partial read of nearly half the corpus. It samples the tail,
+which happens to be where a closing caveat usually sits — that is luck, not design. Read
+`.result` for any census; use `final_text` only when the tail is what you want.
+
+**`.result` is not always something the agent wrote.** On a session- or quota-limited trial it
+holds the API's own error string — `"You've hit your weekly limit · resets …"`, 71 characters —
+which anything that merely checks for non-empty will count as a closing report. **9 of 90**
+stored trials are that shape and **6** more are `null`. Partition on it: a message that was
+never written is not a message that said nothing.
+
 **This suite resolves large gaps only.** With 2 trials per cell, stacks landing within ~0.015
 cannot be separated — and the spec-change suite already failed to separate four stacks that all
 scored 6/6. If the results do not separate, say so; do not present an ordering that is noise.

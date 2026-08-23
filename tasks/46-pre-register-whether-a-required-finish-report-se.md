@@ -10,8 +10,12 @@ done_when: either the experiment has run on a fresh matrix and the pre-registere
 ## What this thing is
 
 Every whole-game trial ends with the building agent writing a free-form closing message. The
-harness stores it as `agent.final_text` inside `agent_result.json`, next to the diff, the tree
-listing and the tarball. Nothing in the evaluator reads it. The four starters
+harness stores it **twice**: whole and untruncated as `.result` in `agent_result.json`, and
+tail-truncated to its last 3000 characters as `agent.final_text` in `trials/<trial>.json`. (This
+paragraph said `agent.final_text` was in `agent_result.json`; it is not, and that field is a
+partial read of 43 of the 90 stored messages. Corrected 2026-08-23 — see `eval/AGENTS.md`,
+"Reading the agent's own closing message".) Nothing in the evaluator reads either. The four
+starters
 (`eval/starters/{godot,rust,ts,unity}/AGENTS.md`) tell the agent what to build and what to verify;
 none of them says anything about what its closing message must contain.
 
@@ -83,3 +87,50 @@ phrase into an implementation state/action and an evidence check before coding"*
 It is plausible and there is **no offline measurement that would show it helped**, because no
 stored artifact records whether an agent decomposed the prompt. If it is ever run, it must be a
 separate arm, or the two changes confound each other (rule 8).
+
+---
+
+## RESULT, 2026-08-23 — baseline measured, experiment DECLINED
+
+Step 1 was done and it decided step 2. The full write-up, including the cost argument the
+`done_when` requires, is in **`eval/RUNS.md`, "DECLINED: requiring a finish-report section in the
+starters"**. Do not re-derive any of the below; it cost one careful pass over 90 messages.
+
+**The classification rule, recorded so it can be disagreed with.** A trial *discloses* if its
+closing message explicitly names, about the delivered work, either (a) something the agent could
+not verify, did not run, or never executed, or (b) a residual risk, limitation, defect or unmet
+requirement it is leaving behind. Success summaries, feature lists, uncaveated verification
+results, "future enhancements" framed as optional extensions, and problems the agent hit **and
+fully fixed** with no residual risk all score 0. Four of the 75 are arguable either way and are
+marked BORDERLINE in the scratch classifier; flipping all four moves 41.3% to 46.7%.
+
+**The headline.** 90 stored `agent_result.json`; **15 carry no message the agent wrote**; the
+other **75 are all `completed`**; **31 of 75 (41.3%) disclose**, 10 of those under a dedicated
+heading. Per stack: godot 3/15, rust 13/21, ts 4/23, unity 11/16.
+
+**The reason it is declined is not the rate.** The spread is stack-correlated, which is the
+pre-registered "investigate before changing any starter" branch — and the investigation dissolves
+it. 19 of the 31 disclosures are about the **live path** (window, keyboard, screenshot), 11 of
+those Unity and 7 Rust. Counter-check: agents claiming to have *driven the running application*
+number **15 of 23 for TypeScript and 0 of 52 across the other three stacks**, because TS ships to
+an automatable browser and Rust/Unity ship a native window the agent cannot type into. The arms
+differ in **how much is left to disclose**, not in willingness to disclose it. Re-open only if
+the harness gives Rust and Unity agents a way to exercise their own live path.
+
+**Two traps for the next census of this field, both hit here:**
+
+1. `agent.final_text` is the **last** 3000 chars (`wholegame.py:358`), not the first, and not the
+   whole thing — 43 of 90 messages are longer. The retired `runner.py:723` kept 1500. Read
+   `agent_result.json`'s `.result` instead.
+2. `.result` on a quota-aborted trial holds **the API's error string**, not agent text: 9 rows
+   are `"You've hit your weekly limit · resets …"` and 6 more are `null`. Anything testing only
+   for non-empty will score an error message as a closing report.
+
+**Extraction was pinned before the census**, per rule 12's corollary: the two `wg-g4c` Godot rows
+(#98) and the four `wg-arena3d` rows (rule 11) were predicted to disclose from the documents
+alone, and all six did.
+
+**The cheaper move this surfaced, not actioned here and not filed as part of this ticket:** the
+disclosures exist in 31 of 75 completed trials and **nothing in the grading pipeline reads
+them**, which four documents already say to do. Raising a 41% rate that is then ignored is worth
+less than reading the 41% already on disk.
