@@ -15,10 +15,11 @@ listing the real authored tree, handed to a judge whose every file was renamed t
 `bucket/NN.src`. It is repaired by mapping every row through the pack's own
 origin -> label manifest, so no vocabulary is involved and nothing can be missed.
 
-The code half is 89% collision and is deliberately NOT repaired; the measurement that
-declined it is in `tasks/96` and summarised in `field.py`.
+The code half is 89% collision and is deliberately NOT repaired. The census that
+declined it is PART 6 below, so the decision has a producer rather than a remembered
+table; the reasoning is in `DECISIONS.md` and `tasks/103`.
 
-FIVE PARTS, and none is redundant:
+SIX PARTS, and none is redundant:
 
   1. POSITIVE   - a blind field's CHANGED.txt names no arm-naming directory segment,
                   and every row it does carry names a file that is on disk in that
@@ -34,6 +35,8 @@ FIVE PARTS, and none is redundant:
   5. FAIL-CLOSED - a manifest whose origins no longer spell the diff's paths must
                   REFUSE, not write an empty CHANGED.txt that reads as a submission
                   which changed nothing (rule 7, rule 12).
+  6. CODE HALF   - the census behind the decision NOT to rewrite code content, and
+                  the trigger that would re-open it. `--runs-root` only.
 
 THE DETECTOR IS DERIVED FROM THE FOUR STARTERS, not from the repair. `blind_changed_txt`
 uses no directory vocabulary at all, so a starter-derived one shares none of its
@@ -42,7 +45,8 @@ assumptions - which is the property a control needs and usually does not have (#
 Run:  python3 judge/blind_dir_selftest.py
       python3 judge/blind_dir_selftest.py --runs-root <main checkout>/eval/runs
           ... additionally re-sweeps every stored submission that has both a
-          `diff.stat` and a manifest, and reports the surviving count PER SEGMENT.
+          `diff.stat` and a manifest, and reports the surviving count PER SEGMENT;
+          and runs the code-half census of part 6.
           `eval/runs/**` is gitignored, so a worktree's copy is empty and the sweep
           would confidently report zero.
 """
@@ -50,6 +54,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
 import re
 import subprocess
@@ -88,8 +93,8 @@ ARMS = ("godot", "rust", "ts", "unity")
 _WORD = r"[A-Za-z0-9_.\-]"
 
 
-def arm_exclusive_dirs() -> dict[str, str]:
-    """segment -> the one arm whose starter tree contains it.
+def starter_dirs_by_arm() -> dict[str, set[str]]:
+    """directory segment -> every arm whose starter tree contains it.
 
     READ FROM GIT, NOT FROM THE DISK, and the difference is not cosmetic: an `rglob`
     over the same path returns 21 segments in a working checkout and 19 in a fresh
@@ -99,9 +104,12 @@ def arm_exclusive_dirs() -> dict[str, str]:
     one-directional either, since an untracked directory appearing under a SECOND arm
     would move a segment from exclusive to shared and quietly stop detecting it.
     The starters are the product; `git ls-files` is what the product is.
+
+    Both vocabularies in this file come from here rather than from two calls, so
+    "exclusive" and "shared" cannot be computed against different trees.
     """
     r = subprocess.run(["git", "-C", str(STARTERS), "ls-files", "-z"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, check=False)
     if r.returncode != 0:
         FAILS.append(f"detector-vocabulary: `git ls-files` under {STARTERS} exited "
                      f"{r.returncode}, so the vocabulary is UNMEASURED, not empty: "
@@ -119,7 +127,13 @@ def arm_exclusive_dirs() -> dict[str, str]:
             continue
         for p in rest:
             where[p].add(arm)
-    return {d: next(iter(a)) for d, a in where.items() if len(a) == 1}
+    return where
+
+
+def arm_exclusive_dirs() -> dict[str, str]:
+    """segment -> the one arm whose starter tree contains it."""
+    return {d: next(iter(a)) for d, a in starter_dirs_by_arm().items()
+            if len(a) == 1}
 
 
 def seg_re(d: str) -> re.Pattern[str]:
@@ -427,6 +441,206 @@ if args.runs_root and HAS_MAP:
            f"post-repair figure is a reading of an empty set, not a repair")
     expect("sweep-blind-path-is-clean", not after,
            f"{sum(after.values())} segment(s) survive the blind path: {dict(after)}")
+
+# ---------------------------------------------------------------------------
+# 6. THE CODE HALF. Why no rewrite of code content has landed, as a census rather
+#    than as a remembered table.
+#
+# THE STATISTIC IS NOT THE ONE THE DECISION WAS FIRST WRITTEN AGAINST, and that is
+# the result. `DECISIONS.md` declined the arm-exclusive vocabulary because its
+# "redaction density is stack-correlated by construction - godot 0, rust 43, unity
+# 228, ts 265", and set the reversal condition to a rewrite whose per-arm density is
+# UNIFORM. Per-arm density is an aggregate; a judge never sees it. What a judge sees
+# is eight packs and how redacted each one looks, so the property that matters is
+# whether a THRESHOLD ON ONE PACK'S COUNT names an arm - measured per field, and
+# strictly, so a tie can never count as a separation.
+#
+# Measured over the 9 independent stored fields, that reordered the candidates:
+# a vocabulary-free rewrite gets per-arm density to 2.1x and leaves no arm at zero,
+# satisfying the old trigger outright, and isolates an arm in 9 of 9 fields against
+# the declined candidate's 6 of 9. Making the aggregate uniform did not close the
+# channel; it moved the leak from one arm's zero to another arm's extreme. Chance is
+# 7.1% per arm-field pair and NOTHING MEASURED GETS NEAR IT.
+# ---------------------------------------------------------------------------
+BUCKETS = {"sim", "view", "tests", "other"}
+
+#: The published per-arm table (`DECISIONS.md`, `tasks/103`), pinned to the corpus.
+#: It EXCLUDES `bin`, and the exclusion is a real finding rather than an oversight:
+#: `bin` is the only arm-exclusive segment that fires in all four arms, and it does
+#: so through `#!/usr/bin/env`, which is a shebang and not the Rust starter's
+#: `src/bin/`. Including it turns 536 into 562 and Godot's 0 into 9 - a redaction
+#: that removes nothing. The CHANGED.txt detector above keeps `bin`, correctly:
+#: a `--stat` row IS a path, so `src/bin/probe.rs` there is a true positive.
+PUBLISHED_CODE_HALF = {"godot": 0, "rust": 43, "ts": 265, "unity": 228}
+
+#: A path-shaped token: two or more segments joined by `/`, bounded by characters no
+#: path contains. The last segment is the filename and is not a directory.
+_PATHISH = re.compile(r"(?<![A-Za-z0-9_./\-])(?:\.{1,2}/)?"
+                      r"(?P<body>[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)+)"
+                      r"(?![A-Za-z0-9_.\-])")
+
+
+def path_components(text: str) -> collections.Counter:
+    out: collections.Counter = collections.Counter()
+    for m in _PATHISH.finditer(text):
+        for s in m.group("body").split("/")[:-1]:
+            if s not in ("", ".", ".."):
+                out[s] += 1
+    return out
+
+
+def all_starter_dirs() -> dict[str, str]:
+    """Every starter directory segment, shared ones included, minus bucket labels."""
+    return {d: "shared" for d in starter_dirs_by_arm() if d not in BUCKETS}
+
+
+def isolated_arms(counts: dict[str, list[int]]) -> list[str]:
+    """Arms a single STRICT threshold on one pack's count separates from the rest."""
+    out = []
+    for a in ARMS:
+        other = [v for b in ARMS if b != a for v in counts[b]]
+        if not counts[a] or not other:
+            continue
+        if max(counts[a]) < min(other) or min(counts[a]) > max(other):
+            out.append(a)
+    return out
+
+
+def code_half_census(runs_root: Path) -> None:
+    excl = {k: v for k, v in VOCAB.items() if k != "bin"}
+    cands = {
+        "C1' arm-exclusive vocabulary (the declined one)":
+            lambda t: dir_hits(t, excl),
+        "C2  every starter directory, shared included":
+            lambda t: dir_hits(t, all_starter_dirs()),
+        "C3  vocabulary-free: every path component":
+            path_components,
+        "C4  C3 minus the four bucket labels":
+            lambda t: collections.Counter({k: v for k, v in
+                                           path_components(t).items()
+                                           if k not in BUCKETS}),
+    }
+
+    # Assemble the stored fields. A field is one (run, game): 4 arms x 2 trials.
+    fields: dict[tuple[str, str], dict[tuple[str, str], str]] = \
+        collections.defaultdict(dict)
+    blobs: dict[tuple[str, str], set[str]] = collections.defaultdict(set)
+    per_arm_text: dict[str, list[str]] = collections.defaultdict(list)
+    for code in sorted(runs_root.glob("**/judge_pack/code")):
+        sub = code.parents[2]
+        parts = sub.name.split("__")
+        if len(parts) != 3 or parts[1] not in ARMS:
+            continue
+        game, arm, trial = parts
+        raw = []
+        for p in sorted(code.rglob("*")):
+            if p.is_file():
+                raw.append(p.read_text(errors="ignore"))
+                blobs[(str(sub.parent.parent), game)].add(
+                    hashlib.sha256(p.read_bytes()).hexdigest())
+        text = field.blind_extensions(anonymise.neutralise("\n".join(raw)))
+        fields[(str(sub.parent.parent), game)][(arm, trial)] = text
+        per_arm_text[arm].append(text)
+
+    complete = {k: v for k, v in fields.items()
+                if len(v) == 8 and {a for a, _ in v} == set(ARMS)}
+
+    # RULE 9. Two fields that are re-packs of the same submissions are one subject,
+    # and pooling them would report the instrument twice. Decided on SHARED CONTENT,
+    # never on a run name: `wg-g4c-capgate/uncapped` shares 176 of 199 pack file
+    # blobs with `wg-g4c-2026-08-21T02-26-46` under different labels, so no digest
+    # of the pack catches it and no list of names would survive the next re-pack.
+    indep: dict[tuple[str, str], dict] = {}
+    collapsed: list[tuple[str, str]] = []
+    for k in sorted(complete):
+        dup = next((j for j in indep
+                    if len(blobs[k] & blobs[j]) / max(1, len(blobs[k] | blobs[j]))
+                    >= 0.5), None)
+        if dup:
+            collapsed.append((f"{Path(k[0]).name}/{k[1]}",
+                              f"{Path(dup[0]).name}/{dup[1]}"))
+        else:
+            indep[k] = complete[k]
+
+    n_trees = sum(len(v) for v in per_arm_text.values())
+    print(f"\ncode-half census ({n_trees} stored judge_pack/code trees "
+          f"under {runs_root})")
+    print(f"  complete 8-pack fields: {len(complete)}; independent: {len(indep)}")
+    for a, b in collapsed:
+        print(f"    collapsed {a} into {b} (>=50% shared pack blobs)")
+
+    expect("code-half-population", len(indep) >= 5,
+           f"only {len(indep)} independent 8-pack field(s) under {runs_root}; the "
+           f"per-field statistic below is a reading of an almost-empty set, and a "
+           f"wrong --runs-root looks exactly like this (rule 12)")
+
+    # The published table, pinned. This is the check that CAN fail, and it did:
+    # built with the shipped vocabulary it reads 9/50/265/238, because `bin` is in it.
+    got = {a: sum(sum(dir_hits(t, excl).values()) for t in per_arm_text[a])
+           for a in ARMS}
+    expect("code-half-published-table-reproduces", got == PUBLISHED_CODE_HALF,
+           f"the per-arm code-content table is {got}, published as "
+           f"{PUBLISHED_CODE_HALF}. One of the two is now wrong; do not quote either "
+           f"until you know which (rule 5)")
+
+    # And the `bin` exclusion, pinned to its reason rather than to a name.
+    bin_all = sum(sum(dir_hits(t, {"bin": "rust"}).values())
+                  for ts in per_arm_text.values() for t in ts)
+    bin_shebang = sum(
+        sum(1 for m in seg_re("bin").finditer(t)
+            if t[max(0, s := t.rfind("\n", 0, m.start()) + 1):s + 2] == "#!")
+        for ts in per_arm_text.values() for t in ts)
+    bin_arms = sum(1 for a in ARMS
+                   if any(dir_hits(t, {"bin": "rust"}) for t in per_arm_text[a]))
+    expect("code-half-bin-is-excluded-for-a-measured-reason",
+           bin_arms >= 3 and bin_shebang * 2 > bin_all,
+           f"`bin` was excluded from the published table because it fires in every "
+           f"arm through `#!/usr/bin/env`; it now fires in {bin_arms} arm(s) with "
+           f"{bin_shebang} of {bin_all} hits on a shebang line. If that is no longer "
+           f"true the exclusion has to be re-argued, not inherited")
+    print(f"  `bin`: {bin_all} hits in {bin_arms} arms, {bin_shebang} of them on a "
+          f"`#!` line -> excluded from the table above")
+
+    print(f"\n  {'candidate':48}{'godot':>7}{'rust':>7}{'ts':>7}{'unity':>7}"
+          f"{'ratio':>8}{'zero-arm':>10}{'isolates':>10}")
+    reopen = []
+    for name, fn in cands.items():
+        tot = {a: sum(sum(fn(t).values()) for t in per_arm_text[a]) for a in ARMS}
+        chars = {a: sum(len(t) for t in per_arm_text[a]) for a in ARMS}
+        dens = [tot[a] / chars[a] for a in ARMS if chars[a]]
+        ratio = (f"{max(dens) / min(dens):.1f}x" if min(dens) else "inf")
+        iso_fields = zero_fields = 0
+        for packs in indep.values():
+            c = {a: [sum(fn(t).values()) for (b, _), t in packs.items() if b == a]
+                 for a in ARMS}
+            iso_fields += bool(isolated_arms(c))
+            zero = [a for a in ARMS if max(c[a]) == 0]
+            rest = [v for a in ARMS if a not in zero for v in c[a]]
+            zero_fields += bool(zero) and bool(rest) and min(rest) > 0
+        print(f"  {name:48}" + "".join(f"{tot[a]:>7}" for a in ARMS)
+              + f"{ratio:>8}{f'{zero_fields}/{len(indep)}':>10}"
+              + f"{f'{iso_fields}/{len(indep)}':>10}")
+        if iso_fields * 3 <= len(indep):
+            reopen.append(f"{name} isolates an arm in only {iso_fields} of "
+                          f"{len(indep)} fields")
+    print(f"  chance an arm is strictly isolated = 2/C(8,2) = {2 / 28:.1%} per "
+          f"arm-field pair")
+
+    # A trigger that fires on NEW INFORMATION, never on drift: if some candidate
+    # here stops partitioning the field, the decision rests on a number that moved.
+    if reopen:
+        FAILS.append("code-half-decision-may-be-stale: " + "; ".join(reopen)
+                     + ". `DECISIONS.md` declines the code-half rewrite because "
+                       "every candidate hands the judge the arm partition. One no "
+                       "longer does - re-open the decision rather than silencing "
+                       "this")
+    print("  REVERSAL TRIGGER: "
+          + ("MET - see the failure below" if reopen else
+             "not met; every candidate still partitions the field"))
+
+
+if args.runs_root:
+    code_half_census(args.runs_root)
 
 if FAILS:
     print("\nFAIL")
