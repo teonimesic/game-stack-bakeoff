@@ -18,6 +18,30 @@ tool that prints the minimum.
 
 `check` fails when a task has no `done_when`. A task that cannot be completed is a permanent
 excuse, which is the task-list version of a criterion that cannot fail.
+
+THE FRONTMATTER IS YAML, AND IS READ AND WRITTEN AS YAML
+-------------------------------------------------------
+It did not used to be. `_parse` split each line on its first colon and `_set` wrote back an
+f-string, so a value that itself contained ": " -- which is how anyone writes a sentence --
+produced a block that `yaml.safe_load` rejects with ScannerError. On 2026-08-23 that was 44 of
+58 files: 39 `established_by`, 5 `title`, 2 `done_when`.
+
+Quoting the files alone does not fix it, and this was measured rather than assumed. The old
+`_parse` took everything after the first colon literally, so a quoted value kept its quote
+characters -- `status` became the 6-character string `"done"`, which is not in `STATUSES`, and
+`int(priority)` raised. And `_set` rewrote `established_by` unquoted on every `done`, so a
+file-only fix undid itself on the next queue write. It is a reader/writer defect; the files
+were only its output.
+
+So: `yaml.safe_load` in, `yaml.safe_dump` out, and PyYAML is a hard dependency -- an import
+failure stops the tool rather than falling back to the regex reader, because a silent fallback
+would make the repair invisible and the defect permanent.
+
+Two properties the serialiser buys that hand-quoting does not: it is resolver-aware, so `id:
+'01'` is quoted (bare `01` is octal 1 in YAML 1.1) and `refs: 'yes'` is quoted (bare `yes` is
+`True`); and `width` is set high enough that a long value stays on one line, which is what keeps
+`grep -h "^title:" tasks/*.md` working. The format is still grep-first. It is now also parseable
+by anything that is not this file.
 """
 
 from __future__ import annotations
@@ -30,8 +54,25 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    import yaml
+except ModuleNotFoundError as exc:      # loud, never a fallback -- see the module docstring
+    raise SystemExit(
+        "tasks.py requires PyYAML: python3 -m pip install pyyaml\n"
+        "(The queue's frontmatter is YAML and is written by a real serialiser. Falling back "
+        "to a line-splitting reader is what produced 44 unparseable files in the first place.)"
+    ) from exc
+
 ROOT = Path(__file__).resolve().parents[2]
 STATUSES = ("open", "in_flight", "done")
+
+# One frontmatter grammar, used by the reader and the writer alike.
+_FM_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.S)
+
+# `width` prevents PyYAML folding a long scalar across lines, which would break the grep-first
+# idioms in `.claude/skills/tasks/SKILL.md`. `sort_keys=False` preserves each file's existing
+# key order. `allow_unicode` keeps em-dashes as em-dashes instead of — escapes.
+_DUMP = dict(sort_keys=False, allow_unicode=True, width=10 ** 9, default_flow_style=False)
 
 
 def _main_worktree() -> Path:
@@ -97,17 +138,131 @@ def _taken_ids() -> set[int]:
     return taken
 
 
-def _parse(p: Path) -> dict:
+class _Malformed(Exception):
+    """A task file `check` should name, rather than one `_load` should crash on."""
+
+
+def _read_fm(p: Path) -> tuple[dict, str]:
+    """(frontmatter mapping, body) -- the mapping as YAML sees it, the body byte-for-byte.
+
+    The RAW mapping, with YAML's own types, because it is what `_set` writes back: preserving
+    `priority: 3` as an integer rather than restringing it to `'3'` on every status change.
+    `_parse` is the one that normalises for readers.
+    """
     text = p.read_text(encoding="utf-8")
-    m = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.S)
+    m = _FM_RE.match(text)
     if not m:
-        return {"id": p.stem.split("-")[0], "path": p, "malformed": "no frontmatter"}
-    meta: dict = {"path": p, "body": m.group(2).strip()}
-    for line in m.group(1).split("\n"):
-        if ":" in line:
-            k, v = line.split(":", 1)
-            meta[k.strip()] = v.strip()
-    meta.setdefault("id", p.stem.split("-")[0])
+        raise _Malformed("no frontmatter")
+    try:
+        fm = yaml.safe_load(m.group(1))
+    # ValueError as well as YAMLError, and it is not defensive padding: `!!int '08'` scans
+    # and parses cleanly, then fails in the CONSTRUCTOR on `int('08', 8)`. That escapes a
+    # YAMLError-only handler and takes down `list`, `next` and `check` for every task in
+    # the queue, because `_load` reads them all. One bad file must cost one bad file.
+    except (yaml.YAMLError, ValueError) as exc:
+        detail = str(exc).replace("\n", " ")[:160]
+        raise _Malformed(f"frontmatter is not valid YAML: {detail}") from exc
+    if not isinstance(fm, dict):
+        raise _Malformed(f"frontmatter is {type(fm).__name__}, not a mapping")
+    return fm, m.group(2)
+
+
+class _PlainDigits(str):
+    """An id, emitted as bare digits instead of `'01'`.
+
+    THE ID LINE IS DELIBERATELY LEFT BYTE-FOR-BYTE AS IT WAS, and it is the one place this
+    file does not let the serialiser choose. `safe_dump("01")` writes `id: '01'`, because
+    bare `01` is octal 1 in YAML 1.1 and quoting is the only way a *string* survives. That
+    is more correct in isolation and it breaks the shared queue: every agent worktree
+    carries its own copy of this tool, three peers were mid-task on the previous one when
+    this landed, and their line-splitting reader takes `'01'` literally -- so `start 01`,
+    `done 01` and `show 01` all answer "no task 01" and an agent cannot close its work.
+    Measured, not assumed: the old reader against migrated files differed on 175 outputs,
+    and the id line was the only difference with a functional consequence.
+
+    So the id goes out plain and comes back as an int (or as a str for `08`/`09`, which no
+    resolver claims), and `_parse` pads it back to the id every caller compares against.
+    The cost is that an external reader sees `id: 01` as 1 -- redundant information, since
+    the id is also the filename prefix and `check` guarantees it is unique. Quoting it is a
+    one-line change once no worktree is running a pre-YAML copy of this file.
+    """
+
+
+def _represent_plain_digits(dumper, value):
+    """Emit bare digits by asking the resolver what bare digits would mean.
+
+    A fixed tag does not work, and the round-trip assertion is what said so rather than
+    review: hard-coding the int tag emitted `id: !!int '08'`, because plain `08` is not an
+    octal literal and PyYAML will not silently drop a tag it cannot round-trip. Worse, that
+    line then loads by calling `int('08', 8)` -- a ValueError, not a YAMLError, so it would
+    have escaped `_read_fm`'s handler and crashed every command in the tool.
+
+    Resolving the tag from the plain text instead means the emitter always agrees with
+    itself: `01` and `40` carry the int tag and go out plain, `08` and `09` carry the str
+    tag and go out plain, and nothing is ever tagged or quoted.
+    """
+    text = str(value)
+    return dumper.represent_scalar(dumper.resolve(yaml.ScalarNode, text, (True, False)), text)
+
+
+yaml.SafeDumper.add_representer(_PlainDigits, _represent_plain_digits)
+
+
+def _id_text(raw) -> str:
+    """The canonical text of an id: the two-digit, zero-padded string every caller compares.
+
+    THE READER AND THE WRITER MUST SHARE THIS, and they did not at first. `_render` wrapped
+    the id only when YAML handed it back as a `str`, which is true for `08` and `09` and
+    false for `01`-`07` (octal) and `10`+ (decimal). So `_parse` read `id: 01` and correctly
+    reported "01", while the next `start` or `done` on that same file wrote it back as
+    `id: 1` -- values intact, file quietly renumbered, and a peer on the old reader then
+    unable to find task 01 at all.
+
+    The value round-trip did not catch it, because the value was never wrong. Only asserting
+    that read-then-write reproduces the file byte-for-byte did.
+    """
+    if raw is None or isinstance(raw, bool):
+        return ""
+    if isinstance(raw, int):
+        return f"{raw:02d}"
+    return str(raw).strip()
+
+
+def _render(fm: dict, body: str) -> str:
+    out = dict(fm)
+    tid = _id_text(out.get("id"))
+    if tid.isdigit():
+        out["id"] = _PlainDigits(tid)
+    return "---\n" + yaml.dump(out, Dumper=yaml.SafeDumper, **_DUMP) + "---\n" + body
+
+
+def _scalar(v) -> str:
+    """What every caller of `_parse` has always been handed: a string, never None.
+
+    `refs:` with nothing after it loads as None and used to read as "", so it still does.
+    """
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return str(v)
+
+
+def _parse(p: Path) -> dict:
+    try:
+        fm, body = _read_fm(p)
+    except (_Malformed, OSError, UnicodeDecodeError) as exc:
+        return {"id": p.stem.split("-")[0], "path": p, "malformed": str(exc)}
+    meta: dict = {"path": p, "body": body.strip()}
+    for k, v in fm.items():
+        meta[str(k).strip()] = _scalar(v)
+    # The id is bare digits on disk, so YAML hands it back as an int for `01`-`07` (octal)
+    # and `10`+ (decimal), and as a str only for `08`/`09`. `_id_text` is the single place
+    # that turns any of those back into the padded string `show`, `start` and `done` match on
+    # -- and the same one `_render` writes with, so a read never disagrees with a write.
+    meta["id"] = _id_text(fm.get("id")) or p.stem.split("-")[0]
     return meta
 
 
@@ -163,17 +318,28 @@ def cmd_next() -> int:
 
 
 def _set(tid: str, **kw) -> int:
+    """Update keys in one task's frontmatter, through the YAML writer.
+
+    It used to be `re.sub(rf"^{k}:.*$", f"{k}: {v}")`, which is why `done` was the single
+    largest producer of unparseable files: an evidence sentence contains ": " and went in
+    unquoted. Every write now goes out through `safe_dump`, so a value that needs quoting
+    gets quoted whatever it contains.
+
+    A key that is already present keeps its position; a new one is appended rather than
+    inserted at the top, which is the only visible difference from the old writer and is
+    cosmetic -- `show` reads by key.
+    """
     for t in _load():
         if t.get("id") != tid:
             continue
         p: Path = t["path"]
-        text = p.read_text(encoding="utf-8")
-        for k, v in kw.items():
-            if re.search(rf"^{k}:.*$", text, re.M):
-                text = re.sub(rf"^{k}:.*$", f"{k}: {v}", text, count=1, flags=re.M)
-            else:
-                text = text.replace("---\n", f"---\n{k}: {v}\n", 1)
-        p.write_text(text, encoding="utf-8")
+        try:
+            fm, body = _read_fm(p)
+        except _Malformed as exc:
+            print(f"{tid}: {p.name} is malformed ({exc}); refusing to write", file=sys.stderr)
+            return 1
+        fm.update(kw)
+        p.write_text(_render(fm, body), encoding="utf-8")
         print(f"{tid}: " + ", ".join(f"{k}={v}" for k, v in kw.items()))
         return 0
     print(f"no task {tid}", file=sys.stderr)
@@ -240,9 +406,12 @@ def _write_task(a, slug: str, nid_int: int) -> int:
         if any(TASKS.glob(f"{nid}-*.md")):
             nid_int += 1
             continue
-        body = (f"---\nid: {nid}\ntitle: {a.title}\nstatus: open\n"
-                f"priority: {a.priority}\nrefs: {a.refs or ''}\n"
-                f"done_when: {a.done_when}\n---\n\n{a.why or ''}\n")
+        # Written through the serialiser, so a title or done-when containing ": " -- which is
+        # how 7 of them were already written -- comes out quoted instead of unparseable.
+        body = _render({"id": nid, "title": a.title, "status": "open",
+                        "priority": a.priority, "refs": a.refs or "",
+                        "done_when": a.done_when},
+                       f"\n{a.why or ''}\n")
         try:
             with open(TASKS / f"{nid}-{slug}.md", "x", encoding="utf-8") as fh:
                 fh.write(body)
@@ -351,7 +520,9 @@ def main() -> int:
     s = sub.add_parser("list"); s.add_argument("--status", choices=STATUSES)
     s = sub.add_parser("add")
     s.add_argument("title"); s.add_argument("--why"); s.add_argument("--done-when", required=True)
-    s.add_argument("--refs"); s.add_argument("--priority", default=3)
+    # `type=int` so a bad priority fails at the command line rather than as a ValueError from
+    # the sort key of the next `_load`, and so it is written as a YAML integer, not a string.
+    s.add_argument("--refs"); s.add_argument("--priority", type=int, default=3)
     sub.add_parser("check")
     a = ap.parse_args()
 
