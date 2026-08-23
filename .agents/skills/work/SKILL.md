@@ -228,6 +228,7 @@ you meet that is not a row here is new, and the row to add is what you learn fro
 |---|---|---|
 | **Reviews paused** — *"this branch is under active development … to avoid overwhelming you with review comments"* | **triggered by being productive.** `@coderabbitai resume` restores automatic reviews; `@coderabbitai review` buys one | post `@coderabbitai review`, resume polling |
 | **Review limit reached** — *"you've used all N included reviews currently available"* | the org's allowance is spent. The body states how long until the next one frees up | wait out the stated interval, post `@coderabbitai review`, resume polling **within the same 15-minute bound** — do not restart the clock |
+| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask. **It is stale the moment you push** — CodeRabbit edits its comments in place, so a heading here is a diagnostic and `reviewed_at_head` is the authority |
 
 **Push once per round, not once per fix.** Batching is what keeps the pause from firing at all,
 and under a spent allowance it is the difference between one round and none.
