@@ -1,0 +1,149 @@
+{
+  "trial_id": "k2__t14",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "F6",
+    "B10"
+  ],
+  "padded": false,
+  "seed": 817709925,
+  "elapsed_s": 13.5,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py` \u2014 reads top-level `cost_usd` from each `*.json` file directly in the given directory, then writes `{\"total\": ..., \"mean\": ...}` to `summary.json` in the cwd, with no stdout output on success.",
+  "stderr_tail": "",
+  "prompt_chars": 699,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    directory = Path(sys.argv[1])\n\n    values = []\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        with path.open() as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump({\"total\": total, \"mean\": mean}, f)\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.059319,
+  "input_tokens": 700,
+  "output_tokens": 976,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": false,
+        "evidence": "rc=0 wrote_summary=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:52"
+}

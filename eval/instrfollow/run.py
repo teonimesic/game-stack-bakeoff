@@ -858,6 +858,7 @@ def cmd_analyse(a) -> int:
         print("  An inert term is a question about the QUANTITY, not the parameter "
               "(rule 16).")
 
+
     # COST IS REPORTED PER ARM, NEVER POOLED.
     # The arms differ in prompt length and in how much the agent has to write, so a
     # per-trial mean across them is arithmetically correct and describes nothing
@@ -913,6 +914,25 @@ def cmd_analyse(a) -> int:
             print(f"\n  {len(inert)} instruction(s) with effect <= 0.05: {inert}")
             print("  Those are satisfied by default. Their 'compliance' is not evidence "
                   "the instruction was read, and a count effect cannot show up in them.")
+
+        # THE BOUND OVER THE POOL THAT CAN ACTUALLY MOVE, and it is the one to quote.
+        # An instruction already satisfied by an agent that was never given it
+        # contributes observations that are not compliance. They tighten the interval
+        # while carrying no information about whether the instruction was followed, so
+        # leaving them in buys a narrower bound with rows that could not have moved.
+        live = {i for i, d in eff if d > 0.05}
+        r1e = [o for o in obs if o[0] == "k1" and o[2] in live]
+        r16e = [o for o in obs if o[0] == "k16" and o[2] in live]
+        if r1e and r16e:
+            k1e, n1e = sum(1 for o in r1e if o[3]), len(r1e)
+            k16e, n16e = sum(1 for o in r16e if o[3]), len(r16e)
+            lo, hi = newcombe(k16e, n16e, k1e, n1e)
+            print(f"\nBOUND OVER THE {len(live)} INSTRUCTIONS WITH A MEASURED EFFECT")
+            print(f"  k16 {k16e}/{n16e} - k1 {k1e}/{n1e} = "
+                  f"{k16e/n16e - k1e/n1e:+.4f}")
+            print(f"  95% CI (Newcombe): [{lo:+.4f}, {hi:+.4f}]")
+            print(f"  -> largest DECLINE consistent with the data: "
+                  f"{abs(lo)*100:.1f} percentage points.")
 
     spend = sum(t["cost_usd"] for t in trials)
     print(f"\nCOST: ${spend:.2f} over {len(trials)} trials, per arm:")

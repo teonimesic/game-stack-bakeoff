@@ -34,5 +34,109 @@
         "runs_artifact": true
       }
     }
-  }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": false,
+        "evidence": "guard absent",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:40"
 }

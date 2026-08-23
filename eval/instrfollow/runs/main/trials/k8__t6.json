@@ -1,0 +1,191 @@
+{
+  "trial_id": "k8__t6",
+  "arm": "k8",
+  "k": 8,
+  "instructions": [
+    "B6",
+    "B8",
+    "F1",
+    "B2",
+    "F6",
+    "B7",
+    "B5",
+    "F5"
+  ],
+  "padded": false,
+  "seed": 69105839,
+  "elapsed_s": 33.4,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Written to `probe.py`. It:\n\n- Exits 1 with no `summary.json` if the target directory doesn't exist.\n- Exits 1 without touching `summary.json` if it already exists.\n- Writes to a temp file in the destination's directory and `os.replace`s it into place.\n- Collects `cost_usd` from top-level dicts in `*.json` files directly under the directory, tracking unparseable/invalid files in `errors`.\n- Every `def` has a return-type annotation, docstring carries `2026-08-23`, spaces only, ends with the required `if __name__ == \"__main__\":` block.\n\nNot run, per your instructions.",
+  "stderr_tail": "",
+  "prompt_chars": 1551,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"Probe a directory of *.json files and summarize their cost_usd values.\n\nLast verified: 2026-08-23\n\"\"\"\n\nimport json\nimport os\nimport sys\nimport tempfile\nfrom typing import Any\n\n\ndef collect_costs(directory: str) -> \"tuple[list[float], list[str]]\":\n    costs: list[float] = []\n    errors: list[str] = []\n    for name in sorted(os.listdir(directory)):\n        if not name.endswith(\".json\"):\n            continue\n        path = os.path.join(directory, name)\n        if not os.path.isfile(path):\n            continue\n        try:\n            with open(path, \"r\", encoding=\"utf-8\") as handle:\n                data = json.load(handle)\n        except (OSError, json.JSONDecodeError):\n            errors.append(name)\n            continue\n        if not isinstance(data, dict):\n            errors.append(name)\n            continue\n        if \"cost_usd\" in data:\n            value = data[\"cost_usd\"]\n            if isinstance(value, (int, float)) and not isinstance(value, bool):\n                costs.append(float(value))\n            else:\n                errors.append(name)\n    return costs, errors\n\n\ndef build_summary(costs: \"list[float]\", errors: \"list[str]\") -> \"dict[str, Any]\":\n    total = sum(costs)\n    mean = total / len(costs) if costs else 0.0\n    return {\"total\": total, \"mean\": mean, \"errors\": errors}\n\n\ndef write_summary_atomically(summary: \"dict[str, Any]\", destination: str) -> None:\n    directory = os.path.dirname(os.path.abspath(destination)) or \".\"\n    fd, tmp_path = tempfile.mkstemp(prefix=\".summary_\", suffix=\".tmp\", dir=directory)\n    try:\n        with os.fdopen(fd, \"w\", encoding=\"utf-8\") as handle:\n            json.dump(summary, handle)\n        os.replace(tmp_path, destination)\n    except BaseException:\n        if os.path.exists(tmp_path):\n            os.remove(tmp_path)\n        raise\n\n\ndef main() -> int:\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        return 2\n\n    target_dir = sys.argv[1]\n    if not os.path.isdir(target_dir):\n        print(f\"error: no such directory: {target_dir}\", file=sys.stderr)\n        return 1\n\n    destination = os.path.join(os.getcwd(), \"summary.json\")\n    if os.path.exists(destination):\n        print(f\"error: refusing to overwrite existing {destination}\", file=sys.stderr)\n        return 1\n\n    costs, errors = collect_costs(target_dir)\n    summary = build_summary(costs, errors)\n    write_summary_atomically(summary, destination)\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.119381,
+  "input_tokens": 916,
+  "output_tokens": 3782,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:57"
+}

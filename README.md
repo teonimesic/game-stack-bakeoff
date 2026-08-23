@@ -167,6 +167,8 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 - **Why this stack?** → `research/DECISION.md` (the *prior*; the bake-off is the evidence)
 - **What can each stack actually do at its pinned version?** → `research/10-stack-capability-matrix.md`
 - **What does a building agent read?** → `eval/starters/<stack>/AGENTS.md`. That is the whole population: every run since 2026-08-12 is a whole-game trial, and the second tree the spec-change suite read was deleted on 2026-08-23
+- **Does the always-loaded instruction file actually get followed?** → `eval/instrfollow/RESULT.md`
+  (bounded null up to 16 instructions; the repo loads 73–113, so the question is still open)
 - **How is a submission graded?** → `eval/judge/RUBRIC.md`
 - **How does subjective judging work, and what is being changed?** → `eval/judge/JUDGING.md`
 
@@ -191,6 +193,21 @@ version was Rust-flavoured and biased the comparison.
 
 **Three-tier evaluation harness**, validated against fixtures with known quality, including a
 discrimination gate that a bad implementation must fail.
+
+**Instruction-count experiment, 104 trials, 2026-08-23, $9.06 measured** (`eval/instrfollow/`).
+Does compliance with this project's own rules fall as more of them are active at once?
+Sixteen deterministically-checked instructions drawn from the always-loaded docs, attached to
+one fixed task at k = 1, 2, 4, 8, 16, plus a length-control arm.
+
+> **Result: no. 320 of 320 instruction-instances complied; every arm scored 1.000.** The
+> largest decline consistent with the data is **3.3 percentage points** over the 14
+> instructions a not-given control shows are doing work. Prompt length and position in the
+> block moved nothing either.
+>
+> **What it does not establish, and this is the part that matters:** the always-loaded set
+> holds **73–113 instructions** (`AGENTS.md` alone 39–60, measured by
+> `eval/tools/instruction_census.py`). This experiment reached 16. The interesting claim is
+> still untested — the run bounds the effect at roughly a seventh of the real load.
 
 **Whole-game matrix #1 (`wg-matrix-2026-08-13`): 24/24 trials built, $355.28 measured.**
 3 games (Pong, 3D Tetris, arena shooter) × 4 stacks × 2 trials, all `terminal_reason=completed`.
