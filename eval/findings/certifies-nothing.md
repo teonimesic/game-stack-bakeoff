@@ -2408,3 +2408,90 @@ This is the same shape as #82's cause 6 one level up. There, the bot's own input
 criterion unmeasurable; here, the *level's* legitimate geometry did. **Both are the instrument
 scoring conformity to its own expectations** — and in both, the submission was correct and said
 so in its own source.
+
+---
+
+## 90. A scored tier that returns the same number for every submission, and the weight in front of it
+
+Found while executing task 11 (comparing against `game-research-gpt`). Their
+`RESEARCH_SYNTHESIS.md` publishes a weighted decision matrix and then states which
+reweightings would change its answer — *"increasing 2D/console weight can select Defold"*.
+This project publishes `overall = 0.31*tier1 + 0.69*tier2` and **nowhere states where 0.31
+came from or what would change if it were different**. `RUBRIC.md`, `JUDGING.md`,
+`DECISIONS.md` and `README.md` all quote the split; none derives it.
+
+A weight that has never been varied is indistinguishable from a weight that does not
+matter, and those two states call for opposite actions.
+
+### The measurement
+
+`judge/weight_sensitivity.py` sweeps w1 across the open interval (0,1) against stored tier
+scores, partitioned by `(run, game)` because two games are not one population. 10 groups,
+68 scored trials.
+
+| verdict | groups | meaning |
+|---|---|---|
+| FLIPS | **0** | no ordering anywhere changes with the weight |
+| STABLE | 3 | both tiers vary, ordering identical at every weight in (0,1) |
+| UNIDENTIFIABLE | **7** | tier 1 has ONE distinct value across the whole group — the weight cannot act |
+
+**The weight is safe, and it is safe for a reason worse than the question being asked.**
+
+### What the tiers actually returned
+
+| run | n | tier 1 values observed | tier 2 values observed |
+|---|---|---|---|
+| `wg-matrix-2026-08-13` g1_pong | 8 | **{1.0}** | {0.7692, 0.8462, 0.9231, 1.0} |
+| `wg-matrix-2026-08-13` g2_tetris3d | 8 | **{1.0}** | {0.6923, 0.9231, 1.0} |
+| `wg-matrix-2026-08-13` g3_arena | 8 | **{1.0}** | {0.2667, 0.9333, 1.0} |
+| `wg-audio48-2026-08-14` g1_pong | 8 | **{1.0}** | **{1.0}** |
+| `wg-audio48-2026-08-14` g2_tetris3d | 8 | **{1.0}** | **{1.0}** |
+| `wg-g4c-2026-08-21` g4_platformer | 8 | {0.8571, 0.9286, 1.0} | **{1.0}** |
+| `wg-arena3d-2026-08-15` g3_arena | 8 | {0.0, 0.8571, 1.0} | {0.0, 1.0} |
+
+Tier 1 scored **1.0 on all 24 submissions of the flagship matrix**. Its 0.31 of the grade
+is a constant added to every cell — arithmetically present, informationally absent. At the
+w1=1 endpoint (tier 1 alone) all four stacks tie in all three matrix games.
+
+`wg-audio48` is the sharpest case: **16 trials, both scored tiers returning 1.0 for every
+one.** The entire deterministic grade of that run is the constant 1.0. It ran, it reported
+success, and it partitioned nothing — the house pattern, at run scale rather than criterion
+scale.
+
+Only `wg-arena3d` has both tiers varying — and **every one of its deductions is on the
+15-August side of the `syspolicyd` repair** (#49). `eval/RUNS.md` records the split exactly:
+rust and ts built while the daemon gated `execve` of freshly created binaries and neither
+ever ran its own `just verify`; unity and godot built after the restart. Rust's `0.000` and
+ts's `0.956` are both confound-side, and unity's and godot's `1.000` are both clean-side.
+
+So the one group in which the tier weight could in principle act is the one group whose
+variance `RUNS.md` already declares void for comparison. **Across all 68 stored trials there
+is not a single group where the two scored tiers both vary for reasons attributable to the
+work.**
+
+### What this does and does not license
+
+- It **does** answer the `DECISIONS.md` open item *"the rubric ceiling ... not yet checked
+  against matrix data"*, for the deterministic tiers. Checked. Tier 1 is at the ceiling with
+  zero variance on 40 of 56 matrix trials; tier 2 is at the ceiling on 24 of 56.
+- It **does not** rank stacks, and the orderings the tool prints are not results.
+  `DECISIONS.md` bars that at any gap and this measurement is not an exception to it — it
+  is a second, independent reason for the same bar, arrived at from the weight rather than
+  from within-cell agreement.
+- It **does not** say tier 1 is worthless. A criterion that everything passes still catches
+  the submission that does not, which is what tier 1 did on `wg-arena3d` (0.0) and
+  `wg-g4c` (0.857). Tier 1 is a **floor test that is working**, mislabelled as a
+  discriminating score and weighted as one.
+
+### The instrument had to be able to be wrong
+
+The first version swept the closed interval [0,1] and reported **FLIPS on 3 of 10 groups**.
+Every one of those flips sat between w1=0 and w1=0.005 — the endpoint where tier 1 is
+discarded entirely, which is not a candidate weighting. A check that fires where nothing is
+wrong spends exactly the attention that a check firing correctly needs, so the sweep now
+covers the open interval and reports endpoint behaviour separately as the diagnostic it is.
+
+The positive control — a constructed pair whose tiers disagree, crossing at w1=0.5 — was
+kept green across that change, which is the only reason the narrowing is known to have
+removed false alarms rather than the tool's ability to see anything at all. `--selftest`
+carries 12 checks including that control and a regression guard for the endpoint bug.

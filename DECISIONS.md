@@ -207,9 +207,17 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 - **Statistical power.** With 2 trials per cell, if two stacks land within ~0.015 this design
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
-- **The rubric ceiling.** A real agent-built TypeScript Pong scored 13/13 unanimously, six times.
-  If matrix submissions cluster at 12–13/13 the tier is uninformative at the top end regardless of
-  stability — not yet checked against matrix data.
+- **The rubric ceiling — CHECKED against matrix data 2026-08-23 for the deterministic tiers, and
+  it is worse than "clustering".** Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`**
+  and on all 16 of `wg-audio48` — 40 of 56 matrix trials at the ceiling with *zero* variance, not
+  merely near it. Tier 2 is at the ceiling on 24 of 56 (`wg-audio48` and `wg-g4c` entire).
+  `wg-audio48` returns **1.0 on both scored tiers for all 16 trials**: its whole deterministic
+  grade is a constant. Measured by `eval/judge/weight_sensitivity.py`, FINDINGS #90.
+  **Tier 1 is a floor test that works, weighted 0.31 as though it discriminated.** It still
+  catches the submission that fails outright (`wg-arena3d` 0.0, `wg-g4c` 0.857), which is worth
+  keeping — but it separates nothing among submissions that pass. What remains open is what to do
+  about it: whether to keep the split, re-scope tier 1 explicitly as a gate, or add criteria with
+  headroom. That is task 27, and it is a rubric change requiring mutants, not a doc edit.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for $46.79. Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53);
@@ -331,6 +339,27 @@ retired. So capability work is gated on making capability observable by a signal
 palette-coupled (task 25), or it cannot be shown to have helped.
 
 ---
+
+## Reversal conditions — what would re-open a decision
+
+**Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
+Labelled honestly: this is UNVERIFIED as an improvement.** No finding in `eval/FINDINGS.md` is
+known to have been caused by a decision outliving its basis, so the case for it is an argument,
+not a measurement. It is adopted narrowly — only where a decision rests on a measurement that
+could plausibly move — rather than on every row, because a reversal condition attached to a
+settled question is noise that makes the live ones harder to find.
+
+| Decision | Re-open when |
+|---|---|
+| Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
+| Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
+| Deterministic tiers may not rank stacks | Any instrument change producing **non-zero within-cell verdict variance** — currently 0 of 380 |
+| Tier weights 0.31/0.69 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound**. Currently 0 of 10 groups flip, and the one group with both tiers varying is `wg-arena3d`, which `eval/RUNS.md` declares void (#90) |
+| No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
+| 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
+
+The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
+input and no measurement would overturn them.
 
 ## Keeping this current
 
