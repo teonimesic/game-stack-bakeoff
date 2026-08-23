@@ -26,7 +26,7 @@ find starters -type f -mmin -1440 | wc -l    # starters untouched since last bli
 Then a real capacity probe — a session limit mid-run kills trials that were fine:
 
 ```
-Codex -p "Reply READY." --model haiku
+claude -p "Reply READY." --model haiku
 ```
 
 **Never pipe a check whose exit code you intend to read.** A pipeline's status is the

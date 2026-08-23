@@ -70,7 +70,9 @@ against a scratch plugin wrapper containing copies of `.claude/skills/*`:
 
 Failing: `add-game`, `audit-docs`, `evaluate-run`, `refine`, `run-matrix`. Clean: `prune`, `tasks`.
 The `.agents/skills/` Codex duplicates failed identically, 5 of 6; that tree was **deleted on
-2026-08-23** (task 27, #99), so `.claude/skills/` is now the whole population.
+2026-08-23** (task 27, #99). Since the same day the real files live at
+`.agents/skills/`, reached from `.claude/skills` by symlink, and those nine files are the whole
+population — one copy, however many paths reach it (`DECISIONS.md`).
 
 **Cause:** an unquoted YAML scalar containing `": "`. `description: Add a game task or a play-bot
 criterion to the eval suite: prompt rules that…` is not valid YAML. `prune` and `tasks` pass only
@@ -85,7 +87,7 @@ fails and, importantly, **aborts**.
 
 **The qualifier, and it matters.** Claude Code's own project-skill loader tolerates it. Evidence:
 this session's available-skills listing shows every description in full, colons included. So the
-validator's runtime prediction does **not** hold for `.claude/skills/` on 2.1.220. What *is*
+validator's runtime prediction does **not** hold for this project's skills on 2.1.220. What *is*
 established is narrower and still worth fixing: **every tool outside Claude Code is locked out of
 these files**, including Anthropic's own validator, and the tolerance is undocumented behaviour
 that could change.
@@ -275,7 +277,7 @@ that GitHub search surfaces have 0–2 stars.
 | `AS-016` failed to parse SKILL.md | 10 | **TRUE** — §1.2, independent corroboration |
 | `CC-HK-018` Stop matcher ignored | 8 | **TRUE on the fact, no consequence** — §1.3 |
 | `CDX-AG-005` "references missing file" | ~60 | **FALSE.** Treats every backtick span as a path: `` `Sim.step()` ``, `` `Vector2.clamped(n)` ``, `` `[Writes(...)]` `` |
-| `XP-003` hard-coded `.claude/` path | 38 | **FALSE.** `AGENTS.md` deliberately mandates `.claude/skills/<name>/SKILL.md` |
+| `XP-003` hard-coded `.claude/` path | 38 | **FALSE.** `AGENTS.md` deliberately mandates `.agents/skills/<name>/SKILL.md`, symlinked from `.claude/skills` |
 | `AGM-006` nested AGENTS.md detected | 11 | **FALSE.** Folder-scoped `AGENTS.md` is this repo's design |
 | `AGM-004` missing project context section | 11 | prescription, unsourced |
 | `XP-SK-001`/`CX-SK-001` non-universal fields | 20 | **WAS TRUE for `.agents/` only**, and helped settle task 27 — see below |
@@ -286,12 +288,19 @@ Two are worth pulling out.
 
 **`XP-SK-001`/`CX-SK-001`**: `when_to_use` and `argument-hint` are Claude Code fields, not part of
 the universal Agent Skills spec, and *"not supported by Codex CLI — it will be ignored"*. For
-`.claude/skills/` that is a false positive. For the `.agents/skills/` Codex copies it was a real
-finding, and it fed **task 27**: those copies existed to serve Codex, and Codex discards the two
-fields that decide when a skill is invoked — so the mirror could not have worked as intended even
-had a Codex sibling been reading it. **Settled 2026-08-23: `.agents/skills/` is deleted** (#99),
-`.claude/skills/<name>/SKILL.md` is the sole authoritative path, and `docstat.py --sweep` fails on
-any `SKILL.md` outside it.
+a Claude Code reader that is a false positive. For the `.agents/skills/` **Codex copies** it was a
+real finding, and it fed **task 27**: those copies existed to serve Codex, and Codex discards the
+two fields that decide when a skill is invoked — so the mirror could not have worked as intended
+even had a Codex sibling been reading it. The copies were deleted 2026-08-23 (#99).
+
+**This caveat survives the 2026-08-23 layout change and is the honest limit on it.** The real
+files now live at `.agents/skills/<name>/SKILL.md` with `.claude/skills` a symlink to them
+(`DECISIONS.md`), so a non-Claude agent reading the `.agents/` convention gets the **body** of
+each skill — but on the evidence here it would still ignore `when_to_use`, and so would not be
+told *when* to invoke one. One shared copy is strictly better than two drifting ones either way;
+what it does not buy is trigger parity across CLIs. `docstat.py --sweep` fails on any real
+`SKILL.md` outside the authoritative root, and on a `.claude/skills` that is not a live symlink
+to it.
 
 **`PE-001` — "Critical keyword 'never' at 47 percent of document (40-60 percent is the…)".** This
 is agnix operationalising the lost-in-the-middle result (arXiv:2307.03172) as a lint rule. It is
@@ -531,9 +540,10 @@ goes from 5 errors to 0, and the detached-paragraph scan goes from 5 to 0. Filed
 
 **2. Add two deterministic gates to `eval/tools/docstat.py`, where the mechanical doc checks
 already live. (~1 hour, both demonstrated to fire. Task 37.)**
-- `claude plugin validate --strict` over `.claude/skills/`, or the same YAML-parse check in ten
-  lines of Python. It found a real defect that seven prose linters missed. (`.agents/skills/` was
-  in scope when this was written and was deleted on 2026-08-23, #99 — `.claude/skills/` is now the
+- `claude plugin validate --strict` over the skills tree, or the same YAML-parse check in ten
+  lines of Python. It found a real defect that seven prose linters missed. (A second `.agents/`
+  COPY was in scope when this was written and was deleted on 2026-08-23, #99; the real files were
+  then moved to `.agents/skills/` and symlinked from `.claude/skills`, so those nine files are the
   whole population. **Enumerate the files with `os.walk`, not `glob`:** `glob` does not descend
   into dot-directories, so a `**/SKILL.md` pattern matches none of them and the gate passes by
   finding nothing. `docstat.py` has an `_all_skill_files()` that walks.)
