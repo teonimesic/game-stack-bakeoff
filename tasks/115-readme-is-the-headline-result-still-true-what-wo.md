@@ -1,7 +1,7 @@
 ---
 id: 115
 title: 'README: is the headline result still true, what would resolve it, and make it readable by someone who knows nothing'
-status: open
+status: in_flight
 priority: 1
 refs: README.md, eval/FINDINGS.md, eval/findings/, eval/judge/RUBRIC.md, eval/judge/JUDGING.md, DECISIONS.md, tasks/107
 done_when: the headline result is either re-established as still true with what re-established it, or restated to what the evidence now supports; the README says what would resolve the question and what is being done about it, or states plainly that nothing is; the three tiers are defined before their first use; every finding and decision reference is a working link verified to resolve; and the whole file is checked against a reader who knows nothing - naming which passages were rewritten and why
