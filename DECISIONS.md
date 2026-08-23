@@ -339,9 +339,9 @@ cleared or not; there is no meaningful "how far towards a line". The stage has a
 is at the end of it, and the prompt states the direction — *"Reaching the far end of the stage
 clears it."*
 
-**The free pre-test has run — task 83, 2026-08-23 — and it answers both questions: do not buy the
-harder task, and do not promote the criterion.** It cost no trials: the eight `wg-g4c` work trees
-survive under `~/game-research-work/` and were re-driven offline.
+**The free pre-test has run — task 83, 2026-08-23, published as #139 — and it answers both
+questions: do not buy the harder task, and do not promote the criterion.** It cost no trials: the
+eight `wg-g4c` work trees survive under `~/game-research-work/` and were re-driven offline.
 
 The bot was first repaired until it could actually pursue the goal — cross the pits with a **held**
 jump, stop at swinging range and kill what stands in the way — in four steps, each measured on all
@@ -374,7 +374,7 @@ task is not justified on this evidence.** The numbers are spread, and the spread
 
 Two things the repair does establish, and both are worth keeping:
 
-- **The levels were never the constraint.** Every gap in all eight is crossable by the submission's
+- **The levels were never the constraint** (#139). Every gap in all eight is crossable by the submission's
   own physics: measured jump reach with the control **held** is 93.5 to 141.8 units against a
   widest gap of 110, while a one-tick press reaches 29.0 to 88.4. A variable-height jump is
   answered by how long the control is held, and the bot had been asking every submission for its
@@ -1261,7 +1261,7 @@ settled question is noise that makes the live ones harder to find.
 | An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
-| A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
+| A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83, #139) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
