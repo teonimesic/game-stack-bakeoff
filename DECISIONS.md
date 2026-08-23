@@ -1177,6 +1177,94 @@ none. Every `architecture` round stored in this repository read a `CHANGED.txt` 
 authored tree.
 
 ---
+## Pull requests are reviewed by CodeRabbit, and the config is exclusion-only — decided 2026-08-23
+
+**[user]** that agent work should be reviewed before it is merged. **[agent]** everything below
+about how. `.coderabbit.yaml` at the repository root is the whole in-repository half; the other
+half is a GitHub App authorisation that only the operator can perform, and `tasks/108` holds the
+steps.
+
+**`path_filters` carries exclusions and never an inclusion.** Per the schema those patterns also
+drive a sparse checkout, so 1 positive pattern turns the list into an allowlist and blinds the
+reviewer to everything not named — including `.coderabbit.yaml` itself. An exclusion-only list
+cannot do that.
+
+What is excluded, and the population each pattern covers (`git ls-files`, 673 tracked files,
+2026-08-23 — re-run it, this tree moves daily):
+
+| pattern | files | why |
+|---|---|---|
+| `!eval/instrfollow/runs/**` | 115 | committed stored evidence — 1 JSON record per trial. Data, not source |
+| `!eval/findings/**`, `!eval/FINDINGS.md`, `!eval/IMPROVEMENTS.md`, `!IMPROVEMENTS.md`, `!CLEANUP-LOG.md` | 10 | archives. A figure published and later proven wrong **stays** there, so a comment flagging one is a false positive with certainty, not with probability |
+| `!eval/runs/**` | **0** | gitignored, so it matches nothing today. Kept as a second guard, and the firing case is constructible: `.gitignore` changes, or 1 record is committed as a fixture |
+
+**`eval/instrfollow/runs/` is the stored evidence that can actually reach a diff, and `eval/runs/`
+is not** — the opposite of what is easy to assume. `eval/runs/` is 129G and gitignored;
+`git ls-files eval/runs` returns 0. Rule 12: the address is an input to the check.
+
+**`tasks/` is reviewed, against the archive list.** It is an archive by `ARCHIVE_PATHS` in
+`eval/tools/docstat.py`, and excluding it would also drop it from the sparse checkout — leaving
+the reviewer assessing a one-task branch with no access to its brief. The ticket is the only
+written statement of what the diff was supposed to do. The false-positive risk is handled by a
+`path_instruction` telling the reviewer not to correct figures there.
+
+**`eval/starters/*/` is reviewed too, not excluded, and its instruction redirects what is asked.**
+It is the experimental material, so "this could be better" is out of scope by construction. What a
+reviewer *can* do there is procedural and valuable: ask whether a change to 1 of the 4 stack trees
+was made to the other 3, and whether the regime-boundary gates named in `AGENTS.md` were run.
+
+**`reviews.review_details: true`** is the only setting changed for a reason particular to this
+project rather than to code review: it makes each review state which files it ignored, so *"did
+our own filters swallow the change?"* is answerable from the artifact. That is `AGENTS.md`,
+"capture what the instrument DID".
+
+**`knowledge_base.{learnings,issues,pull_requests}.scope: local`.** All three default to `auto`,
+which resolves to **global** on a private repository — what CodeRabbit learns here would be
+applied to unrelated repositories on the same account. Same reason skills may not live in
+`~/.claude`.
+
+**`code_guidelines.filePatterns` enumerates 6 files rather than globbing `**/AGENTS.md`.** That
+glob matches 8, and 4 of them are `eval/starters/{rust,ts,unity,godot}/AGENTS.md` — the product,
+not standards this repository holds itself to. It is an enumeration, which is normally the wrong
+shape, and it goes stale in exactly 1 way: **a new folder-scoped `AGENTS.md` outside
+`eval/starters/` has to be added to it.**
+
+**`reviews.tools` is deliberately empty.** Disabling `markdownlint` and `languagetool` over 173
+markdown files is the obvious edit and it is a guess. The first reviews are the measurement.
+
+**What the first review actually did, on PR #1, 2026-08-23 — because a configuration that has
+never caused a review is a mechanism that runs and measures nothing.** It posted 1 actionable
+comment across a 2-file diff, and the comment was a **true positive against this repository's own
+rules, not against a style guide**: the section you are reading spelled its counts as *single*,
+*one*, *three* and *six*, and `AGENTS.md` requires a count in a live document to be written in
+digits, because no check can read a cardinal spelled in words — the failure that let a stale
+findings figure survive 11 days. The reviewer derived that rule from `DECISIONS.md` through
+`code_guidelines.filePatterns` and cited it as its source. The counts are now digits.
+
+**The boundary applied when fixing it, because the rule does not state one:** digits wherever the
+number is a quantity of something in this repository that could change; words where the word is an
+indefinite article or a compound modifier naming no population — *a one-task branch* stays.
+
+`profile: chill` produced no prose comments on the markdown files, which is weak evidence against
+the guess that `markdownlint` and `languagetool` need disabling, and not enough to act on.
+`review_details: true` worked as intended: each review listed which path instructions and which
+learnings it used, so what the reviewer consumed is on the record.
+
+**Over 3 rounds on PR #1 the reviewer posted 2 actionable comments, both true positives, and 0
+false positives — and the 2 came through the 2 different mechanisms configured here.** The first
+was sourced from `Coding guidelines`, i.e. `code_guidelines.filePatterns`, and applied the digits
+rule. The second was sourced from `Path instructions` and applied the `**/*.md` rule — *comment
+only when a document states something FALSE* — to catch `README.md` saying `.coderabbit.yaml`
+"drops the archives" when `tasks/` is an archive this config deliberately keeps reviewable. A
+reviewer with the default configuration would have had neither rule available.
+
+**The rate limit is a real constraint on a parallel queue and belongs in `tasks/109`:** the plan
+allows **10 included reviews per hour**, and each review round reports what is left. Across 3
+rounds on this 1 pull request the counter read **9, then 8, then 6** — so 4 of the hour's 10 went
+on 1 PR, and the third round consumed 2. **The cost is per review round, not per pull request,
+and it is not 1 per push**; anything that assumes a fixed rate should read the counter instead.
+
+---
 ## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
 
 `eval/tools/dead_private_control.py` is a gate over `eval/judge/`: 0 unreachable private methods
@@ -1264,6 +1352,8 @@ settled question is noise that makes the live ones harder to find.
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83, #139) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
+| `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
+| `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 173 markdown files must be noisy — that argument is available now and is not evidence |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the

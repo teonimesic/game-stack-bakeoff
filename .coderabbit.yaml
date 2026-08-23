@@ -1,0 +1,253 @@
+# CodeRabbit configuration for game-stack-bakeoff.
+#
+# Schema: https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# Every key below was read from that schema on 2026-08-23, not from a blog post. Every
+# exclusion names what is in the directory it excludes.
+#
+# WHAT THIS REPOSITORY IS, because it decides most of the settings below.
+# It is a research instrument, not an application. 673 tracked files, 173 of them markdown
+# and 117 python (`git ls-files`, 2026-08-23 — re-run it, this tree moves daily). The prose is
+# not documentation *of* the product — for the always-loaded instruction documents the prose IS
+# the product. Three consequences a default configuration gets wrong:
+#
+#   1. Some directories are ARCHIVES. `AGENTS.md` requires that a figure which was published
+#      and later proven wrong STAYS there, marked. A reviewer "correcting" one is wrong every
+#      time, by construction, and no amount of tuning fixes that.
+#   2. `eval/starters/*/` is THE THING BEING MEASURED. Improving it is not an improvement.
+#   3. Committed stored evidence exists and is not where you would guess. See path_filters.
+
+language: en-US
+
+# This repository is an instrument. Unreleased review behaviour changing under it between two
+# pull requests is the kind of uncontrolled variable `AGENTS.md` rule 8 exists to prevent.
+early_access: false
+
+reviews:
+  # `chill`, not `assertive`. Most of the tracked files are markdown that has been worded
+  # deliberately, often to the sentence. An assertive profile over that corpus is the failure
+  # mode `AGENTS.md` records as "a check that fires where nothing is wrong spends exactly the
+  # attention that a check firing correctly needs".
+  profile: chill
+
+  # THE ONLY SETTING CHANGED FOR A REASON SPECIFIC TO THIS PROJECT, and the reason is
+  # `AGENTS.md`, "Capture what the instrument DID, not only what it concluded": record the
+  # inputs a component actually consumed, not merely the output it produced. Default is false.
+  # With it on, every review states which files it ignored — so the question "did our own
+  # path_filters swallow the change?" is answerable from the artifact instead of being an
+  # unfalsifiable suspicion. That question is live: it is the failure mode this file is most
+  # able to cause.
+  review_details: true
+
+  auto_review:
+    enabled: true
+    # Agents hand back one branch per task and the orchestrator merges to `main`, which is the
+    # default branch, so the default base-branch handling is already correct. Drafts stay
+    # unreviewed (the default): a draft here means the agent has not finished.
+
+  # ---- path_filters ---------------------------------------------------------------------
+  #
+  # EXCLUSIONS ONLY, DELIBERATELY. Per the schema, these patterns also drive a sparse
+  # checkout: adding 1 positive pattern would turn this into an allowlist and make the
+  # reviewer blind to everything not named, including this file. An exclusion-only list cannot
+  # do that.
+  path_filters:
+    # 115 tracked JSON trial records — 1 file per trial of the instruction-following
+    # experiment, plus its manifests and summaries. This is stored EVIDENCE, committed
+    # (unlike eval/runs/, below). It is data, not source: reviewing it is noise, and it is
+    # the one directory here large enough to dominate a diff.
+    - "!eval/instrfollow/runs/**"
+
+    # ARCHIVES. `AGENTS.md`: these record what was believed at a time, including figures
+    # deliberately left wrong because someone may have acted on them. A review comment
+    # flagging an inconsistency in any of these is a false positive with certainty, not with
+    # probability. Excluding them also keeps a retired figure out of the reviewer's context,
+    # which is the second reason.
+    #
+    # This list is the archive set declared in `DECISIONS.md` and in `ARCHIVE_PATHS` in
+    # `eval/tools/docstat.py`, MINUS `tasks/` and MINUS `eval/runs/` — both divergences are
+    # deliberate and are explained below.
+    - "!eval/findings/**"
+    - "!eval/FINDINGS.md"
+    - "!eval/IMPROVEMENTS.md"
+    - "!IMPROVEMENTS.md"
+    - "!CLEANUP-LOG.md"
+
+    # eval/runs/ is 129G of stored evidence and is in `.gitignore`; `git ls-files eval/runs`
+    # returns 0 files, so this pattern MATCHES NOTHING TODAY and is kept anyway. It is a guard,
+    # not a measurement, and the situation where it fires is constructible: `.gitignore`
+    # changes, or one run record is committed as a regression fixture. The real guard is
+    # `.gitignore`; this is the second one.
+    - "!eval/runs/**"
+
+    # NOT EXCLUDED, against the declared archive list: `tasks/`.
+    # It is an archive by `docstat.py`'s definition — a ticket may quote a retired figure — but
+    # a branch here is one task, and the ticket is the ONLY written statement of what the diff
+    # was supposed to achieve. Excluding it removes it from the sparse checkout too, so the
+    # reviewer would be assessing a change with no access to its brief. The false positives are
+    # handled by a path_instruction below instead. If that turns out not to hold, the evidence
+    # will be review comments correcting figures in tasks/, and the fix is to move the pattern
+    # up into the block above.
+
+  # ---- path_instructions ----------------------------------------------------------------
+  path_instructions:
+    - path: "eval/starters/**"
+      instructions: |
+        STOP AND READ BEFORE COMMENTING ON THIS DIRECTORY.
+
+        These starter trees are not this project's code. They are the EXPERIMENTAL MATERIAL:
+        what a building agent is given at the start of a measured trial — `rust/`, `ts/`,
+        `unity/`, `godot/`, and `_shared/`. The project measures how well agents build games
+        from them. A suggestion that improves a starter is a suggestion to change the
+        experiment, and it invalidates comparison with every trial already run.
+
+        Do NOT suggest refactors, idiom improvements, performance work, added error handling,
+        added tests, or style changes here. A defect in a starter is often the thing being
+        measured.
+
+        DO comment on exactly 2 things:
+
+        1. PARITY. The 4 stack trees are deliberately held equivalent to each other so that a
+           difference in results is attributable to the stack and not to the starter. If a diff
+           changes 1 of them, ask in your comment whether the same change was made to the other
+           3, and say which ones the diff did not touch.
+        2. THE PROCEDURE. `AGENTS.md` states that editing a starter is a regime boundary, and
+           requires `eval/judge/verify_blind.py`, `eval/judge/starter_parity.py`,
+           `eval/tools/starter_gate_control.py` and a note in `eval/RUNS.md`. If the pull
+           request changes a starter and does not mention having run those, say so.
+
+    - path: "tasks/**"
+      instructions: |
+        This is the open-work queue and it is an ARCHIVE. A ticket records what was believed
+        when it was written, and may quote a figure that has since been retired. Do NOT
+        correct numbers, prose, wording or formatting in these files.
+
+        Use them as INTENT: a branch here corresponds to one ticket. The useful question is
+        whether the diff does what its ticket's `done when` line asks for, and whether it
+        touches anything the ticket's "what not to do" section forbids. Comment on that and
+        nothing else in this directory.
+
+    - path: "eval/tools/**"
+      instructions: |
+        This is the measuring instrument. A bug here does not crash — it produces a plausible
+        wrong number that gets published and acted on. Review against the failure modes this
+        project has actually paid for, listed in `AGENTS.md`:
+
+        - A check that cannot fail. For any assertion, gate or grader, ask what input would
+          make it report failure. `total=0 passed=0` is indistinguishable from a correct pass.
+        - `cmd | head` / `cmd | tail`: a pipeline's exit status is the last stage's, so a
+          "pass" read through a pipe may come from a command structurally incapable of
+          failing.
+        - `cmd || echo 0`, `|| true`, `except: pass` around a measurement: these turn an error
+          into a plausible in-range number, which is the most dangerous shape a broken check
+          can take.
+        - A mean, rate or total computed over a population that has not been shown homogeneous,
+          or reported without its `n`.
+        - A path, root or endpoint spelled in two places without an equality assertion. A
+          correct method aimed at the wrong address returns a confident answer.
+        - A regex or matcher whose trigger is an enumeration of instances rather than a
+          property, and whose property is drawn from an open class.
+
+    - path: "eval/judge/**"
+      instructions: |
+        The grading layer, including blinding. Beyond the instrument rules above, the specific
+        risks here are: a rubric or criterion change that alters what stored trials would
+        score without saying so; anything that could let a judge see the answer key or the
+        identity of the stack it is grading; and any weight or free parameter that a published
+        number depends on. `AGENTS.md` requires that a weighted result state what reweighting
+        would change it.
+
+    - path: "eval/*.py"
+      instructions: |
+        The harness that launches and re-grades trials. Same standard as `eval/tools/**`: the
+        risk is a silent wrong number, not a crash. Pay particular attention to anything that
+        decides a trial's terminal status, or that excuses a failure — every reason not to
+        count a failure is a channel a bug can widen.
+
+    - path: "AGENTS.md"
+      instructions: |
+        This file, and the per-directory `AGENTS.md` files, are always loaded into every agent
+        working in this repository. They are the product, not documentation of it, and their
+        wording is load-bearing. Do not suggest stylistic or structural rewrites.
+
+        Review them against their own stated standards:
+        - A rule whose trigger is an ENUMERATION of the instances that produced it will fail on
+          the first instance not on the list. Flag any new rule stated as a list of examples
+          where it could be stated as the resource or the property it protects.
+        - Any quantity written down must name the command that produces it, beside the number.
+          Flag a count with no producer.
+        - Counts must be written in DIGITS, never spelled out in words: no automated check can
+          read a cardinal spelled in words, and one survived eleven days for that reason.
+        - A name, path, flag or command that does not exist is worse than silence, because it
+          will be followed. Flag any identifier you cannot resolve in the tree.
+
+    - path: ".claude/skills/**/SKILL.md"
+      instructions: |
+        A skill is a procedure, invoked when an agent is about to do the thing it covers. Each
+        one names an authoritative document and states that if the two disagree, the document
+        wins and the skill is the bug. Flag any change that makes a skill restate a fact that
+        belongs in its authoritative document — that turns the skill into a second source of
+        truth, which is a failure this project has already recorded.
+
+    - path: "**/*.md"
+      instructions: |
+        Prose in this repository is written deliberately. Do not suggest rewording, reordering,
+        heading changes, line-length changes or tone changes. Comment on a document only when
+        it states something that is FALSE — a name, path, flag or command that does not exist,
+        a number that contradicts another live document, or an instruction that contradicts
+        `AGENTS.md`.
+
+  # ---- tools ------------------------------------------------------------------------------
+  # DELIBERATELY EMPTY IN THE FIRST VERSION. The obvious edit here is to disable `markdownlint`
+  # and `languagetool` on the grounds that 173 markdown files of hand-formatted tables and
+  # blockquotes will generate noise. That is a guess, and this project's standard is to
+  # measure before acting. The first reviews are the measurement; if they show noise, disable
+  # the tool that produced it and record the review that established it.
+
+chat:
+  integrations:
+    # No Jira and no Linear are in use. The work queue is `tasks/`, in this repository, by the
+    # rule that everything belonging to this project lives inside it. Both default to `auto`,
+    # which means ENABLED for a private repository like this one, so leaving them unset would
+    # let a chat reply file a ticket into a tracker nobody here reads.
+    jira:
+      usage: disabled
+    linear:
+      usage: disabled
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    # This repository's coding standard is not a style guide — it is `AGENTS.md`, plus the
+    # per-directory `AGENTS.md` files that scope rules to `eval/`, `eval/judge/` and
+    # `research/`, plus the decisions in `DECISIONS.md`. Naming them is the point: they are
+    # what a reviewer here has to know, and no default would find them.
+    #
+    # LISTED ONE BY ONE RATHER THAN AS `**/AGENTS.md`, AND THE REASON IS MEASURED. That glob
+    # matches 8 files, and 4 of them are `eval/starters/{rust,ts,unity,godot}/AGENTS.md` —
+    # which are THE PRODUCT: instructions handed to the agent under test, not standards this
+    # repository holds itself to. Feeding them in would make the reviewer enforce the
+    # experimental material's rules on the harness that measures it.
+    #
+    # This is an enumeration, which `AGENTS.md` warns against, and it will go stale in exactly
+    # one way: A NEW FOLDER-SCOPED `AGENTS.md` OUTSIDE `eval/starters/` MUST BE ADDED HERE.
+    # The property cannot be written instead, because the schema gives no way to express
+    # "every AGENTS.md except those under eval/starters/" that could be verified before use.
+    filePatterns:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "DECISIONS.md"
+      - "eval/AGENTS.md"
+      - "eval/judge/AGENTS.md"
+      - "research/AGENTS.md"
+
+  # All three default to `auto`, which resolves to GLOBAL for a private repository — meaning
+  # what CodeRabbit learns here would be applied to unrelated repositories in the same
+  # account. Pinned to `local` for the reason `AGENTS.md` gives for keeping skills out of
+  # `~/.claude`: knowledge stored outside the project silently applies to unrelated work. The
+  # rules learned here are about a measurement harness and would be actively wrong elsewhere.
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local

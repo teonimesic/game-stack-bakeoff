@@ -113,6 +113,7 @@ result and controls: `eval/instrfollow/`.
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
 | `eval/FINDINGS.md` | Findings #19-#146, including retractions. **Read this before trusting any number anywhere.** |
 | `AGENTS.md` | The rules that are always loaded, including how these documents are kept current and what must never go stale. |
+| `.coderabbit.yaml` | What a pull request here is reviewed for. Exclusion-only, and it drops the committed trial records and the archives it names — `tasks/` is an archive it deliberately keeps reviewable. `DECISIONS.md` holds the reasoning and what would re-open it. |
 
 ## Start here
 
