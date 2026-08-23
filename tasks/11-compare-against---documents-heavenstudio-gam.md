@@ -52,3 +52,25 @@ TRAPS, each already paid for here:
   - "They do X, we do Y" is a description, not a finding. Every entry needs a verdict: adopt (with
     its verification), reject (with why), or open (with what would settle it).
   - Run the comparison BOTH WAYS. Assuming they are ahead is how you import a regression.
+
+PROGRESS — axes 1, 2 and 3 are DONE. Axis 4 is all that remains.
+
+Everything is written up in `eval/IMPROVEMENTS.md`, iteration 12: one section per axis, each with
+its candidate table, its verdicts, its both-ways list and what was adopted. **Read that file
+first; do not re-read `game-research-gpt` from scratch.**
+
+Axis 3 (2026-08-23) produced `eval/judge/field_ranks.py`, FINDINGS #112, and tasks 54 and 55. It
+also **corrected axis 1**: their `-v1`/`-v2`/`-v3` are not replicates that ran. The dispositions
+say unfinished, invalidated and unadmitted, so no confirmation run of theirs ever produced a
+comparative result. A forward pointer sits at the end of the axis-1 section.
+
+AXIS 4 — harness mechanics: work roots, artifact durability, run ledgers, cost accounting.
+
+  Lead: task 28. Sanctioned reading: `evaluation/reports/` and the per-study `README.md`
+  dispositions ONLY — never the raw artifacts under `evaluation/runs/`, which are 30G.
+
+  One thread axis 3 opened and deliberately left, because it is cost accounting: the stored judge
+  rounds' own `cost_usd` fields sum to $33.63 and $31.66 for the two `wg-tetris-judge-2026-08-17`
+  fields, while their `SEQUENTIAL.json` records `measured_cost_usd` 25.55 and 21.05, and
+  `README.md` quotes 21.05 and $46.79. Three accountings of one spend, and they disagree. Start
+  there — it is a real defect with stored evidence, and it is exactly axis 4's subject.
