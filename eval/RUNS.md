@@ -777,6 +777,40 @@ reproducibility evidence this project has.
 | `post/` (round 2, repaired evidence) | 10 | $31.66 |
 | **all judge spend** | **23** | **$78.45** |
 
+**Round 3 — `wg-aspect-reliability`, 2026-08-23. 30 calls, $100.84.** Task 23: six aspects x 5
+repeats of ONE field in ONE presentation order, `--repeat-seed 0`, on
+`wg-g4c-2026-08-21` / `g4_platformer` — the only field that supports all six aspects
+(`wg-matrix` / `g3_arena` has no audio evidence for any submission, so `audio` builds a
+zero-submission pack there). Artifacts and `REPRODUCIBILITY.json` in
+`runs/wg-aspect-reliability/`. Result and its three caveats in `judge/JUDGING.md`.
+
+| aspect | calls | $ | median wall | files opened |
+|---|---|---|---|---|
+| `audio` | 5 | $3.71 | 261 s | 9 |
+| `fun_frames` | 5 | $9.70 | 372 s | 97 |
+| `fun` | 5 | $9.82 | 435 s | 105 |
+| `ux` | 5 | $10.78 | 347 s | 96 |
+| `architecture` | 5 | $28.77 | 510 s | 86 |
+| `idiomatic` | 5 | $38.07 | 559 s | 145 |
+| **total** | **30** | **$100.84** | | |
+
+**Comparability.** These 30 rounds may be compared *with each other* and with nothing else in
+this ledger: they are the only rounds on this field, and the two code aspects read packs
+carrying #95's stale files. `--per-call-budget` was held at $12 for all 30, unchanged from
+rounds 1 and 2, so that flag is not a variable (#33). **Read as reliability, never as an
+ordering** — see `JUDGING.md`.
+
+**Priced per aspect before launching, and that mattered.** The projection used the per-aspect
+means already in this ledger ($18.55 a repeat, ~$93 at n=5) against $100.84 measured — 8% out.
+A pooled per-call mean over all aspects would have priced `idiomatic` at a third of its cost.
+
+> **A background task has a lifetime, and it is shorter than a sweep.** The first launch was
+> killed at exactly 60 minutes with 10 of 30 rounds done — not a sweep failure, a harness cap on
+> the *task*, and indistinguishable from a crash in the output directory. Relaunching with the
+> same command cost **$0.00** for those 10 (every round is keyed by file and reused) and
+> continued from round 11. Launch a sweep detached from a foreground call, not as a background
+> task; `nohup` alone is enough, and `setsid` does not exist on macOS.
+
 > **Judge artifacts live in `runs/`, never in scratch.** Round 1 was written to a
 > session-scoped directory under `/private/tmp` and moved out once it became the evidence for
 > a finding. `field_sweep.assert_out_root_durable()` now refuses any ephemeral `--out`, pinned

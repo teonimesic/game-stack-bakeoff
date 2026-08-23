@@ -1014,6 +1014,123 @@ that. Two checks already done: it is **not** palette depth (`fun_frames` ~ disti
 420x640, and both score 2.71). Unity's two trials returning *identical* means is itself rule 9's
 shape. What it is remains unknown, and until it is named this is an open flag.
 
+## Task 23 result: ALL SIX aspects separate `g4_platformer` at n=5. $100.84
+
+The gap task 23 was filed against: `separation()` had been run on **one** aspect and **one**
+field, so five of six aspects had no measured reliability at all. Six aspects x 5 repeats of the
+same field in the same presentation order, `wg-g4c-2026-08-21`, artifacts in
+`runs/wg-aspect-reliability/`.
+
+**Per aspect, never pooled across aspects.** The aspects read different evidence — code, frames,
+telemetry, audio — and an SD across them would be rule 4's own example. `pooled_sd` below pools
+across the eight *submissions* of one aspect, which is a homogeneous population.
+
+| aspect | n | pooled SD | SE | resolved | marginal | verdict |
+|---|---|---|---|---|---|---|
+| `audio` | 5 | **0.418** | 0.187 | 21/28 | 4 | SEPARATES |
+| `ux` | 5 | 0.447 | 0.200 | 20/28 | 7 | SEPARATES |
+| `architecture` | 5 | 0.461 | 0.206 | **10/28** | 1 | SEPARATES |
+| `fun_frames` | 5 | 0.487 | 0.218 | 12/28 | 1 | SEPARATES |
+| `idiomatic` | 5 | 0.512 | 0.229 | 13/28 | 1 | SEPARATES |
+| `fun` | 5 | **0.536** | 0.240 | **23/28** | 0 | SEPARATES |
+
+**No aspect is in the "cannot ever resolve" branch.** That branch is reserved for a field whose
+means are identical, where no n helps; here every aspect has real gaps and the question *"does
+any pair resolve"* is already answered yes at n=5. Resolving the **smallest** gap is a different
+and far more expensive target — n=18 (`audio`) to n=29 (`fun`) — and per the correction recorded
+above it recedes as n grows, so it is not a target anyone should adopt.
+
+### The result that contradicts what was expected
+
+**#74 read `idiomatic` on this field as saturated** — four rounds, two distinct scores across
+eight submissions, "a saturated field cannot be made informative by more rounds of the same
+size." At n=5 it resolves **13 of 28 pairs**, and `architecture`, which uses only **two** distinct
+score values in all five rounds, still resolves 10.
+
+The reconciliation is arithmetic, and it is the point of `separation()` over `ceiling()`. A round
+scores on integers; a **mean over five rounds lands on fifths**. Two submissions that are always
+"3 or 2" separate as 2.8 against 2.4 once the rounds are averaged. Bunching within a round is not
+the same as indistinguishability across rounds, which is exactly what #74's own conclusion
+assumed and could not test at n=2.
+
+### Three caveats, all of which cut against the headline
+
+**1. A submission the judge scores identically five times gets SE exactly 0**, and then resolves
+against everything with any gap at all. Five equal integers are weak evidence that the true SD is
+zero. Discounting every pair that touches a zero-SE submission:
+
+| aspect | resolved | of which touch a zero-SE submission | survive |
+|---|---|---|---|
+| `fun` | 23/28 | 7 | **16** |
+| `audio` | 21/28 | 11 | **10** |
+| `ux` | 20/28 | 6 | **14** |
+| `idiomatic` | 13/28 | 0 | **13** |
+| `fun_frames` | 12/28 | 7 | **5** |
+| `architecture` | 10/28 | 7 | **3** |
+
+`idiomatic` is the only aspect with no zero-SE submission, so its 13 is the one count needing no
+discount. `architecture` and `fun_frames` are the two that mostly do not survive it.
+
+**2. The resolved-pair count is itself noisy at this n**, and not monotone in n — which a
+well-behaved estimator over nested subsets of the *same* rounds would be:
+
+| aspect | n=2 | n=3 | n=4 | n=5 |
+|---|---|---|---|---|
+| `ux` | 7 | 19 | **15** | 20 |
+| `fun_frames` | 2 | 8 | 11 | 12 |
+| `fun` | 19 | 22 | 22 | 23 |
+| `audio` | 13 | 18 | **23** | 21 |
+| `architecture` | 4 | 12 | **8** | 10 |
+| `idiomatic` | 15 | 21 | **11** | 13 |
+
+Four of six fall as n rises somewhere in that range. **Read the verdict (separates / does not),
+not the count**; a count quoted to the pair implies a precision this instrument does not have.
+
+**3. Gate 0 fails on four of six.** `ux`, `fun_frames`, `architecture` and `idiomatic` all flip
+their `ceiling()` verdict on byte-identical input; only `fun` and `audio` are "scores move,
+verdict stable". This is #58 reproducing on a second field and a wider set of aspects, and it is
+the reason `ceiling()` no longer decides anything.
+
+### Rule 9 checked on every flag, and cleared on all of them
+
+Independent submissions returned byte-identical five-round score vectors in four aspects —
+`godot__t0`/`godot__t1` under `ux`, three submissions under `fun_frames`, two pairs under
+`architecture`, `rust__t0`/`rust__t1` under `idiomatic`. That is rule 9's signature and it was
+tested against the evidence rather than argued about:
+
+- **frames** (what `ux` and `fun_frames` read): all eight submissions have distinct frame-strip
+  hashes. No two were shown the same pictures.
+- **code** (what `architecture` and `idiomatic` read): all eight have distinct pack hashes, and
+  `rust__t0` (27 files) and `rust__t1` (18 files) share **zero** identical file bodies.
+
+The actual cause is the scale's granularity. `architecture` used two distinct values across all
+five rounds, so only **32** distinct five-round vectors exist for eight submissions; `fun_frames`
+used three, giving 243. Collisions at those counts are expected, and `fun` and `audio` — the two
+aspects that used the widest range — produced none.
+
+### What it costs, per aspect, because a pooled mean would misprice it 3x
+
+| aspect | $ for 5 rounds | median wall | files opened |
+|---|---|---|---|
+| `audio` | $3.71 | 261 s | 9 |
+| `fun_frames` | $9.70 | 372 s | 97 |
+| `fun` | $9.82 | 435 s | 105 |
+| `ux` | $10.78 | 347 s | 96 |
+| `architecture` | $28.77 | 510 s | 86 |
+| `idiomatic` | $38.07 | 559 s | 145 |
+
+**$100.84 total.** A pooled per-call mean would have priced `idiomatic` at a third of its cost and
+`audio` at triple — the mistake `eval/AGENTS.md` records against itself.
+
+### What this does NOT establish
+
+**No cross-stack ordering, from any of the six.** Separation is a statement about the *instrument*
+— that it can tell two submissions apart — not about which stack is better. The two code aspects
+additionally read packs carrying #95's stale files, unequally and stack-correlated, so their
+orderings are unreadable for a second independent reason. **Tier 3 stays at weight 0.00**; this
+measures whether re-weighting is *conceivable*, and the answer is that reliability is no longer
+the blocker for any of the six.
+
 ## The three repairs, 2026-08-16 — made, pinned, NOT re-run
 
 No judge call was made for any of this. The decision to spend again is the user's and should be

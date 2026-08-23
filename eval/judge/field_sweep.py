@@ -165,6 +165,13 @@ def repeats_main(a: Any) -> int:
     round index was the presentation seed, so every extra round was a different order.
     This closes that: a tool that can only find a defect by accident will not find it
     twice.
+
+    IT ALSO REPORTS `field.separation()`, which had no caller anywhere in the tree.
+    Repeats of one order are the only input that function accepts, so this mode was the
+    one place able to feed it and did not - and every separation number this project has
+    published was therefore computed by an ad-hoc script that died with its session. A
+    function with no caller is a protocol with no code path, which is the defect this
+    mode's own docstring names one paragraph up.
     """
     assert_out_root_durable(a.out)
     a.out.mkdir(parents=True, exist_ok=True)
@@ -208,8 +215,10 @@ def repeats_main(a: Any) -> int:
             pairs = [field.reproducibility(runs[i], runs[j])
                      for i in range(len(runs)) for j in range(i + 1, len(runs))]
             flips = sum(1 for r in pairs if r.get("ceiling_verdict_stable") is False)
+            sep = field.separation(runs)
             summary[key] = {"runs": len(runs), "pairwise": pairs,
                             "ceiling_verdict_flips": flips,
+                            "separation": sep,
                             "verdict": ("REPRODUCIBLE" if pairs and not flips
                                         and all(p.get("identical") for p in pairs)
                                         else "SCORES MOVE, verdict stable" if pairs and not flips
@@ -217,6 +226,10 @@ def repeats_main(a: Any) -> int:
                                              "flipped on unchanged input" if flips
                                         else "too few usable runs")}
             print(f"  [gate0] {key}: {summary[key]['verdict']}", flush=True)
+            # PER ASPECT, NEVER POOLED ACROSS ASPECTS. `pooled_sd` pools across the eight
+            # SUBMISSIONS of one aspect, which is a homogeneous population; the aspects
+            # read different evidence and an SD across them would be rule 4's own example.
+            print(f"  [sep]   {key}: {sep['verdict']}", flush=True)
     summary["measured_cost_usd"] = round(spent, 2)
     _atomic(a.out / "REPRODUCIBILITY.json", summary)
     print("\n=== gate 0: reproducibility ===")
