@@ -3895,10 +3895,23 @@ Every condition `cmd_check` evaluated read one of four frontmatter values — `i
 every task record, and read by exactly **one** code path in the whole tool: `show`, which prints
 it to the agent. **Zero checks read it.**
 
-Over the 70 files as they stood at `436bf64` that is **27,156 of 328,692 bytes evaluated, 8.3%**.
-The 91.7% the lint never reached is the half an agent is briefed from. The check was written by
-the tool's author against the tool's own data model, and the data model's centre of mass is not
-where the meaning is.
+Over the 70 files as they stood at `436bf64` that is **29,591 of 329,185 bytes evaluated, 9.0%** —
+`eval/tools/lint_coverage.py 436bf64`, which slices the raw frontmatter lines belonging to those
+four keys out of every file in the commit's `tasks/` tree. The 91% the lint never reached is the
+half an agent is briefed from. The check was written by the tool's author against the tool's own
+data model, and the data model's centre of mass is not where the meaning is.
+
+**This figure was first published as `27,156 of 328,692 bytes, 8.3%` and both terms were wrong.**
+It had no producer, so nothing could disagree with it — the defect AGENTS.md names in the
+*how much of anything* row, caught at merge by re-measuring rather than by any gate. The
+denominator is the decisive one: it is 329,185 by `wc -c` over the extracted files, by
+`git ls-tree -l 436bf64 tasks/` summed straight from the object store across 70 blobs, and by the
+producer, and it is a bare byte count with no room for method to matter. The numerator is
+method-dependent, so the producer implements one method and says which; a second, independent
+extraction — parse each frontmatter as YAML and re-serialise the four keys — lands at 29,544, and
+the 47-byte gap between them is the cost of the choice. **The argument was never at risk** at 8.3%
+or 9.0%; what was at risk is the standard that a published number is one somebody else can
+re-derive.
 
 ### The duration is the wrong measure, and the published one was wrong anyway
 

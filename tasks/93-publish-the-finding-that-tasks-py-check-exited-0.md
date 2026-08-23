@@ -45,8 +45,11 @@ file with no frontmatter at all classified as empty-bodied.
   with that commit → exit 0, `70 task(s), all well-formed`. Under the current copy → exit 1
   naming both halves. Same for `709d51a` (39 files) → exit 1.
 - The pre-fix `cmd_check` evaluated **four** frontmatter values plus "did the frontmatter
-  parse". `body` was read by exactly one code path in the whole tool — `show`. **27,156 of
-  328,692 bytes, 8.3%.**
+  parse". `body` was read by exactly one code path in the whole tool — `show`. ~~**27,156 of
+  328,692 bytes, 8.3%.**~~ **Both terms wrong; corrected at merge to 29,591 of 329,185 bytes,
+  9.0%.** The figure had no producer, so nothing could disagree with it — `eval/tools/`
+  `lint_coverage.py 436bf64` is now that producer, and `--selftest` pins the denominator
+  against `git ls-tree -l` and pins a second extraction method 47 bytes away. See #141.
 - Empty-body census re-run over the grown corpus: **393 distinct tracked file-versions across
   143 snapshots, 2 empty-bodied, both `tasks/71`**. Task 82's figures were 275 and 81.
 - `tasks_control.py` exit **0**, 28 measurements, 0 FAILED, 0 NOT CHECKED.
