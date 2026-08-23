@@ -62,13 +62,19 @@ directions 2 and 3 build a real main-plus-worktree pair under a temporary direct
 Usage, from anywhere:
     python3 eval/tools/tasks_control.py
     python3 eval/tools/tasks_control.py --skip-prefix   # no positive control for direction 2
+    python3 eval/tools/tasks_control.py --tasks-py PATH # grade a COPY of tasks.py
 
 Exit: 0 every direction measured and green; 1 a direction FAILED; 3 nothing failed but a
 direction was NOT CHECKED. Never read 3 as a pass.
+
+`--tasks-py` is what makes these rows falsifiable: `eval/tools/tasks_mutants.py` writes a
+mutated COPY of `tasks.py` into a tempdir and points this file at it, so every row can be
+asked whether it CAN go red. The repository's own `tasks.py` is never written to (#134).
 """
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -76,10 +82,35 @@ import sys
 import tempfile
 from pathlib import Path
 
+#: THIS FILE'S OWN DIRECTORY, and it is the GIT ADDRESS -- directions 2 and 5 read real
+#: blobs out of this repository's history. It deliberately does NOT move with `--tasks-py`:
+#: a mutated copy lives in a tempdir that is not a checkout, and following it there would
+#: turn every blob row into NOT CHECKED, which is not a pass (AGENTS.md rule 12).
 TOOLS = Path(__file__).resolve().parent
+
+#: The SUBJECT: the `tasks.py` under test, rebound by `--tasks-py`. Two addresses, moving
+#: independently -- the code under test and the corpus it is tested against.
 TASKS_PY = TOOLS / "tasks.py"
-sys.path.insert(0, str(TOOLS))
-import tasks as T                                                    # noqa: E402
+
+
+def _load_subject(path: Path):
+    """Import the `tasks.py` under test BY PATH, never by name.
+
+    `sys.path.insert(0, TOOLS); import tasks` -- what stood here -- can only ever reach the
+    repository's own copy, so no row below could be asked whether it can fail. Importing by
+    path is also why the subject is a module-level name rebound in `main`, rather than a
+    parameter threaded through five direction functions.
+    """
+    spec = importlib.util.spec_from_file_location("tasks_under_test", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"cannot import a tasks.py from {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["tasks_under_test"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+T = _load_subject(TASKS_PY)
 
 #: The commit that fixed direction 2. Its parent is the positive control: the copy of
 #: `tasks.py` that MUST fail the same harness, proving the harness can see the failure.
@@ -539,8 +570,22 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--skip-prefix", action="store_true",
                     help="skip direction 2's positive control (it needs the pre-fix blob "
                          "from git). Every arm it covers is then reported NOT CHECKED.")
+    ap.add_argument("--tasks-py", metavar="PATH",
+                    help="grade this copy of tasks.py instead of the repository's. Used by "
+                         "tasks_mutants.py, which writes a MUTATED copy into a tempdir; "
+                         "nothing here ever writes to the file it is given.")
     a = ap.parse_args(argv)
 
+    global TASKS_PY, T
+    if a.tasks_py:
+        TASKS_PY = Path(a.tasks_py).resolve()
+        if not TASKS_PY.is_file():
+            raise SystemExit(f"--tasks-py {TASKS_PY}: no such file")
+        T = _load_subject(TASKS_PY)
+
+    # Printed, not assumed. Both addresses, every run: the rows below are only about the
+    # subject named here, and under a mutant they are about a copy in a tempdir.
+    print(f"subject: {TASKS_PY}")
     print(f"queue: {T.TASKS}")
     before = sorted(p.name for p in T.TASKS.glob("*.md")) if T.TASKS.is_dir() else []
 
