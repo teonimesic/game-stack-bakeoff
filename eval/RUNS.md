@@ -1839,6 +1839,81 @@ recorded as their evidence, and it landed on `just probe`'s **stdout**, document
 nothing but JSON trace lines. Pinned both ways by parsing every stdout line of `just probe`:
 before, 4 lines of which 1 is not JSON; after, 3 lines of which 0 are.
 
+## ALL FOUR STOP HOOKS GAINED AN AUDIT TRAIL ON 2026-08-23 — an EIGHTEENTH comparability break
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other; this one was taken from `main` at the time of writing,
+with several worktrees live. Cite the heading, not the number.
+
+**What was wrong.** A Stop hook that exits 0 leaves no trace in the transcript, in
+`agent_result.json`, or anywhere else — measured at CLI 2.1.220 with the harness's own flags in
+two arms (`tasks/78`). A hook that BLOCKS writes a `user` entry with `isMeta: true` beginning
+`"Stop hook feedback:"`; a hook that PASSES writes nothing. So across the whole stored archive,
+19 transcripts carry a block and all 19 are dated 2026-08-11 or 2026-08-12, and that single
+observation is equally consistent with *`just verify` was green at every stop* and with *the hook
+never ran*. No stored artifact separates them. "The gate is live in all four arms" rested on the
+file being present in the starter, which is `AGENTS.md` rule 2.
+
+**The change.** `eval/starters/*/.claude/hooks/verify-gate.sh` in all four stacks now appends two
+tab-separated lines per invocation — `invoked` with the project directory, then one of `pass`,
+`block`, `skip` (with the guard that fired) or `no_project_dir` — to `$STARTER_HOOK_LOG`,
+falling back to `$TMPDIR`. `eval/wholegame.py` sets that variable to
+`runs/<run>/artifacts/<trial>/hook_log.tsv`, summarises it into `trials/<trial>.json` under
+`stop_hook`, and records `leaked_into_tree` per trial.
+
+**The log lands OUTSIDE the trial tree, and that is the whole difficulty.** The tree becomes the
+graded diff, so a file written into the project directory would appear in `files_changed`,
+`diff.stat`, `tree.txt` and `submission.tar.gz` — the shape of #106. `wholegame.hook_log_path`
+refuses to launch a trial whose log address is inside the tree, and the per-trial
+`leaked_into_tree` row asks the same question of the OUTCOME, because a hook is free to write
+wherever it likes once it is running.
+
+**`skip` is the value that did not exist before and matters most.** Every hook short-circuits on
+a warm guard — `target/`, `node_modules/`, `Library/`, `just` on `PATH` — and a short-circuit
+and a green gate were the same silence to everything downstream. Task 78 could establish only
+that those four guards *held* in `wg-g4c`'s live work trees; it could not establish that the hook
+ran at all.
+
+**What it demonstrably does NOT change**, so an arm before and after is comparable on everything
+graded — `judge/starter_parity.py --skip-tests`, all four stacks, exit 0, *no drift detected*:
+
+| axis | before (task 78) | after |
+|---|---|---|
+| hash chain, seed 7, its own 400-input tape | 401 per stack | 401 per stack, rust ≡ godot, ts ≡ godot |
+| `just --summary` recipe set | rust 19, ts 21, unity 20, godot 18 | unchanged |
+| `AGENTS.md` | 2032 / 2267 / 2209 / 2273 words | unchanged — **no guide was edited** |
+| `starter_parity.mechanism_findings` | Stop wired in 4, named in 4 | unchanged |
+| shared launch discipline over 5 copies | `da9914ce2e54beaa` | unchanged |
+
+**No `just` recipe reaches the hook.** `grep` over the four justfiles and `starters/_shared/` for
+`verify-gate` and `STARTER_HOOK_LOG` returns nothing, which is why `just check` / `verify` /
+`warm` cannot have moved: the two hits are an unrelated no-raise comment in each.
+
+**The guides were deliberately NOT told about the log.** They are what a building agent reads; a
+sentence saying its gate is being recorded is an observer effect on the thing being measured, and
+it changes nothing an agent should do. The Stop hook itself is still named in all four guides
+(the fifteenth break).
+
+Gates re-run after the change:
+
+| gate | result |
+|---|---|
+| `judge/verify_blind.py`, out-of-repo copies of all four | **BLIND**, 81 criterion ids, 4 trees, exit 0 — and **CONTAMINATED exit 1** with `layer.clears` planted in the edited hook itself, so the scanner was shown able to fail on this exact input |
+| `judge/starter_parity.py --skip-tests` | exit 0, no drift on any measured axis |
+| `judge/parity_selftest.py` | **60 expectations, 0 failed, exit 0** — its ts positive control really ran (67/67), the worktree's `node_modules` being a symlink to the main checkout's, whose `pnpm-lock.yaml` is byte-identical (`0a586958a7d4057fd06f25dee3c89804a270e3e4`) |
+| `tools/starter_gate_control.py --skip-verify`, rust and ts | 4 measurements each, **0 FAILED**, exit 3 — 3 is the NOT-CHECKED status, here verify idempotence (skipped) and rust's absent scope repair, neither introduced by this change |
+| `bash -n` on all four hooks | exit 0 |
+| `tools/hook_audit_control.py` | **7 ok / 28 FAILED, exit 1 with the four hooks reverted; 39 ok / 0 FAILED, exit 0 after.** The 7 that pass in the red arm are its harness rows, which measure `wholegame.py` and were not reverted — a red direction in which everything fails is weaker evidence, not stronger |
+
+**The live direction, which no offline control can supply.** Whether the CLI hands a custom
+environment variable to a hook it spawns is a property of the `claude` binary. Two real sessions
+with the harness's flags, `--live`: the log was written to the path set on the CLI's parent, one
+invocation each, nothing new inside the project directory. Cost $0.045 for the run whose result
+JSON was parsed; ~$0.09 for both. `CLAUDE_PROJECT_DIR` came through **resolved** —
+`/private/var/...` where `/var/...` was passed — which matters only if something ever compares it
+to an unresolved path.
+
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
