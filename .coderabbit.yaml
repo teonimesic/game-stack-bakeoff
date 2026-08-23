@@ -22,12 +22,28 @@ language: en-US
 # pull requests is the kind of uncontrolled variable `AGENTS.md` rule 8 exists to prevent.
 early_access: false
 
+# How to comment. Applies to every review in this repository.
+tone_instructions: |
+  Every comment must be worth the time it takes to read.
+
+  Before posting one, check it against these and drop it if it fails:
+    - Does it change what someone should DO? An observation that leads to no action is noise.
+    - Is it specific to a real consequence, not to a detail that happens to be visible? Do not
+      comment on a value, a wording or a style choice unless it has an effect you can name.
+    - Is it as short as it can be? Say the problem and the fix. No preamble, no restating the
+      diff, no explaining why review matters.
+    - Would a reader without this project's context understand it?
+
+  Do not raise the same point twice on one pull request, and do not re-raise a point the author
+  has answered with a measurement - reply to their answer or drop it.
+
+  Prefer few good comments over many. A review of three real problems is more useful than one of
+  fifteen where twelve are nitpicks.
+
 reviews:
-  # `chill`, not `assertive`. Most of the tracked files are markdown that has been worded
-  # deliberately, often to the sentence. An assertive profile over that corpus is the failure
-  # mode `AGENTS.md` records as "a check that fires where nothing is wrong spends exactly the
-  # attention that a check firing correctly needs".
-  profile: chill
+  # `assertive`. Most of this repository is markdown, and the documentation is the part most
+  # in need of review, so the reviewer is set to say more rather than less.
+  profile: assertive
 
   # THE ONLY SETTING CHANGED FOR A REASON SPECIFIC TO THIS PROJECT, and the reason is
   # `AGENTS.md`, "Capture what the instrument DID, not only what it concluded": record the
@@ -94,15 +110,26 @@ reviews:
       instructions: |
         STOP AND READ BEFORE COMMENTING ON THIS DIRECTORY.
 
-        These starter trees are not this project's code. They are the EXPERIMENTAL MATERIAL:
-        what a building agent is given at the start of a measured trial — `rust/`, `ts/`,
-        `unity/`, `godot/`, and `_shared/`. The project measures how well agents build games
-        from them. A suggestion that improves a starter is a suggestion to change the
-        experiment, and it invalidates comparison with every trial already run.
+        These starter trees are what a building agent is given at the start of a measured
+        trial — `rust/`, `ts/`, `unity/`, `godot/` and `_shared/`. Each is meant to be a good
+        template for its stack, and the project measures how well agents build games from them.
 
-        Do NOT suggest refactors, idiom improvements, performance work, added error handling,
-        added tests, or style changes here. A defect in a starter is often the thing being
-        measured.
+        REVIEW THEM AS YOU WOULD ANY OTHER CODE. Suggest refactors, idiom improvements,
+        performance work, better error handling, better tests and clearer structure. A better
+        starter is a better experiment. Say plainly when a change would improve one.
+
+        Two things to know, which change how you word a suggestion but not whether you make it:
+
+        - The four stacks must stay COMPARABLE. A change that gives one arm an advantage the
+          others do not have is a confound, not an improvement. If a suggestion applies to one
+          stack, say whether it should apply to all four.
+        - Applying a change here invalidates comparison with trials already run. That cost is
+          accepted and is recorded as a regime boundary in `eval/RUNS.md` — it is a reason to
+          state the suggestion clearly, not a reason to withhold it.
+
+        Do NOT suggest anything that would tell a building agent how it is graded: no criterion
+        names, no rubric wording, no hints about what the play-bot checks. That is the blinding,
+        and it is not a style question.
 
         DO comment on exactly 2 things:
 
@@ -197,10 +224,24 @@ reviews:
 
     - path: "**/*.md"
       instructions: |
-        Prose in this repository is written deliberately. Do not suggest rewording, reordering,
-        heading changes, line-length changes or tone changes. Comment on a document only when
-        it states something that is FALSE — a name, path, flag or command that does not exist,
-        a number that contradicts another live document, or an instruction that contradicts
+        Review these documents for READABILITY as well as correctness. A reader arriving with no
+        knowledge of this project should be able to follow them.
+
+        Flag prose that is:
+          - hard to read - long sentences, stacked clauses, abstract phrasing where a plain
+            statement would do
+          - more complex than its content warrants, or padded with wording that adds nothing
+          - over-specific about a detail that does not change what the reader should do
+          - a narration of past events. A document states what IS: the choices in force, the
+            current state, and how to do things. It is not a log of what happened, who found
+            what, which pull request or review something came from, or the reasoning that led
+            to a decision. Findings and history belong in `eval/findings/` and `eval/RUNS.md`.
+          - jargon or coined phrasing used in place of the plain word
+
+        Suggest concrete replacement wording, not just an observation.
+
+        Also flag, as before, anything FALSE: a name, path, flag or command that does not
+        exist, a number contradicting another live document, or an instruction contradicting
         `AGENTS.md`.
 
   # ---- tools ------------------------------------------------------------------------------

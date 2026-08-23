@@ -142,3 +142,174 @@ deliberately-excluded table** — an existing gap, not a decision, and not fixed
 The scope failure above. Claim: *a figure reproduced to the cent while the sentence around it
 described a population of 1 where the tree held 7, and the producer that would have shown it did
 not exist.* Measurement, control and both directions are in this note and in the PR body.
+
+## note 2026-08-23
+
+## note 2026-08-23 — the PR's final head, and two corrections found by my own rule
+
+The branch is `task-123-cost-result-producer`, PR #9, final head `55a0901`. Four commits:
+
+| commit | what |
+|---|---|
+| `9704ecf` | the producer, README, DECISIONS.md, eval/AGENTS.md, CI |
+| `eb4fbaa` | `cell_gap_ratio` per group, and the selftest's drift guard |
+| `a6337e6` | **the docstring said "6 of 7"; the tool prints 5** |
+| `55a0901` | **README's resolution row said "the other 6 groups disagree"; 5 do** |
+
+**The last two are the same error twice, committed by me, inside the file that exists to
+prevent it.** One group sits at **96%** — below the line but visually adjacent to it in a
+rendered table — and both times I counted the rows by eye instead of reading
+`groups_where_range_exceeds_floor` out of the producer I had just written.
+
+> **A producer does not stop you writing the wrong number. It only makes the wrong number
+> findable.** Both were found by re-running the tool and diffing its output against my own
+> prose, which is a step, not a property of having built the tool.
+
+The one figure that moved between the hand calculation and the producer is the worst
+one-cell floor error: eyeballing the rendered table gave **32.9x**, the tool gives **33.0x**
+(the rendered gaps are rounded to the cent). `eval/AGENTS.md` states 33.0x.
+
+## note 2026-08-23
+
+## note 2026-08-23 — rule 12 fired on the review poll, in a shared scratchpad
+
+**The review poll was silently repointed at another agent's pull request mid-run.**
+
+`.claude/skills/work/SKILL.md` §6 gives the poll recipe with `PR=<n>` as a literal. I wrote
+it to `scratchpad/pollreview.sh` — a generic name in a directory **shared with every
+concurrent session** — and a concurrent agent working task 124 wrote its own copy to the
+same path with `PR=10`. My background loop calls the script by path each iteration, so from
+that moment it was polling **PR #10, `task-124-ci-path-filter-and-minutes`**, and reporting
+`not yet` about it. Exit 0 throughout. Nothing in the output named the PR.
+
+That is `AGENTS.md` rule 12 exactly — a correct method aimed at an address nobody
+re-verified — and it is the *shared mutable address* variant, which the rule's own table of
+five instances does not contain.
+
+**What replaced it**, at `scratchpad/task123-poll-pr9.sh`:
+
+- **named for the ticket and the PR**, so a collision is a different file rather than a
+  silent overwrite;
+- it **asserts the address before believing the answer** — `headRefName` must equal
+  `task-123-cost-result-producer`, or it exits 1 with `WRONG PR` rather than returning a
+  poll result;
+- every line of output carries the head sha it read.
+
+Control, both directions: against `PR=9` it returns `not yet (... head=55a0901)` at exit 0;
+the same script with `PR=10` returns `WRONG PR: #10 is 'task-124-ci-path-filter-and-minutes'`
+at **exit 1**.
+
+> **A poll result that does not name what it polled is not a result.** The skill's recipe
+> hardcodes the PR number and prints only the sha, so a wrong `PR=` is invisible in the
+> output — and a scratchpad is a shared address. Worth folding the branch-name assertion, or
+> at least "print the PR you polled", back into `.claude/skills/work/SKILL.md` §6.
+
+## note 2026-08-23
+
+## note 2026-08-23 — rebased onto main; two conflicts, both real content
+
+`main` moved while this was in flight (task 122 merged, PR #8), and the branch stopped
+merging. `git merge-tree --write-tree origin/main HEAD` reported conflicts in `README.md`
+and `.github/workflows/README.md` **before** any rebase — worth running, because
+`gh pr view --json mergeable` said nothing until the push.
+
+Rebased rather than merged. Final head **`7bcf4ec`**, `mergeable=MERGEABLE`, PR diff still
+exactly the same 6 files, 817 insertions.
+
+Both conflicts were content, not whitespace:
+
+| file | what collided | resolution |
+|---|---|---|
+| `README.md` | task 122 rewrote the **row above mine** — the paired-trials row now names `eval/judge/paired_verdicts.py` instead of the withdrawal register. My change is the **cost row** | kept main's paired-verdicts row **and** my cost row. Verified `paired_verdicts.py --selftest` is exit 0 on the rebased tree |
+| `.github/workflows/README.md` | task 122 added a *deliberately-not-in-CI* row for `paired_verdicts.py`'s corpus half; I added one for `census.py`/`cost_census.py` | kept both rows |
+
+The `Measured` table merged cleanly and already carries my `cost_census.py --selftest` row.
+
+**The rebase also caught the "6 of 7" error a third time**, in the sentence introducing the
+instrument table: *"a figure true of one group and not of the six others like it"*. Same
+mistake, third location, and I had already fixed it twice in this session. It now reads *"a
+figure from the single most favourable of the seven comparable groups"*, which states the
+relation rather than a count I keep getting wrong.
+
+> **When a figure has resisted three attempts to phrase it, stop phrasing it as a count.**
+> `5 of 7` and `the lowest of 7` are both correct and only one of them is easy to get wrong,
+> because the group at **96%** is below the line and looks above it in a rendered table.
+
+Gates re-run green after the rebase: `docstat --sweep/--findings/--withdrawn`, `linkcheck`,
+`tasks.py check`, `lint --gate --rule invalid-syntax`, `cost_census --selftest`,
+and main's own `judge/paired_verdicts.py --selftest`.
+
+## note 2026-08-23
+
+## note 2026-08-23 — review round 1: 8 comments, 6 acted on, 2 declined
+
+Head `453e8c3`. CI was green on `7bcf4ec` before this round (`gates` 51s, `controls` 10m59s).
+
+### The one that mattered: the mutant count had no producer
+
+`DECISIONS.md` said *"14 mutants and 3 variants"*. The reviewer read the selftest's own
+`# Direction` comments and said **11**. **Neither number was checkable** — the mutants lived
+in a scratchpad that dies with the session, and a mutant is a modification *of the tool*, so
+no count read out of `cost_census.py` could have been right either.
+
+> **This ticket is about a figure with no producer, and I published one inside the paragraph
+> that states the rule.** The rule does not fail by being absent. It fails because "the
+> mutant count" does not look like "a quantity", and the trigger in `AGENTS.md` is a
+> property — *how much of anything the project has* — that a reader has to recognise the
+> instance as belonging to.
+
+Shipped **`eval/tools/cost_census_mutants.py`**, matching `bot_mutants` / `tasks_mutants` /
+`disclosure_mutants`. The count is `len(MUTANTS)` = **19**; `--list` prints it; 1.5s, no
+corpus; wired into CI fast.
+
+**Running it found what the hand sweep had hidden.** 2 of the 19 were exiting non-zero via a
+**traceback** rather than reddening a named check — both reading `across_groups[...]` past a
+field the mutant had renamed. A by-hand pass scores those as *caught*: exit non-zero, mutant
+detected. They were telling me nothing about which mechanism had gone.
+
+> **Exit status is not diagnosis.** The suite now requires **at least one named failure** per
+> mutant, not merely a non-zero exit, and reports any mutant that merely crashed. That
+> distinction is invisible to a person running mutants by hand, because they read the
+> traceback and know what it means — the next session does not.
+
+### The other five acted on
+
+| # | defect | why it was invisible |
+|---|---|---|
+| 2 | `--min-trials-per-cell 1` / `--min-stacks 1` accepted | **the thin-cell fail-open, reachable by a flag instead of by data.** The guard I was proudest of could be turned off from the CLI |
+| 3 | no `stack`, or a non-numeric cost, raised `KeyError`/`TypeError` | `main()` catches only `CostCensusError`, so a parseable-but-unusable record gave a traceback where a named, fail-closed error belongs. `cost_usd: true` is covered — **a bool is an int in Python** and would have averaged as 1.0 |
+| 4 | exceedance counted off the **percentage** | a zero-floor group has no percentage, so a group whose range exceeds its floor *as completely as a group can* dropped out of the count. **Fail-open, understating how much the stacks disagree** |
+| 5 | `render()` formatted `None` with `:.0f` | the DATA path was right and the tool died on the way to the terminal. **The selftest never called `render()`** |
+| 6 | the pooled **mean stack rank** | rule 4, and the reviewer was right |
+
+**On #6.** I had published `mean_cost_rank` with a printed disclaimer. The disclaimer does not
+survive re-quotation, and 7 groups over 4 runs and 4 games under different budget caps are not
+a population anyone has shown homogeneous. Replaced with the rank **vector** and a count of
+firsts — same information, cannot be read as a statistic, and it is what `tasks/126` needs:
+
+    ts     [1, 1, 1, 1, 2, 3, 1]   cheapest in 5 of 7
+
+### The two declined, each with a measurement
+
+**Reference-style `[#63]` links in `eval/AGENTS.md` and `DECISIONS.md`.** `linkcheck.py`'s
+`LIVE_DOCS` is 4 files and `eval/AGENTS.md` is not one — the link would be checked by nothing,
+which `DECISIONS.md` calls worse than a bare number. `DECISIONS.md` **is** live and has **0**
+reference definitions against **37** bare `(#NN)`. Making exactly the suggested edit:
+`linkcheck.py` exit **1**, `shortcut reference #63 has no definition in this file`; reverting
+it, exit **0**.
+
+**Atomic writes in the selftest's `_write()`.** The guideline's resource is *a durable artifact
+with more than one writer*. `_write()` is called only from `selftest()`, single-process, into a
+`TemporaryDirectory` that is deleted on exit. Complying would be the rule audit's own failure
+mode — a trigger re-derived from the mechanism (`os.replace`) rather than the resource.
+
+### Found while wiring CI, and not mine
+
+`.github/workflows/README.md` said the `gates.yml` budget was **42s** and states in the line
+below that *the budget IS the sum of the rows*. Those 17 rows summed to **37.9s**. Nothing
+re-adds them, so it drifted — **the same defect as this ticket, one directory over.** With my
+2 rows the true sum is **39.5s**, which the table now says, with a note. There is still no
+producer for it; a `--budgets` flag on something would be a small task.
+
+Every published figure is unchanged: the full run over `eval/runs` is byte-identical before
+and after this round.

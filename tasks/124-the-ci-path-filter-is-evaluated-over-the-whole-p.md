@@ -1,10 +1,11 @@
 ---
 id: 124
 title: The CI path filter is evaluated over the whole pull request diff, so one touch of eval/ buys the slow tier for the life of the branch
-status: in_progress
+status: in_review
 priority: 2
 refs: .github/workflows/controls.yml, .github/workflows/gates.yml, .github/workflows/README.md, tasks/110
 done_when: either the workflow only runs the slow tier when the latest push touches its paths, with the before and after minute cost measured on a real branch, or the behaviour is judged correct and the reason is written in .github/workflows/README.md with what it would cost to change; and whichever way it goes, the actual minutes consumed to date are read from an endpoint or an artifact rather than estimated
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/10
 ---
 
 Measured and recorded by task 110's agent, not fixed: a pull_request path filter matches against the accumulated diff of the whole PR, not the latest push. So a branch that touches eval/ once pays the 8m40s controls tier on EVERY subsequent push, including pushes that only edit a markdown file. The repository is private, so Actions minutes are metered against an allowance nobody has been able to read - the billing endpoint needs a scope this token lacks - and the estimate is the same order as a Free-plan allowance rather than comfortably inside it. Today six pull requests each ran controls two or three times.
@@ -123,3 +124,85 @@ The lever that would actually matter is **not** this one: `controls` / `pull_req
 of 207 minutes. Dropping that trigger and keeping the nightly is a two-line change saving 62%
 rather than 7.7% — but it trades away per-PR feedback, so it is recorded as a lever in
 `.github/workflows/README.md` and left for the operator, not taken here.
+
+## note 2026-08-23
+
+## Review round 1, and a correction to the note above — 2026-08-23
+
+**PR:** https://github.com/teonimesic/game-stack-bakeoff/pull/10
+
+### Correction: the withdrawal-register entry was drafted and then REMOVED
+
+The note above says the ~2400 estimate "is withdrawn as `WR-ci-minutes-estimate`". **It is
+not.** I wrote the entry, `docstat.py --withdrawn` went exit 1, and I removed it. The reason
+is worth recording because it is structural, not a mistake:
+
+> **A withdrawal-register entry anchored to the agent's OWN ticket cannot go green on the
+> agent's branch.** `tasks.py note` writes to the **shared** queue by design, so the anchor
+> file in the worktree — and therefore in the branch, and therefore in CI — does not carry
+> the retired figure. `docstat.py --withdrawn` reports *"its `match` patterns co-occur in no
+> block of its anchor"* and gates the pull request red.
+
+`tasks/` is the only `ARCHIVE_PATHS` entry an agent may write to (`eval/findings/` and
+`eval/FINDINGS.md` are forbidden without the ticket saying so), so there is no other anchor
+available from a worktree.
+
+What I did instead: **replaced** the figure outright, per *"replace superseded content rather
+than annotating it"*. No live document restates it, so nothing needs an exemption.
+
+**The entry is ready to paste if the orchestrator disagrees** — and from the main checkout it
+goes green immediately, because this note satisfies the anchor. Fields: id
+`WR-ci-minutes-estimate`, kind `figure`, match `["(?<![0-9.])2,?400(?![0-9])", "minutes a
+month"]`, anchor `tasks/124-the-ci-path-filter-is-evaluated-over-the-whole-p.md`, replaced_by
+`python3 eval/tools/ci_minutes.py`.
+
+### The review found 3 real defects, and 1 of them was mine twice over
+
+6 comments. 4 acted on, 2 declined with replies in-thread.
+
+**The one that matters: `runs-on` was still substring-matched.** I had already found and
+fixed exactly this defect for the `paths:` filter — parse per event, do not grep the file as
+one blob — and left the runner check four lines above it as `if "ubuntu-latest" not in text`.
+That passes a workflow with one ubuntu job and one macOS job, and passes `runs-on:
+macos-latest  # was ubuntu-latest`. macOS bills at **10x**, so the 1x multiplier under the
+entire published total would have been wrong with the gate green.
+
+> **Fixing an instance of a defect does not fix the defect.** The repair and the survivor were
+> in the same function, and I wrote both in the same hour. When a check is repaired, sweep the
+> file for the same shape rather than the same string.
+
+Regressing the check to substring form makes all 3 new mutants SURVIVE — that is the control.
+
+**The other two, both real, both fail-open:**
+
+- The compare endpoint caps `files` at **300** and `--paginate` does not paginate that array.
+  A push past the cap whose only filtered path sits beyond it scores `no-match`: a wrong
+  answer, not a missing one. Now refuses at the boundary, and **the guard is at the
+  classification point** in `path_filter_audit`, not only in the API adapter — that is where
+  the unknown becomes a verdict. Pinned: 300 raises, 299 still classifies. **The published
+  figures are unaffected**: the largest of the 13 compares returned 59 files.
+- `--cache` wrote a fixed filename, so two invocations sharing a directory could blend or
+  truncate each other's evidence. Now one artifact per invocation, `os.replace`-published.
+
+### What I declined, and why
+
+- **"The producer computes the latest-push diff, not the accumulated PR diff, so 2 of 13 is
+  not established."** Declined. The inference has 2 halves and only 1 is a computation: the
+  run's **existence** with `event: pull_request` establishes that the accumulated diff matched
+  (GitHub dispatches only when the `paths:` filter matches, and that filter is defined over
+  the accumulated diff); the tool measures that the latest push matched nothing. Computing the
+  accumulated diff would re-derive half of what the run's existence already states.
+  **But the docstring was under-explaining** — a careful reader reached the opposite
+  conclusion from it — so both halves, and the one-push assumption, are now written out.
+- **"Add reference-style links for the findings."** Declined: the section cites no findings.
+  It cites Actions run ids, which live on `github.com` and which `linkcheck.py` deliberately
+  skips, and a producer command, which re-derives rather than points.
+
+### Do not re-derive these
+
+- **Read all the review comments before answering any.** I acted on the first 3 of 6 because
+  a `head -150` truncated the listing; the 3 I nearly missed were the 3 real defects.
+- `gh api repos/O/R/pulls/N/comments/<id>` is **404**. The single-comment route is
+  `repos/O/R/pulls/comments/<id>`; the reply route is `repos/O/R/pulls/N/comments/<id>/replies`.
+- CodeRabbit's body embeds its whole analysis chain. The finding is the line starting `**`;
+  everything above it is the shell it ran.
