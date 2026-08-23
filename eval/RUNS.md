@@ -479,24 +479,56 @@ defect into a genuine submission defect — the project's third. See the regime 
 design, for the same reason it was demoted (RUBRIC.md). It is not a failure and must not be
 reported as one.
 
-### The #62 completeness gate REFUSES this field for code aspects
+### ⚠️ THE STORED CODE PACKS CARRY 23 STALE FILES. Do not read a code ordering from this field
 
-Its first real use, and it fires:
+**This field's judge packs on disk are not what their manifests say** (FINDINGS #95). It was
+evaluated nine times, straddling the #69 cap removal and the #83 leak repair, and
+`anonymise.build_pack` did not clear its destination until 2026-08-23, so each pass was written
+on top of the last. Measured with `python3 judge/field.py packcheck --run runs/wg-g4c-2026-08-21`
+on 2026-08-23, unpiped, exit 1:
 
 ```
-complete: False   any_dropped: 8 of 8   max_dropped: 16   spread: 10
-unity__t0 16 | rust__t0 13 | unity__t1 12 | ts__t0 11 | godot__t1 8 | rust__t1 8 | godot__t0 7 | ts__t1 6
+g4_platformer: submissions=8 files_on_disk=222 stale=23 missing=0
+               by_stack={'godot': 8, 'rust': 2, 'ts': 3, 'unity': 10} clean=False
 ```
 
-Every submission lost files to `anonymise.py`'s `max_chars` budget, unequally, and **unity is
-again the worst affected** — the stack-correlated deficit of #62, reproduced on a new task.
+| stack | stale files | submissions |
+|---|---|---|
+| unity | 10 | `t0` 6, `t1` 4 |
+| godot | 8 | `t0` 4, `t1` 4 |
+| ts | 3 | `t0` 1, `t1` 2 |
+| rust | 2 | `t0` 1, `t1` 1 |
 
-Verified to fire selectively rather than trusted from the numbers: `build_pack(sees="code")`
-raises; `build_pack(sees="frames")` builds.
+Twelve are byte-identical to a live file; eleven carry content no manifest lists, and seven of
+the eight submissions still hold a `.codex` hooks config naming their own trial id — #83's answer
+key, in the pack on disk. Blinding is not broken: `field.build_pack` neutralises both the trial
+id and the work path as it copies, and a freshly built pack contains neither pattern. For
+`architecture`, which is `blind_language` and rewrites every file to `.src`, 15 of them collide
+with a live file and **7 collisions are won by the stale copy**, so live authored code is
+replaced: the `architecture` pack holds 215 files where `idiomatic`'s holds 230, unity losing 8,
+godot 6, ts 1, rust 0.
 
-> **`idiomatic` and `architecture` must not be graded on this field.** Any cross-stack ordering
-> from them would be confounded by how much of each submission the judge was shown. `fun`,
-> `fun_frames`, `ux` and `audio` do not read code and are not blocked.
+> **`idiomatic` and `architecture` orderings from this field are not readable.** How much of
+> itself each submission was shown is unequal and stack-correlated — #62's shape through a third
+> mechanism. `fun`, `fun_frames`, `ux` and `audio` read frames, telemetry and audio, never
+> `judge_pack/code`, and are unaffected.
+>
+> **Reliability measurements ARE readable, including for the two code aspects.** The pack is a
+> deterministic function of a static input, so every repeat of one round reads the identical
+> field — verified by rebuilding each of the six aspects' packs twice and comparing every file
+> (0 differing entries), and against the rounds actually stored, whose provenance gives one
+> distinct input signature across all five repeats.
+
+**The files are deliberately left in place** while the `wg-aspect-reliability` sweep (task 23) is
+reading this run: re-packing mid-sweep would change the field underneath its own repeats, which
+is the one thing that would invalidate the measurement it is making. Re-pack after the sweep, and
+note that re-packing against today's starter reclassifies template code as authored work (#77) —
+the exclusion set has to be computed, not guessed.
+
+The **#62 character-budget** gate no longer fires here. The packs were rebuilt on 2026-08-22
+after #69 removed the cap, and `pack_completeness` now reads `complete: True, any_dropped: 0 of
+8`. The earlier reading in this file — `any_dropped: 8 of 8, max_dropped: 16, spread: 10` — was
+correct when written and describes packs that no longer exist.
 
 ## `wg-g4b-2026-08-17` — A NULL. Killed by an external quota limit, 8/8 `api_error`
 

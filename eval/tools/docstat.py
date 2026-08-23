@@ -268,11 +268,16 @@ def cmd_sweep() -> int:
         for ln in src.split("\n"):
             if not re.search(r"""\[\s*["']label["']\s*\]""", ln):
                 continue
-            # Resolving a label THROUGH a mapping is the correct operation and is how
-            # submissions[].submission is produced in the first place. Only accumulation
-            # keyed by label is wrong. Skip the regex that defines this very check.
+            # THE PROPERTY THIS PROTECTS IS THE SCOPE OF THE KEY, not the word `label`.
+            # A label is the primary key WITHIN one pack - that is what it is for - and is
+            # not a key ACROSS rounds, because every round reshuffles the mapping. So two
+            # uses are correct and exempt: resolving a label through a mapping (which is
+            # how submissions[].submission is produced in the first place), and reading a
+            # single pack's own manifest, where the label is the only identifier there is.
+            # Only accumulation across rounds keyed by label is wrong. The regex that
+            # defines this very check is skipped too.
             stripped = ln.strip()
-            if (stripped.startswith("#") or "mapping" in ln
+            if (stripped.startswith("#") or "mapping" in ln or "manifest" in ln
                     or "re.search" in ln or "re.compile" in ln):
                 continue
             problems.append(
