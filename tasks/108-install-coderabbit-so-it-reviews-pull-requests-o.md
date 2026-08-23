@@ -276,3 +276,17 @@ the review had landed. Rule 12 — the address is an input to the check — agai
 
 Final head of the branch is `941e5f5`; the last commit is the fix for round 3 and has not itself
 been reviewed.
+
+## FINAL STATE
+
+`main` moved under the branch while PR #1 was being reviewed (tasks 102, 104 and 107 merged; task
+107 rewrote `README.md` from 643 lines to 281). The PR read `mergeable=CONFLICTING` in
+`DECISIONS.md` and `README.md`, both files this branch had edited, so `origin/main` was merged in
+and the conflicts resolved: both sides had appended a new section and new reversal-condition rows
+in the same place, and the README row was re-added in the tighter style the rewrite established.
+The population counts were re-read rather than carried over — **673** tracked files, **173**
+markdown, **117** python.
+
+Branch head **4f95b99**, pushed. PR #1 now reads **mergeable=MERGEABLE, CLEAN**, is **open and
+unmerged**, and is the orchestrator's to merge. `docstat.py --sweep` exit 0 and `tasks.py check`
+exit 0 against the merged tree.
