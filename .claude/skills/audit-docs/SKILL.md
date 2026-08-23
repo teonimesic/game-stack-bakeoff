@@ -122,6 +122,16 @@ printf '\nWe planted `--no-such-flag-x` next to judge/runner.py.\n' >> judge/JUD
 python3 tools/docstat.py --sweep ; echo "expect exit 0 - the planted line exempts itself"
 cp /tmp/jm.bak judge/JUDGING.md
 
+# positive: a BARE phantom flag on a FENCED command line -> exit 1. This is the half that
+# did not exist before task 89, and the one a reader copies and pastes. Its green partner
+# is the line below it: real flags of ours, written bare in the same position.
+printf '\n```\npython3 judge/runner.py --no-such-flag-bare1\n```\n' >> judge/JUDGING.md  # phantom
+python3 tools/docstat.py --sweep ; echo "expect exit 1"
+cp /tmp/jm.bak judge/JUDGING.md
+printf '\n```\npython3 judge/runner.py --run-dir runs/x --rounds 3\n```\n' >> judge/JUDGING.md
+python3 tools/docstat.py --sweep ; echo "expect exit 0 - both flags resolve"
+cp /tmp/jm.bak judge/JUDGING.md
+
 # positive: unquote a skill description so it contains ": " -> exit 1
 # positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
 
@@ -137,11 +147,30 @@ line is not read as a claim (see below), so a control planted in a code block go
 tests nothing. The `printf` above appends an unfenced sentence for exactly that reason.
 
 **The flag check does not share that rule, and knowing which you are controlling matters.**
-It has no fence exemption — a backticked flag inside ``` still fires — but it is
-backtick-gated, so a *bare* flag on a fenced command line is invisible to it whether fenced
-or not. Measured 2026-08-23 against a prediction that said otherwise; the gap is task 89. This is the same shape
-as the file-wide exemption in the table above: the control agrees with you because it never
-ran, not because the tool is sound.
+It has no fence exemption, and it is now **two halves with different triggers**:
+
+| half | trigger | corpus measurement |
+|---|---|---|
+| backticked | `` `--<flag>` `` anywhere, in a doc that names one of our harnesses | 0 hits |
+| bare (task 89) | a `--<flag>` on a **fenced** line, after the name of one of our argparse-owning scripts, before the first shell operator | 0 hits over 56 such lines and 31 in-scope tokens, of which 30 resolve to our argparse and 1 is known-foreign |
+
+Until 2026-08-23 only the first existed, so a **bare** flag on a fenced command line — the
+ordinary way a usage block is written, and the text a reader copies and pastes — was the
+one position nothing looked at. The plant that established it: a fenced
+`python3 judge/runner.py --no-such-flag-bare1` read exit 0 while the same fake flag
+backticked in the same fence read exit 1.
+
+**The trigger is the script name, not the `--` token, and that was decided on a count.**
+Scanning any bare flag on any fenced line finds **8 hits on the live corpus and 0 true
+positives** — `git merge --no-ff`, `cargo doc --open`, `Godot --path`, `vale --config`,
+`npx --yes`, the claude CLI's `--output-format`. Every one another tool's flag. Widening
+the same trigger to unfenced prose costs **2 false positives and 0 true**. This is the
+closed-class rule in `AGENTS.md`: a `--` token is an open class, a script this repo owns
+is not.
+
+The bare half is pinned in both directions by `--selftest`, and **the green pins are the
+half that matters** — a pipe handing the line to `grep --color`, a backticked script name
+with a bare flag, and the prose case that is out of scope on purpose.
 
 Both structure checks arrived on an **already-repaired** repository, which is the state in
 which a gate has never been seen to fail. Plant the defect each names before trusting it.
@@ -163,6 +192,14 @@ Do not "fix" these by adding them back. Each was measured and removed:
   — that pattern harvests `re.search` and `aspects.py` as criterion ids**, and a check whose
   corpus is junk goes quiet rather than wrong, which is the harder failure to see.
 - **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.
+- **A bare flag in unfenced PROSE, and a bare flag on a fenced line that names no script
+  of ours.** Both were built and measured on 2026-08-23 (task 89). Prose: 2 false
+  positives, 0 true — a sentence naming `field.py` and then the claude CLI's
+  `--output-format`, and one naming a script and then `git diff --stat`. Prose backticks
+  its flags, so the other half already has those. Fenced lines owning no script of ours:
+  8 false positives, 0 true, all another tool's flags. **A bare flag written BEFORE the
+  program it belongs to is also unseen**, which is correct for a command line and is
+  recorded because a mutant found it, not a reader.
 - **`code` and `look` as aspect ids.** Ordinary words that appear as inline code for other
   reasons.
 - **`findings/`.** An archive whose subject matter is naming superseded things.

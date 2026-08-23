@@ -130,8 +130,9 @@ def reference_docs() -> list[str]:
 
     Measured with this code, 2026-08-23, over the 7 SKILL.md files:
 
-      flag check    0 hits. Also 0 unresolved among the 17 flags the skills name WITHOUT
-                    backticks, which the extraction does not see either way.
+      flag check    0 hits, backticked half. The bare fenced half (task 89) reads 13
+                    in-scope tokens across these 9 files and resolves every one; before
+                    it existed the bare flags here were unseen either way.
       aspect check  2 hits before fence-masking, 0 after. Both were the same line of
                     `audit-docs/SKILL.md` - the shell command that plants the phantom
                     aspects `feel` and `tuning` as this sweep's own positive control.
@@ -280,6 +281,106 @@ def _argparse_flags() -> set[str]:
     return flags
 
 
+def _our_script_names() -> set[str]:
+    """Basenames of eval/ python files that own an argparse.
+
+    Derived from the code, never enumerated: this is the same glob `_argparse_flags()`
+    walks, asking which files parse a command line rather than which flags they declare.
+    An enumeration would go stale the first time a tool is added, in the direction that
+    makes the gate quiet.
+    """
+    out = set()
+    for p in glob.glob(os.path.join(REPO, "**", "*.py"), recursive=True):
+        if is_vendored(p):
+            continue
+        if "add_argument(" in open(p, errors="replace").read():
+            out.add(os.path.basename(p))
+    return out
+
+
+# A shell operator ends the command our script name introduced. `docstat.py --sweep |
+# grep --color=auto` names one of ours and then hands the rest of the line to a program
+# that is not ours; without this cut, `--color` reads as a phantom of ours.
+_SHELL_BREAK = re.compile(r"[|;&><]")
+
+
+def _blank_code_spans(line: str) -> str:
+    """Backticked spans blanked to spaces, PRESERVING OFFSETS.
+
+    Two reasons it is spaces and not deletion. The bare-flag scan below finds a script
+    name in the raw line and then reads the tail after it, so the two strings have to
+    agree on where things are. And deletion silently removes the script name itself when
+    a doc writes `judge/runner.py` in backticks and its flag bare -- a false negative
+    produced by the very substitution meant to prevent a double report.
+    """
+    return re.sub(r"`[^`]*`", lambda m: " " * len(m.group(0)), line)
+
+
+def _bare_fenced_flags(lines: list[str], scripts: set[str]) -> list[str]:
+    """Bare `--flags` on a fenced line that invokes one of OUR argparse scripts.
+
+    THE GAP THIS CLOSES (task 89): the backticked flag check is spelled `` `--flag` ``,
+    so it sees inline code and nothing else. A usage block is written bare -- it is text
+    a reader COPIES AND PASTES -- so the highest-damage position for a phantom flag was
+    the one position nothing looked at. Measured, not assumed: a fenced
+    `python3 judge/runner.py --no-such-flag-bare1` read sweep exit 0, while the same fake
+    flag backticked inside the same fence read exit 1.
+
+    WHY THE TRIGGER IS THE SCRIPT NAME AND NOT THE `--` TOKEN. Both candidates were run
+    over the live corpus of 167 reference docs on 2026-08-23:
+
+      any bare flag on any fenced line     8 hits, 0 true positives -- `git merge
+                                           --no-ff`, `cargo doc --open`, `Godot --path`,
+                                           `vale --config`, `npx --yes`, the claude CLI's
+                                           `--output-format`. Every one another tool's.
+      after one of OUR scripts, cut at     0 hits, over a population of 56 fenced lines
+      the first shell operator              naming our scripts and 31 in-scope tokens, of
+                                            which 30 resolve to our own argparse and 1 is
+                                            known-foreign.
+
+    The second number is the one that matters: **0 on a clean corpus is worthless unless
+    the check had something to discriminate**, and this one reads 31 real tokens and
+    finds them all sound. `--selftest` pins both directions.
+
+    NOT WIDENED TO UNFENCED PROSE. The same trigger over every line, fenced or not, sees
+    234 lines and 96 tokens and returns 2 unresolved, both false: a sentence naming
+    `field.py` and then the claude CLI's `--output-format`, and one naming a script and
+    then `git diff --stat`. 0 true positives, because prose backticks its flags and the
+    existing check already has those. A gate that fails on correct input gets disabled.
+
+    THE FALSE NEGATIVE IT ACCEPTS, stated because a mutant found it rather than a reader:
+    only the tail of the line AFTER the script name is read, so a flag written BEFORE the
+    program it belongs to is invisible. That is right for a command line -- flags follow
+    the program -- and it is why the first draft of the prose pin below tested nothing:
+    it placed the flag first, so it stayed green no matter what the trigger did.
+
+    NOT GATED ON THE DOCUMENT-WIDE `harness` TEST that the backticked check uses. This
+    trigger carries stronger evidence per line than that gate does per file, and the
+    comment on FOREIGN_FLAG_PREFIXES records what the document-wide form cost: it hid a
+    false positive for three weeks until an unrelated edit added a harness name to the
+    file. A condition that hides a defect until a distant edit reveals it is a latent
+    report, not a clean one.
+    """
+    mask = _fence_mask(lines)
+    out: list[str] = []
+    for i, ln in enumerate(lines):
+        if not mask[i] or re.search(_DELIBERATELY_FAKE, ln, re.I):
+            continue
+        start = None
+        for s in scripts:
+            m = re.search(re.escape(s), ln)
+            if m and (start is None or m.end() < start):
+                start = m.end()
+        if start is None:
+            continue
+        tail = _blank_code_spans(ln)[start:]
+        brk = _SHELL_BREAK.search(tail)
+        if brk:
+            tail = tail[:brk.start()]
+        out.extend(re.findall(r"(?<![\w`-])(--[a-z0-9-]{2,})", tail))
+    return out
+
+
 def _aspect_ids() -> set[str]:
     p = os.path.join(REPO, "judge", "aspects.py")
     if not os.path.exists(p):
@@ -330,6 +431,13 @@ FOREIGN_FLAG_PREFIXES = (
     "--quiet", "--strict", "--no-header", "--check-only", "--experimental-",
     "--write-movie", "--update-snapshots", "--keep-going", "--no-patch", "--no-verify",
     "--file", "--re", "--flags",
+    # the claude CLI's. `field.py` runs the judge with `--output-format stream-json`, and
+    # tasks/19 and research/01 both say so. It was invisible until task 89: both wrote it
+    # BARE, which the backticked half never saw, and research/01 writes it inside a fence.
+    # The first live document to backtick it turned the sweep red -- which is the
+    # FOREIGN_FLAG_PREFIXES note above repeating itself, a false positive kept latent by
+    # the shape of the mention rather than by anything being right.
+    "--output-format",
     # rsync's. `backup_evidence.py` documents that it runs WITHOUT --delete, which is
     # why the copy is a superset (#115); the flag it names is rsync's, not ours.
     "--delete",
@@ -2253,6 +2361,116 @@ def _size_mtime(path: str) -> tuple[int, int] | None:
     return (st.st_size, st.st_mtime_ns)
 
 
+def _bare_flag_pins(verbose: bool = False) -> list[str]:
+    """Pin the BARE fenced-flag check in both directions (task 89).
+
+    The clean corpus returns 0 hits from this trigger, and 0 is exactly the reading a
+    check that cannot fire produces. That ambiguity is the defect this project keeps
+    finding, so the pins run inside `--sweep` rather than in a command someone has to
+    remember.
+
+    THE GREEN HALF IS THE HALF THAT MATTERS (AGENTS.md rule 15). A mutant only asks
+    whether the check can fail. Four cases below are inputs an earlier draft of this
+    trigger got WRONG, each found by measurement rather than by reading -- three green,
+    one red:
+
+      GREEN  a pipe to `grep --color=auto`   the broad candidate reported `--color`. 8
+                                             such hits on the live corpus, 0 of them true.
+                                             The shell-operator cut is why.
+      GREEN  `cargo doc --open -p bevy`      a fenced line owning no script of ours.
+      GREEN  a bare flag in PROSE            out of scope on purpose: measured at 2 false
+                                             positives and 0 true over the same corpus. If
+                                             someone widens the trigger to all lines, this
+                                             pin goes red and says so.
+      RED    a backticked SCRIPT NAME with   deleting backticked spans removed the script
+             its flag written bare           name and the line went quiet -- a false
+                                             negative created by the substitution meant to
+                                             prevent a double report. Blanking to
+                                             equal-length spaces is the fix, and this case
+                                             is what notices it regressing.
+
+    A function of its inputs, never of the repository, so nothing here reads or writes a
+    file. Returns the pins that came out wrong; empty means the check demonstrably both
+    fires and stays quiet.
+    """
+    scripts = _our_script_names()
+    if not scripts:
+        return ["the bare-flag pins found no argparse-owning script in eval/, so the "
+                "bare fenced-flag check is matching nothing and its green means nothing"]
+    real = _argparse_flags()
+    if "--sweep" not in real:
+        return ["the bare-flag pins could not find --sweep among this repo's argparse "
+                "flags, so the green cases below prove nothing about resolution"]
+
+    def hits(body: str) -> list[str]:
+        """What the check reports for a document made of `body`, foreign/known filtered."""
+        out = []
+        for tok in _bare_fenced_flags(body.split("\n"), scripts):
+            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in real:
+                continue
+            out.append(tok)
+        return out
+
+    def fence(*cmd: str) -> str:
+        return "```\n" + "\n".join(cmd) + "\n```\n"
+
+    cases = [
+        # RED: a phantom flag in every shape a usage block is really written in.
+        ("the ticket's own case: a bare phantom after our script in a fence",
+         fence("python3 judge/runner.py --no-such-flag-bare1"), True),
+        ("bare phantom alongside a REAL flag of ours",
+         fence("python3 tools/docstat.py --sweep --no-such-flag-bare2"), True),
+        ("bare phantom written with an = value",
+         fence("python3 tools/docstat.py --no-such-flag-bare3=7"), True),
+        ("bare phantom on an indented fenced line",
+         fence("  $ python3 judge/runner.py --no-such-flag-bare4"), True),
+        ("bare phantom after a script named with its full path",
+         fence("python3 eval/tools/wholegame.py report --no-such-flag-bare5"), True),
+        ("script backticked, flag bare - the offset-preserving blank",
+         fence("`judge/runner.py` --no-such-flag-bare6"), True),
+
+        # GREEN: inputs the check must still pass. Four are measured mistakes.
+        ("GREEN: a real flag of ours, bare in a fence",
+         fence("python3 tools/docstat.py --sweep"), False),
+        ("GREEN: another tool's flag AFTER a pipe from our script",
+         fence("python3 tools/docstat.py --sweep | grep --color=auto"), False),
+        ("GREEN: another tool's flag after a ; from our script",
+         fence("python3 tools/docstat.py --sweep ; ls --no-such-thing"), False),
+        ("GREEN: a fenced line naming no script of ours",
+         fence("cargo doc --open -p bevy"), False),
+        ("GREEN: a known-foreign flag on one of our own command lines",
+         fence("python3 tools/wholegame.py run --max-turns 250"), False),
+        # The flag must come AFTER the script name here, or this pin is unmoved by the
+        # mutant that drops the fence requirement and it guards nothing. Written the
+        # other way round first, and the mutant sailed through it: the check reads the
+        # tail of a line after the script name, so a flag placed BEFORE the name is
+        # invisible whether the fence rule is present or not, and the pin passed for a
+        # reason that had nothing to do with what it claimed to test.
+        ("GREEN: the same phantom UNFENCED - prose is out of scope, measured",
+         "Run judge/runner.py --no-such-flag-prose to reproduce it.\n", False),
+        ("GREEN: a line declaring the name deliberately fake exempts itself",
+         fence("python3 judge/runner.py --no-such-flag-x   # phantom"), False),
+        ("GREEN: a backticked phantom in a fence - the other half's job, not this one's",
+         fence("python3 judge/runner.py `--no-such-flag-bare7`"), False),
+        ("GREEN: an empty document", "", False),
+    ]
+
+    failed = []
+    for name, body, expect_red in cases:
+        got = hits(body)
+        good = bool(got) == expect_red
+        if not good:
+            failed.append(
+                f"bare fenced-flag pin came out wrong: `{name}` produced {len(got)} "
+                f"hit(s) {got} where {'at least one' if expect_red else 'none'} was "
+                f"expected. The check is no longer proven to "
+                f"{'fire' if expect_red else 'stay quiet'}, so its green is not evidence.")
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: {len(got)} hit(s) {got}, "
+                  f"expected {'>=1' if expect_red else '0'}")
+    return failed
+
+
 def cmd_selftest() -> int:
     """`--selftest`: the pins with their cases printed, plus proof the archive was untouched.
 
@@ -2269,6 +2487,8 @@ def cmd_selftest() -> int:
     failed += _aspect_census_pins(_aspect_ids(), verbose=True)
     print()
     failed += _findings_census_pins(verbose=True)
+    print()
+    failed += _bare_flag_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -2296,6 +2516,8 @@ def cmd_sweep() -> int:
     docs = project_docs()
     refs = reference_docs()  # docs + skills; see why they are two corpora, not one
     flags, aspects = _argparse_flags(), _aspect_ids()
+    scripts = _our_script_names()
+    bare_seen = 0
     problems: list[str] = []
     corpus: dict[str, str] = {}
 
@@ -2319,14 +2541,14 @@ def cmd_sweep() -> int:
         # own arguments; that does not transfer here, because a fenced command line is
         # exactly where someone COPIES a flag.
         #
-        # BUT THE REACH IS SMALLER THAN THAT SOUNDS, measured 2026-08-23 rather than
-        # assumed, and the prediction was wrong before the controls corrected it: the
-        # pattern requires BACKTICKS, so what the check really sees is inline code. A
-        # backticked flag inside ``` is caught (no fence exemption); a BARE one on a fenced
-        # command line -- the ordinary way a usage block is written, and the highest-damage
-        # place a phantom flag can sit -- is invisible. Widening to bare tokens is not a
-        # one-line change: `--` runs of prose and other tools' flags would flood it, so it
-        # needs its own false-positive measurement. Filed as a task, not done here.
+        # BUT THIS HALF SEES ONLY INLINE CODE, measured 2026-08-23 rather than assumed,
+        # and the prediction was wrong before the controls corrected it: the pattern
+        # requires BACKTICKS. A backticked flag inside ``` is caught (no fence exemption);
+        # a BARE one on a fenced command line was invisible -- the ordinary way a usage
+        # block is written, and the highest-damage place a phantom flag can sit, because
+        # it is the text a reader copies and pastes. That was task 89, and it is now
+        # covered by `_bare_fenced_flags()` below, which carries its own trigger and its
+        # own false-positive measurement; read its docstring before changing either half.
         #
         # Dedup is per DOCUMENT and the output sorted, preserving the old `set(...)` count
         # of one problem per token however often it occurs -- and fixing that set's
@@ -2341,6 +2563,16 @@ def cmd_sweep() -> int:
                     if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in flags:
                         continue
                     bad_flags.add(tok)
+        # The bare half. Deliberately OUTSIDE the `harness` gate: its trigger is the
+        # script name on the line itself, which is stronger evidence than the file-wide
+        # test, and the file-wide form is the one that hid a false positive for three
+        # weeks (see FOREIGN_FLAG_PREFIXES). It shares `bad_flags`, so a token written
+        # both ways in one document is still one problem.
+        for tok in _bare_fenced_flags(lines, scripts):
+            bare_seen += 1  # the POPULATION, reported below: 0 hits out of 0 looked at
+            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in flags:
+                continue           # is a check that cannot fire, and reads identically
+            bad_flags.add(tok)
         for tok in sorted(bad_flags):
             problems.append(f"{rel}: flag {tok} matches no argparse in eval/")
 
@@ -2543,6 +2775,10 @@ def cmd_sweep() -> int:
     # true of 113 findings and of 40. `--findings` is the producer; these pins are what
     # stop it being a number that agrees with itself. Same reasoning, same place.
     problems += _findings_census_pins()
+    # The bare fenced-flag trigger returns 0 on the clean corpus, and 0 is what a check
+    # that cannot fire returns too. These pins are what separates the two, and they cost
+    # no I/O: every case is a string built in memory.
+    problems += _bare_flag_pins()
 
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
@@ -2577,7 +2813,9 @@ def cmd_sweep() -> int:
     _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
           f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
-          f"flags, {len(aspects)} aspects known and every exhaustive census of them checked "
+          f"flags, of which {bare_seen} bare occurrence(s) on a fenced command line of one "
+          f"of our {len(scripts)} argparse scripts (pinned red and green); "
+          f"{len(aspects)} aspects known and every exhaustive census of them checked "
           f"against that set (pinned red and green); structure: {len(skill_files())} SKILL.md "
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
