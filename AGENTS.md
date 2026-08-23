@@ -38,7 +38,7 @@ it describes and travels with it.
 
 | Thing | Where |
 |---|---|
-| Skills | `.claude/skills/<name>/SKILL.md` |
+| Skills | `.claude/skills/<name>/SKILL.md` — **the only path. A skill anywhere else fails `docstat.py --sweep`** |
 | Memories | `.claude/memory/` |
 | Permissions and hooks | `.claude/settings.json` |
 | Machine-local settings | `.claude/settings.local.json` |
@@ -54,9 +54,16 @@ skill that lives in a home directory silently applies to unrelated work.
 
 ## Skills — procedures, invoked when you are doing the thing
 
-These live in `.claude/skills/<name>/SKILL.md`. Invoke the one that covers what you are
-about to do rather than reconstructing the procedure — each encodes failures that cost
-trials.
+These live in `.claude/skills/<name>/SKILL.md`, and **that is the sole authoritative path**.
+Invoke the one that covers what you are about to do rather than reconstructing the procedure —
+each encodes failures that cost trials.
+
+There is no second copy for another agent CLI, and adding one fails the sweep. `.agents/skills/`
+held exactly that until 2026-08-23 — a Codex-flavoured duplicate that was never once in sync,
+had no reader, and shipped an `add-game` missing the guard that exists because a shared preamble
+contaminated a single-variable experiment. The reasoning, and what would re-open it, is in
+`DECISIONS.md`; the measurement is #99. If you want cross-tool support, add a **pointer** to
+`.claude/skills/`, never a copy of it.
 
 | Skill | Use when | Authoritative file |
 |---|---|---|
