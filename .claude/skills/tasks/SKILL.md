@@ -2,7 +2,7 @@
 name: tasks
 description: Read, claim, complete and create items in this project's open-work queue at tasks/. Use at the start of a session to find what to do, when finishing a piece of work, and whenever the heartbeat fires.
 when_to_use: Starting a session and needing the next piece of work; finishing something and recording what established it; discovering work that must outlive this session; the hourly heartbeat asking whether the queue is accurate.
-argument-hint: "[next|list|show ID|start ID|done ID \"evidence\"|add \"title\" --done-when \"...\"]"
+argument-hint: "[next|list|show ID|start ID|note ID -|done ID \"evidence\"|add \"title\" --done-when \"...\"]"
 ---
 
 # The open-work queue
@@ -107,7 +107,7 @@ So the orchestrator's job before dispatch is **updating the ticket**:
 | A dependency has appeared since it was filed | Which file, and what it forbids |
 | A peer's result bears on it | The measurement, not a pointer to a conversation |
 | The ticket's `done_when` is now unreachable or wrong | Rewrite it — and say why it moved |
-| An agent hands back knowledge the next one would re-derive | Append it under a dated heading |
+| An agent hands back knowledge the next one would re-derive | It should have appended it itself with `tasks.py note <id> -`; if it did not, do it |
 
 **A ticket that needed a message to be workable was not ready to dispatch.** If you find
 yourself typing the constraint, stop and write it in the file instead — then dispatch.
@@ -130,6 +130,37 @@ python3 eval/tools/tasks.py done 07 "lint now identical warm and cold, pinned bo
 `done` requires evidence, and the evidence must be **what established it** — a measurement, a
 pinned control, a file — never "completed". A task closed without evidence is indistinguishable
 from one abandoned.
+
+### `note` — writing what you learned back into the BODY
+
+```bash
+python3 eval/tools/tasks.py note 07 - <<'NOTE'
+The recipe in the starter is wrong: `just build` passes `--offline`.
+Measured on 4 of 12 trials. The next agent must not re-derive this.
+NOTE
+```
+
+It appends a dated `## note <date>` section to the ticket in the **main checkout's** queue and
+rewrites **no other byte** of the file — the append goes out through `open(p, "a")`, so "the
+rest of the ticket is unchanged" is true by construction rather than by a round-trip that
+happened to hold. `--heading` replaces the default heading; an empty note is refused rather than
+written as a bare heading.
+
+**`-` is not a convenience.** A backtick in an argv string is command substitution before
+`tasks.py` runs (#80) and a newline cannot survive an argument at all. A **quoted** heredoc
+(`<<'NOTE'`, never `<<NOTE`) carries both in unexpanded.
+
+Why it exists: `.claude/skills/work/SKILL.md` tells every dispatched agent to write back what the
+next one would otherwise re-derive, and until 2026-08-23 there was no way to obey it from a
+worktree — `Edit`/`Write` aimed at the shared checkout are refused by isolation, and committing
+an edit to your own copy of `tasks/NNN-*.md` offers the merge a conflict in a file `start`/`done`
+are already rewriting. Tasks 105 and 106 both emptied their findings into `established_by`
+instead, which is one line of YAML prose that cannot hold a backtick and is not where the next
+agent looks (task 113).
+
+**Aim it by id, never by filename.** That is the whole difference between this and the `>>` you
+would otherwise reach for: a shell append to a filename guessed from a queue listing title is
+AGENTS.md rule 12's worked example, and it created a second, malformed task.
 
 ## Creating one
 

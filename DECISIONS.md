@@ -1323,6 +1323,37 @@ brief hash demonstrably read the stale sentence and cannot be re-run for it; `ev
 records that, and the other 26 code rounds stored no hash and are unassessable.
 
 ---
+## A ticket's body is appended to by `tasks.py note`, and a control never imports its expectation — decided 2026-08-23
+
+`.claude/skills/work/SKILL.md` has told every dispatched agent to *write back what the next one
+would otherwise re-derive* since the skill existed, and until now no agent could. Measured from a
+real agent worktree (task 113): `Write`/`Edit` aimed at the shared checkout is **refused** by
+worktree isolation; the worktree's own copy of `tasks/NNN-*.md` is a tracked file whose
+main-checkout twin `start`/`done` rewrite, so a committed edit offers the merge a conflict in a
+file the merge is already rewriting; and `tasks.py` had no subcommand that touched a body. Tasks
+105 and 106 each emptied a session's findings into `established_by` — one unbroken line of YAML
+prose that cannot carry a backtick (#80) and is not where the next agent looks.
+
+**The decision is the subcommand, not a relaxation of the isolation.** The queue resolving to the
+main checkout is #94's decision and stays; `note` writes there by the mechanism `add`, `start` and
+`done` already use, and resolves the file **by id** rather than by a filename anyone typed —
+which is the difference between it and the `>>` an agent would otherwise reach for, nothing
+having ever blocked one. It appends through `open(p, "a")` and rewrites nothing, so *the rest of
+the ticket is unchanged* is true by construction rather than by a round-trip that happened to
+hold, and `-` reads the section from stdin because a backtick in argv is command substitution
+before the program runs.
+
+**The general rule this bought, and it is a refinement of AGENTS.md rule 12 rather than an
+instance of it.** The first version of the control built its expected suffix by calling
+`tasks.py`'s own `_note_block` — one value at one address, which is what rule 12 asks for, and
+here it made the rows structurally incapable of failing: the mutant that deletes the newline
+separating a section from the body came back **SURVIVED with 0 red rows of 48**, because the
+mutant had edited the check. Rule 12 is about one **fact** at one address. **An expectation is
+not the fact; it is the second, independent statement of it**, and a control that imports its
+expectation from its subject is not a control. Where the two must be kept in step, do it with a
+row that compares them — never by making them the same object.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).

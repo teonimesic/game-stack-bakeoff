@@ -550,6 +550,17 @@ Two refinements that pattern does not cover:
     The tell is uniformity. **A census that returns one value across a population it exists to
     discriminate is reporting the instrument, not the population.**
 
+    **And the direction this rule fails in when it is followed: rule 12 is about one FACT at
+    one address. An EXPECTATION is not the fact — it is the second, independent statement of
+    it, and a control that imports its expectation from its subject is not a control.** A
+    control for `tasks.py note` built its expected bytes by calling `tasks.py`'s own
+    `_note_block`, which is exactly what the paragraph above asks for; the mutant that deletes
+    the newline separating an appended section from the body then came back **SURVIVED, 0 red
+    rows of 48**, because the mutant had edited the check (task 113). Where the two must be
+    kept in step, do it with a **row that compares them** — never by making them the same
+    object. A shared address is right for a path, a root and a commit id, and wrong for the
+    answer a check is asking for.
+
 13. **Guard the RESOURCE, and verify on the path that actually holds it.** Tasks #14/#15
     were marked complete having guarded the capture and test recipes — already offscreen,
     already silent — while `just run` opened a window with audio on the operator's desk. The

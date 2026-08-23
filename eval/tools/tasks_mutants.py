@@ -116,6 +116,42 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # a negative control that cannot fail. Dropping the escape class accuses every done_when
     # that carries a universal, which is what task 38 was filed about -- so the row that must
     # notice is the one whose wording has both a universal and an escape (task 32's).
+    # `note`'s CENTRAL mechanism: it appends and never rewrites. Under `"w"` the section is
+    # still there and still says the right thing -- the ticket it was appended to is gone.
+    # That is the shape a values-only assertion cannot see, which is why the row it kills is
+    # the BYTE one and not the frontmatter-values row beside it.
+    "note_truncates": (
+        '        with open(p, "a", encoding="utf-8") as fh:',
+        '        with open(p, "w", encoding="utf-8") as fh:  # MUTANT: rewrite, not append',
+        ("byte-identical plus exactly the section", "second `note` stacks",
+         "DOES end in a newline")),
+    # The separator. Without the leading newline the heading runs onto whatever the body
+    # ended with, so on a body with no trailing newline the section is not a section at all.
+    # Both round-trip rows must notice, which is what makes them two rows and not one.
+    "note_no_separator": (
+        '    return f"\\n## {head}\\n\\n{text.strip()}\\n"',
+        '    return f"## {head}\\n\\n{text.strip()}\\n"  # MUTANT: no leading separator',
+        ("byte-identical plus exactly the section", "default heading is",
+         "DOES end in a newline")),
+    # The refusal. An empty note writes a dated heading with nothing under it -- a record
+    # that looks like one and is not, which is exactly what `check`'s empty-body branch
+    # exists to catch one level up.
+    "note_empty_allowed": (
+        "    if not text.strip():",
+        "    if False:  # MUTANT: an empty note is written as a bare heading",
+        ("refuses an empty note",)),
+    # THE ADDRESS (AGENTS.md rule 12). `note` resolves the file through `_load`, which
+    # resolves the queue to the MAIN checkout; pointed at the worktree's own root instead it
+    # writes nowhere, and the ticket an agent thought it had annotated is untouched. This is
+    # the mutant for the property that only exists where `TASKS` and `ROOT` disagree.
+    "note_writes_worktree": (
+        "        block = _note_block(text, heading)\n"
+        '        with open(p, "a", encoding="utf-8") as fh:',
+        "        block = _note_block(text, heading)\n"
+        '        p = ROOT / "tasks" / p.name  # MUTANT: the worktree copy, not the queue\n'
+        '        with open(p, "a", encoding="utf-8") as fh:',
+        ("`note` from a worktree exits 0", "wrote into the MAIN checkout's queue",
+         "byte-identical plus exactly the section")),
     "escape_ignored": (
         "    if not risky or _words(prose, HYPOTHETICAL):",
         "    if not risky:  # MUTANT: an escape branch no longer silences anything",
@@ -146,9 +182,20 @@ SELFTEST_MUTANT = (
     "MISFILED_MARGIN = 0.25  # INERT: a comment changes no value. margin_up and "
     "margin_down mutate this same line and are both caught.")
 
-#: `  FAIL <row name>: <detail>` in tasks_control.py's summary block. Anchored at the line
-#: start so a detail string containing the word FAIL cannot manufacture a row.
-_FAIL_RE = re.compile(r"^  FAIL (.+?): ", re.M)
+#: One row of `tasks_control.py`'s TABLE: `<name><pad>  <n>  <ok|FAIL>   <detail>`. Anchored
+#: at the line start so a detail string containing the word FAIL cannot manufacture a row.
+#:
+#: THE FAILED ROWS ARE READ FROM THIS TABLE, NOT FROM THE SUMMARY BLOCK, and that was
+#: measured rather than preferred. The summary prints `  FAIL <name>: <detail>`, so the
+#: regex that parsed it -- `^  FAIL (.+?): ` -- stopped at the row name's FIRST `": "`. Every
+#: round-trip row in `tasks_control.py` is named `round trip: ...`, so all of them arrived
+#: here as the four characters `round`, and no `kills` entry could ever match the part that
+#: distinguishes one from another. Two mutants introduced with `note` (task 113) turned those
+#: rows red and were both reported SURVIVED -- the runner's own rule 12: a correct method
+#: aimed at a lossy address, returning the same wrong answer for every subject.
+#:
+#: The table is the unambiguous address: the name is left-justified to a fixed width and the
+#: separator is two or more spaces, which a row name cannot contain.
 _ROW_RE = re.compile(r"^(\S.*?)\s{2,}\d+\s+(ok  |FAIL)\s", re.M)
 
 
@@ -183,7 +230,10 @@ def _grade(copy: Path) -> tuple[int, str, list[str], list[str]]:
     p = subprocess.run([sys.executable, str(CONTROL), "--tasks-py", str(copy)],
                        capture_output=True, text=True)
     out = (p.stdout or "") + (p.stderr or "")
-    return p.returncode, out, _FAIL_RE.findall(out), [m[0] for m in _ROW_RE.findall(out)]
+    parsed = _ROW_RE.findall(out)
+    return (p.returncode, out,
+            [name for name, status in parsed if status == "FAIL"],
+            [name for name, _ in parsed])
 
 
 def _report(out: str, limit: int = 4) -> None:
