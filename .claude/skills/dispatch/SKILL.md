@@ -97,6 +97,7 @@ uncommitted `tasks/` blocks the merge.
 | Two findings with the same number | The already-merged one keeps it; renumber the incoming one **in the body, the index row, and every citation** |
 | Appended sections in `RUNS.md`, `IMPROVEMENTS.md`, `CLEANUP-LOG.md` | Keep both |
 | The same fix made twice | Take the better one, and say in the commit why |
+| **Two branches added code to one file** | Keeping both sides is right and does not mean the result parses. A nested marker whose outer pair was already consumed, and two halves of one statement each ending differently, both surface as `SyntaxError`, not as a conflict. Parse the file before you trust the merge |
 | **Both sides right in the same region** | Neither `--ours` nor `--theirs`. Merge by hand and say what each contributed — on 2026-08-23 `DECISIONS.md` held a withdrawal-register sentence on one side and a corrected cost figure on the other, and taking either wholesale would have discarded a real result |
 
 Then, unpiped: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`. Renumbering
