@@ -193,7 +193,7 @@ including a positive control, a variant and three mutants. Over 68 stored trials
   g4 prompt states and no criterion checks, were driven against all 8 `wg-g4c` submissions:
   attack cannot be re-triggered mid-swing, enemies patrol, the `land` event fires, and replay
   determinism under a played 900-tick tape instead of the idle 300. **8/8 pass on every one**, and
-  the reference passes them too, so they can go green and nothing goes red (#125).
+  the reference passes them too, so they can go green and nothing goes red (#126).
 
 > A binary criterion asks whether a mechanic exists. When every submission implements every
 > mechanic, a tier made of them returns one number — and it is right to.
@@ -255,7 +255,7 @@ The platformer stresses machinery the other three games do not: sprite sheets an
 machines, attack hitboxes with active frames, knockback and invulnerability windows, platform
 collision. Pong, Tetris and arena all tied; a game exercising different systems was the most
 plausible remaining route to discrimination. **It has now been run once and it tied too** — all 8
-`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#125). The
+`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#126). The
 hypothesis was worth testing and is answered: different systems do not separate these stacks.
 
 Repeated judging resolves per **pair** with a Wilson interval, not per score, and stops sampling a
@@ -445,7 +445,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92) — and
   became a gate on 2026-08-23. **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials**,
   and it now carries the whole weight. That half is not fixed and will not be fixed inside the
-  rubric: both in-rubric repairs were measured and neither works (#125), so a saturated group is
+  rubric: both in-rubric repairs were measured and neither works (#126), so a saturated group is
   reported as a completion certificate (see "A saturated tier 2 is reported as a completion
   certificate" above). **What stays open is the task**, priced by task 74 — not the criteria and
   not the weights.

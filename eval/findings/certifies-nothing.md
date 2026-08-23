@@ -3235,7 +3235,7 @@ on 24 of 56 matrix trials. With tier 1 out of the sum, `overall` is a **constant
 disguised by a tier-1 nit or two per field, which is the worse of the two states to be in — but it
 is now the only scored tier, and no weight can help it.
 
-## 125. Tier 2 saturates because the task is finished, not because the criteria are too few — four harder criteria built from the task's own unchecked requirements passed 8 of 8
+## 126. Tier 2 saturates because the task is finished, not because the criteria are too few — four harder criteria built from the task's own unchecked requirements passed 8 of 8
 
 #123 left one exposure and named it: with tier 1 out of the sum, `overall = tier2`, and tier 2
 is at its ceiling on 24 of 56 matrix trials. The obvious readings are *the rubric is too easy* and
