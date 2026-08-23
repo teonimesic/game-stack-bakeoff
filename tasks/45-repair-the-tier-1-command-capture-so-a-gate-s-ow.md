@@ -4,7 +4,7 @@ id: 45
 title: Repair the tier-1 command capture so a gate's own completion line survives truncation
 status: done
 priority: 3
-refs: eval/FINDINGS.md #99, eval/judge/static.py, eval/IMPROVEMENTS.md axis 2 candidate 1
+refs: eval/FINDINGS.md #100, eval/judge/static.py, eval/IMPROVEMENTS.md axis 2 candidate 1
 done_when: a selftest pins both directions - a command that floods stderr keeps its one stdout line, and the reverse - and a fresh collect over one submission per stack records which of the four stored tails hold the verify recipe's completion line; if any arm still loses it, report that arm and the reason rather than closing
 ---
 
@@ -44,7 +44,8 @@ the cap; the eighteenth holds the token at offset 3986. `cargo-nextest` writes i
 its `Summary` line to stderr, which is why the Rust arm loses stdout in 15 of 16 cases and the
 other arms almost never do.
 
-This is `eval/FINDINGS.md` #99. No score is wrong — the exit code is read from the process, not
+This is `eval/FINDINGS.md` #100 (written as #99 and renumbered at merge because task 27 took the
+same number; #99 now names a different finding). No score is wrong — the exit code is read from the process, not
 from the text — so nothing published needs marking.
 
 ## Why it matters
