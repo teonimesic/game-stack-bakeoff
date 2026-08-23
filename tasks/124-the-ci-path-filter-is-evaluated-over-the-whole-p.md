@@ -1,10 +1,125 @@
 ---
 id: 124
 title: The CI path filter is evaluated over the whole pull request diff, so one touch of eval/ buys the slow tier for the life of the branch
-status: todo
+status: in_progress
 priority: 2
 refs: .github/workflows/controls.yml, .github/workflows/gates.yml, .github/workflows/README.md, tasks/110
 done_when: either the workflow only runs the slow tier when the latest push touches its paths, with the before and after minute cost measured on a real branch, or the behaviour is judged correct and the reason is written in .github/workflows/README.md with what it would cost to change; and whichever way it goes, the actual minutes consumed to date are read from an endpoint or an artifact rather than estimated
 ---
 
 Measured and recorded by task 110's agent, not fixed: a pull_request path filter matches against the accumulated diff of the whole PR, not the latest push. So a branch that touches eval/ once pays the 8m40s controls tier on EVERY subsequent push, including pushes that only edit a markdown file. The repository is private, so Actions minutes are metered against an allowance nobody has been able to read - the billing endpoint needs a scope this token lacks - and the estimate is the same order as a Free-plan allowance rather than comfortably inside it. Today six pull requests each ran controls two or three times.
+
+## note 2026-08-23
+
+## Measured, and the change was rejected on the measurement — 2026-08-23
+
+**Both halves of `done_when` are answered below. The path filter is judged CORRECT; the
+minutes are read from the Actions API by a new producer, `eval/tools/ci_minutes.py`.**
+
+### The producer, and what it refuses
+
+`python3 eval/tools/ci_minutes.py` reads the Actions API. Three traps it exists to walk past,
+each measured rather than assumed:
+
+- **`billable.UBUNTU.total_ms` — the field whose NAME says it is the answer — read `0` for
+  58 of 58 runs.** A census returning one value across the population it exists to
+  discriminate is reporting the instrument (AGENTS.md rule 12's corollary). The tool refuses
+  it, and still prints what it saw, because that is the audit trail.
+- **`run_duration_ms` is the RUN, including the queue wait.** On run `32657248359` it is
+  `607000` while the single job ran `18:11:50 -> 18:21:38`, which is 588s. Summing it
+  over-reports.
+- **The billing unit is the JOB**, rounded UP to the whole minute. Truncation is the
+  plausible wrong implementation and the tool was deliberately written with it first: the
+  selftest went red on 8 assertions. Note that `60s -> 1` passes under BOTH, so a fixture set
+  of whole minutes only would have let that mutant survive — the 22s and 61s rows are what
+  kill it.
+
+In-flight jobs are a **third value**: not zero minutes, not an error, kept out of the total
+and reported separately.
+
+### The measured figure
+
+    python3 eval/tools/ci_minutes.py
+
+**207 billable minutes**, 57 completed jobs, window `2026-08-23T15:29:33Z .. 18:33:59Z`.
+Raw wall clock 192.8 min; per-job rounding costs the other 14.2.
+
+| workflow x event | minutes | jobs |
+|---|---|---|
+| `controls` / `pull_request` | **129** | 17 |
+| `controls` / `push` | 46 | 8 |
+| `gates` / `pull_request` | 18 | 18 |
+| `gates` / `push` | 14 | 14 |
+
+`cancelled` accounts for 43 min over 10 jobs — that is `cancel-in-progress` working, not
+waste.
+
+**The retired estimate, for the register's anchor.** The section previously stated
+**~2400 minutes a month**, derived from "~30 fast runs/day" and "~5 slow runs/day". Nothing
+produced either rate; task 110's own ticket body says ~2200 min/month, so the two published
+copies of this estimate already disagreed with each other. It is withdrawn as
+`WR-ci-minutes-estimate`. **No monthly rate is derivable from a three-hour window**, and the
+window that exists is the day CI was built, including its own bring-up.
+
+### Why the path filter was NOT changed
+
+    python3 eval/tools/ci_minutes.py --path-filter
+
+Of 18 `controls` runs on pull requests, 5 were first-on-branch (no predecessor push, so they
+match by construction) and **2 of the remaining 13** were bought by the accumulated whole-PR
+diff — both on `task-110-ci-and-hooks`, both from a push touching only
+`.github/workflows/README.md`. `gates`, which has no path filter, ran exactly as many times
+as `controls` on all five branches, confirming the mechanism: once a PR's diff matches, the
+slow tier runs on every subsequent push.
+
+So the ticket's mechanism is real. Two measurements rejected the change anyway:
+
+**1. It would be fail-open, on 2 of 2 measured opportunities.** A `pull_request` run is
+evaluated against the MERGE of head into base, so the question is not "did this push touch
+`eval/`" but "has anything the slow tier reads changed since it last ran" — and the base
+moves underneath. In both windows a latest-push filter would have skipped:
+
+| skipped run | `main` commits in window | touching a filtered path |
+|---|---|---|
+| `32649830894` | 4 | **3** — incl. `.agents/skills/work/SKILL.md` |
+| `32652152099` | 7 | **3** — incl. `eval/tools/tasks.py`, `eval/tools/docstat.py` |
+
+`tasks_mutants.py` mutates a copy of `eval/tools/tasks.py`; `skill_layout_control.py` reads
+exactly those skill paths. Neither is a near-miss. Across the day **264 of 429 `main` commits
+touch a filtered path**, so the exposure is continuous.
+
+**2. The cheaper implementation costs more than it saves.** GitHub bills a minimum of one
+minute per job:
+
+| design | saves | costs | net |
+|---|---|---|---|
+| separate gating job | 16 min (the 2 runs) | +1 min x 25 `controls` jobs = +25 | **+9 min, worse than nothing** |
+| one job, `if:` on the 5 gate steps | ~14 min | a **green `controls` run that executed no gate** | 6.8%, for a run that measures nothing |
+
+Setup floor measured on run `32657248359`: 36s (checkout, setup-python, pip, `just`, ffmpeg)
+against 549s of actual gates. A skipped run cannot cost less than a minute.
+
+### A methodological trap the next agent should not re-enter
+
+The first version of the `main`-moved measurement compared git's `%cI` (local, `-03:00`)
+against the API's UTC `created_at` **as strings**, and reported **0 main commits in both
+windows** — which supports the OPPOSITE conclusion. That is AGENTS.md rule 12 against its own
+author: a correct method aimed at an address (a timezone) nobody verified, returning the
+reassuring answer. Converting properly gives 4 and 7 commits, 3 filtered in each.
+
+### For the orchestrator: one finding needs a number
+
+**`billable.UBUNTU.total_ms` is a field named for the exact quantity, and it read 0 for 58 of
+58 runs.** Anything that had summed it would have reported "0 minutes consumed" — a
+confident, in-range, completely wrong number, from the endpoint's own answer to the question.
+This is the project's central pattern (a mechanism that runs, reports success and measures
+nothing) appearing in a third-party API rather than in our own code, and it is why
+`ci_minutes.py` derives minutes from `started_at`/`completed_at` and keeps reading the
+`billable` field only as an audit trail. No finding number was allocated, per the work skill.
+
+### Not done, deliberately
+
+The lever that would actually matter is **not** this one: `controls` / `pull_request` is 129
+of 207 minutes. Dropping that trigger and keeping the nightly is a two-line change saving 62%
+rather than 7.7% — but it trades away per-PR feedback, so it is recorded as a lever in
+`.github/workflows/README.md` and left for the operator, not taken here.

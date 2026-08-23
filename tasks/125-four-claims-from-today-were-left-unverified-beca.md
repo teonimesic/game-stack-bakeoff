@@ -1,7 +1,7 @@
 ---
 id: 125
 title: Four claims from today were left unverified because the case that would test them did not arise
-status: todo
+status: in_progress
 priority: 3
 refs: 'eval/findings/certifies-nothing.md #152 #153 #156, eval/tools/coderabbit_config.py, eval/tools/docstat.py duplicate-fragment and orphaned-tail, .coderabbit.yaml'
 done_when: each of the four is either verified with the measurement stated, or closed with why it still cannot be tested and what would change that; the SkillSpector one requires a real pull request that edits a SKILL.md, and reporting zero attachments without one does not close it

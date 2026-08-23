@@ -1,11 +1,12 @@
 ---
 id: 122
 title: Task 70 is marked done and 458 lines of its work never reached main
-status: in_review
+status: in_testing
 priority: 1
 refs: branch task-70-ranking-ban-threshold at bd2014c, eval/judge/paired_verdicts.py (absent from main), eval/judge/discrimination.py (on main, a DIFFERENT 194-line file), DECISIONS.md deterministic-tier ranking ban, tasks/70
 done_when: either the branch's work is landed on main and the two discrimination.py versions are reconciled with a stated reason for whichever survives, or task 70 is reopened with what is actually missing written into its body; and a check exists that would have caught a task marked done whose branch is not an ancestor of main, with its false-positive count on the live queue measured and stated before it ships
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/8
+established_by: 'Task 70''s branch bd2014c is on task-122-land-task-70 and the two discrimination.py versions were one file: main is byte-identical to the merge base, the branch adds 137 lines, reason stated in DECISIONS.md and tasks/70. Every figure re-measured against eval/runs rather than taken on trust: paired_verdicts 20/20 with 5 corpus pins, discrimination selftest 12/12, ranking test asked of 8 of 9 groups and 0 cross, nine-group table reproduces to the digit. Three published figures corrected: 9 groups was 8 asked plus 1 NOT ASKED, the arena3d Rust failure is E0502 not a type error, and the capgate floor is three times not six. The gate is tasks.py check landed_status, three-valued, measured on the live queue BEFORE shipping at 119 done - 6 LANDED, 1 ORPHANED, 112 NOT_CHECKED, 0 false positives, 1 true positive being task 70; broken state established first at exit 1 naming task 70 while main lacked the branch. tasks_control 79 to 100 rows 0 FAILED, tasks_mutants 21 to 28 all caught with the inert control still surviving. Two review rounds found 5 real defects in the new code including a boundary case that behaved differently on the runtime path because overall_score rounds to 4 decimals, a ZeroDivisionError on a zero denominator, and a gate that went silent when handed a base from another repository; the ranking test is integer arithmetic now and no corpus verdict changed at any point. CI gates and controls both green on the final head 2672e06, PR 8.'
 ---
 
 Found 2026-08-23 while clearing stale worktrees. tasks/70 has status done with an established_by naming a scoped recount of 5 of 436 paired criteria, and its branch bd2014c is NOT an ancestor of main. The branch carries 678 insertions across 5 files, including eval/judge/paired_verdicts.py at 458 lines, which does not exist on main at all. eval/judge/discrimination.py DOES exist on main but is a different 331-line file against the branch's 194 - so the work is partially absent and partially divergent, which is worse than wholly absent because a reader checking one path finds something. A queue entry saying done for work that is not on main is the stale-queue failure the heartbeat warns about, and nothing detected it: no gate compares a closed ticket against the tree.
@@ -222,3 +223,52 @@ the same docstring.
 Final: `tasks_control` **79 -> 100 rows**, `tasks_mutants` **21 -> 28**, all caught, inert control
 still SURVIVED. One mutant anchor drifted during the repair and the runner **refused to apply it**
 rather than reporting a pass for a check that never changed -- that guard is worth its space.
+
+## note 2026-08-23
+
+Review round 2 (the last -- the skill budgets two) raised 4 more, 3 acted on and 1 declined.
+
+**A real crash.** `load()` records `n_scored = 0` for a submission with no scored play-bot
+criteria; two such gate-green stacks reached the arithmetic and raised **`ZeroDivisionError`**.
+Reproduced first, then fixed: `NOT ASKED`, reported. An aggregate over a population that does
+not exist is not a tie and is not a crash.
+
+**A header that claimed more than the function enforced.** `ranking_test` prints
+*"adjudicated, gate-green, **completed**"* and filtered only on the first two. `main()` already
+excludes non-completed rows before calling, so nothing on the shipped path was wrong -- the
+reviewer's *"those rows can produce CROSSES"* is false for `main()`. **The point stands anyway,
+and it is worth carrying: a guarantee that lives only in the caller is one the next caller will
+not have, and a function that prints a claim about its population should enforce it.** Both
+directions pinned -- a `max_turns` pair is gated out, AND the identical gap still crosses when
+both trials completed, or the repair is a deletion.
+
+**Declined, and the real ambiguity fixed the other way round.** The reviewer wanted `PR #8`
+rewritten as the reference-style `[#8]`. In a live document `#NN` is a **finding** citation and
+`linkcheck.py` resolves it against `eval/findings/`; findings run **#19-#157**, so `[#8]` would
+be a reference-style link to a finding that does not exist. Complying would have created the
+dangling citation the convention exists to prevent. The `#` is gone instead -- it reads "pull
+request 8" -- with that reasoning recorded beside it.
+
+`discrimination.py --selftest` is **12 rows** now, from 9. **No corpus verdict changed at any
+point across either round**: 8 groups asked, 0 cross, and the DECISIONS.md nine-group table and
+its per-group figures are exactly as first measured.
+
+## The state at handback
+
+Branch `task-122-land-task-70`, 5 commits including task 70's own `bd2014c`. PR 8.
+
+| gate | result |
+|---|---|
+| `tasks.py check` | 0 |
+| `tasks_control.py` | **100 rows, 0 FAILED, 0 NOT CHECKED** (from 79) |
+| `tasks_mutants.py --selftest` | **28 mutants, 0 survived**, inert control SURVIVED (from 21) |
+| `discrimination.py --selftest` | **12/12** |
+| `paired_verdicts.py --selftest --runs-root` | **20/20, 5 corpus pins** |
+| `docstat --sweep` / `--findings` / `--withdrawn` / `linkcheck` | 0 |
+| CI `gates` | success on every head pushed |
+
+**What the orchestrator should verify against the artifacts rather than this account**: that
+`git merge-base --is-ancestor task-70-ranking-ban-threshold main` exits 0 after the merge, and
+that `python3 eval/tools/tasks.py check` run **in the main checkout** reports task 70 as LANDED
+rather than ORPHANED. The gate is only load-bearing where the branches are -- in CI it reads
+NOT_CHECKED, measured.
