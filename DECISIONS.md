@@ -120,14 +120,44 @@ Three tiers. Blinding is verified mechanically by `eval/judge/verify_blind.py`.
 
 | Tier | Weight |
 |---|---|
-| Programmatic — builds, gate green, lints, tests, frames render and animate | **0.31** |
-| Play-bot — a scripted bot drives thousands of ticks and asserts the game plays | **0.69** |
+| Programmatic — builds, gate green, lints, tests, frames render and animate | **GATE** — pass/fail, not scored |
+| Play-bot — a scripted bot drives thousands of ticks and asserts the game plays | **1.00** |
 | LLM judge — one specialist per aspect, each ranking a whole eight-submission field | **0.00** — diagnostic only |
+
+### Tier 1 gates, it does not score — decided 2026-08-23
+
+`overall = tier2`. Tier 1 held **0.31** from this repository's first commit until then, quoted in
+four documents and derived in none of them; git history holds no derivation either, so there was
+nothing to state and the question became what the tier is for. Two offline sweeps, both able to
+come out the other way, and both re-runnable:
+
+- `eval/judge/weight_sensitivity.py --all` — **FLIPS=0** at every weight in (0,1), but **7 of 10
+  groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
+  for the reason that matters least (#92). It sweeps the *open* interval, and the gate regime is
+  w1=0, so this tool cannot settle what the change does — see the next one.
+- `eval/judge/tier1_census.py` — 68 stored trials, **7 with any tier-1 failure**, and in **0 of 10
+  groups do both tiers vary among the trials tier 2 could measure**. Comparing the two schemes
+  pairwise at w1=0: **0 orderings reversed, 3 coarsened, 7 identical** (#119).
+
+Five of those seven failures were a lint finding, three of a submission's own unit tests, and one
+ink-coverage window, on games that all scored **1.000** on tier 2; the other two were the #49 build
+failure, whose tier-2 zero is the same fact told twice. Tier 1 is a floor test and is now reported
+as one: `gate: PASS`, or `FAIL` with the failing ids. **A gate failure does not deduct and does not
+exclude the trial** — deducting restores what was removed, excluding is a reason not to count a
+failure (rule 7). `build.compiles` and `probe.responds` are marked *blocking*, because the play-bot
+drives through `just probe` and cannot produce independent evidence without them.
+
+`RUBRIC.md` carries the full derivation and the condition that re-opens it: the census prints
+`DISCRIMINATES` the moment a tier-1 criterion with real headroom exists. **Stored scores were not
+rewritten** — 14 of 68 would move, largest 0.2273 — and the regime boundary is in `eval/RUNS.md`.
 
 **The judge is unweighted for two independent reasons, either sufficient:**
 
-1. **It cannot reorder anything.** Bounded contribution 0.10 against a tightest adjacent gap of
-   0.0622 on tiers 1+2 alone. Holds regardless of noise.
+1. **It cannot reorder anything.** Bounded contribution 0.0154 against a tightest adjacent gap of
+   **0.0667** — recomputed on tier 2 alone after tier 1 left the score, per game over the 24
+   `wg-matrix` records; dropping tier 1 widens every gap. Holds regardless of noise. (The older
+   0.0622 is not reproduced by that method and its own method is unrecorded; `JUDGING.md` has the
+   table.)
 2. **It is noisiest exactly where it would matter.** Score spread 0.308 and instability up to 0.462
    on a contested submission, against 0.000 on an uncontested one. Holds regardless of weight.
 
@@ -350,17 +380,16 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
 - **Statistical power.** With 2 trials per cell, if two stacks land within ~0.015 this design
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
-- **The rubric ceiling — CHECKED against matrix data 2026-08-23 for the deterministic tiers, and
-  it is worse than "clustering".** Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`**
-  and on all 16 of `wg-audio48` — 40 of 56 matrix trials at the ceiling with *zero* variance, not
-  merely near it. Tier 2 is at the ceiling on 24 of 56 (`wg-audio48` and `wg-g4c` entire).
-  `wg-audio48` returns **1.0 on both scored tiers for all 16 trials**: its whole deterministic
-  grade is a constant. Measured by `eval/judge/weight_sensitivity.py`, FINDINGS #92.
-  **Tier 1 is a floor test that works, weighted 0.31 as though it discriminated.** It still
-  catches the submission that fails outright (`wg-arena3d` 0.0, `wg-g4c` 0.857), which is worth
-  keeping — but it separates nothing among submissions that pass. What remains open is what to do
-  about it: whether to keep the split, re-scope tier 1 explicitly as a gate, or add criteria with
-  headroom. That is task 27, and it is a rubric change requiring mutants, not a doc edit.
+- **The rubric ceiling — MEASURED, and for tier 1 it is now RESOLVED; for tier 2 it is not.**
+  Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`** and on all 16 of `wg-audio48` —
+  40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92). **What to
+  do about it was decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not
+  score" above, and #119). The ceiling did not go away; it stopped being reported as a score.
+  **Tier 2 is still at the ceiling on 24 of 56** — `wg-audio48` and `wg-g4c` entire — and tier 2
+  now carries the whole weight, so **`overall` is a constant 1.000 for all 16 `wg-audio48` trials
+  and all 8 of `wg-g4c`.** That is the open half, and it is the more serious one: an instrument
+  whose only scored tier saturates on a whole run cannot rank anything in it. The remedy is harder
+  play-bot criteria or harder tasks, not a weight.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for **$33.63** — the sum of that field's own stored rounds. The $46.79 previously here was the whole of 2026-08-16 across two games (#121). Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53).
@@ -757,7 +786,8 @@ settled question is noise that makes the live ones harder to find.
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
 | Deterministic tiers may not rank stacks | Any instrument change producing **non-zero within-cell verdict variance** — currently 0 of 380 |
-| Tier weights 0.31/0.69 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound**. Currently 0 of 10 groups flip, and the one group with both tiers varying is `wg-arena3d`, which `eval/RUNS.md` declares void (#92) |
+| Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
+| The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |

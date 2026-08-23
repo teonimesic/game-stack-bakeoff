@@ -8,11 +8,20 @@ Three tiers. The building agent must see none of them.
 
 | Tier | Weight | Implemented in |
 |---|---|---|
-| **Programmatic** — builds, gate green, lints, tests, frames render and animate, perf probe, **audio** | **0.31** | `checks.py`, `static.py`, `probe.py`, `png.py`, `audio.py` |
-| **Play-bot** — a scripted bot drives thousands of ticks and asserts the game actually plays | **0.69** | `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py` |
+| **Programmatic** — builds, gate green, lints, tests, frames render and animate, perf probe, **audio** | **GATE — not scored** | `checks.py`, `static.py`, `probe.py`, `png.py`, `audio.py` |
+| **Play-bot** — a scripted bot drives thousands of ticks and asserts the game actually plays | **1.00** | `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py` |
 | **LLM judge** — one specialist per aspect, each ranking a whole eight-submission field | **0.00** | `aspects.py`, `field.py`, `field_sweep.py`, `adjudicate.py`, `anonymise.py`, `RUBRIC.md` |
 
 `evaluate.py` runs all three. `regrade_wholegame.py` recomputes scores from stored tier files.
+
+**Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
+`gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two
+sweeps behind it and what would re-open it are in `RUBRIC.md`. Two consequences you will meet
+before you meet the rubric: a record written before 2026-08-23 has no `gate` and no
+`scoring_regime` and its `overall` is on the old 0.31/0.69 scale, so **never average across the
+boundary**; and `regrade_wholegame.py` refuses to rewrite a pre-gate record without
+`--accept-regime-change`, because converting one silently would leave a run directory half in
+each regime with nothing on disk saying which.
 
 **The audio criteria need `ffmpeg` and `ffprobe` on the grading machine.** Without them every
 audio criterion fails with that as the recorded reason — fail-closed, never skipped, because

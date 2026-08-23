@@ -22,11 +22,11 @@ asked "is this game fun" is a coin flip. So the evaluator is built the other way
 
 | Tier | Answers | Weight | Method |
 |---|---|---|---|
-| 1. Programmatic | Does it build, gate, lint, test, render? | **0.31** | scripts only |
-| 2. Scripted play-bot | Does it *behave* like the game it claims to be? | **0.69** | deterministic driving via the probe protocol |
+| 1. Programmatic | Does it build, gate, lint, test, render? | **GATE — not scored** | scripts only |
+| 2. Scripted play-bot | Does it *behave* like the game it claims to be? | **1.00** | deterministic driving via the probe protocol |
 | 3. LLM judge | Is the code any good; is the result coherent? | **0.00 — DIAGNOSTIC** | a different model, binary criteria, blind |
 
-The play-bot tier carries the most weight because it is the only tier that is both
+The play-bot tier carries the whole weight because it is the only tier that is both
 *about gameplay* and *deterministic*.
 
 **The judge tier scores ZERO. It still runs, and its per-criterion verdicts are
@@ -64,9 +64,77 @@ criterion cannot dominate silently.
 
 ---
 
+## Tier 1 is a GATE, and here is the measurement that made it one
+
+**Decided 2026-08-23 (task 29). It used to carry 0.31 of `overall`.** That split appeared
+in this repository's first commit, was quoted in four documents, and was derived in none
+of them — not in the docs, not in a code comment, and not anywhere in 139 commits of
+history. There was no derivation to state, so the question became what tier 1 is *for*.
+
+Two offline sweeps answer it, both re-runnable and both able to come out the other way:
+
+| tool | what it reports today |
+|---|---|
+| `weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` | 10 groups, **FLIPS=0** at every weight in (0,1); **7 of 10 UNIDENTIFIABLE** — tier 1 returns a single value across the whole group, so the weight cannot act (#92) |
+| `tier1_census.py --runs-root <main checkout>/eval/runs` | 68 stored trials, **7 with any tier-1 failure**. In **0 of 10** groups do both tiers vary among the trials tier 2 could measure. Verdict **FLOOR-ONLY** |
+
+**Read the caveat on the first before quoting it.** `weight_sensitivity.py` sweeps the
+*open* interval, because w1=0 and w1=1 discard a tier outright and are not candidate
+weightings. The gate regime **is** w1=0 — outside the interval it sweeps — so `FLIPS=0`
+is not evidence that this change moves nothing. The question at that point is asked by
+`tier1_census.py`, which compares the two schemes pairwise: **0 orderings reversed, 3
+coarsened, 7 identical.** Every distinction the gate removes is one tier 1 made alone.
+
+What the census found tier 1 actually doing, across every trial it has ever scored:
+
+- **2 trials** failed a criterion tier 2 depends on — both the `syspolicyd` build failure
+  of #49 — and both scored 0.00 on tier 2, which is the same fact told twice.
+- **5 trials** failed only other criteria: one Godot lint finding, one Unity lint finding,
+  three of a TypeScript submission's own unit tests, and one frame whose ink coverage was
+  0.881 against a window ending at 0.85. **All five scored 1.000 on tier 2.**
+- Every one of the 14 criteria has failed at least once, so none is dead weight.
+
+So tier 1 separates a submission that fails outright from one that does not, and has never
+separated two submissions that the play-bot could tell apart. As 0.31 of a quality score
+that made a lint finding read as a **4.4% worse game**. As a gate it reads as what it is.
+
+### What the gate does, and what it deliberately does not do
+
+```
+gate = PASS iff every SCORED tier-1 criterion passed
+     - an EMPTY tier is not a pass: `total=0 passed=0` is fail-closed (`usable: false`)
+     - a `scored: false` criterion is excluded from the question, not counted as failed
+       (the engine project-lock exception, FINDINGS #25)
+```
+
+- **A gate failure does not deduct.** Deducting is the scheme being removed.
+- **A gate failure does not exclude the trial.** Every reason not to count a failure is a
+  channel a bug can widen (rule 7). The trial is reported, with the failing ids named.
+- **`build.compiles` and `probe.responds` are BLOCKING**, and the record says so in the gate's
+  own blocking_failed field. The play-bot drives the submission through `just probe`, so a
+  project that does not build or whose probe never answers cannot produce tier-2 evidence:
+  `score_is_independent` goes false and its `overall` restates the gate rather than adding
+  to it. Corroborated over the corpus — blocked trials have tier 2 = 0.00 (2 of 2), trials
+  failing only other criteria have tier 2 > 0 (5 of 5). `render.frames` is **not** blocking:
+  the bot drives the probe, not the film.
+
+**What would re-open this.** `tier1_census.py` prints `DISCRIMINATES` the day any group has
+both tiers varying among measurable trials — which is what adding a tier-1 criterion with
+real headroom would do. The decision then has to be re-made, not inherited. `gate_selftest.py`
+pins the gate in both directions: mutants that make it unable to fail, and variants — the
+lock exception, an audio-less task, a broken film recipe — that it must still pass.
+
+**Stored scores were not rewritten.** 14 of 68 stored `overall` values would move under the
+gate scheme (largest 0.2273, a submission whose tier 2 was 0.267 and which the 0.31 cushioned).
+They stay as they were written; the regime boundary is recorded in `eval/RUNS.md` and every
+new record carries `scoring_regime`.
+
+---
+
 ## Tier 1 — Programmatic (9 criteria, script-answered)
 
-Implemented in `static.py`. Never shown to the judge as a question.
+Implemented in `static.py`. Never shown to the judge as a question. **Scored as a gate, not
+as a fraction of `overall`** — see above.
 
 | id | criterion |
 |---|---|
@@ -447,12 +515,18 @@ The task prompts now state that everything the player sees must appear in the fr
 ## Scoring
 
 ```
-tier1 = passed/total  (9 criteria + 5 audio criteria where audio is in the task)
+tier1 = GATE: PASS iff every scored criterion passed  -- NOT WEIGHTED
+        (9 criteria + 5 audio criteria where audio is in the task)
+        an empty tier is `usable: false`, which is NOT a pass
 tier2 = passed/total  (13-15 SCORED criteria, per game, + audio.triggered;
                        diagnostic-only criteria are reported but excluded)
 tier3 = per-aspect rankings and grades   -- DIAGNOSTIC ONLY, weight 0.00
 
-overall = 0.31*tier1 + 0.69*tier2        # tier3 contributes NOTHING
+overall = 1.00*tier2      # tier 1 gates, tier 3 diagnoses, neither is in the sum
+
+Every record carries `gate` (verdict + failing ids + blocking ids) and
+`scoring_regime`. Records written before 2026-08-23 have neither: their `overall`
+is 0.31*tier1 + 0.69*tier2 and is NOT comparable with a gate-regime score.
 
 If a tier is unusable (empty pack) or skipped it is EXCLUDED and the remaining
 weights are renormalised - never folded in as a zero.
@@ -492,4 +566,4 @@ An evaluator that cannot fail (1) or pass (2) is not evidence.
 
 Alongside them, the module selftests — each exits non-zero on its own mutants:
 `audio_selftest.py`, `sequential_selftest.py`, `bot_mutants.py`, `capability_selftest.py`,
-`rusage_selftest.py`.
+`rusage_selftest.py`, `gate_selftest.py`, and `tier1_census.py --selftest`.

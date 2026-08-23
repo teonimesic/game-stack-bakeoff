@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
-"""Is the 0.31/0.69 tier split load-bearing, or is it a free parameter?
+"""Is a tier weight load-bearing, or is it a free parameter?
 
-`overall = 0.31*tier1 + 0.69*tier2`. Nothing in `RUBRIC.md`, `JUDGING.md`,
-`DECISIONS.md` or `README.md` says where 0.31 came from, and no stored result
-says whether anything would change if it were 0.20 or 0.50. A weight that has
-never been varied is indistinguishable from a weight that does not matter -
-and those two states call for opposite actions.
+ANSWERED FOR THE SPLIT THIS WAS BUILT FOR, AND THE ANSWER RETIRED IT. It ran
+against `overall = 0.31*tier1 + 0.69*tier2`, a split no document derived. The
+sweep found FLIPS=0 - and 7 of 10 groups UNIDENTIFIABLE, which is the finding:
+the weight was inert because tier 1 returned one value, not because 0.31 was
+right (#92). On 2026-08-23 tier 1 became a GATE and `overall = tier2` (#119,
+`RUBRIC.md`), so there is currently only one scored tier and nothing for this
+tool to sweep on a new run.
+
+**Read that as a warning about what this tool can and cannot settle.** It sweeps
+the OPEN interval, deliberately (see `sweep`), so it says nothing about w1=0 or
+w1=1 - and the gate scheme IS w1=0. `FLIPS=0` was NOT the evidence for that
+change and must not be quoted as if it were; `tier1_census.py` asks the question
+at the endpoint. This tool keeps its place for the next weighted aggregate, and
+for the stored corpus, where it still runs unchanged.
+
+The general rule it exists for: a weight that has never been varied is
+indistinguishable from a weight that does not matter - and those two states call
+for opposite actions.
 
 This sweeps w1 (the programmatic weight) across [0, 1] against STORED tier
 scores and reports, per (run, game), every distinct ordering of stacks that

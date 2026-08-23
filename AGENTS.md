@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | Current status and where things live |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#122, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#123, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -516,6 +516,14 @@ Two refinements that pattern does not cover:
     The check is free, it is offline, and it comes out either way — which is what makes it worth
     running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the
     rule is about **any parameter chosen by judgement that a published number depends on.**
+
+    **The follow-on, and it is the part that generalises: an inert parameter is a question about
+    the QUANTITY, not about the parameter.** Tier 1's weight was inert because tier 1 returned
+    one value; asking what tier 1 had ever *done* — 7 failures in 68 trials, 5 of them a lint
+    finding on a game that played perfectly — showed it was a floor test, and it became a gate
+    rather than a smaller number (#119). **Reweighting an inert term is the move that looks like
+    a fix and changes nothing.** When a sweep says a parameter cannot act, do not tune it: go and
+    measure what the term it multiplies has ever measured.
 
     Its companion, learned in the same hour: **sweep the OPEN interval.** The first version swept
     `[0,1]` and reported flips on 3 of 10 groups, every one of them at the endpoint where a tier

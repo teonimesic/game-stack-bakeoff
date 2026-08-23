@@ -19,7 +19,9 @@ import argparse, json, os, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from evaluate import WEIGHTS, DIAGNOSTIC_TIERS  # noqa: E402
+from evaluate import (  # noqa: E402
+    DIAGNOSTIC_TIERS, GATE_TIER, SCORING_REGIME, WEIGHTS, gate_verdict, overall_score,
+)
 
 
 def _atomic(path: Path, obj) -> None:
@@ -28,8 +30,9 @@ def _atomic(path: Path, obj) -> None:
     os.replace(tmp, path)
 
 
-def regrade(run_dir: Path, write: bool) -> int:
+def regrade(run_dir: Path, write: bool, accept_regime_change: bool = False) -> int:
     rows = []
+    crossings = []
     for rep in sorted(run_dir.glob("artifacts/*/eval/report.json")):
         rec = json.loads(rep.read_text())
         # Rebuild tier scores from the tier files themselves, not from the embedded
@@ -40,11 +43,23 @@ def regrade(run_dir: Path, write: bool) -> int:
                          ("playbot", "playbot.json"), ("judge", "judge.json")):
             f = d / fn
             tiers[name] = json.loads(f.read_text()) if f.exists() and f.stat().st_size else {}
-        scores = {k: float(tiers[k].get("score", 0.0)) for k in WEIGHTS}
-        new_overall = round(sum(WEIGHTS[k] * scores[k] for k in WEIGHTS), 4)
+        scores = {k: float(tiers[k].get("score", 0.0)) for k in (GATE_TIER, *WEIGHTS)}
+        new_overall = overall_score(scores)
         old_overall = rec.get("overall")
         rows.append((rep.parent.parent.name, old_overall, new_overall,
                      float(tiers["judge"].get("score", 0.0))))
+        # A REGRADE ACROSS A REGIME BOUNDARY IS NOT A REGRADE, IT IS A RE-SCORING.
+        #
+        # Tier 1 stopped being 0.31 of `overall` on 2026-08-23 and became a gate. This
+        # tool exists to fix a grading BUG without paying for new rollouts; run over a
+        # record written under the old scheme it would silently convert it, leaving a
+        # run directory whose trials are half one regime and half the other with
+        # nothing on disk saying which is which. The regimes are recorded, not
+        # rewritten (eval/RUNS.md), so this refuses unless told explicitly.
+        if rec.get("scoring_regime") != SCORING_REGIME:
+            crossings.append(rep.parent.parent.name)
+            if not accept_regime_change:
+                continue
         if write:
             for k, v in tiers.items():
                 if v:
@@ -53,10 +68,12 @@ def regrade(run_dir: Path, write: bool) -> int:
             rec["diagnostic_scores"] = {k: float(tiers[k].get("score", 0.0))
                                         for k in DIAGNOSTIC_TIERS if tiers.get(k)}
             rec["weights"] = dict(WEIGHTS)
+            rec["gate"] = gate_verdict(tiers.get(GATE_TIER) or {})
+            rec["scoring_regime"] = SCORING_REGIME
             rec["judge_is_diagnostic_only"] = True
             # RECOMPUTE THE UNMEASURED-TIER GUARD, never inherit it.
             # `cmd_report` excludes a trial from every aggregate when its play-bot tier
-            # measured nothing (usable=false), because a 0.00 on a 0.69-weighted tier
+            # measured nothing (usable=false), because a 0.00 on the only scored tier
             # that was never driven is not a score. Regrading rebuilds report.json, so a
             # report that predates the field - or one regraded from a run that had it -
             # would silently lose the flag and the guard would stop firing with no sign
@@ -67,16 +84,26 @@ def regrade(run_dir: Path, write: bool) -> int:
             rec["playbot_unscored"] = pb.get("unscored") or {}
             rec["overall"] = new_overall
             rec.pop("overall_no_judge", None)
-            rec["regraded"] = ("judge weight set to zero by user ruling; `overall` "
-                               "recomputed from stored tier data, nothing re-run")
+            rec["regraded"] = (f"`overall` recomputed from stored tier data under "
+                               f"{SCORING_REGIME}; nothing re-run")
             _atomic(rep, rec)
     print(f"{'trial':<30}{'old overall':>12}{'new overall':>12}{'judge (diag)':>14}")
     for tid, o, n, j in rows:
         mark = "" if o is None or abs(o - n) < 1e-9 else "  *"
         print(f"{tid:<30}{(f'{o:.4f}' if o is not None else '-'):>12}{n:>12.4f}"
               f"{j:>14.3f}{mark}")
-    print(f"\n{len(rows)} report(s) "
-          f"{'rewritten' if write else 'inspected (dry run; pass --write)'}")
+    if crossings:
+        print(f"\n*** {len(crossings)} report(s) were scored under a DIFFERENT REGIME "
+              f"than {SCORING_REGIME}.")
+        print("    Tier 1 was 0.31 of `overall` before 2026-08-23 and is a gate after "
+              "it, so\n    rewriting them changes the scheme, not a grading bug. "
+              "They were LEFT ALONE.")
+        print("    Pass --accept-regime-change to re-score them anyway, and record it "
+              "in eval/RUNS.md.")
+    print(f"\n{len(rows) - (0 if accept_regime_change else len(crossings))} report(s) "
+          f"{'rewritten' if write else 'inspected (dry run; pass --write)'}"
+          + (f"; {len(crossings)} held back at the regime boundary" if crossings
+             and not accept_regime_change else ""))
     return 0
 
 
@@ -84,5 +111,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("--write", action="store_true")
+    ap.add_argument("--accept-regime-change", action="store_true",
+                    help="re-score records written under the pre-2026-08-23 weighted "
+                         "scheme into the gate regime. This is a RE-SCORING, not a "
+                         "regrade: say so in eval/RUNS.md wherever the run is cited.")
     a = ap.parse_args()
-    raise SystemExit(regrade(a.run_dir.resolve(), a.write))
+    raise SystemExit(regrade(a.run_dir.resolve(), a.write, a.accept_regime_change))
