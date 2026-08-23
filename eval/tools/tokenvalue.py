@@ -25,6 +25,7 @@ formatter nobody calls is a rename that did not happen.
 from __future__ import annotations
 
 import argparse
+import ast
 import os
 import re
 import sys
@@ -93,6 +94,22 @@ PRODUCERS = (
 
 EVAL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+#: The names this project renders as a token valuation. A module that interpolates one of
+#: these into a string is a producer.
+_VALUE = re.compile(r"cost_usd|costUSD|_usd\b|\bspent\b")
+
+#: The conversion characters a `%` format can end on, and `MONEY_PERCENT` must accept the
+#: same set. `i` is here because `"%i" % n` is valid Python and was in neither; discovery
+#: asking about a smaller set than the sigil check is how a module gets found by one and
+#: passed by the other.
+_CONV = r"[fgdeisu]"
+
+#: This module's own renderers. A module that calls one of them is a producer whether or
+#: not it ever names a `*_usd` field.
+_RENDERERS = frozenset({"fmt", "tag", "total"})
+_PCT = re.compile(rf"%[-+ #0-9.*]*{_CONV}", re.I)
+
+
 #: A `$` immediately in front of an interpolation or a digit, inside an f-string. This is
 #: what a money label looks like and what no producer may contain. `$TMPDIR`, `${VAR}` and
 #: a shell prompt `$ ` are not matched: the class is `$` followed by `{` + a Python
@@ -103,8 +120,8 @@ MONEY_LITERAL = re.compile(r"\$\d")
 #: are money labels that `MONEY_LITERAL` cannot see - `$` there is followed by `%` or `{:`,
 #: never by a digit. Discovery and the sigil check have to know the same 3 forms, or a
 #: module found by one passes the other.
-MONEY_PERCENT = re.compile(r"\$%[-+ #0-9.]*[fgdes]|\$\{[^A-Za-z{}\n][^{}\n]{0,10}\}",
-                           re.I)
+MONEY_PERCENT = re.compile(rf"\$%[-+ #0-9.*]*{_CONV}"
+                           r"|\$\{[^A-Za-z{}\n][^{}\n]{0,10}\}", re.I)
 
 #: A `$` that is NOT a money label: a shell variable a producer legitimately quotes, or a
 #: GitHub Actions `${{ ... }}` template.
@@ -115,9 +132,18 @@ MONEY_PERCENT = re.compile(r"\$%[-+ #0-9.]*[fgdes]|\$\{[^A-Za-z{}\n][^{}\n]{0,10
 #: is a money sigil `MONEY_SIGIL` matches, and the guard skipped the line so it was never
 #: asked. A guard that excuses a whole line excuses everything else on it, which is rule 7:
 #: every reason not to count a failure is a channel a bug can widen.
+#: The names a producer legitimately quotes from the shell.
+_SHELL_NAMES = r"TMPDIR|CLAUDE_PROJECT_DIR|STARTER_HOOK_LOG|PATH|HOME|schema"
+
+#: THE BRACED AND UNBRACED FORMS ARE SEPARATE ALTERNATIVES, and that is the whole point.
+#: One pattern with an optional `{` had to end in `[^}\n]*\}?` to reach the closing brace,
+#: and on an UNBRACED variable that trailing class ran to the end of the line — so
+#: `log("$TMPDIR then $27.68")` blanked the sigil along with the variable. Same fail-open
+#: as the whole-line skip this replaced, one revision later, in the same guard.
 _SHELL_VAR = re.compile(
-    r"\$\{\{[^\n]*?\}\}"                                    # ${{ ... }}, Actions
-    r"|\$\{?(?:TMPDIR|CLAUDE_PROJECT_DIR|STARTER_HOOK_LOG|PATH|HOME|schema)\b[^}\n]*\}?")
+    r"\$\{\{[^\n]*?\}\}"                       # ${{ ... }}, a GitHub Actions template
+    rf"|\$\{{(?:{_SHELL_NAMES})[^}}\n]*\}}"      # ${NAME...}, braced: stop at the brace
+    rf"|\$(?:{_SHELL_NAMES})\b")                 # $NAME, unbraced: stop at the name
 
 
 def _blank_shell_vars(line: str) -> str:
@@ -158,33 +184,52 @@ def _producer_problems() -> list[str]:
 #: the variant direction: not "can the check fail?" but "can it still pass on input it
 #: mishandles?" Python has exactly these three ways to interpolate into a string, so this is
 #: a closed class rather than a list of the shapes anyone happened to write.
-_VALUE = r"(?:cost_usd|costUSD|_usd\b|\bspent\b)"
-
-#: An f-string opener, WITH ITS PREFIX. `f`, `rf`, `fr`, `bf`, `fb` and every case variant
-#: are the same string to Python and were not the same string to the first version of this
-#: pattern: `fr"..."` and `F"..."` were both invisible to discovery. The lookbehind keeps
-#: it from matching the tail of an identifier.
-_FSTRING = r"""(?<![A-Za-z0-9_])(?:[rb]?f|f[rb])["']"""
-
-#: The conversion characters a percent or brace format can end on. Kept identical to
-#: `MONEY_PERCENT`'s, because discovery and the sigil check asking about different sets is
-#: how a module gets found by one and passed by the other.
-_CONV = r"[fgdes]"
-
-_FORMS = (
-    # f"... {expr_naming_a_value} ..."
-    re.compile(rf"""{_FSTRING}[^"'\n]*\{{[^{{}}\n]*{_VALUE}""", re.I),
-    # "..." % expr   /   "...".format(expr)
-    re.compile(rf"""%[-+ #0-9.]*{_CONV}[^\n]*%[^\n]*{_VALUE}""", re.I),
-    re.compile(rf"""\.format\([^)\n]*{_VALUE}""", re.I),
-    # "$%.2f" % value  -- the percent form with the sigil, on one line
-    re.compile(rf"""["'][^"'\n]*%[-+ #0-9.]*{_CONV}[^"'\n]*["']\s*%[^\n]*{_VALUE}""", re.I),
-)
-
-
 def formats_a_value(text: str) -> bool:
-    """Does this source render one of these figures into a string, by any of the 3 forms?"""
-    return any(rx.search(text) for rx in _FORMS)
+    """Does this source render one of these figures into a string?
+
+    **THIS PARSES, IT DOES NOT MATCH.** Three regex attempts at the same question each
+    missed a form that is ordinary Python, and each miss was silent: `fr"..."` and `F"..."`
+    were invisible because the prefix was written as a literal `f`; `f"it's {cost_usd}"`
+    was invisible because the pattern scanned to the next quote of either kind and the
+    apostrophe ended it first. Every one of those is a module that never reaches
+    `PRODUCERS`, is never read by `_producer_problems`, and leaves `--selftest` green.
+
+    Quoting and prefixes are exactly what a parser already knows, so it answers the
+    question instead of approximating it: an f-string is a `JoinedStr`, `"..." % x` is a
+    `BinOp` under `Mod`, and `"...".format(x)` is a `Call` on an attribute. The value name
+    is looked for in the *unparsed interpolated expression*, never in the literal text.
+
+    Raises `SyntaxError` on source that does not parse. A file this cannot read is a file
+    nothing has cleared, and the caller reports it rather than skipping it.
+    """
+    tree = ast.parse(text)
+    for node in ast.walk(tree):
+        # THE SANCTIONED FORM COUNTS TOO, and leaving it out made this census weaker than
+        # it read. Once a producer is repaired it stops interpolating `cost_usd` and starts
+        # calling `tokenvalue.fmt`, so the predicate that found it before no longer does:
+        # measured, `tools/runstat.py` and `tools/hook_audit_control.py` are producers that
+        # this function did not discover. A discovery rule that only recognises the BROKEN
+        # spelling cannot tell a repaired producer from a module that never was one.
+        if isinstance(node, ast.Call):
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+            if name in _RENDERERS:
+                return True
+        expr = None
+        if isinstance(node, ast.JoinedStr):
+            expr = " ".join(ast.unparse(v.value) for v in node.values
+                            if isinstance(v, ast.FormattedValue))
+        elif (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)
+                and isinstance(node.left, ast.Constant)
+                and isinstance(node.left.value, str)
+                and _PCT.search(node.left.value)):
+            expr = ast.unparse(node.right)
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "format"):
+            expr = " ".join(ast.unparse(a) for a in node.args)
+        if expr and _VALUE.search(expr):
+            return True
+    return False
 
 
 def _unlisted_producers() -> list[str]:
@@ -210,9 +255,25 @@ def _unlisted_producers() -> list[str]:
             rel = os.path.normpath(os.path.relpath(path, EVAL))
             if rel in listed:
                 continue
-            if formats_a_value(open(path, encoding="utf-8", errors="replace").read()):
-                found.append(rel)
+            text = open(path, encoding="utf-8", errors="replace").read()
+            try:
+                if formats_a_value(text):
+                    found.append(rel)
+            except SyntaxError as exc:
+                # A file the matcher cannot read is a file nothing has cleared. Reporting
+                # it is the fail-closed direction; skipping it would make an unparseable
+                # producer invisible, which is the defect this function exists to prevent.
+                found.append(f"{rel} (does not parse, so it was never asked: {exc})")
     return found
+
+
+def _raises_syntax_error(src: str) -> bool:
+    """Did `formats_a_value` refuse this source rather than reading it as clean?"""
+    try:
+        formats_a_value(src)
+    except SyntaxError:
+        return True
+    return False
 
 
 def selftest() -> int:
@@ -252,6 +313,27 @@ def selftest() -> int:
     for u in unlisted[:20]:
         print(f"    unlisted producer: {u}")
 
+    # PROVE THE EXTRACTION ON ROWS WHOSE TRUE VALUE IS KNOWN IN ADVANCE. Every module in
+    # PRODUCERS is a producer by construction, so discovery must find all 11 of them. It
+    # found 9 until 2026-08-23: the two that had been repaired to call `tokenvalue.fmt`
+    # stopped naming `cost_usd` and fell out of the population the row above counts. A
+    # census that cannot see its own known-positive rows is reporting the instrument.
+    undiscovered = []
+    for rel in PRODUCERS:
+        path = os.path.join(EVAL, rel)
+        if os.path.exists(path) and not formats_a_value(
+                open(path, encoding="utf-8", errors="replace").read()):
+            undiscovered.append(rel)
+    check(f"discovery finds all {len(PRODUCERS)} known producers", not undiscovered)
+    for u in undiscovered:
+        print(f"    known producer NOT discovered: {u}")
+    check("a module calling tokenvalue.fmt is discovered",
+          formats_a_value('import tokenvalue\nprint(tokenvalue.fmt(x))\n'))
+    check("a module calling a bare fmt() is discovered",
+          formats_a_value('from tokenvalue import fmt\nprint(fmt(x))\n'))
+    check("an unrelated call is not discovered",
+          not formats_a_value('print(format(x))\n'))
+
     # --- the address is an input to the check ------------------------------
     # A grep that finds nothing and a grep pointed at nothing print the same word.
     total_lines = sum(1 for rel in PRODUCERS
@@ -275,16 +357,33 @@ def selftest() -> int:
           formats_a_value('print(f"{r[\'cost_usd\']:.2f}")'))
     # EVERY f-STRING PREFIX, not the one anybody happened to write. `fr`, `F` and `RF` are
     # the same string to Python and were all invisible to the first version.
-    for pre in ("f", "rf", "fr", "F", "RF", "Fr", "bf", "fb"):
+    # EVERY VALID f-STRING PREFIX. `bf`/`fb` are deliberately absent: Python rejects them
+    # ("'b' and 'f' prefixes are incompatible"), so a pin on them would be a pin on source
+    # that cannot exist - which the regex matcher this replaced happily "discovered".
+    for pre in ("f", "F", "rf", "fr", "RF", "FR", "Rf", "fR"):
         check(f"an {pre}-string is discovered",
               formats_a_value(f'print({pre}"{{cost_usd:.2f}}")'))
     # AND EVERY CONVERSION `MONEY_PERCENT` ACCEPTS. Discovery asking about a smaller set
     # than the sigil check is how a module is found by one and passed by the other.
-    for conv in ("f", "g", "d", "e", "E", "s", "G"):
+    for conv in ("f", "g", "d", "e", "E", "s", "G", "i", "u"):
         check(f"a %{conv} percent form is discovered",
               formats_a_value(f'print("%{conv}" % cost_usd)'))
+    # QUOTING IS THE PARSER'S JOB. Every one of these was a false negative under a regex
+    # matcher, and every false negative is a producer that never reaches PRODUCERS.
+    for src, what in (
+            ("""print(f"it's {cost_usd:.2f}")""", "an apostrophe before the interpolation"),
+            ("print(f'he said \"{cost_usd}\"')", "a double quote inside a single-quoted f-string"),
+            ('print(f"""\n{cost_usd:.2f}\n""")', "a triple-quoted f-string"),
+            ('print(f"{a}" f"{cost_usd}")', "implicit concatenation"),
+            ('print("%.2f" % (spent,))', "a percent form over a tuple"),
+    ):
+        check(f"discovered: {what}", formats_a_value(src))
+    check("source that does not parse raises rather than reading as clean",
+          _raises_syntax_error("def ("))
     check("a module that renders no such value is not discovered",
           not formats_a_value('print("hello %s" % name)\nx = cost_usd\n'))
+    check("a value merely ASSIGNED, never rendered, is not discovered",
+          not formats_a_value('total = rec["cost_usd"]\nreturn total\n'))
     # And the sigil check has to see the percent form too, or the variant above finds the
     # module and the row that matters still passes it.
     # --- the sigil check, ON THE PATH `_producer_problems` USES -------------
@@ -313,8 +412,12 @@ def selftest() -> int:
         check(f"money_sigil_in passes {what}", not money_sigil_in(line))
     # THE GUARD MUST NOT SWALLOW THE REST OF THE LINE. This is the exact shape the old
     # whole-line skip had, and it is why the guard blanks a span instead.
-    check("a shell variable does not excuse a sigil on the same line",
+    check("a BRACED shell variable does not excuse a sigil on the same line",
           money_sigil_in('log("${TMPDIR} then $27.68")'))
+    check("an UNBRACED shell variable does not excuse a sigil on the same line",
+          money_sigil_in('log("$TMPDIR then $27.68")'))
+    check("an unbraced shell variable is still not a sigil on its own",
+          not money_sigil_in('note = "$TMPDIR erosion destroyed 80% of six toolchains"'))
 
     bad = [n for n, ok in rows if not ok]
     for name, ok in rows:
