@@ -1,0 +1,142 @@
+{
+  "trial_id": "k1pad__t6",
+  "arm": "k1pad",
+  "k": 1,
+  "instructions": [
+    "F2"
+  ],
+  "padded": true,
+  "seed": 361321870,
+  "elapsed_s": 12.2,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Wrote `probe.py` \u2014 reads top-level `cost_usd` from each direct `*.json` child of the given directory, and writes `{\"total\": ..., \"mean\": ...}` to `summary.json` in the CWD. Not run, per instructions.",
+  "stderr_tail": "",
+  "prompt_chars": 2845,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"Sum and average the top-level \"cost_usd\" values found in the *.json\nfiles directly inside a given directory, writing the result to\nsummary.json in the current working directory.\n\nUNVERIFIED: behavior when zero files contain a cost_usd key (this script\nraises ZeroDivisionError rather than writing a summary) has not been\ntested against a real directory.\n\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    directory = Path(sys.argv[1])\n\n    values = []\n    for path in sorted(directory.glob(\"*.json\")):\n        if not path.is_file():\n            continue\n        with open(path) as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values)\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump({\"total\": total, \"mean\": mean}, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.061172,
+  "input_tokens": 1175,
+  "output_tokens": 845,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": false,
+        "evidence": "guard absent",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:49"
+}

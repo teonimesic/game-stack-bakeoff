@@ -759,13 +759,20 @@ off the opening ledge and hoped a floor was underneath, which in a designed plat
 usually is not. Repaired to construct the landing by jumping, re-pinned with both a mutant and a
 new variant, and the field re-graded. **FINDINGS #65.**
 
-A second defect found the same way is **not** fixed and caps this task: the bot reaches enemies
-by walking right, so it cannot cross a gap. `ts__t0`, whose ground is four segments with pits at
+A second defect found the same way capped this task's grades: the bot reached enemies by walking
+right, so it could not cross a gap. `ts__t0`, whose ground is four segments with pits at
 x 520-600, 1080-1180 and 1700-1790, walked into the first pit at x=588.8 and failed six combat
 criteria as a result — **the lowest score in the field, for building the most sophisticated
 level.** `unity__t0` is the same mechanism (its `Level.cs` says "Six pits to clear"; the bot
-reached x=367.5 against a 300-wide start pad). Any combat criterion on a gapped level is
-currently unmeasurable.
+reached x=367.5 against a 300-wide start pad). **Repaired 2026-08-23 (task 76)**: `_hurt` was
+the last of three inline movement loops with no edge jump, and the variant that declared the
+ceiling had put the far side 680 units away — past any jump — so the tolerance was partly a
+defect in the check. The four contact criteria are now measured on a pit level and the variant
+tolerates nothing (`judge/RUBRIC.md`, g4 section). **The grades below are not affected and were
+not re-run**: reading the eight stored `playbot.json` files, all six combat criteria already
+pass on all eight submissions after the earlier repairs, the one exception being
+`unity__t0`'s `knockback.applied`, which is *unscored* for the separate reason in #89. The
+repair matters for the next gapped submission, not for this run.
 
 Two further grader defects were adjudicated and repaired, and one template defect was not:
 
@@ -1705,6 +1712,76 @@ on a pristine tree** — the ts arm runs prettier over the tree inside `verify`,
 `AGENTS.md` would have shown up there as a modified path (the #106 shape). No tracked file changed
 on any stack. Rust, ts and unity are green on every direction; the three NOT PINNED IN THE THIRD
 DIRECTION rows are the standing report, unchanged.
+## THE RUST STARTER GAINED `default-run` ON 2026-08-23 — a SIXTEENTH comparability break
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other, which is what produced the twelfth/eleventh collision
+above. Cite the heading, not the number.
+
+`eval/starters/rust/crates/game` ships two binaries — `src/main.rs` (target `game`) and
+`src/bin/film.rs` — and the manifest had no `default-run`. That is cargo's documented
+ambiguity condition, and `justfile:152` is the exact command it breaks:
+
+```
+$ cargo run -p game --release --offline          # pristine tree, cargo 1.97.1, 2026-08-23
+error: `cargo run` could not determine which binary to run. Use the `--bin` option to
+       specify a binary, or the `default-run` manifest key.
+available binaries: film, game
+$ echo $?
+101
+```
+
+It lands in under a second, offline, having compiled nothing. `crates/game/Cargo.toml` now
+carries `default-run = "game"`; the same command then enters compilation with no
+target-selection error. Both directions were also pinned on a two-binary fixture that really
+executes — exit 101 without the key, exit 0 printing `RAN=game` with it, and still `RAN=game`
+after a third binary is added, which is the shape the agents below actually produced.
+
+**Who paid for it: 12 Rust trials across 5 runs**, each diagnosing it and adding this same line
+itself — `wg-matrix` (all six rust trials), `wg-audio` (g1_pong t0, t1), `wg-audio48` (g1_pong
+t0, g2_tetris3d t1), `archive-arena2d-wg-audio48` (g3_arena t0), `wg-g4` (g4_platformer t1).
+The producer is a grep of `runs/**/artifacts/*rust*/agent_result.json` → `.result`;
+`eval/tools/disclosure.py` located 4 of them on its cue set, which is why `tasks/81` says four.
+Nothing else in ten days of stored evidence had noticed.
+
+**What this boundary can and cannot have changed, stated because it is smaller than the heading
+suggests.** `just run` has been REFUSED under the harness on rust since the seventh
+comparability break (2026-08-17, `STARTER_NO_RAISE=1`), and the refusal branch returns 1 before
+reaching cargo — verified on a pristine copy. So the recipe has not reached the ambiguity in any
+trial from `wg-g4b` onward, and both `wg-g4c` rust agents wrote that they did not launch it. The
+residual exposure after 2026-08-17 is an agent typing `cargo run -p game` directly, which the
+Bash allowlist permits; no stored trial after that date is on record doing so. **The turns this
+cost were spent in the five runs listed above, all of them before the refusal existed.**
+
+**What it demonstrably does NOT change**, so a rust arm before and after is still comparable on
+everything graded:
+
+| axis | before | after |
+|---|---|---|
+| `starter_parity` hash chain, seed 7, its own 400-input tape | 401 hashes | 401, **byte-identical** — first `0x912e3a873849bcce`, last `0x9d53ded21eb09ce7` |
+| `just --summary` recipe set | 19 | 19, same names |
+| `AGENTS.md` | 2032 words | unchanged |
+| hook, CI, harness files | present | unchanged |
+
+The chain comparison was run through `starter_parity.hash_chain` itself rather than a
+re-implementation, and its own control — perturbing one tick — reports a difference, so the
+equality is not the instrument agreeing with itself.
+
+Gates re-run after the change: `judge/verify_blind.py` on an out-of-repo copy of the repaired
+starter — **BLIND**, 81 criterion ids, exit 0; and **CONTAMINATED, exit 1** with the canary
+planted in the very file that changed, so the scanner was shown able to fail on this input.
+`judge/starter_parity.py --skip-tests` over all four stacks with the repaired rust in place:
+exit 0, *no drift detected*, all four chains 401. `judge/parity_selftest.py`: 60 expectations, 0
+failed, exit 0 unpiped — run from the main checkout, because a worktree has no `node_modules`
+and its ts positive control cannot run there (that is the one failure it reports in a worktree,
+and it is environmental, not a regression).
+
+**The fix is `default-run`, not `--bin game` in the recipe.** The thing that fails is the
+command `cargo run -p game`, by whatever path it is typed, and agents type it directly; repairing
+only `justfile:152` leaves every other caller broken and would be the enumeration failure this
+project keeps paying for. `just film` and `just probe` already pass `--bin` and were never
+affected.
+
 
 ## Rules
 

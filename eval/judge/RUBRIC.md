@@ -371,14 +371,29 @@ in the criterion's own words and needs no level knowledge. Pinned by its existin
 on the `jump.leaves_ground` mutant by construction, declared there, and its evidence
 distinguishes the two failures. FINDINGS #65.
 
-> ⚠️ **A ceiling on this task, not yet fixed: the bot cannot cross a gap.** It reaches
-> every enemy by walking right, so a level whose ground has pits makes
-> `attack.damages`, `score.on_kill`, `enemy.damages_player`, `invuln.window`,
-> `knockback.applied` and `gameover.triggers` unmeasurable — the bot falls in and dies.
-> `g4_platformer__ts__t0` scored the field's lowest on exactly this, having built the
-> field's most sophisticated level. **A submission is currently penalised in proportion
-> to how much real platforming it builds.** Do not read a low g4 combat score as a
-> property of the submission without checking its ground for gaps.
+**The bot crosses a gap. That ceiling is gone, and it was two defects, not one** (task
+76, 2026-08-23). Until then a level whose ground had pits made `attack.damages`,
+`score.on_kill`, `enemy.damages_player`, `invuln.window`, `knockback.applied` and
+`gameover.triggers` unmeasurable — the bot walked in and died — so **a submission was
+penalised in proportion to how much real platforming it built**, and
+`g4_platformer__ts__t0` scored the field's lowest having built the field's most
+sophisticated level.
+
+- The bot held **three** inline copies of "walk toward the target". Edge-jumping reached
+  `_combat`; `_hurt`, whose whole experiment is making contact with an enemy, had none,
+  which is why the two *reach* criteria passed on a pit level while the four *contact*
+  criteria went red. All callers now build their inputs through one `_walk_toward`.
+- The `PIT_UNDER_LEDGE` variant that declared the ceiling put the far side **680 units**
+  away against a jump that clears ~148, so no bot could have crossed it; the six
+  tolerances were partly a level-design error in the check. The pit is now the 100 units
+  the real submissions shipped, still bottomless, and the variant **tolerates nothing**.
+
+Pinned in both directions: reverting `_hurt` alone turns exactly the four contact
+criteria red, and blinding `_edge_distance` turns all six red, while the repaired bot is
+green on all 19 scored criteria of the pit level. **`wg-g4c` does not need re-grading**:
+its eight stored `playbot.json` files already pass all six on all eight submissions after
+the earlier repairs, the one exception being `unity__t0`'s `knockback.applied`, unscored
+for the separate reason in #89. The repair matters for the next gapped submission.
 
 Three are genre-defining and invisible in a still frame:
 
@@ -490,12 +505,22 @@ neither equality holds, which is the reason `fun` still has a pacing claim. Its 
 byte-identical to `fun`'s **by design**, and `aspects_selftest.py` goes red if the two drift;
 a control briefed differently from its treatment is not a control.
 
-**It must never be pooled with the other five, and nothing enforces that** —
-`Aspect.diagnostic_only` is never set on it and is read by no code. `field_ranks.py` without
-`--per-aspect` pools every round in the directory it is given, which on
-`runs/wg-aspect-reliability` is 30 rounds of which 5 are the control. No published figure is
-affected: the separation pair `README.md` quotes comes from `wg-tetris-judge-2026-08-17/pre`
-and `/post`, which hold no `fun_frames` rounds. Task 90 carries the repair.
+**It must never be pooled with the other five, and since 2026-08-23 code enforces that.**
+`aspects.py` marks it `control_for="fun"`, `field_ranks.assert_poolable` raises on any
+population mixing a control with another aspect, and `field_ranks.report` prints the aspects
+each pooled figure is over plus every round it excluded. Until then the rule lived in a prose
+comment claiming an `Aspect.diagnostic_only` guard that was never set and read by no code, and
+`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control — `score`/`pool`
+0.3667/0.2417 polluted against 0.4000/0.2400 over the five scored aspects, with the verdict
+unchanged in all four readings. No published figure was affected: the separation pair
+`README.md` quotes comes from `wg-tetris-judge-2026-08-17/pre` and `/post`, which hold no
+`fun_frames` rounds (task 90).
+
+> **A control that does not declare itself to code is a control by convention.** The field
+> that was supposed to say so shared a name — `diagnostic_only` — with an unrelated one on
+> `probe.py` and the play bots holding criterion ids, so a `grep` for the guard returned
+> twenty hits and every one of them belonged to the other mechanism. The field is now
+> `control_for`, and `aspects_selftest.py` goes red if nothing sets it.
 
 **Candidates, not built:** game feel, difficulty and tuning, visual coherence, code quality.
 Do not name them in a command; `--aspects feel` is rejected by `choices=sorted(ASPECTS)`.

@@ -4,7 +4,7 @@
 `FRAMES_BLIND_SPOT` (`aspects.py`) tells every frames-reading judge that an effect
 which accumulates across ticks may be structurally absent from its evidence, because
 the four arms' capture harnesses differ in what a frame can contain (task 68,
-FINDINGS #107). Three properties have to hold, and none of them is visible in a
+FINDINGS #107). Four properties have to hold, and none of them is visible in a
 judge's output:
 
   1. EVERY frames-reading aspect carries it. An aspect that cannot know its own
@@ -16,6 +16,10 @@ judge's output:
   3. It names no stack and counts no arms. The judge is blinded to which submission
      is which (FINDINGS #32), and "three of the four" hands over the partition just
      as surely as "Bevy" does.
+  4. A control DECLARES what it controls, in `control_for`, where code can read it.
+     `field_ranks` decides what may be pooled from that field and nothing else; while
+     the exclusion lived only in a prose comment, 5 control rounds went into a pooled
+     figure over 30 (task 90).
 
 Each check is run against the live aspects (must pass) AND against a mutant built to
 break exactly that check (must fail). A check that cannot fail is worse than absent.
@@ -81,6 +85,36 @@ def check_control_briefing_is_identical(aspects: dict[str, Aspect]) -> list[str]
     return []
 
 
+def check_control_declaration(aspects: dict[str, Aspect]) -> list[str]:
+    """`control_for` must be usable by code, not merely readable by a person.
+
+    `field_ranks.assert_poolable` refuses to pool a control with a scored aspect, and it
+    decides which is which from this field alone. Three ways that goes wrong silently:
+
+      * nothing is marked, so the guard has nothing to exclude. That was the state until
+        2026-08-23 - the exclusion lived in a comment, `runs/wg-aspect-reliability` pooled
+        5 control rounds into 30, and `Aspect` carried a never-set field named
+        `diagnostic_only` that collided with an unrelated one on the play bots (task 90).
+      * a control names an aspect that does not exist, so "read it against its treatment"
+        cannot be done.
+      * a control controls a control, which has no meaning and would make the scored /
+        control split stop partitioning `ASPECTS`.
+    """
+    controls = {i: a.control_for for i, a in aspects.items() if a.control_for}
+    if not controls:
+        return ["no aspect sets `control_for`: field_ranks has nothing to exclude, and "
+                "a pooled figure will absorb any control silently"]
+    problems = []
+    for identifier, target in controls.items():
+        if target not in aspects:
+            problems.append(f"{identifier}: control_for={target!r}, which is not an aspect")
+        elif aspects[target].control_for:
+            problems.append(f"{identifier}: controls {target!r}, which is itself a control")
+        elif identifier == target:
+            problems.append(f"{identifier}: is its own control")
+    return problems
+
+
 def check_no_stack_or_count_leak(aspects: dict[str, Aspect]) -> list[str]:
     problems = []
     for identifier, aspect in frames_aspects(aspects).items():
@@ -100,6 +134,8 @@ CHECKS = (
     ("every frames aspect states its blind spot", check_every_frames_aspect_carries_it),
     ("fun and fun_frames are briefed identically", check_control_briefing_is_identical),
     ("no stack name and no arm count", check_no_stack_or_count_leak),
+    ("a control is declared to code, and names a real treatment",
+     check_control_declaration),
 )
 
 
@@ -133,6 +169,22 @@ def mutants() -> list[tuple[str, str, dict[str, Aspect]]]:
                             + " Three of the four harnesses draw only once.")
     out.append(("no stack name and no arm count",
                 "VARIANT: ux counts the arms without naming one", counted))
+
+    # THE TASK-90 STATE, reconstructed: the control is still defined, still briefed
+    # identically, still runnable - and no longer says so to code. Every other check here
+    # stays green on it, which is exactly why it survived in a comment for as long as it did.
+    unmarked = dict(live)
+    unmarked["fun_frames"] = replace(live["fun_frames"], control_for="")
+    out.append(("a control is declared to code, and names a real treatment",
+                "fun_frames stops declaring what it controls (the task-90 state)",
+                unmarked))
+
+    # A VARIANT for the same check: the field IS set, so a "is anything marked?" test
+    # passes, and the value points at nothing a reader could compare against.
+    dangling = dict(live)
+    dangling["fun_frames"] = replace(live["fun_frames"], control_for="fun_but_not_really")
+    out.append(("a control is declared to code, and names a real treatment",
+                "VARIANT: fun_frames controls an aspect that does not exist", dangling))
     return out
 
 

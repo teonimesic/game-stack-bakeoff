@@ -1,0 +1,163 @@
+{
+  "trial_id": "k4__t0",
+  "arm": "k4",
+  "k": 4,
+  "instructions": [
+    "B3",
+    "F3",
+    "F2",
+    "B8"
+  ],
+  "padded": false,
+  "seed": 127992538,
+  "elapsed_s": 13.7,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It reads `*.json` files directly under the given directory, sums/averages any `cost_usd` values found, and writes `summary.json` with `total`, `mean`, `n`, and `errors` (files that failed to parse). Not run, per instructions.",
+  "stderr_tail": "",
+  "prompt_chars": 1247,
+  "artifact_written": true,
+  "artifact_src": "#!/usr/bin/env python3\n\"\"\"probe.py: summarize cost_usd values across a directory of JSON files.\n\nUsage: python3 probe.py <directory>\n\nReads every *.json file directly inside the given directory (not\nsubdirectories), collects the top-level \"cost_usd\" value from each file\nthat has one, and writes summary.json (in the current working directory)\ncontaining the total, mean, sample count, and any files that failed to\nparse. See eval/IMPROVEMENTS.md for background on this instrument and\nideas for extending it.\n\nUNVERIFIED: behavior when cost_usd is present but not a number (e.g. a\nstring or null) has not been tested against real data.\n\"\"\"\n\nimport json\nimport os\nimport sys\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"Usage: probe.py <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    directory = sys.argv[1]\n\n    values = []\n    errors = []\n\n    for name in sorted(os.listdir(directory)):\n        if not name.endswith(\".json\"):\n            continue\n        path = os.path.join(directory, name)\n        if not os.path.isfile(path):\n            continue\n        try:\n            with open(path, \"r\") as f:\n                data = json.load(f)\n        except (OSError, json.JSONDecodeError):\n            errors.append(name)\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    n = len(values)\n    total = sum(values) if n else 0\n    mean = total / n if n else None\n\n    summary = {\n        \"total\": total,\n        \"mean\": mean,\n        \"n\": n,\n        \"errors\": errors,\n    }\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump(summary, f, indent=2)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.063827,
+  "input_tokens": 823,
+  "output_tokens": 1137,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:26:55",
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": false,
+        "evidence": "guard absent",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  }
+}

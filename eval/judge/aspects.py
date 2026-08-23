@@ -12,7 +12,7 @@ should be retired rather than re-tuned; see `JUDGING.md`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,20 @@ class Aspect:
     #: it.
     blind_language: bool = False
     notes: str = ""
-    diagnostic_only: frozenset[str] = field(default_factory=frozenset)
+    #: The id of the aspect this one is the CONTROL for; `""` for a scored opinion.
+    #:
+    #: A control asks a scored aspect's question with one channel of evidence removed, so
+    #: its answer is only meaningful AGAINST that aspect. Pooling it with the scored ones
+    #: computes a mean over a population that is heterogeneous by construction (rule 4),
+    #: and `field_ranks.assert_poolable` refuses to.
+    #:
+    #: THIS FIELD REPLACED ONE CALLED `diagnostic_only`, and the rename is the repair.
+    #: That field was never set on any aspect and was read by no code, while `probe.py`
+    #: and the three play bots carry a field of the SAME NAME holding CRITERION IDS - a
+    #: different mechanism entirely. The collision was enough for `FUN_FRAMES`'s own
+    #: comment to claim a guard that did not exist, and for a `grep diagnostic_only` to
+    #: return twenty hits that all belonged to the other mechanism (task 90).
+    control_for: str = ""
 
 
 # The scale is shared. It deliberately places "competent, works, unremarkable"
@@ -275,18 +288,18 @@ UX = Aspect(
 #:   rankings agree  -> the telemetry contributed nothing; `fun` is `ux` with extra evidence
 #:   rankings differ -> the telemetry is doing work, and `fun`'s pacing claim has support
 #:
-#: It is a control, not a sixth opinion. It must never be pooled with the other five - and
-#: NOTHING ENFORCES THAT, so read this as a warning rather than as a guarantee. This comment
-#: used to end "and it is `diagnostic_only` so no aggregate can absorb it by accident"; the
-#: field above is never set on it (it is `frozenset()`, checked 2026-08-23) and no code in
-#: the tree reads `Aspect.diagnostic_only` at all - the only readers of that name are
-#: `probe.py` and the play bots, a different mechanism that happens to share the field name.
-#: `field_ranks.py` without `--per-aspect` pools every round in the directory it is handed,
-#: which on `runs/wg-aspect-reliability` is 30 rounds of which 5 are this control. Task 90
-#: carries the repair; until it lands, an aggregate over aspects is the reader's job to check.
+#: It is a control, not a sixth opinion, and `control_for="fun"` below is what says so TO
+#: CODE rather than to a reader. `field_ranks.assert_poolable` raises on any population that
+#: mixes this aspect with another, so a pooled figure either excludes it or does not run;
+#: `field_ranks.report` names, in its output, the aspects each pooled figure is over and the
+#: rounds it left out. Until 2026-08-23 that guarantee lived only in this comment: the field
+#: was called `diagnostic_only`, was never set, and was read by nothing (task 90, and see
+#: `control_for` on `Aspect` for why the name itself was half the defect). The measurement
+#: that closed it: `runs/wg-aspect-reliability` pooled 30 rounds of which 5 were this control.
 FUN_FRAMES = replace(
     FUN,
     id="fun_frames",
+    control_for="fun",
     title="Gameplay and fun (frames only - CONTROL for `fun`)",
     sees="frames",
     evidence_rule=(
@@ -326,3 +339,22 @@ FUN_FRAMES = replace(
 )
 
 ASPECTS = {a.id: a for a in (IDIOMATIC, ARCHITECTURE, FUN, FUN_FRAMES, AUDIO, UX)}
+
+#: The scored opinions, and the controls, as two disjoint sets over `ASPECTS`.
+#:
+#: Derived, never listed by hand: a hand-written membership list is a second source of truth
+#: that a new aspect silently falsifies, which is #38's shape. `aspects_selftest.py` pins the
+#: three properties that make them usable - a control names a real aspect, a control does not
+#: control a control, and the two sets partition `ASPECTS`.
+SCORED_ASPECTS = tuple(i for i, a in ASPECTS.items() if not a.control_for)
+CONTROL_ASPECTS = {i: a.control_for for i, a in ASPECTS.items() if a.control_for}
+
+
+def is_control(aspect_id: str) -> bool:
+    """True for a known control aspect. False for a scored one AND for an unknown id.
+
+    An id this module has never heard of is not a control - it is UNMEASURABLE, and callers
+    that pool must say so rather than treating "not a control" as "safe to pool". That is
+    why `field_ranks.assert_poolable` asks about `ASPECTS` membership, not about this.
+    """
+    return bool(ASPECTS[aspect_id].control_for) if aspect_id in ASPECTS else False

@@ -207,6 +207,16 @@ grader owns its own three, listed in `judge/AGENTS.md`.
   manifest: does it describe the reports beside it, and does it belong to the directory it
   sits in. Neither question alone finds all five. Run it after any partial re-run.
 
+  **The two questions are independent, and a manifest that cannot be asked one is still asked
+  the other.** Until 2026-08-23 the code returned as soon as question 1 was unaskable, so all
+  12 spec-change directories — every pre-wholegame manifest in the corpus, the four that task
+  75 had just added included — printed `skip` without question 2 ever running. Placement now
+  has three channels (`run_dir`, `started_at`, `suite`) and **every one a manifest's fields
+  support runs**; the `skip` line names which of them acted, because *asked and clean* and
+  *never asked* had been printing the same word. Result over the 12: placed and correct on
+  all 12, corroborated by an independent channel that shares none of the same assumptions
+  (`eval/tools/manifest.py`, task 85).
+
   Directory names are operator-chosen and this project has stamped them in **both** local time
   and UTC, so never compare a `started_at` against one by eye — that is how a 1-second delta
   was published as a defect (#120).

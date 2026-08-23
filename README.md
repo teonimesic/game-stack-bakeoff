@@ -191,9 +191,10 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/starters/<stack>/` | **What a whole-game trial actually copies**, one per stack. `wholegame.py` reads only this directory. Game-agnostic: a placeholder, the harness, the boundary and the `verify` gate. This is the product that every run since 2026-08-12 has measured. |
 | ~~`template*/`~~ | **Deleted 2026-08-23.** The four original trees — a finished Pong per stack — were a fork of the starters with one dormant consumer, and nothing pulled them back into line: 0 of 105 commits touched them while 6 touched `eval/starters/` (#112). Recoverable from git; see `DECISIONS.md`. Their suite's stored results, prompts and answer key all stay — `eval/suites/`, `eval/holdout*/`, `eval/runs/bakeoff-*` (#122). |
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
+| `eval/instrfollow/` | **The instruction-count experiment** — does compliance with this project's own rules fall as more of them are active at once? `DESIGN.md` is pre-registered and written before any trial ran; `RESULT.md` is what came back. The subject is a fresh agent on a fixed task outside this repository, not a trial in the matrix. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#131, including retractions; `python3 eval/tools/docstat.py --findings` is the producer for the count and the range. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#132, including retractions; `python3 eval/tools/docstat.py --findings` is the producer for the count and the range. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -202,6 +203,8 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 - **Why this stack?** → `research/DECISION.md` (the *prior*; the bake-off is the evidence)
 - **What can each stack actually do at its pinned version?** → `research/10-stack-capability-matrix.md`
 - **What does a building agent read?** → `eval/starters/<stack>/AGENTS.md`. That is the whole population: every run since 2026-08-12 is a whole-game trial, and the second tree the spec-change suite read was deleted on 2026-08-23
+- **Does the always-loaded instruction file actually get followed?** → `eval/instrfollow/RESULT.md`
+  (bounded null up to 16 instructions; the repo loads 73–113, so the question is still open)
 - **How is a submission graded?** → `eval/judge/RUBRIC.md`
 - **How does subjective judging work, and what is being changed?** → `eval/judge/JUDGING.md`
 
@@ -226,6 +229,21 @@ version was Rust-flavoured and biased the comparison.
 
 **Three-tier evaluation harness**, validated against fixtures with known quality, including a
 discrimination gate that a bad implementation must fail.
+
+**Instruction-count experiment, 104 trials, 2026-08-23, $9.06 measured** (`eval/instrfollow/`).
+Does compliance with this project's own rules fall as more of them are active at once?
+Sixteen deterministically-checked instructions drawn from the always-loaded docs, attached to
+one fixed task at k = 1, 2, 4, 8, 16, plus a length-control arm.
+
+> **Result: no. 320 of 320 instruction-instances complied; every arm scored 1.000.** The
+> largest decline consistent with the data is **3.3 percentage points** over the 14
+> instructions a not-given control shows are doing work. Prompt length and position in the
+> block moved nothing either.
+>
+> **What it does not establish, and this is the part that matters:** the always-loaded set
+> holds **73–113 instructions** (`AGENTS.md` alone 39–60, measured by
+> `eval/tools/instruction_census.py`). This experiment reached 16. The interesting claim is
+> still untested — the run bounds the effect at roughly a seventh of the real load.
 
 **Whole-game matrix #1 (`wg-matrix-2026-08-13`): 24/24 trials built, $355.28 measured.**
 3 games (Pong, 3D Tetris, arena shooter) × 4 stacks × 2 trials, all `terminal_reason=completed`.
@@ -552,8 +570,8 @@ directly comparable**. Recorded in FINDINGS.
 
 ## The one thing this project actually learned
 
-113 numbered findings, #19-#131 — `python3 eval/tools/docstat.py --findings` — and all but a
-few are instances of one pattern:
+114 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**
 

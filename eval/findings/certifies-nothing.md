@@ -3482,3 +3482,37 @@ exactly the three guides, green after.
 so that control had been passing for the wrong reason. It was repaired rather than relaxed, which
 is the distinction that matters: a control that cannot fail is not evidence, and the fix is to
 make it able to, not to accept its green.
+
+## 132. A field name that collided with an unrelated one let a false claim about it survive every grep
+
+`aspects.py` carried a comment saying `FUN_FRAMES` *"is `diagnostic_only` so no aggregate can
+absorb it by accident."* The field existed. It was `frozenset()`. **No code read it.**
+
+The reason it survived is the transferable part. `diagnostic_only` is also a field name in
+`probe.py` and the play bots, where it means something else entirely — so grepping the name
+returned **twenty hits**, every one a real use, none of them a reader of `Aspect.diagnostic_only`.
+The claim looked verified by exactly the check anyone would run.
+
+> **A name that is used elsewhere for another purpose cannot be checked by searching for it.**
+> The search returns evidence of the other thing, and the reader stops. Renaming was not
+> cosmetic here — it is half the repair, because it is what makes the absence visible.
+
+The cost, measured: `field_ranks.py --rounds runs/wg-aspect-reliability` pooled **30 rounds of
+which 5 were the control**, printing `0.3667 / 0.2417` with nothing in the output saying so.
+After excluding them, 25 rounds give `0.4000 / 0.2400`. **The pollution moved the figures and not
+the verdict** — "between exceeds within" on all four readings either way — and two other stored
+directories were mixed the same way.
+
+**No published number moved, verified rather than assumed:** the two fields README quotes hold
+zero control rounds, and a grep of every live document for the polluted figures returned nothing.
+
+Three details worth keeping:
+
+- The guard is called from `figures()`, not `report()`, because the resource is *a pooled
+  figure* — so every caller gets it. A separate experiment proved this: editing `report` to pool
+  the control anyway turns the selftest red, so `report` cannot be made to pool it without also
+  disabling the guard.
+- An aspect id `aspects.py` does not define is treated as **unmeasurable**, not assumed scored.
+- **Every other check in `aspects_selftest.py` stays green on the mutant that reproduces this
+  exact state.** That is why it survived as a comment: the file had a check for everything except
+  whether the field was read.

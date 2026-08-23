@@ -237,6 +237,18 @@ come out of it and must be quoted with the field, the `value` and the `order`** 
 without its method names one of four quantities, which is how a pair matching none of them came
 to be published in four documents at once (#113).
 
+**There is a third parameter and it is the POPULATION.** A directory of rounds is not one
+population: `fun_frames` is `fun`'s control, its scores mean something only against `fun`'s, and
+pooling it is rule 4. Decided 2026-08-23 (task 90): a control **declares itself to code** —
+`Aspect.control_for` in `eval/judge/aspects.py` — a pooled figure covers the **scored aspects
+only**, and `field_ranks` names the aspects each figure is over in its own output. The guard is
+`field_ranks.assert_poolable`, which raises rather than silently dropping, and an aspect id
+`aspects.py` does not define is treated as **unmeasurable rather than scored**. Before this the
+rule was a prose comment naming a field that was never set and read by nothing;
+`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control. No published figure
+moved — `wg-tetris-judge-2026-08-17/pre` and `/post` hold no control rounds, and both reproduce
+to the digit.
+
 **When one pair is quoted, it is `rank` + `pool`.** Three grounds:
 
 1. The tier's output is an **ordering** — each specialist ranks a whole eight-submission field.
@@ -1024,6 +1036,7 @@ settled question is noise that makes the live ones harder to find.
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | The **free pre-test coming back spread** — `stage.completes` read as a fraction, after task 76, over the eight surviving `wg-g4c` work trees. Spread there retires the harder-task question outright; all-eight-at-1.000 is what justifies the $421-to-$698 spend, and a low flat fraction says the bot is still the constraint and the money would buy nothing |
+| Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the

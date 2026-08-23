@@ -139,7 +139,12 @@ python3 eval/tools/tasks.py add "Title in the imperative" \
   --refs "eval/FINDINGS.md #62" --priority 2 --why "why it matters"
 ```
 
-`add` gives you a stub. **The stub is not the task — write the body.**
+`--why` and `--done-when` are both required. `--why` becomes the body, and `check` fails on an
+empty one.
+
+`add` gives you a stub. **The stub is not the task — write the body.** And write it into *this*
+file: appending to a filename you guessed from a queue listing title is how task 71's brief ended
+up in task 70's ticket. `check` catches that now — see [the body](#the-body-check-fails-when-a-ticket-is-not-its-own-ticket).
 
 ### Write it as a ticket for a stranger
 
@@ -269,3 +274,43 @@ negative.** If there is no honest way to close the task in that case, the condit
 unreachable and the task is a permanent excuse. Non-termination is a result: *"no pair
 resolves, here is the measured gap"* closes a task; *"the experiment did not finish"* does
 not.
+
+## The body: `check` fails when a ticket is not its own ticket
+
+The frontmatter was gated from the start. The **body** — the only part an agent is actually
+briefed from — was not, and on 2026-08-23 commit `436bf64` appended task 71's entire 59-line
+brief to `tasks/70-set-a-size-...md`, a filename guessed from a queue listing title, and created
+`tasks/71-...md` with no body at all. `check` exited **0** on both for a day, while task 71's
+agent worked from an empty ticket and `show 70` rendered a brief about trial disclosures.
+
+Two failures now, one per half:
+
+| `check` says | when |
+|---|---|
+| `body is empty` | exact, no heuristic. `add` writes a stub and **the stub is not the task** |
+| `body restates task N's title/done_when (46%) far more than its own (9%)` | the body reads as a different ticket's brief |
+
+**It is not keyed on the body naming another task's id**, which is how the repair was first
+asked for and is not implementable: **58 of 85 live bodies name another task id** — tickets cite
+their neighbours, which is the queue working — and the 59 misfiled lines never say *"task 71"*
+once. What it compares is **containment**: what fraction of some other task's `title` +
+`done_when` this body restates, against what fraction of its own. The misfiled brief restates
+**45.6%** of task 71's and **9.4%** of task 70's.
+
+`MISFILED_MARGIN = 0.25` is measured, not chosen. Scored over **every version of every task file
+git has ever tracked** — 3175 file-versions across 81 snapshots — the margin separates cleanly:
+the defect at **0.3615**, and the highest of the other 3174 at **0.1399** (task 62, whose subject
+genuinely is task 70's). Both sides are pinned in `tasks_control.py`, so raising the threshold
+and lowering it each go red.
+
+**Because of this, `add` now requires `--why`.** It is what goes into the body, and a tool that
+creates a file its own lint rejects pushes the failure onto whoever runs the gate next.
+
+> **What it cannot catch**, and why the empty-body check is separate rather than folded in: a
+> body misfiled into a task with a *vague* brief scores low against it; a body misfiled between
+> two *similar* tickets raises its own score too and stays under the margin — and adjacent
+> tickets are exactly where a misfiling is likeliest. A body that is simply off-topic, matching
+> nothing in the queue, is invisible to it.
+
+Unlike the reachability warning, both of these run on `done` tasks too. The archive is what the
+next agent reads to find out what was established.
