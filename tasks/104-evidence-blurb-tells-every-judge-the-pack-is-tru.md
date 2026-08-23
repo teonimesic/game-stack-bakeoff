@@ -1,7 +1,7 @@
 ---
 id: 104
 title: EVIDENCE_BLURB tells every judge the pack is truncated by a size budget that was removed on 2026-08-22
-status: open
+status: in_flight
 priority: 3
 refs: 'eval/judge/field.py EVIDENCE_BLURB, eval/FINDINGS #69, tasks/95'
 done_when: the sentence is either corrected to what is true now or removed, with a note in eval/RUNS.md recording that every stored round read the stale text; and a check exists that would fail if a claim in EVIDENCE_BLURB stops matching the packer - a sentence about the packer that no code reads is how this one survived a year

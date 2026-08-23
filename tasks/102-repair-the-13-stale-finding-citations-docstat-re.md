@@ -1,7 +1,7 @@
 ---
 id: 102
 title: Repair the 13 stale finding citations docstat --renumbered DECIDES, and triage the 28 it cannot
-status: open
+status: in_flight
 priority: 4
 refs: eval/tools/docstat.py, AGENTS.md renumbering table, tasks/86
 done_when: docstat.py --renumbered reports an empty DECIDED STALE list at HEAD unpiped, every replacement recorded beside the eval/findings/ heading text that establishes it rather than beside the count, and each of the 28 UNDECIDABLE rows carries either a repair or a one-line note saying which finding it meant and why history could not say

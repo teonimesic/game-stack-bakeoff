@@ -21,8 +21,17 @@ not a mechanism:
 
   * `check` gated the frontmatter and never looked at the BODY, which is the only part an
     agent is briefed from. `436bf64` appended task 71's whole brief to `tasks/70-...md` and
-    created `tasks/71-...md` empty; `check` exited 0 on both for a day while task 71's agent
-    worked from a ticket with no body (task 82).
+    created `tasks/71-...md` empty; `check` exited 0 on both, printing `70 task(s), all
+    well-formed`, while task 71's agent worked from a ticket with no body (task 82).
+
+    The exposure was 25m48s on main -- `436bf64` 09:12:56 to `28f6598` 09:38:44 -- and NOT
+    "for a day", which this docstring and `tasks/93` both said until #141 measured it. The
+    duration is the wrong figure anyway: the dispatched agent forked at `23be12c` (09:14:41),
+    after the misfile, and delivered at `c2bc8ce` (09:38:42), so ALL of its working span ran
+    against the empty ticket. The same mistake eight hours earlier -- `709d51a`, an append to
+    a guessed filename that did NOT exist -- was caught by this same `check` at exit 1, and
+    that contrast is the finding: a wrong address that misses makes an artifact the lint can
+    see, and one that hits makes a well-formed one it cannot.
 
 THE FIVE DIRECTIONS
 -------------------
@@ -77,9 +86,18 @@ import tempfile
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
+ROOT = TOOLS.parents[1]
 TASKS_PY = TOOLS / "tasks.py"
 sys.path.insert(0, str(TOOLS))
 import tasks as T                                                    # noqa: E402
+
+#: Direction 6's pins -- the three terms of #141's coverage figure. They are literals here
+#: and derived in `lint_coverage.py`, so the two files disagree if either drifts. The
+#: commit is the same misfile `MISFILE_COMMIT` names; spelling it twice would be rule 12's
+#: two-addresses defect, so direction 6 asserts them equal rather than promising it.
+LC_COMMIT = "436bf64"
+LC_TOTAL = 329185
+LC_LINTED = 29591
 
 #: The commit that fixed direction 2. Its parent is the positive control: the copy of
 #: `tasks.py` that MUST fail the same harness, proving the harness can see the failure.
@@ -533,6 +551,66 @@ def misfiled_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 6
+def coverage_rows() -> tuple[list[tuple], list[str]]:
+    """#141's coverage figure, run rather than quoted.
+
+    Direction 5 asks whether the repaired lint can catch the misfile. This asks the prior
+    question the finding is built on: how little of a task file the lint ever read. It is
+    here because the figure was published WRONG -- `27,156 of 328,692 bytes, 8.3%`, both
+    terms -- and survived review for exactly as long as it took someone to re-measure at
+    merge. It had no producer, so nothing in the repository could disagree with it, which
+    is the defect AGENTS.md names in the "how much of anything" row rather than a slip.
+
+    The producer's own pins live in `lint_coverage.py --selftest`; this runs them, so the
+    figure cannot drift from the document without a red row here.
+    """
+    rows, unchecked = [], []
+    try:
+        import lint_coverage as LC
+    except ImportError:
+        return rows, ["#141's coverage figure NOT CHECKED - eval/tools/lint_coverage.py "
+                      "did not import. The published 9.0% stands unverified."]
+    try:
+        n, lint, total = LC.measure(LC_COMMIT)
+    except Exception as exc:                                    # noqa: BLE001
+        return rows, [f"#141's coverage figure NOT CHECKED - reading {LC_COMMIT} from git "
+                      f"failed ({type(exc).__name__}). A shallow clone has no history to "
+                      f"measure and that is not the same as a passing check."]
+    # Rule 12: the same commit is spelled in two constants, so assert them equal in code.
+    rows.append(("#141: direction 6 measures the same commit direction 5 repairs", 0,
+                 LC_COMMIT == MISFILE_COMMIT,
+                 f"LC_COMMIT {LC_COMMIT} vs MISFILE_COMMIT {MISFILE_COMMIT}"))
+    rows.append((f"#141: files in {LC_COMMIT}'s tasks/ tree", n, n == 70, f"{n} of 70"))
+    rows.append(("#141: total bytes (the denominator, a bare count with no method in it)",
+                 total, total == LC_TOTAL, f"{total:,} of {LC_TOTAL:,}"))
+    rows.append(("#141: bytes the pre-fix lint evaluated", lint, lint == LC_LINTED,
+                 f"{lint:,} of {LC_LINTED:,} = {100 * lint / total:.1f}%"))
+    # The denominator, independently. `measure` reads blobs through `cat-file`; this reads
+    # the sizes git recorded for those blobs. Two routes to one number that has no method
+    # in it -- so if they ever disagree the bug is in the walk, not in the definition.
+    try:
+        ls = subprocess.run(["git", "-C", str(ROOT), "ls-tree", "-l", LC_COMMIT, "tasks/"],
+                            capture_output=True, text=True, check=True).stdout.splitlines()
+        summed = sum(int(r.split()[3]) for r in ls)
+        rows.append(("#141: denominator agrees with git's own blob sizes", summed,
+                     summed == total, f"ls-tree {summed:,} vs walk {total:,}"))
+    except Exception as exc:                                    # noqa: BLE001
+        unchecked.append(f"#141's denominator NOT CHECKED against git ls-tree "
+                         f"({type(exc).__name__}).")
+    # THE NUMERATOR IS METHOD-DEPENDENT AND THE DOCUMENT SAYS SO. Pinning the gap is what
+    # keeps that sentence honest: if a future edit makes the two methods agree exactly, the
+    # document's claim that the choice costs 47 bytes is false and this goes red.
+    try:
+        _, alt, _ = LC.measure(LC_COMMIT, LC.linted_bytes_via_yaml)
+        rows.append(("#141: the second extraction method still lands 47 bytes away",
+                     lint - alt, lint - alt == 47, f"{lint:,} - {alt:,} = {lint - alt}"))
+    except Exception as exc:                                    # noqa: BLE001
+        unchecked.append(f"#141's method gap NOT CHECKED ({type(exc).__name__}); PyYAML is "
+                         f"the likely cause.")
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -552,7 +630,8 @@ def main(argv: list[str]) -> int:
                    lambda: add_rows(tmp, a.skip_prefix),
                    lambda: check_rows(tmp),
                    lambda: reachability_rows(),
-                   lambda: misfiled_rows(tmp)):
+                   lambda: misfiled_rows(tmp),
+                   lambda: coverage_rows()):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)

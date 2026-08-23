@@ -1,7 +1,7 @@
 ---
 id: 89
 title: docstat --sweep cannot see a bare flag in a fenced usage block, which is where a phantom flag does most damage
-status: open
+status: in_flight
 priority: 3
 refs: eval/tools/docstat.py, .claude/skills/audit-docs/SKILL.md
 done_when: Either the flag check covers bare flags on fenced command lines with a measured false-positive count on the current corpus and a control in both directions - a planted bare phantom flag reads exit 1, an unmodified corpus reads exit 0 - or the gap is recorded as deliberate in the What it deliberately does not check list in .claude/skills/audit-docs/SKILL.md with the measurement that decided it. Verify by planting a bare phantom flag in a fenced block and reading the unpiped exit code.
