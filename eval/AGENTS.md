@@ -119,7 +119,10 @@ budget-cap regime (#33) and a cross-group ratio would be arithmetic on incompara
 tool exits 2 on a missing tree rather than reporting 0, so run it against the main checkout.
 
 **Whether one stack is systematically cheapest is a third question, and `--ordering` is its
-producer** — an exact permutation of the stack labels *within a cluster*. **Read the
+producer** — a permutation of the stack labels *within a cluster*, enumerated exactly at the
+stack and cluster counts the stored tree has and seeded-sampled above the enumeration limit,
+with the output saying which. **A fifth stack or a fifth run selects the sampled path**, and
+both are recorded re-open conditions, so never quote the p without the mode. **Read the
 `smallest p this design could return` line before reading the p.** At the honest unit — a
 connected component of run *and* game, because the games recur — the stored tree's floor is
 **0.25**, so the question is unasked there rather than answered. `DECISIONS.md` holds the

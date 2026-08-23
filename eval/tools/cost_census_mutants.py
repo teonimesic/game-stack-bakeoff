@@ -75,11 +75,18 @@ WHAT THIS DOES NOT DO
 A mutant asks whether a check **can** fail. Only a **variant** asks whether it can still
 **pass** on an input it mishandles, and every false negative adjudicated in this project has
 been of the second kind (`AGENTS.md` rule 15). The variants live in `cost_census.selftest`
-itself — a `$0.00` trial, a record with no cost field, an uneven 3-trial cell, a tied cheapest
-pair, a leader whose lead is *inside* the noise floor, and a leader that loses one cluster —
-because they must pass, and `spread_divides`, `no_cost_guard`, `first_two_only`,
-`ranks_ignore_ties`, `margin_beats_zero` and `margin_where_it_lost` are the mutants that prove
-those rows can go red.
+itself, because a variant must **pass**. There are 7, each paired with the mutant that proves
+its rows can go red:
+
+| variant, by its label in `cost_census.selftest` | the input it must still handle | proved reddenable by |
+|---|---|---|
+| `Variant A` | a `$0.00` trial | `spread_divides` |
+| `Variant B` | a record with no cost field | `no_cost_guard` |
+| `Variant C` | an uneven 3-trial cell | `first_two_only` |
+| `O3` | a leader that loses one cluster | `margin_where_it_lost` |
+| `O5` | a tied cheapest pair | `ranks_ignore_ties`, `leads_by_alphabetical_tiebreak` |
+| `O6` | a lead that sits *inside* the noise floor | `margin_beats_zero` |
+| `O7` | a cluster whose smallest column is not unique | `fragility_from_closed_form` |
 
 **Needs no corpus.** `cost_census.py --selftest` builds its own trees under `tempfile`, so
 this runs anywhere, including an agent worktree with no `eval/runs/`.
@@ -215,14 +222,21 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "                       margin_exceeds_floor=margin > floor)",
         "                       margin_exceeds_floor=margin >= 0)"),
     "margin_where_it_lost": (
-        '        if means[0][1] == leader and len(means) > 1:',
+        '        if row["leads"] and len(means) > 1:',
         "        if len(means) > 1:"),
+    "leads_by_alphabetical_tiebreak": (
+        '               "cheapest": means[0][1], "leads": r[leader] == 1.0,',
+        '               "cheapest": means[0][1], "leads": means[0][1] == leader,'),
     "no_groups_guard": (
         "    if not groups:\n        raise CostCensusError(",
         "    if False:\n        raise CostCensusError("),
     "stack_set_guard": (
         "    if len(stack_sets) != 1:\n        raise CostCensusError(",
         "    if False:\n        raise CostCensusError("),
+    "fragility_from_closed_form": (
+        "        worst = max(worst, _permutation_test(sub, sum(min(c) for c in sub), k)"
+        '["p_floor"])',
+        "        worst = max(worst, k * (1.0 / k) ** len(sub))"),
     "drop_ordering_field": (
         '        "p_floor": n_floor / n_draws,',
         '        "p_floor_RENAMED": n_floor / n_draws,'),

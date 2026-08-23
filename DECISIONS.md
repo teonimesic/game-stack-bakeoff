@@ -2081,10 +2081,11 @@ against its floor"*, which was the half that reached the null.
 
 ### The ordering: TypeScript leads 5 of 7 and the stored tree cannot say whether that is real
 
-`python3 eval/tools/cost_census.py --ordering` is the producer, and it decides the question the
-section above left open. **The answer is that no reading of the stored records settles it.**
+`python3 eval/tools/cost_census.py --ordering` is the producer. **No reading of the stored
+records settles the ordering**, and the reason is structural rather than marginal.
 
-**The statistic** is an exact permutation test on the usage ranks, with the **stack labels**
+**The statistic** is a permutation test on the usage ranks — exact here, all 331,776 assignments
+enumerated rather than sampled — with the **stack labels**
 permuted *within a cluster* and held constant across every group in that cluster. The null is that
 which stack got which of a group's four cells is arbitrary; rejecting it is the only sense in which
 "the stacks are ordered" is a claim rather than a reading of a table. The leading stack was chosen
@@ -2092,12 +2093,12 @@ which stack got which of a group's four cells is arbitrary; rejecting it is the 
 stacks reaches* — the version that carries its own multiplicity. TypeScript's rank sum is **10**
 against a null expectation of 17.5.
 
-**The dependence structure is the whole result, and the unit is not obvious.** Three units are
+**The dependence structure is the whole result, and the unit is not obvious.** 3 units are
 defensible and they do not agree:
 
 | independent unit | n | p, post-hoc-safe | smallest p the design could return |
 |---|---|---|---|
-| **run directory** — what the ticket named | 4 | **0.0156** | **0.0156** |
+| **run directory** — one launch, one harness, one day | 4 | **0.0156** | **0.0156** |
 | **game** — because games recur across runs | 4 | 0.0469 | 0.0156 |
 | **connected component of run *and* game** | **2** | **0.25** | **0.25** |
 
@@ -2123,7 +2124,7 @@ reaching the null in `README.md` does **not** change — this route reaches no n
 what its row already says. `cost_usd` is a list-price valuation of tokens on a subscription
 account (#159), so none of this is about money.
 
-**What would settle it is now priced, and it is not a re-reading.** Four qualifying groups sharing
+**What would settle it is now priced, and it is not a re-reading.** 4 qualifying groups sharing
 **neither a run nor a game** put the design floor back at 0.0156 with independent clusters behind
 it. The stored tree cannot be rearranged into that; it needs new runs on games that do not recur.
 
@@ -2145,8 +2146,8 @@ hidden: **2 of the mutants were exiting non-zero via a traceback rather than red
 check**, which a by-hand pass scores as "caught". The 3 **variants** stay inside
 `cost_census.selftest` because a variant must *pass*.
 
-**To re-open:** a matrix that lands qualifying groups sharing neither a run nor a game with the
-seven, or a fifth stack — both of which change the cluster structure the adjudication turned on.
+**To re-open:** a matrix that lands 4 qualifying groups sharing neither a run nor a game with the
+7, or a fifth stack — both of which change the cluster structure the adjudication turned on.
 
 
 ## Reversal conditions — what would re-open a decision
