@@ -44,6 +44,26 @@ makes a mutant necessary rather than merely tidy:
 | `swallow_bad_json` | naming the file in a parse failure | a record vanishes from the population with nothing a reader can see |
 | `drop_field` | a field the selftest reads, renamed | the selftest dying on a `KeyError` instead of reddening its row |
 
+The ordering adjudication (`--ordering`) is the same discipline over a p-value, and a p-value is
+the worst quantity here to get silently wrong: every mutant below returns a number in [0, 1].
+
+| mutant | what it deletes | what the tool would then report |
+|---|---|---|
+| `per_group_not_per_cluster` | clustering, so every group is its own unit | groups that share a run counted as independent evidence. **This is the fail-open that manufactures significance** — it is the whole reason the test exists rather than a table |
+| `components_ignore_game` | the game channel of the connected-component unit | the most conservative unit silently becomes the run unit, and the 0.25 floor the adjudication turned on disappears |
+| `p_any_is_p_named` | the post-hoc correction | the p for a stack *named in advance*, reported for one chosen because it looked lowest — a factor of k too small |
+| `p_excludes_the_observed` | the observed assignment's own membership of the tail | a permutation p that excludes itself; at the extreme it returns `0.0000` |
+| `attainable_min_is_one_cluster` | the design floor summed over clusters | the floor read off a single cluster, so `at_the_extreme` goes False and the "no margin left" warning never prints on the one result that needs it |
+| `sample_never_exact` | the exact-enumeration threshold | every p silently sampled, while the output still says which mode it used |
+| `ranks_ignore_ties` | shared average ranks | two stacks with the same mean ordered by the sort's stability — **a lead manufactured by the order of a list**, in exactly the quantity being adjudicated |
+| `leader_is_dearest` | the ordering's direction | the adjudication run on the *dearest* arm |
+| `margin_over_dearest` | the runner-up as the comparison | the lead measured against the dearest stack — the whole between-stack range, reported as one arm's margin |
+| `margin_beats_zero` | the comparison against the noise floor | "the lead beats the noise" becomes "the lead is positive", which is true whenever there is a lead at all |
+| `margin_where_it_lost` | measuring the margin only where the leader leads | the gap in a group the leader **lost** counted as evidence for it |
+| `no_groups_guard` | the refusal on an empty population | a p-value over no groups. It is caught by the *message*: a second guard also refuses here, so a type-only check passes while the reader is told the wrong thing |
+| `stack_set_guard` | the one-stack-set refusal | labels permuted across groups holding different stacks, which is undefined |
+| `drop_ordering_field` | an ordering field the selftest reads, renamed | `drop_field` one level down |
+
 **`drop_field` is the one that is about the selftest rather than about the tool**, and it is
 here because it already happened: a fixed placeholder dict inside `only_group()` drifted the
 moment a field was added, and three mutants died on a `KeyError` instead of naming a failure.
@@ -55,14 +75,16 @@ WHAT THIS DOES NOT DO
 A mutant asks whether a check **can** fail. Only a **variant** asks whether it can still
 **pass** on an input it mishandles, and every false negative adjudicated in this project has
 been of the second kind (`AGENTS.md` rule 15). The variants live in `cost_census.selftest`
-itself — a `$0.00` trial, a record with no cost field, an uneven 3-trial cell — because they
-must pass, and `spread_divides`, `no_cost_guard` and `first_two_only` above are the mutants
-that prove those three rows can go red.
+itself — a `$0.00` trial, a record with no cost field, an uneven 3-trial cell, a tied cheapest
+pair, a leader whose lead is *inside* the noise floor, and a leader that loses one cluster —
+because they must pass, and `spread_divides`, `no_cost_guard`, `first_two_only`,
+`ranks_ignore_ties`, `margin_beats_zero` and `margin_where_it_lost` are the mutants that prove
+those rows can go red.
 
 **Needs no corpus.** `cost_census.py --selftest` builds its own trees under `tempfile`, so
 this runs anywhere, including an agent worktree with no `eval/runs/`.
 
-    python3 eval/tools/cost_census_mutants.py          # every mutant, ~2s
+    python3 eval/tools/cost_census_mutants.py          # every mutant, 6.4s
     python3 eval/tools/cost_census_mutants.py --list   # the count and the names only
 """
 
@@ -160,6 +182,50 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "one_level": (
         '    for path in sorted(runs_dir.rglob("trials/*.json")):',
         '    for path in sorted(runs_dir.glob("*/trials/*.json")):'),
+
+    # ---- the ordering adjudication. Every one of these returns a p-value in [0,1].
+    "ranks_ignore_ties": (
+        "        while j + 1 < len(ordered) and ordered[j + 1][0] == ordered[i][0]:",
+        "        while False:"),
+    "per_group_not_per_cluster": (
+        "        clusters = build(groups)",
+        "        clusters = [(f'g{i}', [i]) for i in range(len(groups))]"),
+    "components_ignore_game": (
+        '    for key in ("run", "game"):',
+        '    for key in ("run",):'),
+    "p_any_is_p_named": (
+        "        if smallest <= obs_leader:\n            n_any += 1",
+        "        if v[leader_idx] <= obs_leader:\n            n_any += 1"),
+    "p_excludes_the_observed": (
+        "        if v[leader_idx] <= obs_leader:\n            n_named += 1",
+        "        if v[leader_idx] < obs_leader:\n            n_named += 1"),
+    "attainable_min_is_one_cluster": (
+        "    attainable_min = sum(min(col) for col in cols)",
+        "    attainable_min = min(min(col) for col in cols)"),
+    "sample_never_exact": (
+        "EXACT_ASSIGNMENT_LIMIT = 2_000_000",
+        "EXACT_ASSIGNMENT_LIMIT = 0"),
+    "leader_is_dearest": (
+        "    leader = min(stacks, key=lambda s: observed[s])",
+        "    leader = max(stacks, key=lambda s: observed[s])"),
+    "margin_over_dearest": (
+        "            margin = means[1][0] - means[0][0]",
+        "            margin = means[-1][0] - means[0][0]"),
+    "margin_beats_zero": (
+        "                       margin_exceeds_floor=margin > floor)",
+        "                       margin_exceeds_floor=margin >= 0)"),
+    "margin_where_it_lost": (
+        '        if means[0][1] == leader and len(means) > 1:',
+        "        if len(means) > 1:"),
+    "no_groups_guard": (
+        "    if not groups:\n        raise CostCensusError(",
+        "    if False:\n        raise CostCensusError("),
+    "stack_set_guard": (
+        "    if len(stack_sets) != 1:\n        raise CostCensusError(",
+        "    if False:\n        raise CostCensusError("),
+    "drop_ordering_field": (
+        '        "p_floor": n_floor / n_draws,',
+        '        "p_floor_RENAMED": n_floor / n_draws,'),
 
     # ---- the selftest's own drift guard
     "drop_field": (

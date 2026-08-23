@@ -64,8 +64,24 @@ Every guard below exists because its absence is a plausible in-range answer, not
   depth-independent, a run is identified by its path relative to `runs/`, and `trials/`
   directories inside agent-authored trees are skipped and the skip is counted.
 
+IS ANY ONE STACK SYSTEMATICALLY CHEAPEST? `--ordering`
+------------------------------------------------------
+A separate question from the one above, and the rank table alone cannot answer it. `--ordering`
+runs an exact permutation test on the usage ranks with the **stack labels** permuted *within a
+cluster* and held constant across every group in that cluster, so groups sharing a run or a game
+are not counted as independent evidence. It reports three units side by side — run, game, and the
+connected component of both — because which of them is independent is a judgement and the three
+disagree.
+
+**Read `smallest p this design could return` before reading the p.** With k stacks and m clusters
+an unbroken lead has probability `k * (1/k)**m`, whatever the data says. Over the stored tree the
+run unit returns 0.0156 and its floor is *also* 0.0156 — the most extreme outcome available, with
+no margin — while the component unit's floor is 0.25, so at that unit no outcome could reach 0.05
+and the question is unasked rather than answered. `DECISIONS.md` holds the adjudication.
+
     python3 eval/tools/cost_census.py               # the result, human-readable
     python3 eval/tools/cost_census.py --json        # the same, machine-readable
+    python3 eval/tools/cost_census.py --ordering    # the ordering adjudication
     python3 eval/tools/cost_census.py --selftest    # pins the extraction in both directions
 """
 
@@ -74,8 +90,10 @@ from __future__ import annotations
 import argparse
 import collections
 import datetime as _dt
+import itertools
 import json
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -381,6 +399,246 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
     }
 
 
+# -------------------------------------------------------------- ordering adjudication
+
+# The level the adjudication is read at, named once. A threshold spelled in two places is
+# a threshold that will eventually disagree with itself.
+ALPHA = 0.05
+
+# Above this many label assignments the exact enumeration is refused in favour of a seeded
+# sample, and the result says which one it is. A sampled p reported as exact is a number
+# that gets acted on. 4 stacks over 4 clusters is 331,776, comfortably under.
+EXACT_ASSIGNMENT_LIMIT = 2_000_000
+SAMPLE_DRAWS = 200_000
+SAMPLE_SEED = 20260823
+
+
+def group_ranks(group: dict) -> dict[str, float]:
+    """Usage rank of each stack in one group, 1 = lowest stack mean. Ties share the average.
+
+    Ties are not defensive padding. Two stacks with equal means would otherwise be ordered
+    by the sort's stability, handing one of them rank 1 — a lead manufactured by the order
+    of a list, in the exact quantity this adjudication is about.
+    """
+    ordered = sorted((r["mean"], r["stack"]) for r in group["per_stack"])
+    ranks: dict[str, float] = {}
+    i = 0
+    while i < len(ordered):
+        j = i
+        while j + 1 < len(ordered) and ordered[j + 1][0] == ordered[i][0]:
+            j += 1
+        shared = (i + j) / 2.0 + 1.0
+        for t in range(i, j + 1):
+            ranks[ordered[t][1]] = shared
+        i = j + 1
+    return ranks
+
+
+def _cluster_by(groups: list[dict], key: str) -> list[tuple[str, list[int]]]:
+    out: dict[str, list[int]] = collections.defaultdict(list)
+    for i, g in enumerate(groups):
+        out[g[key]].append(i)
+    return sorted(out.items())
+
+
+def _cluster_components(groups: list[dict]) -> list[tuple[str, list[int]]]:
+    """Connected components of "shares a run OR shares a game".
+
+    The reason this clustering exists: treating the RUN as the independent unit assumes the
+    runs are independent of one another, and they are not — the same games recur across
+    runs, so a stack that is cheap on one game contributes the same evidence twice. This
+    merges both channels and is the most conservative unit the stored tree admits.
+    """
+    parent = list(range(len(groups)))
+
+    def find(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for key in ("run", "game"):
+        for _, idx in _cluster_by(groups, key):
+            for other in idx[1:]:
+                ra, rb = find(idx[0]), find(other)
+                if ra != rb:
+                    parent[ra] = rb
+
+    comp: dict[int, list[int]] = collections.defaultdict(list)
+    for i in range(len(groups)):
+        comp[find(i)].append(i)
+    return [(f"component {n}", idx)
+            for n, (_, idx) in enumerate(sorted(comp.items(), key=lambda kv: kv[1]), 1)]
+
+
+# Three units, reported side by side and never reduced to one, because which of them is
+# independent is a judgement and the three do not agree. `DECISIONS.md` records which one
+# the published adjudication is read from, and why.
+CLUSTERINGS = {
+    "run": ("run directory", lambda gs: _cluster_by(gs, "run")),
+    "game": ("game", lambda gs: _cluster_by(gs, "game")),
+    "run+game": ("connected component of run and game", _cluster_components),
+}
+
+
+def _permutation_test(cols: list[list[float]], obs_leader: float,
+                      k: int) -> dict:
+    """Exact (or seeded-sampled) permutation over stack labels, permuted WITHIN a cluster.
+
+    `cols[c][j]` is stack `j`'s summed rank over every group in cluster `c`. A label
+    assignment picks one permutation per cluster and holds it across every group in that
+    cluster, which is what preserves the dependence between groups that share a run or a
+    game instead of counting them as independent evidence.
+
+    Three counts come back, and the third is the one that decides anything:
+
+    - `p_named`   — the leader's rank sum, had the leader been named in advance. It was not.
+    - `p_any`     — the smallest rank sum any stack reaches. This is the honest one: the
+                    leading stack was chosen because it looked lowest.
+    - `p_floor`   — `p_any` at the smallest rank sum ANY assignment can produce. It is the
+                    best this design could ever return, whatever the data said, and a
+                    `p_any` equal to it is a test that returned its most extreme outcome
+                    with no margin left.
+    """
+    perms = list(itertools.permutations(range(k)))
+    per_cluster = []
+    for col in cols:
+        vectors = []
+        for p in perms:
+            v = [0.0] * k
+            for j in range(k):
+                v[p[j]] += col[j]
+            vectors.append(tuple(v))
+        per_cluster.append(vectors)
+
+    # Permutations are chosen independently per cluster, so the smallest total any single
+    # stack can be driven to is the sum of each cluster's smallest column. Computed in
+    # closed form rather than read off the enumeration, so the two disagree if either is
+    # wrong.
+    attainable_min = sum(min(col) for col in cols)
+
+    total = len(perms) ** len(cols)
+    exact = total <= EXACT_ASSIGNMENT_LIMIT
+    if exact:
+        draws = itertools.product(*per_cluster)
+        n_draws = total
+    else:
+        rng = random.Random(SAMPLE_SEED)
+        n_draws = SAMPLE_DRAWS
+        draws = ([rng.choice(vs) for vs in per_cluster] for _ in range(n_draws))
+
+    leader_idx = min(range(k), key=lambda j: sum(col[j] for col in cols))
+    n_named = n_any = n_floor = 0
+    for combo in draws:
+        v = [0.0] * k
+        for c in combo:
+            for j in range(k):
+                v[j] += c[j]
+        if v[leader_idx] <= obs_leader:
+            n_named += 1
+        smallest = min(v)
+        if smallest <= obs_leader:
+            n_any += 1
+        if smallest <= attainable_min:
+            n_floor += 1
+
+    return {
+        "assignments": total,
+        "exact": exact,
+        "draws": n_draws,
+        "attainable_min_rank_sum": attainable_min,
+        "p_named": n_named / n_draws,
+        "p_named_count": n_named,
+        "p_any": n_any / n_draws,
+        "p_any_count": n_any,
+        "p_floor": n_floor / n_draws,
+        "at_the_extreme": obs_leader <= attainable_min,
+    }
+
+
+def ordering_test(census: dict) -> dict:
+    """Does any stack use systematically fewer tokens than the others?
+
+    The null is that stack LABELS are exchangeable within a cluster: whatever a group's
+    four cells cost, which stack got which is arbitrary. Rejecting it is the only sense in
+    which "the stacks are ordered" is a claim rather than a reading of a table.
+
+    `cost_usd` is a list-price valuation of token counts on a subscription account (#159),
+    so every quantity here is token usage. Nothing was spent per trial.
+    """
+    groups = census["groups"]
+    if not groups:
+        raise CostCensusError(
+            "no qualifying groups — there is nothing to adjudicate, and reporting a "
+            "p-value over an empty population would be a number with no measurement "
+            "under it")
+
+    stack_sets = {tuple(sorted(r["stack"] for r in g["per_stack"])) for g in groups}
+    if len(stack_sets) != 1:
+        raise CostCensusError(
+            f"the groups do not carry one stack set ({sorted(stack_sets)}) — permuting "
+            f"stack labels across groups that hold different stacks is undefined")
+    stacks = list(stack_sets.pop())
+    k = len(stacks)
+
+    ranks = [group_ranks(g) for g in groups]
+    observed = {s: sum(r[s] for r in ranks) for s in stacks}
+    leader = min(stacks, key=lambda s: observed[s])
+
+    results = []
+    for name, (described, build) in CLUSTERINGS.items():
+        clusters = build(groups)
+        cols = [[sum(ranks[i][s] for i in idx) for s in stacks] for _, idx in clusters]
+        test = _permutation_test(cols, observed[leader], k)
+        results.append({
+            "clustering": name,
+            "unit": described,
+            "n_clusters": len(clusters),
+            "clusters": [{"label": label,
+                          "groups": [f"{groups[i]['run']} / {groups[i]['game']}"
+                                     for i in idx]}
+                         for label, idx in clusters],
+            **test,
+            "resolves": test["p_any"] < ALPHA,
+            "design_can_resolve": test["p_floor"] < ALPHA,
+        })
+
+    # How big the lead is where it exists, against the group's own within-cell noise floor.
+    # A consistent ordering and a lead that beats the noise are different claims, and the
+    # permutation test above can only speak to the first.
+    margins = []
+    for g, r in zip(groups, ranks, strict=True):
+        means = sorted((row["mean"], row["stack"]) for row in g["per_stack"])
+        floor = g["within_cell_floor_usd"]
+        # Every field is present on every row, including the ones only a leading group
+        # fills in. A key that appears conditionally is a KeyError in whatever reads it,
+        # several frames from the group that did not have it.
+        row = {"run": g["run"], "game": g["game"], "leader_rank": r[leader],
+               "cheapest": means[0][1], "runner_up": None, "margin_usd": None,
+               "floor_usd": floor, "margin_pct_of_floor": None,
+               "margin_exceeds_floor": None}
+        if means[0][1] == leader and len(means) > 1:
+            margin = means[1][0] - means[0][0]
+            row.update(margin_usd=margin, runner_up=means[1][1],
+                       margin_pct_of_floor=(100.0 * margin / floor) if floor else None,
+                       margin_exceeds_floor=margin > floor)
+        margins.append(row)
+
+    return {
+        "alpha": ALPHA,
+        "stacks": stacks,
+        "n_groups": len(groups),
+        "rank_sum_per_stack": observed,
+        "null_expectation_rank_sum": len(groups) * (k + 1) / 2.0,
+        "leader": leader,
+        "times_cheapest": {s: sum(1 for r in ranks if r[s] == 1.0) for s in stacks},
+        "clusterings": results,
+        "leader_margins": margins,
+        "margins_exceeding_floor": sum(1 for m in margins if m["margin_exceeds_floor"]),
+        "groups_led": sum(1 for m in margins if m["cheapest"] == leader),
+    }
+
+
 # ------------------------------------------------------------------------------ render
 
 def _fmt_r(value: float | None) -> str:
@@ -492,6 +750,85 @@ def render(c: dict) -> str:
             "number here",
             "  that could be re-quoted as a result. Every cell is n=2.",
         ]
+    return "\n".join(lines)
+
+
+def render_ordering(c: dict) -> str:
+    o = c["ordering"]
+    k = len(o["stacks"])
+    lines = [
+        f"read on {c['read_on']} from {c['runs_dir']}",
+        f"population: {c['population']}",
+        "",
+        "THE QUESTION: does any stack use systematically fewer tokens than the others, or",
+        "is the ordering a reading of a table? cost_usd is a list-price valuation of token",
+        "counts on a subscription account (#159) — nothing was spent per trial.",
+        "",
+        f"  usage rank summed over {o['n_groups']} groups "
+        f"(null expectation {o['null_expectation_rank_sum']:.1f}, "
+        f"{o['n_groups']} = an unbroken lead):",
+    ]
+    for s in o["stacks"]:
+        lines.append(f"    {s:6} {o['rank_sum_per_stack'][s]:6.1f}   cheapest in "
+                     f"{o['times_cheapest'][s]} of {o['n_groups']}")
+    lines += [
+        f"  leading stack (chosen POST HOC, because it looked lowest): {o['leader']}",
+        "",
+        "THE TEST: stack labels are permuted WITHIN a cluster and held constant across every",
+        "group in it, so groups that share a cluster are not counted as independent evidence.",
+    ]
+    for t in o["clusterings"]:
+        mode = (f"exact over {t['assignments']} assignments" if t["exact"]
+                else f"seeded sample, {t['draws']} draws of {t['assignments']}")
+        lines += [
+            "",
+            f"  UNIT = {t['unit']}  ({t['n_clusters']} clusters, {mode})",
+        ]
+        for cl in t["clusters"]:
+            lines.append(f"    {cl['label']:34} {len(cl['groups'])} group(s)")
+        lines += [
+            f"    p, had {o['leader']} been named in advance    {t['p_named']:.4f}"
+            f"   ({t['p_named_count']}/{t['draws']})",
+            f"    p, post-hoc-safe (any stack leading) {t['p_any']:.4f}"
+            f"   ({t['p_any_count']}/{t['draws']})   "
+            + ("< alpha" if t["resolves"] else ">= alpha"),
+            f"    smallest p this design could return  {t['p_floor']:.4f}"
+            + ("   <- the observed p IS the floor: the most extreme outcome available, "
+               "no margin" if t["at_the_extreme"] else ""),
+        ]
+        if not t["design_can_resolve"]:
+            lines.append(f"    ** at this unit NO outcome could have reached alpha="
+                         f"{o['alpha']}. The question is not answered no; it is unasked. **")
+    lines += [
+        "",
+        f"HOW BIG THE LEAD IS, where {o['leader']} leads at all — against that group's own",
+        "within-cell noise floor. A consistent ordering and a lead that beats the noise are",
+        "different claims, and the permutation test above speaks only to the first.",
+    ]
+    for m in o["leader_margins"]:
+        tag = f"{m['run']} / {m['game']}"
+        if m["margin_usd"] is None:
+            lines.append(f"    {tag:48} {o['leader']} is rank {m['leader_rank']:.1f} "
+                         f"(cheapest: {m['cheapest']})")
+        else:
+            lines.append(
+                f"    {tag:48} leads {m['runner_up']:6} by {m['margin_usd']:6.2f}, "
+                f"floor {m['floor_usd']:6.2f} -> "
+                f"{_fmt(m['margin_pct_of_floor'], '5.1f', '%')} of floor "
+                + ("(ABOVE floor)" if m["margin_exceeds_floor"] else "(below floor)"))
+    lines += [
+        f"    {o['leader']} leads {o['groups_led']} of {o['n_groups']} groups, and its lead "
+        f"beats that group's own noise floor in {o['margins_exceeding_floor']} of "
+        f"{o['groups_led']}.",
+        "",
+        "WHAT THIS IS NOT. Rejecting label exchangeability says the ordering is unlikely to "
+        "be",
+        f"an accident of which arm drew which trials. It does not say the gap is large, it "
+        f"does not",
+        f"attribute it to the stack rather than to the starter or the task, and with {k} "
+        f"stacks the",
+        "p-values above are coarse: read the floor line before reading the p.",
+    ]
     return "\n".join(lines)
 
 
@@ -979,6 +1316,254 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
     check("pearson refuses 2 points", pearson([1, 2], [1, 2]), None)
     check("pearson refuses a constant series", pearson([1, 1, 1], [1, 2, 3]), None)
 
+    # ---- THE ORDERING ADJUDICATION.
+    # Every p below is a closed form written down before the tool is run, not a number read
+    # off it: with k stacks and m clusters, an unbroken lead has probability (1/k)**m for a
+    # stack named in advance and k*(1/k)**m for whichever stack happens to lead. Fixtures
+    # are kept small on purpose — the enumeration is (k!)**m, and the mutant sweep runs this
+    # selftest once per mutant, so a 300,000-assignment fixture here is paid for many times.
+
+    EXPECTED_ORDERING_FIELDS = (
+        "alpha", "stacks", "n_groups", "rank_sum_per_stack", "null_expectation_rank_sum",
+        "leader", "times_cheapest", "clusterings", "leader_margins",
+        "margins_exceeding_floor", "groups_led")
+    EXPECTED_CLUSTERING_FIELDS = (
+        "clustering", "unit", "n_clusters", "clusters", "assignments", "exact", "draws",
+        "attainable_min_rank_sum", "p_named", "p_named_count", "p_any", "p_any_count",
+        "p_floor", "at_the_extreme", "resolves", "design_can_resolve")
+
+    def order(label: str, runs_dir: Path, **kw) -> dict:
+        try:
+            o = ordering_test(cost_census(runs_dir, **kw))
+        except Exception as exc:  # noqa: BLE001 - anything raised here is a failure
+            failures.append(f"{label}: raised {type(exc).__name__}: {exc}")
+            return _Absent(clusterings=[])
+        missing = [k for k in EXPECTED_ORDERING_FIELDS if k not in o]
+        missing += [f"clusterings[].{k}" for k in EXPECTED_CLUSTERING_FIELDS
+                    if o["clusterings"] and k not in o["clusterings"][0]]
+        if missing:
+            failures.append(f"{label}: ordering result is missing field(s) {missing}")
+            return _Absent(o, clusterings=o.get("clusterings", []))
+        return o
+
+    def by_unit(o: dict, name: str) -> dict:
+        return next((t for t in o["clusterings"] if t["clustering"] == name), _Absent())
+
+    def first_margin(label: str, o: dict) -> dict:
+        """The one margin row, or a NAMED failure. `o["leader_margins"][0]` is a TypeError
+        when the ordering could not be produced, and a traceback loses every failure
+        already collected — they are printed at the end. This is `drop_field`'s lesson one
+        level down: it broke that mutant's diagnosis, not its verdict."""
+        rows = o["leader_margins"]
+        if not rows:
+            failures.append(f"{label}: no leader margins were produced")
+            return _Absent()
+        return rows[0]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+
+        # ---- O1. k=4, m=2. Two runs, two games, no run and no game shared, so all three
+        # clusterings are the same 2 clusters. ts is cheapest in both.
+        #   p named in advance  (1/4)**2 = 1/16   = 36/576
+        #   p post-hoc-safe   4*(1/4)**2 = 1/4    = 144/576
+        # 0.25 is also the smallest p the design could return, so this fixture is a design
+        # that CANNOT resolve holding data that is as extreme as it gets.
+        o1 = base / "o1"
+        costs = {"ts": (10.0, 20.0), "unity": (30.0, 34.0),
+                 "godot": (40.0, 50.0), "rust": (60.0, 80.0)}
+        for run, game in (("run-a", "gX"), ("run-b", "gY")):
+            for stack, (lo, hi) in costs.items():
+                _write(o1 / run / "trials" / f"{game}__{stack}__t0.json",
+                       _rec(game, stack, lo, 100))
+                _write(o1 / run / "trials" / f"{game}__{stack}__t1.json",
+                       _rec(game, stack, hi, 200))
+        got = order("O1 unbroken lead, k=4 m=2", o1)
+        check("O1 leader", got["leader"], "ts")
+        check("O1 rank sums", got["rank_sum_per_stack"],
+              {"godot": 6.0, "rust": 8.0, "ts": 2.0, "unity": 4.0})
+        check("O1 null expectation", got["null_expectation_rank_sum"], 5.0)
+        check("O1 all three clusterings see the same 2 clusters",
+              [t["n_clusters"] for t in got["clusterings"]], [2, 2, 2])
+        run1 = by_unit(got, "run")
+        check("O1 assignments enumerated exactly", (run1["assignments"], run1["exact"]),
+              (576, True))
+        check("O1 p named in advance is 1/16", (run1["p_named_count"], run1["draws"]),
+              (36, 576))
+        check("O1 p post-hoc-safe is 4/16", (run1["p_any_count"], run1["draws"]),
+              (144, 576))
+        check("O1 the lead is as extreme as the design allows",
+              (run1["attainable_min_rank_sum"], run1["at_the_extreme"]), (2.0, True))
+        check("O1 and the design still cannot resolve at alpha",
+              (run1["resolves"], run1["design_can_resolve"]), (False, False))
+
+        # ---- O2. k=2, m=6, unbroken lead. Six runs, six games, nothing shared.
+        #   p named in advance  (1/2)**6 = 1/64  = 0.015625
+        #   p post-hoc-safe   2*(1/2)**6 = 2/64  = 0.03125  -> resolves, and the design can
+        # This is the direction O1 cannot reach: a p BELOW alpha, so `resolves` is pinned
+        # both true and false across the fixtures rather than only false.
+        o2 = base / "o2"
+        for n in range(6):
+            _write(o2 / f"run-{n}" / "trials" / f"g{n}__ts__t0.json",
+                   _rec(f"g{n}", "ts", 10.0, 100))
+            _write(o2 / f"run-{n}" / "trials" / f"g{n}__ts__t1.json",
+                   _rec(f"g{n}", "ts", 20.0, 200))
+            _write(o2 / f"run-{n}" / "trials" / f"g{n}__rust__t0.json",
+                   _rec(f"g{n}", "rust", 30.0, 300))
+            _write(o2 / f"run-{n}" / "trials" / f"g{n}__rust__t1.json",
+                   _rec(f"g{n}", "rust", 40.0, 400))
+        got = order("O2 unbroken lead, k=2 m=6", o2, min_stacks=2)
+        run2 = by_unit(got, "run")
+        check("O2 rank sums", got["rank_sum_per_stack"], {"rust": 12.0, "ts": 6.0})
+        check("O2 p named in advance is 1/64", (run2["p_named_count"], run2["draws"]),
+              (1, 64))
+        check("O2 p post-hoc-safe is 2/64", (run2["p_any_count"], run2["draws"]), (2, 64))
+        check("O2 resolves, and the design could",
+              (run2["resolves"], run2["design_can_resolve"]), (True, True))
+        check("O2 lead beats the floor in every group it leads",
+              (got["groups_led"], got["margins_exceeding_floor"]), (6, 6))
+
+        # ---- O3. O2 with the lead broken in one run. This is the fixture that separates
+        # `p_any` from `p_floor`: the design CAN resolve and the data does not.
+        #   ts sums 1*5 + 2 = 7, rust 11; smallest attainable 6, so ts is NOT at the extreme
+        #   p named in advance  P(at most 1 loss) = (1 + 6)/64 = 7/64  = 0.109375
+        #   p post-hoc-safe     both tails, 14/64                      = 0.21875
+        #   p floor             2/64                                   = 0.03125 < alpha
+        o3 = base / "o3"
+        shutil.copytree(o2, o3)
+        for t, cost in (("t0", 30.0), ("t1", 40.0)):
+            _write(o3 / "run-5" / "trials" / f"g5__ts__{t}.json",
+                   _rec("g5", "ts", cost + 30.0, 100))
+        got = order("O3 lead broken in one cluster", o3, min_stacks=2)
+        run3 = by_unit(got, "run")
+        check("O3 leader is still ts", got["leader"], "ts")
+        check("O3 rank sums", got["rank_sum_per_stack"], {"rust": 11.0, "ts": 7.0})
+        check("O3 ts is no longer at the attainable extreme",
+              (run3["attainable_min_rank_sum"], run3["at_the_extreme"]), (6.0, False))
+        check("O3 p named in advance is 7/64", (run3["p_named_count"], run3["draws"]),
+              (7, 64))
+        check("O3 p post-hoc-safe is 14/64", (run3["p_any_count"], run3["draws"]), (14, 64))
+        check("O3 the design could resolve; the data does not",
+              (run3["resolves"], run3["design_can_resolve"]), (False, True))
+        # The margin is measured only where the leader actually leads. Measuring it in the
+        # run it lost would count that run's gap — 30, against a floor of 10 — as evidence
+        # FOR the leader, which is the fail-open direction.
+        check("O3 margins are read from the 5 groups ts leads, not all 6",
+              (got["groups_led"], got["margins_exceeding_floor"]), (5, 5))
+
+        # ---- O4. The three clusterings must be able to DISAGREE, or reporting three of
+        # them is decoration. run-a holds two games and run-b repeats one of them, so
+        # run and game each split it 2 ways and the components merge all three groups into
+        # one. A single cluster makes the test vacuous — p = 1.0, by construction, because
+        # whichever stack holds the smallest column holds it in every assignment.
+        o4 = base / "o4"
+        for run, game in (("run-a", "gX"), ("run-a", "gY"), ("run-b", "gX")):
+            for stack, (lo, hi) in costs.items():
+                _write(o4 / run / "trials" / f"{game}__{stack}__t0.json",
+                       _rec(game, stack, lo, 100))
+                _write(o4 / run / "trials" / f"{game}__{stack}__t1.json",
+                       _rec(game, stack, hi, 200))
+        got = order("O4 clusterings disagree", o4)
+        check("O4 run splits 2, game splits 2, components merge to 1",
+              [(t["clustering"], t["n_clusters"]) for t in got["clusterings"]],
+              [("run", 2), ("game", 2), ("run+game", 1)])
+        comp4 = by_unit(got, "run+game")
+        check("O4 one cluster makes the test vacuous, and it says so",
+              (comp4["p_any"], comp4["p_floor"], comp4["design_can_resolve"]),
+              (1.0, 1.0, False))
+
+        # ---- O5. Ties. Two stacks with the same mean must SHARE the average rank; handing
+        # one of them rank 1 by the sort's stability manufactures a lead in the exact
+        # quantity being adjudicated, and `times_cheapest` must then count neither.
+        check("a tie shares the average rank",
+              group_ranks({"per_stack": [{"stack": "a", "mean": 1.0},
+                                         {"stack": "b", "mean": 1.0},
+                                         {"stack": "c", "mean": 3.0},
+                                         {"stack": "d", "mean": 4.0}]}),
+              {"a": 1.5, "b": 1.5, "c": 3.0, "d": 4.0})
+        check("a strict order ranks 1..k",
+              group_ranks({"per_stack": [{"stack": "a", "mean": 4.0},
+                                         {"stack": "b", "mean": 1.0},
+                                         {"stack": "c", "mean": 3.0},
+                                         {"stack": "d", "mean": 2.0}]}),
+              {"b": 1.0, "d": 2.0, "c": 3.0, "a": 4.0})
+        o5 = base / "o5"
+        tied = {"ts": (10.0, 20.0), "unity": (10.0, 20.0),
+                "godot": (40.0, 50.0), "rust": (60.0, 80.0)}
+        for stack, (lo, hi) in tied.items():
+            _write(o5 / "run-a" / "trials" / f"gX__{stack}__t0.json",
+                   _rec("gX", stack, lo, 100))
+            _write(o5 / "run-a" / "trials" / f"gX__{stack}__t1.json",
+                   _rec("gX", stack, hi, 200))
+        got = order("O5 tied cheapest", o5)
+        check("O5 the tied pair shares rank 1.5",
+              got["rank_sum_per_stack"],
+              {"godot": 3.0, "rust": 4.0, "ts": 1.5, "unity": 1.5})
+        check("O5 a tie is cheapest in nothing",
+              got["times_cheapest"], {"godot": 0, "rust": 0, "ts": 0, "unity": 0})
+
+        # ---- O6. The leader's MARGIN is a different claim from its consistency, and the
+        # comparison is against the group's own floor, not against zero. Here ts leads by
+        # $4.00 over a floor of $8.00: it is the cheapest arm and its lead is inside the
+        # noise, which is the shape the stored corpus turns out to have.
+        o6 = base / "o6"
+        narrow = {"ts": (10.0, 30.0), "unity": (22.0, 26.0),
+                  "godot": (40.0, 44.0), "rust": (60.0, 64.0)}
+        for stack, (lo, hi) in narrow.items():
+            _write(o6 / "run-a" / "trials" / f"gX__{stack}__t0.json",
+                   _rec("gX", stack, lo, 100))
+            _write(o6 / "run-a" / "trials" / f"gX__{stack}__t1.json",
+                   _rec("gX", stack, hi, 200))
+        got = order("O6 lead inside the noise", o6)
+        margin = first_margin("O6 lead inside the noise", got)
+        check("O6 the margin is over the RUNNER-UP, not the dearest stack",
+              (margin["runner_up"], margin["margin_usd"]), ("unity", 4.0))
+        check("O6 measured against the group's own floor",
+              (margin["floor_usd"], margin["margin_pct_of_floor"]), (8.0, 50.0))
+        check("O6 a lead inside the floor is not a lead that beats it",
+              (got["groups_led"], got["margins_exceeding_floor"],
+               margin["margin_exceeds_floor"]), (1, 0, False))
+
+        # ---- O7. Two refusals. Both would otherwise return a plausible in-range p, and
+        # both must be a NAMED CostCensusError — a KeyError several frames down exits
+        # non-zero too, and says nothing about what broke.
+        o7 = base / "o7"
+
+        # The MESSAGE is pinned, not merely the exception type. Two guards here refuse the
+        # same empty population, so a type-only check is satisfied by whichever fires — and
+        # a reader handed "the groups do not carry one stack set" for an empty tree has
+        # been told something that is true and useless.
+        def refuses(label: str, says: str, **kw) -> None:
+            try:
+                ordering_test(cost_census(o7, **kw))
+            except CostCensusError as exc:
+                if says not in str(exc):
+                    failures.append(f"{label}: refused with {str(exc)!r}, which does not "
+                                    f"say {says!r} — the wrong guard fired")
+                return
+            except Exception as exc:  # noqa: BLE001 - a refusal must be the named error
+                failures.append(f"{label}: raised {type(exc).__name__}: {exc} — a refusal "
+                                f"must be a named CostCensusError, not a traceback")
+                return
+            failures.append(f"{label}: returned a p instead of refusing")
+
+        for stack in ("ts", "rust"):
+            _write(o7 / "run-a" / "trials" / f"gX__{stack}__t0.json",
+                   _rec("gX", stack, 10.0, 100))
+            _write(o7 / "run-a" / "trials" / f"gX__{stack}__t1.json",
+                   _rec("gX", stack, 20.0, 200))
+        # 2 stacks against a default --min-stacks of 4: nothing qualifies, so there is no
+        # population to put a p-value over.
+        refuses("no qualifying group", "nothing to adjudicate")
+        for stack in ("ts", "unity"):
+            _write(o7 / "run-b" / "trials" / f"gY__{stack}__t0.json",
+                   _rec("gY", stack, 10.0, 100))
+            _write(o7 / "run-b" / "trials" / f"gY__{stack}__t1.json",
+                   _rec("gY", stack, 20.0, 200))
+        # Now both groups qualify at 2 stacks and they hold DIFFERENT stacks. Permuting a
+        # label across them is undefined, and doing it anyway returns a p.
+        refuses("mismatched stack sets", "do not carry one stack set", min_stacks=2)
+
     for f in failures:
         print(f"FAIL  {f}")
     print(f"cost_census selftest: {'FAILED' if failures else 'ok'} "
@@ -997,6 +1582,9 @@ def main() -> int:
     ap.add_argument("--min-trials-per-cell", type=int, default=2,
                     help="trials every cell must carry to have a gap (default: 2)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--ordering", action="store_true",
+                    help="adjudicate whether any stack is systematically cheapest, by "
+                         "exact permutation of the stack labels within a cluster")
     ap.add_argument("--selftest", action="store_true",
                     help="pin the extraction against a tree with a known answer")
     args = ap.parse_args()
@@ -1009,10 +1597,15 @@ def main() -> int:
                         terminal_reason=args.terminal_reason,
                         min_stacks=args.min_stacks,
                         min_trials_per_cell=args.min_trials_per_cell)
+        if args.ordering:
+            c["ordering"] = ordering_test(c)
     except CostCensusError as exc:
         print(f"cost_census: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps(c, indent=2) if args.json else render(c))
+    if args.json:
+        print(json.dumps(c, indent=2))
+    else:
+        print(render_ordering(c) if args.ordering else render(c))
     return 0
 
 

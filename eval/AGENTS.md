@@ -118,6 +118,13 @@ the mild case. It compares gaps only **inside** a group, because gap sizes are b
 budget-cap regime (#33) and a cross-group ratio would be arithmetic on incomparable dollars. The
 tool exits 2 on a missing tree rather than reporting 0, so run it against the main checkout.
 
+**Whether one stack is systematically cheapest is a third question, and `--ordering` is its
+producer** — an exact permutation of the stack labels *within a cluster*. **Read the
+`smallest p this design could return` line before reading the p.** At the honest unit — a
+connected component of run *and* game, because the games recur — the stored tree's floor is
+**0.25**, so the question is unasked there rather than answered. `DECISIONS.md` holds the
+adjudication.
+
 - **Report measured cost and get authorisation before launching anything that spends at
   scale.**
 - **Prefer offline re-grading to any re-run.** `judge/regrade_wholegame.py` and `regrade.py`
