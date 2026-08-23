@@ -1072,6 +1072,41 @@ before this. That work is discarded. It was correct to do and correct to discard
 instance, and this closes the shape.
 
 ---
+## A blind pack's `CHANGED.txt` is rebuilt from the manifest; the code half is not rewritten — decided 2026-08-23
+
+**The question the ticket left open (task 95): map `CHANGED.txt` through the pack's own manifest,
+drop it for blind aspects, or rewrite its text?** The measurement that chose is a partition, not a
+total. Of the 1,561 arm-naming directory tokens surviving `blind_extensions` in the 8 stored
+`architecture` packs, **182 sit in `CHANGED.txt` and every one is a real path segment**, while
+1,379 sit in agent-authored code of which only 149 are paths — `public` is the C# access modifier
+1,129 times.
+
+**Mapped, not dropped and not rewritten.** `CHANGED.txt` is the one channel where the harness
+holds ground truth: `pack.manifest` is an origin → label table the packer wrote, so every row can
+be restated as ` sim/01.src | 42 ++--` with no vocabulary and no regex. Dropping the file instead
+would discard per-file churn for the 196 of 424 rows that name files the judge can open, on the
+aspect — `architecture` — that most needs to know which structure is authored. Rewriting the text
+would need a vocabulary that is complete over a tree the pack cannot see.
+
+**Rows that map to nothing are omitted and their count is not shown.** 228 of 424 rows name files
+outside the pack. That count runs 53 and 43 for the two Unity submissions against 15 and 15 for
+the two TypeScript ones, so reporting it — like reporting the `git diff --stat` summary tail — hands the
+judge a partition of the field nobody chose to measure (#62). It is recorded beside the pack as
+`changed_rows_dropped`, and zero mapped rows is a refusal rather than an empty file.
+
+**The code-content half is NOT repaired, and feasibility was not the reason.** A whole-segment,
+path-adjacent vocabulary read from `git ls-files` over the four starters works: 536 hits across
+all 84 stored packs, exactly 1 in an arm the segment does not name. It is declined because the
+**redaction density it produces is stack-correlated by construction** — Godot 0, Rust 43, Unity
+228, TypeScript 265 — since only some starters have arm-exclusive directories. A judge that sees
+three packs with redacted paths and one without has been handed the partition by the instrument.
+`tasks/103` holds the measurement and what would re-open it.
+
+**Scope, stated because it is easy to assume otherwise:** this licenses new rounds and repairs
+none. Every `architecture` round stored in this repository read a `CHANGED.txt` listing the real
+authored tree.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1086,6 +1121,7 @@ settled question is noise that makes the live ones harder to find.
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
+| The code half of the directory leak stays unrepaired | A rewrite whose **redaction density is uniform across the four arms**, measured per arm rather than argued. The current candidate is 0/43/228/265; anything that fires on all four arms comparably is a different proposal and should be measured, not assumed |
 | Deterministic tiers may not rank stacks | Within-cell verdict variance **large enough to resolve a between-stack gap** — currently **5 of 436** paired criteria in `wg-matrix` and **0 of 232** in `wg-audio48`, i.e. 1.1% and 0%, against a between-stack gap of zero. This row read *non-zero* until 2026-08-23, when the unscoped figure it rested on was withdrawn and the scoped recount came back **not zero**; a sign is not a threshold, and what size counts is unsettled (task 70) |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 10 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |

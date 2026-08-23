@@ -275,6 +275,126 @@ def blind_extensions(text: str) -> str:
     return _COLLAPSE_RE.sub(NEUTRAL_EXT, _BLIND_EXT_RE.sub(repl, text))
 
 
+# ---------------------------------------------------------------------------
+# THE DIRECTORY NAMES `CHANGED.txt` CARRIES - BLINDED THROUGH THE MANIFEST,
+# NOT THROUGH A VOCABULARY
+# ---------------------------------------------------------------------------
+# `blind_extensions` closed the SUFFIX half of this leak. The SEGMENT half survived
+# it: measured over the 8 stored `architecture` packs after `neutralise` AND after
+# `blind_extensions`, 1,561 arm-naming tokens remained. PARTITIONING THAT TOTAL IS
+# WHAT DECIDED THE REPAIR, because the two channels are not the same defect:
+#
+#   channel        a real path segment    the same word doing something else
+#   CHANGED.txt                   182                                       0
+#   code content                  149                                   1,230
+#
+# `CHANGED.txt` is 100% signal because THE HARNESS WROTE IT: a whole `git diff
+# --stat`, one true authored path per row, handed to a judge whose every file was
+# renamed to `bucket/NN.src`. The code half is 89% collision - 1,129 of the 1,148
+# `public` hits are the C# access modifier, 16 of 17 `ProjectSettings` are
+# `ProjectSettings.globalize_path()`, and `Assets` is a Bevy type in Rust packs. The
+# code half is NOT repaired here and the measurement that declined it is in tasks/96.
+#
+# WHY THE MANIFEST AND NOT A REWRITE. Every row of `--stat` is a real path, and the
+# pack already knows what each of those paths became: `pack.manifest` in
+# `eval/report.json` is an origin -> label table the packer itself wrote. Mapping
+# through it needs no vocabulary, so it cannot fire on a word that merely looks like a
+# directory and cannot miss a directory nobody thought of - the two failure modes a
+# `BLIND_DIR` list would have had. It also turns `CHANGED.txt` from a contradiction of
+# the judge's brief into support for it: the brief says "cite files by the path they
+# have HERE", and until now the one file in the pack that named the real paths was the
+# one the harness added.
+#
+# WHAT HAPPENS TO A ROW THAT DOES NOT MAP. It is omitted, and the header says so. 228
+# of the 424 rows in the run these packs came from name files that are not in the pack
+# at all - `AGENTS.md`, `Cargo.lock`, `Assets/Audio/clear.wav.meta` - so the judge
+# could not open them under any name. Their COUNT is not reported either, and that is
+# the deliberate part: unmapped rows run 53 and 43 for the two Unity submissions
+# against 15 and 15 for the two TypeScript ones, so any count of them hands over a
+# partition of the field that nobody chose to measure (#62). The `--stat` summary tail
+# (` 37 files changed, ...`) is dropped for that reason and no other.
+#
+# THE COUNTS ARE STILL RECORDED, beside the pack rather than inside it, as
+# `changed_rows` and `changed_rows_dropped` in the evidence counts. Omitting rows is a
+# reason not to show something, and every reason not to count a failure is a channel a
+# bug can widen (rule 7): a manifest that stopped matching would silently empty this
+# file and nothing would look different, so `build_pack` REFUSES when a submission
+# with a non-empty manifest and a non-empty diff maps zero rows.
+
+#: A `git diff --stat` body row. The summary tail carries no `|` and does not match.
+_STAT_ROW = re.compile(r"^\s*(?P<path>.*?)\s*\|(?P<churn>.*)$")
+
+#: git compresses a rename into one row: `Assets/View/{Flat.meta => Glow.meta}`. One
+#: occurrence in the whole stored corpus, and it names TWO real paths, either of which
+#: may be the one the manifest lists.
+_STAT_RENAME = re.compile(r"\{(?P<before>[^{}]*?) => (?P<after>[^{}]*?)\}")
+
+
+def _stat_paths(field: str) -> list[str]:
+    """Every real path a `--stat` path field names, most-likely first."""
+    m = _STAT_RENAME.search(field)
+    if not m:
+        return [field]
+    return [(field[:m.start()] + m.group(g) + field[m.end():]).replace("//", "/")
+            for g in ("after", "before")]
+
+
+def blind_changed_txt(stat_text: str,
+                      origin_to_label: dict[str, str]) -> tuple[str, int, int]:
+    """Rewrite a `git diff --stat` into the pack's own vocabulary.
+
+    Returns `(body, rows_kept, rows_dropped)`. A row survives only when its path is an
+    origin the manifest maps to a label, so every surviving row names a file the judge
+    can actually open - which is the property `pack_matches_manifest` protects for the
+    directory and this protects for the harness's own commentary on it.
+    """
+    kept: list[str] = []
+    dropped = 0
+    for line in stat_text.splitlines():
+        m = _STAT_ROW.match(line)
+        if not m or not m.group("path"):
+            continue
+        label = next((origin_to_label[c] for c in _stat_paths(m.group("path"))
+                      if c in origin_to_label), None)
+        if label is None:
+            dropped += 1
+            continue
+        kept.append(f" {label:<30} |{m.group('churn')}")
+    return "\n".join(kept) + ("\n" if kept else ""), len(kept), dropped
+
+
+def _pack_origins(sub: Path) -> dict[str, str]:
+    """The submission's own origin -> label table, from `pack.manifest`.
+
+    Missing or unreadable returns `{}`. That is not a silent excuse: `build_pack`
+    reaches this only after `pack_matches_manifest` has already refused a field whose
+    packs have no manifest, and the caller's zero-mapped guard turns an empty table
+    into a refusal rather than an empty `CHANGED.txt`.
+    """
+    rep = sub / "eval" / "report.json"
+    if not rep.is_file():
+        return {}
+    try:
+        manifest = (json.loads(rep.read_text()).get("pack") or {}).get("manifest")
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not manifest:
+        return {}
+    return {e["origin"]: e["label"] for e in manifest
+            if e.get("origin") and e.get("label")}
+
+
+#: What `CHANGED.txt` says about itself, per blinding. The blind header must not name
+#: a count of what it dropped; see the block above for why.
+CHANGED_HEADER = ("Files this submission's author changed, and by how much.\n"
+                  "Everything else is template code they inherited.\n\n")
+CHANGED_HEADER_BLIND = (
+    "Files this submission's author changed, and by how much.\n"
+    "Everything else is template code they inherited.\n"
+    "Paths are this pack's own labels, so every row names a file you can open.\n"
+    "Rows for files that are not in this pack have been omitted.\n\n")
+
+
 def pack_completeness(run: Path, game: str) -> dict[str, Any]:
     """How much of each submission the judge will actually be shown.
 
@@ -559,6 +679,7 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
 
         if "code" in need:
             src = sub / "eval" / "judge_pack" / "code"
+            written: set[str] = set()
             for f in sorted(src.rglob("*")):
                 if not f.is_file():
                     continue
@@ -579,20 +700,58 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                     n["code_unreadable"] += 1
                     continue
                 n["code"] += 1
-            # CHANGED.txt IS PACK CONTENT AND IT IS THE DENSEST EXTENSION LEAK OF ALL:
-            # it is a whole `git diff --stat`, one true path per authored file. The
-            # eight stored `architecture` packs carry 80 `.cs`, 78 `.gd`, 60 `.meta`,
-            # 43 `.ts` and 43 `.rs` in this file alone - a complete answer key beside a
-            # directory whose every file was renamed to `.src`. It goes through `_text`
-            # for that reason. The DIRECTORY names it also carries (`crates/`,
-            # `Assets/`, `res://`) are a different property and are not repaired here;
-            # 1,561 of them survive in the stored blind packs - see tasks/95.
+                written.add(str(tgt.relative_to(out)))
+            # CHANGED.txt IS PACK CONTENT AND IT WAS THE DENSEST LEAK OF ALL: it is a
+            # whole `git diff --stat`, one true path per authored file, beside a
+            # directory whose every file was renamed to `bucket/NN.src`. The eight
+            # stored `architecture` packs carried 80 `.cs`, 78 `.gd`, 60 `.meta`, 43
+            # `.ts` and 43 `.rs` in this file alone, and 182 arm-naming DIRECTORY
+            # segments that `blind_extensions` does not touch.
+            #
+            # Under `blind_language` the whole file is now rebuilt from the pack's own
+            # origin -> label manifest rather than rewritten (see `blind_changed_txt`).
+            # `_text` still runs over the result: the labels and churn columns are
+            # harness-generated and it is a no-op on them, but "one function for every
+            # piece of text this pack writes" is the invariant that stops a channel
+            # being blinded on one path and not another.
             stat = sub / "diff.stat"
             if stat.is_file():
+                raw = stat.read_text(errors="ignore")
+                if blind_language:
+                    origins = _pack_origins(sub)
+                    # THE LABEL MUST NAME A FILE THAT IS ACTUALLY IN THE PACK. The
+                    # manifest records the origin's REAL suffix (`sim/01.cs`) and this
+                    # loop wrote `sim/01.src`, so the two vocabularies differ by
+                    # exactly the rename above. Rather than re-deriving the rename here
+                    # - a second copy of a rule, which is how #100 recurred - each
+                    # candidate label is checked against what was written. A label that
+                    # is not on disk is not a citation the judge can follow.
+                    origins = {o: lbl for o, lbl in
+                               ((o, str(Path(lbl).with_suffix(NEUTRAL_EXT)))
+                                for o, lbl in origins.items())
+                               if lbl in written}
+                    body, kept, dropped = blind_changed_txt(raw, origins)
+                    n["changed_rows"] = kept
+                    n["changed_rows_dropped"] = dropped
+                    # FAIL CLOSED. An empty CHANGED.txt is indistinguishable from a
+                    # correct one that had nothing to say, and the way this breaks is
+                    # silent: a manifest whose origins stop matching the diff's paths
+                    # still parses, still maps, and maps nothing (rule 12 - the address
+                    # is an input to the check).
+                    if written and dropped and not kept:
+                        raise RuntimeError(
+                            f"{sub.name}: CHANGED.txt mapped 0 of {dropped} diff rows "
+                            f"through a manifest of {len(origins)} label(s) against "
+                            f"{len(written)} file(s) on disk. The manifest's origins "
+                            f"and `diff.stat`'s paths no longer share a spelling, so "
+                            f"the blind pack would carry an EMPTY CHANGED.txt that "
+                            f"looks like a submission which changed nothing. Re-pack "
+                            f"the run rather than judging it.")
+                else:
+                    body = raw
                 (out / "CHANGED.txt").write_text(
-                    "Files this submission's author changed, and by how much.\n"
-                    "Everything else is template code they inherited.\n\n"
-                    + _text(stat.read_text(errors="ignore")))
+                    (CHANGED_HEADER_BLIND if blind_language else CHANGED_HEADER)
+                    + _text(body))
 
         if "frames" in need:
             fdir = out / "frames"

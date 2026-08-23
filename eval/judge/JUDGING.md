@@ -1258,8 +1258,15 @@ stored packs after `neutralise`: **2,083 arm-naming extension tokens, 0 after**
 `architecture` round was judged before this** — say so wherever their ordering is reported,
 alongside the `neutralise` caveat in `eval/RUNS.md`. The 81 surviving `import.meta` occurrences
 are declined deliberately: ESM's namespace object is spelled like a path and names no file.
-The directory half of the same leak — `public`, `Assets`, `res://` — is **not** repaired: 1,561
-segments survive, task 95.
+**The directory half of the same leak split in two when it was partitioned (task 95).** Of the
+1,561 tokens surviving `blind_extensions` in the 8 stored `architecture` packs, **182 were in
+`CHANGED.txt` and every one was a real path**; the other 1,379 were in code content and only 149
+were paths — `public` is the C# access modifier 1,129 times. `CHANGED.txt` is now rebuilt from
+the pack's own origin → label manifest under `blind_language`, so it reads ` sim/01.src | 42 ++--`:
+**330 arm-naming directory segments to 0** on a rebuild of `wg-g4c`'s field, with the other 199
+files of the pack byte-identical. The code half stays open, and the measurement that declined a
+vocabulary rewrite for it is in `tasks/103`. **No stored round is repaired by this** — every
+`architecture` round on disk read a `CHANGED.txt` listing the real authored tree.
 
 **Repair 3 changed the number by two orders of magnitude in interpretation.** "The judges
 fabricate their evidence, 15 of 16" is, correctly split, **1 unlocatable claim in 80**.
