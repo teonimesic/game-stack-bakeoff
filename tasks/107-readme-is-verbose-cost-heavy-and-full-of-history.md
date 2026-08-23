@@ -191,3 +191,92 @@ WHAT EACH OUTCOME MEANS
   commit, and say so. That is a finding about the documentation, not an obstacle.
 - **A section resists cutting because every line is load-bearing** — a real answer. Say which
   section and what each line protects.
+
+---
+
+## DONE 2026-08-23 — 643 lines to 281, on branch `task-107-readme-cut`
+
+**643 → 281 lines, a 56% cut.** `docstat.py --sweep`, `--findings`, `--withdrawn` and
+`tasks.py check` all exit 0 unpiped after the change.
+
+### What was cut, and where it now lives — each destination verified BEFORE the cut
+
+| cut from README | lines | where it lives now | how that was verified |
+|---|---|---|---|
+| opening census table (record counts, terminal-status partition, per-run directory counts, `$2,773.04 to date`) | ~15 | `python3 eval/tools/census.py`; `eval/RUNS.md` cumulative table | ran `census.py` (exit 0); read `eval/RUNS.md` lines 1-60 |
+| the two ⚠️ notices under it (`WR-readme-opening-counts`, `WR-tree-census-one-level`) | ~20 | `eval/withdrawn.json`, anchors in `tasks/64-*` and `eval/findings/certifies-nothing.md` | `--withdrawn` prints both entries with their `replaced_by` |
+| three ⚠️ notices in `# THE RESULT` (`WR-tier3-pair`, `WR-paired-verdict-tie`, `WR-paired-evidence-diff`, `WR-20-of-24`) | ~45 | same register | same; `--withdrawn` exit 0 after each removal |
+| `### Done` — the whole run diary: spec-change bake-off, matrix #1 and its per-game cost table, `just film`, audio, criterion repairs, capability capture | ~100 | `eval/RUNS.md` (per-run), `eval/FINDINGS.md` (#25-#27, #29, #97), `eval/judge/RUBRIC.md` (criteria) | grepped `$11.30/$19.49/$13.62` → `eval/RUNS.md:445-447` and `eval/findings/limits-and-cost.md:79` |
+| `### In flight` — specialist-judge ledgers, the superseded partial sweep, matrices #2/#3, the arena rewrite, g4 launch pricing, the aspect-reliability sweep | ~130 | `eval/RUNS.md` (§ Specialist-judge calls, per-run sections), `eval/judge/JUDGING.md` (reliability table at 1119-1124; `12 of the 15` packs at 333) | grepped `0.418`, `0.536`, `12 of the 15`, `0.853`, `+0.043` — all present outside README |
+| `### Tier 3's first positive result` | ~17 | `eval/judge/JUDGING.md:776-788`, FINDINGS #68 | grepped `+0.853` and `+0.043` |
+| `### ⚠️ The arena set is NOT comparable across stacks` | ~11 | `eval/RUNS.md:253`, FINDINGS #49 | read the RUNS.md heading |
+| `### The measured numbers behind the result above` per-cell table | ~11 | `eval/RUNS.md` | run ledger holds every cell |
+| per-trial breakdown of the three genuine submission defects | ~18 | `eval/RUNS.md:796-807, 1302`, `eval/findings/one-arm-bias.md:1098` | grepped `genuine submission defect` |
+| `## Keeping this current` table | ~19 | `AGENTS.md`, "Keep the documentation current" — a superset, with the withdrawal-register row README never had | read `AGENTS.md` |
+| end-to-end fixture control table (`ref_pong` 0.956 …) | 9 | **MOVED FIRST**, own commit `92912f9` → `eval/judge/RUBRIC.md`, under "Controls that must pass before any run is believed" | grepping `0.796` across the repo returned **README.md only**. See below |
+
+### The one block that existed nowhere else
+
+`0.796`, `0.401` and `0.089` appeared in **README.md and no other file**, and no script
+reprints them — the table was assembled by hand from four evaluations. It was moved to
+`eval/judge/RUBRIC.md` in its own commit before anything was cut, annotated with the scoring
+scheme it was measured under: these are pre-2026-08-23 weighted `overall` values and tier 1 is
+now a gate, so they may not be compared with a new reading. What they establish is
+**monotonicity**, not a level, which is why they are worth keeping at all.
+
+### Numbers kept, each re-read from its source in this session (rule 5)
+
+| figure | producer run this session | result |
+|---|---|---|
+| tier-2 saturation, 5 of 10 groups | `eval/judge/tier2_census.py --runs eval/runs` | 10 groups, 5 saturated, VERDICT SATURATED |
+| tier-1 floor test, 7 of 10 / 0 of 10 / 68 submissions / 7 failing trials | `eval/judge/tier1_census.py --runs eval/runs` | 68 submissions, n=7 failing: 2 blocking build failures at t2=0.0, and 5 at t2=1.000 — two TS unit-test, two lint, one ink-coverage |
+| cost 42%, r = 0.971, turns 205-370 | recomputed directly from the eight stored trial records of the one four-stack field | mean within-cell gap **$21.1525**, between-stack range **$8.9139** (42.1%), r = **0.9709**, turns 205-370 — reproduces #63 exactly |
+| tier-3 pair 2.100/1.925 and 1.900/2.275 | `eval/judge/field_ranks.py --rounds .../post` and `/pre` | exact; 23% max excess and "smaller on four of eight" both re-checked across all 8 readings |
+| 36 criteria, 4 variants, 3 session-lock controls | `python3 eval/judge/bot_mutants.py` | "36 criteria pinned in both directions, 4 variants, 3 session-lock controls, 0 expectation(s) unmet" |
+| 123 numbered findings, `#19-#141` | `docstat.py --findings` | agrees, exit 0 |
+
+### Four stale things found on the way, all fixed
+
+1. **`README.md:510` cited `#126`; the published number is `#128`.** Fixed here rather than
+   left for `tasks/102` — the paragraph had to be rewritten anyway to remove run names, so
+   leaving line 510 structurally alone was not available. Verified by reading the index row:
+   `#128` is "Tier 2 saturates because the task is finished…", which is what the sentence
+   claims. `README.md` no longer appears in `--renumbered`'s DECIDED STALE list. The remaining
+   README row, the UNDECIDABLE `#103` inside the `Running things` code block, was left for
+   `tasks/102`'s triage.
+2. **`starter_parity.py` "proves Rust, TS and Godot are byte-identical on 401 lines of shared
+   scaffolding; Unity matches on 400 of 401".** The tool prints no such thing. The 401 lines
+   are the **hash lines of a 400-tick determinism tape** (`eval/starters/unity/Assets/Sim/Sim.cs:87`),
+   not lines of scaffolding, and today's run says only "hash chain over 400 scripted ticks:
+   rust is BYTE-IDENTICAL to godot", with unity diverging at tick 53 by one ULP — while the
+   same output states that **cross-stack hash equality is deliberately not a requirement**.
+   Replaced with the tool's own verdict: no drift on any measured axis, and capability parity
+   is not a goal.
+3. **`Eleven briefs`** — `research/` holds twelve (`00-` … `11-`).
+4. **The always-loaded instruction count.** `README.md` and `eval/instrfollow/RESULT.md` both
+   said **73–113** (`AGENTS.md` alone 39–60). `python3 eval/tools/instruction_census.py` today
+   reports **108–151** (`AGENTS.md` alone 43–66), and `git log` shows the tool has exactly one
+   commit and has never changed — so the always-loaded documents grew by roughly 40 instructions
+   and neither document re-ran the producer sitting next to the number. Both are corrected, with
+   the command and the date beside the figure. **This is a candidate finding and needs a number
+   allocated by the orchestrator** — see the report.
+
+### What the next agent must not re-derive
+
+- **`--withdrawn`'s traps are real and both were hit-tested.** `WR-20-of-24` needs *both*
+  `20 of 24` and `1.000`; the new README states `1.000` twice and is green because the partner
+  is gone. `WR-readme-opening-counts` needs both `24 whole-game submissions` and **`three
+  games`** — the phrase "three games" is now a live tripwire in `README.md`, which is why the
+  file says "four games" where it means the game count. Run `--withdrawn` after any edit that
+  reintroduces either phrase.
+- **`RANGE_DOCS` in `docstat.py` requires `README.md` to state `Findings #A-#B`.** Deleting
+  that sentence fails `--findings`. It is in the "Where things live" table.
+- **`--sweep` does not check file paths.** One phantom path (`eval/RUDIC`-style: `eval/RUBRIC.md`
+  for `eval/judge/RUBRIC.md`) was written and survived a green sweep. It was caught by a
+  throwaway extractor over every backticked path in the file, proven in both directions on one
+  known-present and one known-absent path first (AGENTS.md rule 12). Do that before trusting a
+  README path.
+- **The per-scope replacements for the withdrawn paired-criteria figures (436/5/332 and
+  232/0/120) exist in `eval/withdrawn.json` and in no findings body.** `eval/findings/`'s #50
+  states the *withdrawn* figures, which is correct for the archive. If those replacements are
+  ever needed in prose, the register is the source.
