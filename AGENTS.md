@@ -8,7 +8,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 
 | File | Why |
 |---|---|
-| `README.md` | Current status and where things live |
+| `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
 | `eval/FINDINGS.md` | Findings #19-#141, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
@@ -301,7 +301,7 @@ working session as the change**, not later:
 | When | Update |
 |---|---|
 | A decision is made or changed | `DECISIONS.md` |
-| A run completes or its results change | `README.md` status section, with real numbers |
+| A run completes or its results change | `eval/RUNS.md`, with real numbers. **Touch `README.md` only if the RESULT changed** — and then state the finding run-free with the producer that re-derives it, never the run it came from (task 107) |
 | Something ran and measured nothing | `eval/FINDINGS.md` — a new numbered finding |
 | A published number turns out wrong | Correct it, and mark it in `eval/FINDINGS.md` if it was acted on |
 | A figure or a claim is **withdrawn** | Add an entry to `eval/withdrawn.json`, then repair every live document `docstat.py --withdrawn` names |
