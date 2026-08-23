@@ -33,6 +33,25 @@ or that a 3000-token section could be a table.
 agent read only this, would it be better off?* The scanner tells you where to start looking on
 a slow day; your own reading is what actually finds things.
 
+What it can tell you, and how to read each one:
+
+| category | what it means, and what it does NOT mean |
+|---|---|
+| `hotspot` | **churn × complexity.** Complicated code people keep having to touch — the difficulty is being paid for repeatedly. Neither number alone says this: complexity alone flags code that is hard but settled, churn alone flags code that is simply under active development. High churn on something being actively built is expected. |
+| `complexity` | cyclomatic complexity above 20 per function. A prompt to look. A 30-branch dispatch table scores badly and reads fine. |
+| `longfn` | functions over 90 lines. Same caveat. |
+| `lint` | `ruff`, pinned to **correctness** rules, not style — blind excepts, `subprocess.run` without `check=`, swallowed exceptions. Deliberately not run over `template*/` or `eval/starters/*/`, which are the product. |
+| `dup` | the same paragraph in more than one file, grouped per file-pair. Two copies drift and the reader who finds the stale one cannot tell. |
+| `fat` / `history` / `dead` / `todo` | long sections, prose describing a former state, uncalled functions, markers. |
+
+**A high score is a question, never a verdict.** The scanner cannot tell a hotspot from a file
+that is simply where the work is this week.
+
+> **Churn is a cost, not an output — and that applies to fixing lint too.** The unpinned ruff
+> default reported 491 issues here, 132 of them percent-formatting. Mass-fixing those spends
+> review attention to move text and buries the handful that map onto real recorded failures.
+> Triage; do not sweep.
+
 ## Do this, in order
 
 ### 1. Read `CLEANUP-LOG.md` first

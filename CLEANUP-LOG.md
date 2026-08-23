@@ -64,3 +64,36 @@ pruning and archive rules, `eval/FINDINGS.md` structure.
 
 **Not done:** no area was read properly. Every entry above is mechanical output plus judgement
 about what it means. The first real pass should pick one area from the skill's table.
+
+## 2026-08-23 — churn, complexity and lint added to the instrument
+
+**Looked for:** whether the cleanup pass could see code quality at all, not just prose. It could
+not: there was no linter of any kind for the harness, and no complexity or churn signal anywhere.
+
+**Read:** every `justfile` lint recipe (all four belong to the templates, i.e. the product, not
+the harness), `docstat.py`'s sweep, and ruff's output over `eval/` at two rule sets.
+
+**Found:**
+
+- **No Python linter existed for the harness.** `ruff` installed via `uv tool install`. Wired in
+  as `prune_scan.py --only lint`, **pinned** to correctness rules — an unpinned selection makes
+  the number move when the tool updates, which is the `project_lines` drift again.
+- **27 `subprocess.run` calls without `check=`, and 29 blind `except Exception`.** These map onto
+  `AGENTS.md` rule 3 (an unread exit status) and #31 (fail-open) respectively. Filed as **task 34**
+  — triage, explicitly not a mass fix.
+- **`hotspot` = churn × complexity** added, plus per-function cyclomatic complexity computed
+  in-tree so the scanner keeps no dependency. Top hotspots are `bot_platformer.py` (cx 282 over 5
+  commits) and `judge/field.py` (cx 241 over 3), both of which are also where the work has been
+  this week — which is exactly why a hotspot is a question and not a verdict.
+
+**Cleared:**
+
+- **The 491-issue headline is not a code-quality result.** It came from ruff's unpinned defaults:
+  132 percent-format warnings and 43 "shebang present but file not executable". The pinned set
+  reports 28 distinct rules. Nobody should act on the larger number.
+- The absence branch of the lint category is controlled: with `ruff` unavailable it reports its own
+  absence rather than an empty list, so a missing tool cannot read as a clean bill of health —
+  the `-disable-audio` failure (#61), which this project has already paid for once.
+
+**Not done:** still no area of the repository has been *read* properly. Both entries in this log
+so far are instrument-building. The next pass should pick an area from the skill's table and read it.
