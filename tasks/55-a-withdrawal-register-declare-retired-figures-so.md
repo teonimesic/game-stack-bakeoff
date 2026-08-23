@@ -3,8 +3,8 @@ id: 55
 title: 'A withdrawal register: declare retired figures so a gate can find them restated'
 status: open
 priority: 4
-refs: 'eval/findings/certifies-nothing.md #112, eval/tools/docstat.py, README.md, game-research-gpt evaluation/cross-engine/results/FINAL-CORRECTIONS.json'
-done_when: 'a machine-readable register of withdrawn figures exists; a check asserts that no live document restates one outside a block citing that entry''s id; the check is red on the three sites #112 names before task 54 and green after; it carries a positive control planting a withdrawn pair in a temp copy and a negative control proving a declared withdrawal notice does not trip it; and it is wired into docstat.py --sweep only once it is green'
+refs: 'eval/findings/certifies-nothing.md #113, eval/tools/docstat.py, README.md, game-research-gpt evaluation/cross-engine/results/FINAL-CORRECTIONS.json'
+done_when: 'a machine-readable register of withdrawn figures exists; a check asserts that no live document restates one outside a block citing that entry''s id; the check is red on the three sites #113 names before task 54 and green after; it carries a positive control planting a withdrawn pair in a temp copy and a negative control proving a declared withdrawal notice does not trip it; and it is wired into docstat.py --sweep only once it is green'
 ---
 
 
@@ -16,7 +16,7 @@ is never rewritten, and the correction is a declared delta a machine consumer ca
 property worth taking is not the freezing — this repository has git — it is that **a correction
 is declared rather than inferred.**
 
-WHY IT IS THE ONLY THING THAT COULD HAVE CAUGHT #112
+WHY IT IS THE ONLY THING THAT COULD HAVE CAUGHT #113
 
 The obvious alternative was built first and measured, and it comes out against: a cross-document
 figure-agreement check found 52 labelled figures in the six live documents, one disagreement, and
@@ -40,7 +40,7 @@ a window and the window does not carry that entry's id, it is a live restatement
 FIRST ENTRY, ALREADY MEASURED
 
 The pair 1.70 and 2.05, withdrawn 2026-08-22, replaced by figures reproducible with
-`judge/field_ranks.py`. Its true sites are in #112. The check must be RED on them before task 54
+`judge/field_ranks.py`. Its true sites are in #113. The check must be RED on them before task 54
 runs and GREEN after — which is the positive control, and it is available for free because the
 defect is real and currently unrepaired.
 

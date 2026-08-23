@@ -889,7 +889,7 @@ before every trial.
 
 ### What was adopted, concretely
 
-- **FINDINGS #99** — the `[-4000:]` over `stdout + stderr` truncation, and its one-arm shape.
+- **FINDINGS #100** — the `[-4000:]` over `stdout + stderr` truncation, and its one-arm shape.
   Found by designing the verification for candidate 1 before importing it, which is the only
   reason it was found at all.
 - **Three tasks: 45** (repair the capture — the precondition for candidate 1), **46** (the finish
@@ -945,20 +945,20 @@ disposition is real, and it is filed where only someone already looking for it w
 
 > **A caveat is worth what its distance to the number lets it be worth.** Theirs is four
 > directories away. This project's equivalent failure is 250 lines away in one file, which is
-> #112 — the same defect at smaller radius, and it took this reading to see it.
+> #113 — the same defect at smaller radius, and it took this reading to see it.
 
 ### Verdicts
 
 | # | Their practice | What it replaces here | Verdict |
 |---|---|---|---|
-| 1 | **`FINAL-CORRECTIONS.json`** — an append-only machine-readable correction stored beside the frozen result, so a consumer can apply the delta and the frozen file is never rewritten | Nothing. A withdrawal is prose, in whichever document happened to be open | **ADOPT the property — and it found a live defect before being installed.** Designing the verification first turned up the withdrawn `1.70`/`2.05` tier-3 pair still published as current in `DECISIONS.md`, `JUDGING.md` and `README.md`'s own In-flight section. **FINDINGS #112**; tasks 54 and 55 |
-| 2 | **A cross-document consistency check** is the obvious way to catch #112, and is not theirs — it is what a reader proposes on seeing their correction file | Nothing | **REJECT — built, measured, and it cannot work.** Over the six live documents: **52 table labels of 25+ chars carrying a number, 1 disagreement, and that one a false positive.** It misses #112 by construction, because the four restatements **agree**. Propagation and consistency are the same observation |
-| 3 | **`Status:` / `Scope:` as the first two lines of a result document**, and `Interpretation: descriptive only` as a **column** of the aggregate table rather than a paragraph after it | `README.md` puts its scope in blockquotes below the table, and `RUNS.md` in a per-run ledger entry | **OPEN, and #112 is the argument for it.** The measurement that would settle it is available and was not run for cost of attention, not principle: for each published aggregate, the line distance to its scope. Worth doing only alongside task 54, which will move three of the sites |
+| 1 | **`FINAL-CORRECTIONS.json`** — an append-only machine-readable correction stored beside the frozen result, so a consumer can apply the delta and the frozen file is never rewritten | Nothing. A withdrawal is prose, in whichever document happened to be open | **ADOPT the property — and it found a live defect before being installed.** Designing the verification first turned up the withdrawn `1.70`/`2.05` tier-3 pair still published as current in `DECISIONS.md`, `JUDGING.md` and `README.md`'s own In-flight section. **FINDINGS #113**; tasks 54 and 55 |
+| 2 | **A cross-document consistency check** is the obvious way to catch #113, and is not theirs — it is what a reader proposes on seeing their correction file | Nothing | **REJECT — built, measured, and it cannot work.** Over the six live documents: **52 table labels of 25+ chars carrying a number, 1 disagreement, and that one a false positive.** It misses #113 by construction, because the four restatements **agree**. Propagation and consistency are the same observation |
+| 3 | **`Status:` / `Scope:` as the first two lines of a result document**, and `Interpretation: descriptive only` as a **column** of the aggregate table rather than a paragraph after it | `README.md` puts its scope in blockquotes below the table, and `RUNS.md` in a per-run ledger entry | **OPEN, and #113 is the argument for it.** The measurement that would settle it is available and was not run for cost of attention, not principle: for each published aggregate, the line distance to its scope. Worth doing only alongside task 54, which will move three of the sites |
 | 4 | **Disclosing that a pre-registration was less pre than claimed**, with the three timestamps — formal start 16:44:10, protocol freeze 16:47:07, earliest finish 16:55:58 — and the conclusion stated exactly: *"a freeze before any completed formal outcome, but after admission/start"* | `JUDGING.md` pre-registers gates (#68) and states no timestamp relation to the data | **ADOPT, narrow — and it is cheap and offline.** The stored rounds carry mtimes and `JUDGING.md` carries dates; asserting the relation is a few lines. Not filed as its own task: it belongs to task 54, which is already rewriting that section, and a second task on one file would collide |
 | 5 | **A named disposition for a study that produced no result** — `INVALIDATED_PREDECISION`, defined in advance by an *evaluator-defect rule*, and stated as *"not a Godot win, Defold win, equivalence result, tie, or ordinary statistical inconclusive"* | `eval/RUNS.md` records comparability breaks with ordinals; `README.md` calls the arena set *void* in prose | **REJECT the vocabulary, ADOPT nothing — this project is ahead and the gap is measured.** Their disposition is a label applied after the fact; `RUNS.md`'s ordinals are gated by `docstat.py --sweep`, which fails on a duplicate ordinal. A label a tool checks beats a label a document asserts |
 | 6 | **`INSTRUCTION_REVISIONS.md`** — observation, the evidence that produced it, the change made, and *"these are not retroactively attributed to round-one"* stated at the top | Both `IMPROVEMENTS.md` files, plus `RUNS.md` regime notes | **REJECT — equivalent already, and this project's version carries more.** Theirs names the change; ours states the hypothesis, the measurement that could have come out against it, and what it did. The one line worth having — the non-retroactivity statement — is already what a comparability break in `RUNS.md` *is* |
 | 7 | **A mean across four different task contracts** — 0.80, 1.00, 0.90, 1.00 reported as *"mean 0.925"*, and `Godot 0.7875` over four tasks whose rubrics differ | Barred here: the play-bot scores 13 criteria on pong and 22 on arena, so 1.000 is a different achievement per column (#72) | **REJECT — importing it would be a regression.** Listed for the both-ways record: this is rule 4 with the population heterogeneous by construction, and their own decision turns on 4.10 against 4.05 |
-| 8 | **An "Evidence boundary" paragraph** — one sample per cell, one reviewer per task, one host, blinding limits, and a known bug with its blast radius bounded (*"adds generated noise to some Bevy deltas but does not affect criteria or reconstruction"*) | Scattered: `README.md` "What this does and does not license", `RUNS.md` per run, `FINDINGS.md` per defect | **OPEN — unverifiable as a benefit, and labelled so.** No finding here is known to have been caused by its absence, and #112's cause was distance, not absence. Filing it would be a change of taste dressed as rigour |
+| 8 | **An "Evidence boundary" paragraph** — one sample per cell, one reviewer per task, one host, blinding limits, and a known bug with its blast radius bounded (*"adds generated noise to some Bevy deltas but does not affect criteria or reconstruction"*) | Scattered: `README.md` "What this does and does not license", `RUNS.md` per run, `FINDINGS.md` per defect | **OPEN — unverifiable as a benefit, and labelled so.** No finding here is known to have been caused by its absence, and #113's cause was distance, not absence. Filing it would be a change of taste dressed as rigour |
 | 9 | **Naming what the study did NOT exercise, beside the result**, and forbidding other evidence from filling the gap: *"must not be reported as matched task evidence for those omitted areas"* | `README.md` "Not done" | **REJECT — present, and stronger.** "Not done" is a list; `DECISIONS.md` bars the deterministic tiers from ranking stacks **at any gap**, which is the prohibition rather than the inventory |
 
 ### Both ways — what this project does that they do not
@@ -974,7 +974,7 @@ axis 3:
    plainly what they are — and nothing that cites the conclusion those trees were meant to test
    mentions them.
 
-2. **A number here has to have a producer.** #112 is the exception that names the rule: the one
+2. **A number here has to have a producer.** #113 is the exception that names the rule: the one
    figure with no script behind it is the one that drifted through four documents. Their entire
    decision matrix is 36 self-assigned integers with no producer at all, by design, and the
    sensitivity analysis this project built for it (`judge/weight_sensitivity.py`, axis 1) has no
@@ -982,10 +982,10 @@ axis 3:
 
 3. **The reproducibility of an aggregate is tested here, and the test has fired five times.**
    Four figures in `README.md`'s headline table were withdrawn for failing it — 20-of-24,
-   380-paired-criteria, 0-verdict-differences, and 1.70/2.05 — and #112 is the fifth. Nothing in
+   380-paired-criteria, 0-verdict-differences, and 1.70/2.05 — and #113 is the fifth. Nothing in
    their readable surface re-derives a published number from stored artifacts.
 
-4. **Method as a declared parameter.** #112 established that the tier-3 separation figure is four
+4. **Method as a declared parameter.** #113 established that the tier-3 separation figure is four
    different quantities depending on two choices nobody had written down, and `judge/field_ranks.py`
    now reports all four. Their `FINAL.md` states a weighting (20/35/20/15/10) and never varies it.
 
@@ -1000,7 +1000,7 @@ had *achieved* it is.
   permutation variant, and a negative control proving the usable-round filter can change an answer.
   Verified against stored data by reproducing **all ten cells** of `JUDGING.md`'s own per-aspect
   table, under one method and no other.
-- **FINDINGS #112** — a withdrawn figure still published in three live documents, the four-method
+- **FINDINGS #113** — a withdrawn figure still published in three live documents, the four-method
   spread that replaces it, and why a consistency check is structurally blind to it.
 - **Two tasks: 54** (retire the figure, and decide which method the project reports),
   **55** (the withdrawal register, with the design that avoids a stale allowlist).

@@ -4,14 +4,14 @@ id: 54
 title: Retire the withdrawn 1.70/2.05 tier-3 figure from the three live documents that still publish it
 status: done
 priority: 2
-refs: 'eval/judge/field_ranks.py, eval/findings/certifies-nothing.md #112, DECISIONS.md, eval/judge/JUDGING.md, README.md'
+refs: 'eval/judge/field_ranks.py, eval/findings/certifies-nothing.md #113, DECISIONS.md, eval/judge/JUDGING.md, README.md'
 done_when: the pair 1.70/2.05 appears in no live document as a current measurement; each of the three sites states instead a figure reproduced by judge/field_ranks.py together with the field, the value (score or rank) and the order (pool or perround) it was computed under; DECISIONS.md's tier-3 bullet no longer rests on an inequality that reverses under a method change; and eval/IMPROVEMENTS.md is left alone because it is a log
 ---
 
 
 WHAT THIS IS
 
-FINDINGS #112. `README.md`'s headline table withdrew "between-stack range of mean ranks 1.70,
+FINDINGS #113. `README.md`'s headline table withdrew "between-stack range of mean ranks 1.70,
 mean gap 2.05" on 2026-08-22. Three live documents still state it as a current measurement:
 `DECISIONS.md` (tier-3 weight bullet), `eval/judge/JUDGING.md` ("Does any aspect separate the
 four stacks?"), and `README.md`'s own In-flight section 250 lines below its withdrawal.
@@ -55,7 +55,7 @@ which numbers fill it.
 
 WHAT NOT TO DO
 
-Do not add a cross-document figure-agreement gate. It was built and measured (#112): 52 labels,
+Do not add a cross-document figure-agreement gate. It was built and measured (#113): 52 labels,
 one hit, that hit a false positive, and it cannot see this defect by construction, because four
 restatements of a stale number **agree** with each other. Propagation and consistency are the
 same observation.

@@ -479,7 +479,7 @@ the repo, and each submission is archived as `artifacts/<tid>/submission.tar.gz`
 > set, re-sync. You do not need to decide whether it counts as a run.
 
 This section read *"re-sync after any run completes"* until 2026-08-23, and that is an
-enumeration of one occasion (#115). The most irreplaceable class this project holds was created
+enumeration of one occasion (#116). The most irreplaceable class this project holds was created
 by a **repair**, not a run: `starter-baselines/` was written at 04:24 on 2026-08-23 to preserve
 the root commits before the work roots were reclaimed, 7.5 MB that exist nowhere else (#104), and
 the copy verified at 00:08 that morning did not contain a single byte of it. Nothing was broken;

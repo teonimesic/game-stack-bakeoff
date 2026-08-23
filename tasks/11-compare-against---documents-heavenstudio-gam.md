@@ -59,7 +59,7 @@ Everything is written up in `eval/IMPROVEMENTS.md`, iteration 12: one section pe
 its candidate table, its verdicts, its both-ways list and what was adopted. **Read that file
 first; do not re-read `game-research-gpt` from scratch.**
 
-Axis 3 (2026-08-23) produced `eval/judge/field_ranks.py`, FINDINGS #112, and tasks 54 and 55. It
+Axis 3 (2026-08-23) produced `eval/judge/field_ranks.py`, FINDINGS #113, and tasks 54 and 55. It
 also **corrected axis 1**: their `-v1`/`-v2`/`-v3` are not replicates that ran. The dispositions
 say unfinished, invalidated and unadmitted, so no confirmation run of theirs ever produced a
 comparative result. A forward pointer sits at the end of the axis-1 section.

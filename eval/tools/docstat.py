@@ -25,12 +25,16 @@ Both are the same shape: an unvalidated probe whose wrong answer is indistinguis
 from a real reading.
 
 Usage, from eval/:
-    python3 tools/docstat.py                  # size + structure of project docs
-    python3 tools/docstat.py --outline FILE   # fence-aware heading map of one file
-    python3 tools/docstat.py --sweep          # names in docs that do not resolve
+    python3 tools/docstat.py                    # size + structure of project docs
+    python3 tools/docstat.py --outline FILE     # fence-aware heading map of one file
+    python3 tools/docstat.py --sweep            # names in docs that do not resolve
+    python3 tools/docstat.py --renumbered       # citations of a finding that was renumbered
+    python3 tools/docstat.py --renumbered --at REV   # ... as of any revision
     python3 tools/docstat.py --all
 
 Exit code is 1 if --sweep finds anything unresolved, so it can gate a commit.
+`--renumbered` never gates: it is a smell detector, and its second half is explicitly
+undecidable. See `_check_renumbered_citations` for which half is which.
 """
 
 from __future__ import annotations
@@ -570,6 +574,342 @@ def _check_regime_ordinals() -> list[str]:
     return problems
 
 
+# =============================================================================
+# RENUMBERED CITATIONS
+#
+# Every other check in this file asks whether a name RESOLVES. This one exists because
+# the defect it is about resolves perfectly. When two agents in isolated worktrees
+# allocate the same finding number, `_check_findings_integrity` above catches the
+# collision at merge and one finding is renumbered - and every document that already
+# cited the old number now points, in well-formed prose, at somebody else's finding.
+# Eight findings were renumbered this way on 2026-08-23, a ninth later the same day.
+#
+# There is no dangling link to look for. The only record of which numbers moved is git
+# history, so that is what this reads.
+# =============================================================================
+
+_HEADING_RX = re.compile(r"^##\s+#?(\d+)\s*[.—-]\s*(.*)$")
+
+# `#95`, `FINDINGS #95`, `FINDINGS 95`, `finding 95`. Two digits minimum: `#1`..`#9`
+# in this corpus are list markers and anchors, never findings.
+_CITE_RX = re.compile(r"(?:#|FINDINGS?\s+#?|[Ff]inding\s+#?)(\d{2,3})\b")
+
+
+def _git(*args: str) -> str:
+    """git in the repository this file lives in. Empty string on failure, never a raise.
+
+    `check=False` is the point, not an oversight: several calls here ASK a question whose
+    negative answer is a non-zero exit - `cat-file -t` on a path a parent does not have, or
+    `blame` on a file that revision never contained. Raising on those would turn a normal
+    reading into a crash. The exit code is read (#105); it is just read here, once, instead
+    of at every call site.
+    """
+    try:
+        r = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True,
+                           check=False)
+    except (OSError, ValueError):
+        return ""
+    return r.stdout if r.returncode == 0 else ""
+
+
+class _History:
+    """The findings numbering as it stood at any commit, cached by blob and by tree.
+
+    THE ADDRESS IS AN INPUT TO THE CHECK (#60). `ROOT` is a filesystem path and
+    `eval/findings/` is a path inside a git tree; nothing makes those agree by
+    construction, so `ok()` asserts it rather than trusting it.
+    """
+
+    UNCOMMITTED = "0" * 40
+
+    def __init__(self, rev: str = "HEAD") -> None:
+        self.rev = rev
+        # READ THE WORKING TREE, NOT THE LAST COMMIT, unless a revision was asked for.
+        # Every other check in this file reads files off disk. If this one read
+        # `HEAD:path` instead, a citation repaired but not yet committed would still be
+        # reported, the reader would conclude the check is noise, and the next real hit
+        # would be skipped with it. `git blame` with no revision blames the working tree
+        # and marks uncommitted lines with an all-zero sha, which is exactly the signal
+        # needed: a line edited just now cannot be a citation written before a renumber.
+        self.worktree = rev == "HEAD"
+        self._blob: dict[str, list[tuple[int, str]]] = {}
+        self._tree: dict[str, dict[int, str]] = {}
+        self._parents: dict[str, list[str]] = {}
+        self._blame: dict[tuple[str, str], list[tuple[str, str]]] = {}
+        self._ctime: dict[str, int] = {}
+        top = _git("rev-parse", "--show-toplevel").strip()
+        self.rooted = bool(top) and os.path.realpath(top) == os.path.realpath(ROOT)
+
+    def headings(self, blob_sha: str) -> list[tuple[int, str]]:
+        if blob_sha not in self._blob:
+            lines = _git("cat-file", "blob", blob_sha).split("\n")
+            fenced = _fence_mask(lines)
+            out = []
+            for i, ln in enumerate(lines):
+                if fenced[i]:
+                    continue
+                m = _HEADING_RX.match(ln)
+                if m:
+                    out.append((int(m.group(1)), m.group(2).strip()))
+            self._blob[blob_sha] = out
+        return self._blob[blob_sha]
+
+    def numbering(self, commit: str) -> dict[int, str]:
+        """{finding number: heading text} in eval/findings/ as of `commit`."""
+        if commit not in self._tree:
+            m: dict[int, str] = {}
+            for ln in _git("ls-tree", "-r", commit, "eval/findings/").split("\n"):
+                p = ln.split()
+                if len(p) >= 4 and p[1] == "blob" and p[3].endswith(".md"):
+                    for num, h in self.headings(p[2]):
+                        m[num] = h
+            self._tree[commit] = m
+        return self._tree[commit]
+
+    def parents(self, commit: str) -> list[str]:
+        if commit not in self._parents:
+            out = _git("rev-list", "--parents", "-n", "1", commit).split()
+            self._parents[commit] = out[1:]
+        return self._parents[commit]
+
+    def ctime(self, commit: str) -> int:
+        if commit not in self._ctime:
+            s = _git("show", "-s", "--format=%ct", commit).strip()
+            self._ctime[commit] = int(s) if s.isdigit() else 0
+        return self._ctime[commit]
+
+    def blame(self, rev: str, path: str) -> list[tuple[str, str]]:
+        """[(commit, line text)], one entry per line.
+
+        `-w` IS LOAD-BEARING, NOT TIDINESS. `AGENTS.md` rule 16's `(#90)` was written
+        against a tree where #90 was the weight-sensitivity finding, which is #92 now.
+        A later commit re-indented rules 10-16 by one space and nothing else; plain
+        blame therefore dates that citation AFTER the renumber and reads it as fresh.
+        With `-w` it dates to the commit that wrote it and the staleness is visible.
+        A whitespace-only edit must not be able to launder a citation.
+        """
+        key = (rev, path)
+        if key not in self._blame:
+            out: list[tuple[str, str]] = []
+            cur = ""
+            argv = ["blame", "-w", "-M", "--line-porcelain"]
+            if not (self.worktree and rev == self.rev):
+                argv.append(rev)
+            for ln in _git(*argv, "--", path).split("\n"):
+                m = re.match(r"^([0-9a-f]{40}) ", ln)
+                if m:
+                    cur = m.group(1)
+                elif ln.startswith("\t"):
+                    out.append((cur, ln[1:]))
+            self._blame[key] = out
+        return self._blame[key]
+
+    def authoring_commit(self, path: str, index: int) -> tuple[str, str]:
+        """Follow one line back through merges to the side that actually wrote it.
+
+        A merge that resolves a number collision lands TWO things in one commit: the
+        renumbered heading, and the closing branch's prose citing the old number. Blame
+        stops at the merge, whose tree already disagrees with what the citation's author
+        was looking at. Descending into the single parent that carries the line verbatim
+        recovers the tree the author saw.
+
+        Stops at the merge when both parents carry the line (it predates the merge on
+        both sides, so either tree answers the same) or when neither does (the merge
+        itself wrote the line, which is what a hand-corrected citation looks like).
+        """
+        b = self.blame(self.rev, path)
+        if index >= len(b):
+            return "", ""
+        commit, text = b[index]
+        if commit == self.UNCOMMITTED:
+            return "", text      # written in the working tree, i.e. after every renumber
+        seen: set[str] = set()
+        while commit and commit not in seen:
+            seen.add(commit)
+            ps = self.parents(commit)
+            if len(ps) < 2:
+                return commit, text
+            holders = []
+            for p in ps:
+                if _git("cat-file", "-t", f"{p}:{path}").strip() != "blob":
+                    continue
+                pb = self.blame(p, path)
+                hit = [i for i, (_, t) in enumerate(pb) if t == text]
+                if hit:
+                    holders.append(pb[hit[0]][0])
+            if len(holders) != 1:
+                return commit, text
+            commit = holders[0]
+        return commit, text
+
+
+def _norm_heading(h: str) -> str:
+    """A heading's identity, stable under later copy-edits to its tail.
+
+    Eight words of alphanumerics. Headings here get corrected after the fact; the number
+    in front of them is what this module is tracking, so the key has to survive a reworded
+    ending without merging two distinct findings. Measured over all 47 commits that have
+    touched `eval/findings/`: 0 collisions between distinct findings.
+    """
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", h.lower()).split()[:8])
+
+
+def _renumber_events(hist: _History) -> list[tuple[int, int, int, str]]:
+    """Every (old, new, when, heading) the history of `eval/findings/` contains.
+
+    Replays each commit that touched the directory and records a heading whose number
+    differs from the last number that heading had. This is derived, never listed: a
+    hand-kept table of renumbers is a second source of truth and goes stale in exactly
+    the way the citations it describes went stale.
+    """
+    seq: dict[str, list[tuple[int, str, int]]] = {}
+    commits = _git("rev-list", "--reverse", "--date-order", hist.rev, "--",
+                   "eval/findings/").split()
+    for c in commits:
+        for num, h in sorted(hist.numbering(c).items()):
+            k = _norm_heading(h)
+            if not k:
+                continue
+            prev = seq.setdefault(k, [])
+            if not prev or prev[-1][0] != num:
+                prev.append((num, h, hist.ctime(c)))
+    events = []
+    for runs in seq.values():
+        for a, b in zip(runs, runs[1:], strict=False):
+            events.append((a[0], b[0], b[2], b[1]))
+    return sorted(events)
+
+
+def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str], str]:
+    """(decided stale, undecided, summary). Returns, never raises, never gates.
+
+    WHAT IS DECIDABLE AND WHAT IS NOT
+    ---------------------------------
+    A citation cannot be judged by whether it resolves - it always does. It has to be
+    resolved against the numbering its OWN AUTHOR was looking at, and then that finding
+    followed to the number it carries today. Three cases fall out, and only the first
+    is decidable:
+
+    A. THE CITATION AND THE RENUMBER ARE IN DIFFERENT COMMITS. Resolve `#N` against the
+       findings tree at the citation's authoring commit, take that heading's number now,
+       and report if they differ. No judgement in it. 17 hits at the revision this was
+       written against, 0 false positives on inspection.
+
+    B. THEY ARE IN THE SAME COMMIT. The merge that resolves a collision writes the
+       renumbered heading and the closing task's `established_by` string together, and
+       there is no ordering inside a commit. Four of the five citations repaired by hand
+       on 2026-08-23 are this shape - tasks 25, 34 and 42 - and case A cannot see them.
+
+    C. THE AUTHOR'S TREE WAS NEVER COMMITTED. Task 45 cited `#99` for a finding that was
+       `#99` only in another agent's worktree; on every committed tree of that hour `#99`
+       already meant the skills mirror. The citation was wrong the moment it was written,
+       and no reading of history recovers what its author saw, because what its author saw
+       does not exist in history.
+
+    So this reports two lists. The first is a verdict. The second is a SHORT LIST FOR A
+    PERSON: every citation of a number that has ever been reused, written no later than
+    the last time that number changed hands. B and C both live there, and so do plenty of
+    perfectly correct citations - which is why it prints and does not fail.
+
+    THE CONTROL. Run `--renumbered --at 1120695^`, the commit before the five known
+    citations were repaired by hand: the decided list contains `eval/PROTOCOL.md:541`
+    (`#103`, now `#104`) and the undecided list contains the other four. Run it at HEAD
+    and none of the five appear. A check that cannot find a defect that is known to be
+    there is reporting its own silence.
+    """
+    hist = _History(rev)
+    if not hist.rooted:
+        return ([], [], "renumbered-citation check did NOT run: git is unavailable, or "
+                        f"its toplevel is not {ROOT}. This check reads history and has no "
+                        f"answer without it - it is not clean, it is blind.")
+    current = hist.numbering(rev)
+    if not current:
+        return ([], [], f"renumbered-citation check did NOT run: no `## NN.` headings "
+                        f"parsed from eval/findings/ at {rev}. An empty numbering is "
+                        f"indistinguishable from a clean one, so this is an error.")
+    by_key = {_norm_heading(h): n for n, h in current.items()}
+
+    events = _renumber_events(hist)
+    reused: dict[int, int] = {}          # old number -> last time it changed hands
+    for old, _new, when, _h in events:
+        reused[old] = max(reused.get(old, 0), when)
+    if not events:
+        return ([], [], f"no finding has ever been renumbered under {rev}; "
+                        f"{len(current)} findings, nothing to check")
+
+    listing = (_git("ls-files") if hist.worktree
+               else _git("ls-tree", "-r", "--name-only", rev))
+    files = [f for f in listing.split("\n")
+             if f.endswith(".md") and "/runs/" not in f and not is_vendored(f)]
+
+    stale: list[str] = []
+    undecided: list[str] = []
+    for path in files:
+        if hist.worktree:
+            disk = os.path.join(ROOT, path)
+            if not os.path.exists(disk):
+                continue                       # deleted in the working tree
+            lines = open(disk, encoding="utf-8", errors="replace").read().split("\n")
+        else:
+            lines = _git("show", f"{rev}:{path}").split("\n")
+        # Blame is the expensive call. Only a file citing a number that has actually
+        # been reused can produce a hit, so ask that question from the text first.
+        if not any(int(m.group(1)) in reused
+                   for ln in lines for m in _CITE_RX.finditer(ln)):
+            continue
+        for i, ln in enumerate(lines):
+            if _HEADING_RX.match(ln):
+                continue            # a finding's own heading is the definition, not a citation
+            nums = {int(m.group(1)) for m in _CITE_RX.finditer(ln)}
+            if not nums & set(reused):
+                continue
+            commit, _text = hist.authoring_commit(path, i)
+            if not commit:
+                continue
+            then = hist.numbering(commit)
+            when = hist.ctime(commit)
+            for num in sorted(nums & set(reused)):
+                meant = then.get(num)
+                now = by_key.get(_norm_heading(meant)) if meant else None
+                where = f"{path}:{i + 1}"
+                excerpt = ln.strip()[:96]
+                if meant and now is not None and now != num:
+                    stale.append(
+                        f"{where}: #{num} meant \"{meant[:64]}\" when it was written "
+                        f"({commit[:8]}); that finding is #{now} today. "
+                        f"Fix the CITATION - the published number is #{now}. | {excerpt}")
+                elif when <= reused[num]:
+                    held = f"\"{meant[:56]}\"" if meant else "nothing yet in eval/findings/"
+                    undecided.append(
+                        f"{where}: #{num} written {commit[:8]} while #{num} was still "
+                        f"changing hands; the committed trees of that moment say it meant "
+                        f"{held}. Read it. | {excerpt}")
+
+    summary = (f"{len(events)} renumber event(s) in eval/findings/ history; "
+               f"{len(reused)} number(s) have named more than one finding")
+    return stale, undecided, summary
+
+
+def cmd_renumbered(rev: str = "HEAD") -> int:
+    stale, undecided, summary = _check_renumbered_citations(rev)
+    hist = _History(rev)
+    if hist.rooted and hist.numbering(rev):
+        print("RENUMBER MAP (derived from git, never listed by hand)\n")
+        for old, new, _when, h in _renumber_events(hist):
+            print(f"  #{old:>3} -> #{new:<3}  {h[:88]}")
+        print()
+    print(summary + "\n")
+    print(f"DECIDED STALE - {len(stale)}. The citing commit's own tree says so:\n")
+    for s in stale:
+        print(f"  {s}")
+    print(f"\nUNDECIDABLE - {len(undecided)}. History cannot say; a person must read these:\n")
+    for s in undecided:
+        print(f"  {s}")
+    print("\nNever renumber a finding to satisfy this. The number in eval/findings/ is")
+    print("the published one; the citation is what is wrong.")
+    return 0
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -770,6 +1110,27 @@ def cmd_sweep() -> int:
     problems += _check_findings_integrity()
     problems += _check_regime_ordinals()
 
+    # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
+    # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
+    # it does not is that its evidence is `git blame`, which dates the last edit of a line
+    # rather than the writing of a citation. That is sound enough to send someone to look
+    # and not sound enough to block a commit on.
+    #
+    # Only the decided half prints here. The undecidable half never reaches zero - it
+    # contains correct citations by construction - and a permanent block of output that
+    # cannot be cleared is how a reader learns to skip this command's output entirely.
+    # `--renumbered` is where a person goes to read it, on purpose.
+    stale, _undecided, renum_summary = _check_renumbered_citations()
+    if not stale and "did NOT run" in renum_summary:
+        problems.append(renum_summary)
+    elif stale:
+        print(f"{len(stale)} citation(s) of a finding number that has since been "
+              f"reassigned ({renum_summary}):")
+        for s in stale:
+            print(f"  {s}")
+        print("Every one of these still RESOLVES, which is why no other check here sees\n"
+              "them. `docstat.py --renumbered` adds the cases history cannot decide.\n")
+
     if problems:
         print(f"{len(problems)} unresolved reference(s) or structure defect(s):\n")
         for x in problems:
@@ -790,11 +1151,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--outline", metavar="FILE")
     ap.add_argument("--sweep", action="store_true")
+    ap.add_argument("--renumbered", action="store_true",
+                    help="citations of a finding number that has named more than one finding")
+    ap.add_argument("--at", default="HEAD", metavar="REV",
+                    help="revision --renumbered reads (default HEAD); the positive control "
+                         "is a revision where a known-stale citation still stands")
     ap.add_argument("--all", action="store_true")
     a = ap.parse_args()
 
     if a.outline:
         return cmd_outline(a.outline)
+    if a.renumbered:
+        return cmd_renumbered(a.at)
     if a.sweep:
         return cmd_sweep()
     rc = cmd_sizes()
