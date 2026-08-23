@@ -1,7 +1,7 @@
 ---
 id: 83
 title: Read stage.completes as a fraction - the free pre-test that decides whether a harder task is worth buying
-status: open
+status: in_flight
 priority: 2
 refs: DECISIONS.md decision 'A harder task is PRICED here, and gated behind a free pre-test', task 76, eval/judge/bot_platformer.py, eval/judge/RUBRIC.md g4 section, eval/runs/wg-g4c-2026-08-21T02-26-46
 done_when: 'the eight surviving wg-g4c work trees are re-driven by a bot that crosses gaps (task 76 closed and bot_mutants.py green in both halves), stage.completes is recorded per submission as fraction-of-goal, and the result is stated as ONE of three named outcomes: SPREAD, in which case promote stage.completes to scored with a mutant and a variant and retire the harder-task decision in DECISIONS.md; ALL EIGHT AT 1.000, in which case a harder task is justified and this task reports by how much the bar must move; or FLAT AT A LOW FRACTION, in which case the bot is still the constraint and no task change is warranted. Eight numbers without a verdict on which of the three it is does not close this, and neither does a verdict without the eight numbers.'

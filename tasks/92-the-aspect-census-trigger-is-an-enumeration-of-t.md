@@ -1,10 +1,11 @@
 ---
 id: 92
 title: The aspect-census trigger is an enumeration of the three wordings it was built against
-status: in_flight
+status: done
 priority: 3
 refs: eval/tools/docstat.py _ASPECT_CENSUS_RX, AGENTS.md the enumeration-as-trigger rule, tasks/79
 done_when: either the trigger matches a census claim written in a wording nobody enumerated - proved by planting at least three phrasings not in the current pattern and confirming each goes red - with the false-positive count re-measured over the whole corpus and reported, or the enumeration is recorded as deliberate with the measured false-positive cost of widening it
+established_by: 'Trigger rescoped from 3 wordings to the census predicate. Old: 2 of 14 planted false censuses red. Quantifier-based widening rejected at 26 false positives on live docs and 0 true. Shipped predicate trigger: 14 of 15 plants red, 0 red over the 152-doc swept corpus, 6 over all 2090 markdown files and all 6 archive-exempt. Three ticket phrasings verified end to end through --sweep unpiped, old exit 0 and new exit 1 on each, DECISIONS.md restored byte-identical. Bare-table trigger measured at 9 false positives and recorded as deliberately uncovered. Pins 10 to 28, 15 red and 13 green, the greens all real corpus lines a draft turned red. Branch task-92-aspect-census-trigger. No finding number taken; filed tasks 97 and 98'
 ---
 
 ## What this is
