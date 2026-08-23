@@ -108,6 +108,15 @@ In the same session as the work:
 **Commit on `task-<id>-<slug>`.** Use `git commit -F` with a file: backticks in `-m` are executed
 by the shell and silently strip text (#80).
 
+> **Name that file for the ticket, and read back what the commit got.** The scratchpad outlives
+> nothing but is not empty: on 2026-08-23 a `git commit -F .../commitmsg2.txt` on this branch
+> picked up a **previous session's** file and shipped a commit titled *"Task 117, review round
+> 1"* onto task 120's work, at exit 0 (`tasks/120`). That is rule 12 against the author — a
+> correct method aimed at an address nobody verified — and `-F` is the one place it is silent,
+> because a message file that exists is indistinguishable from the one you meant. `git log
+> --oneline -1` after every commit costs nothing; `--amend -F` is the repair while it is
+> unpushed.
+
 **Never merge.** Nothing below changes that — a review is a second opinion on the code, and the
 orchestrator's verification against the artifacts is the measurement.
 
@@ -174,29 +183,60 @@ measurements, from the 2 pull requests this repository has had:
 | poll | every 30s |
 | give up after | **15 minutes** per round — 2.4x the slower of the two. If a diff much larger than 17 files takes longer than that, the bound is wrong and the evidence is in the PR: say so rather than extending it in place |
 
-### The two ways this deadlocks, and what you do
+### The ways this deadlocks, and what you do
 
-**1. The reviews auto-pause.** CodeRabbit pauses a branch it considers under active development
-— *"To avoid overwhelming you with review comments due to an influx of new commits"*. **This is
-the most likely way the flow hangs, and it is triggered by being productive.** The notice is in
-the PR's issue comments, not in the reviews:
+**CodeRabbit says *"I am not going to review this"* in an issue comment, never in the reviews
+array** — so to a poll that only reads reviews, "declined" and "not yet" are the same answer.
+Both notices it has actually posted here are a **GitHub alert callout with a heading**, and
+GitHub's alert vocabulary is a closed class of 5. So: extract the heading, and **read it.**
 
 ```bash
-gh api "repos/$REPO/issues/$PR/comments" \
-  --jq '[.[] | select(.body | contains("review paused by coderabbit.ai"))] | length'
+gh api "repos/$REPO/issues/$PR/comments" --jq \
+ '[.[] | select(.user.login=="coderabbitai[bot]") | .body
+   | scan("> \\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]\\n> ## ([^\\n]*)")]
+  | flatten | join(" | ")'
 ```
 
-It prints a count, in one process — no pipe whose exit status would be the last stage's, and no
-`grep` that exits 1 on zero matches and reads as a failure. Verified 2026-08-23 in both
-directions: `1` on PR #1, which carries the notice, and `0` on PR #2, which does not.
+One process, printing the headings — no pipe whose exit status would be the last stage's, and no
+`grep` that exits 1 on zero matches and reads as a failure. Measured 2026-08-23 across every PR
+this repository has had: **`Reviews paused`** on #1, **`Review limit reached`** on #6, and
+**empty on #2**, which was reviewed normally. 2 true positives, 0 false positives on a corpus of
+3 — small, so treat a heading you have not seen before as *read this comment*, not as a verdict.
+**Every one of these notices states its own remedy in its body.**
 
-If it is paused, post `@coderabbitai review` as a PR comment and resume polling. **Push once per
-round, not once per fix** — batching the fixes is what keeps the pause from firing at all.
+> **This block matched the single string `review paused by coderabbit.ai` until 2026-08-23, and
+> it is the rule audit's enumeration failure inside a skill.** PR #6 came back
+> *"Review limit reached — you've used all 10 included reviews currently available"*; the
+> phrase-match read **0**, and the poll loop was on course to spend its whole 15 minutes
+> reporting "not yet reviewed" about a review that had never started (`tasks/120`).
+>
+> **The first replacement was worse than what it replaced, and only measuring said so.** Keying
+> on `> [!WARNING]` — the notice in front of me — reads **1 on #6 and 0 on #1**, because the
+> pause notice is a `> [!NOTE]`. It would have swapped which of the two deadlocks hangs the
+> loop, and it looked like a generalisation. *Choose between candidate triggers on the
+> live-corpus counts, never on which one sounds more general.*
+>
+> **`select(.user.login=="coderabbitai[bot]")` is load-bearing, and it is not hypothetical.**
+> The old check read every comment by anyone. Twenty minutes later, on this same PR, it went to
+> **1** — matching a comment *I* had posted, which quoted the string while explaining the bug.
+> A check on an unfiltered comment stream is a check the agent can trip by describing it.
 
-**2. The wait expires.** Do not extend it and do not loop again. Say in the PR thread that you
-waited 15 minutes and got no review, set the ticket to `in_testing` with that fact in the
-evidence, and report it. **A no-review is a result the orchestrator can act on; an agent still
-waiting is not.**
+The headings seen so far, and what each means. **This table is its own census** — a heading
+you meet that is not a row here is new, and the row to add is what you learn from its body:
+
+| heading | why | what you do |
+|---|---|---|
+| **Reviews paused** — *"this branch is under active development … to avoid overwhelming you with review comments"* | **triggered by being productive.** `@coderabbitai resume` restores automatic reviews; `@coderabbitai review` buys one | post `@coderabbitai review`, resume polling |
+| **Review limit reached** — *"you've used all N included reviews currently available"* | the org's allowance is spent. The body states how long until the next one frees up | wait out the stated interval, post `@coderabbitai review`, resume polling **within the same 15-minute bound** — do not restart the clock |
+| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask. **It is stale the moment you push** — CodeRabbit edits its comments in place, so a heading here is a diagnostic and `reviewed_at_head` is the authority |
+
+**Push once per round, not once per fix.** Batching is what keeps the pause from firing at all,
+and under a spent allowance it is the difference between one round and none.
+
+**And the wait can simply expire.** Do not extend it and do not loop again. Say in the PR thread
+that you waited 15 minutes and got no review, set the ticket to `in_testing` with that fact in
+the evidence, and report it. **A no-review is a result the orchestrator can act on; an agent
+still waiting is not.**
 
 **Rounds cost more than pushes.** The plan allows 10 included reviews per hour and a single PR
 consumed 4 of them over 3 rounds — the counter went 9, 8, 6, so a round can cost 2. Budget
@@ -245,13 +285,18 @@ to your own copy would only offer the merge a conflict. `-` reads the section fr
 unexpanded.
 
 Do not put the account in `established_by` instead. That field is one unbroken line of prose in
-YAML frontmatter, it cannot contain a backtick (#80), and it is not where the next agent looks —
-tasks 105 and 106 each emptied a session's findings into it because `note` did not yet exist
-(task 113).
+YAML frontmatter, and it is not where the next agent looks — tasks 105 and 106 each emptied a
+session's findings into it because `note` did not yet exist (task 113). `testing` and `done`
+now **refuse** a multi-line evidence string and name `note` in the message, rather than writing
+a wall of prose into frontmatter.
 
-Evidence means a measurement, a control, a file — never "completed". **No backticks in that
-string**: they execute as command substitution and silently strip text from a durable record
-(#80).
+Evidence means a measurement, a control, a file — never "completed". An empty evidence string is
+refused. **A backtick cannot go in that argument** — it executes as command substitution before
+`tasks.py` runs and silently strips text from a durable record (#80). Pass it on stdin instead:
+`testing <id> -` reads one line from stdin exactly as `note <id> -` reads a section, and the
+sentinel means the same thing in both. It used to mean the same thing in neither: `done <id> -`
+stored the literal one character `-` at exit 0 over 2280 characters of redirected account, and
+closed the ticket while doing it (task 120).
 
 `in_testing` is the signal, and it is the whole reason the state exists: the orchestrator can see
 which branches are its turn without opening a single pull request. **You never set `done`** — that

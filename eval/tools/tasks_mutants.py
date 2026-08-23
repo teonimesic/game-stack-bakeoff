@@ -193,6 +193,56 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         'PR_REQUIRED = ("in_review", "in_testing")',
         'PR_REQUIRED = ("in_review",)  # MUTANT: the state merged FROM is no longer gated',
         ("`in_testing` with no `pr`",)),
+    # THE SENTINEL ITSELF -- and it is exactly the pre-fix behaviour of `done`, restored for
+    # `note` as well. `-` stops meaning stdin and becomes a literal one-character record, at
+    # exit 0, over however many characters the caller redirected in (task 120). It is one
+    # mutation because `-` is now read in ONE place; before, it was two behaviours in two
+    # commands, which is what let them disagree.
+    "evidence_no_stdin": (
+        '    return sys.stdin.read() if value == "-" else value',
+        "    return value  # MUTANT: `-` is a literal again, in every subcommand",
+        ("`done 70 -` on a 2280-character multi-line account",
+         "`done 70 -` stores a ONE-LINE stdin string",
+         "carries a backtick that argv cannot",
+         "means stdin in `note` too")),
+    # THE EMPTY REFUSAL. `done <id> ""` closed a ticket with an empty `established_by` at
+    # exit 0 -- a status change whose stated reason is nothing at all.
+    "evidence_empty_allowed": (
+        "    if not text:\n"
+        '        print(f"{tid}: refusing to record an empty `established_by`',
+        "    if False:  # MUTANT: an empty evidence string closes the ticket\n"
+        '        print(f"{tid}: refusing to record an empty `established_by`',
+        ("(empty inline)", "(whitespace inline)", "with a closed/empty stdin")),
+    # THE MULTI-LINE REFUSAL, which is what turns the redirected account from a silent
+    # 1-character record into an error that names `note`. Without it the account goes into
+    # YAML frontmatter instead -- tasks 105 and 106's workaround, with nicer syntax.
+    "evidence_multiline_allowed": (
+        '    if "\\n" in text or "\\r" in text:',
+        "    if False:  # MUTANT: a whole account goes into the frontmatter line",
+        ("`done 70 -` on a 2280-character multi-line account",
+         "`testing 70 -` on the same account",
+         "names the alternative")),
+    # THE `\r` HALF ON ITS OWN. Testing for `\n` alone is what the first version did, and it
+    # is invisible to every account fixture here because they all use `\n`: a lone carriage
+    # return is an old-Mac line break carrying a second line straight into the frontmatter.
+    # Raised by review on PR #6, so the row it kills is the one added for it.
+    "evidence_cr_ignored": (
+        '    if "\\n" in text or "\\r" in text:',
+        '    if "\\n" in text:  # MUTANT: a lone CR is not a line break',
+        ("a lone CR carries a second line",)),
+    # THE SECOND HALF OF EVERY REFUSAL ROW, isolated. Exit 1 is not the claim: the claim is
+    # exit 1 AND the ticket untouched. The pre-fix code moved the ticket to `done` while
+    # destroying the record, so a refusal that still flips the status would leave the
+    # orchestrator a closed task with no reason on it and a non-zero exit nobody kept.
+    "evidence_refusal_still_writes": (
+        "    text = _stdin_arg(value).strip()\n"
+        "    if not text:",
+        "    text = _stdin_arg(value).strip()\n"
+        "    _set(tid, status=status, established_by=text)  # MUTANT: written, then refused\n"
+        "    if not text:",
+        ("`done 70 -` on a 2280-character multi-line account",
+         "`testing 70 -` on the same account",
+         "(empty inline)", "(whitespace inline)", "with a closed/empty stdin")),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it
@@ -279,7 +329,23 @@ def _report(out: str, limit: int = 4) -> None:
 
 
 def _cycle(tmp: Path, name: str) -> bool:
-    """One mutant, graded and reported. Returns whether the row naming it went red."""
+    """One mutant, graded and reported. Returns whether the row naming it went red.
+
+    AN UNNAMED RED IS REPORTED, NOT FAILED, AND THAT IS MEASURED RATHER THAN PREFERRED.
+    Raised by review on PR #6 (task 120): could a mutant that breaks more than it claims be
+    reported CAUGHT for the wrong reason? It could in principle, and the price of closing it
+    is the whole suite. Over the 21 mutants here, **9 produce unnamed reds** -- 8 of them
+    predating that ticket -- because a shared mechanism is exactly what several of them cut:
+    `evidence_no_stdin` removes one sentinel that `note` and `done` both read, so 9 of its 13
+    red rows are `note`'s. Failing on unnamed reds would turn those 9 mutants into failures
+    without a single defect behind them.
+
+    What actually guards against the case the review was worried about is the ACCEPTING rows
+    (rule 15's variant half): a mutant that broke valid behaviour turns those red too, and
+    they are listed by name in the report. `evidence_empty_allowed` is the worked example --
+    **3 red, 0 unnamed**, exactly the 3 empty-evidence rows, with every accepting row still
+    green. That is what says the mutation did what its name claims and nothing else.
+    """
     old, _new, kills = MUTANTS[name]
     rc, out, failed, rows = _grade(_write_copy(tmp, name, name))
     unnamed = [f for f in failed if not any(k in f for k in kills)]

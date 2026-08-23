@@ -35,9 +35,9 @@ not a mechanism:
 
 THE DIRECTIONS
 --------------
-There are seven. The heading counted five while `coverage_rows` had already made it six --
-a census with no producer, in the file whose job is to have one. It is not a cardinal any
-more: `python3 eval/tools/tasks_control.py` prints the row for every direction it ran.
+The heading counted five while `coverage_rows` had already made it six -- a census with no
+producer, in the file whose job is to have one. It is not a cardinal any more:
+`python3 eval/tools/tasks_control.py` prints the row for every direction it ran.
 
 1. ROUND TRIP, byte for byte, over every file in the live shared queue. Not "the values
    survive" -- the BYTES. The value round-trip was green while `_render` was rewriting
@@ -96,6 +96,13 @@ more: `python3 eval/tools/tasks_control.py` prints the row for every direction i
    3 keys that dropped the rest silently: over a queue with 1 file in each of the 5 states it
    counted 3.
 
+8. THE `established_by` STRING, which direction 7 never looks at because it always passes a
+   good one. `done <id> - < account.md` stored the literal one-character `-` at exit 0 over
+   2280 characters of measurement, and moved the ticket to `done` while doing it (task 120).
+   Every refusal row asserts exit 1 AND the file byte-identical, status included; the
+   accepting rows are rule 15's variant half, including the backtick line that argv cannot
+   carry at all and is the reason `-` is READ rather than rejected outright.
+
 THE CONTROLS DO NOT TOUCH THE SHARED QUEUE. `TASKS` is derived at import from
 `git worktree list`, and monkeypatching a module constant that has already been derived is
 how a lint once ran against the real tree while claiming a bad root (AGENTS.md rule 12). So
@@ -124,6 +131,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import yaml
 
 #: THIS FILE'S OWN DIRECTORY, and it is the GIT ADDRESS -- directions 2 and 5 read real
 #: blobs out of this repository's history. It deliberately does NOT move with `--tasks-py`:
@@ -339,7 +348,6 @@ def _values_survive(p: Path) -> bool:
     except T._Malformed:
         return False
     import io
-    import yaml
     reloaded = yaml.safe_load(io.StringIO(T._render(fm, body)).read().split("---\n")[1])
     return {str(k): T._scalar(v) for k, v in (reloaded or {}).items()} == \
            {str(k): T._scalar(v) for k, v in fm.items()}
@@ -604,7 +612,6 @@ def _fm_values(text: str) -> dict:
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     if not m:
         return {"(no frontmatter)": text[:40]}
-    import yaml
     try:
         fm = yaml.safe_load(m.group(1))
     except Exception:                                           # noqa: BLE001
@@ -823,7 +830,6 @@ def _snapshot_briefs(commit: str) -> tuple[dict[str, str], dict[str, str]]:
                      re.S)
         if not m:
             continue
-        import yaml
         try:
             fm = yaml.safe_load(m.group(1))
         except Exception:
@@ -1068,12 +1074,210 @@ def status_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 8
+#: The last commit before `testing`/`done` read `-`, and direction 8's positive control. That
+#: copy stores the LITERAL one-character string and exits 0, so it MUST fail the rows below:
+#: without it a green direction 8 is rule 1's `total=0 passed=0`, since every refusal row
+#: would also pass against a `tasks.py` that had never heard of the sentinel.
+PRE_EVIDENCE_COMMIT = "dce1172"
+
+#: A real closing account: multi-line, the shape an agent redirects into `done <id> -`. Its
+#: LENGTH is the measurement -- 2280 characters is what task 112's call lost to a 1-character
+#: record -- so it is built by repetition rather than written out, and the row prints the
+#: number it is standing in for.
+_ACCOUNT = ("Established by X, measured 2026-08-23.\n\n"
+            "- 114 tickets scanned, 0 degenerate\n"
+            "- control: planted one, census read 1\n") * 20
+
+#: The one-line evidence a `done` is supposed to carry, and the one-line evidence that CANNOT
+#: be passed as argv: a backtick in an argv string is command substitution before `tasks.py`
+#: runs (#80). The second is why `-` reads stdin here rather than being refused outright.
+_INLINE = "measured: 114 rows, 0 degenerate; control planted one, census read 1"
+_BACKTICK_LINE = "the census reads `established_by` over 114 tickets and returns 0"
+
+
+def evidence_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
+    """Can `testing` and `done` still empty the record they exist to write?
+
+    `status_rows` asks whether each transition writes the state it names. It passes a
+    well-formed evidence string every time, so it cannot see what happens to a malformed one
+    -- and the malformed one was accepted silently. Measured on this harness against
+    `PRE_EVIDENCE_COMMIT`, all at exit 0 with the status flipped:
+
+      | call                         | stored           |
+      |------------------------------|------------------|
+      | `done 70 - < 2280-char file` | `-`              |
+      | `testing 70 - < same file`   | `-`              |
+      | `done 70 ""`                 | the empty string |
+
+    Every row therefore asserts TWO things about a refusal: exit 1, and the file byte-identical
+    -- which includes the STATUS. The old code moved the ticket to `done` while destroying the
+    record, so "it refused" and "it refused without closing the task" are different claims and
+    only the second one is worth anything to the orchestrator.
+
+    The three accepting rows are the variant half of rule 15. A mutant can delete a refusal;
+    only an input the refusal must NOT fire on shows the repair is not just a deletion of the
+    capability, and `_BACKTICK_LINE` is the input that would be lost if `-` were rejected
+    outright instead of read.
+    """
+    rows, unchecked = [], []
+    main, wt = _scratch_pair(tmp / "evidence")
+    target = main / "tasks" / "70-a.md"
+    # `pr:` is present because `in_testing` and `in_review` both require one, so the `check`
+    # row below is measuring the evidence field and not a PR link this fixture forgot.
+    original = _task_file("70", status="in_progress",
+                          extra="pr: https://github.com/o/r/pull/9\n")
+
+    def probe(src: Path, *argv: str, stdin: str | None = None) -> tuple[int, str, str]:
+        shutil.copy(src, main / "eval/tools/tasks.py")
+        shutil.copy(src, wt / "eval/tools/tasks.py")
+        target.write_text(original, encoding="utf-8")
+        p = subprocess.run([sys.executable, str(wt / "eval/tools/tasks.py"), *argv],
+                           capture_output=True, text=True, input=stdin)
+        return p.returncode, ((p.stdout or "") + (p.stderr or "")).strip(), target.read_text()
+
+    def stored(text: str) -> str | None:
+        """`established_by` as YAML sees it. Read through the parser, never off a line.
+
+        Off a line it would be `^established_by: (.*)$`, which is the reader `tasks.py`
+        already had to stop using: a value containing `": "` came back truncated and looked
+        fine (task 40). A row about a durable record must not read it the lossy way.
+        """
+        m = T._FM_RE.match(text)
+        if not m:
+            return None
+        v = (yaml.safe_load(m.group(1)) or {}).get("established_by")
+        return None if v is None else str(v)
+
+    # THE POSITIVE CONTROL FIRST. The pre-fix copy must lose the account on this very probe.
+    if skip_prefix:
+        unchecked.append("evidence positive control NOT CHECKED - --skip-prefix was given. "
+                         "Nothing in the evidence rows shows this harness can observe a "
+                         "2280-character account being stored as one character.")
+    else:
+        rc_g, blob = _run_tool_git("show", f"{PRE_EVIDENCE_COMMIT}:eval/tools/tasks.py")
+        if rc_g != 0:
+            unchecked.append(f"evidence positive control NOT CHECKED - could not read "
+                             f"{PRE_EVIDENCE_COMMIT}:eval/tools/tasks.py ({blob[:90]}). The "
+                             f"evidence rows below are unproven, not passing.")
+        else:
+            pre_py = tmp / "pre_evidence_tasks.py"
+            pre_py.write_text(blob if blob.endswith("\n") else blob + "\n")
+            rc, out, after = probe(pre_py, "done", "70", "-", stdin=_ACCOUNT)
+            got = stored(after)
+            rows.append((f"the 1-character record CAN be observed ({PRE_EVIDENCE_COMMIT} "
+                         f"must store `-` at exit 0 over {len(_ACCOUNT)} characters)",
+                         len(_ACCOUNT), rc == 0 and got == "-",
+                         f"exit {rc}, established_by={got!r}; "
+                         f"{out.splitlines()[-1][:60] if out else ''}"))
+
+    # --- the refusals. Exit 1 AND the file untouched, status included.
+    for name, argv, stdin in (
+            (f"`done 70 -` on a {len(_ACCOUNT)}-character multi-line account",
+             ("done", "70", "-"), _ACCOUNT),
+            ("`testing 70 -` on the same account (the sibling, not just the reported one)",
+             ("testing", "70", "-"), _ACCOUNT),
+            ("`done 70 \"\"` (empty inline)", ("done", "70", ""), None),
+            ("`done 70 \"   \"` (whitespace inline)", ("done", "70", "   "), None),
+            ("`done 70 -` with a closed/empty stdin", ("done", "70", "-"), "")):
+        rc, out, after = probe(TASKS_PY, *argv, stdin=stdin)
+        rows.append((f"refused, and NOTHING written: {name}", rc,
+                     rc == 1 and after == original,
+                     f"exit {rc}, file unchanged: {after == original}; "
+                     f"{out.splitlines()[-1][:80] if out else ''}"))
+
+    # The message has to name where the account goes, or the refusal is just an obstacle.
+    rc_m, out_m, _ = probe(TASKS_PY, "done", "70", "-", stdin=_ACCOUNT)
+    rows.append(("the multi-line refusal names the alternative (`note <id> -`)", rc_m,
+                 rc_m == 1 and "note 70 -" in out_m,
+                 f"names it: {'note 70 -' in out_m}; {out_m.splitlines()[-1][:90]}"))
+
+    # --- what it must still ACCEPT. Rule 15's variant half: a refusal that fires on these
+    # would be a repair that removed the capability.
+    for name, cmd, want_status, text in (
+            ("a normal inline evidence string still stores unchanged", "done", "done",
+             _INLINE),
+            ("the same through `testing`", "testing", "in_testing", _INLINE)):
+        rc, out, after = probe(TASKS_PY, cmd, "70", text)
+        got = stored(after)
+        rows.append((name, len(text), rc == 0 and got == text
+                     and f"status: {want_status}" in after,
+                     f"exit {rc}, len {0 if got is None else len(got)}, "
+                     f"identical: {got == text}, status {want_status}: "
+                     f"{f'status: {want_status}' in after}"))
+
+    rc_s, _out_s, after_s = probe(TASKS_PY, "done", "70", "-", stdin=_INLINE + "\n")
+    got_s = stored(after_s)
+    rows.append(("`done 70 -` stores a ONE-LINE stdin string in full, trailing newline "
+                 "stripped", len(_INLINE), rc_s == 0 and got_s == _INLINE,
+                 f"exit {rc_s}, established_by={str(got_s)[:60]!r} (len "
+                 f"{0 if got_s is None else len(got_s)})"))
+
+    # THE ROW THAT SAYS WHY `-` IS READ RATHER THAN REJECTED. This string cannot reach
+    # `tasks.py` through argv at all (#80); stdin is the only channel that carries it.
+    rc_b, _out_b, after_b = probe(TASKS_PY, "done", "70", "-", stdin=_BACKTICK_LINE + "\n")
+    got_b = stored(after_b)
+    rows.append(("`done 70 -` carries a backtick that argv cannot (#80)", rc_b,
+                 rc_b == 0 and got_b == _BACKTICK_LINE and "`" in (got_b or ""),
+                 f"exit {rc_b}, backtick present: {'`' in (got_b or '')}, "
+                 f"identical: {got_b == _BACKTICK_LINE}"))
+
+    # ONE SENTINEL, ONE MEANING. The ticket's last requirement, asserted rather than promised:
+    # the same `-` in `note` and in `done` both read stdin, on the same fixture.
+    rc_n, _out_n, after_n = probe(TASKS_PY, "note", "70", "-", stdin=_ACCOUNT)
+    rows.append(("`-` means stdin in `note` too, on the same fixture (the sibling agreement)",
+                 rc_n, rc_n == 0 and after_n.startswith(original)
+                 and _ACCOUNT.strip() in after_n,
+                 f"exit {rc_n}, account in body: {_ACCOUNT.strip() in after_n}"))
+
+    # WHITESPACE IS NOT CONTENT, AND `\r` IS NOT WHITESPACE FOR THIS PURPOSE. A heredoc always
+    # ends in a newline and a redirected file often ends in a blank line, so trimming is what
+    # makes `done <id> -` usable at all -- but `strip()` only ever removes whitespace, so
+    # nothing a caller wrote can be lost to it. A LONE `\r` is the exception and the reason
+    # for the second half of the test in `cmd_evidence`: it is an old-Mac line break, it
+    # carries a second line, and `"\n" in text` cannot see it. Raised by review on PR #6; the
+    # rest of that comment is declined in the thread, this half is a real hole.
+    for name, stdin, want_rc in (
+            ("a trailing blank line is trimmed, not refused", _INLINE + "\n\n", 0),
+            ("a leading blank line is trimmed, not refused", "\n" + _INLINE, 0),
+            ("a lone CR carries a second line and IS refused", "first\rsecond\n", 1)):
+        rc_w, out_w, after_w = probe(TASKS_PY, "done", "70", "-", stdin=stdin)
+        got_w = stored(after_w)
+        ok = (rc_w == want_rc and (got_w == _INLINE if want_rc == 0
+                                   else after_w == original))
+        rows.append((f"stdin whitespace: {name}", rc_w, ok,
+                     f"exit {rc_w}, established_by={str(got_w)[:50]!r}"
+                     if want_rc == 0 else
+                     f"exit {rc_w}, file unchanged: {after_w == original}; "
+                     f"{out_w.splitlines()[-1][:70] if out_w else ''}"))
+
+    # THE QUEUE A REFUSED `done` LEAVES BEHIND still lints, so a refusal is not a ticket
+    # somebody has to repair by hand.
+    #
+    # THE ROW'S NAME IS AN ADDRESS AND IT WAS POINTING SOMEWHERE ELSE. Until PR #6's review
+    # this ran straight after the `note` probe above, so it linted the ticket a SUCCESSFUL
+    # note had left -- green, and about a fixture the name does not describe. That is
+    # AGENTS.md rule 12 inside a control: a sound method aimed at an address nobody checked.
+    # The refusal now happens here, on this fixture, with its own assertions kept.
+    rc_r, out_r, after_r = probe(TASKS_PY, "done", "70", "-", stdin=_ACCOUNT)
+    rows.append(("the refusal this `check` row is about: exit 1, ticket byte-identical", rc_r,
+                 rc_r == 1 and after_r == original,
+                 f"exit {rc_r}, file unchanged: {after_r == original}; "
+                 f"{out_r.splitlines()[-1][:70] if out_r else ''}"))
+    rc_c, out_c = _run_tool(main / "eval/tools/tasks.py", "check")
+    rows.append(("`check` is clean on the ticket that refusal left behind", rc_c,
+                 rc_c == 0 and "well-formed" in out_c,
+                 f"exit {rc_c}: {out_c.splitlines()[-1][:80] if out_c else '(none)'}"))
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--skip-prefix", action="store_true",
-                    help="skip direction 2's positive control (it needs the pre-fix blob "
-                         "from git). Every arm it covers is then reported NOT CHECKED.")
+                    help="skip the positive controls in directions 2 and 8 (each needs a "
+                         "pre-fix blob from git). Every arm they cover is then reported "
+                         "NOT CHECKED.")
     ap.add_argument("--tasks-py", metavar="PATH",
                     help="grade this copy of tasks.py instead of the repository's. Used by "
                          "tasks_mutants.py, which writes a MUTATED copy into a tempdir; "
@@ -1105,7 +1309,8 @@ def main(argv: list[str]) -> int:
                    lambda: reachability_printed_rows(tmp),
                    lambda: misfiled_rows(tmp),
                    lambda: coverage_rows(),
-                   lambda: status_rows(tmp)):
+                   lambda: status_rows(tmp),
+                   lambda: evidence_rows(tmp, a.skip_prefix)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)
