@@ -1,6 +1,6 @@
 # research/ — the briefs
 
-Eleven briefs answering the original questions, plus `DECISION.md`.
+Twelve briefs answering the original questions, plus `DECISION.md`.
 
 | File | Covers |
 |---|---|
@@ -15,6 +15,7 @@ Eleven briefs answering the original questions, plus `DECISION.md`.
 | `08-agent-performance-evidence.md` | Published measurements of agent coding performance |
 | `09-game-testing-sota.md` | Rendering tests, play-bots, frame verification |
 | `10-stack-capability-matrix.md` | **What each stack can do at its pinned version**, with effort and Apple-silicon conditionality marked, and what is unresolved. The evidence base `DECISIONS.md` requires task 26 to cite |
+| `11-doc-linting-for-agents.md` | **Prose and markdown linting for documentation read by agents.** Eleven tools run against this repository; what each found; why the recommendation is to adopt none of them, and what to do instead |
 | `DECISION.md` | The stack choice made from the briefs |
 
 ## `DECISION.md` is a prior, not evidence
