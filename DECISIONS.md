@@ -222,6 +222,29 @@ deleted `add-game` omitted the `prompt_guard.py` procedure entirely, and the del
 asserted that `--max-turns` and `--permission-mode` belong to the Codex CLI when
 `eval/runner.py:510,519` passes both to `claude`. If cross-tool support is wanted, add a
 **pointer** to `.claude/skills/`; a pointer cannot drift from content it does not hold.
+### The documentation is gated on structure and on names, never on prose — decided 2026-08-23
+
+Eleven documentation linters were measured against this repository and produced **over 14,000
+alerts and two defects**. Both defects came from tools that check *structure or schema*; every
+prose rule that fired was house style, a false positive on this project's vocabulary, or a
+readability score. `research/11-doc-linting-for-agents.md` has the per-tool numbers.
+
+So no prose linter, no readability gate, no `markdownlint` config. `eval/tools/docstat.py
+--sweep` is the whole gate, and it asks only two things:
+
+| | question | bought with |
+|---|---|---|
+| **references** | does a flag, aspect or criterion a doc names exist? | `RUBRIC.md` named five judges that do not (#38) |
+| **structure** | does the file parse as the thing it is read as? | 5 of 7 skills had unparseable frontmatter; `AGENTS.md` rules 10-16 detached from their own list |
+
+Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
+gate that fails on correct input gets disabled*:
+
+- It asks about a continuation under a **2+ digit** ordered marker, not about indented blocks in
+  general. The general form fires on `tasks/` files where nothing is wrong.
+- It does not read `eval/findings/`, `eval/FINDINGS.md` or `eval/RUNS.md`. The archive records
+  what was true when it was written, including the broken shapes it is about; reformatting one to
+  satisfy a gate edits evidence.
 
 ---
 
