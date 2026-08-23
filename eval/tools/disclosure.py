@@ -52,9 +52,20 @@ of nearly half the corpus. That is not hypothetical here: `wg-arena3d-2026-08-15
 execute freshly compiled binaries"* at character 0 of 3912, and the truncated field loses
 it. That trial is the one whose run produced #49. This module never opens `trials/`.
 
+## It surfaces text; it does not grade it
+
+Nothing here scores a disclosure and nothing here reaches `overall`. Making disclosure a
+criterion would change what agents optimise for, and `tasks/46` declined that regime change
+on cost grounds. There is no criterion id, no tier and no weight in this file, and the cue
+set is a **convenience for finding the passage, not a judgement about it** — which is why
+`--full` prints every message whole with no selection applied at all. If the located view
+and the whole message ever disagree about what an agent said, the whole message is the
+evidence.
+
     python3 eval/tools/disclosure.py --run-dir eval/runs/<run>     # one run, per trial
+    python3 eval/tools/disclosure.py --run-dir <run> --full        # every message, whole
+    python3 eval/tools/disclosure.py --run-dir <run> --trial <id>  # one message, whole
     python3 eval/tools/disclosure.py --runs-dir eval/runs          # the whole tree
-    python3 eval/tools/disclosure.py --run-dir <run> --trial <id>  # the whole message
     python3 eval/tools/disclosure.py --selftest                    # both directions
 """
 
@@ -579,6 +590,9 @@ def main() -> int:
     ap.add_argument("--run-dir", help="one run directory")
     ap.add_argument("--runs-dir", help="the whole tree (default: eval/runs/)")
     ap.add_argument("--trial", help="with --run-dir: print this trial's WHOLE message")
+    ap.add_argument("--full", action="store_true",
+                    help="with --run-dir: print every trial's WHOLE message, no cues, "
+                         "no selection — the uninterpreted view")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--skip-corpus", action="store_true",
@@ -605,6 +619,23 @@ def main() -> int:
                     print(f"NO MESSAGE — {reason}")
                     return 0
                 print(agent["result"])
+                return 0
+            if args.full:
+                # NO SELECTION AT ALL. The cue set is a convenience, and a convenience
+                # that is the only way to see the evidence is a filter nobody chose. This
+                # prints what each agent wrote, whole, and applies no judgement to it.
+                for path in sorted((run_dir / "artifacts").glob(
+                        "*/agent_result.json")):
+                    agent = json.loads(path.read_text())
+                    status, reason = classify(agent.get("result"))
+                    print(f"\n{'=' * 78}\n{path.parent.name}  ({path})")
+                    print("=" * 78)
+                    if status == "no_message":
+                        # Say why, then show the raw value anyway: this view exists so a
+                        # reader never has to take this file's word for anything.
+                        print(f"[{reason}]")
+                    print(repr(agent.get("result")) if status == "no_message"
+                          else agent["result"])
                 return 0
             rows = scan_run(run_dir)
             print(BANNER)

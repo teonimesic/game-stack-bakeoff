@@ -887,8 +887,8 @@ def cmd_report(a: argparse.Namespace) -> int:
         for line in _disclosure.render_rows(disc_rows, indent="  "):
             print(line)
         print(f"  {_disclosure.summarise(disc_rows)}")
-        print("  Whole message: python3 tools/disclosure.py --run-dir "
-              f"{run_dir} --trial <id>")
+        print(f"  Whole messages, no selection applied: python3 tools/disclosure.py "
+              f"--run-dir {run_dir} --full")
 
     # A MEAN ACROSS TWO SCORING REGIMES DESCRIBES NEITHER (rule 4). Tier 1 was 0.31 of
     # `overall` before 2026-08-23 and is a gate after it, so a directory holding both -
