@@ -63,3 +63,42 @@ this task.
 Do not treat `verify_blind.py` passing as evidence the key is gone. It checks the canary, the
 rubric and the criterion vocabulary — the key is a trial id inside a submission's own config
 file, which is a different thing. Task 42 found the key by grepping for it directly.
+
+
+## WHAT THIS TICKET GOT WRONG, established 2026-08-23 while working it
+
+**"The exposure is armed" is false, and it was this ticket's stated reason for priority.**
+`field.build_pack` does not copy a pack file, it writes `anonymise.neutralise(text)`, and
+`neutralise` rewrites any `g<n>_<game>__<stack>__t<n>` token to `SUBMISSION`. Applying it to
+every file of all 40 stored packs in both runs leaves **0 files in which the trial id survives**,
+and the 32 `telemetry.json` / `audio.json` blobs an offline re-grade would build carry no trial
+id, work path or `.codex` string either. The stored packs carry the key; what a judge would be
+handed does not.
+
+That distinction is the thing to keep. **A leak in stored evidence and a leak on the live path
+are two questions, and the second has to be measured on the OUTPUT of the copy** rather than by
+grepping its input. This ticket grepped the input and inferred the output.
+
+The measured outcome, recorded in `eval/RUNS.md` in the section naming both runs:
+
+- **Radius.** 18 of 24 packs in `wg-matrix` (godot 4/6, rust 5/6, ts 6/6, unity 2/6); 6 of 16 in
+  `wg-audio48` (godot 3/4, ts 3/4, rust 0/4, unity 0/4). Always exactly one file per pack, always
+  `code/other/NN.json`, always the `.codex` hooks config verbatim.
+- **`repack.py` refuses 24/24 and 16/16.** `wg-matrix`: no `pack.manifest` in any
+  `eval/report.json`. `wg-audio48`: 12 on `files_dropped_for_length` 1-11 (pre-#69 cap), 4 on a
+  missing `starter baseline` root commit.
+- **The baseline is destroyed, not merely unreadable** - do not spend time trying to recover it.
+  All 40 work trees are still under `$TMPDIR/wholegame-work/`, all 40 have a `.git`, **none has
+  `HEAD` and none has a single loose object**; only empty `hooks/ info/ logs/ objects/ refs/`
+  skeletons remain. `wg-g4c`'s 8 trees, as a control, all have `HEAD` and 87-211 objects. This is
+  #45's `$TMPDIR` reaper, and it is what #104 predicted.
+- **Code re-grading was already barred mechanically**, which nothing in this ticket knew:
+  `build_pack(..., sees="code")` refuses all five game fields across the two runs - two on
+  UNMEASURABLE pack/manifest parity, three on #62 truncation - while the same call on
+  `wg-g4c`/`g4_platformer` builds 199 files.
+
+**A separate live leak was found on the way and is `tasks/73`.** `neutralise`'s `_STACK_TOKENS`
+is case-sensitive and has no rule for the bare words `cargo` or `rust`, so `CARGO_MANIFEST_DIR`,
+`BEVY_ASSET_ROOT` and `crates/game` pass through untouched. 22 of the 68 stored code packs across
+6 runs carry a surviving stack token, including 3 of `wg-g4c`'s 8 - and `architecture` is the one
+aspect with `blind_language=True`, so it is the one this actually costs.
