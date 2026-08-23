@@ -220,3 +220,23 @@ a moved sprite; lower a `gdscript/warnings/*` level; add a rule to `disable` in
 
 If a test is genuinely wrong, say so explicitly and explain why — do not silently
 weaken it.
+
+## When the gate itself is wrong
+
+`just verify` and `just check` can be wrong, and this template's are not exempt. If one
+of them is red on a tree you have not changed yet, that is a defect here, not in your
+work.
+
+1. **Say so in your final message**, naming the recipe and the file. Nothing else
+   reports it, and the turns you spend on it are otherwise invisible.
+2. **Repairing it is allowed** — it is not on the never-list above.
+3. **A repair must leave the check able to fail.** Fix how the check handles the input
+   it got wrong. Do not take that input out of what the check looks at: narrowing a
+   check's scope — a skip list, an ignore entry, an exclusion — turns a check that
+   fails wrongly into one that cannot fail at all. That is worse than the defect it
+   replaces, and it reads as compliance.
+
+**How to tell the two apart, before you move on:** put a real error into the thing the
+gate stopped complaining about, run the gate, and confirm it goes red; then take the
+error out. A repair you cannot make go red is not a repair — say so in your final
+message and leave the gate red rather than shipping it.

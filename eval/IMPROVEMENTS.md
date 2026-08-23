@@ -871,7 +871,10 @@ before every trial.
    harness-side comparison rather than a contract the submission must satisfy.
 
 5. **The starter's own gate is proved green on a pristine copy before every campaign**
-   (`tools/starter_gate_control.py`, both directions). #98 is the finding that bought it.
+   (`tools/starter_gate_control.py`). #98 is the finding that bought it. Three directions since
+   task 47: green on pristine, red on a plant, and — on godot, the only stack whose `check` is a
+   hand-written file loop rather than a compiler — the plant still slipping past a repair that
+   narrows the gate's scope, which is what makes the RED row a discriminator rather than a mutant.
 
 ### What was adopted, concretely
 
