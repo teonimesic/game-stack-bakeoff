@@ -236,6 +236,98 @@ def _render(fm: dict, body: str) -> str:
     return "---\n" + yaml.dump(out, Dumper=yaml.SafeDumper, **_DUMP) + "---\n" + body
 
 
+#: An ADDRESS is not a claim, and the heuristic below reads English.
+#:
+#: `under eval/findings/` is a path, `over eval/runs/` is a path, `docstat.py --sweep` is a
+#: command. Matching THRESHOLD against them reads a preposition of PLACE as one of DEGREE,
+#: and that was not hypothetical: the single reachability warning `check` printed on
+#: 2026-08-23 was task 59's, on `under eval/findings/`, which compares nothing.
+#:
+#: A locative preposition immediately before an address belongs to the address, so it is
+#: consumed with it -- dropping the path alone would leave the bare `under` still matching.
+_ADDRESS = re.compile(
+    r"(?:\b(?:under|over|below|above|within|in|at|from|into|to)\s+)?"
+    r"(?:\S*/\S*|\S+\.(?:md|py|json|jsonl|gd|rs|ts|cs|toml|ya?ml)\b\S*|--\S+)")
+
+#: `at all` is a lexicalised adverbial, not a quantifier over anything. It is the one place
+#: in these done-whens where a UNIVERSAL word is not a determiner, and task 38's own
+#: done_when ("no escape branch at all") is the instance.
+_NOT_A_QUANTIFIER = re.compile(r"\bat all\b")
+
+#: The shape that failed twice (#75): a claim over everything, or against a threshold.
+UNIVERSAL = ("all", "every", "each")
+THRESHOLD = ("below", "above", "exceeds", "smaller than", "larger than",
+             "at least", "under", "over", "resolvable")
+
+#: HYPOTHETICAL -- the closed class of English function words that mark a clause or a noun
+#: phrase as conditional or alternative. That is what an escape branch IS: a second,
+#: hypothetical clause naming what to report when the first condition is not met.
+#:
+#: WHY THIS IS NOT JUST A LONGER LIST, which is the option AGENTS.md argues against.
+#: The list it replaces mixed two kinds of entry. Five were function words (`either`, `or`,
+#: `otherwise`, `unless`, `any`); four were content phrases copied off tasks 01 and 08 --
+#: `named`, `reported as`, `or the field`, `or it is`. The content phrases encode how those
+#: two tasks happened to word their escape and match nothing else, which is the enumeration
+#: failure exactly: task 32 wrote `naming`, one letter from `named`, and warned. So did 35
+#: and 58, both of which open their escape with `if`, the commonest conditional in the
+#: language and absent from the list.
+#:
+#: A closed grammatical class can be completed and then left alone; a set of observed
+#: phrasings cannot, because the next writer's phrasing is not in it. That is the whole
+#: difference, and it is why this is not (b) with better manners.
+#:
+#: ITS LIMIT, which the old comment did not state. An escape branch carrying NO marker --
+#: "the file records the negative result with its evidence" -- is invisible here and always
+#: will be; and a marker used non-hypothetically ("measured `when` re-graded offline")
+#: silences a warning that should have fired. Both are why this stays a warning. A gate that
+#: fails on correct input gets disabled, and a check that fires where nothing is wrong
+#: spends exactly the attention a check firing correctly needs (rule 16).
+#: A FREE RELATIVE IS NOT A CONDITIONAL, and this is measured rather than reasoned.
+#: `whatever` and `whichever` were in this set for one day. Dropping each marker in turn
+#: over the 62 done-whens then in the queue showed what each one silences: `if` silences
+#: task 58, `where` silences 08, `or` silences 11 and 52, `any` silences 01, 25, 26 and 42
+#: -- every one of them a real escape branch. `whatever`'s ONLY contribution was silencing
+#: task 62, which has three universals and no escape at all, on "after whatever repairs
+#: those entries name". A free relative names a definite-but-unspecified thing; it opens no
+#: branch. Both go, as a construction rather than as a word, because `whichever` is the
+#: same trap waiting for the next writer.
+#:
+#: The rest stay although this corpus does not exercise them. That is the difference
+#: between a class and a list: an escape written with `otherwise` is the phrasing nobody
+#: had yet, which is exactly how the old list failed.
+HYPOTHETICAL = ("if", "unless", "when", "whenever", "where", "wherever",
+                "either", "or", "otherwise", "else", "instead", "any", "none")
+
+
+def _words(text: str, phrases: tuple[str, ...]) -> list[str]:
+    """Which phrases occur as whole words. Substring matching is why `resolvable` fired
+    inside task 08's own escape branch (`unresolvable-by-repetition`) -- the repair
+    triggering the risk it repairs."""
+    return [p for p in phrases
+            if re.search(rf"(?<!\w){re.escape(p)}(?!\w)", text)]
+
+
+def reachability_warning(done_when: str) -> str | None:
+    """The message `check` should print for this done_when, or None. Pinned by
+    `eval/tools/tasks_control.py` in both directions; it is a function so that it can be.
+
+    A SMELL, DELIBERATELY NOT A DECISION PROCEDURE. Two of this project's done-whens
+    demanded conditions the data could not reach. Task 08 wanted "SE below the smallest
+    non-zero gap" -- unsatisfiable, because the gap shrinks as 1/n while SE shrinks as
+    1/sqrt(n) (#75). Task 01 wanted "all six aspects" on a field that structurally cannot
+    supply two of them. Reachability in general depends on data the task file does not
+    contain, so it cannot be decided here. But BOTH were repaired the same way, by adding
+    an escape branch naming the negative outcome, and that shape is checkable.
+    """
+    prose = _NOT_A_QUANTIFIER.sub(" ", _ADDRESS.sub(" ", (done_when or "").lower()))
+    risky = _words(prose, UNIVERSAL + THRESHOLD)
+    if not risky or _words(prose, HYPOTHETICAL):
+        return None
+    return (f"done_when says {risky[0]!r} with no alternative branch. If the data cannot "
+            f"reach it there is no way to close this honestly - state what to report when "
+            f"it is NOT met (#75).")
+
+
 def _scalar(v) -> str:
     """What every caller of `_parse` has always been handed: a string, never None.
 
@@ -328,6 +420,39 @@ def _set(tid: str, **kw) -> int:
     A key that is already present keeps its position; a new one is appended rather than
     inserted at the top, which is the only visible difference from the old writer and is
     cosmetic -- `show` reads by key.
+
+    IT REWRITES THE WHOLE FILE TO CHANGE ONE FIELD, AND THAT COSTS NOTHING. MEASURED.
+    ---------------------------------------------------------------------------------
+    The obvious objection is that a whole-file write should smear `git blame` across every
+    line and so blind `docstat.py --renumbered`, which reads a citation's authoring commit
+    from blame. It does not, and the reason is the round-trip property above: `_render`
+    reproduces every byte it did not mean to change, so git sees a one-line edit.
+
+    Measured 2026-08-23 on a real 102-line task file, committed, then `start` and `done`
+    through this function, each committed:
+
+      | after      | git diff --numstat | unchanged lines whose blame MOVED |
+      |------------|--------------------|-----------------------------------|
+      | `start`    | 1 insertion, 1 deletion | 0                            |
+      | `done`     | 2 insertions, 1 deletion | 0                           |
+
+    100 of the 102 lines stayed on the authoring commit; only `status:` and
+    `established_by:` moved, and those are the two lines the calls wrote. That is exactly
+    the attribution a targeted write would produce, so a targeted write would restore no
+    recall -- there is none to restore. Across the whole queue the same day, only 3 of 58
+    tracked files had every line on one commit, and all 3 were `open` files never yet
+    written twice.
+
+    Where `--renumbered` really does go quiet on `tasks/` is its own documented case B: a
+    merge that resolves a finding-number collision lands the renumbered heading and the
+    closing task's `established_by` in ONE commit, and there is no ordering inside a
+    commit. At `--at 1120695^` it reports 11 `tasks/` citations, every one in the
+    undecided bucket with a resolved authoring commit beside it. That is a property of
+    merge resolution, not of how this function writes.
+
+    So do not convert this to a targeted line edit. It would buy nothing measurable and it
+    would give up the one property that makes the YAML round-trip safe: that the bytes
+    going out are the serialiser's, not a regex's guess at them.
     """
     for t in _load():
         if t.get("id") != tid:
@@ -464,37 +589,25 @@ def cmd_check() -> int:
             bad.append(f"{t.get('id')}: status {t.get('status')!r} not in {STATUSES}")
         if not t.get("title"):
             bad.append(f"{t.get('id')}: no title")
-    # UNREACHABLE done-whens: a smell detector, deliberately not a decision procedure.
-    #
-    # Two of this project's done-whens demanded conditions the data could not reach.
-    # Task 08 wanted "SE below the smallest non-zero gap" - unsatisfiable, because the
-    # gap shrinks as 1/n while SE shrinks as 1/sqrt(n) (FINDINGS #75). Task 01 wanted
-    # "all six aspects" on a field that structurally cannot supply two of them.
-    #
-    # Reachability in general depends on data the task file does not contain, so it
-    # cannot be decided here. But BOTH were repaired the same way - by adding an escape
-    # branch naming the negative outcome - and that is checkable. A done-when that makes
-    # a universal claim or a threshold comparison, with no alternative branch, is the
-    # shape that failed twice.
+    # UNREACHABLE done-whens. The reasoning lives on `reachability_warning`, which is a
+    # module-level function so `tasks_control.py` can pin it on wordings that are not in
+    # the queue -- the two ORIGINALS it was built from are not in git, having been repaired
+    # before the first commit, and a heuristic pinned only on what happens to be on disk
+    # today is pinned on a moving corpus.
     #
     # A WARNING, not a failure: plenty of universals are perfectly reachable. It prints
     # from a command run on purpose, which is the difference between this and the
     # unread manifest field of #62.
     warn = []
-    UNIVERSAL = ("all ", "every ", "each ")
-    THRESHOLD = ("below", "above", "exceeds", "smaller than", "larger than",
-                 "at least", "under ", "over ", "resolvable")
-    ESCAPE = ("either", " or ", "otherwise", "unless", "any ", "named", "reported as",
-              "or the field", "or it is")
     for t in _load():
-        dw = (t.get("done_when") or "").lower()
-        if not dw or t.get("status") == "done":
+        # `done` is skipped because a closed task's wording is not actionable -- and note
+        # what that costs: it is why task 32's false positive was invisible to `check` by
+        # the time task 38 was filed to fix it. A masked defect is not a fixed one.
+        if t.get("status") == "done":
             continue
-        risky = [w for w in UNIVERSAL + THRESHOLD if w in dw]
-        if risky and not any(e in dw for e in ESCAPE):
-            warn.append(f"{t.get('id')}: done_when says {risky[0]!r} with no alternative "
-                        f"branch. If the data cannot reach it there is no way to close "
-                        f"this honestly - state what to report when it is NOT met (#75).")
+        msg = reachability_warning(t.get("done_when") or "")
+        if msg:
+            warn.append(f"{t.get('id')}: {msg}")
     if warn:
         print(f"{len(warn)} reachability warning(s):")
         for w in warn:
