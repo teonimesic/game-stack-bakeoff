@@ -216,7 +216,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **137** | The blinding named a property and implemented a suffix — 2,083 arm-naming extension tokens in all 84 stored packs, and the densest of them in a file the packer wrote itself | [one-arm-bias](findings/one-arm-bias.md) |
 | **138** | The one entry point the docstring tells a human to type read half the aspect, so the CLI built a completely unblinded pack and every test called the function underneath it | [fail-open](findings/fail-open.md) |
 | **139** | Repairing the play-bot reordered the field a proposed scalar ranked, so the scalar was measuring the bot | [certifies-nothing](findings/certifies-nothing.md) |
-| **137** | The census gate could catch only the wordings of the two documents it was built from — 4 of 15 planted censuses, 0 of the 11 nobody had in front of them — and the obvious widening turns 27 correct lines red with no true positive among them | [certifies-nothing](findings/certifies-nothing.md) |
+| **140** | The census gate could catch only the wordings of the two documents it was built from — 4 of 15 planted censuses, 0 of the 11 nobody had in front of them — and the obvious widening turns 27 correct lines red with no true positive among them | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
