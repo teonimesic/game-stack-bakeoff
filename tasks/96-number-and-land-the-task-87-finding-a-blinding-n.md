@@ -1,0 +1,10 @@
+---
+id: 96
+title: 'Number and land the task 87 finding: a blinding named a property and implemented a suffix, and its densest leak was a file the harness itself wrote'
+status: open
+priority: 3
+refs: tasks/87, eval/judge/field.py blind_extensions, eval/judge/blind_ext_selftest.py
+done_when: the finding is numbered against the highest number on main at the time, placed in the eval/findings file whose shape it matches, indexed in eval/FINDINGS.md, and docstat.py --sweep is green unpiped
+---
+
+Task 87 is a finding and this queue has three peer worktrees holding findings-heavy tasks (86, 91, 93), so the number was deliberately NOT allocated - eleven collisions happened on 2026-08-23 because every agent reads the highest number from a branch forked before the last merge. The claim, with the numbers already measured and reproducible via judge/blind_ext_selftest.py --runs-root: blind_language was specified as 'the judge is not told the language' and implemented as 'rename the file on disk to .src', so it hid the extension of the file the judge OPENS and none of the ones it READS - 2,083 arm-naming extension tokens across all 84 stored packs after neutralise, 0 after the repair, with 81 import.meta occurrences declined as a language construct rather than a path. The part worth publishing is WHERE the worst of it was: not in agent-authored code but in CHANGED.txt, which field.build_pack writes itself from git diff --stat - a complete list of every authored path with its true suffix, sitting in a directory whose every file had just been renamed to .src. 80 .cs, 78 .gd, 60 .meta, 43 .ts and 43 .rs in the 8 stored blind packs, from the harness. Every gate the project owns looked at what the SUBMISSION carried; none looked at what the packer added. Also worth recording: the 1,876/78-of-84 figure in the task 87 ticket reproduces exactly on the count and is 76, not 78, on the pack union.

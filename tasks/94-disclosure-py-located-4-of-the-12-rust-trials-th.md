@@ -1,7 +1,7 @@
 ---
 id: 94
 title: disclosure.py located 4 of the 12 rust trials that reported the broken just run recipe - the starter-arrived-broken cue set under-reports by 3x and its docstring states no rate for that family
-status: open
+status: in_flight
 priority: 3
 refs: eval/tools/disclosure.py, tasks/81, eval/RUNS.md, AGENTS.md rule 11
 done_when: either the cue set is widened and re-measured against a hand pass over the same 90 messages, with the new located/hand pair recorded in the docstring for BOTH families and a control showing the widened set does not fire on a trial that reported nothing; or the family is documented as a locator with no measured rate and every doc citing its counts says so

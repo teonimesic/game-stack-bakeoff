@@ -1,7 +1,7 @@
 ---
 id: 91
 title: 'Number and land the dead _approach finding: a documented repair that could not run'
-status: open
+status: in_flight
 priority: 3
 refs: eval/judge/bot_platformer.py, eval/findings/certifies-nothing.md row 5 of the unity__t0 chain, tasks/18, tasks/76
 done_when: a numbered finding exists in eval/FINDINGS.md stating that PlatformerBot._approach never had a caller, that the archive attributed its null result to a second loop shadowing it when nothing ran it at all, and that task 18's stated mechanism named it; docstat.py --sweep green with the finding indexed
