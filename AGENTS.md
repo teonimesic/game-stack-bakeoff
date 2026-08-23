@@ -275,12 +275,30 @@ working session as the change**, not later:
 | A run completes or its results change | `README.md` status section, with real numbers |
 | Something ran and measured nothing | `eval/FINDINGS.md` — a new numbered finding |
 | A published number turns out wrong | Correct it, and mark it in `eval/FINDINGS.md` if it was acted on |
+| A figure or a claim is **withdrawn** | Add an entry to `eval/withdrawn.json`, then repair every live document `docstat.py --withdrawn` names |
 | Weights, rubric, or grading change | `eval/judge/RUBRIC.md` **and** the `README.md` grading table |
 | A merge renumbers a finding you allocated | `python3 eval/tools/docstat.py --renumbered`, then fix the **citations** |
 
 `README.md` and `DECISIONS.md` state what is true now — **replace superseded content rather than
 annotating it.** `eval/FINDINGS.md` is the exception: it is a findings log, and a number that was
 published and later proven wrong stays marked there, because someone may have acted on it.
+
+**Which documents are LIVE and which are the ARCHIVE is now a decision, not a habit** — the list
+is in `DECISIONS.md` and in `ARCHIVE_PATHS` in `eval/tools/docstat.py`, and the two are asserted
+equal by `eval/tools/withdrawn_control.py` rather than promised equal by a comment. The archive
+(`eval/findings/`, `eval/FINDINGS.md`, both `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`) may
+state a retired figure freely, because recording what was believed is its job. Everything else
+may not, and a live document that needs to state one — a withdrawal notice, a historical
+paragraph — **cites the register entry id in the same block**, which is the whole mechanism:
+
+> **A correction has to be DECLARED, not inferred (#119).** A consistency check finds
+> disagreement, and a stale figure does not disagree with anything: its restatements agree with
+> the original to the digit. Propagation and consistency are the same observation, which is why
+> the figure-agreement check built for this found 52 figures, one hit, and that hit a false
+> positive (#113). The only detectable property of a retirement is that somebody wrote it down.
+
+The exemption is an **id**, never a marker word, for the reason the rule audit above gives: a
+vocabulary is an enumeration, and one already failed here on a single inflection of one verb.
 
 > **A fix that resolves a collision by renaming one of the colliding things must then find what
 > already cited the old name.** Renaming is not a repair on its own: it moves the damage to every

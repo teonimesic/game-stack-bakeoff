@@ -20,6 +20,8 @@ python3 tools/docstat.py --sweep      # references + structure; exit 1 if anythi
 python3 tools/docstat.py              # size and token cost of every project doc
 python3 tools/docstat.py --outline FILE   # fence-aware heading map
 python3 tools/docstat.py --renumbered # citations of a finding number that has moved
+python3 tools/docstat.py --withdrawn  # live docs restating a figure declared retired
+python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them go red
 ```
 
 `--sweep` asks two kinds of question:
@@ -41,6 +43,28 @@ corpora on first run, plus two more that landed while it was being written (#118
 
 Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
 the citation is what is wrong.
+
+**`--withdrawn` asks the fourth kind: is a figure that was RETIRED still stated as current?**
+No consistency check can ask this. When a stale figure propagates, the copies **agree** — with
+each other and with the original, to the digit — so propagation and consistency are the same
+observation, and the figure-agreement check built for exactly this found 52 figures, one
+disagreement, and that one a false positive (#113). What separates a live figure from a retired
+one is only whether a withdrawal was **declared**, which is a fact about the record.
+
+So it is declared, in `eval/withdrawn.json`, and the rule has no vocabulary in it: if every
+`match` pattern of an entry occurs inside one block of a **live** document and that block does
+not contain the entry's **id**, it is a live restatement. **When you withdraw something, add the
+entry and then repair what the check names.** When a live document legitimately needs to state a
+retired figure — a withdrawal notice, a historical paragraph — put the id in that block:
+
+```
+... was **withdrawn** — FINDINGS #113, register entry `WR-tier3-pair`.
+```
+
+The id, never a marker word. `withdrawn`/`superseded`/`retracted` is an enumeration, and the
+aspect check below already failed on one inflection of one verb. The archive
+(`eval/findings/`, `eval/FINDINGS.md`, both `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`) is
+out of scope entirely — see `DECISIONS.md` for the partition and why it is written down.
 
 **The references half reads the skills too, including this one** — since 2026-08-23 (task
 44). It did not before: the corpus was built with `glob`, `glob` does not descend into
@@ -89,6 +113,12 @@ cp /tmp/jm.bak judge/JUDGING.md
 
 # positive: unquote a skill description so it contains ": " -> exit 1
 # positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
+
+# the withdrawal register's own controls, including a planted retired figure and the
+# real tree at 25fe630 where it really was published in three live documents
+python3 tools/withdrawn_control.py                  # 33 controls, expect exit 0
+python3 tools/withdrawn_control.py --mutate any_of  # expect the named control to FAIL
+python3 tools/withdrawn_control.py --list-mutants
 ```
 
 **Plant the phantom in prose, never inside a ``` fence** — a fenced line is not read as a

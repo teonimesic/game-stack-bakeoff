@@ -48,7 +48,9 @@ restatement of how many turns an agent chose to take, and turns vary 205–370 *
 > right**, and treating an erratum as a repair hides a defect. The markings below say which.
 >
 > ⚠️ **A previous version of this table read "between-stack range of mean ranks 1.70, mean gap
-> 2.05" with no scope at all — no run, no game, no aspect set, no date.** It does not reproduce:
+> 2.05" with no scope at all — no run, no game, no aspect set, no date.** Registered as
+> `WR-tier3-pair` in `eval/withdrawn.json`, which is what lets `docstat.py --withdrawn` tell
+> this notice apart from a document still publishing the pair. It does not reproduce:
 > the only field tier 3 had judged gives 2.10/1.93 post-repair and 1.90/2.27 pre-repair. Replaced
 > above with both, scoped. **That is the fourth summary statistic in this table found
 > unreproducible for the same reason**, after 20-of-24, 380-paired-criteria and
@@ -290,9 +292,11 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
   judge saturates on the same field the deterministic tiers cannot separate, and does so
   unstably. Two aspects were withdrawn on adjudication: `fun` scores track how long the
   play-bot happened to run (#52), and `idiomatic` reads the stack off the file extension and
-  returns per-stack means identical across two different games (#53). And `architecture` and
-  `ux` — which share **no evidence at all**, one reading only source and the other only
-  frames — rank the field identically on both orders (#54).
+  returns per-stack means identical across two different games (#53). `architecture` and `ux` —
+  which share **no evidence at all**, one reading only source and the other only frames — ranked
+  the field identically on both orders of that round, which was read as a shared prior and is
+  **withdrawn**: the repeat gives tau 0.385 and 0.667, and two orders of one round were never
+  two observations (#54, register `WR-arch-ux-redundancy`).
 
   **Re-run 2026-08-17 on a repaired instrument — 10 more calls, $21.05 — and the answer holds.**
   `fun`'s confound is gone by construction (run length is now *constant* across the field, and

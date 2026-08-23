@@ -1007,6 +1007,31 @@ had *achieved* it is.
 - **Nothing else installed.** Five of nine candidates are rejected, two on measurements taken here;
   two are open and labelled unverifiable rather than filed.
 
+### Verdict 1, closed 2026-08-23: the register exists, and its first catch was not the one predicted
+
+`eval/withdrawn.json` and `docstat.py --withdrawn` are installed and gate `--sweep`.
+**The hypothesis was that its customer would be the 1.70/2.05 pair.** By the time it ran, task 54
+had retired that pair and the entry was green — the shape this repository keeps finding, a gate
+installed on an already-repaired tree. Two things came out against that:
+
+- **The register found a second live defect nobody had looked for.** Finding **#54** — two judges
+  with no evidence in common ranking the field identically — was withdrawn in the archive on
+  2026-08-17 and was still cited as current in **three** live documents six days later:
+  `README.md`'s In-flight section, `DECISIONS.md`'s tier-3 bullet, and `eval/judge/JUDGING.md`
+  114 lines above that same file's own withdrawal notice. The ticket named one of the three; the
+  check found the other two. That is **FINDINGS #119**, and it is the same defect as #113 one
+  level up: a retired *claim* rather than a retired *figure*.
+- **It was measured RED on real data before being wired in.** At `25fe630`, the commit before task
+  54 ran, `--withdrawn --at 25fe630` reports the pair published in exactly the three documents
+  #113 names, and reports none of them at HEAD. A gate that has only ever been green cannot be
+  distinguished from one that cannot fire.
+
+**What it cannot do, stated rather than discovered later:** it does not separate *stating* a
+retired figure from *asserting* it as current — nothing mechanical can, since they are the same
+characters. It forces the author to declare which, in the block, for one parenthetical. Three of
+the six hits on installation day were legitimate historical prose and were repaired by adding the
+id. It is also blind to a paraphrase that drops the number, and to anything inside a fence.
+
 ### Where axis 3 stopped
 
 Everything above is done. Axis 4 (**harness mechanics**: work roots, artifact durability, run

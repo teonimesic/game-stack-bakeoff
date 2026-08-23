@@ -30,17 +30,28 @@ Usage, from eval/:
     python3 tools/docstat.py --sweep            # names in docs that do not resolve
     python3 tools/docstat.py --renumbered       # citations of a finding that was renumbered
     python3 tools/docstat.py --renumbered --at REV   # ... as of any revision
+    python3 tools/docstat.py --withdrawn        # live docs restating a retired figure
+    python3 tools/docstat.py --withdrawn --at REV    # ... as of any revision
     python3 tools/docstat.py --all
+
+A THIRD KIND OF QUESTION, added 2026-08-23. WITHDRAWAL: is a figure or a claim that was
+RETIRED still being stated as current? It is neither of the two above, because a retired
+figure RESOLVES and every copy of it AGREES - propagation and consistency are the same
+observation (#113). The register is `eval/withdrawn.json`, the rule is in
+`_check_withdrawal_register`, and its controls are `tools/withdrawn_control.py`.
 
 Exit code is 1 if --sweep finds anything unresolved, so it can gate a commit.
 `--renumbered` never gates: it is a smell detector, and its second half is explicitly
-undecidable. See `_check_renumbered_citations` for which half is which.
+undecidable. See `_check_renumbered_citations` for which half is which. `--withdrawn` DOES
+gate: its verdict is mechanical - a declared entry either sits in a live block that cites
+its id or it does not.
 """
 
 from __future__ import annotations
 
 import argparse
 import glob
+import json
 import os
 import re
 import subprocess
@@ -910,6 +921,319 @@ def cmd_renumbered(rev: str = "HEAD") -> int:
     return 0
 
 
+# =============================================================================
+# THE WITHDRAWAL REGISTER
+#
+# Every other reference check here asks whether a name RESOLVES. This one asks whether a
+# figure or a claim that was RETIRED is still being stated as current - and a retired
+# figure resolves perfectly, agrees with every copy of itself, and reads as established.
+#
+# The obvious design was built first and measured, and it comes out against. A
+# cross-document figure-agreement check over the six live docs found 52 labelled figures,
+# 1 disagreement, and that one a false positive (#113). It cannot see this defect by
+# construction: when a stale figure propagates, the restatements agree TO THE DIGIT.
+# Propagation and consistency are the same observation.
+#
+# So the register inverts it. A figure is DECLARED retired, by id, in `eval/withdrawn.json`,
+# and the question becomes whether anything still states it as current.
+# =============================================================================
+
+#: Documents that record what was believed WHEN THEY WERE WRITTEN, and must therefore be
+#: free to state a retired figure without marking. Stated as a property in prose and as
+#: paths here because there is no property in the filesystem to read it off: `FINDINGS.md`
+#: and `README.md` are both markdown at similar depths and only one of them is a log.
+#:
+#: THE COST OF THIS IS REAL AND IS THE REASON IT IS SMALL. A whole-file exemption is
+#: document-scope, and document-scope exemptions are what made the aspect check vacuous
+#: once - one legitimate disclaimer silenced every check in its file. Inside a LIVE
+#: document nothing is exempt by file: the only exemption is an id inside the block.
+#:
+#: `tasks/` is here because a task's whole subject can be a figure that is being retired -
+#: task 54's `done_when` states the pair three times, correctly.
+ARCHIVE_PATHS = (
+    "eval/findings/",       # the findings log, per finding
+    "eval/FINDINGS.md",     # its index
+    "eval/IMPROVEMENTS.md", # iteration log for the evaluator
+    "IMPROVEMENTS.md",      # iteration log for the templates
+    "CLEANUP-LOG.md",       # what each cleanup pass looked at
+    "tasks/",               # the open-work queue: a retired figure can be the task
+    "eval/runs/",           # stored data, not guidance
+)
+
+REGISTER_PATH = os.path.join(REPO, "withdrawn.json")
+
+
+def is_archive(rel: str) -> bool:
+    """True for a document whose job is to record what was believed at the time."""
+    rel = rel.replace(os.sep, "/")
+    return any(rel == a or rel.startswith(a) for a in ARCHIVE_PATHS if a.endswith("/")) or \
+        rel in ARCHIVE_PATHS
+
+
+def _claim_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """Maximal runs of lines that make one claim together: [start, end).
+
+    THE WINDOW IS THE UNIT THE EXEMPTION IS SCOPED TO, so what counts as one is the whole
+    design. Three properties, each bought:
+
+    1. A LINE IS TOO SMALL. `1.70` and `2.05` sit on two rows of a table and in two lines
+       of one sentence; a per-line rule would never see the pair co-occur.
+    2. A FILE IS TOO BIG. `JUDGING.md` declares this exact withdrawal 114 lines below a
+       block that restates it. A file-scoped exemption would call that green, which is the
+       vacuous pass this module exists to prevent.
+    3. `>` ON ITS OWN SEPARATES. Inside a blockquote an empty line is written `>`, and
+       `README.md`'s corrections table is one 30-line quote holding four INDEPENDENT
+       withdrawal notices. Treating it as one block would let any one notice's id excuse
+       the other three.
+    4. A TOP-LEVEL LIST ITEM STARTS A NEW ONE. A tight markdown list is one block to a
+       parser, and `DECISIONS.md`'s open-questions list is 54 consecutive lines of
+       independent bullets. Measured before this rule: the whole list came back as ONE
+       window, so an id in any bullet would have excused every other bullet in it.
+       Continuation lines stay with their item, which is what makes a multi-line bullet
+       still able to state a pair.
+
+    Fenced lines separate and never join a block, following the rule the aspect check
+    already uses here: inside ``` a line is a command to run or an output to expect, and
+    a shell command asserts nothing about its own arguments. The cost is stated in
+    `_check_withdrawal_register`'s docstring rather than assumed.
+    """
+    fenced = _fence_mask(lines)
+    item = re.compile(r"^([-*+]|\d{1,3}[.)])\s")
+    blocks: list[tuple[int, int]] = []
+    start: int | None = None
+    for i, raw in enumerate(lines):
+        text = raw.strip()
+        while text.startswith(">"):
+            text = text[1:].strip()
+        empty = fenced[i] or not text
+        if empty:
+            if start is not None:
+                blocks.append((start, i))
+                start = None
+            continue
+        # A NEW TOP-LEVEL ITEM ENDS THE PREVIOUS ONE. `raw`, not `text`: an indented
+        # sub-item is a continuation of the item above it and must not split the window,
+        # while the same marker at column 0 is a new claim.
+        if start is not None and item.match(raw):
+            blocks.append((start, i))
+            start = i
+        elif start is None:
+            start = i
+    if start is not None:
+        blocks.append((start, len(lines)))
+    return blocks
+
+
+def load_register(path: str = REGISTER_PATH) -> tuple[list[dict], list[str]]:
+    """(entries, problems). Never raises: an unreadable register is a REPORTED failure.
+
+    Failing closed is the point. A register that quietly returns zero entries passes every
+    document in the repository and is indistinguishable from a clean one.
+    """
+    if not os.path.exists(path):
+        return [], [f"the withdrawal register is missing at {os.path.relpath(path, ROOT)}. "
+                    f"With no register nothing is declared retired, and this check passes "
+                    f"every document in the repository - which is not the same as clean."]
+    try:
+        data = json.loads(open(path, encoding="utf-8").read())
+    except (OSError, ValueError) as e:
+        return [], [f"{os.path.relpath(path, ROOT)} does not parse: {e}"]
+    entries = data.get("entries") if isinstance(data, dict) else None
+    if not isinstance(entries, list) or not entries:
+        return [], [f"{os.path.relpath(path, ROOT)} declares no entries; the check would "
+                    f"run over 0 subjects and report clean"]
+
+    problems, seen = [], set()
+    for n, e in enumerate(entries):
+        where = f"{os.path.relpath(path, ROOT)} entry {n}"
+        if not isinstance(e, dict):
+            problems.append(f"{where}: not an object")
+            continue
+        for k in ("id", "withdrawn", "claim", "match", "anchor", "replaced_by"):
+            if not e.get(k):
+                problems.append(f"{where}: no `{k}`")
+        eid = e.get("id")
+        if eid in seen:
+            problems.append(f"{where}: duplicate id `{eid}` - the id is the exemption key, "
+                            f"so two entries sharing one means citing either excuses both")
+        seen.add(eid)
+        for pat in e.get("match") or []:
+            try:
+                re.compile(pat)
+            except re.error as ex:
+                problems.append(f"{where}: `match` pattern {pat!r} does not compile ({ex})")
+        anchor = e.get("anchor")
+        if anchor and not is_archive(anchor):
+            problems.append(
+                f"{where}: anchor `{anchor}` is a LIVE document. The anchor exists to prove "
+                f"the patterns still match something; a live anchor would have to carry the "
+                f"id to stay green, and then it proves only that the id is present.")
+    return entries, problems
+
+
+def _states(entry: dict, block_text: str) -> bool:
+    """Does this block state the entry? ALL patterns must occur in it.
+
+    ALL and not ANY. One loose pattern - `#54`, `1.70` - fires on unrelated prose; the
+    conjunction is what makes an entry specific enough to gate on. An entry that needs
+    only one pattern is declaring that the one pattern IS the signature, which is true
+    for a citation id and false for a bare number.
+    """
+    return all(re.search(p, block_text) for p in entry.get("match") or [])
+
+
+def scan_withdrawn(entries: list[dict], corpus: dict[str, str]) -> list[str]:
+    """Live restatements of a registered entry. `corpus` is {relpath: text}, live only.
+
+    Pure, so the controls can hand it a planted document rather than a temp checkout.
+    """
+    hits = []
+    for rel, text in sorted(corpus.items()):
+        lines = text.split("\n")
+        for a, b in _claim_blocks(lines):
+            block = "\n".join(lines[a:b])
+            for e in entries:
+                if not _states(e, block):
+                    continue
+                if e["id"] in block:
+                    continue     # a declared withdrawal notice, keyed on the id
+                excerpt = " ".join(lines[a].strip().split())[:88]
+                hits.append(
+                    f"{rel}:{a + 1}-{b}: states `{e['id']}`, withdrawn {e['withdrawn']}, "
+                    f"in a block that does not cite it. {e['claim'][:88]} "
+                    f"| Instead: {e['replaced_by'][:110]} | {excerpt}")
+    return hits
+
+
+def _live_corpus(rev: str | None = None) -> tuple[dict[str, str], list[str]]:
+    """({relpath: text}, problems) for every LIVE markdown document.
+
+    THE ADDRESS IS AN INPUT TO THE CHECK (#60). `git ls-files` and `ARCHIVE_PATHS` are two
+    spellings of one tree; an empty corpus is the one result indistinguishable from a clean
+    one, so it is reported rather than returned as green.
+    """
+    listing = (_git("ls-tree", "-r", "--name-only", rev) if rev
+               else _git("ls-files"))
+    corpus, problems, empty = {}, [], []
+    for rel in listing.split("\n"):
+        if not rel.endswith(".md") or is_vendored(rel) or is_archive(rel):
+            continue
+        if rev:
+            # `_git` returns "" on a non-zero exit, so an unreadable blob would enter the
+            # corpus as an empty document and be scanned clean. That is fail-open: the
+            # check would report nothing about a file it never read. Count them instead.
+            text = _git("show", f"{rev}:{rel}")
+            if not text.strip():
+                empty.append(rel)
+                continue
+            corpus[rel] = text
+        else:
+            disk = os.path.join(ROOT, rel)
+            if not os.path.exists(disk):
+                continue                      # deleted in the working tree
+            corpus[rel] = open(disk, encoding="utf-8", errors="replace").read()
+    if empty:
+        problems.append(
+            f"{len(empty)} live document(s) read as empty at {rev} and were NOT scanned "
+            f"(git show failed, or they really are empty): {', '.join(empty[:4])}")
+    if not corpus:
+        problems.append(
+            f"the withdrawal check found 0 live markdown documents"
+            f"{' at ' + rev if rev else ''}. git is unavailable, or every document was "
+            f"classified as archive. This is blind, not clean.")
+    return corpus, problems
+
+
+def _check_withdrawal_register(rev: str | None = None) -> tuple[list[str], str]:
+    """(problems, summary). Is a retired figure still stated as current in a live document?
+
+    THE RULE, and there is only one: if every `match` pattern of a register entry occurs
+    inside one block of a LIVE document, and that block does not contain the entry's `id`,
+    the block states a retired figure as current.
+
+    WHY THE EXEMPTION IS THE ID AND NOT A MARKER WORD. A vocabulary - `withdrawn`,
+    `superseded`, `retracted`, `a previous version read` - is an enumeration, and this
+    project has measured an enumeration failing on ONE INFLECTION OF A VERB: the aspect
+    check's exemption listed `planted` and went red on `planting`. An id has no
+    inflections. A file/line allowlist was rejected for the ordinary reason: lines move.
+
+    WHAT THIS SEPARATES, AND WHAT IT DOES NOT. It does not decide whether a sentence STATES
+    a retired figure or ASSERTS it as current - nothing mechanical here can, and the two
+    are the same characters. What it does is make the author declare which, in place, at a
+    cost of one parenthetical. That is a CONVENTION imposed on live documents, and it is
+    the convention doing the work, not an inference:
+
+        (#54 - withdrawn, WR-arch-ux-redundancy)
+
+    A reader who lands on that line is warned there; a reader who lands on a paragraph
+    whose withdrawal is declared 114 lines below is not. So the false positives this
+    produces on genuinely historical prose in a live document are not noise to be tuned
+    away - they are the check asking for a marking that the document wanted anyway.
+
+    WHAT IT CANNOT SEE, stated rather than discovered later:
+
+      - A PARAPHRASE. `match` is a string signature. "the two judges with disjoint evidence
+        agreed perfectly" restates WR-arch-ux-redundancy and contains none of its patterns.
+        The register can only find a restatement that carries the number or the citation.
+      - ANYTHING INSIDE A FENCE, by the same rule the aspect check uses. A retired figure
+        pasted as tool output is invisible here.
+      - A FIGURE NOBODY DECLARED. This is the whole premise: the register records decisions
+        already made. It cannot discover a withdrawal, only enforce one.
+      - A BLOCK THAT CITES AN ID FOR A DIFFERENT REASON. Citing `WR-tier3-pair` anywhere in
+        a block excuses that block for that entry. The window is a few lines, so the surface
+        is small, but it is a channel and it is named here rather than left implicit.
+
+    THE ANCHOR IS THE POSITIVE CONTROL, AND IT RUNS EVERY TIME. Each entry names an ARCHIVE
+    document that states it in full. If the patterns do not match there, the entry is
+    reporting its own silence and that is a failure - rule 12: prove the extraction on one
+    case whose answer you can state in advance, before believing the census.
+    """
+    entries, problems = load_register()
+    if not entries:
+        return problems, "withdrawal register: NOT READ"
+
+    for e in entries:
+        anchor = os.path.join(ROOT, e.get("anchor", ""))
+        if not os.path.exists(anchor):
+            problems.append(f"{e['id']}: anchor {e.get('anchor')} does not exist, so the "
+                            f"entry's patterns are proved against nothing")
+            continue
+        lines = open(anchor, encoding="utf-8", errors="replace").read().split("\n")
+        if not any(_states(e, "\n".join(lines[a:b])) for a, b in _claim_blocks(lines)):
+            problems.append(
+                f"{e['id']}: its `match` patterns co-occur in no block of its anchor "
+                f"{e['anchor']}. The entry matches nothing it is known to describe, so a "
+                f"green result from it is silence, not evidence (AGENTS.md rule 12).")
+
+    corpus, corpus_problems = _live_corpus(rev)
+    problems += corpus_problems
+    problems += scan_withdrawn(entries, corpus)
+    return problems, (f"withdrawal register: {len(entries)} entr(y/ies) over "
+                      f"{len(corpus)} live document(s)"
+                      f"{' at ' + rev if rev else ''}")
+
+
+def cmd_withdrawn(rev: str | None = None) -> int:
+    entries, _ = load_register()
+    print(f"REGISTER - {os.path.relpath(REGISTER_PATH, ROOT)}\n")
+    for e in entries:
+        print(f"  {e.get('id')}  withdrawn {e.get('withdrawn')}  ({e.get('kind')})")
+        print(f"      {e.get('claim')}")
+        print(f"      match {e.get('match')}  anchor {e.get('anchor')}")
+        print(f"      instead: {e.get('replaced_by')}\n")
+    problems, summary = _check_withdrawal_register(rev)
+    print(summary + "\n")
+    if not problems:
+        print("no live document states a registered entry outside a block citing its id.")
+        return 0
+    print(f"{len(problems)} live restatement(s) or register defect(s):\n")
+    for p in problems:
+        print(f"  {p}")
+    print("\nA retired figure resolves, agrees with every copy of itself, and reads as")
+    print("established. That is why no consistency check can see it (#113).")
+    return 1
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -1110,6 +1434,16 @@ def cmd_sweep() -> int:
     problems += _check_findings_integrity()
     problems += _check_regime_ordinals()
 
+    # THE WITHDRAWAL REGISTER GATES, unlike `--renumbered` next to it, because its verdict
+    # has no judgement in it: a declared entry either occurs in a live block that cites its
+    # id or it does not. It was wired in only after it was measured RED on real data - the
+    # tree at 25fe630 has the pair in three live documents - and after
+    # `tools/withdrawn_control.py` showed five mutants each flipping the control that names
+    # them. A gate installed while green and never seen red is the shape this file exists
+    # to prevent.
+    withdrawn_problems, _ = _check_withdrawal_register()
+    problems += withdrawn_problems
+
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
     # it does not is that its evidence is `git blame`, which dates the last edit of a line
@@ -1140,10 +1474,11 @@ def cmd_sweep() -> int:
         print("as what it is read as is worse: it looks right to everyone but the parser.")
         return 1
 
+    _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
           f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
           f"flags, {len(aspects)} aspects known; structure: {len(skill_files())} SKILL.md "
-          f"frontmatter, {len(gated_docs())} instruction docs for list indent")
+          f"frontmatter, {len(gated_docs())} instruction docs for list indent; {wsummary}")
     return 0
 
 
@@ -1153,6 +1488,9 @@ def main() -> int:
     ap.add_argument("--sweep", action="store_true")
     ap.add_argument("--renumbered", action="store_true",
                     help="citations of a finding number that has named more than one finding")
+    ap.add_argument("--withdrawn", action="store_true",
+                    help="live documents restating a figure declared retired in "
+                         "eval/withdrawn.json; --at REV reads the corpus at a revision")
     ap.add_argument("--at", default="HEAD", metavar="REV",
                     help="revision --renumbered reads (default HEAD); the positive control "
                          "is a revision where a known-stale citation still stands")
@@ -1163,6 +1501,8 @@ def main() -> int:
         return cmd_outline(a.outline)
     if a.renumbered:
         return cmd_renumbered(a.at)
+    if a.withdrawn:
+        return cmd_withdrawn(None if a.at == "HEAD" else a.at)
     if a.sweep:
         return cmd_sweep()
     rc = cmd_sizes()
