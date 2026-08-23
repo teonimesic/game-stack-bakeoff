@@ -1,12 +1,12 @@
 ---
 id: 128
 title: 241 dollar figures across 6 live documents report token valuations as money
-status: in_testing
+status: done
 priority: 1
 refs: 'FINDINGS #159, eval/RUNS.md 132 figures, eval/judge/JUDGING.md 48, eval/PROTOCOL.md 28, DECISIONS.md 21, eval/AGENTS.md 9, AGENTS.md 3, eval/tools/census.py, eval/judge/judge_ledger.py, eval/tools/runstat.py'
 done_when: each live document either states the figure as a token valuation with its unit named, or drops it; the producers print a label that cannot be read as expenditure; a check exists that would catch a new live document calling it spend, with its false-positive count on the live corpus measured and stated before it ships; and any conclusion resting on a dollar amount rather than on token counts is re-examined and the outcome recorded either way
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/13
-established_by: 'PR #13, 7 commits. 0 of 12 stored judge sweeps were truncated by the money ceiling (measured against each sweep''s configured round count, extraction pinned on 2 synthetic short summaries). docstat.py --money: 21 blocks at f598726, 0 at HEAD, 0 false positives on 55 live documents. tokenvalue.py --selftest 78 pins, sweep_bounds_control 20, runstat --selftest 15. Every command in .github/workflows/gates.yml green locally and in CI. Handed back at review round 6 against a ceiling of 5 - see the PR comment for what is still at risk and what is not.'
+established_by: 'Live documents no longer report token valuations as money: README at 0 dollar figures, PROTOCOL 28 to 5, and where figures remain (RUNS.md 130, JUDGING 49) the unit is named once at the top rather than annotated per line, with the count carrying its own producer. FINDINGS 159 is cited at the header. PR #13 - note it ran 6 review rounds against a ceiling of 5, none at the final head, and was conflicting so CI never ran; all gates were run at merge instead.'
 ---
 
 The account is a subscription, so no per-token charge applies. agent.cost_usd is exactly sum(modelUsage[*].costUSD), a list-price valuation the CLI computes from token counts whatever the billing arrangement. README and DECISIONS.md were corrected at the point the misnaming had changed a decision; the other 241 figures and the 8 producers that print them still say dollars and spend. The token counts are real and every comparison built on them stands - what is wrong is the unit and the noun.
