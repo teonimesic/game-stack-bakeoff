@@ -476,11 +476,21 @@ snapshot, and `MEASURED.json` at the destination is what any particular copy act
 | | files | size |
 |---|---|---|
 | total | 369,410 | 138.164 GB |
-| **evidence** | 13,431 → 14,192 → 14,196 → **14,270** | ~**1.118 GB** |
+| **evidence** | 13,431 → 14,192 → 14,196 → 14,270 → **14,276** | ~**1.118 GB** |
 | regenerable | 355,140 | 137.046 GB |
 
 **Never quote the evidence count from this table.** Read it from `MEASURED.json`, which is written
 only by a verification that passed.
+
+**`MEASURED.json` still holds the LATEST verification — and every earlier one is now beside it.**
+The three destination records (`MANIFEST.sha256`, `DEST_ONLY.txt`, `MEASURED.json`) were
+overwritten by each sync until 2026-08-23, so what the copy held at an earlier time existed
+nowhere. They are append-only from task 63: the canonical name keeps stating the current position
+and the record it replaces is kept as `<stem>-<stamp>`. That history is what can show a
+destination file *changed* under a verification that was correctly green at the time — the shape
+#116 turned on, where `REPRODUCIBILITY.json` was copied at 220 bytes against a 49,666-byte source
+and hashed equal on both sides. An identical `MANIFEST.sha256` writes nothing at all, so
+`--verify-only` against an unchanged set does not accumulate copies.
 
 99.20% of `eval/runs/` is build output — 133.344 GB of it cargo target dirs from old
 `t1_rally`/`t2_net`/`t3_powerup` spec-change trials. **The often-quoted "129 GB" and "138 GB" are

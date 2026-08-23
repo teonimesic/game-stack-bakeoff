@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Can `manifest.py` still lose a record, and can its audit still fail?
 
-Two halves, because a mutant and a variant answer different questions (AGENTS.md rule 15).
+Three halves, because a mutant and a variant answer different questions (AGENTS.md rule 15).
 
 **The write half** asks whether a second launch into a directory can destroy the first
 launch's manifest. The MUTANT is the pre-repair writer - one line, `path.write_text(...)` -
 run against the same inputs, and it must be caught here. A test that only exercises the
 repaired writer cannot tell a fix from a no-op (AGENTS.md rule 14: a control run after the
 fix tests the fix, not the claim).
+
+**The rolling half** asks the same question of the other append-only shape, the one where
+the canonical name holds the LATEST record and the copy it replaces is kept beside it.
+Two shapes exist because two kinds of directory exist - see `manifest.py` - and the
+mutant is the same bare `write_text`, because that is what both callers did until task 63:
+`field_sweep.py` overwrote a sweep's gate-0 verdict on every re-run, and
+`backup_evidence.py` erased what the previous sync had measured on every sync.
 
 **The audit half** asks whether the offline check can fail, and on what. Each case is a
 VARIANT - a synthetic run directory built to be wrong in one specific way - not a mutant of
@@ -33,6 +40,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -126,6 +134,88 @@ def test_write(tmp: Path) -> None:
     (run / "suite.json").write_text(json.dumps(payload(["g3_arena"], ["unity"], 2, t1)))
     check(p1.read_bytes() != first_bytes,
           "MUTANT (unconditional write_text) destroys suite.json - the test can see the defect")
+
+
+# ------------------------------------------------------------------------- rolling half
+
+def test_rolling(tmp: Path) -> None:
+    """The OTHER append-only shape: canonical holds the latest, the old one is kept.
+
+    Same protected property as `test_write` - no record on disk is destroyed - and a
+    different layout, because a sweep directory and a backup destination have no identity
+    the canonical name is owed to. The mutant is the same one: the pre-repair writer,
+    which is a bare `write_text`.
+    """
+    print("\nrolling path - the record a re-run replaces must survive it")
+    d = tmp / "rolling"
+    d.mkdir(parents=True)
+    p = d / "MEASURED.json"
+
+    v1 = {"verified_at": "2026-08-20T10:00:00+00:00", "evidence_files": 1}
+    path1, kept1 = M.write_rolling_json(p, v1, quiet=True)
+    check(path1 == p and kept1 is None, "first write lands on the canonical name alone")
+    first_bytes = p.read_bytes()
+
+    v2 = {"verified_at": "2026-08-21T11:30:00+00:00", "evidence_files": 2}
+    _, kept2 = M.write_rolling_json(p, v2, quiet=True)
+    check(kept2 is not None and kept2.read_bytes() == first_bytes,
+          "the record the second write replaces is kept BYTE-IDENTICAL")
+    check(kept2.name == "MEASURED-20260820T100000Z.json",
+          "the kept copy is named for the time the record it holds was made, not for now")
+    check(json.loads(p.read_text())["evidence_files"] == 2,
+          "the canonical name holds the LATEST record (this is the shape's whole point)")
+    check(json.loads(p.read_text())["superseded_record"] == kept2.name,
+          "the canonical record names the copy it superseded")
+
+    v3 = {"verified_at": "2026-08-22T09:00:00+00:00", "evidence_files": 3}
+    _, kept3 = M.write_rolling_json(p, v3, quiet=True)
+    check(kept3 != kept2 and kept2.read_bytes() == first_bytes,
+          "a third write keeps a third copy and leaves the first one untouched")
+    check(json.loads(kept3.read_text())["evidence_files"] == 2,
+          "the second record survived the third write")
+
+    # Same embedded timestamp twice: the name must not collide onto an existing file.
+    _, kept4 = M.write_rolling_json(p, dict(v3, evidence_files=4), quiet=True)
+    check(kept4 not in (kept2, kept3), "an identical timestamp does not collide")
+
+    # VARIANT: a record with no timestamp field at all. `MANIFEST.sha256` is exactly this
+    # - a plain checksum list - and it must still be kept, stamped from its mtime.
+    t = d / "MANIFEST.sha256"
+    M.write_rolling(t, "aaa  runs/one\n", quiet=True)
+    os.utime(t, (1_755_000_000, 1_755_000_000))
+    _, keptt = M.write_rolling(t, "bbb  runs/two\n", quiet=True)
+    check(keptt is not None and keptt.read_text() == "aaa  runs/one\n",
+          "a text record with no embedded timestamp is still kept, stamped from mtime")
+    check(keptt.name == "MANIFEST-20250812T120000Z.sha256",
+          f"the mtime stamp is UTC and the suffix survives (got {keptt.name})")
+
+    # VARIANT: an identical restatement is NOT a new record. `--verify-only` is meant to
+    # be run freely against a 1.1 MB checksum manifest; if every re-run kept a copy, the
+    # guard would cost a megabyte per check and get switched off.
+    before = sorted(x.name for x in d.iterdir())
+    _, kept_same = M.write_rolling(t, "bbb  runs/two\n", quiet=True)
+    check(kept_same is None and sorted(x.name for x in d.iterdir()) == before,
+          "re-writing identical bytes keeps nothing and adds no file")
+
+    # VARIANT: a record whose timestamp field is unparseable must still be KEPT. Refusing
+    # to name it would be a reason to destroy it (AGENTS.md rule 7).
+    q = d / "BROKEN.json"
+    q.write_text('{"verified_at": "not a timestamp", "n": 1}')
+    _, keptq = M.write_rolling_json(q, {"verified_at": "2026-08-22T09:00:00+00:00"},
+                                    quiet=True)
+    check(keptq is not None and json.loads(keptq.read_text())["n"] == 1,
+          "a record with an unparseable timestamp is kept, not dropped")
+
+    # THE MUTANT: the pre-repair writer, one line, run against the same inputs. If it
+    # does not destroy a record here, this test cannot tell the fix from a no-op
+    # (AGENTS.md rule 14).
+    survivors = {x.name: x.read_bytes() for x in d.iterdir() if x.is_file()}
+    p.write_text(json.dumps({"verified_at": "2026-08-23T00:00:00+00:00",
+                             "evidence_files": 5}))
+    now = {x.name: x.read_bytes() for x in d.iterdir() if x.is_file()}
+    check(now.get(p.name) != survivors[p.name] and set(now) == set(survivors),
+          "MUTANT (unconditional write_text) replaces the record and keeps no copy - "
+          "the test can see the defect")
 
 
 # --------------------------------------------------------------------------- audit half
@@ -275,7 +365,8 @@ def test_harness_uses_it() -> None:
           "runner.py no longer writes suite.json unconditionally")
     check("write_manifest(run_dir" in rsrc,
           "runner.py builds its manifest through manifest.write_manifest")
-    rc = subprocess.run([sys.executable, "-m", "py_compile", str(rn)], capture_output=True)
+    rc = subprocess.run([sys.executable, "-m", "py_compile", str(rn)],
+                        capture_output=True, check=False)
     check(rc.returncode == 0, f"runner.py compiles ({rc.stderr.decode()[:200]})")
 
     # The spec-change manifest shape has `trials` and `started_at` but no matrix, so it
@@ -310,14 +401,56 @@ def test_harness_uses_it() -> None:
           "cmd_build registers the module before exec_module")
 
     rc = subprocess.run([sys.executable, "-m", "py_compile", str(wg)],
-                        capture_output=True)
+                        capture_output=True, check=False)
     check(rc.returncode == 0, f"wholegame.py compiles ({rc.stderr.decode()[:200]})")
+
+    # THE TWO ROLLING WRITERS (task 63). Same reasoning as the two above: a green module
+    # with the old line still in the caller is a mechanism that runs, reports success and
+    # measures nothing.
+    fs = HERE.parent / "judge" / "field_sweep.py"
+    fsrc = fs.read_text()
+    for name in ("GATES.json", "SEQUENTIAL.json", "REPRODUCIBILITY.json"):
+        check(f'_atomic(a.out / "{name}"' not in fsrc,
+              f"field_sweep.py no longer writes {name} through the overwriting _atomic")
+    check(fsrc.count("_write_summary(a.out") == 3,
+          "all three field_sweep modes write their summary through _write_summary")
+    check("write_rolling_json" in fsrc,
+          "field_sweep.py routes its summaries through manifest.write_rolling_json")
+    check("sys.modules[spec.name] = mod" in fsrc,
+          "field_sweep.py registers manifest in sys.modules before exec_module")
+    rc = subprocess.run([sys.executable, "-m", "py_compile", str(fs)],
+                        capture_output=True, check=False)
+    check(rc.returncode == 0, f"field_sweep.py compiles ({rc.stderr.decode()[:200]})")
+
+    be = HERE / "backup_evidence.py"
+    bsrc = be.read_text()
+    for name in ("MANIFEST.sha256", "DEST_ONLY.txt", "MEASURED.json"):
+        check(f'"{name}").write_text' not in bsrc,
+              f"backup_evidence.py no longer overwrites {name} in place")
+    check(bsrc.count("MF.write_rolling") == 3,
+          "all three destination records go through manifest.write_rolling*")
+    rc = subprocess.run([sys.executable, "-m", "py_compile", str(be)],
+                        capture_output=True, check=False)
+    check(rc.returncode == 0, f"backup_evidence.py compiles ({rc.stderr.decode()[:200]})")
+
+    # The summary names field_sweep writes and the ones judge_ledger recognises are
+    # asserted equal AT IMPORT, not compared here by eye. Importing the module is what
+    # runs that assertion, so this check is the address of the check (rule 12).
+    rc = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, %r); import field_sweep as F, judge_ledger as L; "
+         "assert set(F.SUMMARIES.values()) == {f'{s}.json' for s in L.SUMMARY_STEMS}"
+         % str(HERE.parent / "judge")],
+        capture_output=True, check=False)
+    check(rc.returncode == 0,
+          f"field_sweep's summary names match judge_ledger's ({rc.stderr.decode()[:200]})")
 
 
 def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="manifest-selftest-"))
     try:
         test_write(tmp)
+        test_rolling(tmp)
         test_audit(tmp)
         test_harness_uses_it()
     finally:

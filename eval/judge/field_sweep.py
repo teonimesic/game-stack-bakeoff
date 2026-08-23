@@ -28,6 +28,7 @@ trial a judge call can be re-run for the same money tomorrow.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
 import sys
@@ -40,8 +41,52 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import field  # noqa: E402
 from aspects import ASPECTS  # noqa: E402
-from judge_ledger import field_cost_usd  # noqa: E402
+from judge_ledger import SUMMARY_STEMS, field_cost_usd, is_summary  # noqa: E402
 from sequential import MAX_RUNS, Sampler  # noqa: E402
+
+#: Which summary each mode writes. `judge_ledger` decides what a summary IS - a name it
+#: does not recognise is read as a judge round and widens every denominator - so the two
+#: spellings are ASSERTED equal at import rather than promised equal in a comment
+#: (AGENTS.md rule 12: the address is an input to the check).
+SUMMARIES = {"orders": "GATES.json", "sequential": "SEQUENTIAL.json",
+             "repeats": "REPRODUCIBILITY.json"}
+assert set(SUMMARIES.values()) == {f"{s}.json" for s in SUMMARY_STEMS}, (
+    f"field_sweep writes {sorted(SUMMARIES.values())} but judge_ledger recognises "
+    f"{sorted(f'{s}.json' for s in SUMMARY_STEMS)}")
+
+
+def _load_manifest() -> Any:
+    """`tools/` is not a package, so load `manifest.py` by path, as `cmd_build` does.
+
+    REGISTER BEFORE EXEC: `@dataclass` resolves its annotations through
+    `sys.modules[cls.__module__]`, and `manifest.py` defines two. A module loaded by path
+    and never registered dies at import with `AttributeError: 'NoneType' object has no
+    attribute '__dict__'`.
+    """
+    import importlib.util as ilu
+    tools = Path(__file__).resolve().parents[1] / "tools"
+    spec = ilu.spec_from_file_location("_manifest", tools / "manifest.py")
+    mod = ilu.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _write_summary(out: Path, name: str, summary: dict[str, Any]) -> None:
+    """A sweep summary is a durable record of what a measurement was configured to be.
+
+    So it is append-only, and it goes through the one module that decides what that means
+    (`tools/manifest.py`). It takes the ROLLING shape, not the pinned one `suite.json`
+    uses: a sweep directory accumulates rounds across invocations and its summary states
+    the verdict as of the latest, so the canonical name must hold the newest record and
+    the one it replaces is kept beside it as `<stem>-<stamp>.json`.
+
+    Before this, `--repeats` run twice into one directory left exactly one
+    `REPRODUCIBILITY.json`, describing the second sweep, with the first sweep's gate-0
+    verdict on a set of rounds that cost real money existing nowhere (task 63).
+    """
+    summary["out_dir"] = out.resolve().name
+    _load_manifest().write_rolling_json(out / name, summary)
 
 
 def _record_cost(summary: dict[str, Any], spent: float, out: Path) -> None:
@@ -83,7 +128,11 @@ def warn_rounds_without_provenance(out: Path) -> list[str]:
     """
     old = []
     for f in sorted(out.glob("*.json")):
-        if f.name == "GATES.json":
+        # Not `f.name == "GATES.json"`: three modes write three different summaries, and
+        # from 2026-08-23 each keeps its superseded copies beside it (task 63). One
+        # predicate, shared with the ledger, rather than the name this function happened
+        # to be written next to.
+        if is_summary(f.name):
             continue
         try:
             d = json.loads(f.read_text())
@@ -201,7 +250,8 @@ def repeats_main(a: Any) -> int:
     a.out.mkdir(parents=True, exist_ok=True)
     spent = 0.0
     summary: dict[str, Any] = {"mode": "repeats", "repeats": a.repeats,
-                               "order_seed": a.repeat_seed}
+                               "order_seed": a.repeat_seed,
+                               "started_at": dt.datetime.now(dt.timezone.utc).isoformat()}
     for game in a.games:
         for aspect_id in a.aspects:
             runs: list[dict[str, Any]] = []
@@ -255,7 +305,7 @@ def repeats_main(a: Any) -> int:
             # read different evidence and an SD across them would be rule 4's own example.
             print(f"  [sep]   {key}: {sep['verdict']}", flush=True)
     _record_cost(summary, spent, a.out)
-    _atomic(a.out / "REPRODUCIBILITY.json", summary)
+    _write_summary(a.out, SUMMARIES["repeats"], summary)
     print("\n=== gate 0: reproducibility ===")
     print(json.dumps(summary, indent=2)[:3000])
     print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
@@ -273,7 +323,8 @@ def sequential_main(a: Any) -> int:
     no code path is a protocol that gets approximated by whoever reads the document next.
     """
     spent = 0.0
-    summary: dict[str, Any] = {"mode": "sequential", "max_runs": a.max_runs}
+    summary: dict[str, Any] = {"mode": "sequential", "max_runs": a.max_runs,
+                               "started_at": dt.datetime.now(dt.timezone.utc).isoformat()}
     for game in a.games:
         for aspect_id in a.aspects:
             if spent + a.per_call_budget > a.max_cost:
@@ -307,7 +358,7 @@ def sequential_main(a: Any) -> int:
             print(f"  [seq] {game}/{aspect_id}: {rep.get('headline')} "
                   f"(rounds={rep.get('runs')}, cumulative ${spent:.2f})", flush=True)
     _record_cost(summary, spent, a.out)
-    _atomic(a.out / "SEQUENTIAL.json", summary)
+    _write_summary(a.out, SUMMARIES["sequential"], summary)
     print("\n=== sequential sampling ===")
     print(json.dumps(summary, indent=2)[:4000])
     print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
@@ -358,6 +409,7 @@ def main() -> int:
 
     assert_out_root_durable(a.out)
     a.out.mkdir(parents=True, exist_ok=True)
+    started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     spent = 0.0
     results: list[dict[str, Any]] = []
     planned = [(g, asp, seed)
@@ -405,7 +457,8 @@ def main() -> int:
 
     usable = [r for r in results if r.get("usable")]
     gates: dict[str, Any] = {"calls_usable": len(usable),
-                             "calls_attempted": len(results)}
+                             "calls_attempted": len(results),
+                             "started_at": started_at}
     _record_cost(gates, spent, a.out)
     for r in usable:
         key = f"{r['game']}:{r['aspect']}:seed{r['order_seed']}"
@@ -426,7 +479,7 @@ def main() -> int:
                 gates[f"order_invariance:{x['game']}:{x['aspect']}"] = \
                     field.order_invariance(x, y)
     gates["independence"] = field.independence(usable)
-    _atomic(a.out / "GATES.json", gates)
+    _write_summary(a.out, SUMMARIES["orders"], gates)
 
     print("\n=== gates (read these before any ranking) ===")
     print(json.dumps(gates, indent=2))
