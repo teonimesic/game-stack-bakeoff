@@ -1036,6 +1036,28 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
     (`#103`, now `#104`) and the undecided list contains the other four. Run it at HEAD
     and none of the five appear. A check that cannot find a defect that is known to be
     there is reporting its own silence.
+
+    THIS CHECK CANNOT GRADE YOUR REPAIR, AND GOES GREEN TWICE FOR REASONS THAT ARE NOT
+    THE REPAIR. Both were met head-on repairing the 33 of task 72:
+
+    - UNCOMMITTED. A line edited in the working tree blames to UNCOMMITTED, so
+      `authoring_commit` returns "" and the loop skips it. Every repair is invisible
+      until it is committed, correct and incorrect alike, and the count falls to zero
+      either way. **Re-run after committing; a clean report over a dirty tree is the
+      tool declining to look.**
+    - COMMITTED. A repair committed today has today's findings tree as its authoring
+      tree, so `then[num] is current[num]`, `now == num`, and it is never stale - again
+      whatever number you wrote. The same holds for the undecided half, whose `when`
+      is now later than every renumber.
+
+    So zero after a repair is necessary and not sufficient (rule 1): it establishes that
+    no citation OLDER than the renumbers is still stale, and says nothing about the
+    replacements. The only thing that grades a replacement is reading it against the
+    heading in eval/findings/. A plant at HEAD cannot restore the alarm either, for the
+    second reason above - to see it fire once the sweep is clean, commit the citation on
+    a branch rooted at a pre-renumber commit and merge it forward, which is the shape
+    that produced these in the first place. Done for task 72 off `e86e09d0` (where #119
+    was the retired suite): decided went 0 -> 1, naming the plant and #122.
     """
     hist = _History(rev)
     if not hist.rooted:

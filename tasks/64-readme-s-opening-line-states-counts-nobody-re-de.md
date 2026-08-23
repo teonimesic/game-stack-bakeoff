@@ -3,7 +3,7 @@ id: 64
 title: README's opening line states counts nobody re-derives, and the cost figure in it was 34% low
 status: done
 priority: 4
-refs: 'README.md:8, eval/RUNS.md:31, eval/findings/limits-and-cost.md #119'
+refs: 'README.md:8, eval/RUNS.md:31, eval/findings/limits-and-cost.md #121'
 done_when: 'Each count in README.md''s opening sentence is either reproduced from stored artifacts by a named command, or removed. State the population for each: 24 whole-game submissions and three games were both true once, and the stored tree now holds 137 trial records across 19 run directories and four games. If a count cannot be reproduced without choosing a population, say which population and why - an aggregate without its scope is unfalsifiable (#113).'
 established_by: 'eval/tools/census.py added as the producer; README''s opening counts replaced with 90 whole-game records over 11 run dirs, 4 games, 4 stacks, 75 completed, each with its population, and the largest-matrix scope 24 = 3 games x 4 stacks x 2 trials named explicitly. Old counts registered as WR-readme-opening-counts in eval/withdrawn.json; docstat.py --withdrawn exits 0 with the id present and exits 1 naming README.md:28-34 with it removed. census.py --selftest 0 failures, and it exits 2 rather than 0 on a missing tree. Cross-checks against artifacts written before the tool: 137 records / 19 run directories / 2404.21 match eval/RUNS.md, godot 20 over 7 runs matches eval/findings/one-arm-bias.md line 1804. docstat.py --sweep clean, tasks.py check 67 well-formed, both unpiped.'
 ---

@@ -40,7 +40,7 @@ never per tree.
 > `*/trials/*.json`, exactly one level deep, and `archive-run1-byte-identical-prompts/` wraps four
 > run directories one level deeper — so 24 records, 15% of the tree, were dropped without a word.
 > **The cross-check that certified the tool shared its defect**: `eval/RUNS.md` agreed to the
-> digit because it had been produced by the same one-level glob (#126). What disagreed was
+> digit because it had been produced by the same one-level glob (#127). What disagreed was
 > `DECISIONS.md`'s independently-written "71 trials in 12 run directories", and that is now what
 > the tool reproduces.
 
@@ -54,7 +54,7 @@ Last updated **2026-08-23**.
 
 | evidence | reading |
 |---|---|
-| **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **6/8** as of 2026-08-22, and **tier 2 is 1.00 in all eight cells**. It read 4/8 and then 5/8 before that, and **both were correct when written** — the cells moved as the play-bot was repaired (#82) and then `knockback.applied` (#89). The two still below 1.000 fail only on tier 1: one is a genuine submission defect (#66), one is `render.nonempty`. ⚠️ **Every count in this row is of stored `overall` values, all written under the pre-2026-08-23 weighted scheme.** Tier 1 is now a gate and `overall = tier2`, under which those two cells are **1.000 with `gate: FAIL`** and `wg-g4c` reads 8/8 — the same two facts, differently expressed, and the counts are not comparable across the boundary (#119, `eval/RUNS.md`). **Not summed** — see below |
+| **the deterministic tiers sit at their ceiling, reported per game** | `wg-matrix-2026-08-13`, the one field where three games ran in a single regime: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000. `wg-audio48`: pong **8/8**, tetris **8/8**. `wg-g4c` platformer: **6/8** as of 2026-08-22, and **tier 2 is 1.00 in all eight cells**. It read 4/8 and then 5/8 before that, and **both were correct when written** — the cells moved as the play-bot was repaired (#82) and then `knockback.applied` (#89). The two still below 1.000 fail only on tier 1: one is a genuine submission defect (#66), one is `render.nonempty`. ⚠️ **Every count in this row is of stored `overall` values, all written under the pre-2026-08-23 weighted scheme.** Tier 1 is now a gate and `overall = tier2`, under which those two cells are **1.000 with `gate: FAIL`** and `wg-g4c` reads 8/8 — the same two facts, differently expressed, and the counts are not comparable across the boundary (#123, `eval/RUNS.md`). **Not summed** — see below |
 | **the two trials of a cell agree on verdicts far more often than on evidence** | reported per scope, never pooled. `wg-matrix` (3 games, 436 paired criteria): **5** verdict differences against **332** differing evidence strings. `wg-audio48` (232 paired): **0** verdict differences, **120** differing evidence strings. So the submissions are genuinely different artifacts that the instrument mostly cannot separate — but "mostly", not "never" |
 | **cost: the between-stack range is 42% of its own noise floor** | measured on all four stacks at once (`wg-g4c`, 8/8 `completed`, $421.00): mean within-cell gap **$21.15**, between-stack range **$8.91** |
 | **no subjective aspect separates the stacks** | `wg-tetris-judge-2026-08-17`, 5 aspects × 2 orders, `g2_tetris3d` only — the sole field tier 3 had judged when this was measured (#71). Post-repair round: between-stack range of mean ranks **2.10** against a mean within-stack gap of **1.93**; pre-repair **1.90** against **2.27** — `judge/field_ranks.py`, `value=rank` `order=pool`, the pair this project quotes (`DECISIONS.md`). The quantity can be computed four ways and on **none** of the eight readings does the between-stack range exceed the within-stack gap by more than 23%, while on four it is smaller — no method separates these stacks, and the direction of the comparison is not stable enough to argue from. ⚠️ Both rounds are among those later shown to have opened pack files naming the submissions (#83), so this is **not** defensible as a blind result |
@@ -189,7 +189,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 |---|---|
 | `research/` | Eleven briefs answering the original questions, plus `DECISION.md`. Every claim dated and sourced; unverified claims labelled. `DECISION.md` opens with a retraction — it decided on paper, and two of its eliminations were wrong. `10-stack-capability-matrix.md` is what each stack can do **at its pinned version**. |
 | `eval/starters/<stack>/` | **What a whole-game trial actually copies**, one per stack. `wholegame.py` reads only this directory. Game-agnostic: a placeholder, the harness, the boundary and the `verify` gate. This is the product that every run since 2026-08-12 has measured. |
-| ~~`template*/`~~ | **Deleted 2026-08-23.** The four original trees — a finished Pong per stack — were a fork of the starters with one dormant consumer, and nothing pulled them back into line: 0 of 105 commits touched them while 6 touched `eval/starters/` (#112). Recoverable from git; see `DECISIONS.md`. Their suite's stored results, prompts and answer key all stay — `eval/suites/`, `eval/holdout*/`, `eval/runs/bakeoff-*` (#119). |
+| ~~`template*/`~~ | **Deleted 2026-08-23.** The four original trees — a finished Pong per stack — were a fork of the starters with one dormant consumer, and nothing pulled them back into line: 0 of 105 commits touched them while 6 touched `eval/starters/` (#112). Recoverable from git; see `DECISIONS.md`. Their suite's stored results, prompts and answer key all stay — `eval/suites/`, `eval/holdout*/`, `eval/runs/bakeoff-*` (#122). |
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
@@ -312,7 +312,7 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
   the same null.** Five aspects x two presentation orders on `g2_tetris3d`, whose eight
   submissions the deterministic tiers score identically. (This line read *13 calls, $46.79*
   until 2026-08-23; that total is two games, and the three `g1_pong` calls in it, $13.16, are a
-  different field. FINDINGS #119.)
+  different field. FINDINGS #121.)
 
   | | reported (`rank`/`pool`) | range across all four methods |
   |---|---|---|
@@ -473,7 +473,7 @@ ancestor directory, and every criterion id the rubric defines.
 | **3. LLM judge** | **0.00** | One specialist per aspect, each ranking the whole eight-submission field for a game rather than scoring one at a time. **Diagnostic only — contributes nothing to the score, and stays at 0.00 until it passes its validation gates.** |
 
 `overall = tier2`. **Tier 1 stopped being 0.31 of the score on 2026-08-23** (task 29,
-FINDINGS #92 and #119): across 68 stored trials it returned one value in 7 of 10 groups, and
+FINDINGS #92 and #123): across 68 stored trials it returned one value in 7 of 10 groups, and
 in 0 of 10 did both tiers vary among the trials the play-bot could measure. Its seven failures
 were two build failures whose tier-2 zero says the same thing, and five lint/unit-test/ink-coverage
 findings on games that scored 1.000 on tier 2. It is a floor test, and it is now reported as one.

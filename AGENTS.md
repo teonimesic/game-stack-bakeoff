@@ -25,7 +25,7 @@ only apply there — read the one for the directory you are working in.
 | `eval/` | Running trials, cost, controls, offline re-grading, concurrency |
 | `eval/judge/` | The three grading tiers, blinding, rubric changes |
 | `research/` | The briefs, and how claims in them must be sourced |
-| `eval/starters/*/` | **Not for you.** Those `AGENTS.md` files are the product — what a building agent reads during a trial. Editing one changes the thing being measured, and requires re-running `eval/judge/verify_blind.py`. This was two trees per stack until 2026-08-23; `template*/` is deleted (`DECISIONS.md`, #119) |
+| `eval/starters/*/` | **Not for you.** Those `AGENTS.md` files are the product — what a building agent reads during a trial. Editing one changes the thing being measured, and requires re-running `eval/judge/verify_blind.py`. This was two trees per stack until 2026-08-23; `template*/` is deleted (`DECISIONS.md`, #122) |
 
 `eval/runs/**` holds stored results, including per-trial copies of the starters. Nothing in there
 is guidance; it is data.
@@ -531,7 +531,7 @@ Two refinements that pattern does not cover:
     the QUANTITY, not about the parameter.** Tier 1's weight was inert because tier 1 returned
     one value; asking what tier 1 had ever *done* — 7 failures in 68 trials, 5 of them a lint
     finding on a game that played perfectly — showed it was a floor test, and it became a gate
-    rather than a smaller number (#119). **Reweighting an inert term is the move that looks like
+    rather than a smaller number (#123). **Reweighting an inert term is the move that looks like
     a fix and changes nothing.** When a sweep says a parameter cannot act, do not tune it: go and
     measure what the term it multiplies has ever measured.
 

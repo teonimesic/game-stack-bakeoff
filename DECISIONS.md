@@ -137,7 +137,7 @@ come out the other way, and both re-runnable:
   w1=0, so this tool cannot settle what the change does — see the next one.
 - `eval/judge/tier1_census.py` — 68 stored trials, **7 with any tier-1 failure**, and in **0 of 10
   groups do both tiers vary among the trials tier 2 could measure**. Comparing the two schemes
-  pairwise at w1=0: **0 orderings reversed, 3 coarsened, 7 identical** (#119).
+  pairwise at w1=0: **0 orderings reversed, 3 coarsened, 7 identical** (#123).
 
 Five of those seven failures were a lint finding, three of a submission's own unit tests, and one
 ink-coverage window, on games that all scored **1.000** on tier 2; the other two were the #49 build
@@ -401,7 +401,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`** and on all 16 of `wg-audio48` —
   40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92). **What to
   do about it was decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not
-  score" above, and #119). The ceiling did not go away; it stopped being reported as a score.
+  score" above, and #123). The ceiling did not go away; it stopped being reported as a score.
   **Tier 2 is still at the ceiling on 24 of 56** — `wg-audio48` and `wg-g4c` entire — and tier 2
   now carries the whole weight, so **`overall` is a constant 1.000 for all 16 `wg-audio48` trials
   and all 8 of `wg-g4c`.** That is the open half, and it is the more serious one: an instrument
@@ -695,7 +695,7 @@ GitHub repo would each work without LFS; both need the operator's go-ahead.
 ## A wrong stored manifest is marked, never repaired — decided 2026-08-23
 
 **Configuration records in `eval/runs/` are append-only when written and read-only afterwards.**
-Six stored directories hold a manifest that does not describe them (#93, #119). None was edited.
+Six stored directories hold a manifest that does not describe them (#93, #120). None was edited.
 
 **Why not repair.** For `wg-matrix`, `wg-arena3d` and `wg-g4` the original was destroyed and no
 honest replacement exists — a manifest reconstructed today is an inference wearing the name of a
@@ -806,7 +806,7 @@ evidence, and the two look identical from a file listing:
 | Kept | Because |
 |---|---|
 | `eval/runs/bakeoff-*`, `core-*`, `archive-run1-*` | 71 trials in 12 run directories. The results |
-| `eval/suites/*.toml`, `eval/suites/prompts.py` | **The sole copy of what those 71 trials were asked to do.** A trial record stores `task: "t1_rally"` and no prompt text; 0 files under `eval/runs/` contain it (#119) |
+| `eval/suites/*.toml`, `eval/suites/prompts.py` | **The sole copy of what those 71 trials were asked to do.** A trial record stores `task: "t1_rally"` and no prompt text; 0 files under `eval/runs/` contain it (#122) |
 | `eval/holdout*/`, `eval/variants/` | The answer key and the ablation arm — what "score 1.00" and "arm no_api_notes" meant |
 | `eval/runner.py`, whole | `judge/static.py` imports its capture policy by path. Two truncation policies in one repository is #100, which came back as #114. It is also the definition of the measurement the 71 stored verdicts report, and `report` / `regrade.py` still read them. `run` and `check-suite` now exit 2 naming the retirement instead of raising three frames down |
 | `eval/BAKEOFF.md`, `eval/FINE-TUNING-BRIEF.md` | The suite's design, which is the context those results are read in |
