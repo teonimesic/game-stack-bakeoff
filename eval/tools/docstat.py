@@ -491,6 +491,22 @@ FOREIGN_FLAG_PREFIXES = (
     # list exists for; the alternative is paraphrasing the error, which is how a quoted
     # measurement stops being quotable.
     "--bin",
+    # gh's. `DECISIONS.md`'s review-completion entry argues WHY the poll paginates and why
+    # the pages are aggregated by an external `jq -s` — gh rejects `--slurp` alongside
+    # `--jq`, which is the whole reason the recipe is shaped the way it is (task 121). The
+    # flags appear backticked in prose because the argument is about them; the fenced
+    # recipe in `.agents/skills/work/SKILL.md` was already green, because a flag on a
+    # command line naming `gh` is not read as one of ours. That asymmetry is the case this
+    # list exists for.
+    #
+    # WHAT THESE COST, stated because the match is `startswith` and not equality: any
+    # future flag of ours beginning `--jq`, `--slurp` or `--paginate` is now silently
+    # exempt. `--jq` is the short one and so the one to watch. The red control was run
+    # both ways on 2026-08-23 and the FIRST attempt was a false green -- the planted token
+    # was `--zzqphantomflag`, and `_DELIBERATELY_FAKE` matches the substring `phantom`, so
+    # the check reported clean about a line it never read. Plant a name with no exemption
+    # word in it: `--zzqnotaflag` turns this red, and removing it turns it green.
+    "--paginate", "--slurp", "--jq",
 )
 
 

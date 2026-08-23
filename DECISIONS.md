@@ -1595,7 +1595,7 @@ to the artifacts. *"It passed review"* is exactly the shape this project calls a
 runs and reports success.
 
 **How an agent knows a review has finished**, and this is the part that was measured rather than
-designed: **a landed review has two shapes, and reading only one of them times out on the good
+designed: **a landed review has 2 shapes, and reading only 1 of them times out on the good
 outcome.** The address is always the full 40-character head sha from `gh pr view --json
 headRefOid` — `tasks/108`'s poll loop compared a **7-character** sha against the **5-character**
 abbreviation in the walkthrough prose and reported *"not reviewed"* through 8 polls after the
@@ -1604,20 +1604,33 @@ comparing it against the reviews API's `commit_id` is only half the check: **whe
 nothing actionable it creates no review object at all** and edits its summary issue comment
 instead. So the check is a disjunction — a `coderabbitai[bot]` review object at the head sha, **or**
 a `coderabbitai[bot]` issue comment naming the head sha that does not carry the *review in progress*
-marker — and it reports **which arm fired**.
+marker — and it reports **which arm fired**. The recipe is in `.agents/skills/work/SKILL.md`; this
+entry is what it has to satisfy.
 
-Both arms are necessary, measured over all 6 pull requests this repository has had (`tasks/121`):
-the review arm fires on #1, #2 and #4 and cannot fire on #5 or #6, which have no review object at
-head; the comment arm fires on #5 and #6 and cannot fire on #1, whose summary comment contains no
-40-character sha at all. #3 fires neither, correctly — 2 commits were pushed after its last review
-and never reviewed. The single-arm version burned its full 15-minute deadline on #5 and #6, on the
-*clean* outcome, which is the common one.
+**Neither arm alone covers this repository's own pull requests.** Both arms against every PR at its
+head sha, 2026-08-23 (`tasks/121`):
+
+| PR | review object at head | comment names head, not in progress | fires |
+|---|---|---|---|
+| #1 | yes, 3 objects | **no** — its body carries only `4f95b`, and no 40-character sha at all | review |
+| #2 | yes | — | review |
+| #3 | **no** | **no** | **neither, correctly** — 2 commits were pushed after the last review at 16:25:14Z and never reviewed |
+| #4 | yes | — | review |
+| #5 | **no**, 0 review objects | yes | comment |
+| #6 | **no**, 2 objects and neither at head | yes | comment |
+| #7 | yes | — | review |
+
+The version that read only the review arm returned `false` on #5 and #6 — 2 of the 5 heads that had in fact been
+reviewed — and would have spent its full 15-minute deadline on each, on the *clean* outcome, which
+is the common one.
 
 | Rejected | Why |
 |---|---|
-| *"the summary comment names the head sha"* on its own | **Fail-open, and it fired on first use** — it reported `LANDED` 31 seconds after a push, mid-review, because CodeRabbit writes the head sha into the comment while the round runs and the *"No actionable comments"* line below it is still the previous round's verdict |
-| Dropping the 40-character guard now that a second arm exists | `contains("")` is true for every string, so an empty head would report every pull request reviewed. The reviews arm failed *closed* on the same input; adding the comment arm made that guard protect against a fail-open defect rather than a slow one |
-| Reading the deadlock notices through the same check | *Reviews paused* and *Review limit reached* carry **zero** 40-character shas between them — which is why they cannot trip the comment arm, and why they still need their own heading extractor |
+| *"the summary comment names the head sha"* on its own | **Fail-open, and it fired on first use** — it reported `LANDED` 31 seconds after a push, mid-review, because CodeRabbit writes the head sha into the comment while the round runs and the *"No actionable comments"* line below it is still the previous round's verdict. Measured again live on PR #7: while its round ran, the sha-only arm read **1** and the shipped arm **0**, for 317 seconds |
+| Dropping the 40-character guard now that a 2nd arm exists | `contains("")` is true for every string, so an empty head would report every pull request reviewed. The reviews arm failed *closed* on the same input; adding the comment arm made that guard protect against a fail-open defect rather than a slow one |
+| Reading page 1 only, as the original did | `gh api` returns 30 records without `--paginate`, and the review at the head sha is the newest — the first to fall off. PR #6's reviews at `per_page=2`: 2 records unpaginated, 10 paginated |
+| `gh api --paginate --slurp --jq` | `gh` rejects `--slurp` alongside `--jq`. The pages are aggregated by an external `jq -s` over a here-string rather than a pipe, because a pipeline's exit status is the last stage's |
+| Reading the deadlock notices through the same check | *Reviews paused* and *Review limit reached* carry **0** 40-character shas between them — which is why they cannot trip the comment arm, and why they still need their own heading extractor |
 
 **The deadlock to design against is the reviewer's auto-pause**, not a slow review. CodeRabbit
 pauses a branch it considers under active development, and the notice lands in the PR's *issue*

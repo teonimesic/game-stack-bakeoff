@@ -148,11 +148,13 @@ which ticket it is.
 made a poll loop report *"not yet reviewed"* through 8 polls after the review had landed
 (`tasks/108`, AGENTS.md rule 12).
 
-**A landed review has two shapes, and a check that reads only the first one times out on the good
+**A landed review has 2 shapes, and a check that reads only the first one times out on the good
 outcome.** When CodeRabbit finds nothing actionable it creates **no review object at all** — it
 edits its summary issue comment instead. So *reviewed at this head* is: a `coderabbitai[bot]`
 **review object** carrying the head sha, **OR** a `coderabbitai[bot]` **issue comment** that names
-the head sha and does **not** carry the in-progress marker.
+the head sha and does **not** carry the in-progress marker. **`DECISIONS.md` holds the derivation,
+the per-pull-request evidence and what was rejected** — if it and this recipe disagree, it wins and
+the recipe is the bug.
 
 ```bash
 REPO=teonimesic/game-stack-bakeoff
@@ -162,13 +164,15 @@ INPROG='auto-generated comment: review in progress by coderabbit.ai'
 HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid) || exit 1
 [ ${#HEAD} -eq 40 ] || { echo "no head sha - an error, not a poll result"; exit 1; }
 
-BY_REVIEW=$(gh api "repos/$REPO/pulls/$PR/reviews" \
-  --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .commit_id] | index(\"$HEAD\") != null") || exit 1
+REVIEWS=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews") || exit 1
+BY_REVIEW=$(jq -s "[.[][] | select(.user.login==\"coderabbitai[bot]\") | .commit_id]
+                   | index(\"$HEAD\") != null" <<<"$REVIEWS") || exit 1
 case "$BY_REVIEW" in true|false) ;; *) echo "reviews query returned no boolean - an error"; exit 1;; esac
 
-BY_COMMENT=$(gh api "repos/$REPO/issues/$PR/comments" \
-  --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .body
-         | select(contains(\"$HEAD\")) | select(contains(\"$INPROG\") | not)] | length") || exit 1
+COMMENTS=$(gh api --paginate "repos/$REPO/issues/$PR/comments") || exit 1
+BY_COMMENT=$(jq -s "[.[][] | select(.user.login==\"coderabbitai[bot]\") | .body
+                    | select(contains(\"$HEAD\")) | select(contains(\"$INPROG\") | not)]
+                   | length" <<<"$COMMENTS") || exit 1
 case "$BY_COMMENT" in ''|*[!0-9]*) echo "comments query returned no count - an error"; exit 1;; esac
 
 if   [ "$BY_REVIEW" = true ]; then echo "LANDED by review object at $HEAD"
@@ -182,21 +186,13 @@ wrote comments and you have something to read; *summary comment* means it finish
 to say. Read the **word**, never the exit code: exit 1 is an API failure and must stop the loop,
 which is why nothing here is wrapped in `|| true`.
 
-**Neither arm alone covers this repository's own pull requests — that is why it is an OR.** Both
-arms run against every PR at its head sha, 2026-08-23:
-
-| PR | review object at head | comment names head, not in progress | fires |
-|---|---|---|---|
-| #1 | yes, 3 objects | **no** — its body carries only `4f95b`, and no 40-character sha at all | review |
-| #2 | yes | — | review |
-| #3 | **no** | **no** | **neither, correctly** — 2 commits were pushed after the last review at 16:25:14Z and never reviewed |
-| #4 | yes | — | review |
-| #5 | **no** — zero review objects | yes | comment |
-| #6 | **no** — 2 objects, neither at head | yes | comment |
-
-The single-arm recipe this replaces returned `false` on #5 and #6 — **2 of the 5 heads that had in
-fact been reviewed** — and would have spent its full 15-minute deadline on each, on the *clean*
-outcome, which is the common one (`tasks/121`).
+**Read every page.** `gh api` returns only the first 30 records without `--paginate`, and the review
+at the head sha is the **newest**, so it is the first thing to fall off page 1 — a PR that
+accumulates reviews would poll to its deadline about a review sitting on page 2. Measured on PR #6's
+reviews at `per_page=2`: **2** records unpaginated against **10** paginated. `gh` rejects `--slurp`
+alongside `--jq`, so the pages are aggregated by an external `jq -s` reading a **here-string, not a
+pipe** — a pipeline's exit status is the last stage's (rule 3), and each of the 4 commands keeps its
+own `|| exit 1`.
 
 **The in-progress clause is load-bearing, and the obvious fix without it is fail-open.** CodeRabbit
 writes the head sha into the summary comment **while the round is still running** — the line
@@ -207,13 +203,19 @@ round's verdict. Matching the sha alone reported `LANDED` **31 seconds** after a
 Taking PR #5's real stored comment and injecting the marker: the arm returns **0** with the
 `| not` clause and **1** without it, while on the real finished body it is **1** either way.
 
-**All four guards are load-bearing, and the 40-character one now guards a worse failure than it
-used to.** If `gh pr view` fails, `$HEAD` is empty — and `contains("")` is **true for every
-string**, measured, so the comment arm would report every pull request reviewed. The reviews arm
-fails the other way (`index("")` is `null`, hence `false`), so adding the second arm turned an
-empty head from fail-slow into fail-**open** (rule 7). Check the exit status **and** the 40
-characters; either alone leaves the other hole open. The two `case` guards are the same rule one
-line down — an empty or `null` jq result is an error, not a quiet "not yet".
+**The guards are what keep an empty `$HEAD` from ever reaching the queries, and that matters more
+now than it did.** Nothing below is a description of what the recipe above does — it is what would
+happen **without** each guard, which is the only reason each one is there:
+
+| removed | what an empty or short `$HEAD` would then do |
+|---|---|
+| `\|\| exit 1` on `gh pr view` | a failed read becomes a poll result: the loop reports a review state inferred from a command that did not run (rule 2) |
+| `[ ${#HEAD} -eq 40 ]` | `contains("")` is **true for every string**, measured, so the comment arm reports **every** pull request reviewed. The reviews arm fails the other way — `index("")` is `null`, hence `false` — so adding the comment arm turned this from fail-slow into fail-**open** (rule 7) |
+| `\|\| exit 1` on either query | an API that is failing quietly contributes a `false`, and the loop polls to its deadline |
+| either `case` | an empty or `null` jq result falls through to a plausible "not yet" instead of stopping |
+
+With all 4 in place a failed `gh pr view` and a short sha both exit before either query runs —
+verified, the 5-character abbreviation exits 1 with `no head sha`.
 
 **How long it takes scales with the diff, so do not size the wait off one number.** Every
 measurement taken so far:
@@ -276,7 +278,7 @@ you meet that is not a row here is new, and the row to add is what you learn fro
 |---|---|---|
 | **Reviews paused** — *"this branch is under active development … to avoid overwhelming you with review comments"* | **triggered by being productive.** `@coderabbitai resume` restores automatic reviews; `@coderabbitai review` buys one | post `@coderabbitai review`, resume polling |
 | **Review limit reached** — *"you've used all N included reviews currently available"* | the org's allowance is spent. The body states how long until the next one frees up | wait out the stated interval, post `@coderabbitai review`, resume polling **within the same 15-minute bound** — do not restart the clock |
-| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask. **It is stale the moment you push** — CodeRabbit edits its comments in place, so a heading here is a diagnostic and the two-arm check above is the authority |
+| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask. **It is stale the moment you push** — CodeRabbit edits its comments in place, so a heading here is a diagnostic and the check above is the authority |
 
 **Push once per round, not once per fix.** Batching is what keeps the pause from firing at all,
 and under a spent allowance it is the difference between one round and none.
