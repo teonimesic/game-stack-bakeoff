@@ -339,21 +339,55 @@ cleared or not; there is no meaningful "how far towards a line". The stage has a
 is at the end of it, and the prompt states the direction — *"Reaching the far end of the stage
 clears it."*
 
-**It must not be promoted as things stand, and the reason is the whole hazard in miniature.**
-Its stored evidence already yields eight distinct values — 14.3%, 15.8%, 17.8%, 20.3%, 20.6%,
-22.5%, 25.6%, 29.0% of the way to the goal — which would look exactly like the discrimination
-this project has been trying to find. It is not. The play-bot walks right until it falls in a
-hole (task 76), so that scalar ranks the field on **where each submission put its first pit.**
+**The free pre-test has run — task 83, 2026-08-23 — and it answers both questions: do not buy the
+harder task, and do not promote the criterion.** It cost no trials: the eight `wg-g4c` work trees
+survive under `~/game-research-work/` and were re-driven offline.
 
-**So: the pre-test comes first, and it costs no trials.** Repair the bot to pursue the goal (task
-76), re-drive the eight surviving `wg-g4c` work trees under `~/game-research-work/`, and read
-`stage.completes` as a fraction. It comes out three ways and each is decisive:
+The bot was first repaired until it could actually pursue the goal — cross the pits with a **held**
+jump, stop at swinging range and kill what stands in the way — in four steps, each measured on all
+eight. `stage.completes` remains `False` on all eight; these are the fractions of the goal reached:
 
-| outcome | what it establishes |
-|---|---|
-| still spread, on a bot that can now cross gaps and fight | tier 2 **can** discriminate on a stated goal. No harder task is needed; promote it with a mutant and a variant, and this decision retires |
-| all eight at 1.000 | the goal is genuinely too easy. A harder task is justified, **and the pre-test says by how much the bar must move** |
-| all eight at some low fraction | the bot is still the constraint. Spending on a task would buy nothing |
+| | `godot t0` | `godot t1` | `rust t0` | `rust t1` | `ts t0` | `ts t1` | `unity t0` | `unity t1` |
+|---|---|---|---|---|---|---|---|---|
+| bot as shipped | 0.225 | 0.143 | 0.206 | 0.290 | 0.256 | 0.178 | 0.158 | 0.203 |
+| **bot repaired** | **0.803** | **0.591** | **0.417** | **0.609** | **0.686** | **0.274** | **0.617** | **0.401** |
+
+**Not all eight at 1.000 — none of them reaches it — so the goal is not too easy, and a harder
+task is not justified on this evidence.** The numbers are spread, and the spread is nonetheless
+**not** the discrimination the old first row promised, for two measured reasons:
+
+- **The ordering is not stable under a change to the instrument.** Spearman ρ between the shipped
+  bot's ranking of the eight and the repaired bot's is **0.405**, exact permutation p = 0.163 over
+  all 8! orderings — at n=8 the old ranking carries no demonstrable information about the new one.
+  `godot t0` moves 6th → 8th, `unity t0` 2nd → 6th, `godot t1` 1st → 4th.
+- **8 of 8 runs end having taken exactly `hp0` hits, with no victory.** The run length is set by
+  the health pool, so the scalar is `(health pool × distance travelled per hit taken) ÷ goal_x`.
+  Health pool is 4 or 5, `goal_x` is 2300 to 3500, distance-per-hit is set jointly by enemy spacing
+  and by how badly the bot fights. **Two free design parameters over a third** — the fraction is on
+  a directed axis, but the quantity that terminates the run is not.
+
+> **The three-way pre-test was missing a cell, and it is the cell the measurement landed in: a
+> spread that moves when the instrument does.** *Spread ⇒ the tier can discriminate* is sound only
+> if the spread is a property of the subjects. Ask of any new scalar not merely whether it
+> separates, but whether **improving the instrument reorders it**. That check is free, it runs
+> offline, and here it came out against the hypothesis it was built to support.
+
+Two things the repair does establish, and both are worth keeping:
+
+- **The levels were never the constraint.** Every gap in all eight is crossable by the submission's
+  own physics: measured jump reach with the control **held** is 93.5 to 141.8 units against a
+  widest gap of 110, while a one-tick press reaches 29.0 to 88.4. A variable-height jump is
+  answered by how long the control is held, and the bot had been asking every submission for its
+  shortest possible arc.
+- **`ref_platformer` could not have caught that.** `stage.completes` passes on the reference under
+  the broken bot *and* the repaired one, because the reference is a level the shipped bot clears by
+  construction. `eval/G4-PLATFORMER.md` predicted this in writing — "it says nothing about whether
+  it traverses eight unknown level layouts" — and the numbers now confirm it. A control that shares
+  the assumption it is controlling for (#37).
+
+**To re-open promotion:** the three awkward reference levels the rubric already demands, **and** a
+bot that does not terminate on health exhaustion in 8 of 8. Until then the criterion measures how
+long the instrument survives, not how much stage there is.
 
 **The price of the alternative, read from `eval/RUNS.md` on 2026-08-23.** Judge spend is **$0** —
 tier 2 is deterministic and tier 3 carries no weight — so this is agent trials only:
@@ -368,9 +402,10 @@ tier 2 is deterministic and tier 3 carries no weight — so this is agent trials
 precedent we have, n=1.** Engineering cost — prompt, play-bot, mutants and variants — is on top
 and is unmeasured; nothing in this project counts it.
 
-**What is decided here is the ordering, not the spend:** the free pre-test runs first, because a
-matrix bought before it would be bought on the assumption that a graded criterion discriminates,
-and that assumption is exactly what the pre-test tests.
+**The ordering was the decision, and it paid for itself.** The pre-test ran first because a matrix
+bought before it would have been bought on the assumption that a graded criterion discriminates —
+and that is precisely the assumption the pre-test refuted, for $0 and one afternoon, against a
+$421-to-$698 alternative.
 
 ## Task set and judging protocol
 
@@ -1106,7 +1141,7 @@ settled question is noise that makes the live ones harder to find.
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
-| A harder task is priced, not bought | The **free pre-test coming back spread** — `stage.completes` read as a fraction, after task 76, over the eight surviving `wg-g4c` work trees. Spread there retires the harder-task question outright; all-eight-at-1.000 is what justifies the $421-to-$698 spend, and a low flat fraction says the bot is still the constraint and the money would buy nothing |
+| A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
