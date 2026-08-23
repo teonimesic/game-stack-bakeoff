@@ -173,13 +173,21 @@ So it is measured, reported under `diagnostics`, and excluded from the denominat
 it:** show it passing against at least three deliberately awkward reference levels (a pit, a
 staircase, a ceiling gap), not by argument.
 
-**That paragraph's prediction was tested on 2026-08-23 and it was right, at both ends** (task 83).
-The reference is traversed by construction — `stage.completes` passes on `ref_platformer` under the
-broken bot *and* the repaired one, so it never carried information about traversal. On the eight
-real `wg-g4c` levels the same bot reached 14.3% to 29.0% of the goal and died every time. Repairing
-it — held jumps, standing off to swing — took the fractions to 27.4% to 80.3%, and **none reached
-the goal**: 8 of 8 now end having taken exactly `hp0` hits. `DECISIONS.md` and `judge/RUBRIC.md`
-carry the numbers and what they decided.
+**That paragraph's prediction was tested on 2026-08-23 and it was right, at both ends** (#139,
+task 83). The reference is traversed by construction — `stage.completes` passes on `ref_platformer`
+under the broken bot *and* the repaired one, so it never carried information about traversal. On the
+eight real `wg-g4c` levels the same bot reached 14.3% to 29.0% of the goal and died every time.
+Repairing it — held jumps, standing off to swing — took the fractions to 27.4% to 80.3%, and **none
+reached the goal**: 8 of 8 now end having taken exactly `hp0` hits. `DECISIONS.md` and
+`judge/RUBRIC.md` carry the numbers and what they decided.
+
+**The ceiling this document stated on the bot's traversal belonged to the INPUT, not to the
+levels** (#139). `_walk_toward` pressed `jump` for a single tick and the character is airborne on
+the next, so the guard never re-fired, while all eight submissions implement a variable-height
+jump: a one-tick press reaches 29.0 to 88.4 units, holding the control while still rising reaches
+93.5 to 141.8, and the widest gap in any of the eight levels is 110. **No level was ever
+uncrossable and every one of them stopped the bot** — which is why the criterion's driving
+description above now says *holding the control while still rising*.
 
 ### Two traps this design is deliberately shaped around
 
