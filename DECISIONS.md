@@ -648,6 +648,74 @@ consecutive rows, a sentence repeated in two *different* paragraphs, and two lis
 stem. The corpus traversal is controlled separately from the function: an orphan planted in
 `README.md` and in `eval/findings/documentation.md` takes `--sweep` to exit 1 naming both.
 
+### A half-applied rewrite is caught as a 12-word window repeated inside ONE claim — decided 2026-08-23
+
+The section above catches a stranded *line*. It does not catch the second shape of the same
+damage, and the gap was measured rather than assumed: a rewrite applied to **half of one bullet**
+leaves the old text and the new text side by side inside a single claim, joined at neither a line
+boundary nor a sentence boundary. `DECISIONS.md` at `75dde71` carried `40 of 56 matrix trials at
+the ceiling with *zero* variance, not merely near it (#92)` twice, eight lines apart in one
+bullet, once continuing `. **What to do about it...` and once ` — and became a gate...`. Task 116
+removed it by hand.
+
+**Every gate in the repository was green on the tree that carried it** — `--sweep`, `--findings`,
+`--withdrawn`, `--renumbered`, `linkcheck.py`, `tasks.py check` and `withdrawn_control.py` all
+exit 0 before and after the repair — **and so does the stranded-tail check written for the sibling
+defect**, re-measured at HEAD: 0 hits on the pre-fix blob. The reason is structural. The
+duplicated span starts mid-sentence and ends mid-sentence, so no line of it and no sentence of it
+recurs whole; an exact-match rule over repeated sentences scores 0 on the defect *and* 0 on the
+live corpus. That was the obvious property and it is a complete false negative.
+
+The property shipped instead: **any 12-word window occurring twice inside one paragraph, list
+item or frontmatter key**, with fenced lines, GFM table rows and cross-key frontmatter repeats
+excluded. Repetition is again a closed property of the text; the free parameter is the window,
+and **it was chosen on the live false-positive count, not on which size sounds more general** —
+the census-trigger section above, applied to a number instead of a regex.
+
+| window | hits over 183 reference docs | windows on the real defect |
+|---|---|---|
+| 10 | 1 | 7 |
+| 11 | 0 | 5 |
+| **12** | **0** | **4** |
+| 14 | 0 | 2 |
+| 16 | 0 | 0 — the defect is invisible from here up |
+
+**The single hit at 10 is the shape this check will keep meeting, and it is why the window is not
+smaller:** `DECISIONS.md`'s own headroom blockquote is an *antithesis* — "a stated mechanic gives
+an axis with no direction and every submission at the same point; a free parameter gives an axis
+with no direction and every submission at a different point" — where the repetition carries the
+argument. Correct prose does this. 11 also measures 0 and 12 ships instead, because 11 sits
+directly on that boundary and 12 keeps a word of margin at each end while still clearing the real
+defect by three.
+
+**Scope is live and archive**, for the section above's reason. **The frontmatter rule is one
+block per KEY, not a mask over the header**: `_claim_blocks` sees no blank line in a YAML header
+and returned the whole of `tasks/42` as one window, where `done_when` states a goal and
+`established_by` reports it met — the queue working as designed, and the archive's only hit at 12.
+Masking the header outright also measures 0; per-key ships because it is strictly more coverage
+at the same measured cost, and `established_by` is routinely a paragraph on one line.
+
+**Neither integrity check subsumes the other, and that is why both run.** Each was measured
+against the other's real instance:
+
+| | stranded tail | duplicate fragment |
+|---|---|---|
+| `1f6fb65:eval/FINDINGS.md:6` | 1 hit | **0** |
+| `75dde71:DECISIONS.md:745` | **0** | 4 hits |
+
+The orphan's repeated run is **6 words**, far below any window this side of the false-positive
+floor — the corpus turns red at 10 and this defect would need 6. Merging the two into one
+parameterised rule is the obvious next move and it would lose one instance or the other, so
+`_duplicate_fragment_pins` asserts the top-right cell rather than leaving it as a sentence here.
+If that cell ever moves it is not a defect; it means this section's reason for running two checks
+has to be re-derived.
+
+Pins in `_duplicate_fragment_pins`, run by `--sweep` and printed by `--selftest`; controls and
+mutants in `eval/tools/fragment_control.py`. The red pin is the **real blob**, and its expectation
+— line 745, four windows — is stated in the control rather than computed from the blob by the code
+under test. The eight mutants each flip a row that names them; `one_block` is the one worth
+quoting, because dropping the block scope takes the corpus from 0 hits to **676**.
+
 ### The producer for the findings count is `docstat.py --findings` — decided 2026-08-23
 
 `census.py` counts the stored tree and refuses in an agent worktree, where `eval/runs/` is
