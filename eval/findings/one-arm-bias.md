@@ -1690,3 +1690,72 @@ principle.
 > was added for an unrelated question — did a bigger pack make the judge read more? — and it is
 > the only reason this defect could be bounded at all rather than left as a class-wide suspicion.
 > **Capture what the instrument did, not only what it concluded.**
+
+---
+
+## 90. The pack directory is never cleared, so nine evaluation passes left the judge reading ten percent stale files
+
+Building the six aspect packs for task 23 turned up something nobody was looking for. `idiomatic`
+packs `g4_platformer` at **231** files; `architecture`, the same field with `blind_language=True`,
+packs **216**. Same submissions, same gate, 15 files short.
+
+The proximate cause is a filename collision — `blind_language` rewrites every extension to `.src`,
+so `other/01.py` and `other/01.gd` become the same path and the second overwrites the first. **That
+is a symptom, and chasing it was the mistake to avoid.** Rebuilt from the stored manifests, all
+**68 submissions in six runs collide 0 times**. Rebuilt from what is on disk, 15. Every colliding
+pair turned out to be one live file and one that should not have been there at all.
+
+### The actual defect is one missing line
+
+```python
+dest.mkdir(parents=True, exist_ok=True)   # anonymise.build_pack — and nothing else
+```
+
+No `rmtree`. Every re-evaluation of a run writes a fresh pack **on top of** the previous one.
+Labels are `{bucket}/{NN}{ext}` with `NN` unique within a bucket, so the numbering is stable only
+while the file *set* is — and the moment an exclusion changes, the new pass renumbers, and the old
+pass's files survive under labels the new manifest never lists.
+
+`wg-g4c-2026-08-21` has `evaluate.log` through `evaluate9.log`. It is the run that straddles both
+the #69 cap removal and the #83 leak repair, so its file set changed twice.
+
+| | |
+|---|---|
+| files on disk | 222 |
+| files the manifest lists | 199 |
+| **stale** | **23 (10.4%)** |
+| byte-identical to a live file | 12 |
+| content no manifest lists | 11 |
+
+**Stack-correlated, as every instance of this shape has been:** unity 10, godot 8, ts 3, rust 2.
+
+### It is bounded, and the bound is the mechanism's own prediction
+
+Checked across every run with a stored manifest — 68 submissions, 6 runs — **`wg-g4c` is the only
+affected one**. That is what the mechanism predicts: it is the only run re-evaluated after its
+file set changed. A defect whose measured scope matches its mechanism's prediction is one you can
+stop worrying about elsewhere.
+
+### Three consequences, and the third is the one worth keeping
+
+1. **The audit trail under-reports by ten percent.** The manifest is the record of what the judge
+   was shown, and on this field it is wrong.
+2. **Any cross-stack `idiomatic` or `architecture` ordering on `wg-g4c` is confounded**, because
+   the amount of each submission the judge saw varies by stack. #62's shape, third mechanism, and
+   `pack_completeness` cannot see it — it reads `files_dropped_for_length`, which is 0.
+3. **A repair was defeated by state the repair could not reach.** The eleven unlisted files include
+   the `.codex` hook scripts of #83. That fix removed them from what `anonymise` *writes*; it could
+   not remove them from what was already written. Blinding survives here only because a *different*
+   mechanism catches it — `neutralise()` reduces the leaking path to `/WORKTREE` at
+   `field.build_pack` time, verified by grep on the built pack — so the repair looks effective and
+   is not the thing working.
+
+> **A fix that changes what a process WRITES does not change what is already on disk, and a
+> destination that is never cleared makes the difference invisible.** Every guard in this project
+> reads either the process (rule 2) or the manifest; none reads the artifact directory as a set
+> and compares it with what was supposed to be in it. Set equality against the manifest is one
+> line and it would have fired here on the first re-evaluation.
+
+**It does not touch the reliability numbers it was found during.** The pack is byte-identical
+across repeats of one round, so it adds no variance to any SD in `wg-aspect-reliability`. It is
+orderings that are affected, and this task makes none. Filed as task 27.

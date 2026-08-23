@@ -494,9 +494,42 @@ again the worst affected** — the stack-correlated deficit of #62, reproduced o
 Verified to fire selectively rather than trusted from the numbers: `build_pack(sees="code")`
 raises; `build_pack(sees="frames")` builds.
 
-> **`idiomatic` and `architecture` must not be graded on this field.** Any cross-stack ordering
-> from them would be confounded by how much of each submission the judge was shown. `fun`,
-> `fun_frames`, `ux` and `audio` do not read code and are not blocked.
+**LIFTED on 2026-08-22 by #69's removal of the character budget, and re-measured on
+2026-08-23 before any money was spent on this field:**
+
+```
+complete: True    any_dropped: 0 of 8    max_dropped: 0    spread: 0
+```
+
+`build_pack(sees="code")` now returns 231 files for `idiomatic` and the gate does not raise, so
+**`idiomatic` and `architecture` may be graded on this field.** The refusal above described the
+cap, not the field; when the cap went, so did the reason. Kept rather than deleted because the
+sentence *"must not be graded on this field"* was load-bearing for two days and a reader who
+remembers it needs to see it retired, not silently vanish.
+
+⚠️ **This field's code packs carry 23 stale files the gate cannot see — 10.4%, stack-correlated.**
+`anonymise.build_pack` never clears its destination, and this run was evaluated **nine times**
+across both the #69 cap removal and the #83 leak repair, so each pass wrote on top of the last:
+
+```
+on disk 222 | manifest 199 | stale 23      unity 10 | godot 8 | ts 3 | rust 2
+```
+
+Twelve of the 23 are byte-identical to a live file, so the judge sees the same code twice under
+two names; eleven carry content no manifest lists. Checked across all six runs with stored
+manifests, **68 submissions — `wg-g4c` is the only affected one**, which is consistent with the
+mechanism (it is the only run re-evaluated after its file set changed).
+
+Blinding is **not** compromised: the eleven unlisted files include the `.codex` hooks of #83, but
+`neutralise()` reduces their path to `/WORKTREE` when `field.build_pack` writes the pack, verified
+by grep on the built pack. The `.src` collisions this was first noticed through are a *symptom* —
+rebuilt from the manifests all 68 submissions collide 0 times, rebuilt from disk 15.
+
+**It does not affect the reliability numbers in `wg-aspect-reliability`** — the pack is byte-identical
+across repeats, so it adds no variance. **It does confound any cross-stack `idiomatic` or
+`architecture` ORDERING on this field**, because it changes how much of each submission the judge
+was shown, unequally, by stack. That is #62's shape through a third mechanism. Filed as task 27;
+recorded as FINDINGS #90.
 
 ## `wg-g4b-2026-08-17` — A NULL. Killed by an external quota limit, 8/8 `api_error`
 

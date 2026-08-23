@@ -1,7 +1,7 @@
 ---
 id: 23
 title: Measure every aspect's reliability with separation(), not just fun_frames
-status: open
+status: in_flight
 priority: 1
 refs: eval/FINDINGS.md #75 #68, eval/judge/field.py separation()
 done_when: each of the six aspects has a pooled SD and a resolved-pair count from repeats on a named field, OR is reported as unmeasured with the reason; and the aspects that cannot resolve any pair at achievable n are named as such

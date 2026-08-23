@@ -164,6 +164,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **87** | A directory's size is not the size of the thing you are protecting | [limits-and-cost](findings/limits-and-cost.md) |
 | **88** | #84's two other candidates were measured and both are clean | [certifies-nothing](findings/certifies-nothing.md) |
 | **89** | `knockback.applied` scored a deliberate design branch as an absent feature | [certifies-nothing](findings/certifies-nothing.md) |
+| **90** | The judge pack directory is never cleared, so nine evaluation passes left ten percent stale files | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 
