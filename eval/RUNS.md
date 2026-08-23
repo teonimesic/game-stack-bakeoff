@@ -841,6 +841,16 @@ answer key, and the 23 files are kept verbatim under
 A fresh grep of the re-packed code for the trial-id and `game-research-work` patterns returns 0
 hits in all eight submissions.
 
+> **"Clean" there means TRIAL-ID clean, and it is not the same as language-blind (#130).** The
+> re-packed `wg-g4c` code still carried its stacks' toolchain names — `CARGO_MANIFEST_DIR`,
+> `crates/sim`, `clippy.toml`, `WinitPlugin` — because `neutralise` matched a list of spellings
+> and none of those spellings were on it. **All 8 of this field's packs carried at least one, and
+> the two Rust submissions carried 13 and 10 leaking files against 2-3 for the other six.** That
+> is the one field `architecture` is judged on with `blind_language=True`, so it bears directly
+> on the ordering below. `neutralise` was repaired on 2026-08-23 and a re-sweep of all 84 stored
+> packs now reports 0; **the stored packs are NOT repaired**, and every `architecture` round
+> already run therefore read a language-identifiable field.
+
 **The exclusion set was computed, not guessed, and it was not empty.** Re-packing an old run
 against today's starter reclassifies template code as authored work (#77), so the drift was
 recovered as *(origins in a pack rebuilt against the recorded starter) minus (origins in the
@@ -868,6 +878,14 @@ and refuses rather than guessing when the corroboration is unavailable.
 > may be read from them**, and re-packing cannot retroactively repair a round. A code ordering
 > from this field requires a *new* round. `fun`, `fun_frames`, `ux` and `audio` never read
 > `judge_pack/code` and are unaffected either way.
+
+> **⚠️ AN `architecture` ORDERING FROM THIS FIELD IS NOT LANGUAGE-BLIND (#130).** All 8 packs
+> carried their stack's toolchain names, one-armed: 13 and 10 leaking files in the two Rust
+> submissions against 2-3 in the other six. Every one of the 9 stored `architecture` rounds that
+> left a file-open log opened at least one, in the Rust submissions specifically. `neutralise` is
+> repaired and a re-sweep of all 84 stored packs reports 0, so **a round run from now on is
+> blind; no round already stored is.** `idiomatic` is unaffected — it is not blinded to language
+> by design.
 
 **A code-aspect ordering is now available on this field, from a new round.** Before the re-pack
 the `architecture` pack held 215 files against `idiomatic`'s 230, because stale copies collided

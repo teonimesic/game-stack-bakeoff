@@ -193,8 +193,8 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#130, including retractions. **Read this before trusting any number anywhere.** |
-| `eval/FINDINGS.md` | Findings #19-#130, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#131, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#131, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 

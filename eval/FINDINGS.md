@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#130 from building and running this evaluator. **Check whether a
+Findings #19-#131 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -207,6 +207,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **128** | Tier 2 saturates because the task is finished, not because the criteria are too few: 5 of 10 groups return one value, every selective failure in the corpus is from the first matrix, and four harder criteria built from the task's own unchecked requirements passed 8 of 8 | [certifies-nothing](findings/certifies-nothing.md) |
 | **129** | Rule 11's first implementation found a one-arm starter defect in its first pass that a hand pass over the same corpus had missed | [one-arm-bias](findings/one-arm-bias.md) |
 | **130** | A hook that passes and a hook that never ran leave the same artifact, and the guard had been verified from file presence | [certifies-nothing](findings/certifies-nothing.md) |
+| **131** | The anonymiser's stack vocabulary was a list of SPELLINGS, so the Rust arm shipped `CARGO_MANIFEST_DIR`, `crates/sim` and `clippy.toml` into 22 of 84 blind packs — and 9 of 9 architecture rounds with a file-open log opened one | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 
