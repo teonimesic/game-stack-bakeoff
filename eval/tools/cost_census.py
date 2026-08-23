@@ -534,29 +534,37 @@ def _permutation_test(cols: list[list[float]], obs_leader: float,
     attainable_min = sum(min(col) for col in cols)
     leader_idx = min(range(k), key=lambda j: sum(col[j] for col in cols))
 
-    def relabel(perm, col: list[float]) -> tuple[float, ...]:
-        """One cluster's column sums under one relabelling: column j goes to stack p[j]."""
-        v = [0.0] * k
-        for j in range(k):
-            v[perm[j]] += col[j]
-        return tuple(v)
-
-    perms = list(itertools.permutations(range(k)))
-    per_cluster = [[relabel(p, col) for p in perms] for col in cols]
-
+    # WALK THE ASSIGNMENTS; DO NOT MATERIALISE THEM. `EXACT_ASSIGNMENT_LIMIT` budgets
+    # `(k!)**m` — a count of assignments, which is a TIME cost — while building a table of
+    # relabelled vectors costs `k! * m` of them, which is a MEMORY cost. The two decouple:
+    # 9 stacks over 1 cluster is 362,880 assignments, comfortably ACCEPTED by the limit,
+    # and materialising it measures ~97 MB. A second limit would just be a second thing to
+    # get wrong, so the enumeration descends the clusters instead, drawing each
+    # permutation from a lazy generator and carrying the running vector down with it.
+    # Memory is O(k * m) at any k, and the partial sums are shared by the whole subtree
+    # below them rather than recomputed per assignment.
     n_named = n_any = n_floor = 0
-    for combo in itertools.product(*per_cluster):
-        v = [0.0] * k
-        for c in combo:
+    last = len(cols) - 1
+
+    def walk(depth: int, running: list[float]) -> None:
+        nonlocal n_named, n_any, n_floor
+        col = cols[depth]
+        for perm in itertools.permutations(range(k)):
+            v = running.copy()
             for j in range(k):
-                v[j] += c[j]
-        if v[leader_idx] <= obs_leader:
-            n_named += 1
-        smallest = min(v)
-        if smallest <= obs_leader:
-            n_any += 1
-        if smallest <= attainable_min:
-            n_floor += 1
+                v[perm[j]] += col[j]
+            if depth < last:
+                walk(depth + 1, v)
+                continue
+            if v[leader_idx] <= obs_leader:
+                n_named += 1
+            smallest = min(v)
+            if smallest <= obs_leader:
+                n_any += 1
+            if smallest <= attainable_min:
+                n_floor += 1
+
+    walk(0, [0.0] * k)
 
     # These p-values can never be 0, and that is a property of the test rather than of the
     # data: the unpermuted assignment is one of the `total` and always satisfies its own
@@ -1687,6 +1695,21 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                 f"refusing a {9}-stack, {len(big_cols)}-cluster design cost "
                 f"{peak_mb:.0f} MB in a fresh process: it enumerated before checking the "
                 f"limit (refusing first measures well under {CHILD_RSS_CEILING_MB} MB)")
+
+        # ---- AND THE ACCEPTED DESIGN NEXT TO IT, which is the case the refusal does NOT
+        # cover. The limit budgets `(k!)**m` — assignments, a TIME cost — while a table of
+        # relabelled vectors costs `k! * m` of them, a MEMORY cost, and the two decouple at
+        # high k with low m. 9 stacks over ONE cluster is 362,880 assignments, comfortably
+        # ACCEPTED, and materialising it measures 199 MB against 0 for the streaming walk.
+        # No limit catches that, because the limit is not the quantity that grew.
+        accepted, accepted_mb = _refusal_in_child([[float(j) for j in range(9)]], 9)
+        check("a 9-stack, 1-cluster design is accepted, not refused",
+              accepted, "no exception")
+        if accepted_mb is not None and accepted_mb > CHILD_RSS_CEILING_MB:
+            failures.append(
+                f"enumerating an accepted 9-stack, 1-cluster design cost {accepted_mb:.0f} "
+                f"MB in a fresh process: it materialised the assignments instead of "
+                f"walking them (streaming measures well under {CHILD_RSS_CEILING_MB} MB)")
 
         # A p of exactly 0 is a value this test cannot produce: the unpermuted assignment
         # is one of the `total` and always satisfies its own condition. A 0 would mean the

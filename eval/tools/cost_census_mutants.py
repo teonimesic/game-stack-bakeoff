@@ -61,6 +61,7 @@ the worst quantity here to get silently wrong: every mutant below returns a numb
 | `margin_where_it_lost` | measuring the margin only where the leader leads | the gap in a group the leader **lost** counted as evidence for it |
 | `no_groups_guard` | the refusal on an empty population | a p-value over no groups. It is caught by the *message*: a second guard also refuses here, so a type-only check passes while the reader is told the wrong thing |
 | `stack_set_guard` | the one-stack-set refusal | labels permuted across groups holding different stacks, which is undefined |
+| `materialise_the_assignments` | walking the assignments instead of building a table of them | ~199 MB on a design the limit **accepts**. `EXACT_ASSIGNMENT_LIMIT` budgets `(k!)**m` — assignments, a TIME cost — while a table costs `k! * m` vectors, a MEMORY cost, and the two decouple at high k with low m. No limit catches it, because the limit is not the quantity that grew |
 | `limit_checked_after_allocation` | refusing an over-limit design **before** enumerating | the same refusal, raised after `k!` vectors per cluster have been built — 725,760 tuples and hundreds of megabytes spent on the way to saying no. Both structures raise the same error, so only a pin on the RESOURCE can see it, and only in a **child** process: `ru_maxrss` is a process-lifetime high-water mark (rule 13) |
 | `render_drops_the_fragility_line` | the design-floor line from the REPORT | the producer is right and the report is silent about the one line that decides the adjudication. Every other pin here reads the result dict; this reads what a person sees |
 | `drop_ordering_field` | an ordering field the selftest reads, renamed | `drop_field` one level down |
@@ -202,11 +203,11 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '    for key in ("run", "game"):',
         '    for key in ("run",):'),
     "p_any_is_p_named": (
-        "        if smallest <= obs_leader:\n            n_any += 1",
-        "        if v[leader_idx] <= obs_leader:\n            n_any += 1"),
+        "            if smallest <= obs_leader:\n                n_any += 1",
+        "            if v[leader_idx] <= obs_leader:\n                n_any += 1"),
     "p_excludes_the_observed": (
-        "        if v[leader_idx] <= obs_leader:\n            n_named += 1",
-        "        if v[leader_idx] < obs_leader:\n            n_named += 1"),
+        "            if v[leader_idx] <= obs_leader:\n                n_named += 1",
+        "            if v[leader_idx] < obs_leader:\n                n_named += 1"),
     "attainable_min_is_one_cluster": (
         "    attainable_min = sum(min(col) for col in cols)",
         "    attainable_min = min(min(col) for col in cols)"),
@@ -231,6 +232,11 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "stack_set_guard": (
         "    if len(stack_sets) != 1:\n        raise CostCensusError(",
         "    if False:\n        raise CostCensusError("),
+    "materialise_the_assignments": (
+        "    def walk(depth: int, running: list[float]) -> None:",
+        "    _table = [[tuple(col[q[j]] for j in range(k)) for q in\n"
+        "               itertools.permutations(range(k))] for col in cols]\n\n"
+        "    def walk(depth: int, running: list[float]) -> None:"),
     "limit_checked_after_allocation": (
         "    total = math.factorial(k) ** len(cols)\n"
         "    if total > EXACT_ASSIGNMENT_LIMIT:",

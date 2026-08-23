@@ -2084,9 +2084,9 @@ against its floor"*, which was the half that reached the null.
 `python3 eval/tools/cost_census.py --ordering` is the producer. **No reading of the stored
 records settles the ordering**, and the reason is structural rather than marginal.
 
-**The statistic** is a permutation test on the usage ranks — exact here, all 331,776 assignments
-enumerated rather than sampled — with the **stack labels**
-permuted *within a cluster* and held constant across every group in that cluster. The null is that
+**The statistic** is an exact permutation test on the usage ranks, all 331,776 assignments
+enumerated, with the **stack labels** permuted *within a cluster* and held constant across every
+group in that cluster. The null is that
 which stack got which of a group's four cells is arbitrary; rejecting it is the only sense in which
 "the stacks are ordered" is a claim rather than a reading of a table. The leading stack was chosen
 **post hoc**, because it looked lowest, so the statistic is *the smallest rank sum any of the four
