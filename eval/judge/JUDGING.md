@@ -326,130 +326,143 @@ between a blank field and eight confident scores.
 
 In order. Do not skip to results.
 
-0. **Reproducibility — run this before believing any of the others.** Judge the same field
-   in the SAME presentation order twice and compare. `field.reproducibility()`.
+### Gate 0. Reproducibility — run this before believing any of the others
 
-   It was added on 2026-08-17 after an accidental control showed the layer does not agree
-   with itself. `audio` reads only `audio.json`, which neither the telemetry repair nor
-   `blind_language` touched, so two sweeps judged a byte-identical pack with a
-   verified-identical label->submission mapping:
+Judge the same field in the SAME presentation order twice and compare.
+`field.reproducibility()`.
 
-   | aspect | seed | scores changed | modal fraction | ceiling verdict |
-   |---|---|---|---|---|
-   | `audio` (evidence UNCHANGED) | 0 | 2 / 8 | 0.625 -> 0.625 | stable |
-   | `audio` (evidence UNCHANGED) | 1 | **4 / 8** | **0.750 -> 0.375** | **CEILING -> separates** |
-   | `architecture` | 0 | 3 / 8 | 0.625 -> 0.500 | stable |
-   | `architecture` | 1 | 3 / 8 | **0.875 -> 0.500** | **CEILING -> separates** |
+It was added on 2026-08-17 after an accidental control showed the layer does not agree
+with itself. `audio` reads only `audio.json`, which neither the telemetry repair nor
+`blind_language` touched, so two sweeps judged a byte-identical pack with a
+verified-identical label->submission mapping:
 
-   `audio`'s order-invariance tau moved **0.75 -> 0.333** on nothing at all — a pass turning
-   into a failure against the pre-registered floor.
+| aspect | seed | scores changed | modal fraction | ceiling verdict |
+|---|---|---|---|---|
+| `audio` (evidence UNCHANGED) | 0 | 2 / 8 | 0.625 -> 0.625 | stable |
+| `audio` (evidence UNCHANGED) | 1 | **4 / 8** | **0.750 -> 0.375** | **CEILING -> separates** |
+| `architecture` | 0 | 3 / 8 | 0.625 -> 0.500 | stable |
+| `architecture` | 1 | 3 / 8 | **0.875 -> 0.500** | **CEILING -> separates** |
 
-   > **A single-run gate verdict is a sample, not a measurement.** Two of four comparisons
-   > flipped their ceiling verdict with the evidence held constant, so every gate result in
-   > this document that rests on one run per (aspect, seed) rests on n=1.
+`audio`'s order-invariance tau moved **0.75 -> 0.333** on nothing at all — a pass turning
+into a failure against the pre-registered floor.
 
-   **Open, and it matters for what to spend next on:** both flips are on seed 1 and both go
-   the same way. That is consistent with per-call noise and equally consistent with a drift
-   between the two sweeps, and four comparisons cannot separate them. Measuring it properly
-   means repeats at a fixed seed — cheap for `audio` ($0.60/call), `ux` and `fun`, expensive
-   for the two code aspects ($6.50-$8.00).
+> **A single-run gate verdict is a sample, not a measurement.** Two of four comparisons
+> flipped their ceiling verdict with the evidence held constant, so every gate result in
+> this document that rests on one run per (aspect, seed) rests on n=1.
 
+**Open, and it matters for what to spend next on:** both flips are on seed 1 and both go
+the same way. That is consistent with per-call noise and equally consistent with a drift
+between the two sweeps, and four comparisons cannot separate them. Measuring it properly
+means repeats at a fixed seed — cheap for `audio` ($0.60/call), `ux` and `fun`, expensive
+for the two code aspects ($6.50-$8.00).
 
-1. **Ceiling test.** No judge may give effectively the same score to everything. Run over the
-   stored submissions first — free, no rebuilds. A judge that cannot separate the field has wrong
-   criteria, and no amount of running it will fix that.
+### Gate 1. Ceiling test
 
-   **The gate watches the mode, not the maximum.** The falsifier was originally written as ">70%
-   sit at the top score", which misses the symmetric failure: a judge putting seven of eight at the
-   *bottom* has separated the field exactly as poorly while reporting a reassuring
-   `at_max_fraction` of 0.125. A ceiling at the floor is still a ceiling — the same error as
-   validating a judge on a fixture that scored 0/13 and calling the agreement evidence. `ceiling()`
-   now reports `modal_fraction` and fails above 0.7 at **any** score. Tightened 2026-08-14, before
-   any specialist judge had been run, so no data influenced it.
-2. **Independence.** Correlate specialists against each other. **Hold the presentation
-   order fixed across aspects when you do** — correlate seed *k* of one aspect against seed
-   *k* of another. `independence()` keys by (game, aspect) and takes the LAST result for
-   each, so passing several orders per aspect silently correlates one aspect's seed 1
-   against another's seed 0 and mixes aspect disagreement with presentation noise, inside
-   the one gate whose job is to tell those apart. Measured on the first real sweep:
-   `_basis_order_seed` was `{"architecture": 1, "idiomatic": 0}`. It now reports
-   `_basis_order_seed` and `_orders_collapsed` so the basis is visible in the output rather
-   than inferred from the call site. **If `fun`, `ux` and `idiomatic`
-   produce the same ranking, there are not five judges — there is one judge with five names.** This
-   is the gate most likely to fail, and measuring it is the point of splitting the aspects at all.
-   `field.independence()` reports Kendall tau **per pair of aspects**, and flags every pair at
-   tau >= 0.8 by name. It also reports how many pairs were actually **comparable**: these judges
-   score 0–4 over 8 submissions, so ties are common, and a tau computed over three comparable pairs
-   must not be read like one computed over twenty-eight. Below six comparable pairs the tau is
-   labelled arithmetic rather than evidence, and an aspect that gave the whole field one score
-   makes every correlation against it undefined — which is reported as a **ceiling failure to fix
-   first**, never as "these aspects are independent". Reading a judge that measured nothing as good
-   news is how three artifacts in this project were mistaken for results. It deliberately does not aggregate: a set holding one redundant pair and one
-   opposed pair has a low average and is still not independent, and hiding that inside a mean is
-   the same mistake as averaging a criterion that is sound on three stacks and broken on the
-   fourth.
-3. **Order-invariance.** Reshuffle presentation order and re-run. A ranking that moves is a
-   presentation artifact. This replaces the old `instability` metric, which only measured
-   within-artifact order sensitivity and read 0.000 on 22 of 24 — consistent and uninformative.
+No judge may give effectively the same score to everything. Run over the stored submissions
+first — free, no rebuilds. A judge that cannot separate the field has wrong criteria, and no
+amount of running it will fix that.
 
-   **The metric itself was repaired on 2026-08-16, before its first real reading was
-   reported.** `order_invariance()` converted scores to ranks by sorting, which hands every
-   *tied* submission an arbitrary distinct rank and then correlates those invented orderings.
-   On the first real field 21 of 28 pairs were tied, so most of what it was measuring did not
-   exist. `independence()` had already been fixed for exactly this and carries a comment
-   explaining why; nobody asked whether the same defect lived in its sibling. It now shares
-   `_tau` and reports `comparable_pairs`.
+**The gate watches the mode, not the maximum.** The falsifier was originally written as ">70%
+sit at the top score", which misses the symmetric failure: a judge putting seven of eight at the
+*bottom* has separated the field exactly as poorly while reporting a reassuring
+`at_max_fraction` of 0.125. A ceiling at the floor is still a ceiling — the same error as
+validating a judge on a fixture that scored 0/13 and calling the agreement evidence. `ceiling()`
+now reports `modal_fraction` and fails above 0.7 at **any** score. Tightened 2026-08-14, before
+any specialist judge had been run, so no data influenced it.
 
-   Pinned in both directions: a field compared with **itself** returns `kendall_tau: 1.0`, so
-   the metric is not merely returning small numbers.
-4. **Adjudication.** Spot-check firings against the underlying evidence, the way play-bot failures
-   were adjudicated.
+### Gate 2. Independence
 
-   **On an anonymised pack, a path check measures PATH RECONSTRUCTION, not claim validity.**
-   Measured 2026-08-16 on the first real `architecture` field: 11 of 16 claims cite a path that
-   exists nowhere in the pack. Spot-checked in depth, one of them reads *"a direct `match kind
-   { PieceKind::I => ... }` over the enum in `game/src/lib.rs:75-85` with no wildcard arm"* —
-   and the pack contains exactly that construct at **`view/03.rs:76-77`**. Right substance,
-   near-right line range, **invented filename**: the judge reconstructed a plausible original
-   Rust path for the anonymised one it actually read.
+Correlate specialists against each other. **Hold the presentation order fixed across aspects
+when you do** — correlate seed *k* of one aspect against seed *k* of another. `independence()`
+keys by (game, aspect) and takes the LAST result for each, so passing several orders per aspect
+silently correlates one aspect's seed 1 against another's seed 0 and mixes aspect disagreement
+with presentation noise, inside the one gate whose job is to tell those apart. Measured on the
+first real sweep: `_basis_order_seed` was `{"architecture": 1, "idiomatic": 0}`. It now reports
+`_basis_order_seed` and `_orders_collapsed` so the basis is visible in the output rather than
+inferred from the call site. **If `fun`, `ux` and `idiomatic` produce the same ranking, there
+are not five judges — there is one judge with five names.** This is the gate most likely to
+fail, and measuring it is the point of splitting the aspects at all. `field.independence()`
+reports Kendall tau **per pair of aspects**, and flags every pair at tau >= 0.8 by name. It
+also reports how many pairs were actually **comparable**: these judges score 0–4 over 8
+submissions, so ties are common, and a tau computed over three comparable pairs must not be
+read like one computed over twenty-eight. Below six comparable pairs the tau is labelled
+arithmetic rather than evidence, and an aspect that gave the whole field one score makes every
+correlation against it undefined — which is reported as a **ceiling failure to fix first**,
+never as "these aspects are independent". Reading a judge that measured nothing as good news is
+how three artifacts in this project were mistaken for results. It deliberately does not
+aggregate: a set holding one redundant pair and one opposed pair has a low average and is still
+not independent, and hiding that inside a mean is the same mistake as averaging a criterion
+that is sound on three stacks and broken on the fourth.
 
-   A second population was being miscounted outright. `anonymise.py` renames files but leaves
-   the filenames the *authors* wrote inside them, so `sim/04.gd` contains the string
-   `sim/sim.gd` in a doc comment and a judge citing it is quoting something it really read.
-   The first run of this gate reported **15 of 16 claims citing a missing path**; splitting the
-   two populations gives **9 traceable to pack text** and **11 found nowhere**. The single
-   number overstated the flag by about half, and it is the exact population the old rubric's
-   entire measured signal turned out to live in — so an inflated count here is a number
-   someone acts on.
+### Gate 3. Order-invariance
 
-   `adjudicate.py` now reports the two separately. **Read the flag as "the citation cannot be
-   followed", never as "the claim is false"** — 15 of 23 quoted code tokens (65%) do locate
-   verbatim in the pack.
+Reshuffle presentation order and re-run. A ranking that moves is a presentation artifact. This
+replaces the old `instability` metric, which only measured within-artifact order sensitivity
+and read 0.000 on 22 of 24 — consistent and uninformative.
 
-   **Over the full five-aspect field the flag needed four separate repairs**, each of which had
-   been inflating it: resolving every aspect against the code pack (so `ux` citing
-   `frame_0000.png` was flagged), `PATH_RE` matching `js` inside `json`, and pack artifacts
-   (`telemetry.json`, `audio.json`) living in a temp directory that is deleted before anyone
-   adjudicates. Headline across the fixes: **54 -> 31 -> 15 of 80**. What survives is clean:
+**The metric itself was repaired on 2026-08-16, before its first real reading was
+reported.** `order_invariance()` converted scores to ranks by sorting, which hands every
+*tied* submission an arbitrary distinct rank and then correlates those invented orderings.
+On the first real field 21 of 28 pairs were tied, so most of what it was measuring did not
+exist. `independence()` had already been fixed for exactly this and carries a comment
+explaining why; nobody asked whether the same defect lived in its sibling. It now shares
+`_tau` and reports `comparable_pairs`.
 
-   | aspect | reads | cites a name found nowhere |
-   |---|---|---|
-   | `architecture` | code | **11 of 16** |
-   | `idiomatic` | code | 4 of 16 (all naming `three.js`, a library) |
-   | `audio`, `fun`, `ux` | audio / frames | **0 of 16 each** |
+Pinned in both directions: a field compared with **itself** returns `kendall_tau: 1.0`, so
+the metric is not merely returning small numbers.
 
-   Only the two aspects that read **anonymised filenames** invent citations. A judge shown
-   `frame_0000.png` cites it correctly; one shown `sim/04.gd` cites `sim/sim.gd`, because that
-   is what the file calls itself inside. Consistency is not correctness: the project-lock defect was perfectly
-   consistent for three games. `adjudicate.py` does the mechanical half — it resolves every path a
-   judge cited back to the real submission and flags two kinds of claim that could never have been
-   checked by anyone: evidence naming a file the submission does not contain, and evidence with no
-   path and no number in it at all. Note that `anonymise.py` renames files to `sim/01.gd`,
-   `view/02.ts` and so on, so a judge cites **pack** paths; the adjudicator resolves against the
-   pack, which is what the judge actually read. Neither flag proves a claim wrong. They remove the
-   claims nobody could have verified — the population the old rubric's entire measured signal
-   turned out to belong to.
-5. **Blinding.** Unchanged. `verify_blind.py`, unpiped, after any starter or fixture change.
+### Gate 4. Adjudication
+
+Spot-check firings against the underlying evidence, the way play-bot failures were adjudicated.
+
+**On an anonymised pack, a path check measures PATH RECONSTRUCTION, not claim validity.**
+Measured 2026-08-16 on the first real `architecture` field: 11 of 16 claims cite a path that
+exists nowhere in the pack. Spot-checked in depth, one of them reads *"a direct `match kind
+{ PieceKind::I => ... }` over the enum in `game/src/lib.rs:75-85` with no wildcard arm"* —
+and the pack contains exactly that construct at **`view/03.rs:76-77`**. Right substance,
+near-right line range, **invented filename**: the judge reconstructed a plausible original
+Rust path for the anonymised one it actually read.
+
+A second population was being miscounted outright. `anonymise.py` renames files but leaves
+the filenames the *authors* wrote inside them, so `sim/04.gd` contains the string
+`sim/sim.gd` in a doc comment and a judge citing it is quoting something it really read.
+The first run of this gate reported **15 of 16 claims citing a missing path**; splitting the
+two populations gives **9 traceable to pack text** and **11 found nowhere**. The single
+number overstated the flag by about half, and it is the exact population the old rubric's
+entire measured signal turned out to live in — so an inflated count here is a number
+someone acts on.
+
+`adjudicate.py` now reports the two separately. **Read the flag as "the citation cannot be
+followed", never as "the claim is false"** — 15 of 23 quoted code tokens (65%) do locate
+verbatim in the pack.
+
+**Over the full five-aspect field the flag needed four separate repairs**, each of which had
+been inflating it: resolving every aspect against the code pack (so `ux` citing
+`frame_0000.png` was flagged), `PATH_RE` matching `js` inside `json`, and pack artifacts
+(`telemetry.json`, `audio.json`) living in a temp directory that is deleted before anyone
+adjudicates. Headline across the fixes: **54 -> 31 -> 15 of 80**. What survives is clean:
+
+| aspect | reads | cites a name found nowhere |
+|---|---|---|
+| `architecture` | code | **11 of 16** |
+| `idiomatic` | code | 4 of 16 (all naming `three.js`, a library) |
+| `audio`, `fun`, `ux` | audio / frames | **0 of 16 each** |
+
+Only the two aspects that read **anonymised filenames** invent citations. A judge shown
+`frame_0000.png` cites it correctly; one shown `sim/04.gd` cites `sim/sim.gd`, because that
+is what the file calls itself inside. Consistency is not correctness: the project-lock defect was perfectly
+consistent for three games. `adjudicate.py` does the mechanical half — it resolves every path a
+judge cited back to the real submission and flags two kinds of claim that could never have been
+checked by anyone: evidence naming a file the submission does not contain, and evidence with no
+path and no number in it at all. Note that `anonymise.py` renames files to `sim/01.gd`,
+`view/02.ts` and so on, so a judge cites **pack** paths; the adjudicator resolves against the
+pack, which is what the judge actually read. Neither flag proves a claim wrong. They remove the
+claims nobody could have verified — the population the old rubric's entire measured signal
+turned out to belong to.
+
+### Gate 5. Blinding
+
+Unchanged. `verify_blind.py`, unpiped, after any starter or fixture change.
 
 ## First run on real submissions — 2026-08-16
 
