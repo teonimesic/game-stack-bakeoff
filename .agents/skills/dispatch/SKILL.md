@@ -129,6 +129,25 @@ git pull                        # bring the merge commit back into the local che
 python3 eval/tools/tasks.py done <id> "what you verified, and how"
 ```
 
+> **When you do merge locally — a conflict the PR cannot resolve, or a branch never pushed —
+> `git merge --no-ff -m "<placeholder>"` AUTO-COMMITS if there is no conflict.** A message written
+> afterwards then has nothing to apply to: `git commit -F` prints *"nothing to commit, working
+> tree clean"* and exits **0**, which reads exactly like success. Five merges on 2026-08-23 landed
+> carrying only a placeholder; three had the real message land as a separate follow-up commit and
+> **two lost it entirely**.
+>
+> The habit works only on the CONFLICTED merges, because those are the ones that leave something
+> to commit — **so the message is correct exactly when the merge was hard, and missing when it was
+> easy**, which is the least likely pattern to notice.
+>
+> `git commit --amend` has the sibling trap: **without `-a` it amends the message and the STAGED
+> changes only.** Amending to fix a message while edits sit unstaged leaves the message on one
+> commit and its content on the next. That happened in the repair of this very paragraph.
+>
+> Write the message first and pass it — `git merge --no-ff -F <file>` — and read
+> `git log --oneline -1` and `git show --stat HEAD` afterwards. Neither command fails when it
+> does nothing.
+
 Three orderings in those six lines, and each one was paid for:
 
 - **The queue commit first**, because agents write status into the **main** checkout and an

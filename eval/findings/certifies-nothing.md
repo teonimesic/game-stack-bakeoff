@@ -4581,3 +4581,60 @@ them:
 And the timing bound was set from **three** points across two pull requests rather than one, which
 moved it: reviews scale with the diff, so a bound sized on the smallest observed diff would have
 been 6× too tight rather than the 2.4× margin it now carries.
+
+---
+
+## 152. The ticket specified the trigger, and the trigger it specified was green on the only instance of the defect it was written for
+
+A stranded edit tail sat in `eval/FINDINGS.md` — a fragment left behind when a sentence above it
+was rewritten. The ticket asking for a gate named the trigger itself: *an unfenced line that is a
+strict suffix of the sentence ending on the line above.*
+
+That is a precise, closed, testable property. It is also **green on the only instance of this
+defect the project has ever seen.**
+
+Read from the blob rather than from memory:
+
+    line 6:  number has been retracted before trusting it.**
+    line 5:  ...enforces it over the live documents.
+
+The fragment is a suffix of the sentence that was **deleted** — whose head, `**Check whether a`,
+still sits on line 3 — not of anything ending above it. **The specified trigger describes a
+relationship the defect does not have.**
+
+> **A ticket that names the trigger has moved the hardest judgement out of the work and into the
+> filing, where nobody measures it.** The defect is what the ticket has; the trigger is a
+> hypothesis about the defect, and it needs the same evidence as any other.
+
+**It was caught by one sentence in the ticket** — the requirement that the red pin come from a
+**blob** rather than a reconstruction. A retyped defect gets retyped into the shape the author
+already has in mind, so the pin would have been green and the gate would have shipped. That is
+`AGENTS.md` rule 14 with the axis it usually lacks: not *did the fix work*, but *is the thing I am
+testing against the thing that actually happened*.
+
+### What shipped, and the first trigger of this family to open at zero
+
+The orphan is a **repetition**: an unfenced, non-structural prose line of five or more words whose
+normalised text already appears verbatim in the paragraph above it. Repetition is a **closed
+property of the text**, not a vocabulary — nothing to enumerate, nothing to widen.
+
+**0 false positives over all 180 reference documents**, live and archive. That is the fourth
+trigger in this family and **the first to open at zero**: the aspect-census quantifier came in at
+26, the bare-flag token at 8, the hash-number at 49 (#140, #142, #146). A tighter variant
+requiring the line to also end its paragraph is likewise 0, so the **looser** one shipped — same
+measured cost, strictly more coverage.
+
+Greens were chosen to be the things an earlier draft would plausibly get wrong: a duplicate line
+inside a fence, a table restating a term in consecutive rows, a sentence repeated in two
+*different* paragraphs, two list items sharing a stem.
+
+**And the pins were controlled separately from the traversal**, which is the failure mode a pinned
+check hides: pins prove the *function* fires and say nothing about whether the sweep *reaches real
+files*. An orphan planted in two different documents takes `--sweep` to exit 1 naming both.
+
+### What it does not establish
+
+The census is **0**, so this gate is currently protecting silently — there is no second instance
+to confirm it against, and a future findings entry *quoting* such a fragment outside a fence would
+be a false positive. Fences are masked; that is the whole of the bound, and it is stated rather
+than assumed.
