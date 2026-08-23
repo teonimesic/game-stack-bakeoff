@@ -180,7 +180,14 @@ reviews:
         - A name, path, flag or command that does not exist is worse than silence, because it
           will be followed. Flag any identifier you cannot resolve in the tree.
 
-    - path: ".claude/skills/**/SKILL.md"
+    # `.agents/skills/`, NOT `.claude/skills/`. The 10 real `SKILL.md` files moved there and
+    # `.claude/skills` became a symlink; git tracks the symlink as 1 mode-120000 blob, so the
+    # old pattern matched 0 tracked files and this instruction could not fire on any diff. It
+    # HAD fired — PR #2's "Keep status facts in the authoritative document" comment cites it as
+    # its source — so this was a live rule aimed at a dead address (`AGENTS.md` rule 12).
+    # `git ls-files | fnmatch '.agents/skills/**/SKILL.md'` = 10, the same pattern against
+    # `.claude/` = 0.
+    - path: ".agents/skills/**/SKILL.md"
       instructions: |
         A skill is a procedure, invoked when an agent is about to do the thing it covers. Each
         one names an authoritative document and states that if the two disagree, the document
@@ -197,11 +204,61 @@ reviews:
         `AGENTS.md`.
 
   # ---- tools ------------------------------------------------------------------------------
-  # DELIBERATELY EMPTY IN THE FIRST VERSION. The obvious edit here is to disable `markdownlint`
+  # DELIBERATELY EMPTY IN THE FIRST VERSION. The obvious edit here was to disable `markdownlint`
   # and `languagetool` on the grounds that 173 markdown files of hand-formatted tables and
   # blockquotes will generate noise. That is a guess, and this project's standard is to
   # measure before acting. The first reviews are the measurement; if they show noise, disable
   # the tool that produced it and record the review that established it.
+  #
+  # `markdownlint` and `languagetool` are STILL NOT DISABLED, and here is where the guess
+  # stands after 3 review rounds of PR #2 over a 17-file diff. `markdownlint`: 0 findings.
+  # `languagetool`: 1 — `[locale-violation] AFTERWARDS_US` on `dispatch/SKILL.md` line 134,
+  # preferring American `afterward`. It never became a review comment, and it is a wording
+  # preference on prose the `**/*.md` instruction already puts out of scope. That is 1
+  # false positive out of 1 finding, which is a rate over n=1 and decides nothing; unlike the
+  # 2 SkillSpector rules below it is not wrong by construction, because the same tool can find
+  # a real typo. What would decide it: a second diff heavy in markdown. If `languagetool`
+  # keeps producing only dialect and register preferences, disable it here with the count.
+  tools:
+    # SkillSpector 2.5.1 IS disabled, and this is the review that established it.
+    #
+    # PR #2 (`teonimesic/game-stack-bakeoff`), the first pull request whose diff touched a
+    # skill. Round 1 posted 8 review comments, 5 of them on a `SKILL.md`; 2 of those 5 carried
+    # an attached SkillSpector block, and both host comments were true positives on their own
+    # merits, acted on in `ce4a12c`. Across all 3 rounds: 11 comments, 5 attachments, 0
+    # standalone SkillSpector comments.
+    #
+    # The 5 attachments held 14 findings and 0 of them were true positives, from 2 rules:
+    #
+    #   [AS3] Skill Enumeration, 10 of 14 — "Skill enumerates or reads other installed
+    #   skills". Every hit landed on the lines where a skill names another skill's file:
+    #   `dispatch/SKILL.md` lines 10-11, its "Authoritative files" block naming `tasks` and
+    #   `work`, and `tasks/SKILL.md` lines 48-49, naming `work` and `dispatch`. `AGENTS.md`
+    #   REQUIRES exactly those references.
+    #
+    #   [P7] Indirect Prompt Extraction, 4 of 14 — every hit on the same line, the heading
+    #   "## 6. Improve this skill as you use it" (dispatch/SKILL.md:208, :215, :219, :219).
+    #
+    # This is not a false-positive RATE, it is a false positive by CONSTRUCTION: the trigger is
+    # a property this repository's always-loaded rules mandate, so the 2 rules fire on every
+    # future skill diff and can never be right here. There is no peer-skill trust boundary to
+    # protect — 1 operator, 1 repository, and the skills are written by dispatched agents and
+    # merged by hand.
+    #
+    # WHAT DECIDED IT, over "attachment-only noise costs nothing": the attachment ships a
+    # remediation — "Remove all code or instructions that list or read other skills' files or
+    # directories" — inside a block headed "Prompt for AI Agents" that tells the reader to
+    # verify each finding and fix the still-valid ones. An agent following
+    # `.agents/skills/work/SKILL.md`'s review loop has to re-derive, on every skill PR, that
+    # this one contradicts `AGENTS.md`. That is the cost `AGENTS.md` names: a check that fires
+    # where nothing is wrong spends exactly the attention a check firing correctly needs.
+    #
+    # WHAT WOULD REVERSE THIS: SkillSpector gaining per-rule configuration (the schema offers
+    # `enabled` and nothing else, so today it is all or nothing), or a skill in this repository
+    # arriving from outside the dispatch-and-merge loop, which is what would make a scanner for
+    # malicious skill manifests worth its false positives.
+    skillspector:
+      enabled: false
 
 chat:
   integrations:

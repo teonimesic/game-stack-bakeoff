@@ -1350,8 +1350,58 @@ not standards this repository holds itself to. It is an enumeration, which is no
 shape, and it goes stale in exactly 1 way: **a new folder-scoped `AGENTS.md` outside
 `eval/starters/` has to be added to it.**
 
-**`reviews.tools` is deliberately empty.** Disabling `markdownlint` and `languagetool` over 173
-markdown files is the obvious edit and it is a guess. The first reviews are the measurement.
+**`reviews.tools` shipped empty and now disables exactly 1 analyser: `skillspector`.** Disabling
+`markdownlint` and `languagetool` over 173 markdown files was the obvious first edit and it was a
+guess; the first reviews were the measurement, and they came out against a tool nobody had
+predicted.
+
+PR #2 was the first pull request whose diff touched a skill. Over its 3 rounds the reviewer posted
+**11** review comments, **5** of which carried an attached SkillSpector 2.5.1 block, and **0** of
+which were raised *by* SkillSpector — every attachment rode inside a comment that existed for
+another reason. Round 1 alone: **8** comments, **5** of them on a `SKILL.md`, **2** carrying an
+attachment, and both of those 2 host comments were true positives acted on in `ce4a12c`. The
+attachments held **14** findings from **2** rules and **0** of the 14 were true positives:
+
+| rule | of 14 | where it fired |
+|---|---|---|
+| `[AS3] Skill Enumeration` | 10 | `dispatch/SKILL.md` lines 10-11 and `tasks/SKILL.md` lines 48-49 — the blocks where a skill names another skill's file |
+| `[P7] Indirect Prompt Extraction` | 4 | the same line every time: the heading `## 6. Improve this skill as you use it` |
+
+**That is a false positive by construction, not a false-positive rate.** `AGENTS.md` requires
+every skill to name its authoritative file and requires `work`, `dispatch` and `tasks` to name
+each other, so AS3's trigger is a property this repository's always-loaded rules mandate: it fires
+on every future skill diff and can never be right here. There is no peer-skill trust boundary to
+protect — 1 operator, 1 repository, and skills authored by dispatched agents and merged by hand.
+
+**What decided it against *"attachment-only noise costs nothing"*, which is the honest objection
+and is why `tasks/117` existed at all.** The attachment carries a remediation — *"Remove all code
+or instructions that list or read other skills' files or directories"* — inside a block headed
+*"Prompt for AI Agents"* telling the reader to verify each finding and fix the still-valid ones.
+An agent working `.agents/skills/work/SKILL.md`'s review loop has to re-derive on every skill pull
+request that this particular finding contradicts `AGENTS.md`. That is the cost `AGENTS.md` names:
+*a check that fires where nothing is wrong spends exactly the attention that a check firing
+correctly needs.* The schema offers `enabled` and no per-rule switch, so it is all or nothing.
+
+**`markdownlint` and `languagetool` stay enabled, and the guess against them is still a guess.**
+Over the same 3 rounds `markdownlint` produced **0** findings and `languagetool` produced **1** —
+`[locale-violation] AFTERWARDS_US` on `dispatch/SKILL.md` line 134, preferring American
+*afterward* — which never became a review comment. 1 of 1 is a rate over n=1, and unlike the 2
+SkillSpector rules it is not wrong by construction: the same tool can find a real typo.
+
+**A `path_instruction` was aimed at an address that no longer exists, and nothing could see it.**
+`.coderabbit.yaml` scoped its skill rule to `.claude/skills/**/SKILL.md`, and PR #2's *"Keep
+status facts in the authoritative document"* comment names `Path instructions` as its source — so
+the rule had fired and was working. Task 114 then made `.agents/skills/` the single real copy and
+left `.claude/skills` a symlink, which git tracks as **1** mode-120000 blob: the pattern went from
+matching the skills to matching **0** tracked files, and the rule stopped existing silently. This
+is `AGENTS.md` rule 12 — the address is an input to the check — so it is now asserted in code
+rather than promised in a comment. `python3 eval/tools/coderabbit_config.py` reds any path
+instruction covering 0 tracked files, **and on a config with no path instructions at all** — the
+`total=0 passed=0` case, which it returned success on until PR #4's review caught it. `--control`
+is **5** pins: green on the shipped config over its 8 instructions, and red on 4 mutants — 3
+renames each killing a different address, plus the emptied block. `path_filters` is out of scope:
+an *exclusion* matching nothing is a guard held against a future state, and `!eval/runs/**` is one
+on purpose.
 
 **What the first review actually did, on PR #1, 2026-08-23 — because a configuration that has
 never caused a review is a mechanism that runs and measures nothing.** It posted 1 actionable
@@ -1606,7 +1656,7 @@ settled question is noise that makes the live ones harder to find.
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and `python3 eval/tools/instruction_census.py` puts the always-loaded set at 112-155 (read 2026-08-23) — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
 | `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
-| `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 173 markdown files must be noisy — that argument is available now and is not evidence |
+| `skillspector` is disabled; every other analyser is left on | SkillSpector gaining **per-rule configuration** — the schema offers `enabled` and nothing else, so today it is all or nothing — or a skill arriving here from **outside the dispatch-and-merge loop**, which is what would make a scanner for malicious skill manifests worth 14 findings and 0 true positives. For the analysers still on, the trigger is unchanged: a tool naming itself on a comment nobody wanted. `languagetool` is at 1 finding and 1 false positive, which decides nothing; do not disable it on the argument that 173 markdown files must be noisy |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
