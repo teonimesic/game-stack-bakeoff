@@ -684,7 +684,7 @@ freely; everything else is live.
 | | documents |
 |---|---|
 | **ARCHIVE**, exempt | `eval/findings/`, `eval/FINDINGS.md`, `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`, `eval/runs/` |
-| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `template*/`, `eval/starters/`, `.claude/skills/` |
+| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `eval/starters/`, `.claude/skills/` |
 
 `tasks/` is archive because a retired figure can be a task's whole subject — task 54's `done_when`
 states the pair three times, correctly. The list lives in `ARCHIVE_PATHS` in `eval/tools/docstat.py`
@@ -1140,6 +1140,26 @@ from one whose recovery you assume.**
 repair on 2026-08-23 (#112, task 48, commit `ee8625f`) — about 500 lines of porting, six hours
 before this. That work is discarded. It was correct to do and correct to discard: it closed the
 instance, and this closes the shape.
+
+**The deletion did not survive its own merge, and the mechanism is worth keeping (task 111).**
+The retirement commit `e86e09d` was complete: `git ls-tree -r e86e09d` matches **0** paths under
+`template*/`. So does its other merge parent, `5afeb31`. The merge `f315f7e` nonetheless carried
+**5** — `template-ts/.eslintcache`, `template-ts/public/main.js` and three build outputs under
+`template-unity/tools/analyzer/bin/`. They came from neither parent; they came off the disk.
+**Each tree carried its own `.gitignore`, and deleting the tree deleted the ignore rules that
+had been hiding its build output** — `template-ts/.gitignore` listed `public/main.js` and
+`.eslintcache`, `template-unity/.gitignore` listed `/tools/analyzer/bin/` — so a `git add -A`
+at merge time saw an eslint cache, a 1.2M bundle and a compiled analyzer with its `.pdb` for the
+first time, and staged them. For eleven days `AGENTS.md` stated `template*/` is deleted while
+5 paths were tracked on `origin/main`, and nothing could disagree: no gate reads the tree for a
+claim a document makes about it. The 5 are now removed, and the root `.gitignore` carries
+`template*/` so a leftover build tree in an old checkout cannot be re-committed. Reproduced in
+both directions on 2026-08-23: with the entry, `git add -A` over three replanted artefacts stages
+nothing; without it, the same command un-deletes all three.
+
+> **Deleting a directory deletes its `.gitignore`, which un-ignores every build artefact still
+> on disk beneath it.** The removal and the loss of the guard land in the same commit, and the
+> re-add lands in the next one — where it reads as an unrelated file, not as a botched deletion.
 
 ---
 ## A blind pack's `CHANGED.txt` is rebuilt from the manifest; the code half is not rewritten — decided 2026-08-23
