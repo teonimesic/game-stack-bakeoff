@@ -1,7 +1,8 @@
 ---
+established_by: Quoting only; no field's text changed. claude plugin validate --strict (Claude Code 2.1.220) over a scratch plugin wrapper: HEAD gave 5 frontmatter errors and exit 1, fixed gives Validation passed and exit 0. PyYAML 6.0.3: 5 of 7 .claude/skills SKILL.md failed with ScannerError before, 7 of 7 parse after; the two that already passed, prune and tasks, are byte-identical to HEAD. Every rewritten line was asserted to round-trip, so the parsed value equals the raw text that stood after the key before, byte for byte; bodies and the name and argument-hint keys are unchanged. Claude Code discovery is NOT changed, checked as the task required: a headless run in the worktree enumerated its available-skills listing and all seven appear with full description and when_to_use verbatim, colons intact, so no revert. The 5 .agents/skills Codex copies had byte-identical frontmatter and got the same fix, 10 files total, commit d8157fa on task-35-quote-frontmatter. Repo-wide sweep of all 51 tracked files with frontmatter: the only remaining failures are 21 tasks/*.md, filed as task 40 because quoting those alone would break tasks.py, which parses with a regex and writes back unquoted - demonstrated on task 06. tasks.py check still exits 0 with 40 tasks all well-formed.
 id: 35
 title: Quote the five SKILL.md frontmatter values so external tools can parse them
-status: in_flight
+status: done
 priority: 2
 refs: research/11-doc-linting-for-agents.md, tasks/27
 done_when: claude plugin validate --strict over a wrapper containing .claude/skills reports 0 frontmatter errors, and python3 -c yaml.safe_load parses all 7 files; if the quoting turns out to change how Claude Code itself discovers a skill, revert and record that instead

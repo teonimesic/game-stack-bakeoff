@@ -249,7 +249,17 @@ def _write_task(a, slug: str, nid_int: int) -> int:
         except FileExistsError:
             nid_int += 1
             continue
-        print(f"created {(TASKS / f'{nid}-{slug}.md').relative_to(ROOT)}")
+        # Relative to the SHARED queue's own root, not to ROOT. When called from an agent
+        # worktree those are different directories, and `relative_to(ROOT)` raised
+        # ValueError *after* the file had been written: the task was created and the
+        # command exited 1 with a traceback.
+        #
+        # That is worse than a cosmetic bug. A successful write reporting failure invites a
+        # retry, and the retry files a second task -- reintroducing the duplicate this
+        # shared queue exists to prevent, through the status channel instead of the
+        # filesystem. It is also rule 7: a failure signal that does not mean failure is a
+        # channel a bug can widen.
+        print(f"created {(TASKS / f'{nid}-{slug}.md').relative_to(TASKS.parent)}")
         return 0
     print("could not allocate a free task id after 50 attempts", file=sys.stderr)
     return 1
