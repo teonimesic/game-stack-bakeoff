@@ -83,9 +83,14 @@ dependency order stated in each ticket's `refs`; run everything else concurrentl
 /work 56
 ```
 
-That is the whole brief. `.claude/skills/work/SKILL.md` holds the procedure — where to
-read, what the standard is, what may not be touched, how to finish and report — so none of it
-has to be restated per task.
+That is the whole brief. Two skills, one on each side of it:
+
+| | |
+|---|---|
+| `dispatch` | **the orchestrator's.** Make the ticket current, check it is safe to run now, launch, then verify and merge what comes back |
+| `work` | **the agent's.** Read the ticket, do it to the standard, hand back a branch |
+
+Neither restates the other, and neither restates the ticket.
 
 > **Anything task-specific goes in the TICKET, before dispatch. Never in the message.**
 > On 2026-08-23 every agent was launched with a paragraph of constraints in its prompt:

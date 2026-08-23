@@ -74,6 +74,8 @@ contaminated a single-variable experiment. The reasoning, and what would re-open
 | `audit-docs` | after a session, or when a rule failed to prevent what it was written for | this file |
 | `tasks` | reading, claiming, closing or writing an item in the open-work queue | `tasks/` |
 | `prune` | a cleanup exploration pass — text or code that no longer earns its space | `CLEANUP-LOG.md`, this file |
+| `dispatch` | sending a queued task to an agent, and verifying and merging what comes back | `tasks/<id>`, `.claude/skills/work/SKILL.md` |
+| `work` | **you were dispatched to do one task.** Read the ticket, do it, hand back a branch | the ticket at `tasks/<id>-*.md` |
 
 The usual order across one cycle is **`run-matrix` → `evaluate-run` → `refine`**, with
 `add-game` when the task set changes and `audit-docs` folded into `refine` or run alone.
