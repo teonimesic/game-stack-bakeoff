@@ -3,12 +3,36 @@
 **Goal:** find the stack in which a coding agent, given a well-designed template, builds the best
 game — and prove it by measurement rather than argument.
 
-Four templates, one per candidate stack, each tuned to its own stack's strengths. Blank
-`claude -p` sessions build whole games in each; a harness the building agents cannot see grades
-the result. 24 whole-game submissions, three games, four stacks, two independent trials per cell.
-**$2,710.94 to date** — $2,404.21 of agent trials over 137 stored trial records plus $306.73 of
-specialist-judge rounds, both re-read from disk on 2026-08-23 (`eval/RUNS.md`). This line read
-*~$1,794* while three runs worth $698.21 sat outside it.
+Four starter templates, one per candidate stack (`eval/starters/godot`, `rust`, `ts`, `unity`),
+each tuned to its own stack's strengths. Blank `claude -p` sessions build whole games in each; a
+harness the building agents cannot see grades the result.
+
+**What is on disk, read 2026-08-23. Every count below is reproduced by
+`python3 eval/tools/census.py`** — nothing here is carried forward from an earlier version of
+this line, and the tool exits 2 rather than reporting `0` when it cannot find the tree.
+
+| population — *stated, because an aggregate without its scope is unfalsifiable (#113)* | count |
+|---|---|
+| **whole-game trial records**: a stored `runs/*/trials/*.json` carrying a `game` field | **90**, across **11** run directories |
+| …partitioned by `terminal_reason` before anything is computed from it | **completed 75**, api_error 9, field absent 4, max_turns 1, budget_exhausted 1 |
+| the games and stacks those span | **4 games** (pong 27, tetris3d 19, arena 24, platformer 20) × **4 stacks** (ts 26, rust 24, godot 20, unity 20) |
+| **the largest single matrix**, and the only scope in which "two independent trials per cell" is a whole statement | `wg-matrix-2026-08-13`: **24** records = 3 games × 4 stacks × **2 trials per cell**, all 24 `completed` |
+| **spec-change trial records**: no `game` field — the retired `runner.py` suite (`eval/AGENTS.md`) | 47, across 8 run directories. A different instrument on different tasks: **never pooled with the rows above** |
+| **$2,710.94 to date** | $2,404.21 of agent trials over all **137** stored trial records, both populations (`census.py`), plus $306.73 over 93 specialist-judge rounds (`python3 eval/judge/judge_ledger.py --tree eval/runs/`) |
+
+Every matrix run is 2 trials per cell; the 1-per-cell rows are calibration probes and one partial
+run. **Pooled across the tree a game × stack cell holds 4 to 8 trials** drawn from runs that
+mostly may not be compared (`eval/RUNS.md`), which is why replication is stated per matrix and
+never per tree.
+
+> ⚠️ **This paragraph read "24 whole-game submissions, three games, four stacks, two independent
+> trials per cell" until 2026-08-23, and the cost half read *~$1,794*.** Registered as
+> `WR-readme-opening-counts` in `eval/withdrawn.json`. The counts were true of
+> `wg-matrix-2026-08-13` and of no wider population, the sentence named no population at all, and
+> **no command in the repository produced any of them** — so nothing could notice when the tree
+> grew past them. The cost figure had the identical shape and was 34% low, with three runs worth
+> $698.21 sitting outside it. It is the same defect `eval/RUNS.md`'s own headline had, twice over.
+> A count with a producer can go stale for one hour; a count with none goes stale forever.
 
 Last updated **2026-08-23**.
 

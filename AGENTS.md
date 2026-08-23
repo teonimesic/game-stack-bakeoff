@@ -278,6 +278,16 @@ working session as the change**, not later:
 | A figure or a claim is **withdrawn** | Add an entry to `eval/withdrawn.json`, then repair every live document `docstat.py --withdrawn` names |
 | Weights, rubric, or grading change | `eval/judge/RUBRIC.md` **and** the `README.md` grading table |
 | A merge renumbers a finding you allocated | `python3 eval/tools/docstat.py --renumbered`, then fix the **citations** |
+| You are about to write **how much of anything the project has** — trials, runs, games, stacks, submissions, spend | `python3 eval/tools/census.py`, and quote the population beside the count. Never a remembered number, never one copied from another document |
+
+> **A count with a producer goes stale for an hour; a count with none goes stale forever.**
+> `README.md`'s opening sentence said *"24 whole-game submissions, three games, four stacks, two
+> independent trials per cell"* for ten days. Every number was true of one run and of no wider
+> population, the sentence named no population, and **nothing in the repository produced any of
+> them** — so no check could disagree and no reader could tell it had been overtaken by 66 more
+> records. The cost figure in the same sentence had the same shape and was 34% low
+> (`WR-readme-opening-counts`). Retiring a stale count is easy; *noticing* one is what needs the
+> command, so write the command down next to the number.
 
 `README.md` and `DECISIONS.md` state what is true now — **replace superseded content rather than
 annotating it.** `eval/FINDINGS.md` is the exception: it is a findings log, and a number that was

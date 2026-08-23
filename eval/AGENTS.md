@@ -175,7 +175,11 @@ grader owns its own three, listed in `judge/AGENTS.md`.
 
 - **Partition by `terminal_reason` before computing anything.** `completed`, `max_turns`,
   `budget_exhausted`, `api_error` and session-limit aborts are different populations. `runner.py`
-  records it for exactly this reason.
+  records it for exactly this reason. `python3 tools/census.py` does that partition over the
+  whole stored tree offline, and is the producer for any count of it a document quotes — it also
+  separates the whole-game records from the retired suite's, which share the `trials/*.json`
+  glob and must never be pooled. It **exits 2 on a missing or empty tree** rather than reporting
+  `0`, so run it against the main checkout: an agent worktree has no `eval/runs/`.
 - Report `n` per group alongside any aggregate.
 - Score per task first, then take the SE across tasks. Pooling across trials is inconsistent.
 - Use paired per-task differences for arm comparisons, and Wilson intervals for pass rates.
