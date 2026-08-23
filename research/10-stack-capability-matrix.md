@@ -71,8 +71,9 @@ an agent uses and becomes something an agent must first decide to *ask about*.
 
 ## 2. The pins — read from the artifacts, 2026-08-22
 
-`eval/starters/` is what a trial gets. `template*/` differs only in the placeholder game; the
-pins are identical in both.
+`eval/starters/` is what a trial gets, and since 2026-08-23 it is the only tree there is — the
+four `template*/` trees are retired (`DECISIONS.md`, #122). Every pin below is read from a
+starter.
 
 | stack | pinned at | read from |
 |---|---|---|
