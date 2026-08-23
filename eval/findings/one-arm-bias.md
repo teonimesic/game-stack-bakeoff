@@ -2809,10 +2809,14 @@ plausible, publishable number.
 
 ### What is NOT repaired
 
-**Directory names are the same defect through the sibling property.** 1,561 arm-naming path
-segments survive in the stored blind packs — `public` 1,148, `Assets` 128, `res://` 34,
-`src/sim`. Filed as task 95, not fixed here, and stated so that nobody reads "0 extension tokens"
-as "the pack is blind".
+**Directory names are the same defect through the sibling property, and this finding does not
+touch them.** The measurement that scoped task 95 counted 1,561 arm-naming path segments
+surviving in the stored blind packs — `public` 1,148, `Assets` 128, `res://` 34, `src/sim` —
+and is quoted here as that task's evidence, not re-measured. Deliberately out of scope: an
+extension vocabulary can be audited against the four starters mechanically and a directory
+vocabulary raises a separate question about what a rewrite would cost the judge. It is stated so
+that nobody reads "0 extension tokens" as "the pack is blind" — see tasks 95 and 103 for where
+that half stands.
 
 The repair lives in `field.BLIND_EXT` / `field.blind_extensions()` and runs **only** in the
 `blind_language` branch — never in `neutralise`, which runs for every aspect and would otherwise
