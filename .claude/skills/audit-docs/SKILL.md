@@ -25,6 +25,12 @@ python3 tools/docstat.py --outline FILE   # fence-aware heading map
 | **references** | does a flag, aspect or criterion a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
 | **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
 
+**The references half reads the skills too, including this one** — since 2026-08-23 (task
+44). It did not before: the corpus was built with `glob`, `glob` does not descend into
+dot-directories, and every skill lives under one, so for the whole life of the sweep the
+always-loaded instruction documents were the only files it could not see. Measured when
+they were let in: **0 false positives**, after fenced lines stopped counting as claims.
+
 Prose is executed by a person, and **a person does not get an argparse error**. A file
 naming a flag, path, aspect or criterion that does not exist is worse than one that says
 nothing: it is confidently wrong and it will be followed.
@@ -65,6 +71,12 @@ cp /tmp/jm.bak judge/JUDGING.md
 # positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
 ```
 
+**Plant the phantom in prose, never inside a ``` fence** — a fenced line is not read as a
+claim (see below), so a control planted in a code block goes green and tests nothing. The
+`printf` above appends an unfenced sentence for exactly that reason. This is the same shape
+as the file-wide exemption in the table above: the control agrees with you because it never
+ran, not because the tool is sound.
+
 Both structure checks arrived on an **already-repaired** repository, which is the state in
 which a gate has never been seen to fail. Plant the defect each names before trusting it.
 
@@ -79,6 +91,12 @@ which a gate has never been seen to fail. Plant the defect each names before tru
 - **`code` and `look` as aspect ids.** Ordinary words that appear as inline code for other
   reasons.
 - **`findings/`.** An archive whose subject matter is naming superseded things.
+- **Anything inside a ``` fence, for the aspect check.** A fenced line is a command to run
+  or an output to expect; it asserts nothing about its own arguments. This is what let the
+  skills into the corpus: the only aspect hit across all 124 documents was the `printf`
+  above, in this file, planting `feel` and `tuning` as the sweep's own positive control.
+  The exemption is **line-scoped** — a file-wide one once let a single legitimate
+  disclaimer silence every aspect check in its file, and the control went green.
 - **Root blocks indented 1-3 spaces, in general.** The indent check asks only about a
   continuation under a **2+ digit** ordered marker, which is the only form with a true
   positive here. The broad form fires on `tasks/` files where nothing is wrong — 2-space
