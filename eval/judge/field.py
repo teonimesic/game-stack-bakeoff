@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import statistics
 import subprocess
@@ -142,6 +143,136 @@ def mapping_path(pack: Path) -> Path:
 
 #: A neutral extension for packs whose aspect must not be told the language.
 NEUTRAL_EXT = ".src"
+
+
+# ---------------------------------------------------------------------------
+# BLINDING THE EXTENSIONS A FILE MENTIONS, NOT ONLY THE ONE IT IS STORED UNDER
+# ---------------------------------------------------------------------------
+# `blind_language` renamed every file in the pack to `.src` and stopped there, so it
+# hid the extension of the file the judge was READING and nothing hid the extensions
+# that file MENTIONED. Measured over all 84 stored packs after `neutralise`: 1,876
+# occurrences of `.ts`/`.gd`/`.rs`/`.cs` across 76 of them - `import { f32 } from
+# "./vec2.ts"`, `tests/render_test.gd builds and positions this entire scene`. A judge
+# that opens `sim/01.src` and reads that its sibling is `sim/tuning.gd` is not blind.
+#
+# WHY THIS IS HERE AND NOT IN `anonymise.neutralise`. `neutralise` runs for EVERY
+# aspect. `idiomatic` is asked whether Rust was written like Rust and legitimately
+# keeps its extensions; only `architecture` is judged with `blind_language=True`. A
+# repair in the shared path would blind the aspect that must not be blinded.
+#
+# MEMBERSHIP IS DECIDED BY TWO QUESTIONS, BOTH ANSWERED FROM EVIDENCE RATHER THAN
+# FROM A LIST OF THE SPELLINGS SOMEBODY HAPPENED TO SEE:
+#
+#   1. Does the suffix name a language, a shader dialect, or an authored file format
+#      that belongs to fewer than all four arms? `blind_ext_selftest.py` derives that
+#      set from the four starters and fails on any arm-exclusive suffix that is
+#      neither listed here nor excluded by name below, so the next arm-exclusive
+#      format is a red test rather than a leak nobody looked for.
+#   2. Can the same token be a MEMBER NAME in one of those languages? An extension
+#      that fails this is excluded and its collision count recorded - see
+#      `_NOT_AN_EXTENSION`. This half cannot be answered from a starter tree; it was
+#      measured against the 84 stored packs, and it is what stops `Mutex::lock()`
+#      becoming `Mutex::src()`.
+#
+# Suffixes shared by every arm - `.json`, `.md`, `.png`, `.txt`, `.yaml`, `.sh` -
+# are deliberately absent: they identify nothing, and rewriting them would corrupt
+# text the judge reads for a different reason while blinding nobody.
+BLIND_EXT: frozenset[str] = frozenset({
+    # Source languages.
+    "rs", "ts", "tsx", "mts", "cts", "js", "mjs", "cjs", "jsx", "cs", "gd",
+    # Shader dialects, each owned by one arm's renderer.
+    "shader", "gdshader", "wgsl", "hlsl", "cginc",
+    # Authored formats only one engine can open.
+    "tscn", "tres", "godot", "uid", "import", "gdextension",
+    "meta", "asmdef", "prefab", "unity", "asset", "inputactions", "unitypackage",
+    "csproj", "sln", "globalconfig",
+    # Toolchain manifests and entry documents that exist in one arm only.
+    "toml", "html",
+})
+
+#: Suffixes that ARE arm-exclusive and are still not rewritten, each with the reason
+#: and the count that decided it. Measured over the 84 stored judge packs; the
+#: selftest asserts every arm-exclusive starter suffix is in one set or the other, so
+#: this list is the place an exclusion has to be argued rather than assumed.
+_NOT_AN_EXTENSION: dict[str, str] = {
+    "lock": "113 occurrences, 108 of them `Mutex::lock()` and 5 an `enemy.lock` "
+            "field; 0 are filenames",
+    "anim": "128 occurrences, every one a member access (`player.anim`); 0 filenames",
+    "res": "1 occurrence, a method call (`AudioBank.res(path)`)",
+    "mat": "a plausible member name (`renderer.mat`) with 0 filename occurrences, so "
+           "listing it would buy nothing and risk a false rewrite",
+    "controller": "same shape as `mat` - `player.controller`",
+    "settings": "same shape as `mat` - `game.settings`",
+    "dll": "build output. Never authored, never packed, never mentioned in the corpus",
+    "pdb": "build output, as `dll`",
+}
+
+#: Dotted constructs that are spelled exactly like `stem.extension` and are not paths.
+#: `import.meta` is ESM's namespace object: 83 of the 87 `.meta` occurrences in the
+#: stored corpus are `import.meta.url`. The trailing-dot guard in the pattern already
+#: spares those; this spares a bare `import.meta` as well.
+_NOT_A_PATH = ("import.meta",)
+
+_BLIND_EXT_RE = re.compile(
+    r"\.(" + "|".join(sorted(BLIND_EXT, key=len, reverse=True)) + r")"
+    # The extension ends here: `.ts` must not fire inside `.tsx`, `.tsconfig`.
+    r"(?![A-Za-z0-9_])"
+    # ... and is not a method call. `Mutex::lock()` is why `lock` is excluded outright,
+    # but the guard is cheap and protects every future entry the same way.
+    #
+    # THE `\s*` THAT USED TO BE HERE WAS A FALSE NEGATIVE, and only a real pack found
+    # it: `// Usage: node tools/audio-manifest.mjs   (or: just audio-manifest)` is a
+    # filename followed by three spaces and a parenthesis, and the guard read it as a
+    # call. No fixture produced that shape. A call has no gap before its parenthesis in
+    # any of the four languages here; prose after a filename usually does.
+    r"(?!\()",
+    re.IGNORECASE)
+
+#: `Grid.cs.meta` is one file with two suffixes, and both name the arm. Rewriting each
+#: gives `Grid.src.src`, which advertises that a substitution happened - the half-
+#: substitution shape `_STACK_NAMES` was reordered to avoid. Consecutive neutral
+#: suffixes collapse to one.
+_COLLAPSE_RE = re.compile(r"(?:" + re.escape(NEUTRAL_EXT) + r"){2,}", re.IGNORECASE)
+
+
+def blind_extensions(text: str) -> str:
+    """Rewrite language-naming file extensions to `NEUTRAL_EXT`. Blind aspects only.
+
+    THE DECISION THE REGEX MUST NOT BE LEFT TO MAKE: what happens to an extension
+    inside a string literal, an import specifier, or a data file?
+
+    **It is rewritten, exactly as one in a comment is.** The rewrite is uniform and
+    makes no attempt to tell a comment from a string literal from a JSON value, for
+    two reasons:
+
+    1. Telling them apart means lexing the language, and not knowing the language is
+       the entire point of `blind_language`.
+    2. A leak in a string literal is a leak. `load("res://scenes/main.tscn")` names
+       the arm every bit as loudly as a comment does, and `import "./vec2.ts"` names
+       it twice.
+
+    The cost is that a blind pack contains code that could not run: its module
+    specifiers point at files that do not exist under those names. **That was already
+    true of every file in the pack before this function existed** - `build_pack`
+    renames each one to `.src` on disk - so the change makes the pack internally
+    CONSISTENT rather than newly broken. The one aspect this applies to is asked about
+    structure, not about whether the tree builds. Aspects that read code as code
+    (`idiomatic`) are not `blind_language` and their packs are byte-unchanged, which
+    `blind_ext_selftest.py` asserts as a variant rather than a comment.
+    """
+    holes: list[tuple[int, int]] = []
+    for lit in _NOT_A_PATH:
+        start = 0
+        while (i := text.find(lit, start)) != -1:
+            holes.append((i, i + len(lit)))
+            start = i + 1
+
+    def repl(m: re.Match[str]) -> str:
+        if any(s <= m.start() < e for s, e in holes):
+            return m.group(0)
+        return NEUTRAL_EXT
+
+    return _COLLAPSE_RE.sub(NEUTRAL_EXT, _BLIND_EXT_RE.sub(repl, text))
 
 
 def pack_completeness(run: Path, game: str) -> dict[str, Any]:
@@ -409,6 +540,15 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
     dest.mkdir(parents=True)
 
     need = set(sees.split("+"))
+
+    # ONE function for every piece of text this pack writes, so a blind aspect cannot
+    # be blinded on one channel and not another. `neutralise` runs for every aspect;
+    # the extension rewrite runs only where `blind_language` is set, which is what
+    # keeps `idiomatic`'s pack byte-identical (see `blind_extensions`).
+    def _text(raw: str) -> str:
+        out = neutralise(raw)
+        return blind_extensions(out) if blind_language else out
+
     mapping: dict[str, str] = {}
     counts: dict[str, dict[str, int]] = {}
     for label, sub in zip(LABELS, order):
@@ -427,7 +567,7 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                     tgt = tgt.with_suffix(NEUTRAL_EXT)
                 tgt.parent.mkdir(parents=True, exist_ok=True)
                 try:
-                    tgt.write_text(neutralise(f.read_text(errors="ignore")))
+                    tgt.write_text(_text(f.read_text(errors="ignore")))
                 # Narrow, and COUNTED. OSError is the real per-file failure here (an
                 # over-long name, an unreadable mode); it drops one file from what the
                 # judge is shown, and until 2026-08-23 it did so with nothing recorded
@@ -439,12 +579,20 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                     n["code_unreadable"] += 1
                     continue
                 n["code"] += 1
+            # CHANGED.txt IS PACK CONTENT AND IT IS THE DENSEST EXTENSION LEAK OF ALL:
+            # it is a whole `git diff --stat`, one true path per authored file. The
+            # eight stored `architecture` packs carry 80 `.cs`, 78 `.gd`, 60 `.meta`,
+            # 43 `.ts` and 43 `.rs` in this file alone - a complete answer key beside a
+            # directory whose every file was renamed to `.src`. It goes through `_text`
+            # for that reason. The DIRECTORY names it also carries (`crates/`,
+            # `Assets/`, `res://`) are a different property and are not repaired here;
+            # 1,561 of them survive in the stored blind packs - see tasks/95.
             stat = sub / "diff.stat"
             if stat.is_file():
                 (out / "CHANGED.txt").write_text(
                     "Files this submission's author changed, and by how much.\n"
                     "Everything else is template code they inherited.\n\n"
-                    + neutralise(stat.read_text(errors="ignore")))
+                    + _text(stat.read_text(errors="ignore")))
 
         if "frames" in need:
             fdir = out / "frames"
@@ -1286,8 +1434,18 @@ def main() -> int:
 
     a = ap.parse_args()
     if a.cmd == "pack":
+        # BOTH aspect properties, not one. This read `sees` and not `blind_language`
+        # until 2026-08-23, so a pack built through the CLI - the path the module
+        # docstring tells a human to type - was not blinded AT ALL: files kept their
+        # real suffixes and the `.src` rename never ran. Measured on
+        # `wg-g4c/g4_platformer`: 199 of 207 files kept a language-naming filename and
+        # the content carried 663 extension tokens. `field_sweep.py` passed both at all
+        # three of its call sites, so no stored round is affected - which is exactly why
+        # nothing noticed. **Guard the resource, and verify on the path that actually
+        # holds it** (rule 13); `blind_ext_selftest.py` now drives this entry point.
+        aspect = ASPECTS[a.aspect]
         info = build_pack(a.run, a.game, a.out, a.order_seed,
-                          sees=ASPECTS[a.aspect].sees)
+                          sees=aspect.sees, blind_language=aspect.blind_language)
         print(json.dumps(info, indent=2))
         return 0
     if a.cmd == "run":

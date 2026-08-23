@@ -66,6 +66,37 @@ func _hide_window() -> void:
 	DisplayServer.window_set_position(Vector2i(-4000, -4000))
 
 
+## A capture needs a window that is still DRAWING, and a MINIMISED one is not.
+##
+## macOS stops producing frames for a minimised window and keeps handing back the last
+## image it drew, so `get_texture().get_image()` returns a STALE picture rather than
+## null — every capture in this file then compares the same frozen frame, with nothing
+## red to say why. Measured on the pristine starter: the golden test was handed the
+## tick-1 probe capture, the HUD was identical at tick 20 and tick 200, a burst added
+## 0.0000% ink, and 6 of the 9 tests failed pointing at the arena transform, the
+## particle system and the HUD — none of which was wrong.
+##
+## The cause here is `tools/no_raise.gd`, an `[autoload]` that therefore runs in THIS
+## process too and minimises the window as its last resort when the window took focus
+## anyway. That is racy: 5 of 12 pristine `just test-render` runs took it. But this is
+## written as the PRECONDITION the capture needs and not as a fix for that one cause,
+## so a window minimised by anything else — a future guard, a person, the OS — is
+## handled too.
+##
+## Restoring does NOT hand focus back to this app: measured, the frontmost application
+## returned to the operator's and stayed there.
+func _ensure_drawing_window() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_MINIMIZED:
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	# Restoring re-applies the mode, not the position or the focus flag.
+	_hide_window()
+	for i: int in range(3):
+		await _tree.process_frame
+
+
 ## Background as u8 RGB, for "is this pixel ink?" tests.
 func background() -> PackedByteArray:
 	return View.to_u8(View.BACKGROUND_COLOR)
@@ -111,6 +142,10 @@ func capture_frame(
 	# the capture is taken again. On a settled window this costs one pass.
 	var frame: Frame = null
 	for attempt: int in range(SETTLE_ATTEMPTS):
+		# Before the size settles, the window has to be drawing at all. This consumes
+		# no settle attempt: exhausting them returns a null frame, which `run_all`
+		# reports as nine SKIPs and exit 0 — a green that measured nothing (rule 1).
+		await _ensure_drawing_window()
 		var size: Vector2 = _tree.root.get_visible_rect().size
 		_view.frame_arena(size)
 		_view.sync(world)

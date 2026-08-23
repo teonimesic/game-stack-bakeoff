@@ -2167,7 +2167,7 @@ The gap-crossing code written for the wrong hypothesis is kept: it establishes t
 needs it. But it is **not** what fixed this, and it fixed nothing on its own — measured, the
 re-grade with gap-crossing alone left `ts__t0` byte-identical at 0.793.
 
-> **That last sentence is not evidence, and #133 is why.** At the commit this finding was
+> **That last sentence is not evidence, and #135 is why.** At the commit this finding was
 > published from, the gap-crossing code sat entirely inside `_approach` — a method with no
 > caller — and `_edge_distance` measures **0 calls** across a full session there. Byte-identical
 > was the only obtainable result. The height fix in `_nearest` is live (391 and 1796 calls) and
@@ -2187,7 +2187,7 @@ visible once the one before it was removed:
 | 4 | the jump fired **too early** | at `_EDGE_JUMP_WITHIN = 48` the bot left the ground 48 units before a 78.5-unit gap and landed in it; at 24, 12 and 6 it crossed with **full health** | threshold → 20 |
 | 5 | `_combat` is a **second** movement loop | `_approach` got the fix; `attack.damages` did not move **at all** — byte-identical evidence — because `_combat` re-implements "walk toward the target" inline | same edge logic added |
 
-> **Row 5's repair was right and its stated cause was wrong — #133.** `_approach` had no caller
+> **Row 5's repair was right and its stated cause was wrong — #135.** `_approach` had no caller
 > in any commit that ever contained it (0 calls, spied, in a full session; positive controls
 > `_nearest` 391 and `_walk_toward` 390). A repair to it moved nothing whether or not `_combat`
 > re-implemented the loop. **A second copy of a loop and an unreachable copy of a loop are
@@ -3530,7 +3530,78 @@ Three details worth keeping:
   exact state.** That is why it survived as a comment: the file had a check for everything except
   whether the field was read.
 
-## 133. The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available
+---
+
+## 134. A gate was built to stop the findings figure going stale, it checked the range, and the count went stale beside it — in words, where no check could read it
+
+`README.md` opened *"The one thing this project actually learned"* with the size of the findings
+log spelled out as a cardinal in words. When task 88 measured it, the log held **114 numbered
+findings, #19-#132**. The word was *thirty-seven*.
+
+Task 59 had already built the gate this should have tripped. It reads `Findings #A-#B` in
+`AGENTS.md`, `README.md` and `eval/FINDINGS.md`, asserts `B` equals the highest finding in
+`eval/findings/`, fires if a file stops stating a range at all, and carries 23 pins that run
+inside `--sweep` on every invocation. It was green. It had been green over this sentence for
+every one of the eleven days the sentence was wrong.
+
+> **A range is not a count.** `#19-#132` is equally true of 114 findings and of 40. The gate
+> could not have seen this, and nothing said so — the two figures sit 360 lines apart in one
+> file and read as two statements of the same fact.
+
+**The second reason it survived is the form.** `Thirty-seven` is a cardinal spelled in words, and
+no check in this repository can compare one. A digits-only check written today would still let
+the next stale count walk past by being written out in full, so the producer reports a
+word-cardinal as *ungateable* rather than ignoring it.
+
+**The third is where the trigger was written.** `AGENTS.md` told every author to run a producer
+before writing *"how much of anything the project has"* — and then enumerated it: *trials, runs,
+games, stacks, submissions, spend*. Findings are not on that list, and `census.py`, the producer
+it names, counts trial records. This is the rule audit's own conclusion firing on the rule audit's
+own document: **a trigger written as an enumeration must be re-derived by every reader who meets
+an item not on it.** The row now states the property and routes to three producers by what is
+being counted.
+
+`python3 eval/tools/docstat.py --findings` is the producer. It counts `eval/findings/` and
+`eval/FINDINGS.md` **independently** — #127 is one directory over, where a census was certified
+by a cross-check that shared its extractor — prints the population and the absolute path of each,
+exits 2 rather than reporting `0`, and exits 1 when the two sources or any live document disagree.
+
+### What the controls found that the tool did not
+
+`findings_control.py` runs the real command over a tree whose answer is written down first: 13
+controls, 7 mutants, every mutant caught. Three things came out of building it that reading the
+code would not have given:
+
+- **The first `--mutate no_count_check` deleted one of TWO implementations and all ten controls
+  stayed green.** The gate path and the producer path had each grown their own copy of "is the
+  index the same set as the bodies". They are now one function with two presentations: the sweep
+  calls the producer.
+- **Two more mutants survived their first run** — the index-row reconciliation and the gap check
+  — because in every case that exercised them, some *other* check also fired. A control that goes
+  red for a reason it did not name is not controlling that reason. Two cases were added where the
+  named mechanism is the only signal: a renumber applied consistently everywhere (sets, count and
+  range all agree; only the numbering has a hole) and one number on two index rows (invisible to
+  both set differences).
+- **A duplicated statement is invisible to a check that validates every occurrence.** An evil
+  merge put the `Findings #19-#131` row into `AGENTS.md` and `README.md` **twice each** on
+  2026-08-23; `--sweep` was green, because `_check_range_in` validated both copies and both were
+  right. The same merge shape recurred during this task: merging `main` mid-work reintroduced the
+  duplicate pair at `#19-#132`.
+
+**And the mechanism cost an hour of its own author's work.** The mutant runner patched the
+repository's `docstat.py` in place and printed *"restore with `git checkout`"*. The instruction
+was followed and it discarded every uncommitted change to that file. Mutants now apply to a copy
+in a tempdir; the repository's file is never written to.
+
+> **A control that can damage the thing it controls has a failure mode worse than the defect it
+> looks for, and "remember to restore it" is not a mechanism.**
+
+The gate proved itself within the hour: merging `main` moved the log from 113 to 114 findings,
+and `--findings` went red on the count this very task had just written.
+
+---
+
+## 135. The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available
 
 `PlatformerBot._approach` existed for five of the six commits that have touched
 `eval/judge/bot_platformer.py`. It was never called from anywhere, in any of them. Two

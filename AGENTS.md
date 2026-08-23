@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | Current status and where things live |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#133, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#135, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -284,7 +284,15 @@ working session as the change**, not later:
 | A figure or a claim is **withdrawn** | Add an entry to `eval/withdrawn.json`, then repair every live document `docstat.py --withdrawn` names |
 | Weights, rubric, or grading change | `eval/judge/RUBRIC.md` **and** the `README.md` grading table |
 | A merge renumbers a finding you allocated | `python3 eval/tools/docstat.py --renumbered`, then fix the **citations** |
-| You are about to write **how much of anything the project has** — trials, runs, games, stacks, submissions, spend | `python3 eval/tools/census.py`, and quote the population beside the count. Never a remembered number, never one copied from another document |
+| You are about to write **how much of anything the project has** — any quantity, with no exceptions to look for | Find the producer, run it, and write the command beside the number with the population it counted. The stored tree: `python3 eval/tools/census.py`. The findings log: `python3 eval/tools/docstat.py --findings`. Judge spend: `python3 eval/judge/judge_ledger.py --tree eval/runs/`. **If the quantity has no producer, that is the defect** — write one, or do not publish the number |
+
+> **This row read *"trials, runs, games, stacks, submissions, spend"* until 2026-08-23, and it is
+> the rule audit's own failure mode: a trigger written as an enumeration must be re-derived by
+> every reader who meets an item not on the list.** `README.md` opened a section with a
+> findings count spelled out in words, thirty-seven against a log that had reached #131, and it
+> stood for eleven days past this table — because findings were not on the list and `census.py`
+> counts trials. The list is now the property. **Write a count in digits**: no check can read a
+> cardinal spelled in words, which is the second reason that figure survived.
 
 > **A count with a producer goes stale for an hour; a count with none goes stale forever.**
 > `README.md`'s opening sentence said *"24 whole-game submissions, three games, four stacks, two

@@ -1,7 +1,7 @@
 ---
 id: 84
 title: The verify-gate Stop hook leaves no evidence that it ran
-status: open
+status: in_flight
 priority: 2
 refs: eval/starters/*/.claude/hooks/verify-gate.sh, eval/wholegame.py, tasks/78
 done_when: either every starter's verify-gate.sh records each invocation and its verdict somewhere the harness collects and the graded diff does not see, with a control showing a green run and a blocked run are distinguishable afterwards from stored artifacts alone and a control showing the log does not appear in diff.stat or the submission tarball, or the hook is measured live in one real trial per stack and the result recorded so that 'the gate is live in all four' stops resting on file presence

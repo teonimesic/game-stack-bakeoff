@@ -475,6 +475,40 @@ costs the reader the control they never ran — `--sweep` printed `6 aspects kno
 for as long as two documents said five. A census claim is only visible because somebody
 **declared** it exhaustive, which is the same mechanism the withdrawal register rests on.
 
+**The census trigger is scoped to the PREDICATE, not to the quantifier, and that is a measured
+choice rather than a stylistic one (task 92).** It shipped as three alternations — the three
+wordings the two defective documents happened to use — and of 14 planted census claims, each
+false in exactly the way the check exists to catch, it fired on **2**. These two passed:
+
+```
+The five judge aspects are `architecture`, `audio`, `fun`, `idiomatic` and `ux`.
+There are five aspects: `architecture`, `audio`, `fun`, `idiomatic`, `ux`.
+```
+
+The obvious repair fails harder: a trigger built on the quantifier, a cardinal or `all`
+governing `aspects`, caught 10 of the 14 and turned **26 correct live lines red, with no true
+positive among them** — in this corpus a counted plural `aspects` almost always describes what
+*ran*, *cost* or *failed*, as in DECISIONS.md's own `All five aspects were run over a full
+eight-submission field`. What a census has and a run description does not is an existence,
+identity or definition predicate in the present tense with the enumeration adjacent, and
+copula / existential / `define` are closed classes, which is what makes that statable as a
+property instead of a growing wordlist. **Measured after the change: 14 of 15 plants red, 0 red
+across the 152-document swept corpus, and 6 across all 2090 markdown files in the checkout —
+all 6 archive-exempt and all 6 true statements of a superseded census.**
+
+> **The fence above is load-bearing, and the widened trigger's first live firing proved it.**
+> This paragraph quotes two false censuses as examples, `--sweep` went red on it, and that is
+> the check working: a live document may not state a census it does not mean, and the declared
+> way to show one is inside a ``` fence, where a line is an example rather than a claim. The
+> same exemption is why the archive may quote the superseded five freely.
+
+**What it deliberately still misses, with the price of closing it.** A bare `aspect`-headed
+table listing five ids with no sentence above it is invisible. The structural trigger for that
+was written and measured at **9 false positives** on live docs — every one a legitimate
+per-aspect results table over the subset a particular round ran. Nine false positives to close
+a gap that has never occurred is the trade this file already refused when the path check was
+deleted rather than tuned quiet.
+
 Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
 gate that fails on correct input gets disabled*:
 
@@ -484,20 +518,47 @@ gate that fails on correct input gets disabled*:
   The archive records what was true when it was written, including the broken shapes it is
   about; reformatting one to satisfy a gate edits evidence.
 
-  This exempts the archive from **house style, not from being findable.** Four checks do read
+  This exempts the archive from **house style, not from being findable.** Five checks do read
   it, and each asks whether a citation still resolves rather than whether the prose is tidy:
   a finding number is defined once; every number has exactly one row in the `eval/FINDINGS.md`
-  index and vice versa; that index renders as **one table**; and every live statement of the
+  index and vice versa; that index renders as **one table**; every live statement of the
   range — `AGENTS.md`, `README.md` and the index's own opening line — names the same highest
-  number.
+  number; and every live statement of **how many there are** matches how many there are.
 
-  The last two are the ones the others could not see. A blank line between two rows ends the
+  Three of those are ones the others could not see. A blank line between two rows ends the
   table under CommonMark, so the rows below become a second, headerless table that no renderer
   shows as part of the index — while the row count, the set reconciliation and `grep` are all
-  unchanged. And the range was spelled in three files with only one of them checked, so the
-  index was repaired while `AGENTS.md` went on saying `#19-#110`. Both were green on a real
-  defect, so both now carry a red control: **`--sweep` runs the pins itself** on every
-  invocation, and `docstat.py --selftest` prints them.
+  unchanged. The range was spelled in three files with only one of them checked, so the
+  index was repaired while `AGENTS.md` went on saying `#19-#110`. And **a range is not a
+  count**: `#19-#132` is equally true of 114 findings and of 40, which is how `README.md`
+  carried a count of *thirty-seven* for eleven days past a green range gate (#133,
+  `WR-readme-findings-count`). Each was green on a real defect, so each now carries a red
+  control: **`--sweep` runs the pins itself** on every invocation, `docstat.py --selftest`
+  prints them, and `eval/tools/findings_control.py` runs the command out of process against a
+  tree whose answer is written down first.
+
+### The producer for the findings count is `docstat.py --findings` — decided 2026-08-23
+
+`census.py` counts the stored tree and refuses in an agent worktree, where `eval/runs/` is
+gitignored — which is exactly where documents get edited. The findings log is a corpus of
+markdown, so its producer lives in the tool that already parses it.
+
+**The gate and the producer are one function.** `_check_findings_integrity` returns
+`findings_census(...)["disagreements"]` plus the two things a census does not express: the
+index's *structure*, and which lines an over-indexed number sits on. The first draft had two
+implementations of the same reconciliation, one gating and one producing;
+`findings_control.py --mutate no_count_check` deleted one of them and all ten controls stayed
+green. A duplicated mechanism buys half a gate and no way to tell which half was removed.
+
+**A count in a live document must be written in digits.** A cardinal spelled in words is
+reported as ungateable rather than ignored, because a digits-only check would let the next
+stale figure past by being written out in full — which is what the one real instance did.
+
+**A live document states the range once.** `_check_range_in` validates every occurrence it
+finds, so N identical correct copies are N passes: an evil merge duplicated the row in
+`AGENTS.md` and `README.md` on 2026-08-23 and `--sweep` was green on both, and the same merge
+shape recurred while task 88 was in flight. The cost of the rule is that a document wanting to
+state the range in two places must instead point at the one that does.
 
 ### A citation of a renumbered finding is reported, never gated — decided 2026-08-23
 
