@@ -2633,3 +2633,94 @@ collapse every `Unity`-prefixed identifier to a single token, so `UnityCG.cginc`
 `EngineObjectToClipPos`. The name is gone either way; the old form destroyed the distinction
 between two different identifiers and, by this module's own argument, a token that obviously
 stands in for something advertises that a substitution happened.
+
+## 133. a focus guard minimised the window the render tests read pixels from, and a frozen frame is not an empty one
+
+Task 80. `eval/starters/godot/tools/no_raise.gd` keeps a launched game from stealing the
+operator's keyboard. It is declared under `[autoload]` in `project.godot`, so it runs in **every**
+godot process — not only `just run`, which is the only process its own docstring describes. When
+the cheap `WINDOW_FLAG_NO_FOCUS` flag fails to stop the window taking focus, its last resort is to
+**minimise** the window.
+
+**macOS stops producing frames for a minimised window and keeps handing back the last image it
+drew.** So `get_viewport().get_texture().get_image()` returns a STALE image — and `null` is the
+only thing `RenderTests.capture_frame` ever checked for. Every capture after the window went down
+came back as the same frozen picture.
+
+What that looked like from the outside was six of nine render tests failing, each blaming
+something real and innocent: *"the arena transform is probably wrong"*, *"the particle system is
+not reaching the captured viewport"*, *"a HUD that never changes reports nothing"*. Nothing was
+wrong with any of them.
+
+**The frame proved it.** `frame.actual.png`, written by the golden test, carried the HUD text
+`tick 1  marker -3, 0` — the tick-1 probe capture taken at the top of `run_all`, before any test
+runs — while the test that wrote it had asked for seed 5 at tick 90.
+
+> **The two tests that PASSED are the two reproducibility tests.** A frozen frame is perfectly
+> reproducible. Rule 9 usually names independent subjects agreeing because they share an
+> instrument; here it happened *inside one process*, where a check designed to prove the renderer
+> deterministic instead certified that it had stopped.
+
+### Both directions, single variable
+
+On an idle machine, on a pristine `wholegame.prepare` copy:
+
+| `tools/no_raise.gd` | `just test-render` |
+|---|---|
+| as shipped | **5 of 12 FAILED** |
+| minimise removed, `NO_FOCUS` flag kept | 0 of 12 failed |
+| forced to always take the minimise branch | **8 of 8 FAILED**, 3 passed / 6 failed every time |
+
+Every failing run printed `[no_raise] flag INSUFFICIENT - window raised anyway; minimised to
+return focus`; every passing one printed `flag sufficient`. Which branch is taken is a race with
+macOS activation, which is why a single run of the gate control was never a measurement of this
+row — and why the row read as a stable defect to one observer and as green to the next.
+
+### It is one-arm bias, and the control says so
+
+`verify.green` and `build.compiles` are tier-1 criteria taken from the exit code of the
+submission's own `just verify` (`judge/static.py`), and `build.compiles` is **blocking**. Only the
+godot arm opens a render window at all. In the same `starter_gate_control.py` run that failed this
+row, rust, ts and unity were green on **21 of 21** measurements.
+
+### The repair, and the shape of it
+
+`tests/render_test.gd::capture_frame` now asserts **its own precondition** — a capture needs a
+window that is drawing — and restores a minimised one before framing. It is deliberately *not*
+written as "undo what `no_raise` did": a trigger written as the instance that produced it has to
+be re-derived by the next reader who meets a different one, so the check is on the window's mode
+and covers a window minimised by anything.
+
+It consumes no `SETTLE_ATTEMPTS`, and that is load-bearing rather than tidy: exhausting them
+returns a null frame, `run_all` reports nine SKIPs, and `just test-render` **exits 0**. The
+obvious implementation of this fix could therefore have converted a red gate into a green one that
+measured nothing.
+
+### The same guard was also claiming an action it never performed
+
+Under `--headless` there is no window at all, but the dummy `DisplayServer` still answers
+`window_is_focused()` with **true** — so `check`, `test-sim`, `probe` and `probe-file` each
+printed *"window raised anyway; minimised to return focus"*. Two consequences, neither noticed for
+as long as the line existed:
+
+- it is the **last** line those recipes emit, so it is what `starter_gate_control.py` recorded as
+  their evidence, and the ticket for this task quotes it as if it meant something;
+- it lands on `just probe`'s **stdout**, which this template's guide documents as carrying nothing
+  but JSON trace lines. `eval/judge/probe.py` tolerates it and files it under `[stdout pollution]`
+  — into the same `_stderr_tail` buffer that votes on whether a probe failure was a lock conflict.
+
+Pinned both ways by parsing every stdout line of `just probe`: pre-repair 4 lines of which 1 is
+not JSON, post-repair 3 lines of which 0 are.
+
+> **A guard that reports an action it did not perform is worse than one that is absent** — the
+> `-disable-audio` lesson (#61, rule 13) with the polarity reversed. There, a flag was accepted
+> and ignored and `exit 0` was read as "audio is off". Here a guard printed a claim to have
+> minimised a window that did not exist, and it was read as evidence about the recipe.
+
+### What the instrument could not tell you, and now can
+
+`starter_gate_control.py` stored one line per row. `just` writes `error: recipe test-render failed
+on line 120` last, so **the last line of a failed row names the recipe and never the reason** —
+the reason had to be rebuilt outside the tool before any of the above could be seen. `--log-dir`
+now writes the full output of every invocation, streams kept apart (#100/#114), and the failure
+section points at it.

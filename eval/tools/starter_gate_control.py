@@ -265,6 +265,18 @@ def _describe(added: list[str], removed: list[str], modified: list[str],
     return "; ".join(parts) if parts else "no tracked file changed"
 
 
+#: Where `_run` writes the FULL output of every invocation. Set by `main`.
+#:
+#: A row's `tail` is ONE line, and `just` writes its own `error: recipe X failed on line N`
+#: last — so the last line of a failed row is the recipe that failed and never the reason.
+#: Task 80 spent its first hour rebuilding this capture outside the tool to find out that a
+#: red `just verify` meant six render tests comparing a stale frame; nothing in the report
+#: could have said so. Recording what the instrument DID, not only what it concluded, is
+#: the property AGENTS.md asks for, and it is cheap: these are small text files.
+LOG_DIR: Path | None = None
+_LOG_SEQ = 0
+
+
 def _run(argv: list[str], cwd: Path, timeout_s: int) -> tuple[int, str]:
     """NO PIPE, and no `|| echo`. The exit code is the measurement (AGENTS.md rule 3).
 
@@ -276,9 +288,28 @@ def _run(argv: list[str], cwd: Path, timeout_s: int) -> tuple[int, str]:
         p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
                            timeout=timeout_s, check=False, env={**os.environ, **TRIAL_ENV})
     except subprocess.TimeoutExpired:
+        _log(argv, cwd, 124, "", "the harness timed out; no output was collected")
         return 124, "TIMEOUT"
+    _log(argv, cwd, p.returncode, p.stdout or "", p.stderr or "")
     out = ((p.stdout or "") + (p.stderr or "")).strip().splitlines()
     return p.returncode, (out[-1][:160] if out else "")
+
+
+def _log(argv: list[str], cwd: Path, rc: int, stdout: str, stderr: str) -> None:
+    """One file per invocation, in call order, with the two streams KEPT APART.
+
+    Merging them is what `eval/AGENTS.md` records as #100/#114: whichever stream the
+    toolchain wrote second wins, and which one that is correlates with the stack.
+    """
+    global _LOG_SEQ
+    if LOG_DIR is None:
+        return
+    _LOG_SEQ += 1
+    name = f"{_LOG_SEQ:03d}-{cwd.name}-{'-'.join(argv[1:]) or argv[0]}.log"
+    body = (f"$ {' '.join(argv)}\n  cwd: {cwd}\n  exit: {rc}\n"
+            f"\n--- stdout ({len(stdout)} chars) ---\n{stdout}"
+            f"\n--- stderr ({len(stderr)} chars) ---\n{stderr}")
+    (LOG_DIR / name.replace("/", "_")).write_text(body)
 
 
 def _pristine(stack: str, into: Path) -> Path:
@@ -478,7 +509,16 @@ def main(argv: list[str]) -> int:
                     help="gate directions only. The verify-idempotence direction runs "
                          "`just verify` twice per stack, which is the expensive part; "
                          "skipping it reports every arm as NOT CHECKED for it.")
+    ap.add_argument("--log-dir", type=Path,
+                    help="write the FULL output of every recipe here, one file per "
+                         "invocation, in call order. A row's last line is `just`'s own "
+                         "`error: recipe X failed`, never the reason; this is where the "
+                         "reason is. Default: a fresh directory beside the report.")
     a = ap.parse_args(argv)
+
+    global LOG_DIR
+    LOG_DIR = a.log_dir or Path(tempfile.mkdtemp(prefix="starter-gate-logs-"))
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     available = sorted(p.name for p in STARTERS.iterdir()
                        if p.is_dir() and (p / "justfile").exists())
@@ -511,8 +551,12 @@ def main(argv: list[str]) -> int:
         print(f"{name:<{w}}  {rc:<4d} {secs:>6.1f}  {tail}")
     print(f"\n{len(stacks)} starter(s), {len(rows)} measurements, {len(bad)} FAILED, "
           f"{len(unchecked)} NOT CHECKED")
+    print(f"full output of all {_LOG_SEQ} invocation(s): {LOG_DIR}")
     for name, rc, secs, ok, tail in bad:
         print(f"  FAIL {name} (exit {rc}): {tail}")
+    if bad:
+        print(f"\nThe line after each FAIL is `just`'s own `error: recipe … failed`, which "
+              f"names the\nrecipe and never the reason. The reason is in {LOG_DIR}.")
     if unpinned:
         print(f"\nNOT PINNED IN THE THIRD DIRECTION - {len(unpinned)}, reported, not "
               f"failed:")

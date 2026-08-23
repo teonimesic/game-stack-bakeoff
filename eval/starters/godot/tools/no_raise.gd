@@ -21,6 +21,16 @@ extends Node
 func _ready() -> void:
 	if OS.get_environment("STARTER_NO_RAISE") != "1":
 		return
+	# NO WINDOW EXISTS UNDER `--headless`, and the dummy driver still answers
+	# `window_is_focused()` with true. Without this the guard printed a claim to have
+	# minimised a window it never had, from every headless recipe — `check`, `test-sim`,
+	# `probe`, `probe-file`. That line is the LAST thing those recipes print, so anything
+	# reading a recipe's final line read it as the result; and it landed on `just probe`'s
+	# STDOUT, which AGENTS.md promises carries nothing but JSON trace lines.
+	# A guard that reports an action it did not perform is worse than one that is absent —
+	# see the `-disable-audio` note in `tools/launch.just`.
+	if DisplayServer.get_name() == "headless":
+		return
 	# CHEAPEST FIRST: ask the window not to take focus.
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
 	await get_tree().process_frame
