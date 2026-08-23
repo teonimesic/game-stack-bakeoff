@@ -206,28 +206,44 @@ def report(run_dir: str) -> None:
         for r in rows:
             by_term[r["term"]].append((r["cost"], r["turns"] or 0))
         print()
+        def line(label: str, group: list[tuple]) -> str:
+            """`n`, total and mean over one population, saying what it could not read.
+
+            `n` COUNTS THE POPULATION, not the readable subset: a group of 2 where one
+            figure is missing is n=2 with 1 excluded, never n=1. And the mean is over the
+            readable subset only - a missing figure summed as 0.00 is the `|| echo 0`
+            shape (rule 3), which is what this printed until 2026-08-23.
+            """
+            readable = [c for c, _ in group if c is not None]
+            miss = f"  ({len(group) - len(readable)} unmeasured, excluded)" \
+                if len(readable) != len(group) else ""
+            if not readable:
+                return (f"  {label:<18} n={len(group):<3} "
+                        f"total {tokenvalue.fmt(None, width=8)}  "
+                        f"NO READABLE FIGURE in {len(group)} record(s)")
+            return (f"  {label:<18} n={len(group):<3} "
+                    f"total {tokenvalue.fmt(sum(readable), width=8)}  "
+                    f"mean {tokenvalue.fmt(sum(readable)/len(readable), width=7)}{miss}")
+
         for term, cs in sorted(by_term.items(), key=lambda kv: str(kv[0])):
-            unmeasured = sum(1 for c, _ in cs if c is None)
-            miss = f"  ({unmeasured} unmeasured, excluded)" if unmeasured else ""
-            costs = [c for c, _ in cs if c is not None]
-            started = [c for c, n in cs if n > 1 and c is not None]
-            never = [c for c, n in cs if n <= 1 and c is not None]
-            head = (f"  {str(term):<18} n={len(cs):<3} "
-                    f"total {tokenvalue.fmt(sum(costs) if costs else None, width=8)}")
-            if not costs:
-                print(f"{head}  NO READABLE FIGURE in {len(cs)} record(s)")
-            elif started and never:
+            # PARTITION FIRST, THEN EXCLUDE. Splitting on `turns` over ALL records, before
+            # dropping the unreadable ones, is what keeps the two populations visible: a
+            # never-started trial usually has no figure at all, so filtering on `c is not
+            # None` first emptied `never` and the group printed a pooled mean over the one
+            # population left - rule 4, reintroduced by the repair for rule 3.
+            started = [(c, n) for c, n in cs if n > 1]
+            never = [(c, n) for c, n in cs if n <= 1]
+            if started and never:
                 # Two populations under one label. Report both; refuse the pooled mean.
-                print(f"{head}  MEAN SUPPRESSED - {len(started)} trial(s) ran, "
-                      f"{len(never)} never got a turn{miss}")
-                print(f"  {'':<18} ran:   n={len(started)} "
-                      f"total {tokenvalue.fmt(sum(started), width=8)}  "
-                      f"mean {tokenvalue.fmt(sum(started)/len(started), width=7)}")
-                print(f"  {'':<18} never: n={len(never)} "
-                      f"total {tokenvalue.fmt(sum(never), width=8)}")
+                readable = [c for c, _ in cs if c is not None]
+                print(f"  {str(term):<18} n={len(cs):<3} "
+                      f"total {tokenvalue.fmt(sum(readable) if readable else None, width=8)}"
+                      f"  MEAN SUPPRESSED - {len(started)} trial(s) ran, "
+                      f"{len(never)} never got a turn")
+                print(line("ran:", started))
+                print(line("never:", never))
             else:
-                print(f"{head}  "
-                      f"mean {tokenvalue.fmt(sum(costs)/len(costs), width=7)}{miss}")
+                print(line(str(term), cs))
     else:
         print("  no trial records yet")
 
@@ -301,10 +317,17 @@ def selftest() -> int:
 
     def run(records: list[dict]) -> str:
         with tempfile.TemporaryDirectory() as td:
-            os.makedirs(os.path.join(td, "trials"))
+            trials = os.path.join(td, "trials")
+            os.makedirs(trials)
             for i, rec in enumerate(records):
-                with open(os.path.join(td, "trials", f"t{i}.json"), "w") as fh:
+                # Temp file plus os.replace, the same policy every artifact here is
+                # written under: a reader must never meet a half-written record, and a
+                # fixture is not a reason to keep a second policy.
+                final = os.path.join(trials, f"t{i}.json")
+                tmp = f"{final}.tmp"
+                with open(tmp, "w") as fh:
                     _json.dump(rec, fh)
+                os.replace(tmp, final)
             buf = _io.StringIO()
             with contextlib.redirect_stdout(buf):
                 report(td)
@@ -325,6 +348,18 @@ def selftest() -> int:
     check("MUTANT: the old expression would have printed a 5.00 mean",
           f"{(10.0 + 0.0) / 2:.2f}" == "5.00")
     check("and 5.00 is not in the real output", "5.00" not in out, out)
+
+    # --- THE MIXED CASE: one ran, one never started, and the one that never
+    #     started has no figure. Partitioning after excluding empties `never`, and the
+    #     group prints a mean over the single population left. n must stay 2.
+    out = run([rec(10.0, 100, tid="a"), rec(None, 1, tid="b")])
+    check("a mixed group suppresses the pooled mean", "MEAN SUPPRESSED" in out, out)
+    check("... and keeps n=2 for the group", "n=2" in out, out)
+    check("... reports the trial that ran",
+          "ran:               n=1" in out and "mean   10.00" in out, out)
+    check("... and the one that never got a turn as unreadable",
+          "NO READABLE FIGURE in 1 record(s)" in out, out)
+    check("... without inventing a mean for it", "mean     0.00" not in out, out)
 
     # --- nothing readable at all -------------------------------------------
     out = run([rec(None, 100, tid="a"), rec(None, 90, tid="b")])

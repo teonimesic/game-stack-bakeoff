@@ -499,10 +499,10 @@ Two refinements that pattern does not cover:
 
    **And that ceiling was measuring the wrong thing, which is not the same as doing nothing.**
    `--max-budget-usd` really does terminate a trial — `budget_exhausted` is a stored terminal
-   reason and one run has a trial in it — and it is *also* visible to the agent and instructs it.
-   What it cannot do is protect a resource: the figure it names is a list-price valuation of
+   reason and **1** run has a trial under it — and it is *also* visible to the agent and instructs
+   it. What it cannot do is protect a resource: the figure it names is a list-price valuation of
    tokens on a subscription account (#159). So it truncates and instructs while protecting
-   nothing, which is the worst of the three. Raising a ceiling is self-diagnosing, as above;
+   nothing, which is the worst of the 3. Raising a ceiling is self-diagnosing, as above;
    **a ceiling in a unit that does not bind is not**, because the outcome it reports is about
    the instruction rather than about the resource. `DECISIONS.md` records that no run here is
    bounded by a money figure, and the standing configuration passes no such flag.

@@ -83,7 +83,7 @@ The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 tha
 > row's records sum to $118.62 while its build log's `[built]` lines sum to $118.63: the log
 > prints each trial rounded to the cent and the records carry full precision. Stated rather than
 > reconciled — a figure quietly adjusted to match another figure is no longer a reading.
-
+>
 > **A row for a live run is a moving number.** `wg-audio48` was still building its last four arena
 > trials when this warning was written. An earlier version of this file recorded *$571.15, 19
 > completed, 5 api_error* — read from disk correctly, describing a state that lasted minutes. Mark
@@ -984,7 +984,7 @@ and refuses rather than guessing when the corroboration is unavailable.
 > may be read from them**, and re-packing cannot retroactively repair a round. A code ordering
 > from this field requires a *new* round. `fun`, `fun_frames`, `ux` and `audio` never read
 > `judge_pack/code` and are unaffected either way.
-
+>
 > **⚠️ AN `architecture` ORDERING FROM THIS FIELD IS NOT LANGUAGE-BLIND (#131).** All 8 packs
 > carried their stack's toolchain names, one-armed: 13 and 10 leaking files in the two Rust
 > submissions against 2-3 in the other six. Every one of the 9 stored `architecture` rounds that
@@ -1308,7 +1308,7 @@ see the note after the table.
 > different aspect sets over packs from 10 KB to 3.3 MB, across the #95 re-pack boundary. The
 > total is additive and safe because token counts add; a per-call mean over it is rule 4 and
 > `judge_ledger.py` refuses to print one.
-
+>
 > **The right-hand column is not the field's figure and must never be read as one.** It is
 > `charged_to_ceiling_usd` — what the last invocation generated, which is what the retired
 > `--max-cost` ceiling was enforced against. A round already on disk contributes 0 on purpose so
@@ -1353,7 +1353,7 @@ A pooled per-call mean over all aspects would have priced `idiomatic` at a third
 > same command cost **$0.00** for those 10 (every round is keyed by file and reused) and
 > continued from round 11. Launch a sweep detached from a foreground call, not as a background
 > task; `nohup` alone is enough, and `setsid` does not exist on macOS.
-
+>
 > **Judge artifacts live in `runs/`, never in scratch.** Round 1 was written to a
 > session-scoped directory under `/private/tmp` and moved out once it became the evidence for
 > a finding. `field_sweep.assert_out_root_durable()` now refuses any ephemeral `--out`, pinned

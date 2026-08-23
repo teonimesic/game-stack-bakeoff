@@ -103,12 +103,38 @@ MONEY_LITERAL = re.compile(r"\$\d")
 #: are money labels that `MONEY_LITERAL` cannot see - `$` there is followed by `%` or `{:`,
 #: never by a digit. Discovery and the sigil check have to know the same 3 forms, or a
 #: module found by one passes the other.
-MONEY_PERCENT = re.compile(r"\$%[-+ #0-9.]*[fgdeEs]|\$\{[^A-Za-z{}\n][^{}\n]{0,10}\}")
+MONEY_PERCENT = re.compile(r"\$%[-+ #0-9.]*[fgdes]|\$\{[^A-Za-z{}\n][^{}\n]{0,10}\}",
+                           re.I)
 
-#: Lines a producer may legitimately carry a `$`-shaped string on: the ones quoting a
-#: SHELL variable or a shell prompt, and this module's own documentation of the defect.
-_SHELL_VAR = re.compile(r"\$\{?(?:TMPDIR|CLAUDE_PROJECT_DIR|STARTER_HOOK_LOG|PATH|HOME|"
-                        r"schema|\{)")
+#: A `$` that is NOT a money label: a shell variable a producer legitimately quotes, or a
+#: GitHub Actions `${{ ... }}` template.
+#:
+#: THIS BLANKS A SPAN. IT USED TO SKIP THE LINE, AND THAT WAS FAIL-OPEN IN MY OWN CHECK.
+#: The old pattern ended in `|\{`, so `$` followed by `{` matched it — and every line
+#: holding `${` was skipped before any money regex ran. Measured: `print(f"${spent:.2f}")`
+#: is a money sigil `MONEY_SIGIL` matches, and the guard skipped the line so it was never
+#: asked. A guard that excuses a whole line excuses everything else on it, which is rule 7:
+#: every reason not to count a failure is a channel a bug can widen.
+_SHELL_VAR = re.compile(
+    r"\$\{\{[^\n]*?\}\}"                                    # ${{ ... }}, Actions
+    r"|\$\{?(?:TMPDIR|CLAUDE_PROJECT_DIR|STARTER_HOOK_LOG|PATH|HOME|schema)\b[^}\n]*\}?")
+
+
+def _blank_shell_vars(line: str) -> str:
+    """The line with its shell-variable spans replaced by a space."""
+    return _SHELL_VAR.sub(" ", line)
+
+
+def money_sigil_in(line: str) -> bool:
+    """Does this source line carry a money label, in any of the 3 forms?
+
+    THE ONE CODE PATH. `_producer_problems` calls this and the pins call this, so a pin
+    that is green is a statement about what the sweep actually does — not about a second
+    copy of the rule that happens to agree with it today.
+    """
+    text = _blank_shell_vars(line)
+    return bool(MONEY_SIGIL.search(text) or MONEY_LITERAL.search(text)
+                or MONEY_PERCENT.search(text))
 
 
 def _producer_problems() -> list[str]:
@@ -121,10 +147,7 @@ def _producer_problems() -> list[str]:
                             f"an input to the check - fix the list or the path.")
             continue
         for i, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
-            if _SHELL_VAR.search(line):
-                continue
-            if (MONEY_SIGIL.search(line) or MONEY_LITERAL.search(line)
-                    or MONEY_PERCENT.search(line)):
+            if money_sigil_in(line):
                 problems.append(f"{rel}:{i}: money sigil in a producer: {line.strip()[:100]}")
     return problems
 
@@ -136,14 +159,26 @@ def _producer_problems() -> list[str]:
 #: mishandles?" Python has exactly these three ways to interpolate into a string, so this is
 #: a closed class rather than a list of the shapes anyone happened to write.
 _VALUE = r"(?:cost_usd|costUSD|_usd\b|\bspent\b)"
+
+#: An f-string opener, WITH ITS PREFIX. `f`, `rf`, `fr`, `bf`, `fb` and every case variant
+#: are the same string to Python and were not the same string to the first version of this
+#: pattern: `fr"..."` and `F"..."` were both invisible to discovery. The lookbehind keeps
+#: it from matching the tail of an identifier.
+_FSTRING = r"""(?<![A-Za-z0-9_])(?:[rb]?f|f[rb])["']"""
+
+#: The conversion characters a percent or brace format can end on. Kept identical to
+#: `MONEY_PERCENT`'s, because discovery and the sigil check asking about different sets is
+#: how a module gets found by one and passed by the other.
+_CONV = r"[fgdes]"
+
 _FORMS = (
     # f"... {expr_naming_a_value} ..."
-    re.compile(rf"""f["'][^"'\n]*\{{[^{{}}\n]*{_VALUE}"""),
+    re.compile(rf"""{_FSTRING}[^"'\n]*\{{[^{{}}\n]*{_VALUE}""", re.I),
     # "..." % expr   /   "...".format(expr)
-    re.compile(rf"""%[-+ #0-9.]*[fgd][^\n]*%[^\n]*{_VALUE}"""),
-    re.compile(rf"""\.format\([^)\n]*{_VALUE}"""),
+    re.compile(rf"""%[-+ #0-9.]*{_CONV}[^\n]*%[^\n]*{_VALUE}""", re.I),
+    re.compile(rf"""\.format\([^)\n]*{_VALUE}""", re.I),
     # "$%.2f" % value  -- the percent form with the sigil, on one line
-    re.compile(rf"""["'][^"'\n]*%[-+ #0-9.]*[fgd][^"'\n]*["']\s*%[^\n]*{_VALUE}"""),
+    re.compile(rf"""["'][^"'\n]*%[-+ #0-9.]*{_CONV}[^"'\n]*["']\s*%[^\n]*{_VALUE}""", re.I),
 )
 
 
@@ -238,20 +273,48 @@ def selftest() -> int:
           formats_a_value('print("{:.2f}".format(total_cost_usd))'))
     check("the f-string form is still discovered",
           formats_a_value('print(f"{r[\'cost_usd\']:.2f}")'))
+    # EVERY f-STRING PREFIX, not the one anybody happened to write. `fr`, `F` and `RF` are
+    # the same string to Python and were all invisible to the first version.
+    for pre in ("f", "rf", "fr", "F", "RF", "Fr", "bf", "fb"):
+        check(f"an {pre}-string is discovered",
+              formats_a_value(f'print({pre}"{{cost_usd:.2f}}")'))
+    # AND EVERY CONVERSION `MONEY_PERCENT` ACCEPTS. Discovery asking about a smaller set
+    # than the sigil check is how a module is found by one and passed by the other.
+    for conv in ("f", "g", "d", "e", "E", "s", "G"):
+        check(f"a %{conv} percent form is discovered",
+              formats_a_value(f'print("%{conv}" % cost_usd)'))
     check("a module that renders no such value is not discovered",
           not formats_a_value('print("hello %s" % name)\nx = cost_usd\n'))
     # And the sigil check has to see the percent form too, or the variant above finds the
     # module and the row that matters still passes it.
-    check("MONEY_PERCENT catches a percent-form sigil",
-          bool(MONEY_PERCENT.search('print("$%.2f" % spent)')))
-    check("MONEY_PERCENT catches a .format-form sigil",
-          bool(MONEY_PERCENT.search('print("${:.2f}".format(spent))')))
-    check("MONEY_PERCENT does not fire on a plain percentage",
-          not MONEY_PERCENT.search('print(f"{pct:.0f}% of the floor")'))
-    check("MONEY_SIGIL catches an interpolated sigil",
-          bool(MONEY_SIGIL.search('print(f"${spent:.2f}")')))
-    check("a shell variable is not a money sigil",
-          _SHELL_VAR.search('"$TMPDIR erosion"') is not None)
+    # --- the sigil check, ON THE PATH `_producer_problems` USES -------------
+    # `money_sigil_in` is what the sweep calls, so these rows are about the sweep. The
+    # first four were green against the regexes alone while the guard in front of them
+    # skipped the line, which is the failure they now cover.
+    RED = [
+        ('print(f"${spent:.2f}")', "an interpolated sigil"),
+        ('print(f"total ${cost_usd:.2f}")', "an interpolated sigil beside a shell-ish name"),
+        ('print(f"total $27.68")', "a literal sigil"),
+        ('print("$%.2f" % spent)', "the percent form"),
+        ('print("$%E" % spent)', "the percent form, uppercase conversion"),
+        ('print("${:.2f}".format(spent))', "the .format form"),
+    ]
+    for line, what in RED:
+        check(f"money_sigil_in catches {what}", money_sigil_in(line), )
+    GREEN = [
+        ('"invoked ${CLAUDE_PROJECT_DIR:-unset}"', "a shell variable"),
+        ('">> \"${STARTER_HOOK_LOG:-${TMPDIR:-/tmp}/x.tsv}\""', "nested shell variables"),
+        ("f\"MEASURED: $TMPDIR erosion destroyed 80%\"", "a bare $TMPDIR"),
+        ('if: ${{ !cancelled() }}', "an Actions template"),
+        ('print(f"{pct:.0f}% of the floor")', "a plain percentage"),
+        ('print(f"{tokenvalue.fmt(spent)} tokval")', "a correctly formatted figure"),
+    ]
+    for line, what in GREEN:
+        check(f"money_sigil_in passes {what}", not money_sigil_in(line))
+    # THE GUARD MUST NOT SWALLOW THE REST OF THE LINE. This is the exact shape the old
+    # whole-line skip had, and it is why the guard blanks a span instead.
+    check("a shell variable does not excuse a sigil on the same line",
+          money_sigil_in('log("${TMPDIR} then $27.68")'))
 
     bad = [n for n, ok in rows if not ok]
     for name, ok in rows:
