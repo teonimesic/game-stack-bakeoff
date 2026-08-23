@@ -27,3 +27,72 @@ concrete counterpart - the same shape as the judge's file-open log, where 26 rou
 and are permanently unassessable while everything after the capture can be interrogated.
 
 `tasks/84` deliberately took no finding number, so this ticket is still the sole allocator.
+## What was done, 2026-08-23 — branch `task-86-number-the-unobservable-gate-finding`
+
+**THE NUMBER WAS ALREADY ALLOCATED, AND THAT IS THE FIRST THING TO CHECK, NOT THE LAST.** The
+orchestrator numbered this finding **#130** when it merged task 78 (`53b9a63`), which the ticket
+could not know because it was written on task 78's branch. Handing a number to the orchestrator
+works; it just leaves the ticket that was filed to request it looking undone.
+
+> **Before allocating a number a previous task deferred, look for it under the merge that closed
+> that task, not only in the ticket.** `git log -S'<the heading text>' -- eval/findings/` answers
+> it in one command.
+
+Verified rather than assumed, from the producer: `docstat.py --findings` reads **117 findings,
+#19-#135, 0 gaps, 117 index rows, 117 distinct**. #130 is unique, indexed, and its heading is the
+ticket's claim. So nothing needed numbering and nothing needed renumbering.
+
+### What actually was missing
+
+**The citing — and one LIVE document still asserted the thing #130 overturned.**
+`eval/RUNS.md`'s fifteenth comparability break said the hook *"was already live in all four
+arms"*. That is rule 2, in the ledger that decides which runs may be compared. It now says
+**wired**, and cites #130 for why "live" is not established.
+
+The break's `What the stored trials can and cannot say about it` subsection restated #130 in full
+— the transcript signature, the probe arms, the 19 dated blocks. Replaced by the citation plus
+only what the ledger needs: 0 blocks in both arms over the 12 trials with a stored baseline that
+reached a stop, n=0 outcomes, therefore **no before/after comparison across this break is
+settleable from stored trials in either direction.** One sentence was KEPT deliberately because
+it does not follow from #130 and is about the runs: none of the per-stack warm guards can have
+short-circuited in `wg-g4c`.
+
+`tasks/84`'s brief carried the same restatement and now cites #130, keeping what is 84's own —
+the fix, and the constraint that the trial tree becomes the graded diff.
+
+#130 itself gained the half this ticket named and its body lacked: **a silent success path
+forecloses the question retrospectively**, because the evidence that would answer it was never
+written.
+
+### The trap under this task, which cost the most time
+
+**`#130` names two findings across the corpus.** Before this task `eval/RUNS.md:851`, `:889` and
+`eval/judge/AGENTS.md:164` cited `#130` meaning the **anonymiser** finding, which renumbering made
+**#131** — so the new citation would have landed in the same file as two wrong ones. All three
+repaired.
+
+**`--renumbered`'s count cannot grade a repair, and its own docstring says so.** A line edited in
+the working tree blames to UNCOMMITTED and is skipped; a line committed today has today's findings
+tree as its authoring tree and is never stale. So **16 -> 13 would have happened had the
+replacement been `#999`.** The three were graded by reading #131's heading in
+`eval/findings/one-arm-bias.md:2499`. For the same reason **a plant at HEAD cannot restore the
+alarm** — an adversarial `#132` inserted beside the new citation was correctly NOT reported.
+
+The check's own positive control is the one that works: `--renumbered --at 1120695^` names
+`eval/PROTOCOL.md:541` among 8 decided stale, and none of the 8 appear at HEAD.
+
+### Left open, filed
+
+**13 stale citations remain** (`#126`->`#128` x8, `#133`->`#134` x2, `#132`->`#133` x1, and the
+undecidable half). They are in `DECISIONS.md`, `README.md`, `judge/RUBRIC.md`,
+`.claude/skills/add-game/` — files other agents were editing the same day — and none of them
+collide with a number this task landed. Not touched here on purpose.
+
+### Gates, unpiped
+
+`docstat.py --sweep` exit 0, sweep clean over 162 docs, before and after the change and again
+after committing. `--selftest` 0 pins wrong. `--findings` exit 0. `tasks.py check` 99 well-formed.
+
+> **The sweep was green throughout and is not a control on any of this.** It was green while
+> `RUNS.md` asserted a claim #130 overturned and while the same file carried two `#130` citations
+> meaning #131. The only checks that saw anything were `--renumbered` and reading the heading.

@@ -161,7 +161,7 @@ spellings.** A name matches wherever it forms a whole identifier segment — seg
 inside an identifier or a path. One entry therefore covers `cargo`, `Cargo`, `CARGO`,
 `CARGO_MANIFEST_DIR` and `cargoRoot`, and a multi-segment entry covers `TypeScript`,
 `MonoBehaviour`, `GDScript` and `node_modules`. **Never repair a leak by adding the spelling you
-just saw** — that is the third time this defect was fixed at the instance (#32, #83, #130).
+just saw** — that is the third time this defect was fixed at the instance (#32, #83, #131).
 
 Two consequences to know before touching it:
 
