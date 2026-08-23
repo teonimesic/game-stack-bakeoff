@@ -226,6 +226,14 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
     out.append(("sequential_selftest",
                 ["python3", "judge/sequential_selftest.py"], EVAL))
     out.append(("docstat --sweep", ["python3", "tools/docstat.py", "--sweep"], EVAL))
+    # The reader of the agents' own closing messages, and its six mutants. Both need the
+    # stored corpus: four of the six are caught only by a real message, and the selftest's
+    # documented rows come from `runs/`. Run from the main checkout — in a worktree both
+    # exit 2 saying the corpus is absent, which is the honest answer and a red row here.
+    out.append(("disclosure --selftest (documented rows, both directions)",
+                ["python3", "tools/disclosure.py", "--selftest"], EVAL))
+    out.append(("disclosure_mutants (6 mutants, 4 caught only by real data)",
+                ["python3", "tools/disclosure_mutants.py"], EVAL))
     # Liveness for the frame-parity guard: run it against a run known to be UNIFORM, so a
     # green row means the tool works rather than that some other run is clean.
     out.append(("frame_parity (liveness, on a known-uniform run)",

@@ -322,6 +322,14 @@ FOREIGN_FLAG_PREFIXES = (
     # rsync's. `backup_evidence.py` documents that it runs WITHOUT --delete, which is
     # why the copy is a superset (#115); the flag it names is rsync's, not ours.
     "--delete",
+    # bsdtar's, and it does not exist there — which is the point of the sentence naming
+    # it (root `AGENTS.md` rule 12, "bsdtar rejecting `--wildcards`"). This one is worth
+    # a note beyond the entry: the suppression above is "does this doc mention one of our
+    # harnesses", so the false positive was INVISIBLE until an unrelated edit added the
+    # word `wholegame.py` to that file, three weeks after the flag was written. A
+    # condition that hides a defect until a distant edit reveals it is a latent report,
+    # not a clean one.
+    "--wildcards",
 )
 
 

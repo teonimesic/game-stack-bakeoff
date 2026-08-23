@@ -233,9 +233,11 @@ Before launching g4, per stack, and reading the exit code unpiped:
 The last two are the ones that matter and neither existed. A starter that cannot pass its own
 gate on this machine, right now, is a matrix that will produce numbers about the machine.
 
-**And read `agent.final_text` when each trial lands, before grading anything.** Four agents
-wrote a paragraph headed *"What I could not verify — and why"* naming the exact mechanism, and
-nothing in the harness reads that field.
+**And read the closing message when each trial lands, before grading anything.** Four agents
+wrote a paragraph headed *"What I could not verify — and why"* naming the exact mechanism.
+`python3 tools/disclosure.py --run-dir runs/<run>` reads it now, from `agent_result.json` →
+`.result` whole rather than from the truncated `agent.final_text`; `wholegame.py report` prints
+the same passages beside each score.
 
 ## Controls before any of this is believed
 

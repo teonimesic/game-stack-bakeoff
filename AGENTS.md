@@ -456,9 +456,26 @@ Two refinements that pattern does not cover:
 
 11. **Read what the subject said about its own work before grading it.** Four agents wrote a
     paragraph headed *"What I could not verify — and why"* naming the exact mechanism behind a
-    whole run's spread. `agent.final_text` is in every record; nothing reads it and no gate
-    looks at it. A grader that ignores the subject's own account will keep re-deriving what the
-    subject already told it.
+    whole run's spread. A grader that ignores the subject's own account will keep re-deriving
+    what the subject already told it.
+
+    **This rule was in four documents for a week and no code obeyed it.** It named the field
+    and named no reader, so every session that read it re-derived by hand what the previous
+    one had. `wholegame.py report` now prints each trial's located passages beside its score,
+    from `eval/tools/disclosure.py`. Three things it is worth knowing before quoting it:
+
+    - It reads `artifacts/<trial>/agent_result.json` → **`.result`**, the whole message.
+      `agent.final_text` is the **last 3000 characters** and 43 of the 90 stored messages are
+      longer. One run's disclosure sits at character 0 of 3912.
+    - It is a **locator, not a classifier**: it prints the agent's sentences, and `quiet`
+      means no cue matched, not that the trial disclosed nothing. It finds 26 of 75 against a
+      hand-classified 31 (`eval/RUNS.md`).
+    - **`no message` is a third value.** 15 of 90 stored messages are `null` or hold the API's
+      own limit string; anything testing for non-empty scores an error as a closing report.
+
+    Its first pass over the stored corpus found four Rust agents in three runs reporting the
+    same broken starter recipe, which nothing had noticed in ten days of evidence
+    (`tasks/81`).
 
 12. **Every rule here says HOW to check. None says WHERE.** A correct method pointed at the
     wrong place produces a confident answer: `runstat.py` obeyed `-mmin, never -newermt`

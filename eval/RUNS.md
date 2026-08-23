@@ -153,7 +153,10 @@ no-cap configuration. See FINDINGS #33, corrected.
 ## ⚠️ THE 3D ARENA SET IS TWO POPULATIONS, DIVIDED BY A MACHINE REPAIR
 
 **Read this before using any `wg-arena3d` number for anything.** Discovered 2026-08-16 by
-reading the agents' own `final_text`, which no gate in this harness looks at.
+reading the agents' own closing messages, by hand, a day late. Since 2026-08-23 the harness
+reads them: `wholegame.py report` on this run prints *"`just verify` has never run"* and
+*"it was already broken before I made any changes"* beside the six trials that said so
+(`eval/tools/disclosure.py`).
 
 The run's records say `8 completed`, one terminal reason, unremarkable wall clock. It is not
 one population. Trial start times, read from the records:
@@ -314,10 +317,20 @@ of agent spend** plus judge sweeps, to move a number that `tasks/46` itself forb
 beside any tier-1 or tier-2 figure — because a higher disclosure rate is evidence the reporting
 changed, not that the work did.
 
-**What to do instead, and it is free.** The disclosures already exist in 31 of 75 completed
-trials, 10 of them under a dedicated heading, and **nothing in the grading pipeline reads them**
-(rule 11, `DECISIONS.md`, `PROTOCOL.md`, and this file all say to read the field; no code does).
-Raising a 41% rate the graders ignore buys less than reading the 41% that is already there.
+**What was done instead, and it was free.** The disclosures already exist in 31 of 75 completed
+trials, 10 of them under a dedicated heading, and nothing in the grading pipeline read them —
+four documents said to read the field and no code did. `tasks/71` built the reader:
+`eval/tools/disclosure.py`, printed by `wholegame.py report` beside every score. It is a
+**locator, not a classifier**, and its count is not this table's rate: over the same 75
+messages it fires on **26** — godot 3/15, rust 12/21, ts 3/23, unity 8/16, against the hand
+figures above. It under-reports in every arm and reproduces the same shape. Quote the hand
+figure for a rate; quote the locator only as "trials with at least one located passage".
+
+Its first pass found something this hand pass had not: **four Rust agents, in three different
+runs, reporting the same broken starter recipe** (`tasks/81`). That is the class #98 belongs
+to — a starter red on a pristine tree costs one arm and no other — and it is why the tool
+locates *"the starter was already broken"* as a family of its own, which the disclosure
+classification above does not count at all.
 
 **Re-open it if** the harness gains a way for Rust and Unity agents to exercise their own live
 path. That change would remove the mechanism behind the entire spread above, and only then does
@@ -1421,6 +1434,9 @@ Every whole-game figure in this file is `eval/starters/*`, untouched.
 - **Record what changed about the MACHINE during a run, not only about the configuration.**
   `wg-arena3d` spans a system-daemon repair and nothing in the record says so; the split is
   invisible to every aggregate the harness computes (FINDINGS #49).
-- **Read `agent.final_text` before grading.** Four agents wrote a paragraph headed *"What I
-  could not verify — and why"* naming the exact mechanism that produced this run's entire
-  spread, and it sat unread for a day. No gate looks at that field.
+- **Read the closing message before grading, and read it WHOLE.** Four agents wrote a
+  paragraph headed *"What I could not verify — and why"* naming the exact mechanism that
+  produced this run's entire spread, and it sat unread for a day. `wholegame.py report` now
+  prints it; it reads `agent_result.json` → `.result`, because this run's `g3_arena__rust__t1`
+  states the mechanism at character 0 of a 3912-character message and `agent.final_text` keeps
+  only the last 3000.

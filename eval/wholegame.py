@@ -54,8 +54,10 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "suites"))
 sys.path.insert(0, str(HERE / "judge"))
+sys.path.insert(0, str(HERE / "tools"))
 
 import wholegame_prompts as P  # noqa: E402
+import disclosure as _disclosure  # noqa: E402
 
 STARTERS = {s: HERE / "starters" / s for s in P.STACKS}
 
@@ -865,6 +867,28 @@ def cmd_report(a: argparse.Namespace) -> int:
               f"{ts['programmatic']:>6.2f} {ts['playbot']:>6.2f} {jd:>7.2f} "
               f"{r['agent']['num_turns'] or 0:>6} {r['agent']['cost_usd']:>7.2f} "
               f"{r['wall_s']:>6.0f}s")
+
+    # WHAT THE SUBJECT SAID ABOUT ITS OWN WORK, beside the score it was given.
+    # Four documents say to read the agent's closing message before grading it - rule 11,
+    # DECISIONS.md, PROTOCOL.md and RUNS.md - and until 2026-08-23 nothing did. 31 of 75
+    # completed trials had written a disclosure; two of this project's more expensive
+    # findings (#49, #98) were recovered from that field by hand, months late.
+    # `tools/disclosure.py` reads the WHOLE message from artifacts/<trial>/
+    # agent_result.json (.result), never `agent.final_text`, which is the last 3000
+    # characters of it and a partial read of 43 of the 90 stored messages.
+    try:
+        disc_rows = _disclosure.scan_run(run_dir)
+    except _disclosure.DisclosureError as exc:
+        print(f"\n*** DISCLOSURES NOT READ: {exc} ***")
+        print("    This is a non-measurement, not an absence of disclosures.")
+    else:
+        print(f"\n{_disclosure.BANNER}")
+        print(_disclosure.CAVEAT)
+        for line in _disclosure.render_rows(disc_rows, indent="  "):
+            print(line)
+        print(f"  {_disclosure.summarise(disc_rows)}")
+        print("  Whole message: python3 tools/disclosure.py --run-dir "
+              f"{run_dir} --trial <id>")
 
     # A MEAN ACROSS TWO SCORING REGIMES DESCRIBES NEITHER (rule 4). Tier 1 was 0.31 of
     # `overall` before 2026-08-23 and is a gate after it, so a directory holding both -

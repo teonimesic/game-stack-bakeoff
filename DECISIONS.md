@@ -241,8 +241,13 @@ Consequences already applied:
 
 - `wg-arena3d`'s numbers are **not comparable across stacks** — the run straddles a machine
   repair whose split is exactly the stack split. `eval/RUNS.md` carries the detail.
-- `agent.final_text` must be read before grading. Nothing in the harness reads it, and it
-  contained the mechanism for a day.
+- The agent's closing message must be read before grading, and since 2026-08-23 the harness
+  reads it: `wholegame.py report` prints each trial's located passages beside its score, via
+  `eval/tools/disclosure.py`. It reads `artifacts/<trial>/agent_result.json` → `.result`
+  **whole**, never `agent.final_text`, which is that message's last 3000 characters — and
+  `wg-arena3d`'s own disclosure of this mechanism sits at character 0 of 3912, where the
+  truncated field cannot see it. It is a locator, not a classifier; `quiet` is not a verdict
+  and `no message` is a third value, not silence.
 - The work root is no longer under `$TMPDIR`, which reaped the artifact under measurement
   (#45), and `assert_work_root_sane()` refuses any ephemeral path.
 
