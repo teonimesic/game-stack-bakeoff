@@ -28,13 +28,38 @@ the record of the attempt it is retrying** (FINDINGS #36). Both were re-read fro
 > correct about the artifacts and say nothing about the stacks. Detail and agent quotes below
 > and in FINDINGS #49.
 
-**Cumulative money spent: ~$1,547** (plus **$46.79** of specialist-judge calls on
-2026-08-16 — see the judge ledger below), of which **$1,525.57** is represented by surviving records
-(re-read from every `runs/*/trials/*.json` on 2026-08-15) and ~$21.61 is overwritten retry
-attempts. **This table lists only the `wg-*` whole-game runs, which is $1,433.84 of that.** The
-remaining $91.73 is the spec-change bake-off and core suites (`bakeoff-*`, `core-*`), which have
-never been in this ledger despite its opening line claiming every run. Recorded here rather than
-silently corrected.
+**Cumulative, re-read from disk on 2026-08-23. Two figures, because they count two things.**
+
+| | | source |
+|---|---|---|
+| agent trials, **surviving records** | **$2,404.21** over 137 trials in 19 run directories | `agent.cost_usd` in every `runs/*/trials/*.json` |
+| specialist-judge rounds | **$306.73** over 93 rounds in 11 sweep directories | `judge/judge_ledger.py --tree runs/` |
+
+**Records, not spend, and the gap is real but not totalled here.** A retry overwrites the record
+of the attempt it replaces (#36), so true spend is **at least** $2,404.21. It was measured once,
+for the runs existing on 2026-08-15, at ~$21.61 of overwritten attempts. It is **not re-derived
+above and must not be inferred from the `[built]` lines**: those sum to $2,262.17, *less* than the
+records, because `wg-arena3d`'s retries ran under a second log this ledger already marks
+`+ retries` and `wg-audio48`'s log carries `archive-arena2d`'s trials too. A number that is
+smaller than its own lower bound is a reading of the wrong artifact, not a correction.
+
+> ⚠️ **This line read "~$1,547" until 2026-08-23 and had done since 2026-08-15**, and it went
+> stale **twice over, in two different ways**:
+>
+> | | |
+> |---|---|
+> | three runs that did not yet exist | `wg-g4`, `wg-g4b`, `wg-g4c` — **$698.21**, 29% of the project's agent spend |
+> | one run that was still building | the `wg-*` rows summed to $1,433.84 that day and sum to **$1,614.27** now. `wg-audio48` was in flight and `archive-arena2d` was later split out of it — the moving-row hazard this file warns about a few paragraphs below, realised in this file's own headline |
+>
+> `README.md`'s "~$1,794" is the same figure at a later moment and is corrected there too. The
+> judge half of the line said **$46.79**, which is one day's calls quoted as all of them and is
+> separately wrong about *which* calls (FINDINGS #119). **A cumulative total is the one number in
+> a ledger guaranteed to go stale**, and nothing re-derived either of these; `judge_ledger.py` is
+> now the producer for the second row, and the first is one `agent.cost_usd` sweep away.
+
+**The table below lists only the `wg-*` whole-game runs.** The remaining $91.73 is the
+spec-change bake-off and core suites (`bakeoff-*`, `core-*`), which have never been in this
+ledger despite its opening line claiming every run. Recorded rather than silently corrected.
 The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 that run cost.
 
 > **The two columns are read from different sources and will differ by pennies.** The archive
@@ -42,10 +67,14 @@ The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 tha
 > prints each trial rounded to the cent and the records carry full precision. Stated rather than
 > reconciled — a figure quietly adjusted to match another figure is no longer a reading.
 
-> **A row for a live run is a moving number.** `wg-audio48` is still building its last four arena
-> trials. An earlier version of this file recorded *$571.15, 19 completed, 5 api_error* — read from
-> disk correctly, describing a state that lasted minutes. Mark in-flight rows provisional; a run's
-> spend is final only when its terminal reasons are.
+> **A row for a live run is a moving number.** `wg-audio48` was still building its last four arena
+> trials when this warning was written. An earlier version of this file recorded *$571.15, 19
+> completed, 5 api_error* — read from disk correctly, describing a state that lasted minutes. Mark
+> in-flight rows provisional; a run's spend is final only when its terminal reasons are.
+>
+> **It then happened to the headline, twice, and the second time nobody noticed for eight days.**
+> The row settled; the total above it did not, because the total had no producer and no read date.
+> Both now have one.
 
 ## What may be compared with what
 
@@ -803,17 +832,54 @@ stored result files on 2026-08-16.
 | `g2_tetris3d` | audio | audio | 10 KB | 2 | $1.20 | 286 s |
 | **total, round 1** | | | | **13** | **$46.79** | |
 
+> ⚠️ **$46.79 IS TWO GAMES, AND IT WAS PUBLISHED AS ONE.** The `g2_tetris3d` rows above sum to
+> **$33.63 over 10 calls** — the field stored in `pre/`. The remaining $13.16 is three `g1_pong`
+> calls, a different game and a different field. `README.md`, `DECISIONS.md` and `JUDGING.md`
+> each quoted $46.79 as the cost of *the* eight-submission tetris field; the cost of that field
+> is $33.63. Corrected 2026-08-23, FINDINGS #119.
+>
+> The three `g1_pong` calls are also the only judge spend in this project with **no surviving
+> artifact** — no `g1_pong__*__seed*.json` from 2026-08-16 exists anywhere (task 04, closed by
+> re-running them into `wg-funframes-crossgame/pong/` for $17.66). So $13.16 is in this ledger
+> and in no round file, and every other figure below is read from round files.
+
 **Round 2 — the repaired instrument, 2026-08-17.** Same five aspects, same game, both orders,
 after the `fun` telemetry repair, `architecture`'s extension-blind packs and the adjudicator
 fixes. **10 calls, $31.66.** Artifacts in `runs/wg-tetris-judge-2026-08-17/post/`;
 round 1 preserved beside it in `pre/` because the two together are the only clean
 reproducibility evidence this project has.
 
-| | calls | $ |
-|---|---|---|
-| `pre/` (round 1, un-repaired evidence) | 10 | $33.63 |
-| `post/` (round 2, repaired evidence) | 10 | $31.66 |
-| **all judge spend** | **23** | **$78.45** |
+**Every judge round on disk, 2026-08-23.** Read with `python3 judge/judge_ledger.py --tree
+runs/`, which sums each round's own `cost_usd` and reports it against the invocation counter the
+sweep stored beside it. The two are different questions and five of these directories disagree —
+see the note after the table.
+
+| sweep directory | rounds | field $ | counter stored beside it |
+|---|---|---|---|
+| `wg-tetris-judge-2026-08-17/pre` (round 1, un-repaired) | 10 | $33.63 | 25.55 |
+| `wg-tetris-judge-2026-08-17/post` (round 2, repaired) | 10 | $31.66 | 21.05 |
+| `wg-tetris-judge-2026-08-17/funframes` | 2 | $2.08 | 2.08 |
+| `wg-tetris-judge-2026-08-17/repeats` | 4 | $8.12 | 8.12 |
+| `wg-tetris-judge-2026-08-17/repeats7` | 7 | $10.12 | 10.12 |
+| `wg-funframes-crossgame/pong` | 4 | $17.66 | 17.66 |
+| `wg-funframes-crossgame/arena` | 10 | $39.53 | 14.04 |
+| `wg-funframes-crossgame/platformer` | 12 | $35.79 | 30.50 |
+| `wg-g4c-capgate/out/capped` | 2 | $12.06 | 12.06 |
+| `wg-g4c-capgate/out/uncapped` | 2 | $15.24 | 15.24 |
+| `wg-aspect-reliability` (round 3) | 30 | $100.84 | 80.37 |
+| **all judge rounds on disk** | **93** | **$306.73** | |
+
+> **These 93 rounds are eleven populations, not one.** They judge four different games with
+> different aspect sets over packs from 10 KB to 3.3 MB, across the #95 re-pack boundary. The
+> total is a **bill**, which is additive and safe; a per-call mean over it is rule 4 and
+> `judge_ledger.py` refuses to print one.
+
+> **The right-hand column is not a cost and must never be read as one.** It is
+> `charged_to_ceiling_usd` — what the last invocation spent, which is what `--max-cost` is
+> enforced against. A round already on disk is charged $0.00 on purpose so it cannot be
+> double-charged, so on a **resumed** sweep the counter is smaller than the field cost by
+> exactly the carried rounds. Five directories here are resumes, $69.93 in total. It was stored
+> under the name `measured_cost_usd`, and that name is why $21.05 reached print. FINDINGS #119.
 
 **Round 3 — `wg-aspect-reliability`, 2026-08-23. 30 calls, $100.84.** Task 23: six aspects x 5
 repeats of ONE field in ONE presentation order, `--repeat-seed 0`, on

@@ -40,7 +40,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import field  # noqa: E402
 from aspects import ASPECTS  # noqa: E402
+from judge_ledger import field_cost_usd  # noqa: E402
 from sequential import MAX_RUNS, Sampler  # noqa: E402
+
+
+def _record_cost(summary: dict[str, Any], spent: float, out: Path) -> None:
+    """Two cost numbers, named for the two different questions they answer.
+
+    `spent` is what THIS INVOCATION was charged, and it is what `--max-cost` is enforced
+    against. A round already on disk is charged $0.00 to it on purpose (see
+    `_judge_round`), so on a resumed sweep it is not the cost of the field and never was.
+
+    It used to be stored alone, under the name `measured_cost_usd`. Three live documents
+    read that name as spend: `$21.05` was published as the cost of ten judge calls that
+    cost $31.66, and the same field's four earlier rounds - $10.61 of architecture and
+    audio, written eight minutes before the sweep resumed - were invisible. Five of the
+    eleven stored sweep directories carry the same shape, $69.93 in total. FINDINGS #119.
+
+    THE FIX IS NOT A BIGGER NUMBER, IT IS TWO NAMED ONES. Re-charging carried rounds to
+    today's ceiling would break the ceiling, which is the one thing here that has never
+    failed. What was wrong was publishing a ceiling counter under a name that reads as a
+    bill. `judge_ledger.py` audits the pair over stored sweeps and computes the second one
+    here, so the ledger and the harness cannot drift into two accountings again.
+    """
+    summary["charged_to_ceiling_usd"] = round(spent, 2)
+    summary["field_cost_usd"] = round(field_cost_usd(str(out))[1], 2)
 
 
 #: Paths whose contents do not outlive the thing that wrote them. Kept in sync with
@@ -230,11 +254,12 @@ def repeats_main(a: Any) -> int:
             # SUBMISSIONS of one aspect, which is a homogeneous population; the aspects
             # read different evidence and an SD across them would be rule 4's own example.
             print(f"  [sep]   {key}: {sep['verdict']}", flush=True)
-    summary["measured_cost_usd"] = round(spent, 2)
+    _record_cost(summary, spent, a.out)
     _atomic(a.out / "REPRODUCIBILITY.json", summary)
     print("\n=== gate 0: reproducibility ===")
     print(json.dumps(summary, indent=2)[:3000])
-    print(f"\nmeasured spend: ${spent:.2f}")
+    print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
+          f"rounds stored here cost ${summary['field_cost_usd']:.2f}")
     return 0
 
 
@@ -281,11 +306,12 @@ def sequential_main(a: Any) -> int:
             summary[f"{game}:{aspect_id}"] = rep
             print(f"  [seq] {game}/{aspect_id}: {rep.get('headline')} "
                   f"(rounds={rep.get('runs')}, cumulative ${spent:.2f})", flush=True)
-    summary["measured_cost_usd"] = round(spent, 2)
+    _record_cost(summary, spent, a.out)
     _atomic(a.out / "SEQUENTIAL.json", summary)
     print("\n=== sequential sampling ===")
     print(json.dumps(summary, indent=2)[:4000])
-    print(f"\nmeasured spend: ${spent:.2f}")
+    print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
+          f"rounds stored here cost ${summary['field_cost_usd']:.2f}")
     return 0
 
 
@@ -378,9 +404,9 @@ def main() -> int:
         results.append(res)
 
     usable = [r for r in results if r.get("usable")]
-    gates: dict[str, Any] = {"measured_cost_usd": round(spent, 2),
-                             "calls_usable": len(usable),
+    gates: dict[str, Any] = {"calls_usable": len(usable),
                              "calls_attempted": len(results)}
+    _record_cost(gates, spent, a.out)
     for r in usable:
         key = f"{r['game']}:{r['aspect']}:seed{r['order_seed']}"
         gates[f"ceiling:{key}"] = field.ceiling(r)
@@ -404,7 +430,8 @@ def main() -> int:
 
     print("\n=== gates (read these before any ranking) ===")
     print(json.dumps(gates, indent=2))
-    print(f"\nmeasured spend: ${spent:.2f}")
+    print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
+          f"rounds stored here cost ${gates['field_cost_usd']:.2f}")
     return 0
 
 

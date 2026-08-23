@@ -407,7 +407,9 @@ three more under the harder task, two more here, and one stack-correlated 0.000.
 
 ### RESULT 2026-08-16 — iteration 6 is falsified, on its own pre-registered terms
 
-13 field calls, $46.79, five aspects x two orders on `g2_tetris3d`.
+13 field calls, $46.79, five aspects x two orders on `g2_tetris3d`. *(Both figures are wrong and
+are kept as written: the tetris field is 10 calls and $33.63, and the other 3 calls and $13.16
+are `g1_pong`. FINDINGS #119. Nothing below depends on either.)*
 
 **Falsifier 1 (ceiling) fires on three of five aspects.** `architecture`, `audio` and
 `idiomatic` each put 6 or 7 of 8 submissions on one score on the *second* presentation order
@@ -748,7 +750,7 @@ Against: this project's `DECISIONS.md`, `research/AGENTS.md`, `eval/judge/RUBRIC
 | # | Their practice | What it replaces here | Verdict |
 |---|---|---|---|
 | 1 | **State which reweightings would change the answer.** Their decision matrix says outright *"increasing 2D/console weight can select Defold; making console/testing dominant can select Unity"* | Nothing. `overall = 0.31*tier1 + 0.69*tier2` is quoted in four documents and derived in none | **ADOPT — verified, and it paid immediately.** `judge/weight_sensitivity.py` built and run over 68 stored trials. FLIPS=0: no stored ordering depends on the weight. But 7 of 10 groups are UNIDENTIFIABLE — tier 1 returns ONE value across the whole group. **FINDINGS #92**, task 27 filed |
-| 2 | **An immutable frozen record of what was evaluated** — `template-v3-{tree.json,source.tar.gz}` plus a protocol hash retained pre-outcome | `suite.json`, which a partial re-run overwrites | **ADOPT the property, not their mechanism — verified.** Asking the question found 3 of 18 stored runs whose manifest describes a different run; `wg-audio48`'s names a game with zero reports in its own directory. **FINDINGS #93**, task 28 filed |
+| 2 | **An immutable frozen record of what was evaluated** — `template-v3-{tree.json,source.tar.gz}` plus a protocol hash retained pre-outcome | `suite.json`, which a partial re-run overwrites | **ADOPT the property, not their mechanism — verified.** Asking the question found 3 of 18 stored runs whose manifest describes a different run; `wg-audio48`'s names a game with zero reports in its own directory. **FINDINGS #93**, task 30 filed (as "task 28"; renumbered since) |
 | 3 | **Hard gates applied BEFORE scoring** — an option that fails a gate is not scored low, it is not scored | Tier 1 is inside the weighted score. It behaves as a gate (catches 0.0 and 0.857 outright failures) while being weighted as a discriminator | **OPEN — folded into task 27 as option (b).** Genuinely better *if* tier 1 is a gate, which #92 argues. Not adopted from this task because it is a rubric change needing mutants, not a doc edit |
 | 4 | **Reversal conditions on every decision.** Each ADR ends with what would re-open it | Partial. `DECISIONS.md` states them for tier 3's weight and the code-aspect bar; most table rows have none | **ADOPT, narrow scope — unverifiable as a benefit, and labelled so.** Cannot name a finding it would have prevented, so it is a taste change dressed as rigour if claimed otherwise. Adopted only where a decision rests on a measurement that could move. See below |
 | 5 | **Source-kind taxonomy** — vendor fact / paper result / repository snapshot / project judgment, over a 301-URL manifest with SHA-256 of local copies | `research/AGENTS.md`: date it, source it, label unverified as unverified | **REJECT for the binary rule, ADOPT the taxonomy — OPEN on verification.** "Unverified" is binary; the failure mode is a *sourced* claim whose source is a vendor page treated as a measurement. `research/DECISION.md` got two eliminations wrong on the facts. Whether the taxonomy would have caught those is not established, so filing it would be asserting a benefit — left open |
@@ -817,7 +819,7 @@ is n=1 on its own question. That is axis-3 work and is not settled by axis 1.
 ### Axes 3-4: NOT started
 
 Axis 2 is below. Axis 3 (reporting under uncertainty) is partly pre-empted by the both-ways
-section above. Axis 4 (harness mechanics) now has a concrete lead: task 28.
+section above. Axis 4 (harness mechanics) now has a concrete lead: task 30.
 
 ---
 
@@ -1034,16 +1036,135 @@ id. It is also blind to a paraphrase that drops the number, and to anything insi
 
 ### Where axis 3 stopped
 
-Everything above is done. Axis 4 (**harness mechanics**: work roots, artifact durability, run
-ledgers, cost accounting) is the last axis and has not been started. Its lead is task 28; its only
-sanctioned reading is `evaluation/reports/` and the per-study `README.md` dispositions, never the
-raw artifacts under `evaluation/runs/`.
+Everything above is done. Axis 4 is below, and it closes task 11.
 
 **One thread this axis opened and did not close, for whoever takes axis 4:** the stored judge
 rounds' own `cost_usd` fields sum to $33.63 and $31.66 for the two `wg-tetris-judge-2026-08-17`
 fields, while their `SEQUENTIAL.json` records `measured_cost_usd` 25.55 and 21.05. `README.md`
 quotes 21.05 for the second and $46.79 for the first, which matches neither stored total. That is
 cost accounting, which is axis 4, and it was left rather than chased.
+
+> **Chased, and it was the whole of axis 4's yield.** All three numbers are explained and only
+> one is a cost; see below and FINDINGS #119.
+
+---
+
+## Axis 4 executed — harness mechanics, and the axis that produced no import at all
+
+Read, read-only: `game-research-gpt/evaluation/reports/` in full — `README.md`, `FINAL.md` (313
+lines), `manifest-current.json`, `manifest.json`, `manifest-godot-study-frozen.json`,
+`INSTRUCTION_REVISIONS.md` — plus the per-study `README.md` dispositions already read for axis 3.
+Against: `eval/RUNS.md`, `eval/judge/field_sweep.py`, and every stored artifact under
+`eval/runs/**` that carries a cost.
+
+**The lead this axis was handed was "task 28", and there is no task 28.** The queue runs 27, 29,
+30. Task 28 was filed by axis 1 for FINDINGS #93 and is **task 30** today — the same subject,
+`suite.json` describing the last thing written into a directory. The task-id namespace collided
+and was resolved by renumbering, and `docstat.py --renumbered` covers finding numbers only, so
+nothing could see the citation break. Fixed here and in `tasks/11`. That is #118's shape in the
+one namespace #118's tool does not reach.
+
+### The framing, and it decides most of the table
+
+**Their harness mechanics answer "can a third party verify this was not tampered with". Ours
+answer "may these two runs be compared, and what did they cost".** Their report set is built for
+custody: SHA-256 per published file, HMAC attestation with the key held outside the repository,
+frozen baselines with replayable source deltas. There is no adversary here — the party running
+the evaluation is the party reading it — and there is no third party to convince.
+
+The measured consequence is one-directional and worth stating plainly: **their entire readable
+report surface contains no cost accounting whatsoever.** Zero occurrences of a USD figure, a
+token count, or a spend total across `FINAL.md`, `README.md` and `INSTRUCTION_REVISIONS.md`; five
+uses of "budget"/"costs", all of them prose about licensing or console certification. This
+project has a run ledger with two columns and a stated reason they differ. On the one axis where
+a candidate import could have been expected, there is nothing on their side to import.
+
+### Verdicts
+
+| # | Their practice | What it replaces here | Verdict |
+|---|---|---|---|
+| 1 | **A content manifest — path, bytes, SHA-256, `captured_at` — over exactly the files that constitute a published result** | `suite.json`, which a partial re-run overwrites | **ALREADY ADOPTED as a property, axis 1, and it is task 30.** Re-verdicting it would be counting one import twice. Their *mechanism* (a hand-maintained JSON of hashes) stays rejected for the axis-1 reason: this is a git repository and that is a second history |
+| 2 | **A frozen baseline plus per-submission source deltas, with a script that re-verifies the SHA-256 tree after every delta and restores file modes** — durability without keeping the workspaces | `eval/runs/**`, 129 GB of full work trees, gitignored and backed up separately | **REJECT — this project already made the stronger move and measured it.** #87/#90 decomposed the tree, #104 established the starter baseline is the part that cannot be rebuilt, and 7.5 MB of `git archive` baselines now stand in for 55 GB of work trees. Their scheme reconstructs a *submission*; the artifact this project loses is the *starter it was given*, which their deltas presuppose rather than preserve |
+| 3 | **HMAC attestation of every report, key never in the repository, key ids and report hashes published** | Nothing | **REJECT — no finding here has a forging author.** Every defect in `eval/FINDINGS.md` is a mechanism measuring the wrong thing, never a party altering a result. An integrity control against an absent adversary is unfalsifiable by construction: it can never fire, so it can never be shown to work, which is rule 1's own definition of a check that certifies nothing |
+| 4 | **Ignoring workspace trees while versioning manifests, attestations, score reports and deltas** | `.gitignore`, whose header states per entry whether it is regenerable build output or evidence too large to push | **REJECT — present and better instrumented.** Theirs states the policy in prose in a README; ours states it in the ignore file itself, and #87/#90 measured the split rather than asserting it |
+| 5 | **`captured_at` on the manifest** — the result set says when it was frozen | `eval/RUNS.md`'s figures carried no read date except where an author happened to write one | **ADOPT, and it is the cheapest thing here.** Every cumulative figure in `RUNS.md` now carries the date it was read and the command that reads it. **What would show it helped:** a stale total is detectable by comparing the stamp against the newest run directory. It would have caught this one — see below |
+| 6 | **No cost accounting at all** | A two-column run ledger with a stated reason the columns differ | **REJECT, and it is the both-ways entry of the axis.** Nothing to import. See below for what asking their question found on this side |
+
+### What asking the question found HERE, which is the whole yield
+
+Axis 4's return is not an import. It is that **the two judge fields' three disagreeing
+accountings were a real defect, it generalised, and the fix is in the write path** — FINDINGS
+#119, and the second time in this task that designing a verification found the defect before the
+import did (axis 1 candidate 1, axis 3 candidate 1).
+
+| number | what it is | verdict |
+|---|---|---|
+| $33.63 / $31.66 | sum of each stored round's `cost_usd` | **right**, and already what `RUNS.md`'s judge table carried |
+| 25.55 / 21.05 | `measured_cost_usd` in `SEQUENTIAL.json` | a **ceiling counter for one invocation**; a round already on disk is charged $0.00 on purpose. Correct, and not a cost |
+| $46.79 / $21.05 | published in `README.md`, `JUDGING.md`, `DECISIONS.md` | **both wrong as attributed.** $46.79 is two games; $21.05 is the resume-truncated counter |
+
+Established from the sweep's own `sweep.log`, which prints `cumulative $0.00` after two aspects
+whose four rounds were already on disk, and from the arithmetic closing to the cent both ways.
+Then generalised: 5 of 11 stored sweep directories under-report, $69.93 in total, and the true
+judge spend is **$306.73 over 93 rounds** against a ledger headline of $46.79.
+
+Two further stale totals fell out of the same sweep, both correct when written and never re-read:
+`RUNS.md`'s **~$1,547** and `README.md`'s **~$1,794** against a measured **$2,710.94**. The
+`RUNS.md` figure was stale twice over — three runs that did not exist yet, and one that was still
+building when it was read, which is the moving-row hazard stated four lines below it in the same
+file.
+
+### What was adopted, concretely
+
+- **`eval/judge/judge_ledger.py`** — new, offline, free. Reports `field_cost_usd` and
+  `charged_to_ceiling_usd` per sweep directory, classifies every gap, and refuses to print a
+  per-call mean across heterogeneous fields. `--selftest` runs 21 expectations over 9 cases,
+  including a negative control that goes red when the counter exceeds what is on disk, and a
+  mutant of its own mtime heuristic.
+- **`field_sweep.py` writes both names**, and calls `judge_ledger.field_cost_usd` to compute the
+  second, so the harness and the ledger cannot become two accountings again.
+- **Four documents corrected**, each with what it used to say: `README.md`, `eval/RUNS.md`,
+  `eval/judge/JUDGING.md`, `DECISIONS.md`.
+- **Nothing imported from `game-research-gpt`** except candidate 5, a read-date stamp. Four of
+  six candidates are rejected on measurements taken here; one was already adopted in axis 1.
+
+### The pre-registered verification, and it came out mixed
+
+Written before the tool was run, which is the point:
+
+> `judge_ledger.py` must reproduce `eval/RUNS.md`'s three published judge figures — $33.63,
+> $31.66, $100.84 — exactly, **and** flag the directories whose stored counter disagrees, naming
+> a gap that is a prefix of the execution order. Reproducing the figures while flagging nothing
+> would make it a formatter, not a check.
+
+Both halves hold: the three figures reproduce to the cent, five directories are flagged, and
+every gap resolves to carried-over rounds with none unexplained and none missing.
+
+**And the first version passed for the wrong reason on one of them.** Its mtime split identified
+`pre`'s carried round correctly from mtimes 0.0006 s apart, left by a `cp` in alphabetical
+order — which is also the execution order. Requiring the boundary to exceed 60 s makes `pre`
+report AMBIGUOUS, which is the honest answer. A check that agrees with you for a reason you did
+not intend is indistinguishable from one that works, and only the variant half of rule 15 asks.
+
+### Both ways — what this project does that theirs does not, on this axis
+
+1. **A run ledger exists at all, with two columns and a stated reason they differ.** Records
+   versus `[built]` lines, and the note explaining that a retry overwrites what it replaces.
+2. **Comparability is a first-class field.** `RUNS.md` marks which runs may be pooled and why
+   not, gated by `docstat.py --sweep` on duplicate regime ordinals. Their manifests record what a
+   file *was*, never what it may be *compared with*.
+3. **A durability guard on the path that spends money.** `assert_out_root_durable` refuses an
+   ephemeral `--out` because a $44 sweep once wrote the only copy of a finding's evidence into
+   `/private/tmp`. Their durability story is about reconstruction after the fact.
+4. **The cost of a measurement is priced before it is taken, per population.** Round 3 was
+   projected at ~$93 from per-aspect means and came in at $100.84; a pooled per-call mean would
+   have priced `idiomatic` at a third of its cost.
+
+### Was a fifth axis warranted?
+
+**No.** Five were planned and four exist. The unallocated fifth would have been a second pass
+over `evaluation/runs/`, and the axis-1 measurement stands: 30 GB and 194,505 files, none of it
+sanctioned reading, and the readable surface is exhausted. Task 11 closes here.
 
 ---
 

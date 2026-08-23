@@ -362,7 +362,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   about it: whether to keep the split, re-scope tier 1 explicitly as a gate, or add criteria with
   headroom. That is task 27, and it is a rubric change requiring mutants, not a doc edit.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
-  All five aspects were run over a full eight-submission field for $46.79. Three fail the
+  All five aspects were run over a full eight-submission field for **$33.63** — the sum of that field's own stored rounds. The $46.79 previously here was the whole of 2026-08-16 across two games (#121). Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53).
   The redundancy reading — `architecture` and `ux` ranking the field identically while sharing
   no evidence — **carries no weight here and is withdrawn**: it did not replicate, and the
@@ -385,7 +385,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   on one of the two fields and is #115. Both stay in the log and appear in no live document as a
   measurement.
   **Tier 3 stays at weight 0.00**, now on measurement rather than on argument. All three
-  prerequisites were then BUILT and the layer re-run (2026-08-17, $21.05): `fun` has a
+  prerequisites were then BUILT and the layer re-run (2026-08-17, $31.66): `fun` has a
   representative play session and its confound is gone by construction, `architecture` packs
   are extension-blind, `idiomatic` is accepted as within-stack only. **The verdict did not
   change** — only `ux` clears every gate, and gate 0 (reproducibility, added the same day)
