@@ -15,7 +15,7 @@ deliberately left out** — a gate excluded and recorded is fine; one silently a
 |---|---|---|---|
 | `.githooks/pre-commit` | **1.7s** | the findings log, the withdrawal register, the queue — the CONTENT you are about to commit | every commit, once installed |
 | `.githooks/pre-push` | **14.3s** | the above plus `docstat --sweep` | every push, once installed |
-| `.github/workflows/gates.yml` | **39.5s** | everything above, plus every control that checks a CHECKER | pull request; push to `main` |
+| `.github/workflows/gates.yml` | **51.9s** | everything above, plus every control that checks a CHECKER | pull request; push to `main` |
 | `.github/workflows/controls.yml` | **685s** | the mutant suites and the skill-layout control | pull request and push touching `eval/**`, `.agents/**` or `.claude/**`; nightly; manual |
 
 **The two CI budgets are the SUM of the rows measured below**, on the operator's machine, not a
@@ -24,12 +24,21 @@ largest term is now `tasks_mutants`, which pays for every row added to `tasks_co
 over. The recorded CI wall clocks are in the run table at the foot of this file and are the
 authority on what a runner actually takes.
 
-> **`gates.yml` read `42s` until task 123, and the 17 rows below it summed to 37.9s** — the
-> sentence above says the budget IS the sum, and nothing re-added it, so it drifted. Adding two
-> rows (`cost_census.py --selftest` and `cost_census_mutants.py`, 1.6s together) took the true
-> sum to **39.5s**, which is what the table now says. **A sum stated in prose beside the rows it
-> is a sum of has no producer and will disagree with them** — the same defect task 123 was filed
-> to fix one directory over. Re-add the `CI fast` and `CI slow` columns whenever a row moves.
+> **`gates.yml` read `42s` until task 123, and it is 51.9s.** The sentence above says the budget
+> IS the sum, and nothing re-adds it, so it drifted. **The first correction was also wrong, in a
+> way worth recording:** summing the rows labelled `CI fast` gave 39.5s, and `gates.yml` also runs
+> the five `pre-commit`/`pre-push` commands (12.4s), which carry a different tier label. *A tier
+> label says where a check is CHEAP ENOUGH to run, not where it runs* — the workflow's own step
+> list is the address, and reading it is what turned up the second defect below.
+>
+> **Sum from `gates.yml`'s 31 `run:` steps, never from the tier column:** 21 steps match a row
+> here (48.6s) and 10 are the `judge/*_selftest.py` aggregate row (3.3s). **That row said "nine"
+> and the workflow runs 10** — a cardinal spelled in words, which `AGENTS.md` names as
+> unreadable by any check, beside a count that had moved. Re-measured, all 10 exit 0 in 3.3s.
+>
+> **There is still no producer for this figure**, which is the defect task 123 exists to fix, one
+> directory over. `.github/workflows/` is task 124's area; a `--budgets` mode that re-adds the
+> workflow's own steps belongs there rather than in a drive-by here.
 
 The principle the hooks are drawn on: **a hook checks the content, CI additionally checks
 the checkers.** A control over a tool changes only when the tool changes, and paying for it
@@ -101,7 +110,7 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `dead_private_control.py` | 0 | 3.0s | CI fast |
 | `backup_evidence_control.py` | 0 | 0.2s | CI fast |
 | `hook_audit_control.py` | 0 | 5.7s | CI fast |
-| nine `judge/*_selftest.py` | 0 | 3.4s total | CI fast |
+| **10** `judge/*_selftest.py` | 0 | 3.3s total | CI fast |
 | `judge/discrimination.py --selftest` | 0 | 0.1s | CI fast |
 | `judge/paired_verdicts.py --selftest` | 0 | 0.1s | CI fast |
 | `linkcheck.py` | 0 | 0.1s | CI fast |

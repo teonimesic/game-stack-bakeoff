@@ -220,6 +220,60 @@ def group_result(run: str, game: str, cells: dict[str, list[dict]]) -> dict:
     }
 
 
+# --------------------------------------------------------------------------- validation
+
+def _is_number(value) -> bool:
+    """A real, finite number. `bool` is not one, and neither is NaN or Infinity.
+
+    Two traps, both of which pass `isinstance(v, (int, float))`:
+
+    - **`True` is an `int`.** `cost_usd: true` would average as $1.00.
+    - **`json.loads` accepts the bare literals `NaN`, `Infinity` and `-Infinity`**, and both
+      are `float`. This is the dangerous one, because NaN does not raise and does not stop:
+      it propagates through every mean, floor and ratio, and **every comparison against it
+      is False** — so `range_exceeds_floor` would come back `False` for a group whose
+      numbers are not numbers, which is a silent no rather than a visible error.
+    """
+    return (not isinstance(value, bool)
+            and isinstance(value, (int, float))
+            and math.isfinite(value))
+
+
+def _validate_wholegame(path: Path, d: dict) -> None:
+    """Refuse a record that parsed but cannot be grouped, naming the file and the field.
+
+    `main()` catches only `CostCensusError`. Everything checked here otherwise surfaces as
+    a traceback — `KeyError`, `AttributeError`, `TypeError` — or, for NaN, as no error at
+    all. A measurement tool's answer to bad input is a named refusal, not a stack trace.
+    """
+    agent = d.get("agent")
+    if agent is None or not isinstance(agent, dict):
+        raise CostCensusError(
+            f"{path}: `agent` is {agent!r}, not an object — nothing can be read from it")
+
+    game = d.get(WHOLEGAME_KEY)
+    if not isinstance(game, str) or not game:
+        # An unhashable game (a list) is a TypeError on the group key, several frames away.
+        raise CostCensusError(
+            f"{path}: whole-game record has no usable `game` (got {game!r})")
+
+    stack = d.get("stack")
+    if not isinstance(stack, str) or not stack:
+        raise CostCensusError(
+            f"{path}: whole-game record has no usable `stack` (got {stack!r})")
+
+    cost = agent.get("cost_usd")
+    if cost is not None and not _is_number(cost):
+        raise CostCensusError(
+            f"{path}: `agent.cost_usd` is {cost!r}, which is not a finite number")
+
+    turns = agent.get("num_turns")
+    if turns is not None and (isinstance(turns, bool) or not isinstance(turns, int)):
+        # A non-integer turn count reaches min()/max() against real ints and raises there.
+        raise CostCensusError(
+            f"{path}: `agent.num_turns` is {turns!r}, which is not an integer")
+
+
 # ------------------------------------------------------------------------------- census
 
 def cost_census(runs_dir: Path, terminal_reason: str = "completed",
@@ -244,18 +298,7 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
     for run, path, d in records:
         if WHOLEGAME_KEY not in d:
             continue
-        # A record that parsed is not a record that can be grouped. Missing `stack` was an
-        # uncaught KeyError and a non-numeric cost an uncaught TypeError, and main() catches
-        # only CostCensusError — so both surfaced as a traceback rather than as a named,
-        # fail-closed measurement error naming the file. Validate while `path` is in scope.
-        stack = d.get("stack")
-        if not isinstance(stack, str) or not stack:
-            raise CostCensusError(
-                f"{path}: whole-game record has no usable `stack` (got {stack!r})")
-        cost = d.get("agent", {}).get("cost_usd")
-        if cost is not None and (isinstance(cost, bool) or not isinstance(cost, (int, float))):
-            raise CostCensusError(
-                f"{path}: `agent.cost_usd` is {cost!r}, which is not a number")
+        _validate_wholegame(path, d)
         wholegame.append((run, d))
 
     by_group: dict[tuple[str, str], dict[str, list[dict]]] = collections.defaultdict(
@@ -786,22 +829,32 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # `main()` catches only CostCensusError, so a whole-game record with no `stack` was
         # an uncaught KeyError and a non-numeric cost an uncaught TypeError — a traceback
         # where a named, fail-closed measurement error belongs. Both must name the file.
-        for bad, label in (
-                ({"game": "gB", "agent": {"cost_usd": 1.0,
-                                          "terminal_reason": "completed"}}, "stack"),
-                ({"game": "gB", "stack": "", "agent": {"cost_usd": 1.0,
-                                                       "terminal_reason": "completed"}},
-                 "stack"),
-                ({"game": "gB", "stack": 7, "agent": {"cost_usd": 1.0,
-                                                      "terminal_reason": "completed"}},
-                 "stack"),
-                ({"game": "gB", "stack": "ts", "agent": {"cost_usd": "40.00",
-                                                         "terminal_reason": "completed"}},
-                 "cost_usd"),
-                # A bool IS an int in Python. `cost_usd: true` would average as 1.0.
-                ({"game": "gB", "stack": "ts", "agent": {"cost_usd": True,
-                                                         "terminal_reason": "completed"}},
-                 "cost_usd")):
+        def ok_agent(**over):
+            agent = {"cost_usd": 1.0, "terminal_reason": "completed"}
+            agent.update(over)
+            return agent
+
+        malformed = [
+            # `stack`: absent, empty, wrong type. Absent was an uncaught KeyError.
+            ({"game": "gB", "agent": ok_agent()}, "stack"),
+            ({"game": "gB", "stack": "", "agent": ok_agent()}, "stack"),
+            ({"game": "gB", "stack": 7, "agent": ok_agent()}, "stack"),
+            # `agent`: absent or not an object. `.get()` on a str is an AttributeError.
+            ({"game": "gB", "stack": "ts"}, "agent"),
+            ({"game": "gB", "stack": "ts", "agent": "nope"}, "agent"),
+            ({"game": "gB", "stack": "ts", "agent": []}, "agent"),
+            # `game`: an unhashable value is a TypeError on the group key, frames away.
+            ({"game": ["gB"], "stack": "ts", "agent": ok_agent()}, "game"),
+            ({"game": "", "stack": "ts", "agent": ok_agent()}, "game"),
+            # `cost_usd`: a string, and a bool — `True` IS an int and would average as 1.0.
+            ({"game": "gB", "stack": "ts", "agent": ok_agent(cost_usd="40.00")}, "cost_usd"),
+            ({"game": "gB", "stack": "ts", "agent": ok_agent(cost_usd=True)}, "cost_usd"),
+            # `num_turns`: a non-integer reaches min()/max() against real ints.
+            ({"game": "gB", "stack": "ts", "agent": ok_agent(num_turns="many")},
+             "num_turns"),
+            ({"game": "gB", "stack": "ts", "agent": ok_agent(num_turns=3.5)}, "num_turns"),
+        ]
+        for bad, label in malformed:
             shaped = Path(tmp) / "shaped"
             if shaped.exists():
                 shutil.rmtree(shaped)
@@ -815,6 +868,37 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                                     f"and the field: {exc}")
             except Exception as exc:  # noqa: BLE001 - wrong class is also a failure
                 failures.append(f"malformed `{label}`: raised {type(exc).__name__}, not "
+                                f"CostCensusError: {exc}")
+
+        # ---- NaN AND INFINITY, and they are their own case because they do not RAISE.
+        # `json.loads` accepts the bare literals, both are `float`, and NaN propagates
+        # through every mean while comparing False against everything — so a group whose
+        # numbers are not numbers would report `range_exceeds_floor: False` and print `nan`.
+        # A type check alone passes all three; only `math.isfinite` refuses them.
+        check("NaN, Infinity and True are not numbers to this tool",
+              [_is_number(v) for v in (float("nan"), float("inf"), float("-inf"), True)],
+              [False, False, False, False])
+        check("but real numbers are", [_is_number(v) for v in (0, -1, 2.5, 1e9)],
+              [True, True, True, True])
+        for literal in ("NaN", "Infinity", "-Infinity"):
+            nan_tree = Path(tmp) / "nan"
+            if nan_tree.exists():
+                shutil.rmtree(nan_tree)
+            nan_tree.joinpath("run-x", "trials").mkdir(parents=True)
+            # Written as TEXT, not through json.dumps: these arrive from a real file, and
+            # the point is that the parser accepts them.
+            (nan_tree / "run-x" / "trials" / "nan_record.json").write_text(
+                '{"game": "gN", "stack": "ts", "agent": {"cost_usd": %s, '
+                '"terminal_reason": "completed"}}' % literal)
+            try:
+                cost_census(nan_tree)
+                failures.append(f"cost_usd: {literal} was accepted as a number")
+            except CostCensusError as exc:
+                if "nan_record.json" not in str(exc) or "cost_usd" not in str(exc):
+                    failures.append(f"cost_usd: {literal}: refusal does not name the file "
+                                    f"and the field: {exc}")
+            except Exception as exc:  # noqa: BLE001 - wrong class is also a failure
+                failures.append(f"cost_usd: {literal}: raised {type(exc).__name__}, not "
                                 f"CostCensusError: {exc}")
         # A record with NO cost field at all is a different case and stays an exclusion,
         # not a refusal — it is absent, not wrong. Variant B above pins that.

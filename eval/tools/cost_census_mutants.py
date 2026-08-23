@@ -34,7 +34,9 @@ makes a mutant necessary rather than merely tidy:
 | `r_two_points` | Pearson's minimum point count | a "correlation" of exactly ±1 through two points |
 | `spread_divides` | the `$0.00` low guard | a `ZeroDivisionError` where a spread of `None` belongs |
 | `no_cost_guard` | excluding a record with no `agent.cost_usd` | a `TypeError` deep in the aggregation, or a record silently counted |
-| `bad_record_guard` | validating `stack` and the cost's type | an uncaught `KeyError`/`TypeError` — `main()` catches only `CostCensusError`, so a traceback replaces a named, fail-closed error |
+| `bad_record_guard` | `_validate_wholegame` entirely | an uncaught `KeyError`/`AttributeError`/`TypeError` — `main()` catches only `CostCensusError`, so a traceback replaces a named, fail-closed error |
+| `bool_is_not_a_number` | `bool` being excluded from "a number" | **`True` is an `int` in Python**, so `cost_usd: true` averages as $1.00 |
+| `finite_guard` | `math.isfinite` | **the only one here that does not raise.** `json.loads` accepts the bare literals `NaN`, `Infinity` and `-Infinity`, and all three are `float`, so a type check passes them. NaN then propagates through every mean and **compares False against everything** — a group whose numbers are not numbers reports `range_exceeds_floor: False` and prints `nan`. A silent no, not a visible error |
 | `exceeds_off_ratio` | counting exceedance off the COMPARISON | a zero-floor group has no percentage, so it drops out of the exceedance count — **fail-open, understating how much the stacks disagree** |
 | `empty_is_zero` | the refusal on an empty tree | `0 groups` for a tree that could not be read — the fallback shape rule 3 forbids by name |
 | `count_agent_trees` | skipping agent-authored `work/` trees | an agent's own `trials/` counted as harness records |
@@ -130,9 +132,19 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "            continue",
         "        pass"),
     "bad_record_guard": (
-        '        stack = d.get("stack")',
-        '        stack = d.get("stack", "PRETEND")  # mutated\n'
-        '        _unused = d.get("stack")'),
+        "        _validate_wholegame(path, d)",
+        "        pass"),
+    # `json.loads` accepts the bare literals NaN and Infinity, and both are `float`. NaN is
+    # the one that does not raise and does not stop: it propagates through every mean, and
+    # every comparison against it is False — so `range_exceeds_floor` comes back False for
+    # a group whose numbers are not numbers. A silent no, not a visible error.
+    "finite_guard": (
+        "            and math.isfinite(value))",
+        "            and True)"),
+    # `True` is an `int` in Python, so `cost_usd: true` would average as $1.00.
+    "bool_is_not_a_number": (
+        "    return (not isinstance(value, bool)",
+        "    return (True"),
     "empty_is_zero": (
         "    if not out:\n        raise CostCensusError(",
         "    if False:\n        raise CostCensusError("),
