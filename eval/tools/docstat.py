@@ -483,6 +483,62 @@ def _check_findings_integrity() -> list[str]:
     return problems
 
 
+ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+            "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
+            "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth")
+
+
+def _check_regime_ordinals() -> list[str]:
+    """A comparability break's ordinal must name exactly one break.
+
+    THE FOURTH IDENTIFIER NAMESPACE TO COLLIDE, and for the same reason as the other three.
+
+    `eval/RUNS.md` numbers regime boundaries in words -- "a SEVENTH comparability break".
+    The ordinal is how every other document cites one. On 2026-08-23 two sessions working
+    in isolated worktrees each wrote "an ELEVENTH comparability break" on the same day and
+    neither could see the other, so two different starter edits shared a citation key.
+
+    Task ids were fixed by making the queue shared (#94); finding numbers by checking them
+    here. This is the same shape a third time, so it gets the same treatment rather than
+    another round of renumbering by hand.
+
+    ONLY HEADINGS COUNT. Prose legitimately cites an ordinal many times -- "the same
+    starter edit as the seventh comparability break" -- and a check that counted those
+    would fire on correct documents, which is how a gate gets disabled. A first pass at
+    this counted every mention and reported two collisions that were not there.
+    """
+    path = os.path.join(ROOT, "eval", "RUNS.md")
+    if not os.path.exists(path):
+        return [f"eval/RUNS.md not found at {path} - this check ran over nothing"]
+    text = open(path, encoding="utf-8", errors="replace").read()
+    lines = text.split("\n")
+    fenced = _fence_mask(lines)
+    seen: dict[str, list[int]] = {}
+    for i, ln in enumerate(lines, 1):
+        if fenced[i - 1] or not ln.startswith("#"):
+            continue
+        m = re.search(r"\b(" + "|".join(ORDINALS) + r")\s+comparability break", ln, re.I)
+        if m:
+            seen.setdefault(m.group(1).lower(), []).append(i)
+    if not seen:
+        return ["no comparability-break headings parsed from eval/RUNS.md - the wording "
+                "has changed and this check is reading nothing"]
+    problems = []
+    for word, at in sorted(seen.items(), key=lambda kv: ORDINALS.index(kv[0])):
+        if len(at) > 1:
+            problems.append(
+                f"eval/RUNS.md heads {len(at)} sections '{word} comparability break' "
+                f"(lines {', '.join(map(str, at))}) - the ordinal is the citation key, so "
+                f"two regimes now share one. Renumber the later; see #94.")
+    idx = sorted(ORDINALS.index(w) for w in seen)
+    missing = [ORDINALS[i] for i in range(idx[0], idx[-1] + 1) if i not in idx]
+    if missing:
+        problems.append(f"eval/RUNS.md skips {', '.join(missing)} between "
+                        f"{ORDINALS[idx[0]]} and {ORDINALS[idx[-1]]} - a gap means a "
+                        f"citation resolves to nothing")
+    return problems
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -651,6 +707,7 @@ def cmd_sweep() -> int:
     problems += _check_skill_frontmatter()
     problems += _check_list_indent()
     problems += _check_findings_integrity()
+    problems += _check_regime_ordinals()
 
     if problems:
         print(f"{len(problems)} unresolved reference(s) or structure defect(s):\n")
