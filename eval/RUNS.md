@@ -1782,7 +1782,7 @@ only `justfile:152` leaves every other caller broken and would be the enumeratio
 project keeps paying for. `just film` and `just probe` already pass `--bin` and were never
 affected.
 
-## THE GODOT RENDER TESTS AND FOCUS GUARD CHANGED ON 2026-08-23 — a FIFTEENTH comparability break
+## THE GODOT RENDER TESTS AND FOCUS GUARD CHANGED ON 2026-08-23 — a SEVENTEENTH comparability break
 
 Task 80, FINDINGS #132. **No Godot `verify.green` result from before this date is comparable with
 one after it, and the reason is that before it the result was not a constant.**
