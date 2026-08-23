@@ -60,6 +60,13 @@ jobs:
       - name: just --version
         run: just --version
 
+      # ffmpeg is what `judge/audio.py` measures loudness and silence with, so
+      # audio_selftest exits 2 without it -- fail-closed, and again a dependency nothing
+      # had ever named because every machine that ran the judge had it. Not a stack
+      # toolchain: no engine, no compiler, no package manager for a submission.
+      - name: install ffmpeg (judge/audio.py's measuring instrument)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+
       # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
       # others. Without it a broken run reports one failure per push, and clearing three
       # takes three pushes on a metered account.
