@@ -1245,11 +1245,17 @@ variation that is *not* a stack difference.
     range <= noise  ->  NO SEPARATION, whatever the ordering looks like
 
 This is the deterministic tiers' own lesson applied one layer up: within a cell they differ on
-almost no criterion — **5 of 436** paired criteria in `wg-matrix`, **0 of 232** in `wg-audio48`,
-reported per run and never pooled — so those tiers have no usable resolution below the cell and
-cannot report a difference above it. An aspect whose between-stack range sits inside its own
-within-stack spread is in the same position, and reporting its ranking would be reporting
-noise with an order imposed on it.
+almost no criterion. Over the tiers that gate or score, per (run, game) and never pooled —
+`paired_verdicts.py` — the verdict-difference rate across the nine stored groups runs from
+**0 of 112** to **4 of 140 (2.86%)**, against a between-stack range of **0.0000** in every one.
+So those tiers have no usable resolution below the cell and cannot report a difference above it.
+An aspect whose between-stack range sits inside its own within-stack spread is in the same
+position, and reporting its ranking would be reporting noise with an order imposed on it.
+
+**The rule below is the one `DECISIONS.md` now applies to the deterministic tiers too**, with
+two additions that layer needs and this one does not: only gate-green trials are compared, and
+the gap must beat the floor by at least one criterion, since tier 2 is a pass count and cannot
+represent anything smaller. `discrimination.py` prints it as `THE RANKING TEST`.
 
 Registered before the numbers, so the threshold cannot be chosen to fit them. First reading,
 on the two `g1_pong` calls already paid for, showing exactly why it is needed:

@@ -222,11 +222,36 @@ is the outcome this project is most likely to reach.
 
 **Decided [agent], on measurement, and it constrains every claim this project can make.**
 
-Comparing the two independent trials in each cell criterion by criterion, **per run and never
-pooled**: `wg-matrix` (3 games, 436 paired criteria) differs on **5** verdicts against **332**
-differing evidence strings; `wg-audio48` (232 paired) on **0** verdicts against **120**. The two
-submissions in a cell are different artifacts and the instrument mostly returns the same grade on
-both — "mostly", not "never".
+Comparing the two independent trials in each cell criterion by criterion, over the tiers that
+gate or score and **per (run, game), never pooled** — `python3 eval/judge/paired_verdicts.py
+--runs-root <main checkout>/eval/runs`, completed cells only:
+
+| run | game | paired | verdict differences | evidence differences |
+|---|---|---|---|---|
+| `wg-matrix` | pong | 88 | **2** (2.27%) | 58 |
+| `wg-matrix` | tetris | 96 | **1** (1.04%) | 56 |
+| `wg-matrix` | arena | 96 | **1** (1.04%) | 62 |
+| `wg-audio48` | pong | 112 | **0** | 55 |
+| `wg-audio48` | tetris | 120 | **0** | 65 |
+| `wg-arena3d` | arena | 148 | **0** | 99 |
+| `wg-audio` | pong | 84 | **0** | 41 |
+| `wg-audio` | tetris | 30 | **0** | 18 |
+| `wg-g4c` | platformer | 140 | **4** (2.86%) | 93 |
+
+The two submissions in a cell are different artifacts and the instrument mostly returns the same
+grade on both — "mostly", not "never". **The within-cell noise floor is a range across nine
+groups, 0.00% to 2.86%, not one number**; `wg-g4c-capgate`'s two arms are excluded from all of it
+because they carry no trial JSONs and return diff lists byte-identical to each other, which is
+what copies do, not what two independent trials do.
+
+> ⚠️ This table replaces **`wg-matrix` 436 paired / 5 verdict differences** and **`wg-audio48`
+> 232 / 0** as the figures this section rested on. Both reproduce exactly (they are pinned in
+> `paired_verdicts.py --selftest --runs-root ...`) and **neither may support a claim about the
+> deterministic tiers**: 156 of `wg-matrix`'s 436 — **35.8%** — are LLM-judge criteria at weight
+> 0.00, while `wg-audio48`'s 232 contains **none**, because that run was never judged. The two
+> were quoted side by side as one measurement and span different tier sets. Deterministic-only,
+> the same runs read **280 paired / 4** and **232 / 0**. Separately, `5 of 436` is a rate pooled
+> over three games with different criterion counts, which `eval/RUNS.md` bans.
 
 | may be used for | may not be used for |
 |---|---|
@@ -802,7 +827,7 @@ settled question is noise that makes the live ones harder to find.
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
-| Deterministic tiers may not rank stacks | Within-cell verdict variance **large enough to resolve a between-stack gap** — currently **5 of 436** paired criteria in `wg-matrix` and **0 of 232** in `wg-audio48`, i.e. 1.1% and 0%, against a between-stack gap of zero. This row read *non-zero* until 2026-08-23, when the unscoped figure it rested on was withdrawn and the scoped recount came back **not zero**; a sign is not a threshold, and what size counts is unsettled (task 70) |
+| Deterministic tiers may not rank stacks | **`python3 eval/judge/discrimination.py <run_dir>` printing `CROSSES` for any one (run, game) group.** SIZE: the adjudicated between-stack range of tier 2 must exceed the mean within-cell difference by **at least one criterion, `1/N`** — today 0.0435 to 0.0769 depending on the game. SCOPE: **one run × one game**, never pooled (`eval/RUNS.md` bans both poolings), counting only stacks whose two trials are `completed` **and gate-green**, since tier 1 gates and a submission that does not build has no rank position. Read 2026-08-23 over all **9** stored groups: **0 cross** — every one sits at range 0.0000 against a floor of 0.0000, i.e. four stacks tied at the tier-2 ceiling. What would cross it is a game where the gate-green stacks are **not** all at that ceiling (tasks 65, 74). Set by task 70; the previous wording is adjudicated below the table |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
@@ -815,6 +840,46 @@ settled question is noise that makes the live ones harder to find.
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
 input and no measurement would overturn them.
+
+### Why the ranking ban's re-open condition changed shape — task 70, 2026-08-23
+
+It used to read *"any instrument change producing **non-zero** within-cell verdict variance —
+currently 0 of 380"* (`WR-paired-verdict-tie`). Three things were wrong with it, and the third is
+the one worth carrying:
+
+1. **The number was withdrawn.** No coherent scope gives that denominator, and no scope gives
+   zero. The scoped recount is 5 of 436 in `wg-matrix` and 0 of 232 in `wg-audio48`, so the
+   condition was **met in letter** the moment it was scoped, by a quantity that had no reason to
+   be exactly zero.
+2. **It was a sign test on a rate, and its two figures were not the same measurement.** 156 of
+   the 436 are LLM-judge criteria at weight 0.00; the 232 contains none. The section above has
+   the per-(run, game) deterministic table that replaced them.
+3. **A noise floor cannot re-open a ranking ban on its own, in either direction.** Within-cell
+   variance enters the comparison as the thing a gap must *beat*: more of it makes ranking
+   harder, not easier, and none of it means the instrument is silent, not that it is sharp. The
+   condition now names the comparison — **`range - floor >= 1/N`** — which is the rule
+   `eval/judge/JUDGING.md` pre-registered on 2026-08-16 for the aspects, applied one layer down,
+   plus the smallest gap a pass-count over `N` criteria can represent.
+
+**Adjudicating the old reading against the new condition: it does not cross, in any of the nine
+stored (run, game) groups.** Not because 1.1% is small, but because the between-stack range it
+would have to beat is **0.0000** everywhere — every gate-green cell sits at the tier-2 ceiling.
+
+Two things that reading cost, both kept because the next agent would otherwise re-derive them:
+
+- **`discrimination.py` read `wg-arena3d`'s arena as "between-stack exceeds within-cell"** on a
+  0.0435 gap that was entirely one Rust submission **which does not compile** (`just check` exit
+  101, a type error in the agent's own `crates/sim/src/lib.rs`, in both trials). It scored 0.957
+  rather than 0.000 because `audit_criteria.is_harness_failure` excuses any criterion whose
+  evidence says *"probe unusable"* — and the probe was unusable because the submission did not
+  build. **22 of its 23 criteria were excused on that pattern; the 23rd, `audio.triggered`, has
+  the identical cause and different wording, and that lone survivor WAS the whole 0.0435 gap.**
+  A fail-open excuse (rule 7) that manufactured a between-stack signal out of a build failure.
+  Gating on tier 1 removes it here; the excuse pattern itself is untouched and still live.
+- **The ranking test said `DOES NOT CROSS` nine times out of nine**, which is the shape of a
+  check that cannot fail. `discrimination.py --selftest` now proves it can, on the boundary
+  case as well as the obvious one — and caught a float comparison that decided an
+  exactly-one-criterion gap by rounding.
 
 ## Keeping this current
 
