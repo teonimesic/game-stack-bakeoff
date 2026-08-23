@@ -69,7 +69,8 @@ against a scratch plugin wrapper containing copies of `.claude/skills/*`:
 > this skill loads with empty metadata (all frontmatter fields silently dropped).`
 
 Failing: `add-game`, `audit-docs`, `evaluate-run`, `refine`, `run-matrix`. Clean: `prune`, `tasks`.
-The `.agents/skills/` Codex duplicates (task 27) fail identically, 5 of 6.
+The `.agents/skills/` Codex duplicates failed identically, 5 of 6; that tree was **deleted on
+2026-08-23** (task 27, #99), so `.claude/skills/` is now the whole population.
 
 **Cause:** an unquoted YAML scalar containing `": "`. `description: Add a game task or a play-bot
 criterion to the eval suite: prompt rules that…` is not valid YAML. `prune` and `tasks` pass only
@@ -277,7 +278,7 @@ that GitHub search surfaces have 0–2 stars.
 | `XP-003` hard-coded `.claude/` path | 38 | **FALSE.** `AGENTS.md` deliberately mandates `.claude/skills/<name>/SKILL.md` |
 | `AGM-006` nested AGENTS.md detected | 11 | **FALSE.** Folder-scoped `AGENTS.md` is this repo's design |
 | `AGM-004` missing project context section | 11 | prescription, unsourced |
-| `XP-SK-001`/`CX-SK-001` non-universal fields | 20 | **TRUE for `.agents/` only** — see below |
+| `XP-SK-001`/`CX-SK-001` non-universal fields | 20 | **WAS TRUE for `.agents/` only**, and helped settle task 27 — see below |
 | `PE-004` ambiguous term 'often'/'usually' | 11 | prescription, unsourced |
 | `PE-001` critical keyword position | 4 | see below |
 
@@ -285,9 +286,12 @@ Two are worth pulling out.
 
 **`XP-SK-001`/`CX-SK-001`**: `when_to_use` and `argument-hint` are Claude Code fields, not part of
 the universal Agent Skills spec, and *"not supported by Codex CLI — it will be ignored"*. For
-`.claude/skills/` that is a false positive. For the **`.agents/skills/` Codex copies it is a real
-finding**, and it is evidence for open **task 27**: those copies exist to serve Codex, and Codex
-discards the two fields that decide when a skill is invoked.
+`.claude/skills/` that is a false positive. For the `.agents/skills/` Codex copies it was a real
+finding, and it fed **task 27**: those copies existed to serve Codex, and Codex discards the two
+fields that decide when a skill is invoked — so the mirror could not have worked as intended even
+had a Codex sibling been reading it. **Settled 2026-08-23: `.agents/skills/` is deleted** (#99),
+`.claude/skills/<name>/SKILL.md` is the sole authoritative path, and `docstat.py --sweep` fails on
+any `SKILL.md` outside it.
 
 **`PE-001` — "Critical keyword 'never' at 47 percent of document (40-60 percent is the…)".** This
 is agnix operationalising the lost-in-the-middle result (arXiv:2307.03172) as a lint rule. It is
@@ -527,8 +531,12 @@ goes from 5 errors to 0, and the detached-paragraph scan goes from 5 to 0. Filed
 
 **2. Add two deterministic gates to `eval/tools/docstat.py`, where the mechanical doc checks
 already live. (~1 hour, both demonstrated to fire. Task 37.)**
-- `claude plugin validate --strict` over `.claude/skills/` and `.agents/skills/`, or the same
-  YAML-parse check in ten lines of Python. It found a real defect that seven prose linters missed.
+- `claude plugin validate --strict` over `.claude/skills/`, or the same YAML-parse check in ten
+  lines of Python. It found a real defect that seven prose linters missed. (`.agents/skills/` was
+  in scope when this was written and was deleted on 2026-08-23, #99 — `.claude/skills/` is now the
+  whole population. **Enumerate the files with `os.walk`, not `glob`:** `glob` does not descend
+  into dot-directories, so a `**/SKILL.md` pattern matches none of them and the gate passes by
+  finding nothing. `docstat.py` has an `_all_skill_files()` that walks.)
 - The list-continuation-indent check. Twenty lines; it found §1.1 and nothing else, which is the
   right false-positive rate.
 

@@ -54,6 +54,26 @@ def project_docs() -> list[str]:
     return sorted(out)
 
 
+def _all_skill_files() -> list[str]:
+    """Every SKILL.md in the tree, dot-directories included.
+
+    `glob` skips names beginning with a dot, and every skill in this project lives under
+    one. Anything asking a question ABOUT the skills must walk instead.
+
+    `runs/` is stored data and `worktrees/` are whole checkouts of this repo; a copy of
+    the authoritative tree inside either is not a second source of truth.
+    """
+    out = []
+    for d, subs, files in os.walk(ROOT):
+        subs[:] = [s for s in subs
+                   if s not in ("runs", "worktrees", ".git") and not is_vendored(s)]
+        if is_vendored(d):
+            continue
+        if "SKILL.md" in files:
+            out.append(os.path.join(d, "SKILL.md"))
+    return out
+
+
 def headings(path: str) -> list[tuple[int, str, int]]:
     """Fence-aware. Returns (line_no, heading, section_chars).
 
@@ -211,6 +231,45 @@ def cmd_sweep() -> int:
                 for tok in set(re.findall(r"`(feel|tuning|design|polish|gameplay)`", ln)):
                     problems.append(
                         f"{rel}: `{tok}` reads as an aspect id; ASPECTS = {sorted(aspects)}")
+
+    # ONE ADDRESS PER PROCEDURE. A skill is how a procedure survives; a second copy of one
+    # is a second source of truth, and the second copy is the one nobody edits.
+    #
+    # `.agents/skills/` held a duplicate of the skills for a Codex CLI (#99). It was never
+    # once in sync: `add-game` was born 39 lines short in the very first commit, missing the
+    # entire `prompt_guard.py` section - the guard that exists because a shared preamble
+    # contaminated a single-variable experiment (#41). After the import, `.claude/skills/` took
+    # 6 edits that changed a procedure and it took 0. Deleted 2026-08-23 rather than synced,
+    # because syncing buys one day: a mirror with no reader drifts again by the next commit.
+    #
+    # THE PROPERTY IS THE ADDRESS, NOT THE DIRECTORY NAME. This does not ban `.agents/`; it
+    # requires that a SKILL.md live at `.claude/skills/<name>/SKILL.md` and nowhere else, so
+    # it fires on `.codex/`, `.cursor/`, `skills/` or a wrong nesting depth just the same -
+    # a trigger written as an enumeration has to be re-derived by the first reader who meets
+    # an item not on it.
+    #
+    # NOT A RATCHET. The correct count is 0 and there is no legacy population to accommodate.
+    #
+    # os.walk, NOT glob. `glob` does not descend into dot-directories, so a `**/SKILL.md`
+    # pattern returns zero paths here - including the authoritative ones - and the check
+    # passes by finding nothing. The planted control is the only reason that was visible;
+    # it is also why `project_docs()` above has never seen a file under `.claude/`.
+    SKILLS_ROOT = os.path.join(ROOT, ".claude", "skills")
+    skills = sorted(_all_skill_files())
+    for sk in skills:
+        if os.path.dirname(os.path.dirname(sk)) == SKILLS_ROOT:
+            continue
+        problems.append(
+            f"{os.path.relpath(sk, ROOT)}: a skill outside .claude/skills/<name>/, which "
+            f"AGENTS.md names as the sole authoritative path. A second copy is a second "
+            f"source of truth and only one of them gets edited (#99).")
+    # THE ADDRESS IS AN INPUT TO THE CHECK (#60). Finding nothing is the one result this
+    # check cannot distinguish from being pointed at the wrong place, so say so out loud
+    # rather than returning the same silence a clean repository returns.
+    if not skills:
+        problems.append(
+            f"no SKILL.md found anywhere under {os.path.relpath(SKILLS_ROOT, ROOT)} or "
+            f"outside it. The skills exist; this check is looking at the wrong root.")
 
     # A trial id is NOT a key. `g2_tetris3d__unity__t1` names 420x640 frames in
     # wg-matrix-2026-08-13 and 640x400 frames in wg-audio48-2026-08-14 - and in those two

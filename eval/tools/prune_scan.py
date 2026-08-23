@@ -82,9 +82,11 @@ HISTORY_STRONG = re.compile(
 )
 HISTORY_WEAK = re.compile(r"\b(no longer|legacy)\b", re.I)
 
-# The .agents/skills mirror duplicates every skill and is ALREADY FILED as task 27.
-# Reporting it 51 more times every six hours is how a scanner gets ignored.
-MIRROR = ".agents/"
+# No MIRROR exemption. It existed to stop this scanner reporting the `.agents/skills`
+# duplicate 51 times every six hours while task 27 was open. The duplicate was deleted on
+# 2026-08-23 (#99) and `docstat.py --sweep` now fails on any SKILL.md outside
+# `.claude/skills/<name>/`, so the suppression has nothing left to suppress and would only
+# hide the next copy from the scanner that found this one.
 
 # Reference implementations the harness executes by discovering their names, the way
 # pytest does. "Nothing calls this by name" is what they are FOR, so the dead-code
@@ -119,7 +121,7 @@ def cat_history(include_archive: bool) -> list[dict]:
     hits, weak = [], 0
     for p in _tracked((".md",)):
         rel = _rel(p)
-        if MIRROR in rel or (not include_archive and _is_archive(rel)):
+        if not include_archive and _is_archive(rel):
             continue
         for i, ln in enumerate(p.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
             if ln.lstrip().startswith(("|", ">")):
@@ -151,7 +153,7 @@ def cat_dup(include_archive: bool) -> list[dict]:
     seen: dict[str, list[str]] = defaultdict(list)
     for p in _tracked((".md",)):
         rel = _rel(p)
-        if MIRROR in rel or (not include_archive and _is_archive(rel)):
+        if not include_archive and _is_archive(rel):
             continue
         for para in re.split(r"\n\s*\n", p.read_text(encoding="utf-8", errors="replace")):
             norm = re.sub(r"\s+", " ", para).strip()

@@ -43,7 +43,11 @@ pruning and archive rules, `eval/FINDINGS.md` structure.
   `template*/` and `eval/starters/*/` are the **product**, and editing one is a regime boundary
   requiring `verify_blind.py`.
 - **A second copy of all six skills at `.agents/skills/`**, three already drifted — filed as
-  **task 27** before this log existed.
+  **task 27** before this log existed. **Resolved 2026-08-23: deleted** (#99). It had no reader,
+  was never once in sync, and had taken 0 content-bearing edits against the authoritative tree's
+  8. `docstat.py --sweep` now fails on any `SKILL.md` outside `.claude/skills/<name>/`, so
+  `prune_scan.py`'s `MIRROR` suppression was removed with it — its `dup` category was reporting
+  51 suppressed hits and now reports the starter/template pairs above without them.
 - 23 functions over 90 lines, the largest `starter_parity.py:main` at 181 and
   `field.py:build_pack` at 170. Refactor candidates only; nothing is known to be wrong with
   them and `build_pack` is load-bearing for blinding.

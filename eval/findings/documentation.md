@@ -458,3 +458,103 @@ the address is an input to the check, and here the manifest and the artifacts ar
 spellings of the same run that nothing asserts equal. Filed as a task rather than fixed
 here, because writing run manifests is harness behaviour and a bad repair to it is worse
 than the defect.
+
+## 99. A second copy of the skills for an agent that was never here, never once in sync
+
+Task 27. `.agents/skills/` held a duplicate of this project's skills, tool-name-substituted
+for the Codex CLI. It was tracked in git from the first commit. Nothing in any document,
+script or tool referenced it — `docstat.py` globbed `.claude/skills/` and `prune_scan.py`
+carried an explicit `MIRROR = ".agents/"` exemption so the duplicate would stop crowding out
+everything else it reported.
+
+### The question the artifacts could not answer, and the artifacts that answered it
+
+The ticket said the deciding question — *is a Codex-run sibling of this project actually
+maintained?* — was not derivable. Three measurements decided it.
+
+**1. The sibling is not a consumer.** `~/Documents/heavenstudio/game-research-gpt` exists and
+is a genuine independent attempt at this research question (iteration 12 in
+`eval/IMPROVEMENTS.md`). It has **no `.agents/` directory, no `SKILL.md` anywhere, no root
+`AGENTS.md`, and zero occurrences of "codex" in its readable surface** — `README.md`, `docs/`,
+`scripts/`, `template/AGENTS.md`. Its only agent-convention file is `template/AGENTS.md`. It
+cannot be reading a skills tree it does not have.
+
+**2. The mirror was never in sync — not on the day it was created.** From `git show --stat` on
+the initial commit:
+
+| file | `.claude/skills` | `.agents/skills` |
+|---|---|---|
+| `add-game/SKILL.md` | 126 lines | **87** |
+| `tasks/SKILL.md` | 146 lines | **absent** |
+| `prune/SKILL.md` | added later | **never added** |
+
+So this is not a maintained fork that decayed. The 39 lines `add-game` was short at birth are
+the whole *"Assert the prompt structure — run the tool, do not eyeball it"* section: the
+`prompt_guard.py` procedure that exists because a mouse-aiming clause written for the 3D arena
+landed in Pong, Tetris and the platformer and would have contaminated the one experiment whose
+entire design was a single variable (#41). A non-Claude agent following the `.agents/` copy is
+told to eyeball what this project measured that it must not eyeball.
+
+**3. Zero content-bearing edits, against six.** Every commit touching either tree, counted after
+the initial import so the import itself is not doing the work:
+
+| tree | commits | after the import | of those, changed a procedure |
+|---|---|---|---|
+| `.claude/skills/` | 8 | 7 | **6** — the seventh is the mechanical frontmatter quoting of task 35 |
+| `.agents/skills/` | 3 | 2 | **0** — one snapshot copy of `tasks` that went stale the same night, and that same task-35 fix, which was applied to both trees by a change that was about YAML |
+
+The `tasks` snapshot is the sharpest instance. It was copied in at 23:54 on 2026-08-22, and the
+two subsequent edits to `.claude/skills/tasks/SKILL.md` — 00:03 and 00:17, twenty-three minutes
+later — did not reach it. The `.agents` copy was
+still missing the section headed *"The queue is shared, and lives in the main checkout"* —
+the section that exists because three agents each filed a "task 27" in one hour and every
+exclusive-create guard succeeded against its own copy (#94). **The stale copy of the skill was
+missing exactly the lesson of the failure that a stale copy causes.**
+
+The mirror also carried two statements that are simply false here: that `--max-turns` and
+`--permission-mode` belong to the Codex CLI (`eval/runner.py:510,519` passes both to `claude`,
+and `docstat.py`'s own `FOREIGN_FLAG_PREFIXES` comment says so), and a capacity probe spelled
+`Codex -p "Reply READY." --model haiku`, which is not a runnable command.
+
+### What was done
+
+Deleted, not synced. Syncing buys one day: three of six copies were identical on the morning of
+2026-08-23 and four of six differed by the afternoon, because `tasks` drifted while the ticket
+sat open. A mirror with no reader has nothing pulling it back into line.
+
+`docstat.py --sweep` now fails on **any `SKILL.md` outside `.claude/skills/<name>/`**. The
+trigger is the address, not the directory name, so it fires on `.codex/`, `.cursor/`, a bare
+`skills/` or a wrong nesting depth without being rewritten — the meta-rule about triggers
+written as enumerations.
+
+### The check was vacuous on its first run, and only the positive control said so
+
+Written with `glob.glob(ROOT + "/**/SKILL.md", recursive=True)`, it reported clean against a
+deliberately planted `.agents/skills/run-matrix/SKILL.md`. **Python's `glob` does not descend
+into dot-directories**, and every skill in this project lives under one, so the pattern returned
+zero paths — including the seven authoritative ones — and the loop passed by iterating over
+nothing. It is the house pattern exactly: a mechanism that runs, reports success, and measures
+nothing.
+
+Two consequences. The check walks with `os.walk` instead. And it now reports finding *no*
+`SKILL.md` at all as a failure in its own right, because that is the one result a
+correctly-addressed check and a misaddressed one cannot otherwise be told apart by (#60).
+
+The same trap is live for anything else asking a question about the skills: `project_docs()` in
+`docstat.py` uses `glob` and has therefore **never seen a file under `.claude/`** — its "108
+docs checked" excludes all seven skills. Task 37's planned frontmatter gate globs the same way
+and would pass vacuously.
+
+### Controls
+
+| control | expected | got |
+|---|---|---|
+| planted `.agents/skills/run-matrix/SKILL.md` | exit 1 | exit 1 |
+| planted `.claude/skills/run-matrix/nested/SKILL.md` (right root, wrong depth) | exit 1 | exit 1 |
+| `SKILL.md` planted under `eval/runs/` (stored data) | exit 0 | exit 0 |
+| `SKILL.md` inside a checkout under `.claude/worktrees/` | exit 0 | exit 0 |
+| the walk enumerates the real skills | 7 | 7 |
+| repaired repository | exit 0 | exit 0 |
+
+The last four are variants, not mutants: they ask whether the check can still *pass* on input
+it must not fire on, which is the half that catches false positives (rule 15).

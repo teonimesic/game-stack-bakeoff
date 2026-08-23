@@ -198,6 +198,31 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 | Criteria, tiers and weights | `eval/judge/RUBRIC.md` |
 | Every run's cost and comparability | `eval/RUNS.md` |
 
+### One authoritative path per skill — decided 2026-08-23
+
+`.claude/skills/<name>/SKILL.md` is the **only** location for a skill. There is no per-CLI copy,
+and `docstat.py --sweep` exits 1 on any `SKILL.md` outside that root.
+
+`.agents/skills/` held a Codex-flavoured duplicate of the skills from the first commit until
+2026-08-23, when it was deleted (task 27). The three measurements that decided it, in full in
+#99: the only Codex-adjacent sibling — `game-research-gpt` — has no `.agents/`, no `SKILL.md`
+and no root `AGENTS.md`, so it was never a reader; the mirror was **never once in sync**, with
+`add-game` 39 lines short in the initial commit and `tasks` and `prune` absent entirely; and
+after the initial import it took **0 edits that changed a procedure, against the authoritative
+tree's 6**.
+
+It was deleted rather than synchronised because a copy with no reader has nothing pulling it
+back into line — three of six files were identical on the morning the ticket was read and four
+of six differed by the afternoon.
+
+**Cross-tool support was considered, not overlooked.** The repository is MIT and public and a
+non-Claude agent reading it is not hypothetical. The judgement is that such a reader is better
+served by `AGENTS.md` pointing at one tree than by a second tree that is confidently wrong: the
+deleted `add-game` omitted the `prompt_guard.py` procedure entirely, and the deleted `audit-docs`
+asserted that `--max-turns` and `--permission-mode` belong to the Codex CLI when
+`eval/runner.py:510,519` passes both to `claude`. If cross-tool support is wanted, add a
+**pointer** to `.claude/skills/`; a pointer cannot drift from content it does not hold.
+
 ---
 
 ## Open
@@ -451,6 +476,7 @@ settled question is noise that makes the live ones harder to find.
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
+| One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
 input and no measurement would overturn them.
