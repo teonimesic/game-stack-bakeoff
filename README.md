@@ -58,7 +58,7 @@ different routes; the fifth turned out not to be usable at all.
 |---|---|---|
 | **the play-bot tier is at its ceiling** | Tier 2 is the only scored tier, and it returns **one value for every submission in 5 of 10 (run, game) groups**. Tier 1, before it became a gate, returned one value in **7 of 10** — and in **0 of 10** did both tiers vary among the trials the play-bot could measure, so the weighted sum never had two signals to combine ([#92], [#123]). It saturates because the task is *finished*, not because there are too few questions: four harder criteria, built from things the newest game's prompt asks for and no criterion checked, passed **8 of 8** ([#128]) | `eval/judge/tier2_census.py`, `eval/judge/tier1_census.py` |
 | **the two trials of a cell are different work the instrument mostly cannot separate** | Compared criterion by criterion, the two independent trials in a cell agree on **verdicts** far more often than on **evidence** — most of the evidence strings differ, and differ in substance. That control is what makes the agreement readable: identical verdicts on identical artifacts would say nothing. "Mostly", not "never" | `python3 eval/judge/paired_verdicts.py --runs-root <main checkout>/eval/runs` — per (run, game), tier set stated, never pooled. `--selftest` pins its extraction on fixtures whose answers are written into the checks, and the retired unscoped figures are `WR-paired-verdict-tie` and `WR-paired-evidence-diff` in [`eval/withdrawn.json`](eval/withdrawn.json) |
-| **cost does not discriminate, and never can** | On the one measure taken on all four stacks at once, the **between-stack range is 42% of its own noise floor**. The mechanism matters more than that ratio: **cost tracks turns taken at r = 0.971**, and turns vary **205–370 within a single stack**. Cost is very nearly a restatement of how many turns an agent chose to take, so it cannot separate stacks and no number of extra trials would fix that ([#63]) | no producer prints this; [#63] holds the method and the per-stack table |
+| **token usage does not discriminate, and never can** | On the one measure taken on all four stacks at once, the **between-stack range is 42% of its own noise floor**, and usage varies **205–370 turns within a single stack**. It cannot separate stacks and no number of extra trials would fix that ([#63]). **This row said "cost" and quoted dollars until 2026-08-23; there is no spend to quote** — the account is a subscription, and the harness's `cost_usd` is a list-price valuation of token counts ([#159]). Its "cost tracks turns at r = 0.971" was arithmetic, not a result: the figure is computed from tokens, and tokens scale with turns | no producer prints this; [#63] holds the method and the per-stack table |
 | **a fourth game, unseen by the templates, changes nothing** | The fourth game was written *after* all four templates were frozen, so it is the first with no history of having been shaped — however unintentionally — around what the templates already did well. It reproduces the null | [`eval/judge/RUBRIC.md`](eval/judge/RUBRIC.md) for its criteria, [`eval/G4-PLATFORMER.md`](eval/G4-PLATFORMER.md) for its design |
 | **the LLM judge is not a fifth route** | No subjective aspect separates the stacks either — but that can no longer be offered as independent corroboration, because **the blinding failed and every one of the 84 stored judge packs carried text naming the stack**. | [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md); `eval/judge/field_ranks.py --rounds <stored rounds>` |
 
@@ -102,12 +102,12 @@ handed the same frozen frame to every screenshot, which read as six of nine rend
 one stack ([#133]). And a proposed new scoring measure that did spread the field turned out to
 reorder it whenever the play-bot was improved, so it was measuring the bot ([#139]).
 
-**What would settle it — every route, priced.**
+**What would settle it — every route, and what it would take.**
 
 | route | what it would take | status |
 |---|---|---|
 | **make the play-bot tier harder** | both in-rubric repairs were tried and measured. Promoting a withheld criterion moves every score in a group by the same amount; four harder criteria passed 8 of 8 | **closed.** It is not a shortage of criteria ([#128]) |
-| **a harder game, or a fifth one** | one clean eight-cell field. The price is in [DECISIONS.md](DECISIONS.md#a-harder-task-is-priced-here-and-gated-behind-a-free-pre-test--decided-2026-08-23) | **priced, not bought.** A free offline pre-test ran first and came out *against* buying it ([#139]) |
+| **a harder game, or a fifth one** | one clean eight-cell field — 8 trials, historically 205–370 turns each. The cost is agent time and rate-limit capacity, not money ([#159]) | **not bought.** An offline pre-test ran first and came out *against* it ([#139]) |
 | **the LLM judge** | roughly **96 rounds per aspect** for a statistical tie ([`eval/judge/JUDGING.md`](eval/judge/JUDGING.md) prices it), and every stored round would have to be re-run, because none was blind | **not started** |
 | **cost** | nothing would settle it. Cost is a proxy for turns, and turns are a per-agent choice | **closed** ([#63]) |
 
@@ -166,7 +166,7 @@ survives any particular value ([#144]). Design, result and controls:
 | question | where |
 |---|---|
 | What was decided, and why? | [`DECISIONS.md`](DECISIONS.md) |
-| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 140 entries. Findings #19-#158, count and range from `python3 eval/tools/docstat.py --findings` |
+| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 141 entries. Findings #19-#159, count and range from `python3 eval/tools/docstat.py --findings` |
 | What did a run cost, and what may I compare it with? | [`eval/RUNS.md`](eval/RUNS.md) |
 | How big is the stored corpus right now? | `python3 eval/tools/census.py` |
 | Why these four stacks? | [`research/DECISION.md`](research/DECISION.md) — the *prior*. The bake-off is the evidence, and it opens with a retraction |
@@ -283,7 +283,7 @@ without one lost 29.8% of all turns to denials, so runs across that change are *
 
 ## The one thing this project actually learned
 
-140 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+141 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
 instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**
@@ -350,3 +350,5 @@ did not just read — are in [`AGENTS.md`](AGENTS.md).
 [#137]: eval/findings/one-arm-bias.md#137-the-blinding-was-stated-as-a-property-and-implemented-as-a-suffix-so-it-hid-the-extension-of-the-file-the-judge-opens-and-none-of-the-ones-it-reads--and-the-densest-leak-was-written-by-the-packer-not-by-any-agent
 [#139]: eval/findings/certifies-nothing.md#139-repairing-the-instrument-reordered-the-field-so-the-scalar-was-measuring-the-bot
 [#144]: eval/findings/certifies-nothing.md#144-a-count-with-a-producer-still-goes-stale-because-the-producer-bounds-the-staleness-and-does-not-prevent-it--and-this-one-drifted-while-a-single-session-was-reading-it
+
+[#159]: eval/findings/limits-and-cost.md#159-every-dollar-figure-in-this-project-is-a-list-price-valuation-of-tokens-on-an-account-where-no-money-moves-per-token--and-a-research-decision-was-declined-on-one

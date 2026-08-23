@@ -615,3 +615,66 @@ external evidence picks between them. **A tool changing its own answer when its 
 corrected is the whole reason to build the producer rather than quote the number**, and it is
 rule 15's shape: the mtime split had a mutant that reddened it and no variant asking whether it
 could still pass on input it mishandles.
+
+---
+
+## 159. Every dollar figure in this project is a list-price valuation of tokens, on an account where no money moves per token — and a research decision was declined on one
+
+The harness records `agent.cost_usd` per trial and the documents report it as spend: *"$421.00"*
+for a field, *"$2,466.31"* tree-wide, *"the $421-to-$698 spend"*.
+
+**The account is a subscription. Per-token API charges do not apply, and none of those dollars
+was ever paid.**
+
+The field is exactly what the CLI computes from token counts at published API rates, verified on
+a stored record:
+
+    sum(modelUsage[*].costUSD) = 42.921086
+    total_cost_usd             = 42.921086     identical
+
+`modelUsage` carries `inputTokens`, `outputTokens`, `cacheReadInputTokens` and a `costUSD` derived
+from them. The CLI reports that valuation **whatever the billing arrangement** — it is what these
+tokens would list for, not what anything cost.
+
+### What survives, and it is most of it
+
+**The token counts are real.** Every comparison built on them stands: one trial used more of the
+resource than another, and by how much. What is wrong is the **unit and the noun**. Writing `$`
+and *spend* claims an expenditure, and expenditure is the thing that did not happen.
+
+### One conclusion was already wrong for a second reason
+
+The result table reports *cost tracks turns at r = 0.971* and concludes cost is "very nearly a
+restatement of how many turns an agent chose to take."
+
+That correlation is not a finding about stacks. **It is arithmetic**: the figure is computed from
+token counts, and token counts scale with turns. The measurement was turns, reported twice, and
+correlated with itself. A near-unity correlation was the only possible outcome.
+
+The useful half is unchanged and should be stated in its own terms: **token usage does not
+separate the four stacks**, and it varies more within one stack than between stacks.
+
+### The decision that was acted on
+
+> *"Nothing here justifies the $421-to-$698 spend."*
+
+A harder task was **declined on a price**, and the price is not a price. The reasoning behind the
+decline — that the pre-test's spread was the instrument's rather than the level's — is untouched
+and still stands on its own. But the sentence that carried it appealed to money, and the money was
+notional.
+
+> **A figure nobody pays is still a figure people act on.** This one had a producer, was
+> re-derived correctly all week, reproduced to the cent across independent tools, and was wrong
+> about what it measured the entire time. Every check this project owns asks whether a number is
+> *reproducible*. None asks what its **unit** means.
+
+### What the real constraint is, and that it has never been measured
+
+On a subscription the binding resources are **rate limits, session capacity and wall clock** —
+the things `PROTOCOL.md` already tells you to probe before a run, and which killed trials in three
+separate matrices. None of them is denominated in dollars, and none is recorded per trial beside
+`cost_usd`. `wall_s` and `num_turns` are stored; the resource that actually stops a run is not.
+
+**The repair is not to delete the figures.** They are a real proxy for token consumption and the
+only per-trial resource number the harness has. They must be **named for what they are**, and no
+decision may rest on them as money.
