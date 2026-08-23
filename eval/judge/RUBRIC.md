@@ -468,9 +468,9 @@ The old split was 10 code / 3 visual. That is backwards for the question being a
 The deterministic tiers already prove the code works; what they cannot see is whether
 the result is a game anyone would want to play.
 
-**These five exist.** The ids are the ones `aspects.py` defines and `field_sweep.py --aspects`
-accepts; verified against the code 2026-08-15. Nothing else is runnable, whatever any
-design table says.
+**These six aspects exist.** The ids are the ones `aspects.py` defines and
+`field_sweep.py --aspects` accepts; re-read from `ASPECTS` 2026-08-23. Nothing else is
+runnable, whatever any design table says.
 
 | aspect id | judge asks | `sees` |
 |---|---|---|
@@ -479,14 +479,31 @@ design table says.
 | `audio` | does the music suit the game, are the effects readable | `audio` |
 | `idiomatic` | was the stack used as that stack is meant to be used | `code` |
 | `architecture` | could a second enemy type be added | `code` |
+| `fun_frames` | **`fun`'s control, not a sixth opinion** — the same question, anchors and scale, with the telemetry withheld | `frames` |
+
+**Five opinions and one control.** `fun_frames` is runnable exactly like the other five and
+`--aspects fun_frames` is accepted, so a reader told there are five under-runs the layer and
+never learns why. What differs is what its answer is *for*: against `fun` it asks whether the
+telemetry contributes anything, and against `ux` whether the frames channel is contaminated.
+Both were pre-registered before the packs were judged, and the result is in `JUDGING.md` —
+neither equality holds, which is the reason `fun` still has a pacing claim. Its briefing is
+byte-identical to `fun`'s **by design**, and `aspects_selftest.py` goes red if the two drift;
+a control briefed differently from its treatment is not a control.
+
+**It must never be pooled with the other five, and nothing enforces that** —
+`Aspect.diagnostic_only` is never set on it and is read by no code. `field_ranks.py` without
+`--per-aspect` pools every round in the directory it is given, which on
+`runs/wg-aspect-reliability` is 30 rounds of which 5 are the control. No published figure is
+affected: the separation pair `README.md` quotes comes from `wg-tetris-judge-2026-08-17/pre`
+and `/post`, which hold no `fun_frames` rounds. Task 90 carries the repair.
 
 **Candidates, not built:** game feel, difficulty and tuning, visual coherence, code quality.
 Do not name them in a command; `--aspects feel` is rejected by `choices=sorted(ASPECTS)`.
 
-Two of the five read source and three read the played result, which is the intended rebalance
-away from the retired rubric's 10-code-of-13. `idiomatic` is carried because it is the only
-aspect whose subject is the variable under test — a four-stack comparison should ask whether the
-agent used each stack *as that stack is meant to be used*.
+Two of the five opinions read source and three read the played result, which is the intended
+rebalance away from the retired rubric's 10-code-of-13. `idiomatic` is carried because it is the
+only aspect whose subject is the variable under test — a four-stack comparison should ask whether
+the agent used each stack *as that stack is meant to be used*.
 
 Each judge returns a ranking of all 8 submissions in a game, per-submission grades with
 reasons, and explicit best/worst calls. Ties are allowed but must be justified — a tie
