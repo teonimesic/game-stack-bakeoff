@@ -1241,8 +1241,31 @@ failure showing up in the thing gate 3 exists to protect.
 
 ## Weights
 
-**All subjective layers are weight 0.00 until they pass the gates above.** Current scored weights
-are 0.31 programmatic / 0.69 play-bot.
+**All subjective layers are weight 0.00 until they pass the gates above.** There is now exactly
+one scored tier: **play-bot 1.00**. Tier 1 became a PASS/FAIL gate on 2026-08-23 and carries no
+weight — `RUBRIC.md` has the measurement, FINDINGS #92 and #119.
+
+That matters here for one reason beyond bookkeeping: the standing argument for keeping tier 3 at
+0.00 is that its bounded contribution — 0.0154 at the 0.10 weight it briefly held — could not
+reorder anything against the deterministic tiers' **tightest adjacent gap of 0.0622**. That gap
+was computed on tiers 1+2 combined, and `overall` is now tier 2 alone, so it was recomputed
+before being relied on again.
+
+Recomputed from the 24 stored `wg-matrix-2026-08-13` records, per game, as the smallest
+difference between adjacent *distinct* values:
+
+| game | tier 2 alone | old 0.31/0.69 |
+|---|---|---|
+| `g1_pong` | 0.0769 | 0.0531 |
+| `g2_tetris3d` | 0.0769 | 0.0531 |
+| `g3_arena` | **0.0667** | 0.0460 |
+
+**Dropping tier 1 widens every gap**, because the constant 0.31 it contributed compressed them.
+The judge's 0.0154 is still a factor of four short of the tightest, so the argument survives and
+is slightly stronger than when it was made. Note that **0.0622 is not reproduced by this method
+and the method behind it is not recorded anywhere** — quote 0.0667 with the method above, not the
+older number. The second argument for the 0.00 — the aggregate is noisiest exactly where it would
+matter — does not depend on the weighting at all, which is why the two were kept separate.
 
 Weight decisions belong to the project owner and have been reversed twice on evidence. Bring
 discrimination, independence and stability numbers; do not bring an argument.

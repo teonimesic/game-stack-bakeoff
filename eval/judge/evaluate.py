@@ -54,8 +54,84 @@ def _atomic(path: Path, obj: Any) -> None:
     os.replace(tmp, path)
 
 
-WEIGHTS = {"programmatic": 0.31, "playbot": 0.69}
+# TIER 1 IS A GATE, NOT A SCORE - decided 2026-08-23, on measurement (task 29).
+#
+# It used to carry 0.31 of `overall` against tier 2's 0.69, a split that appeared in
+# the first commit of this repository, was quoted in four documents, and was derived in
+# none of them. Two offline sweeps over the stored corpus, both re-runnable:
+#
+#   judge/weight_sensitivity.py --all   10 groups, FLIPS=0 at every weight in (0,1);
+#                                       7 of 10 UNIDENTIFIABLE because tier 1 returns a
+#                                       SINGLE value across the whole group (#92).
+#   judge/tier1_census.py               68 stored trials, 7 with any tier-1 failure. Two
+#                                       are the same build failure (#49) whose tier-2
+#                                       0.00 is a restatement of it; the other five are
+#                                       a lint finding, three of a submission's own unit
+#                                       tests, and an ink-coverage window - on games that
+#                                       scored 1.00 on tier 2. In 0 of 10 groups do both
+#                                       tiers vary among the trials tier 2 could measure.
+#
+# So the weight has never had two signals to combine. What tier 1 does is separate a
+# submission that fails outright from one that does not, which is a FLOOR TEST, and a
+# floor test reported as 0.31 of a quality score reads a lint finding as 4.4% worse game.
+#
+# The gate keeps every criterion and the whole per-criterion report; it removes only the
+# arithmetic that turned them into a fraction of the grade. `tier1_census.py` prints
+# FLOOR-ONLY today and DISCRIMINATES the day a tier-1 criterion with real headroom is
+# added - at which point this decision has to be re-made rather than inherited.
+GATE_TIER = "programmatic"
+WEIGHTS = {"playbot": 1.0}
 DIAGNOSTIC_TIERS = ("judge",)
+
+#: Stamped into every record so a corpus spanning the change is partitionable. A stored
+#: number whose regime you cannot name is not comparable with anything (eval/RUNS.md).
+SCORING_REGIME = "gate-2026-08-23"
+
+#: The tier-1 criteria tier 2 DEPENDS ON. The play-bot drives the submission through
+#: `just probe`, so a project that does not build, or whose probe never answers, cannot
+#: produce tier-2 evidence: its 0.00 there is the same fact as the gate failure, not a
+#: second one. `render.frames` is deliberately not here - the bot drives the probe, not
+#: the film, so a broken capture recipe still leaves the game measurable.
+#: Corroborated, not merely asserted: over the stored corpus every trial that failed one
+#: of these has tier 2 = 0.00 (2 of 2) and every trial that failed only other tier-1
+#: criteria has tier 2 > 0 (5 of 5). `tier1_census.py` prints that 2x2.
+BLOCKING_CRITERIA = ("build.compiles", "probe.responds")
+
+
+def gate_verdict(tier1: dict[str, Any]) -> dict[str, Any]:
+    """PASS iff every SCORED tier-1 criterion passed. Fail-closed on an empty tier.
+
+    An empty criteria list is NOT a pass. `total=0 passed=0` is indistinguishable from
+    correct failure, and a gate that green-lights a tier that ran nothing is the exact
+    shape this repository keeps finding (rule 1).
+
+    `scored=False` criteria are excluded from the question, not counted as failures:
+    that flag marks the engine project-lock exception, which says nothing about the
+    submission and can only arise on a subset of the arms (FINDINGS #25).
+    """
+    crits = [c for c in (tier1.get("criteria") or []) if c.get("scored", True)]
+    failed = [c["id"] for c in crits if not c.get("passed")]
+    blocking = [cid for cid in failed if cid in BLOCKING_CRITERIA]
+    return {
+        "tier": GATE_TIER,
+        "usable": bool(crits),
+        "passed": bool(crits) and not failed,
+        "n_scored": len(crits),
+        "n_failed": len(failed),
+        "failed": failed,
+        "blocking_failed": blocking,
+        # False means: this trial's `overall` is not independent evidence about the
+        # game. Tier 2 could not observe anything, so its score restates the gate.
+        "score_is_independent": not blocking,
+        "fraction_passed": (round((len(crits) - len(failed)) / len(crits), 4)
+                            if crits else None),
+    }
+
+
+def overall_score(tier_scores: dict[str, float]) -> float:
+    """`overall` from the SCORED tiers. Tier 1 is not one of them; see WEIGHTS."""
+    return round(sum(WEIGHTS[k] * float(tier_scores.get(k, 0.0)) for k in WEIGHTS), 4)
+
 
 BOTS = {
     "g1_pong": "bot_pong",
@@ -195,8 +271,15 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     _atomic(out / "judge.json", tier3)
 
     # -- combine ----------------------------------------------------------- #
-    scores = {k: float(rec[k].get("score", 0.0)) for k in WEIGHTS}
+    # `tier_scores` keeps BOTH deterministic tiers even though only one is weighted.
+    # Tier 1's fraction is still the thing `weight_sensitivity.py` sweeps and the thing
+    # a future headroom criterion would move, and a number that stops being written is
+    # a question that stops being answerable.
+    scores = {k: float((rec.get(k) or {}).get("score", 0.0))
+              for k in (GATE_TIER, *WEIGHTS)}
     rec["tier_scores"] = scores
+    rec["gate"] = gate_verdict(tier1)
+    rec["scoring_regime"] = SCORING_REGIME
     rec["diagnostic_scores"] = {k: float(rec[k].get("score", 0.0))
                                 for k in DIAGNOSTIC_TIERS if k in rec}
     rec["judge_is_diagnostic_only"] = True
@@ -210,7 +293,8 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     #
     # `drive()` returns usable=False only when EVERY criterion came back unscored -
     # which happens when the engine refused every session, not when the game is bad.
-    # Folding that in as 0.0 against a 0.69 weight deducts two thirds of the grade from
+    # Folding that in as 0.0 deducts the WHOLE grade - it was two thirds of it before
+    # tier 1 became a gate - from
     # a submission that was never driven, and it can only happen on the stacks that take
     # a project-wide lock. That is bias, not noise (FINDINGS #25).
     #
@@ -223,10 +307,15 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     # for a trial with a missing tier.
     rec["playbot_usable"] = bool(tier2.get("usable", True))
     rec["playbot_unscored"] = tier2.get("unscored") or {}
-    # The judge is not in WEIGHTS, so `overall` is the deterministic tiers alone. A
-    # judge tier that failed to run therefore cannot affect the score at all - which
-    # is the point.
-    rec["overall"] = round(sum(WEIGHTS[k] * scores[k] for k in WEIGHTS), 4)
+    # Neither the judge nor the gate is in WEIGHTS, so `overall` is the play-bot tier
+    # alone. A judge tier that failed to run cannot affect the score - which is the
+    # point - and neither can a lint finding, which is the change of 2026-08-23.
+    #
+    # A GATE FAILURE DOES NOT DEDUCT AND DOES NOT EXCLUDE. It is reported beside the
+    # score with the failing criterion ids. Deducting would restore the thing being
+    # removed; excluding would be a reason not to count a failure, and every one of
+    # those is a channel a bug can widen (rule 7).
+    rec["overall"] = overall_score(scores)
     rec["wall_s"] = round(time.monotonic() - t0, 1)
     rec["finished_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
 
@@ -260,12 +349,27 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     return rec
 
 
+def gate_line(gate: dict[str, Any] | None) -> str:
+    """One line, and it must never be silent about a gate that did not run."""
+    if not gate:
+        return "GATE   (absent - this record predates the gate regime)"
+    if not gate.get("usable"):
+        return "GATE   UNUSABLE: tier 1 scored no criteria. This is not a pass."
+    if gate.get("passed"):
+        return f"GATE   PASS   ({gate['n_scored']}/{gate['n_scored']} tier-1 criteria)"
+    ids = ", ".join(gate.get("failed") or [])
+    note = ("  *** BLOCKING: tier 2 could not observe this submission, so `overall` "
+            "is not independent evidence ***" if gate.get("blocking_failed") else "")
+    return (f"GATE   FAIL   {gate['n_failed']} of {gate['n_scored']} tier-1 criteria: "
+            f"{ids}{note}")
+
+
 def summarise(rec: dict[str, Any]) -> str:
     lines = [
         f"=== {rec['game']}  {Path(rec['submission']).name} ===",
-        f"overall {rec['overall']:.3f}   = "
-        f"0.31*programmatic + 0.69*playbot   ({rec['wall_s']}s)",
-        "the judge tier below is DIAGNOSTIC ONLY and contributes nothing to `overall`",
+        f"overall {rec['overall']:.3f}   = playbot   ({rec['wall_s']}s)",
+        gate_line(rec.get("gate")),
+        "tier 1 is a GATE and tier 3 is DIAGNOSTIC; neither contributes to `overall`",
         "",
     ]
     if not rec.get("judge_usable", True):
@@ -286,6 +390,7 @@ def summarise(rec: dict[str, Any]) -> str:
         if tier == "judge" and t.get("instability") is not None:
             extra = f"  instability={t['instability']}"
         label = ("DIAGNOSTIC - not scored" if diag
+                 else "GATE - not scored" if tier == GATE_TIER
                  else f"weight={WEIGHTS[tier]}")
         lines.append(f"{tier:<14} {t.get('passed', 0)}/{t.get('total', 0)}"
                      f"  score={t.get('score', 0.0):.2f}"

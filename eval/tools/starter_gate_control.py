@@ -6,7 +6,8 @@ WHY THIS EXISTS
 `build.compiles` and `verify.green` are two of the fourteen tier-1 criteria, and both are
 just the exit code of a recipe in the submission's own justfile (`judge/static.py`). So a
 starter whose gate is RED BEFORE ANY AGENT TOUCHES IT hands every submission in that arm
-two automatic failures in the tier weighted 0.31 — and the other three arms do not pay it.
+two automatic gate failures - and `build.compiles` is BLOCKING, so that arm's play-bot
+score is not independent evidence either. The other three arms do not pay it.
 That is not noise. It is one-arm bias, the shape of #25 and #49.
 
 It happened. `eval/starters/godot/tools/check.gd` called `script.reload()` on every script,

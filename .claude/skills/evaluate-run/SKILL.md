@@ -32,7 +32,10 @@ python3 wholegame.py evaluate --run-dir runs/<name> --eval-parallel 1
 Serial. Concurrent renders produce flaky captures, which is the false-negative class that
 has already cost this project three criteria and two evaluation passes.
 
-Weights: **0.31 programmatic / 0.69 play-bot / 0.00 judge.**
+Weights: **programmatic = a GATE, not scored / play-bot 1.00 / judge 0.00.** `overall` is the
+play-bot tier; the tier-1 verdict is reported beside it as `gate: PASS` or `FAIL` with the
+failing criterion ids. A stored `overall` from before 2026-08-23 is on the old
+`0.31*prog + 0.69*bot` scale — **do not average across that boundary** (`eval/RUNS.md`).
 
 ## 2. Adjudicate every failure against source — this is not optional
 

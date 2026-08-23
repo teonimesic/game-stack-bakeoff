@@ -3172,3 +3172,65 @@ so quoting would have made their `done NN` answer "no task NN". **Measured rathe
 the old reader differs on 93 outputs against the migrated queue, and the id was the only
 difference with a functional consequence.** Quoting it is a one-line change once no worktree runs
 a pre-YAML copy.
+
+## 119. In 68 trials the 0.31-weighted tier deducted for a property of a playable game exactly five times, and every one of those five was a lint finding, a unit test or an ink-coverage window
+
+#92 established that the tier weight could not act: sweeping `overall = w1*tier1 + (1-w1)*tier2`
+over 68 stored trials moved no ordering at any weight, and in 7 of 10 groups it *cannot*, because
+tier 1 returns a single value across the whole group. The natural next move — pick a better `w1`,
+or defend 0.31 — is the wrong one, and the reason is what this finding is about.
+
+**A weight that cannot act is a question about the term it multiplies.** So the question became
+what tier 1 has ever *done*, which is answerable from data already on disk and had never been
+asked. `judge/tier1_census.py` asks it:
+
+| | |
+|---|---|
+| stored trials carrying tier-1 criteria | **68** |
+| trials with **any** tier-1 failure | **7** |
+| of those, failures of a criterion tier 2 depends on | 2 — both the #49 `syspolicyd` build failure, both scoring **0.00** on tier 2 |
+| of those, failures of anything else | 5 — and **all five scored 1.000 on tier 2** |
+| criteria that have never failed | **0 of 14** |
+| groups where both tiers vary among measurable trials | **0 of 10** |
+
+The five, in full: a Godot lint finding (`sim.gd:613: Max allowed file...`), a Unity lint finding,
+three of a TypeScript submission's own 103 unit tests, and one Godot platformer whose frames had
+an ink coverage of **0.881** against a criterion window that ends at 0.85 — failed for having too
+much on screen. Against `overall`, the lint finding cost that submission **0.0443**, which is the
+same order as the gap between two stacks.
+
+> **A term that only ever moves when the thing is broken is a floor test. Weighted as a score it
+> does not become a discriminator — it becomes a lint finding expressed as 4.4% worse game.**
+
+### The instrument's own caveat is the reason a second instrument was needed
+
+`weight_sensitivity.py` sweeps the **open** interval, deliberately: its first version swept `[0,1]`
+and reported FLIPS on 3 of 10 groups, every one at the endpoint where a tier is discarded outright
+(#92). But **the gate scheme IS w1=0** — the excluded point. So `FLIPS=0` says nothing whatever
+about the change it was cited to support, and quoting it that way would have been reading a result
+off the one place the instrument refuses to look.
+
+Asked at that point, pairwise on per-stack means: **0 orderings reversed, 3 coarsened, 7
+identical.** Every distinction the change removes is one tier 1 made alone — godot's lint, ts's
+unit tests, unity's lint, godot's ink coverage — and none is reversed. That is a different claim
+from `FLIPS=0` and it is the one the decision rests on.
+
+### What changed, and what deliberately did not
+
+Tier 1 is now a **gate**: `overall = tier2`, and the tier-1 verdict is reported as `PASS`, or
+`FAIL` with the failing ids. A gate failure **does not deduct** and **does not exclude the trial** —
+the `game-research-gpt` practice this borrows from does not score an option that fails a gate,
+which is right when choosing an engine and wrong when measuring one, because every reason not to
+count a failure is a channel a bug can widen (rule 7).
+
+**Nothing stored was re-scored.** 14 of 68 stored `overall` values would move — 9 down, by up to
+**0.2273** on `wg-matrix-2026-08-13`'s `g3_arena__unity__t0` and `g3_arena__unity__t1`, whose
+tier 2 was 0.267 and whose 0.31 of tier 1 was cushioning it. Re-scoring them would have made the new scheme's tables agree with each other and
+with nothing that was published. The boundary is in `eval/RUNS.md`, `regrade_wholegame.py` refuses
+to cross it without `--accept-regime-change`, and `wholegame.py report` marks pre-gate rows.
+
+**The half this does not fix, and it is now the whole exposure.** Tier 2 is itself at the ceiling
+on 24 of 56 matrix trials. With tier 1 out of the sum, `overall` is a **constant 1.000** across all
+16 `wg-audio48` trials and all 8 of `wg-g4c`. The saturation was always there; it was being
+disguised by a tier-1 nit or two per field, which is the worse of the two states to be in — but it
+is now the only scored tier, and no weight can help it.

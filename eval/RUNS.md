@@ -73,6 +73,32 @@ consistent and mutually incomparable. `wg-audio` at $25 is a partial third regim
 from 2026-08-15 onward is a fourth, and its arena trials answer a different question from every
 arena trial before them.
 
+## A fifth boundary, and this one is in the GRADER, not the run
+
+**On 2026-08-23 tier 1 stopped being 0.31 of `overall` and became a pass/fail gate** (task 29,
+`eval/judge/RUBRIC.md`, FINDINGS #92 and #119). `overall` is now the play-bot tier alone.
+
+Unlike the four above, this boundary does not run through the builds — the submissions and every
+stored tier score are untouched. It runs through the **arithmetic that turns them into a number**,
+which makes it easier to miss and no less disqualifying:
+
+- **Every `report.json` written before that date holds `overall = 0.31*tier1 + 0.69*tier2`** and
+  has no `gate` and no `scoring_regime` field. Records written after carry both, and their
+  `overall` is `tier2`.
+- **14 of the 68 stored trials would move** if re-scored — 5 upward by 0.0221-0.0443, 9 downward
+  by up to **0.2273** (`wg-matrix-2026-08-13`'s `g3_arena__unity__t0` and `g3_arena__unity__t1`,
+  which the constant 0.31 was cushioning).
+  **They were not re-scored.** Nothing in `eval/runs/**` was rewritten for this change.
+- **Never average a stored `overall` with a new one.** `wholegame.py report` marks pre-gate rows
+  `w` in a `regime` column and refuses to pass over a mixed run silently;
+  `judge/regrade_wholegame.py` will not rewrite a pre-gate record without
+  `--accept-regime-change`, because converting part of a run leaves a directory half in each
+  regime with nothing on disk saying which trial is which.
+
+**Re-scoring a stored run into the gate regime is allowed, and it must be recorded here** — the
+run row gains the date and the flag, because after it the run's numbers no longer match anything
+published about it before. Nothing has been re-scored so far.
+
 ## "completed" does not mean finished
 
 The calibration trial for the no-cap regime came back at **$72.83 / 369 turns / 118 min**, and

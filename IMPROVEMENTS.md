@@ -14,7 +14,8 @@ An iteration that ends "I improved X" with no number attached has measured nothi
 
 ### Why this first
 
-The play-bot tier carries **0.69 of the grade** — more than everything else combined —
+The play-bot tier carries **the whole grade** — 0.69 of it when this was written, and 1.00
+since tier 1 became a gate on 2026-08-23 (`eval/judge/RUBRIC.md`) —
 and it has only ever been validated against artifacts where the answer was obvious:
 three reference implementations scoring 13/13, 13/13 and 15/15, and two broken controls
 scoring 0/13. That is the identical ceiling error already written up for the LLM judge

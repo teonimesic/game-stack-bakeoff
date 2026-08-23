@@ -689,9 +689,9 @@ def cmd_concurrency_check(a: argparse.Namespace) -> int:
         return 1
 
     print(f"serial   {a.k} evaluations in {serial_s:.0f}s  "
-          f"scores {[round(r['overall_no_judge'], 3) for r in serial]}")
+          f"scores {[round(r['overall'], 3) for r in serial]}")
     print(f"parallel {a.k} evaluations in {par_s:.0f}s  "
-          f"scores {[round(r['overall_no_judge'], 3) for r in par]}")
+          f"scores {[round(r['overall'], 3) for r in par]}")
     if diffs:
         print(f"\nCONFOUND: {len(diffs)} criterion verdict(s) changed:")
         for d in diffs[:40]:
@@ -764,7 +764,7 @@ def cmd_report(a: argparse.Namespace) -> int:
 
     # A trial whose play-bot tier measured NOTHING is a third population, distinct from
     # both "completed" and "truncated": the agent finished, the submission exists, and
-    # the instrument never read it. Its 0.00 on a 0.69-weighted tier says nothing about
+    # the instrument never read it. Its 0.00 on the only scored tier says nothing about
     # the work, and it can only arise on the stacks that take a project-wide lock.
     unmeasured = [r for r in rows
                   if r.get("eval") and r["eval"].get("playbot_usable") is False]
@@ -793,10 +793,21 @@ def cmd_report(a: argparse.Namespace) -> int:
 
     print(f"\n=== {run_dir.name}: {len(rows)} trials ({len(scored_rows)} aggregated, "
           f"{len(truncated)} not completed, {len(unmeasured)} unmeasured) ===\n")
-    print("`overall` = 0.31*programmatic + 0.69*playbot. The judge column is a "
-          "DIAGNOSTIC\nand contributes NOTHING to it - see RUBRIC.md and FINDINGS #21.\n")
-    hdr = (f"{'stack':<8} {'game':<13} {'overall':>8} {'prog':>6} {'bot':>6} "
-           f"{'judge*':>7} {'turns':>6} {'$':>7} {'wall':>7}")
+    pre_gate = [r for r in rows if r.get("eval") and not r["eval"].get("scoring_regime")]
+    if pre_gate:
+        print(f"*** {len(pre_gate)} of {len(rows)} stored `overall` values were written "
+              f"under the PRE-GATE scheme\n    (0.31*prog + 0.69*bot). They are shown as "
+              f"stored and are NOT rewritten here.\n    Read the `prog` and `bot` columns "
+              f"for those rows, not `overall`.\n")
+    print("`overall` = playbot. Tier 1 is a GATE and the judge is a DIAGNOSTIC; neither\n"
+          "contributes to it - see RUBRIC.md, FINDINGS #21 and #92.\n"
+          "The `gate` column is the tier-1 verdict: PASS, or the number of tier-1\n"
+          "criteria that failed. A gate failure does not deduct and does not exclude;\n"
+          "it is a fact about the submission that the score is not the place for.\n"
+          "`regime` says which scheme wrote the stored `overall`: rows marked `w` predate\n"
+          "2026-08-23 and are 0.31*prog + 0.69*bot. They are NOT comparable with gate rows.\n")
+    hdr = (f"{'stack':<8} {'game':<13} {'overall':>8} {'gate':>7} {'rg':>3} {'prog':>6} "
+           f"{'bot':>6} {'judge*':>7} {'turns':>6} {'$':>7} {'wall':>7}")
     print(hdr)
     print("-" * len(hdr))
     for r in sorted(rows, key=lambda r: (r["game"], r["stack"], r["trial"])):
@@ -807,10 +818,39 @@ def cmd_report(a: argparse.Namespace) -> int:
         ts = e["tier_scores"]
         jd = (e.get("diagnostic_scores") or {}).get("judge",
               (e.get("judge") or {}).get("score", 0.0))
-        print(f"{r['stack']:<8} {r['game']:<13} {e['overall']:>8.3f} "
+        # A record with no `gate` is one written before the gate regime. It is shown as
+        # `-`, never computed on the fly: deriving a new-regime verdict for an old
+        # record would put a number in the column that nothing on disk supports.
+        g = e.get("gate")
+        if not g:
+            gate_txt = "-"
+        elif not g.get("usable"):
+            gate_txt = "UNUSABLE"
+        elif g.get("passed"):
+            gate_txt = "PASS"
+        else:
+            # `!` marks a BLOCKING failure: tier 2 could not observe this submission,
+            # so its `overall` restates the gate rather than adding to it.
+            bang = "!" if g.get("blocking_failed") else ""
+            gate_txt = f"FAIL{bang}:{g.get('n_failed')}"
+        regime = "g" if e.get("scoring_regime") else "w"
+        print(f"{r['stack']:<8} {r['game']:<13} {e['overall']:>8.3f} {gate_txt:>7} "
+              f"{regime:>3} "
               f"{ts['programmatic']:>6.2f} {ts['playbot']:>6.2f} {jd:>7.2f} "
               f"{r['agent']['num_turns'] or 0:>6} {r['agent']['cost_usd']:>7.2f} "
               f"{r['wall_s']:>6.0f}s")
+
+    # A MEAN ACROSS TWO SCORING REGIMES DESCRIBES NEITHER (rule 4). Tier 1 was 0.31 of
+    # `overall` before 2026-08-23 and is a gate after it, so a directory holding both -
+    # which is what a partial re-evaluation produces - must say so before any average.
+    regimes = {(r["eval"].get("scoring_regime") or "weighted-0.31/0.69 (pre-gate)")
+               for r in scored_rows if r.get("eval")}
+    if len(regimes) > 1:
+        print(f"\n*** MIXED SCORING REGIMES IN ONE RUN: {sorted(regimes)} ***")
+        print("    `overall` does not mean the same thing in every row above, so the "
+              "per-stack\n    means below are computed over a population that is not "
+              "homogeneous.\n    Re-evaluate the whole run, or report the tiers "
+              "separately. Do not quote these.")
 
     print("\n--- per stack, averaged per game first then across games "
           f"(completed trials only, n={len(scored_rows)}) ---")

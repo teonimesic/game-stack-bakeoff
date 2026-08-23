@@ -181,7 +181,7 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
     # PRISTINE copy, because the grader only ever runs it on submissions, where red is the
     # answer you are looking for. The godot template shipped `just check` exiting 1 on an
     # untouched tree for four months, handing that one arm build.compiles=False and
-    # verify.green=False in the tier weighted 0.31 (#98).
+    # verify.green=False, both of them tier-1 gate failures and one of them blocking (#98).
     #
     # THE COST ROSE FROM ~160s TO ROUGHLY 15-20 MINUTES on 2026-08-23, because it now also
     # runs `just verify` twice per stack: `verify` is the recipe an agent and the Stop hook

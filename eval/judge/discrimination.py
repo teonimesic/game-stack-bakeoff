@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from audit_criteria import (ADJUDICATED, ADJUDICATED_RUN,  # noqa: E402
                             is_harness_failure)
+from evaluate import overall_score  # noqa: E402
 
 
 def _evidence(row: dict, cid: str) -> str:
@@ -64,8 +65,20 @@ def load(run_dir: str, adjudications_apply: bool):
         out.append({"tid": tid, "game": game, "stack": stack, "trial": t,
                     "terminal_reason": _terminal_reason(run_dir, tid),
                     "playbot_usable": bool(r.get("playbot_usable", True)),
-                    "overall_raw": r["overall"],
-                    "overall_adj": round(0.31 * pr + 0.69 * pb_adj, 4),
+                    # RAW AND ADJUDICATED MUST BE COMPUTED THE SAME WAY, or their
+                    # difference is not the adjudication. Tier 1 became a gate on
+                    # 2026-08-23 (RUBRIC.md), so a stored `overall` from before then is
+                    # in the old weighted regime; using it as RAW against a
+                    # current-regime ADJUDICATED would report the scheme change as an
+                    # adjudication effect. Both are recomputed here under the current
+                    # scheme, and the stored figure is carried separately, labelled.
+                    "overall_raw": overall_score({"programmatic": pr,
+                                                  "playbot": r["tier_scores"]["playbot"]}),
+                    "overall_adj": overall_score({"programmatic": pr,
+                                                  "playbot": pb_adj}),
+                    "overall_stored": r["overall"],
+                    "regime": r.get("scoring_regime", "weighted-0.31/0.69 (pre-gate)"),
+                    "gate": r.get("gate"),
                     "prog": pr, "bot_raw": r["tier_scores"]["playbot"], "bot_adj": pb_adj,
                     "fails": [c["id"] for c in scored if not c["passed"]],
                     "evidence_by_id": {c["id"]: c.get("evidence", "")
@@ -115,6 +128,17 @@ def main(run_dir: str) -> int:
     if not rows:
         print("nothing evaluated"); return 1
     print(f"{len(rows)} evaluated\n")
+    regimes = sorted({r["regime"] for r in rows})
+    stale = [r for r in rows if abs((r["overall_stored"] or 0) - r["overall_raw"]) > 1e-9]
+    print(f"scoring regime of the stored records: {', '.join(regimes)}")
+    print("RAW and ADJUDICATED below are both computed under the CURRENT scheme "
+          "(tier 1 is a gate,\n`overall` = play-bot), so their difference is the "
+          "adjudication and nothing else.")
+    if stale:
+        print(f"{len(stale)} of {len(rows)} stored `overall` values differ from RAW "
+              f"because they were written\nunder another regime. The stored numbers are "
+              f"NOT rewritten; see eval/RUNS.md.")
+    print()
     for key, label in (("overall_raw", "RAW"), ("overall_adj", "ADJUDICATED")):
         print(f"=== {label} ===")
         by_game = defaultdict(list)
