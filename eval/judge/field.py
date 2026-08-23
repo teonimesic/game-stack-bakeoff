@@ -829,7 +829,9 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
     # judge ever being run.
     skill = dest / ".claude" / "skills" / "sampling-code" / "SKILL.md"
     skill.parent.mkdir(parents=True, exist_ok=True)
-    skill.write_text(PACK_SKILL)
+    # The completeness claim inside it is a FACT ABOUT THIS PACK, so it is passed in
+    # rather than baked into a constant (#69 drift; `COMPLETENESS_NOTE`).
+    skill.write_text(pack_skill(knowingly_truncated))
 
     leaked = sorted(q.name for q in dest.rglob("*")
                     if q.is_file() and "MAPPING" in q.name)
@@ -841,14 +843,55 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
             "knowingly_truncated": knowingly_truncated}
 
 
+#: WHAT THE JUDGE IS TOLD ABOUT HOW MUCH OF EACH SUBMISSION IT IS SEEING, and it is a
+#: FUNCTION OF THE PACK rather than a sentence.
+#:
+#: This claim lived inside `EVIDENCE_BLURB["code"]` as a constant, and on 2026-08-22 the
+#: character budget it described was removed (#69). The constant went on telling every
+#: code judge that its evidence "may not contain every file the author wrote" for a pack
+#: in which `files_dropped_for_length` is 0 by construction - and the direction is the
+#: damaging one: it invites a judge to discount an absence it is seeing in full, the
+#: opposite of the caution the sentence was written to induce. All 10 stored code rounds
+#: that recorded a `brief_sha256` rebuild byte-identically to that text (`eval/RUNS.md`).
+#:
+#: Both states are kept because `--allow-truncated` still exists for the capped-vs-uncapped
+#: control, and a pack built that way IS incomplete. Keeping one wording and dropping the
+#: other is what turned this into a constant the first time: **a claim with only one
+#: possible value is not a claim, it is a decoration**, and nothing can check it.
+#:
+#: `judge/blurb_selftest.py` asserts that the note a pack carries is the note for the state
+#: the pack is measurably in, in both directions, and that the complete-state wording
+#: contains no truncation caution at all.
+COMPLETENESS_NOTE = {
+    False: ("**This pack is complete.** Every file this submission's author wrote that "
+            "the packer can show you is here, so a concern you cannot find in the code "
+            "is evidence about the submission and not a limit on what you were shown."),
+    True: ("**This pack is deliberately truncated** - it was built under an explicit "
+           "size cap, for a controlled comparison - so it may hold only part of what "
+           "this author wrote. Judge what is here, and do not infer that an absent "
+           "concern was neglected."),
+}
+
+#: HOW THE BRIEF SHOWS A PACK PATH, and it depends on the aspect.
+#:
+#: Under `blind_language` every file in the pack is renamed to `.src`, so `sim/03.src` is
+#: a path the judge can really open. Under a non-blind aspect - `idiomatic`, which cannot
+#: be asked whether a language reads like itself with its suffixes removed - the labels
+#: keep their REAL suffixes, and the eight submissions in one field carry four different
+#: ones. The brief is a single document for the whole field, so an example ending in any
+#: real suffix would either name an arm or name a file no judge has. Show the shape and
+#: let the pack supply the suffix.
+PACK_PATH_EXAMPLE = {
+    True: "`sim/03.src`, `view/02.src`",
+    False: "`sim/03`, `view/02` -- with whatever suffix they carry here",
+}
+
 EVIDENCE_BLURB = {
     "code": ("`CHANGED.txt` names the files this submission's author actually wrote; "
              "everything else is template code they inherited. The source tree is "
-             "beside it. NOTE: the pack is filled until a size budget runs out, so it "
-             "may not contain every file the author wrote - judge what is here and do "
-             "not infer that an absent concern was neglected. **Cite files by the path "
-             "they have HERE** -- `sim/03.src`, "
-             "`view/02.src` -- and never by a name you infer from their contents. The "
+             "beside it. **Cite files by the path "
+             "they have HERE** -- {pack_path_example}"
+             " -- and never by a name you infer from their contents. The "
              "filenames have been rewritten; a citation to the original name cannot be "
              "checked by anyone, and unverifiable evidence is discarded. MEASURED: 11 "
              "of 16 claims in one field cited a reconstructed name, and every single "
@@ -870,19 +913,30 @@ EVIDENCE_BLURB = {
 #: `--setting-sources project`, so project settings resolve against the pack directory and
 #: a skill in this repository's `.claude/skills/` is invisible to it.
 #:
-#: Two consequences follow and both constrain what may be written here:
+#: Three consequences follow and all three constrain what may be written here:
 #:   1. it is EVIDENCE the judge sees, so it must not say anything that biases the verdict
 #:      - it describes HOW to sample, never what to conclude or which traits are good;
 #:   2. it must be BLIND-SAFE. No stack, engine, language or toolchain names. `verify_blind`
-#:      scans it for stack tokens and for the rubric canary, and that is pinned.
-PACK_SKILL = """---
+#:      scans it for stack tokens and for the rubric canary, and that is pinned;
+#:   3. **it is judge-facing text that makes a claim about the packer**, which is the same
+#:      resource `EVIDENCE_BLURB` is, and it had the same defect pointing the other way:
+#:      it asserted completeness unconditionally, so a field built on purpose with
+#:      `--allow-truncated` would have been handed a skill telling it nothing was removed
+#:      for size while the brief said the opposite. Both texts now take the claim from
+#:      `COMPLETENESS_NOTE`, so there is ONE sentence about pack completeness in this
+#:      module and `blurb_selftest.py` reads it out of both.
+#:
+#: `{completeness}` and `{history}` are filled by `pack_skill()`; there are no other braces
+#: in this template, and the selftest builds it through that function rather than by
+#: formatting it here, so a brace added later cannot be filled by accident.
+PACK_SKILL_TEMPLATE = """---
 name: sampling-code
 description: How to read a large submission pack without pretending to have read all of it. Use when a submission has more files than are worth opening, or when deciding what to open next.
 ---
 
 # Sampling a submission
 
-Every submission here is COMPLETE: nothing was removed for size. Some are large. You are
+{completeness} Some submissions are large. You are
 expected to sample, and the only thing that matters is that you sample deliberately and
 say what you did.
 
@@ -911,18 +965,90 @@ say what you did.
 
 ## The failure this exists to prevent
 
-A pack used to be truncated to a fixed character budget, so files were dropped by where
-their path happened to sort and more than half of some submissions was never shown to any
-judge. That is fixed - you now get everything. The risk moved rather than disappearing: it
-is now possible to read a biased sample and not notice, because nothing stops you. Choosing
-the sample is your job, and reporting it is what makes the judgement auditable.
+{history}
 """
 
+#: The closing section, in each of the two states. The complete-state text narrates a
+#: mechanism that was REMOVED, in the past tense; the truncated-state text describes one
+#: that is acting. Splitting them is the point: the old single version ended "that is
+#: fixed - you now get everything", which is simply false for a field packed under
+#: `--allow-truncated`.
+PACK_SKILL_HISTORY = {
+    False: ("A pack used to be truncated to a fixed character budget, so files were "
+            "dropped by where their path happened to sort and more than half of some "
+            "submissions was never shown to any judge. That is fixed - you now get "
+            "everything. The risk moved rather than disappearing: it is now possible to "
+            "read a biased sample and not notice, because nothing stops you. Choosing "
+            "the sample is your job, and reporting it is what makes the judgement "
+            "auditable."),
+    True: ("This field was packed under a size cap on purpose, so the sample you are "
+           "reading was chosen partly by the packer and partly by you. Files were "
+           "dropped by where their path happened to sort, which is not a property of "
+           "the work. Say what you opened, and treat anything you cannot find as "
+           "unseen rather than as absent."),
+}
 
-def _brief(aspect: Aspect, game: str, geometry: dict[str, str] | None = None) -> str:
+
+#: THE THIRD JUDGE-FACING TEXT, and the one nothing was looking at. It is not in the pack
+#: at all - it is `claude -p`'s argument - so a check that walks the pack directory cannot
+#: see it, and it asserted "The submissions are complete" unconditionally, exactly as the
+#: pack skill did. Found while writing `blurb_selftest.py` against the RESOURCE (judge-facing
+#: text that claims something about the packer) rather than against the two constants that
+#: were known to be wrong.
+#:
+#: The subagent sentence is here on purpose and is not decoration: subagents are OFFERED,
+#: not assumed, and were verified empirically under this exact flag set
+#: (`--setting-sources project --strict-mcp-config`) by asking a probe run to spawn one
+#: and reading the tool-use stream - `Agent` was really invoked. An instruction for a
+#: capability that is not present is the `-disable-audio` failure in a new costume.
+JUDGE_PROMPT = {
+    False: ("Read BRIEF.md, then read the code in A/ through H/ and produce the "
+            "comparative judgement it asks for. Read real files before scoring. "
+            "The submissions are complete, so some are large: you may launch subagents "
+            "with the Task tool to read parts of them in parallel and report back. "
+            "Sample deliberately and say what you sampled."),
+    True: ("Read BRIEF.md, then read the code in A/ through H/ and produce the "
+           "comparative judgement it asks for. Read real files before scoring. "
+           "BRIEF.md says how much of each submission you are being shown; believe it "
+           "over any assumption that a pack is whole. Some submissions are large: you "
+           "may launch subagents with the Task tool to read parts of them in parallel "
+           "and report back. Sample deliberately and say what you sampled."),
+}
+
+
+def judge_prompt(knowingly_truncated: bool = False) -> str:
+    """What the judge is asked to do, for the pack it is actually holding."""
+    return JUDGE_PROMPT[bool(knowingly_truncated)]
+
+
+def pack_skill(knowingly_truncated: bool = False) -> str:
+    """The sampling skill for a pack in the state it is actually in.
+
+    A FUNCTION rather than a constant because the claim it opens with is a fact about the
+    pack, and a fact with one possible value is not checkable. See `COMPLETENESS_NOTE`.
+    """
+    kt = bool(knowingly_truncated)
+    return PACK_SKILL_TEMPLATE.format(completeness=COMPLETENESS_NOTE[kt],
+                                      history=PACK_SKILL_HISTORY[kt])
+
+
+def _brief(aspect: Aspect, game: str, geometry: dict[str, str] | None = None,
+           knowingly_truncated: bool = False) -> str:
     anchors = "\n".join(f"  {k} = {v}" for k, v in sorted(aspect.anchors.items()))
-    evidence = "\n".join(f"- {EVIDENCE_BLURB[k]}" for k in aspect.sees.split("+")
-                         if k in EVIDENCE_BLURB)
+    blurbs = []
+    for k in aspect.sees.split("+"):
+        if k not in EVIDENCE_BLURB:
+            continue
+        text = EVIDENCE_BLURB[k].replace(
+            "{pack_path_example}", PACK_PATH_EXAMPLE[aspect.blind_language])
+        # THE COMPLETENESS NOTE IS CODE-ONLY because the thing that was capped was the
+        # code pack: `files_dropped_for_length` counts source files, and frames,
+        # telemetry and audio were never filled against a character budget. Attaching it
+        # to every bucket would state a fact about a mechanism that does not exist there.
+        if k == "code":
+            text = f"{text} {COMPLETENESS_NOTE[bool(knowingly_truncated)]}"
+        blurbs.append(f"- {text}")
+    evidence = "\n".join(blurbs)
     # Do not tell a judge to read code when the pack holds only frames. A stale
     # instruction to open files that are not there burns turns and produces "I could
     # not find the source" as if it were a finding about the submission.
@@ -1046,25 +1172,26 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         return {"usable": False,
                 "error": f"pack was built with sees={built_for!r} but aspect "
                          f"{aspect_id!r} needs sees={aspect.sees!r}"}
-    brief_text = _brief(aspect, mapping["game"], mapping.get("capture_geometry"))
+    # HOW MUCH OF ITSELF EACH SUBMISSION IS BEING SHOWN IS A THIRD VALUE, not a boolean.
+    # `mapping.get("knowingly_truncated")` returning None means the pack was built before
+    # `build_pack` recorded it, and a missing key read as falsy would have the brief
+    # assert completeness about a pack nothing on disk says is complete - fail-open, in
+    # the direction #62 already cost this project a matrix. Refuse and re-pack instead.
+    if "knowingly_truncated" not in mapping:
+        return {"usable": False,
+                "error": "the pack's MAPPING records no `knowingly_truncated`, so "
+                         "nothing on disk says whether it holds every file its authors "
+                         "wrote. The brief has to state that either way, and guessing "
+                         "'complete' is the #62 direction. Re-pack the run "
+                         "(field.py pack, or a field_sweep round) rather than judging "
+                         "this pack."}
+    brief_text = _brief(aspect, mapping["game"], mapping.get("capture_geometry"),
+                        knowingly_truncated=bool(mapping["knowingly_truncated"]))
     (pack / "BRIEF.md").write_text(brief_text)
 
     argv = [
         "claude", "-p",
-        # Subagents are OFFERED, not assumed. Verified empirically under this exact flag
-        # set (`--setting-sources project --strict-mcp-config` etc.) by asking a probe run
-        # to spawn one and reading the tool-use stream: `Agent` was actually invoked. An
-        # instruction for a capability that is not present is the `-disable-audio` failure
-        # in a new costume, so this line is only here because the tool answered.
-        #
-        # There is no character budget any more (#69): every packable file is present, so
-        # some submissions carry 30+ files. Sampling is now the judge's decision, which is
-        # the point - it was always making it, just downstream of an alphabetical filter.
-        "Read BRIEF.md, then read the code in A/ through H/ and produce the "
-        "comparative judgement it asks for. Read real files before scoring. "
-        "The submissions are complete, so some are large: you may launch subagents "
-        "with the Task tool to read parts of them in parallel and report back. "
-        "Sample deliberately and say what you sampled.",
+        judge_prompt(bool(mapping["knowingly_truncated"])),
         "--model", model,
         "--output-format", "stream-json", "--verbose",
         "--json-schema", json.dumps(SCHEMA, separators=(",", ":")),

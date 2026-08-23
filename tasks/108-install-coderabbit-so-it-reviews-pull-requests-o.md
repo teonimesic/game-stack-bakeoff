@@ -1,10 +1,11 @@
 ---
 id: 108
 title: Install CodeRabbit so it reviews pull requests on this repository
-status: in_flight
+status: done
 priority: 1
 refs: .coderabbit.yaml (does not exist yet), .github/ (does not exist yet), https://github.com/teonimesic/game-stack-bakeoff, .claude/skills/work/SKILL.md, .claude/skills/dispatch/SKILL.md
 done_when: a real pull request on this repository has received a CodeRabbit review and the review comment is quoted in the report; .coderabbit.yaml is committed and its settings are justified against what this repository actually is; and the exact steps a human must perform outside the repository are written down in the ticket, distinguished from what was done inside it
+established_by: 'PR #1 on teonimesic/game-stack-bakeoff was opened and reviewed by coderabbitai[bot] on 2026-08-23: acknowledged 31s after opening, finished review 119s later, plan Pro Plus, Configuration used: Path: .coderabbit.yaml, profile CHILL, both changed files processed so the new exclusions did not swallow it. Its 1 actionable comment was a true positive against this project''s own digits rule and is quoted in full in the ticket; fixed in 5df349a. .coderabbit.yaml is committed on branch task-108-coderabbit and validated against the published schema in both directions - the real file passes and 5 deliberately broken variants all fail. Corrections recorded in the ticket: eval/runs/** is gitignored and matches 0 tracked files while the committed stored evidence is eval/instrfollow/runs/ at 115 records, and all 3 GitHub API routes for detecting the installation return 401/403/empty regardless of whether the app is installed, so a pull request is the only test. Branch pushed and PR left open and unmerged for the orchestrator.'
 ---
 
 The operator wants agent work reviewed by CodeRabbit before it is merged, and has already signed up. Nothing in the repository is configured for it: there is no .coderabbit.yaml, no .github/ directory, and no pull request has ever been opened here - agents hand back branches that the orchestrator merges directly. This task is the prerequisite for the whole review flow: until a PR on this repository actually receives a CodeRabbit review, changing the agent workflow to wait for one would make every agent wait forever.
@@ -110,3 +111,123 @@ trial plan. The operator said they have signed up, so a plan may already cover t
 **Do not buy anything and do not start a trial that converts to a charge.** If the review does not
 arrive because the plan does not cover a private repository, that is a complete and useful result:
 say so, name what plan would be needed, and leave the decision to the operator.
+
+---
+
+## RESULT, 2026-08-23 — the app IS authorised, and a real PR was reviewed
+
+**PR #1, https://github.com/teonimesic/game-stack-bakeoff/pull/1** — the first pull request ever
+opened on this repository. CodeRabbit acknowledged it **31 seconds** after it was opened and
+posted a finished review **119 seconds** after that. The plan covers this private repository:
+
+    Configuration used: Path: .coderabbit.yaml
+    Review profile: CHILL
+    Plan: Pro Plus
+    Included review availability: Your plan provides up to 10 included reviews
+    per hour; 9 remain after this review.
+
+Both changed files were processed — `.coderabbit.yaml` and `DECISIONS.md` — so the exclusions
+written in the same PR did not swallow it.
+
+**The one actionable comment, quoted in full** (inline on `DECISIONS.md:1165`):
+
+> _📐 Maintainability & Code Quality_ | _🟡 Minor_ | _⚡ Quick win_
+>
+> **Write numeric counts as digits.**
+>
+> This new live policy uses `single`, `one`, `three`, and `six` as counts. Replace them with
+> digit forms such as `1`, `3`, and `6`.
+>
+> Also applies to: 1172-1172, 1186-1189, 1191-1194, 1201-1205
+>
+> _Source: Coding guidelines_
+
+**That is a true positive, and it is against this repository's own rules rather than a style
+guide.** `AGENTS.md` requires a count in a live document to be in digits, because no check can
+read a cardinal spelled in words — the reason a stale findings figure survived 11 days. The
+reviewer reached that rule through `knowledge_base.code_guidelines.filePatterns`, which is why
+that key is set. Fixed in commit `5df349a`.
+
+Merge risk was reported **Minimal**; the 5 pre-merge checks passed; no comment was made on
+markdown prose.
+
+## WHAT WAS DONE INSIDE THE REPOSITORY
+
+Branch `task-108-coderabbit`, 2 commits, **not merged**:
+
+- `dbb1299` — adds `.coderabbit.yaml`, and a `DECISIONS.md` section with 2 reversal conditions.
+- `5df349a` — the digits fix the review asked for, and a record of what the first review did.
+
+`.coderabbit.yaml` was validated against the published schema
+(`https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json`) in both directions:
+the real file passes, and 5 deliberately broken variants — a misspelled `profile` enum, an
+unknown key, `review_details` as a string, a bad `learnings.scope`, and a `path_instructions`
+item missing its required `path` — all fail. `jsonschema` will not install on this machine
+(homebrew python's `pyexpat` is broken), so the checker is a small recursive one; it is in the
+session scratchpad and was **not** committed, because CodeRabbit reports `Configuration used:
+Path: .coderabbit.yaml` in every review, which is a live per-run audit trail that a separate
+offline gate would only duplicate.
+
+## WHAT A HUMAN MUST DO AT GITHUB.COM
+
+**Nothing. It was already done before this task ran** — the operator's sign-up had already
+granted the app access to this repository, which is why PR #1 was reviewed. This section exists
+so the next person does not have to rediscover it, and applies if access is ever revoked or a
+second repository is added:
+
+1. Go to **https://github.com/apps/coderabbitai** and press **Configure**.
+2. Choose the account that owns the repository — **teonimesic**.
+3. Under *Repository access*, either **All repositories**, or **Only select repositories** with
+   **game-stack-bakeoff** ticked. Press **Save**.
+4. Sign in at **https://app.coderabbit.ai** with the same GitHub account and confirm the
+   repository is listed. A **private** repository needs a paid plan; this one is on **Pro Plus**.
+
+Nothing has to be added to the repository for that step — no `.github/` directory, no workflow,
+no webhook. The app posts as `coderabbitai[bot]`.
+
+## CORRECTIONS TO THIS TICKET, for whoever writes the next one
+
+**1. `eval/runs/**` cannot appear in a diff, and the ticket's premise for excluding it was
+wrong.** It is in `.gitignore`; `git ls-files eval/runs` returns **0**. The committed stored
+evidence that *can* dominate a diff is **`eval/instrfollow/runs/`, 115 tracked JSON trial
+records**, which the ticket does not mention. Both are excluded in the config, but only one of
+them was ever reachable. Rule 12: the address is an input to the check.
+
+**2. Neither API route suggested in step 1 can answer "is the app authorised", and a third one
+cannot either.** All three were run:
+
+| route | result | why it cannot answer |
+|---|---|---|
+| `gh api /repos/OWNER/REPO/installation` | **401** `A JSON web token could not be decoded` | needs a GitHub **App** JWT. A user token gets 401 whether or not the app is installed |
+| `gh api /repos/OWNER/REPO/hooks` | **`[]`**, exit 0 | GitHub Apps use app-level webhooks, not repository webhooks. `[]` is the expected answer either way |
+| `gh api /user/installations` | **403** `You must authenticate with an access token authorized to a GitHub App` | `gh`'s token is an OAuth-app token, not an App user-to-server token |
+
+**Opening a pull request is the only test available from the CLI.** Do not spend time on the
+API routes; go straight to step 3.
+
+**3. `path_filters` also drives a sparse checkout** (it is in the schema's own description of the
+field). One positive pattern turns the list into an allowlist and hides everything unnamed —
+including `.coderabbit.yaml`, i.e. the verification PR itself. Keep it exclusion-only.
+
+## WHAT WAS NOT ESTABLISHED
+
+- **Whether `markdownlint` or `languagetool` are noisy on this corpus.** `reviews.tools` is empty
+  and 1 review over a 2-file diff is not a measurement. The reversal condition in `DECISIONS.md`
+  says what would settle it.
+- **Whether excluding the archives was necessary or merely prudent.** No PR has yet touched
+  `eval/FINDINGS.md` or `eval/findings/`, so the false positives those exclusions were written to
+  prevent have not been observed — only predicted from what `AGENTS.md` says lives there.
+- **Whether keeping `tasks/` reviewable costs more than it gives.** Also predicted, not measured;
+  its reversal condition names the observation that would decide it.
+
+## STILL OPEN
+
+The `done_when` is met, and this ticket is **closed**. `tasks/109` is unblocked: a PR on this
+repository does receive a CodeRabbit review, so an agent told to wait for one will not wait
+forever — 150 seconds end to end on a 2-file diff, and the plan allows 10 reviews per hour, which
+is a real constraint on a parallel queue and `tasks/109` should account for it.
+
+**PR #1 is left OPEN and unmerged** for the orchestrator, per `.claude/skills/work/SKILL.md`.
+
+Filed while here: `tasks/111` — `AGENTS.md` says `template*/` is deleted, and 5 files of it are
+still tracked on `main`.

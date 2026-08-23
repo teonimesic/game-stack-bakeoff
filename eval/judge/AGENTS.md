@@ -282,6 +282,52 @@ clean**. `judge/pack_selftest.py` pins both halves and must stay green.
 `evaluate.py` returns `usable: false` and excludes a tier with weight renormalisation rather than
 scoring an empty pack.
 
+### What the judge is TOLD about the pack is an instrument, and it needs a gate of its own
+
+**Every gate above reads the pack. None read the brief** — and that is how a sentence describing a
+mechanism deleted on 2026-08-22 went on being handed to every code judge. `EVIDENCE_BLURB["code"]`
+said the pack "may not contain every file the author wrote" while `files_dropped_for_length` was
+0 by construction, so the harness invited each judge to discount an absence it was seeing in full.
+All 10 stored code rounds that recorded a `brief_sha256` rebuild byte-identically to that text
+(`eval/RUNS.md`); the other 26 stored no hash and are unassessable.
+
+Four things to know before touching any of it:
+
+- **The subject is the RESOURCE — judge-facing text that makes a claim about the packer — not the
+  one constant that was wrong.** It is two objects today: `EVIDENCE_BLURB`, rendered into
+  `BRIEF.md`, and the sampling skill written into every pack. A third is covered by being added to
+  `blurb_selftest.judge_facing_texts()`.
+- **A claim about the pack is a FUNCTION of the pack.** `field.COMPLETENESS_NOTE` holds both
+  states and `build_pack`/`run_field` select on `knowingly_truncated`. Keeping one wording is what
+  produced the defect: **a claim with only one possible value is not a claim and nothing can check
+  it.** The skill had the same defect pointing the other way — it asserted completeness
+  unconditionally, so a field built on purpose with `--allow-truncated` got a skill and a brief
+  that contradicted each other.
+- **A pack built before `knowingly_truncated` was recorded is refused, not assumed complete.**
+  `run_field` returns `usable: false` and asks for a re-pack, because a missing key read as falsy
+  would assert completeness about a pack nothing on disk describes — #62's direction (rule 7).
+- **`PACK_PATH_EXAMPLE` is keyed on `blind_language` and must stay suffix-free when it is off.**
+  Only `architecture` blinds extensions; under `idiomatic` the labels keep their real suffixes, and
+  one brief serves eight submissions from four stacks, so any real suffix in an example names an
+  arm. The pre-repair brief showed `` `sim/03.src` `` to both.
+
+```
+python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim has drifted
+python3 judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
+```
+
+It builds real packs in both completeness states and both blinding modes, carries two mutants, a
+variant (a field whose *stored* drop count is non-zero, which no mutant can manufacture) and a
+fail-closed case, and must stay green. `--stored-rounds` is the producer for every figure in
+`eval/RUNS.md`'s section on this.
+
+**Where the caution-vocabulary check is aimed was chosen on the false-positive count, not on
+which address sounded more general** (rule 12, and the census-trigger derivation in
+`DECISIONS.md`). Aimed at the rendered `BRIEF.md`/`SKILL.md` it fires on the skill's closing
+paragraph, which narrates the removed cap in the past tense — 3 hits, 0 of them defects. Aimed at
+the **claims themselves**, which describe the pack in the present tense, it is 0 false positives
+on the live corpus and 2 true positives on the pre-repair one.
+
 **Re-packing a stored run is `repack.py`, and it is not "run the packer again".** The
 starter-identical filter compares against the starter as it is NOW, so a starter that moved since
 the run was packed makes template code look authored (#77) — the opposite failure to the one you

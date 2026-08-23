@@ -4152,3 +4152,68 @@ only kind worth writing beside a moving quantity.
 
 This is the fourth finding here about a number nobody re-derived, and the first where the producer
 existed, was named, and was still not run.
+
+---
+
+## 145. A claim with only one possible value is not a claim, and nothing can check it — which is why a sentence about a deleted mechanism outlived the mechanism
+
+Every code-seeing judge was told the pack it was holding *"may not contain every file the author
+wrote"*. That was true while a size budget truncated packs. **The budget was removed on
+2026-08-22 (#69). The sentence stayed.**
+
+It stayed because it was a **constant**. No input could make it read differently, so no test could
+distinguish a correct constant from a stale one, and no reviewer reading the packer could see a
+contradiction — the packer no longer mentioned the subject at all.
+
+> **A constant asserting something about a mechanism does not fail when the mechanism is deleted;
+> it simply stops being about anything.** Verification needs a quantity that can take more than
+> one value. Where a document or a prompt asserts a property of a system, the assertion must be
+> *derived* from that property, or it is a decoration that outlives whatever it described.
+
+### The subject was three objects, and the third was invisible to any checker
+
+The ticket asked for "a check on `EVIDENCE_BLURB`". Written against the **resource** — judge-facing
+text claiming something about the packer — it turned out to be three:
+
+1. `EVIDENCE_BLURB["code"]`, in `field.py`
+2. the pack skill's body
+3. **the `claude -p` prompt itself** — an argv string, saying *"The submissions are complete, so
+   some are large"* as a constant
+
+The third said the **opposite** of the first. **No checker walking the pack directory could ever
+have seen it**, because it is not a file. A field built deliberately with `--allow-truncated`
+would have been described three contradictory ways at once, and this is exactly what `AGENTS.md`'s
+rule-audit warns about: a rule whose trigger is a list must be re-derived by every reader who
+meets an item not on the list.
+
+### Deleting the sentence is the obvious repair and is wrong the same way
+
+An unstated completeness leaves a judge to decide for itself how much of a submission it holds,
+and **discounting absences is what it does by default** — so deletion trades a false statement for
+an unstated one that biases the same direction. Hard-coding "complete" is also wrong, because
+`--allow-truncated` still exists for the capped-versus-uncapped control.
+
+The repair is a **mapping from state to sentence**, and a pack whose state is unrecorded is
+**refused** rather than assumed complete. Reading a missing key as falsy would state completeness
+about a pack nothing on disk describes — #62's direction, and rule 7's fail-open channel.
+
+### What the stored corpus can and cannot say about the damage
+
+The ticket's premise was that every stored round read the stale text. **It is false and cannot be
+made true.** The sentence only reaches an aspect whose `sees` includes `code`: 36 of 93 stored
+rounds. Of those, **10 recorded a brief hash, and all 10 rebuild byte-identically to the
+pre-repair brief** — proof rather than inference. **The other 26 stored no hash and are
+permanently unassessable**, which is the #83 shape again: what a mechanism *did* is recoverable
+only where something recorded it.
+
+### Where to aim the check was decided on the false-positive count
+
+Against the rendered `BRIEF.md`/`SKILL.md`: **3 false positives, 2 true** — the skill's own
+past-tense history of the removed budget reads as a live claim. Against the claim constants
+themselves: **0 false positives, 2 true.** The latter shipped, on the same criterion the aspect
+census (#140) and the flag gate (#142) were decided on.
+
+A second stale claim surfaced in the same constant: both code briefs told the judge to cite a path
+with a real file extension, but only one aspect blinds extensions. It cannot be fixed by printing
+the true suffix — one brief serves eight submissions from four stacks, so **any** real suffix names
+an arm. The example is now suffix-free.

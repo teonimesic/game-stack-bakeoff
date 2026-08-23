@@ -111,7 +111,7 @@ result and controls: `eval/instrfollow/`.
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `eval/RUNS.md` | **The run ledger.** Every run, what it cost, what it may be compared with, and every comparability boundary. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#144, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#145, including retractions. **Read this before trusting any number anywhere.** |
 | `AGENTS.md` | The rules that are always loaded, including how these documents are kept current and what must never go stale. |
 
 ## Start here
@@ -223,7 +223,7 @@ without one lost 29.8% of all turns to denials, so runs across that change are *
 
 ## The one thing this project actually learned
 
-126 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+127 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
 instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**
