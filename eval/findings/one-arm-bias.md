@@ -1873,3 +1873,60 @@ trial gets. Pinned three ways on 2026-08-23:
 
 The third row is the one that earns the second direction. A mutant — deleting the reload call —
 cannot produce it; only a variant that manufactures the input the gate mishandles can (rule 15).
+
+## 99. The stored evidence for `verify.green` drops the gate's own "passed" line on 15 of 16 Rust submissions, because stdout is truncated before stderr
+
+`verify.green` is decided by an exit code (#98), and the exit code is right. This is about the
+**record of it**. Every command tier 1 runs is stored as a `Cmd` whose `tail` is
+`self.tail[-4000:]` (`judge/static.py:64`) over a buffer assembled as `bufs["out"] + bufs["err"]`
+(`judge/static.py:163`) — **stdout first, stderr second, then the last 4000 characters kept.** So
+when a command is chatty on stderr, its stdout is what gets thrown away, whole.
+
+All four starters end `verify` with the same line — `@echo "✅ verify passed"`
+(`starters/godot/justfile:35`, `rust/justfile:36`, `ts/justfile:38`, `unity/justfile:30`) — and
+`just` sends it to stdout. Measured 2026-08-23 over the 68 stored `programmatic.json` records:
+
+| | godot | rust | ts | unity |
+|---|---|---|---|---|
+| `just verify` exit 0 | 15 | 16 | 16 | 15 |
+| stored tail contains `verify passed` | 13 | **1** | 16 | 15 |
+
+**17 records are missing it, and 17 of 17 are exactly the records whose tail hit the 4000-character
+cap.** Eighteen hit the cap; the eighteenth holds the token at offset 3986, i.e. the boundary is
+the cap and nothing else. `cargo-nextest` writes its per-test progress and its `Summary` line to
+stderr, which is why the Rust arm loses stdout in 15 of 16 and the other three arms almost never do.
+
+The visible consequence is `verify.green`'s own evidence string, `tail[-300:]`
+(`judge/static.py:384`). Read from the stored records:
+
+- godot — `…TESTS total=8 passed=8 failed=0 skipped=0\n✅ verify passed`
+- unity — `…✓ test-render: 17 passed, 0 failed, 0 skipped (of 17, 1.0s)\n✅ verify passed`
+- rust — `…he_captured_frame\n────────────\n     Summary [   2.451s] 12 tests run: 12 passed, 0 skipped`
+- ts — `… eslint . --cache\npnpm exec vitest run --project sim\npnpm exec vitest run --project render`
+
+Two arms justify the criterion with the gate's own verdict; two do not, and one of those cannot,
+by construction of the capture.
+
+### Why it matters, given no score is wrong
+
+Nothing published needs marking. What is lost is the ability to ask the question later, and the
+loss is stack-correlated by a property nobody chose — how loudly a test runner writes to stderr.
+
+The concrete case: `game-research-gpt`'s verify manifest attaches `expected_stdout_contains` to
+each command (`template/config/verify/fast.json` — `ARCHITECTURE_OK`, `E2E_SCENARIO_OK`,
+`REPLAY_SMOKE_OK`), on the stated principle that *"a bare exit code is not sufficient diagnostic
+evidence"* (`template/docs/TESTING.md:26`). That check is the natural strengthening of #98, and
+against this project's stored evidence **it would be unable to fire on the Rust arm** — not
+because the Rust starter fails to print the token, but because the harness throws it away. A
+guard installed on one arm and inert on another is this file's whole subject.
+
+> **A truncation policy is a sampling policy.** `[-4000:]` over a concatenation is not "keep the
+> end of the output"; it is "keep whichever stream was written second", and which stream that is
+> belongs to the tool, not to the harness. Truncate each stream separately, or keep both ends.
+
+### What not to conclude
+
+Not that the 17 Rust and Godot submissions failed `verify`, and not that #98 has recurred: all 62
+of these exited 0 and the exit code is read from the process, never from the text. And not that
+the Godot 2 share the Rust cause — they are the two whose engine printed resource-leak lines at
+exit, a different chatty-stderr instance of the same mechanism.
