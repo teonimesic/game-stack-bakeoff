@@ -329,7 +329,23 @@ def _report(out: str, limit: int = 4) -> None:
 
 
 def _cycle(tmp: Path, name: str) -> bool:
-    """One mutant, graded and reported. Returns whether the row naming it went red."""
+    """One mutant, graded and reported. Returns whether the row naming it went red.
+
+    AN UNNAMED RED IS REPORTED, NOT FAILED, AND THAT IS MEASURED RATHER THAN PREFERRED.
+    Raised by review on PR #6 (task 120): could a mutant that breaks more than it claims be
+    reported CAUGHT for the wrong reason? It could in principle, and the price of closing it
+    is the whole suite. Over the 21 mutants here, **9 produce unnamed reds** -- 8 of them
+    predating that ticket -- because a shared mechanism is exactly what several of them cut:
+    `evidence_no_stdin` removes one sentinel that `note` and `done` both read, so 9 of its 13
+    red rows are `note`'s. Failing on unnamed reds would turn those 9 mutants into failures
+    without a single defect behind them.
+
+    What actually guards against the case the review was worried about is the ACCEPTING rows
+    (rule 15's variant half): a mutant that broke valid behaviour turns those red too, and
+    they are listed by name in the report. `evidence_empty_allowed` is the worked example --
+    **3 red, 0 unnamed**, exactly the 3 empty-evidence rows, with every accepting row still
+    green. That is what says the mutation did what its name claims and nothing else.
+    """
     old, _new, kills = MUTANTS[name]
     rc, out, failed, rows = _grade(_write_copy(tmp, name, name))
     unnamed = [f for f in failed if not any(k in f for k in kills)]
