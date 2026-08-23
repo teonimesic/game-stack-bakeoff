@@ -192,12 +192,37 @@ Two got written anyway:
   `g3_arena` has no audio evidence and one submission with no telemetry.
 
 **Both were repaired the same way: an escape branch naming the negative outcome.** That
-pattern is checkable even though reachability is not, so `check` now warns when a
-`done_when` makes a universal claim (`all`, `every`, `each`) or a threshold comparison
-(`below`, `exceeds`, `at least`, …) **with no alternative branch**.
+pattern is checkable even though reachability is not, so `check` warns when a `done_when`
+makes a universal claim (`all`, `every`, `each`) or a threshold comparison (`below`,
+`exceeds`, `at least`, …) **with no alternative branch**.
 
-Pinned in both directions against the real wordings: it warns on 08-original and
-01-original, stays quiet on both repairs and on a plain artifact condition.
+**An escape branch is recognised by the closed class of English function words that mark a
+clause conditional or alternative** — `if`, `unless`, `when`, `where`, `or`, `either`,
+`otherwise`, `any`, … — not by a list of the phrasings earlier tasks happened to use. That
+distinction is the point. Until 2026-08-23 four of the nine entries were sentences copied
+off tasks 01 and 08, and the check warned on tasks **32, 35 and 58**, every one of which
+has an escape branch. Task 32's opens *"If no tool is worth adopting…"* — `if`, the
+commonest conditional in the language, was not on the list; `naming`, one letter off
+`named`, was.
+
+Addresses come out of the text before the heuristic reads it, because `under
+eval/findings/` is a path and not a comparison — that false positive was the *only*
+warning `check` printed that day. So does the idiom `at all`, which quantifies nothing.
+
+**Its limit, and why it stays a warning:** an escape branch carrying no marker at all
+(*"the file records the negative result with its evidence"*) is invisible to it and always
+will be, and a marker used non-hypothetically will silence a warning that should have
+fired.
+
+Pinned in both directions by **`eval/tools/tasks_control.py`**, which also pins the queue
+round-trip, `add` from an agent worktree, and the three things `check` must still fail on.
+Run it after touching `eval/tools/tasks.py`:
+
+```bash
+python3 eval/tools/tasks_control.py    # 0 green · 1 a direction FAILED · 3 NOT CHECKED
+```
+
+Never read exit 3 as a pass.
 
 > **It is a smell, not a verdict.** Plenty of universals are perfectly reachable, and a
 > warning here means *go and check whether the data can reach this*, not *this is wrong*.
