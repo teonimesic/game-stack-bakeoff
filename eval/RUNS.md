@@ -836,6 +836,44 @@ Gates re-run after the change, both exit 0: `judge/verify_blind.py` (BLIND, 74 i
 tree with violations flips exit 0 → exit 1 with all five; the clean starter stays exit 0 and does
 **not** become a false failure; `just check` stays warm and green.
 
+## THE GODOT CHECK RECIPE CHANGED ON 2026-08-23 — a NINTH comparability break
+
+**No Godot `build.compiles` or `verify.green` score from before this date is comparable with one
+after it.** `starters/godot/tools/check.gd` called `script.reload()` on every scanned `.gd` file;
+`tools/no_raise.gd` is an `[autoload]` and therefore already instantiated, Godot refuses to
+reload a script with a live instance, and the loop counted that refusal as a compile failure. The
+pristine template's own gate exited 1. The call is now `script.reload(true)` (`keep_state`).
+
+Measured on a fresh copy of the starter, harness uninvolved, before and after:
+
+| tree | `just check` | `just verify` |
+|---|---|---|
+| pristine, before — every Godot trial since 2026-08-17 | **exit 1**, `CHECK scripts=18 failures=1` | **exit 1** |
+| pristine, after | exit 0, `CHECK scripts=18 failures=0` | exit 0, 6/6 render tests pass |
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** The autoload arrived with the seventh comparability
+  break above (2026-08-17), so only 4 of the 20 stored Godot submissions carry the defect at all.
+  `wg-g4b`'s two were never graded — that run holds zero `report.json` and both trials ended
+  `api_error`. `wg-g4c`'s two **repaired the template themselves**, by two different mechanisms,
+  and both scored `build.compiles` and `verify.green` True. `wg-g4c-capgate` re-grades those same
+  work trees. **No published tier-1 Godot figure needs marking** (FINDINGS #98).
+- **Invalidated going forward:** a Godot trial after this date starts from a green gate and no
+  longer spends turns repairing its own harness, so its turn count and cost are not comparable
+  with `wg-g4b`'s or `wg-g4c`'s. That cost is unmeasured — nothing counts a turn spent on the
+  template.
+- **Not affected:** the other three stacks. Measured the same day from pristine copies: rust, ts
+  and unity are all exit 0 on both recipes, so the red baseline was one-arm.
+
+Gates re-run after the change, both exit 0: `judge/verify_blind.py` (BLIND, 81 ids, 5 trees) and
+`judge/starter_parity.py` ("No drift detected on any measured axis"). Pinned three ways by
+`tools/starter_gate_control.py`, now part of `tools/precampaign_smoke.py`: the repaired starter is
+green and still goes red on a parse error planted **in the autoloaded script**; restoring the
+original defect makes the tool report FAILED; and the skip-list repair one `wg-g4c` agent actually
+shipped passes the green direction while **failing the red one — `just check` exits 0 over an
+unparseable autoload.**
+
 
 ## Rules
 
