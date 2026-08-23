@@ -3756,3 +3756,40 @@ Neither of the two is this defect. `_turn_corner`'s cluster (`_corners`, `_far_c
 docstring records as *measured and discarded*; `_num` is an unused base-class helper. **Dead code
 is not the finding. A conclusion drawn from a repair to dead code is.** Filed as its own task,
 with the census above, so the detector is not re-derived.
+
+## 139. Repairing the instrument reordered the field, so the scalar was measuring the bot
+
+`stage.completes` is the diagnostic-only criterion that asks whether the play-bot reached the
+goal. It is `False` on all eight `wg-g4c` submissions, and the proposal was to promote it from a
+boolean to the **fraction of the goal reached** — a quantity that already stores eight distinct
+values, which is exactly what a saturated tier needs.
+
+Re-driven offline on the eight surviving work trees, with the bot as shipped and then repaired:
+
+| | godot t0 | godot t1 | rust t0 | rust t1 | ts t0 | ts t1 | unity t0 | unity t1 |
+|---|---|---|---|---|---|---|---|---|
+| as shipped | 0.225 | 0.143 | 0.206 | 0.290 | 0.256 | 0.178 | 0.158 | 0.203 |
+| repaired | 0.803 | 0.591 | 0.417 | 0.609 | 0.686 | 0.274 | 0.617 | 0.401 |
+
+**Spearman ρ between the two rankings is 0.405, exact permutation p = 0.163.** `godot t0` moves
+6th to 8th; `unity t0` 2nd to 6th.
+
+> **A measurement that reorders the field when you repair the instrument was measuring the
+> instrument.** The spread was real, reproducible, and eight distinct values — every property a
+> saturated tier is short of — and none of that made it about the submissions.
+
+The second measurement closes it independently: **8 of 8 sessions end having taken exactly `hp0`
+hits with no victory.** Run length is set by the health bar, so the fraction is
+`(health pool × distance per hit) ÷ goal_x` — two free design parameters divided by a third. It
+would have ranked four stacks on how much health they gave the player.
+
+**The dominant bot defect was the length of a key press, not the logic.** `_walk_toward` sets
+`jump` only while grounded, so it fires for one tick, while all eight submissions implement a
+variable-height jump. One tick reaches 29.0–88.4 units; holding reaches 93.5–141.8; the widest
+gap in any of the eight levels is 110. **No level was ever uncrossable** — the documented ceiling
+on the bot crossing a gap was a ceiling on its *input*.
+
+And the reference fixture could never have found any of it: `stage.completes` returns `True` on
+`ref_platformer` under the broken bot **and** the repaired one. `eval/G4-PLATFORMER.md` predicted
+that in writing when the criterion was designed — *a reference cannot exhibit behaviour the task
+did not ask for* (#34). The prediction was correct and nothing acted on it for ten days.

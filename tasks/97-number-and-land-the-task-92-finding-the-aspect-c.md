@@ -1,7 +1,7 @@
 ---
 id: 97
 title: 'Number and land the task 92 finding: the aspect-census gate could catch 2 of 14 census shapes'
-status: open
+status: in_flight
 priority: 3
 refs: eval/tools/docstat.py _ASPECT_CENSUS_RX, DECISIONS.md the census trigger section, tasks/92
 done_when: the finding is numbered in eval/findings/, indexed in eval/FINDINGS.md, and docstat.py --sweep is clean unpiped

@@ -194,7 +194,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/instrfollow/` | **The instruction-count experiment** — does compliance with this project's own rules fall as more of them are active at once? `DESIGN.md` is pre-registered and written before any trial ran; `RESULT.md` is what came back. The subject is a fresh agent on a fixed task outside this repository, not a trial in the matrix. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#136, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#137, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
