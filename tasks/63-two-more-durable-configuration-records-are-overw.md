@@ -1,7 +1,7 @@
 ---
 id: 63
 title: 'Two more durable configuration records are overwritten in place: REPRODUCIBILITY.json and MEASURED.json'
-status: open
+status: in_flight
 priority: 5
 refs: 'eval/judge/field_sweep.py, eval/tools/backup_evidence.py, eval/findings/documentation.md #119, DECISIONS.md'
 done_when: Both writers route through tools/manifest.py write_manifest or an equivalent append-only path, with a control that fails on the pre-repair writer the way manifest_selftest.py does. If either is decided to be genuinely regenerable and not worth guarding, that is an acceptable outcome - but it must be recorded in DECISIONS.md with the argument, not left as silence, since the whole point of the resource-shaped guard is that a record nobody protected looks identical to one nobody needed.

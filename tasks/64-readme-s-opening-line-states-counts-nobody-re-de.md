@@ -1,7 +1,7 @@
 ---
 id: 64
 title: README's opening line states counts nobody re-derives, and the cost figure in it was 34% low
-status: open
+status: in_flight
 priority: 4
 refs: 'README.md:8, eval/RUNS.md:31, eval/findings/limits-and-cost.md #119'
 done_when: 'Each count in README.md''s opening sentence is either reproduced from stored artifacts by a named command, or removed. State the population for each: 24 whole-game submissions and three games were both true once, and the stored tree now holds 137 trial records across 19 run directories and four games. If a count cannot be reproduced without choosing a population, say which population and why - an aggregate without its scope is unfalsifiable (#113).'

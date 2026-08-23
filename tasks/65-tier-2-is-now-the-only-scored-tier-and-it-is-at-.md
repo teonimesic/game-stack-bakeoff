@@ -1,7 +1,7 @@
 ---
 id: 65
 title: Tier 2 is now the only scored tier and it is at its ceiling on 24 of 56 matrix trials
-status: open
+status: in_flight
 priority: 4
 refs: 'eval/judge/RUBRIC.md, eval/judge/tier1_census.py, DECISIONS.md open item, FINDINGS #92 #119'
 done_when: eval/judge/tier1_census.py --runs-root <main checkout>/eval/runs shows at least one (run, game) group whose tier-2 values are not a single value, on a run where it currently is - OR a written decision in DECISIONS.md that the saturation is acceptable and why, naming what it costs. A new or strengthened play-bot criterion needs both halves of judge/bot_mutants.py before it counts.

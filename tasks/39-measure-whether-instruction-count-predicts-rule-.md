@@ -1,7 +1,7 @@
 ---
 id: 39
 title: Measure whether instruction count predicts rule compliance in this project's own docs
-status: open
+status: in_flight
 priority: 5
 refs: research/11-doc-linting-for-agents.md, AGENTS.md, eval/PROTOCOL.md
 done_when: a design exists naming the instructions to be varied, the compliance measure, the control arm and the cost; then either a run reports a compliance-vs-instruction-count relationship with n per arm, or it reports no measurable relationship with the effect bounded - both close the task

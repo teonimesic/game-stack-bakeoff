@@ -1,7 +1,7 @@
 ---
 id: 62
 title: Register the other three withdrawn README figures, and measure whether any live document still states them
-status: open
+status: in_flight
 priority: 4
 refs: eval/withdrawn.json, eval/tools/docstat.py, eval/tools/withdrawn_control.py, README.md corrections table
 done_when: eval/withdrawn.json carries an entry for each of 20-of-24, the 380-paired-criteria pair (0 verdict differences and 219 of 380), each with match patterns proved against an archive anchor; docstat.py --withdrawn is green at HEAD after whatever repairs those entries name; and each entry was measured RED at a revision before its own withdrawal landed, so it is known the patterns can fire

@@ -107,7 +107,34 @@ Finally: `git worktree remove --force`, `git branch -d`, `git push`, and write a
 that records **what was established and what it cost**, not what was changed. Use `git commit -F`
 with a file: backticks in `-m` are executed by the shell and silently strip text (#80).
 
-## 5. Improve this skill as you use it
+## 5. Go back to step 1 before you report
+
+**A merge is not the end of the loop. It is the middle of it.**
+
+The moment a branch is merged, ask the queue what is open — and dispatch it, **before** writing
+a word to the operator. Reporting first is how the queue goes idle, because a report reads like
+a stopping point and the next thing to happen is whatever the operator says.
+
+This has failed **twice on 2026-08-23**, both times with the same shape: a wave of agents
+reported, every branch was merged and verified carefully, a summary was written — and six
+authorised tasks sat untouched until the operator asked why nothing was running. The rule *never
+leave the queue idle* was already in step 3 and did not fire, because it reads as advice about
+dispatching and the failure happens after merging.
+
+```bash
+python3 eval/tools/tasks.py        # open count, every time you finish a merge
+```
+
+If that number is above zero and no agent is running, **you are the bottleneck.** Dispatch, then
+report — and say in the report what is now in flight, so the state is visible without asking.
+
+The two legitimate reasons not to dispatch an open task, and they are the only two:
+
+- it is **blocked** by an unmet dependency in its `refs`, or
+- it needs a decision that is **not yours** (step 2's last bullet) — in which case ask *and*
+  dispatch everything else. **Never idle a queue behind one item.**
+
+## 6. Improve this skill as you use it
 
 **When a dispatch goes wrong, the defect is here or in the ticket — not in the agent.** If you had
 to explain something in a message, put it in a ticket and add the case to the table in step 1. If a
