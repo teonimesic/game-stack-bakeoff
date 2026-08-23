@@ -232,7 +232,7 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
     # exit 2 saying the corpus is absent, which is the honest answer and a red row here.
     out.append(("disclosure --selftest (documented rows, both directions)",
                 ["python3", "tools/disclosure.py", "--selftest"], EVAL))
-    out.append(("disclosure_mutants (6 mutants, 4 caught only by real data)",
+    out.append(("disclosure_mutants (10 mutants, 6 caught only by real data)",
                 ["python3", "tools/disclosure_mutants.py"], EVAL))
     # Liveness for the frame-parity guard: run it against a run known to be UNIFORM, so a
     # green row means the tool works rather than that some other run is clean.

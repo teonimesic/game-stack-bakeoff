@@ -246,10 +246,19 @@ grader owns its own three, listed in `judge/AGENTS.md`.
 prints each trial's located passages beside its score, and
 `python3 tools/disclosure.py --run-dir runs/<run>` gives them without waiting for evaluation;
 `--trial <id>` prints one message whole. It is a **locator, not a classifier** — `quiet` means
-no cue matched, not that a trial disclosed nothing (26 located against a hand-classified 31 of
-75, `RUNS.md`) — and it has three values, because a message that was never written is not a
-message that said nothing. `tools/disclosure_mutants.py` carries six mutants and must stay
-green; four of them are caught only by a real stored message, so run it in the main checkout.
+no cue matched, not that a trial disclosed nothing — and it has three values, because a message
+that was never written is not a message that said nothing. `tools/disclosure_mutants.py`
+carries ten mutants and must stay green; six of them are caught only by a real stored message,
+so run it in the main checkout.
+
+**It reports TWO families and they must never be pooled.** *Unverified own work* is **25 of
+the 75** messages an agent actually wrote, against a hand-classified **31** (`RUNS.md`).
+*Starter arrived broken* is **15 of 75** against a hand-classified **18** (the module's own
+docstring, which also names the 3 it misses and why). Both under-report; quote the hand figure
+for a rate. Until 2026-08-23 the two shared one counter, so a row located only by the starter
+family sat inside the number compared against a hand pass that never covered it — reported as
+26, comparable number 25. **A locator that answers two questions needs two denominators**, and
+the pooled figure was quoted in three documents.
 
 **The address, and what is not one.** Four documents tell you to read this field before grading
 (`PROTOCOL.md`, `DECISIONS.md`, root `AGENTS.md` rule 11, `G4-PLATFORMER.md`) and none said

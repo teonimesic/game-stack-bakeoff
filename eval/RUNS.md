@@ -1752,7 +1752,10 @@ after a third binary is added, which is the shape the agents below actually prod
 itself — `wg-matrix` (all six rust trials), `wg-audio` (g1_pong t0, t1), `wg-audio48` (g1_pong
 t0, g2_tetris3d t1), `archive-arena2d-wg-audio48` (g3_arena t0), `wg-g4` (g4_platformer t1).
 The producer is a grep of `runs/**/artifacts/*rust*/agent_result.json` → `.result`;
-`eval/tools/disclosure.py` located 4 of them on its cue set, which is why `tasks/81` says four.
+`eval/tools/disclosure.py` located 4 of them on the cue set it had then, which is why `tasks/81`
+says four. It now locates **all 12** — the cue was matching the *complaint* ("`just run` was
+broken in the starter") and 8 of the 12 state the same defect as the *repair* ("`crates/game`
+gained `default-run`"), which no widening of the breakage vocabulary could reach (`tasks/94`).
 Nothing else in ten days of stored evidence had noticed.
 
 **What this boundary can and cannot have changed, stated because it is smaller than the heading
