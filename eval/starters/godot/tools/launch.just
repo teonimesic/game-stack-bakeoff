@@ -95,9 +95,17 @@ NO_RAISE := env_var_or_default("STARTER_NO_RAISE", "0")
 #           by the standalone player WITHOUT ERROR, and does nothing. It played
 #           sound. An accepted-but-ignored flag is worse than an unsupported one
 #           -- it looks like a working fix and no exit code can tell them apart.
-#   rust    nothing to silence: the starter builds bevy with `default-features =
-#           false` and no audio feature, so a pristine tree cannot open an audio
-#           device at all. An agent that adds audio should honour the variable.
+#   rust    bevy's `AudioPlugin` is NOT ADDED when the variable is set. This row said
+#           the opposite until 2026-08-23 -- "nothing to silence, no audio feature" --
+#           and the feature is now on (task 26): `bevy_audio` is compiled in and
+#           `AudioPlugin` opens the default output stream the moment it is added,
+#           before any sound exists, so a pristine tree CAN take the device. Not
+#           adding a plugin is a stronger guard than asking one to be quiet, and it is
+#           the property `-disable-audio` lacks: there is nothing left to ignore the
+#           request. The CAPTURE and TEST path disables it unconditionally
+#           (crates/game/src/harness.rs) the way godot's render recipe passes
+#           `--audio-driver Dummy`; measured, removing it took `just test-render` from
+#           11.7 s to 8.5 s, which is what a device being opened six times costs.
 #   ts      nothing to do: `just run` starts a dev SERVER. It opens no window and
 #           no audio device; a browser opened by a human is outside the harness.
 #

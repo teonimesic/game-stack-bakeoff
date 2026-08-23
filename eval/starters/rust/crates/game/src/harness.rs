@@ -345,7 +345,19 @@ pub fn capture_frame_sized(
             // Several harness apps may exist in one test binary; only the first
             // can install the global tracing subscriber, and the rest log an
             // alarming-looking error. We don't need logs here.
-            .disable::<bevy::log::LogPlugin>(),
+            .disable::<bevy::log::LogPlugin>()
+            // NO AUDIO DEVICE ON THE CAPTURE PATH, EVER. `bevy_audio` is compiled
+            // in, and `AudioPlugin` opens the default output stream when it is
+            // added - before any sound exists to play. `just verify` builds one of
+            // these Apps per rendering test and runs unattended, concurrently, on
+            // the operator's machine during grading; godot's render recipe passes
+            // `--audio-driver Dummy` for exactly this reason. Not adding the plugin
+            // is stronger than asking it to be quiet: there is no device to take.
+            //
+            // It costs no coverage. Nothing here plays anything, and the audio
+            // criteria grade the shipped clip FILES with ffmpeg (`judge/audio.py`),
+            // never a running game.
+            .disable::<bevy::audio::AudioPlugin>(),
     )
     .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::ZERO))
     .add_plugins(SimPlugin)

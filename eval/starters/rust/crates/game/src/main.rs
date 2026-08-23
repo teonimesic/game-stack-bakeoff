@@ -13,24 +13,45 @@ use sim::{Intents, SimPlugin, TICK_HZ};
 /// unfocused after creation", so it has to go in the `WindowPlugin` and not into a
 /// startup system.
 ///
-/// AUDIO IS NOT GUARDED HERE, and that is not an oversight. This starter builds bevy with
-/// `default-features = false` and no audio feature, so a pristine tree cannot open an
-/// audio device at all. An agent that adds audio to satisfy the task should honour
-/// `STARTER_SILENT_LAUNCH` - see `tools/launch.just` - and there is no engine-level null
-/// sink to fall back on the way godot has `--audio-driver Dummy`.
 fn no_raise() -> bool {
     std::env::var("STARTER_NO_RAISE").as_deref() == Ok("1")
 }
 
+/// Does the launch discipline ask this process not to open an audio device?
+///
+/// `bevy_audio` is compiled in (see `crates/game/Cargo.toml`), and `AudioPlugin` opens
+/// the default output stream the moment it is added - before any `AudioPlayer` exists.
+/// So a pristine tree CAN take the operator's audio device, which it could not when the
+/// engine was trimmed, and `tools/launch.just` states that guard as a resource rather
+/// than as a list of recipes.
+///
+/// Not adding the plugin is the whole mechanism. That is deliberately not a flag: Unity's
+/// `-disable-audio` is accepted by the standalone player and ignored, and an
+/// accepted-but-ignored flag is indistinguishable from a working guard by anything a
+/// script can see. A plugin that was never added cannot open a device.
+///
+/// It guards the LAUNCH only. The shipped game is unchanged, and the audio criteria grade
+/// the clip files with ffmpeg rather than listening to a run.
+fn silent_launch() -> bool {
+    std::env::var("STARTER_SILENT_LAUNCH").as_deref() == Ok("1")
+}
+
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                focused: !no_raise(),
+        .add_plugins({
+            let plugins = DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    focused: !no_raise(),
+                    ..default()
+                }),
                 ..default()
-            }),
-            ..default()
-        }))
+            });
+            if silent_launch() {
+                plugins.disable::<bevy::audio::AudioPlugin>()
+            } else {
+                plugins
+            }
+        })
         .add_plugins(SimPlugin)
         .add_plugins(ViewPlugin)
         .insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)))
@@ -54,10 +75,7 @@ fn main() {
 ///
 /// So this is a CORRECTION, not a prevention, and the distinction is the finding: the
 /// engine could not be stopped from raising, only undone afterwards. It runs once.
-fn no_raise_correction(
-    mut windows: Query<&mut Window>,
-    mut done: Local<bool>,
-) {
+fn no_raise_correction(mut windows: Query<&mut Window>, mut done: Local<bool>) {
     if *done {
         return;
     }

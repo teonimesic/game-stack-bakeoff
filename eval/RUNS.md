@@ -1014,6 +1014,60 @@ the file is refused rather than silently measuring the unrepaired gate. The othe
 printed as **NOT PINNED IN THE THIRD DIRECTION**, reported and not failed: their `check` is a
 compiler over a dependency graph and the plant sits in a root everything imports, so there is no
 per-file scope for a bad repair to narrow at that address.
+## THE RUST AND GODOT STARTERS CHANGED ON 2026-08-23 — an ELEVENTH comparability break
+
+Task 26, the first instalment of `DECISIONS.md`'s "each template at its stack's best, not at a
+common floor". **Two arms of four changed. `starters/ts/` and `starters/unity/` are untouched
+apart from a comment in the shared launch file.**
+
+**No Rust trial after this date is comparable with one before it, on turns, cost, or what the
+submission was able to contain.** The `bevy` feature list went from `["2d", "png", "libm"]` to
+Bevy's own default set plus `wav`/`png`/`libm`:
+
+| property | before | after |
+|---|---|---|
+| lit 3D | **impossible.** `MeshMaterial3d` lives in `bevy_pbr`, which the `2d` bundle excludes — on a task set where two of four games are 3D | `Mesh3d` + `MeshMaterial3d<StandardMaterial>`, `DirectionalLight`, `PointLight`, real-time shadows |
+| audio | **no `AudioPlayer` at all**, while `AUDIO_NOTE["rust"]` in the prompt said "Audio is Bevy's `AudioPlayer`" and audio is a **scored** criterion | `bevy_audio` + rodio, WAV decoder on |
+| UI | `Text2d` and sprites only | `bevy_ui` |
+| the pin change itself | the prompt told the agent to make it; every `AGENTS.md` marks a feature-list edit ⚠️ *ask first* | already made |
+| cold `just verify` from an empty target dir | warm 129 s + verify 38 s = **167 s** | warm 248 s + verify 22 s = **270 s** |
+| warm `just verify` | **2.7 s** | **4.2 s** (`just quick`, the documented inner loop, is unchanged at ~0.8 s) |
+| audio device on the capture path | none could be opened — no audio feature | `AudioPlugin` **disabled** in `harness.rs`; measured, removing it took `just test-render` from 11.7 s to 8.5 s |
+
+**No Godot trial after this date is comparable with one before it on what the submission was able
+to contain, and its `just verify` now runs nine render assertions instead of six.**
+`view/fx.gd` exposes `GPUParticles2D` as one call, `View` owns an idle `Fx`, and three render
+tests pin it: the burst is drawn, the age drives it, two identical bursts are byte-identical.
+**The golden frame is unchanged** — an unused `Fx` allocates nothing and lights no pixel — so the
+edit is rendering-neutral on the pristine tree.
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** Nothing here changes how anything is graded, and no
+  stored submission is re-read. The rubric, the weights and the bot are untouched.
+- **Invalidated going forward, and this is the point:** a Rust submission after this date can
+  ship a lit 3D scene and sound without spending turns on a pin change it was told to ask about
+  first. Before it, `g2_tetris3d` and `g3_arena` Rust agents had to do that work or build the
+  game in orthographic 2D. That cost is unmeasured, the same way #98's and the TS capture page's
+  are.
+- **Cost direction is not obvious and should not be assumed.** Cold build is +103 s per trial;
+  turns spent on the pin change and on hand-rolling menus out of `Text2d` are removed. Which
+  dominates is an empirical question this note does not answer.
+- **Two pristine-tree formatting defects were repaired in passing**, because `just verify` runs
+  `fmt` and repairs them on the agent's first invocation whether anyone wants it or not:
+  `crates/game/src/main.rs` (rustfmt) and `tools/no_raise.gd` (gdformat). See FINDINGS #106 —
+  every stored Rust and Godot trial diff contains a hunk no agent wrote.
+- **`starters/_shared/launch.just` changed in all four trees**, identically, because its Rust row
+  asserted "no audio feature, so a pristine tree cannot open an audio device at all" and that
+  stopped being true. Comment only; ts, unity and godot behaviour is unchanged.
+
+Gates re-run after the change: `judge/verify_blind.py` on an out-of-repo copy of all four
+starters (**BLIND**, 81 criterion ids, exit 0); `judge/starter_parity.py --skip-tests`
+(**"No drift detected on any measured axis"**, hash chain 401 ticks with rust/ts/godot
+byte-identical and unity's known 1-ULP divergence, shared launch file identical in all four at
+`da9914ce2e54beaa`); `tools/starter_gate_control.py` green on pristine and red on the planted
+error for every arm. The capability register in `starter_parity` now reports four capabilities
+instead of one and states in its own output that divergence is the design, not drift.
 
 
 ## Rules

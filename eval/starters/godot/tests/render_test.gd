@@ -92,7 +92,13 @@ func whole_frame(frame: Frame) -> Rect2i:
 ##
 ## Returns null when the viewport has no texture, which is what a display-less
 ## run produces.
-func capture_frame(seed: int, ticks: int, inputs: Array[Sim.Intents]) -> Frame:
+## [param bursts] is the [Fx] layer's whole input, and it is a parameter of the
+## capture rather than something the view remembers for the same reason the tick
+## count is: this helper syncs the view exactly once, at a known tick. See
+## `view/fx.gd`.
+func capture_frame(
+	seed: int, ticks: int, inputs: Array[Sim.Intents], bursts: Array[Fx.Burst] = []
+) -> Frame:
 	var world: Sim.World = Sim.spawn_world(seed)
 	for tick: int in range(ticks):
 		Sim.step(world, inputs[tick] if tick < inputs.size() else null)
@@ -108,6 +114,7 @@ func capture_frame(seed: int, ticks: int, inputs: Array[Sim.Intents]) -> Frame:
 		var size: Vector2 = _tree.root.get_visible_rect().size
 		_view.frame_arena(size)
 		_view.sync(world)
+		_view.fx.show_bursts(bursts)
 
 		# Wait for whole frames rather than `RenderingServer.frame_post_draw`. That
 		# signal NEVER FIRES under `--headless` and the await deadlocks the script
@@ -139,6 +146,9 @@ func run_all(t: TestRunner) -> void:
 			"the HUD is inside the captured frame",
 			"rendering is reproducible across runs",
 			"matches the golden frame",
+			"a particle burst reaches the captured frame",
+			"a particle burst is driven by its age, not by the clock",
+			"a particle burst is reproducible across runs",
 		]:
 			t.begin(name)
 			t.skip(
@@ -173,6 +183,23 @@ func run_all(t: TestRunner) -> void:
 
 	t.begin("matches the golden frame")
 	await _golden(t)
+	t.end()
+
+	# Godot ships a particle system and the other three stacks in this comparison
+	# do not, so `view/fx.gd` is a capability the template exposes deliberately.
+	# These three are its controls, and the middle one is the load-bearing one: a
+	# reproducibility test alone would pass just as happily on a burst that never
+	# renders at all.
+	t.begin("a particle burst reaches the captured frame")
+	await _burst_is_drawn(t)
+	t.end()
+
+	t.begin("a particle burst is driven by its age, not by the clock")
+	await _burst_ages(t)
+	t.end()
+
+	t.begin("a particle burst is reproducible across runs")
+	await _burst_reproducible(t)
 	t.end()
 
 
@@ -434,3 +461,92 @@ func _golden(t: TestRunner) -> void:
 			)
 		)
 	)
+
+
+## The colour the burst controls emit in: deliberately neither the marker's nor
+## the HUD's, so "burst ink" cannot be satisfied by either of them.
+const BURST_COLOR: Color = Color(1.0, 0.42, 0.16)
+## Seeded from a fixed id, so the burst these tests draw is the same burst every
+## time — see `view/fx.gd`.
+const BURST_ID: int = 1
+
+
+## One burst at the centre of the arena, [param age] seconds old.
+func _one_burst(age: float) -> Array[Fx.Burst]:
+	var bursts: Array[Fx.Burst] = []
+	bursts.append(Fx.Burst.new(Vector2.ZERO, BURST_COLOR, age, BURST_ID))
+	return bursts
+
+
+## Does asking for a burst put more ink on screen than not asking for one?
+##
+## The weakest of the three and the one that has to pass first: everything else
+## here is a statement about a burst that is assumed to exist.
+func _burst_is_drawn(t: TestRunner) -> void:
+	var bare: Frame = await capture_frame(8, 20, [])
+	var lit: Frame = await capture_frame(8, 20, [], _one_burst(0.12))
+	var bare_ink: float = bare.ink_coverage(background(), INK_TOLERANCE)
+	var lit_ink: float = lit.ink_coverage(background(), INK_TOLERANCE)
+	t.gt(
+		lit_ink,
+		bare_ink + 0.0005,
+		(
+			(
+				"a burst added %.4f%% ink to a frame that already had %.4f%% — the particle "
+				+ "system is not reaching the captured viewport. Check that Fx is a child of "
+				+ "the View (the capture renders a viewport holding ONLY the View) and that "
+				+ "the burst is inside the arena."
+			)
+			% [(lit_ink - bare_ink) * 100.0, bare_ink * 100.0]
+		)
+	)
+
+
+## Is `age` actually driving the particle system?
+##
+## THE VARIANT, not the mutant (AGENTS.md rule 15). `speed_scale = 0` is what
+## makes a burst reproducible, and a burst that has been frozen so hard that it
+## never advances at all would pass the reproducibility test perfectly. Two ages
+## have to produce two different pictures, or the parameter is decorative.
+func _burst_ages(t: TestRunner) -> void:
+	var young: Frame = await capture_frame(8, 20, [], _one_burst(0.02))
+	var old: Frame = await capture_frame(8, 20, [], _one_burst(0.40))
+	var diff: float = young.diff_fraction(old, INK_TOLERANCE)
+	t.gt(
+		diff,
+		0.0005,
+		(
+			(
+				"a burst 0.02 s old and one 0.40 s old differ in only %.4f%% of pixels. The "
+				+ "age is not reaching the emitter — check that `preprocess` is set BEFORE "
+				+ "`restart()` in view/fx.gd."
+			)
+			% (diff * 100.0)
+		)
+	)
+
+
+## Same state, same pixels — with a burst on screen.
+##
+## Particles are the one thing in this template that is animated by wall time by
+## default, and `rendering is reproducible across runs` covers the frame without
+## one. This is the same assertion over the path where it can actually fail.
+func _burst_reproducible(t: TestRunner) -> void:
+	var a: Frame = await capture_frame(9, 33, [], _one_burst(0.20))
+	var b: Frame = await capture_frame(9, 33, [], _one_burst(0.20))
+	var diff: float = a.diff_fraction(b, 0)
+	if diff > 0.0:
+		var diff_path: String = "res://tests/golden/burst.diff.png"
+		a.diff_image(b, 0).save_png(diff_path)
+		t.check(
+			false,
+			(
+				(
+					"two identical bursts produced different frames (%.4f%% of pixels differ). "
+					+ "A particle emitter that is advanced by the frame delta rather than by "
+					+ "`preprocess` does exactly this. Magenta pixels in %s are where they "
+					+ "disagree."
+				)
+				% [diff * 100.0, ProjectSettings.globalize_path(diff_path)]
+			)
+		)

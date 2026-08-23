@@ -420,6 +420,26 @@ geometry is the next section; what it still cannot see, and why, is the `DECLINE
 `judge/capability.py`. **A capability change must name the field that would move if it worked**,
 and if the only candidate is a palette-coupled one, it cannot be shown to have helped.
 
+**Implemented, 2026-08-23, in two arms of four.** Rust is on Bevy's own default feature set, so
+the arm can render a lit 3D mesh and open an audio device — neither of which it could do at the
+old pin, on a task set where two of four games are 3D and audio is a scored criterion. Godot
+exposes `GPUParticles2D` through `view/fx.gd`, the one native particle system in the comparison.
+The regime note and the measured build-time cost are in `eval/RUNS.md` (eleventh comparability
+break); the hypothesis, the falsifier and **the register of capabilities surveyed as available
+and deliberately not adopted** are the task-26 iteration in the root `IMPROVEMENTS.md`.
+TypeScript and Unity are **not** done, and Unity's one-line `com.unity.modules.audio` is the
+highest-value item outstanding under this decision.
+
+**One operating rule came out of doing it, and it decides the cases the survey does not.**
+
+> **A template exposes what its stack SHIPS. It does not implement what its stack lacks.**
+
+Lowering a capability from E2/E3 to E1 for something the engine already contains is exposing it;
+writing the subsystem is manufacturing one, and it would erase the asymmetry this decision exists
+to measure. It is why Godot gets a particle helper and Rust and three.js do not: neither ships a
+particle system at any effort below writing one, and a template that wrote one for them would be
+reporting a fact about four template authors.
+
 ---
 
 ## Performance is measured from outside the submission, and none of it is scored — decided 2026-08-23
