@@ -106,6 +106,18 @@ WORDINGS: list[tuple[str, bool, str]] = [
      "every stored trial is re-graded and the table lists each submission"),
     ("threshold, no escape", True,
      "the pooled standard error is below 0.05"),
+    # A REAL wording, and the only must-warn row here that is not reconstructed. Task 62's
+    # done_when, recorded 2026-08-23: three universals, no escape branch, and it went quiet
+    # for one day because "after whatever repairs those entries name" was read as one. It
+    # is pinned as a literal and not re-read from the queue on purpose -- 62 is open, its
+    # owner may well add an escape branch, and this row tests the predicate rather than the
+    # task.
+    ("62 real, a free relative is not an escape", True,
+     "eval/withdrawn.json carries an entry for each of 20-of-24, the 380-paired-criteria "
+     "pair (0 verdict differences and 219 of 380), each with match patterns proved against "
+     "an archive anchor; docstat.py --withdrawn is green at HEAD after whatever repairs "
+     "those entries name; and each entry was measured RED at a revision before its own "
+     "withdrawal landed, so it is known the patterns can fire"),
     ("32 real, escape says 'If no tool'", False, TASK_32_DONE_WHEN),
     ("01 repaired, escape says 'any'", False,
      "every aspect that HAS evidence to read has a stored round for g3_arena and "

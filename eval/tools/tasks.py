@@ -282,9 +282,21 @@ THRESHOLD = ("below", "above", "exceeds", "smaller than", "larger than",
 #: silences a warning that should have fired. Both are why this stays a warning. A gate that
 #: fails on correct input gets disabled, and a check that fires where nothing is wrong
 #: spends exactly the attention a check firing correctly needs (rule 16).
+#: A FREE RELATIVE IS NOT A CONDITIONAL, and this is measured rather than reasoned.
+#: `whatever` and `whichever` were in this set for one day. Dropping each marker in turn
+#: over the 62 done-whens then in the queue showed what each one silences: `if` silences
+#: task 58, `where` silences 08, `or` silences 11 and 52, `any` silences 01, 25, 26 and 42
+#: -- every one of them a real escape branch. `whatever`'s ONLY contribution was silencing
+#: task 62, which has three universals and no escape at all, on "after whatever repairs
+#: those entries name". A free relative names a definite-but-unspecified thing; it opens no
+#: branch. Both go, as a construction rather than as a word, because `whichever` is the
+#: same trap waiting for the next writer.
+#:
+#: The rest stay although this corpus does not exercise them. That is the difference
+#: between a class and a list: an escape written with `otherwise` is the phrasing nobody
+#: had yet, which is exactly how the old list failed.
 HYPOTHETICAL = ("if", "unless", "when", "whenever", "where", "wherever",
-                "either", "or", "otherwise", "else", "instead",
-                "any", "whichever", "whatever", "none")
+                "either", "or", "otherwise", "else", "instead", "any", "none")
 
 
 def _words(text: str, phrases: tuple[str, ...]) -> list[str]:
