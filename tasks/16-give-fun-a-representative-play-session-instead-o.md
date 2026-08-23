@@ -1,7 +1,8 @@
 ---
+established_by: The repair was ALREADY BUILT and the outstanding half was the measurement. All four bots set play_ticks=3000 and probe.drive() runs a dedicated play session whose telemetry replaces the criteria drive's; wg-g4c carries representative:true on 8 of 8. MEASURED, done_when's first branch: the session choice moves the number materially - on g4_platformer__ts__t0 a held-input criteria-style drive gives quiet_fraction 0.780 against the play session's 0.033, a 24x difference, with comparable world-event counts (30 vs 31) so it is the idling and not the activity. godot__t0 moves less (0.678 -> 0.572). FOUND WHILE MEASURING, and it matters more than the task did: g2_tetris3d's stored playbot.json reports representative telemetry on 0 of 8 - graded 2026-08-13, repair landed 2026-08-16 - so the fun rounds behind tier 3's ONLY positive result (#68) read criteria-drive telemetry. DECISIONS.md claimed the confound was 'gone by construction'; that described the code and was read as describing the evidence. Corrected in place, and re-grading tetris filed as task 22 with both outcomes named. METHOD CAVEAT recorded: the historical criteria telemetry is not reconstructible - an improvised held-input tetris drive gives 0.999 where the stored evidence cites 0.15 - so task 22 must compare new representative numbers against STORED ones, not against a reconstruction.
 id: 16
 title: Give fun a representative play session instead of the criteria drive
-status: open
+status: done
 priority: 2
 refs: eval/FINDINGS.md #52, eval/judge/telemetry.py, eval/judge/probe.py
 done_when: fun's telemetry comes from a session driven to look like play rather than from the criteria sweep, AND the effect is measured on stored submissions - EITHER quiet_fraction_of_run moves materially, with the before/after reported, OR it does not, in which case the criteria drive was representative enough and the change is reported as buying nothing rather than shipped

@@ -217,11 +217,22 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
   between-stack range (1.70 rank positions) is **smaller than its within-stack spread (2.05)**.
   **Tier 3 stays at weight 0.00**, now on measurement rather than on argument. All three
   prerequisites were then BUILT and the layer re-run (2026-08-17, $21.05): `fun` has a
-  representative play session and its confound is gone by construction, `architecture` packs
+  representative play session **in the code** — though see the correction below, because the
+  `g2_tetris3d` packs it was re-run against were never re-graded through it — `architecture` packs
   are extension-blind, `idiomatic` is accepted as within-stack only. **The verdict did not
   change** — only `ux` clears every gate, and gate 0 (reproducibility, added the same day)
   shows ceiling verdicts flipping on provably unchanged input in 3 of 6 clean repeats.
   Re-opening now requires repeats at a fixed order, not more aspects.
+- ⚠️ **CORRECTION, 2026-08-22: `fun`'s confound is gone by construction only where the field was
+  re-graded.** The representative play session is built and wired — all four bots set
+  `play_ticks = 3000` and `drive()` substitutes its telemetry — and `wg-g4c` carries it on 8 of 8
+  submissions. But `g2_tetris3d`'s stored `playbot.json` files report `representative: false` on
+  **0 of 8**, because they were graded on 2026-08-13 and the repair landed on 2026-08-16. **The
+  `fun` rounds behind tier 3's only positive result (#68) therefore read criteria-drive
+  telemetry.** The claim above described the code and was read as describing the evidence. That
+  the session choice matters is measured: on `g4_platformer__ts__t0` a held-input drive gives a
+  quiet fraction of **0.780** against the play session's **0.033**. Re-grading tetris would settle
+  whether #68 moves; until then #68 stands with this attached.
 - **g4, the platformer, is designed and NOT launched.** Launching needs approval and at least
   two calibration trials in different cells; the honest cost range is $800-1,900 (#42).
 
