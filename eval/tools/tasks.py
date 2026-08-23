@@ -249,7 +249,15 @@ def _write_task(a, slug: str, nid_int: int) -> int:
         except FileExistsError:
             nid_int += 1
             continue
-        print(f"created {(TASKS / f'{nid}-{slug}.md').relative_to(ROOT)}")
+        # THE QUEUE IS IN THE MAIN CHECKOUT, so from an agent worktree TASKS is not under
+        # ROOT and `relative_to` raises - AFTER the file has been written and before the
+        # return, so `add` created the task and exited 1 with a traceback. An exit code
+        # that says "failed" over a completed write is the worst shape a report can take.
+        created = TASKS / f"{nid}-{slug}.md"
+        try:
+            print(f"created {created.relative_to(ROOT)}")
+        except ValueError:
+            print(f"created {created}")
         return 0
     print("could not allocate a free task id after 50 attempts", file=sys.stderr)
     return 1
