@@ -510,3 +510,108 @@ a derived default resolved inside an agent's git worktree, where the Unity start
 `tools/analyzer/bin/` does not exist, and three Unity files then looked like authored work. The
 corroboration check refused two submissions and was right about the symptom and wrong about the
 cause, which is rule 12 with the address supplied by `__file__`.
+
+---
+
+## 119. A budget ceiling and a bill are different questions, and one variable answered both under the bill's name
+
+Three numbers described one spend: the ten stored rounds of
+`runs/wg-tetris-judge-2026-08-17/post/` sum to **$31.66**, the `SEQUENTIAL.json` beside them
+records **21.05**, and `README.md`, `JUDGING.md` and `DECISIONS.md` published **$21.05** as the
+cost of those ten calls. The `pre/` field had the same shape: **$33.63** stored, **25.55**
+recorded, **$46.79** published.
+
+**None of the three was a mistake in arithmetic.** Each is the correct answer to a different
+question, and only one of them is a cost.
+
+| number | what it actually is | right? |
+|---|---|---|
+| $33.63 / $31.66 | sum of each stored round's own `cost_usd` — the artifacts of record | **yes.** This is what `eval/RUNS.md`'s judge table already carried |
+| 25.55 / 21.05 | `measured_cost_usd` in `SEQUENTIAL.json` | correct **as a ceiling counter**, and not a cost |
+| $46.79 / $21.05 | what three live documents published | **both wrong as attributed** |
+
+### The mechanism, and it is deliberate
+
+`field_sweep._judge_round` charges a round to the invocation's spend **only if this invocation
+created it**:
+
+    cost = float(res.get("cost_usd") or 0.0) if fresh else 0.0
+
+That is right, and the comment above it says why: `--max-cost` is enforced against measured
+spend, and a round already on disk was paid for on an earlier day, so re-charging it would make
+the ceiling refuse work that costs nothing. The ceiling has never failed. What the code then did
+was persist that counter under the name **`measured_cost_usd`**, in a file a person reads when
+they want to know what a field cost.
+
+### How it was established, and the run said it out loud
+
+The `post` sweep's own `sweep.log` prints the counter as it goes:
+
+| after aspect | cumulative | fresh rounds so far |
+|---|---|---|
+| `architecture` | **$0.00** | none — both rounds already on disk |
+| `audio` | **$0.00** | none — both rounds already on disk |
+| `fun` | $3.96 | 1.9298 + 2.0315 |
+| `idiomatic` | $16.76 | + 6.0266 + 6.7755 |
+| `ux` | **$21.05** | + 2.3075 + 1.9778 |
+
+Four rounds, $10.6056, charged $0.00 — and $31.6556 − $10.6056 = $21.05 to the cent. Their
+mtimes are 06:53:09 against 07:01:40–07:35:05 for the six the invocation wrote, and they are
+`architecture` and `audio`: **a prefix of the execution order**, which is what a resume looks
+like and what a coincidence does not. The `pre` gap, $8.0805, is `architecture__seed0` — the
+probe round of the first aspect, the single-element prefix.
+
+**$46.79 is a different error with the same result.** `eval/RUNS.md`'s per-game table for
+2026-08-16 reads $13.16 for three `g1_pong` calls and $33.63 for ten `g2_tetris3d` ones.
+$46.79 is the day. It was published three times as the cost of *the* eight-submission tetris
+field, which cost $33.63. And the $13.16 is the only judge spend in this project with no
+surviving artifact — no `g1_pong` round from that day exists on disk (task 04).
+
+### It is not one field, it is five of eleven
+
+`judge/judge_ledger.py --tree runs/` over every stored sweep directory:
+
+| | |
+|---|---|
+| sweep directories holding rounds | 11 |
+| stored rounds | 93 |
+| field cost, summed from the rounds | **$306.73** |
+| directories whose stored counter under-reports | **5** |
+| under-reported | **$69.93** |
+| directories whose counter exceeds what is on disk | **0** |
+
+`eval/RUNS.md`'s opening line said *"plus $46.79 of specialist-judge calls"*. The true figure is
+$306.73, and the ledger's own tables 780 lines later already added to more than $46.79 — a
+headline and its own detail disagreeing by 6.6x, inside one file.
+
+### What was wrong was a NAME, so the fix is two names
+
+Re-charging carried rounds would break the one mechanism here that works.
+`field_sweep._record_cost` now writes both, and they cannot drift because the ledger tool
+computes the second one:
+
+    charged_to_ceiling_usd   what this invocation spent; what --max-cost is enforced against
+    field_cost_usd           what the rounds stored here cost
+
+> **A variable that is correct for one question will be read as the answer to a neighbouring
+> one if its name does not say which.** `measured_cost_usd` is not ambiguous prose — it is the
+> most specific-sounding name available, it carries the word this project uses for "read from
+> reality rather than estimated", and it was still wrong, because the noun it omits is the one
+> that varies. Rule 12 says the address is an input to the check; this is the same defect with
+> a field name as the address.
+
+### The method that was right by coincidence, caught inside the fix
+
+`judge_ledger.explain_gap` first tried to demonstrate a resume from an mtime split: the carried
+rounds are older than the written ones. On `post` that is a real boundary, eight minutes wide.
+On `pre` it returned `architecture__seed0` — **the right answer, from no evidence at all.** All
+ten of `pre`'s files were moved out of a `/private/tmp` sweep directory with `cp`, so their
+mtimes are 0.0006 s apart in alphabetical order, which is also `--sequential`'s execution order.
+A clean, ordered, meaningless split.
+
+The check now requires the boundary to exceed 60 s — the shortest stored round ran 246 s — and
+`pre` honestly reports AMBIGUOUS, because two subsets of its rounds sum to $8.08 and only
+external evidence picks between them. **A tool changing its own answer when its method was
+corrected is the whole reason to build the producer rather than quote the number**, and it is
+rule 15's shape: the mtime split had a mutant that reddened it and no variant asking whether it
+could still pass on input it mishandles.

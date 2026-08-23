@@ -278,7 +278,7 @@ gate that fails on correct input gets disabled*:
 
 `docstat.py --renumbered` asks the one question the two above cannot: does a name still *mean* what
 its author meant? A finding number reassigned at merge leaves every earlier citation pointing at a
-stranger and **still resolving**, so no reference check can see it (#117).
+stranger and **still resolving**, so no reference check can see it (#118).
 
 It is a warning in `--sweep` and a command of its own, on the same footing as `tasks.py check`'s
 reachability warning. Three reasons, and the first two are why it could not be a gate even if
@@ -320,7 +320,7 @@ describes.
   about it: whether to keep the split, re-scope tier 1 explicitly as a gate, or add criteria with
   headroom. That is task 27, and it is a rubric change requiring mutants, not a doc edit.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
-  All five aspects were run over a full eight-submission field for $46.79. Three fail the
+  All five aspects were run over a full eight-submission field for $33.63. Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53);
   `architecture` and `ux` are redundant with each other while sharing no evidence (#54). And
   **no aspect separates the stacks at a magnitude that could matter**: recomputed by
@@ -341,7 +341,7 @@ describes.
   on one of the two fields and is #115. Both stay in the log and appear in no live document as a
   measurement.
   **Tier 3 stays at weight 0.00**, now on measurement rather than on argument. All three
-  prerequisites were then BUILT and the layer re-run (2026-08-17, $21.05): `fun` has a
+  prerequisites were then BUILT and the layer re-run (2026-08-17, $31.66): `fun` has a
   representative play session and its confound is gone by construction, `architecture` packs
   are extension-blind, `idiomatic` is accepted as within-stack only. **The verdict did not
   change** — only `ux` clears every gate, and gate 0 (reproducibility, added the same day)

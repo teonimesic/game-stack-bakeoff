@@ -34,7 +34,7 @@ numbers from git history, resolves each citation against the numbering its own a
 commit saw, and prints two lists: **decided** (a verdict, and the half `--sweep` echoes) and
 **undecidable** (a short list to read, because a merge writes the renumber and the citation
 in one commit and there is no ordering inside a commit). 27 stale citations across eight
-corpora on first run, plus two more that landed while it was being written (#117).
+corpora on first run, plus two more that landed while it was being written (#118).
 
 Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
 the citation is what is wrong.

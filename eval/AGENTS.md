@@ -60,6 +60,15 @@ call, a calibration probe. Trials are ~$11-73 each; judge field calls are $2.82-
   instance that produced it must be re-derived by every reader who meets a different
   instance.** The trigger is now the RESOURCE — money per call — not the mechanism.
 
+- **What a sweep was CHARGED and what its rounds COST are two questions, and only one of them
+  is a bill.** A round already on disk is charged $0.00 to the invocation that reuses it, so
+  that `--max-cost` cannot refuse work that costs nothing. That counter is
+  `charged_to_ceiling_usd`; the cost of a field is `field_cost_usd`, summed from the rounds
+  themselves. `python3 judge/judge_ledger.py --tree runs/` reports both per directory and is
+  the producer for every judge figure in `RUNS.md`. **Never quote a summary file's counter as
+  a cost** — stored under one name, it put $21.05 into three live documents for ten calls that
+  cost $31.66, and five of eleven stored sweeps carry the same shape (#119).
+
 - **A budget flag is visible to the callee, so it is an instruction, not just a ceiling**
   (#33). `--per-call-budget` is passed to the judge as `--max-budget-usd`. Changing it between
   rounds makes those rounds non-comparable, so hold it fixed across a sweep even when the

@@ -5,10 +5,12 @@ game — and prove it by measurement rather than argument.
 
 Four templates, one per candidate stack, each tuned to its own stack's strengths. Blank
 `claude -p` sessions build whole games in each; a harness the building agents cannot see grades
-the result. 24 whole-game submissions, ~$1,794, three games, four stacks, two independent trials
-per cell.
+the result. 24 whole-game submissions, three games, four stacks, two independent trials per cell.
+**$2,710.94 to date** — $2,404.21 of agent trials over 137 stored trial records plus $306.73 of
+specialist-judge rounds, both re-read from disk on 2026-08-23 (`eval/RUNS.md`). This line read
+*~$1,794* while three runs worth $698.21 sat outside it.
 
-Last updated **2026-08-21**.
+Last updated **2026-08-23**.
 
 ---
 
@@ -153,7 +155,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#118, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#119, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -268,9 +270,11 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
 
 ### In flight
 
-- **Specialist judges, first full field: 13 calls, $46.79 — and the subjective layer produces
+- **Specialist judges, first full field: 10 calls, $33.63 — and the subjective layer produces
   the same null.** Five aspects x two presentation orders on `g2_tetris3d`, whose eight
-  submissions the deterministic tiers score identically.
+  submissions the deterministic tiers score identically. (This line read *13 calls, $46.79*
+  until 2026-08-23; that total is two games, and the three `g1_pong` calls in it, $13.16, are a
+  different field. FINDINGS #119.)
 
   | | reported (`rank`/`pool`) | range across all four methods |
   |---|---|---|
@@ -294,7 +298,7 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
   `ux` — which share **no evidence at all**, one reading only source and the other only
   frames — rank the field identically on both orders (#54).
 
-  **Re-run 2026-08-17 on a repaired instrument — 10 more calls, $21.05 — and the answer holds.**
+  **Re-run 2026-08-17 on a repaired instrument — 10 more calls, $31.66 — and the answer holds.**
   `fun`'s confound is gone by construction (run length is now *constant* across the field, and
   its scores track quiet-stretch at -0.63 and events/second at +0.51..+0.77 across both
   orders); `architecture` is partially blinded; `idiomatic` remains cross-stack-barred. Of the

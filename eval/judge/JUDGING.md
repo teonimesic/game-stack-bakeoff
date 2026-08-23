@@ -500,9 +500,12 @@ numbers mean anything.
 
 ## RESULT — the five specialist judges, `g2_tetris3d`, 2026-08-16
 
-13 field calls, **$46.79**, 8 submissions the deterministic tiers score identically (all
+10 field calls, **$33.63**, 8 submissions the deterministic tiers score identically (all
 1.000, 0 of 380 criteria differing within a cell). Two presentation orders per aspect,
-sequential sampling capped at `--max-runs 2`.
+sequential sampling capped at `--max-runs 2`. Summed from the ten stored rounds in
+`runs/wg-tetris-judge-2026-08-17/pre/` by `judge/judge_ledger.py`. This read *13 calls,
+$46.79* until 2026-08-23: that figure is the whole day, and three of its calls, $13.16, are
+`g1_pong` — a different game and a different field (FINDINGS #119).
 
 ### Gates, in order
 
@@ -608,10 +611,14 @@ across the 12 filmed frames** — and those frames are sampled from the same 6-t
 run that made `fun` unusable (#52), in which only 2-3 pieces lock. Whether the score visibly
 moves is close to a coin flip on the harness, not a property of the game.
 
-## RESULT after the repairs — 2026-08-17, 10 more calls, $21.05
+## RESULT after the repairs — 2026-08-17, 10 more calls, $31.66
 
 Re-run on repaired evidence, both orders, all five aspects. Artifacts:
-`runs/wg-tetris-judge-2026-08-17/{pre,post}/`. The **separates stacks** column is
+`runs/wg-tetris-judge-2026-08-17/{pre,post}/`. The heading read *$21.05* until 2026-08-23,
+which is the `charged_to_ceiling_usd` counter in `post/SEQUENTIAL.json` and not a cost: the
+sweep was resumed, so its first four rounds — $10.61 of `architecture` and `audio` — were
+correctly charged $0.00 to that invocation's ceiling and wrongly absent from the published
+figure. FINDINGS #119. The **separates stacks** column is
 `value=score` `order=perround` on the `post` field — `judge/field_ranks.py --per-aspect`
 reproduces all ten of its numbers.
 
