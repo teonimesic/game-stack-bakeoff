@@ -475,14 +475,21 @@ Two refinements that pattern does not cover:
       `agent.final_text` is the **last 3000 characters** and 43 of the 90 stored messages are
       longer. One run's disclosure sits at character 0 of 3912.
     - It is a **locator, not a classifier**: it prints the agent's sentences, and `quiet`
-      means no cue matched, not that the trial disclosed nothing. It finds 26 of 75 against a
-      hand-classified 31 (`eval/RUNS.md`).
+      means no cue matched, not that the trial disclosed nothing.
+    - **It answers two questions and keeps two counts.** *What the agent could not verify
+      about its own work*: 25 of 75 located against a hand-classified 31 (`eval/RUNS.md`).
+      *What arrived broken in the starter it was given*: 15 of 75 against a hand-classified
+      18 (`eval/tools/disclosure.py`'s docstring). **Never pool them** — they have different
+      denominators, and pooling them put one starter-only row inside the first figure, so
+      three documents said 26 where the comparable number is 25 (`tasks/94`).
     - **`no message` is a third value.** 15 of 90 stored messages are `null` or hold the API's
       own limit string; anything testing for non-empty scores an error as a closing report.
 
     Its first pass over the stored corpus found four Rust agents in three runs reporting the
     same broken starter recipe, which nothing had noticed in ten days of evidence
-    (`tasks/81`).
+    (`tasks/81`). **It was 12 across five runs**, and the gap was the cue set, not the
+    corpus: 8 of the 12 phrase the defect as the repair rather than as the complaint, and
+    the cue could only match the complaint (`tasks/94`).
 
 12. **Every rule here says HOW to check. None says WHERE.** A correct method pointed at the
     wrong place produces a confident answer: `runstat.py` obeyed `-mmin, never -newermt`
