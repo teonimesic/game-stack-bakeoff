@@ -4335,3 +4335,66 @@ this warning from a pipe — and recorded because it is exactly the variant thes
 **Nothing in the repository could have found them.** Every gate here reads numbers, ranges,
 identifiers and paths; a wrong *duration* written in words is invisible to all of them, which is
 the same blind spot that let a findings count spelled in words stand for eleven days.
+
+---
+
+## 148. A reversal condition can name an aggregate the protected party never observes, so satisfying it makes the protected property worse while looking exactly like progress
+
+A leak was declined and a **reversal condition** written for it: reopen the decision if a rewrite
+can be built whose redaction count is *comparable across the four arms*. The declined candidate
+was stack-correlated by construction — **godot 0, rust 43, ts 265, unity 228** — and an infinite
+ratio with one arm at zero is a redaction pattern that names an arm by how little it redacts.
+
+**That condition is satisfiable, and satisfying it makes the leak worse.**
+
+| candidate | godot | rust | ts | unity | per-arm ratio | arm at zero | **isolates a whole arm** |
+|---|---|---|---|---|---|---|---|
+| the declined one | 0 | 43 | 265 | 228 | ∞ | 8 of 9 | **6 of 9 fields** |
+| every starter directory | 271 | 102 | 830 | 273 | 8.9× | 0 of 9 | **9 of 9** |
+| vocabulary-free, every path component | 831 | 927 | 1701 | 668 | 2.8× | 0 of 9 | **9 of 9** |
+| the same, minus the bucket labels | 428 | 690 | 1021 | 668 | **2.1×** | **0 of 9** | **9 of 9** |
+
+The last row **passes the reversal condition outright** — no arm at zero, the tightest ratio
+available — and it is worse on every axis that matters. Per-field arm isolation goes from 6 of 9
+to **9 of 9** against a 7.1% chance baseline, at **2,807 redactions against 536**: 5.6:1
+collateral overall, 35:1 in Rust, and in Godot it removes 428 tokens carrying no arm signal at
+all.
+
+### Why the condition was the wrong quantity
+
+**Per-arm density is an aggregate over the corpus. A judge is shown one field of eight packs.** It
+never observes the corpus-wide figure and cannot be influenced by it. What it can see is how
+redacted each of the eight packs in front of it looks — which is a *per-field* quantity, and the
+condition never mentioned it.
+
+> **A reversal condition must name a quantity the protected party actually observes.** Otherwise
+> it can be driven to a better value by a change that degrades the thing it was written to
+> protect — and the improvement is real, measurable and in the direction the condition asked for,
+> which is what makes it hard to catch.
+
+This is rule 16 one level up. Rule 16 says an inert parameter is a question about the *quantity*
+it multiplies, not about the parameter. This says a **live** parameter can be the wrong quantity:
+moving it produces a genuine, verifiable improvement in the stated metric while the protected
+property gets worse. **A sweep would have shown the parameter acting.** Only asking *what does the
+judge see* shows it acting on the wrong thing.
+
+### The ticket's own table reproduced only under an unstated exclusion
+
+The published code-half figure of **536** requires `bin` to be excluded, and nothing said so. The
+shipped segment list has 19 entries including `bin`; swept with all 19 it reads
+**9/50/265/238 = 562**. The whole 26-hit gap is `bin`, and **19 of those 26 are `#!/usr/bin/env`
+shebangs** — which are not paths into a starter tree at all. The sibling detector keeps `bin`
+correctly, because there every row *is* a path. **The same segment means different things in two
+populations**, and a figure quoted without its exclusion list is not reproducible.
+
+### Rule 9 fired on the census itself
+
+Two stored fields produced byte-identical per-arm counts. They share **176 of 199 pack file
+blobs** under different labels, so no digest over pack names catches it — a repeated identical
+measurement across nominally independent subjects, reporting the instrument. The census now
+collapses fields on **shared content**, never on a run name.
+
+And a first attempt at the isolation metric was wrong in the flattering direction: sorting each
+field and counting contiguous arm blocks reported *"godot is the lowest pair in 10 of 10 fields"*.
+Three fields have four packs at zero, so that was `sorted`'s tie-breaking presented as a signal.
+**Ties must never count** in a metric about separation.
