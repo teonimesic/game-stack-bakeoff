@@ -21,6 +21,7 @@ python3 tools/docstat.py              # size and token cost of every project doc
 python3 tools/docstat.py --outline FILE   # fence-aware heading map
 python3 tools/docstat.py --renumbered # citations of a finding number that has moved
 python3 tools/docstat.py --withdrawn  # live docs restating a figure declared retired
+python3 tools/docstat.py --citations  # a census, never a gate: hashed numbers naming no finding
 python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them go red
 python3 tools/linkcheck.py            # every relative link in the live docs: path AND fragment
 python3 tools/linkcheck.py --selftest # its controls, three link shapes, both directions
@@ -58,6 +59,17 @@ corpora on first run, plus two more that landed while it was being written (#118
 
 Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
 the citation is what is wrong.
+
+**`--citations` asks the question none of the four gates asks — does a cited number name any
+finding at all? — and it is a CENSUS that exits 0, not a gate.** Every gate above is about a
+number that exists; a fabricated `(#999)` planted in a live document reads exit 0 from all of
+them (#146). The obvious widening was measured before it was built and it is not built: `#`
+before a number is a rule number, a task id, a table row, a GitHub issue and *"the #1 risk"* as
+well as a finding citation, so the trigger fires on correct prose. Run this when you are
+auditing citations and want the candidates in front of you; **read the rows, do not count
+them** — the count is dominated by correct English. It prints its population, the range it
+compared against and the producer of that range, because the first version of the figure it
+replaces was published with none of the three and did not reproduce the same day.
 
 **The undecidable half is a standing list, so read only what it prints as `UNTRIAGED`.** The
 verdicts already reached are in `eval/renumber_triage.json`, keyed by the citing text — task 102
