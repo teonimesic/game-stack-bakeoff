@@ -28,6 +28,7 @@ import argparse
 import ast
 import os
 import re
+import string
 import sys
 
 #: The unit. Short enough for a table header, and it is not a currency.
@@ -109,11 +110,15 @@ _CONV = r"[fgdeisu]"
 _RENDERERS = frozenset({"fmt", "tag", "total"})
 _PCT = re.compile(rf"%(?:\([^)]*\))?[-+ #0-9.*]*{_CONV}", re.I)
 
-#: The NAME inside a `%(name)s` mapping key, and inside a `{name:spec}` replacement field.
-#: Only the name is read out of a format literal - never the literal as a whole, which
-#: would fire on any string that merely mentions one of these fields in prose.
+#: `%%` is an escaped percent sign and introduces nothing. It comes out of a literal before
+#: anything looks for a conversion or a mapping key, or the template `"%%(cost_usd)s"` -
+#: which renders that text and nothing else - reads as a reference to the field it prints.
+_ESCAPED_PCT = re.compile(r"%%")
+
+#: The NAME inside a `%(name)s` mapping key. Read out of a format literal AFTER the escaped
+#: percents are gone; never the literal as a whole, which would fire on any string that
+#: merely mentions one of these fields in prose.
 _MAP_KEY = re.compile(r"%\(([^)]+)\)")
-_FIELD = re.compile(r"\{([^{}:!]*)")
 
 
 #: A `$` immediately in front of an interpolation or a digit, inside an f-string. This is
@@ -190,6 +195,31 @@ def _producer_problems() -> list[str]:
 #: the variant direction: not "can the check fail?" but "can it still pass on input it
 #: mishandles?" Python has exactly these three ways to interpolate into a string, so this is
 #: a closed class rather than a list of the shapes anyone happened to write.
+def _field_names(literal: str) -> list[str]:
+    """Replacement field names in a `str.format` template.
+
+    `string.Formatter` is the parser `str.format` itself uses, so `{{cost_usd}}` comes back
+    as literal TEXT rather than as a field - which is what it is. A regex over braces cannot
+    make that distinction, and reported `"{{cost_usd}}".format()` as a producer.
+    """
+    try:
+        return [f for _, f, _, _ in string.Formatter().parse(literal) if f]
+    except ValueError:
+        return []           # an unparseable template renders nothing
+
+
+def _references(nodes: list) -> str:
+    """The unparsed expressions among `nodes`, WITHOUT literal constants.
+
+    A CONSTANT IS DATA, NOT A REFERENCE. `"{value}".format(value="cost_usd")` renders the
+    string `cost_usd`; it does not render a token valuation, and unparsing the keyword value
+    made it look like one. That is the false-positive direction, and a gate that fires on
+    correct input is a gate that gets disabled.
+    """
+    return " ".join(ast.unparse(nd) for nd in nodes
+                    if not isinstance(nd, ast.Constant))
+
+
 def formats_a_value(text: str) -> bool:
     """Does this source render one of these figures into a string?
 
@@ -200,10 +230,16 @@ def formats_a_value(text: str) -> bool:
     apostrophe ended it first. Every one of those is a module that never reaches
     `PRODUCERS`, is never read by `_producer_problems`, and leaves `--selftest` green.
 
-    Quoting and prefixes are exactly what a parser already knows, so it answers the
-    question instead of approximating it: an f-string is a `JoinedStr`, `"..." % x` is a
-    `BinOp` under `Mod`, and `"...".format(x)` is a `Call` on an attribute. The value name
-    is looked for in the *unparsed interpolated expression*, never in the literal text.
+    Then the repairs began missing in the OTHER direction, which is worse: `{{cost_usd}}` is
+    an escaped brace, `%%(cost_usd)s` is an escaped percent, and `.format(value="cost_usd")`
+    renders a string that happens to spell the field. All three are templates that render no
+    valuation at all, and requiring their modules in `PRODUCERS` would turn the gate red on
+    correct input.
+
+    So each construct is read by the parser that owns it: `ast` for the expressions, and
+    `string.Formatter` - the one `str.format` itself uses - for a `.format` template. The
+    value name is looked for in interpolated EXPRESSIONS and in real FIELD NAMES, never in
+    literal text and never in a constant.
 
     Raises `SyntaxError` on source that does not parse. A file this cannot read is a file
     nothing has cleared, and the caller reports it rather than skipping it.
@@ -223,29 +259,29 @@ def formats_a_value(text: str) -> bool:
                 return True
         expr = None
         if isinstance(node, ast.JoinedStr):
-            expr = " ".join(ast.unparse(v.value) for v in node.values
-                            if isinstance(v, ast.FormattedValue))
+            expr = _references([v.value for v in node.values
+                                if isinstance(v, ast.FormattedValue)])
         elif (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)
                 and isinstance(node.left, ast.Constant)
-                and isinstance(node.left.value, str)
-                and _PCT.search(node.left.value)):
+                and isinstance(node.left.value, str)):
             # THE NAME IS NOT ALWAYS IN THE OPERAND. `"%(cost_usd).2f" % row` puts it in
-            # the FORMAT STRING and unparses to `row`, and `"{c:.2f}".format(c=cost_usd)`
-            # puts it in a keyword. Both are ordinary Python and both were invisible - the
-            # same silent-miss class as the prefixes and the quoting, one level in.
-            expr = ast.unparse(node.right) + " " + " ".join(
-                _MAP_KEY.findall(node.left.value))
+            # the FORMAT STRING and unparses to `row`. Escaped percents come out first.
+            literal = _ESCAPED_PCT.sub("", node.left.value)
+            if not _PCT.search(literal):
+                continue
+            expr = _references([node.right]) + " " + " ".join(_MAP_KEY.findall(literal))
         elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and node.func.attr == "format"):
-            parts = [ast.unparse(a) for a in node.args]
-            parts += [ast.unparse(k.value) for k in node.keywords]
-            parts += [k.arg for k in node.keywords if k.arg]
+            # `"{c:.2f}".format(c=cost_usd)` puts it in a KEYWORD and
+            # `"{cost_usd:.2f}".format(**row)` in the replacement FIELD. Both are ordinary
+            # Python and both were invisible; the field names come from
+            # `string.Formatter`, so `{{cost_usd}}` stays the literal text it is.
+            parts = [_references(node.args),
+                     _references([k.value for k in node.keywords]),
+                     " ".join(k.arg for k in node.keywords if k.arg)]
             if (isinstance(node.func.value, ast.Constant)
                     and isinstance(node.func.value.value, str)):
-                # `"{cost_usd:.2f}".format(**row)` names it in the replacement field. Only
-                # the FIELD NAME is read, never the surrounding prose: a literal scanned
-                # whole would fire on any string that happens to mention `cost_usd`.
-                parts += _FIELD.findall(node.func.value.value)
+                parts += _field_names(node.func.value.value)
             expr = " ".join(parts)
         if expr and _VALUE.search(expr):
             return True
@@ -414,6 +450,18 @@ def selftest() -> int:
           not formats_a_value('print("the key is cost_usd, not {x}".format(x=1))'))
     check("a percent literal that merely mentions the name is not a mapping key",
           not formats_a_value('print("cost_usd is absent: %d" % n)'))
+    # THE FALSE-POSITIVE DIRECTION, and it is the one that gets a gate disabled. None of
+    # these renders a valuation: a constant is data, `{{` is an escaped brace, `%%` is an
+    # escaped percent. Requiring their modules in PRODUCERS would turn the sweep red on
+    # correct input.
+    for src, what in (
+            ('print("{value}".format(value="cost_usd"))', "a CONSTANT that spells the field"),
+            ('print("{{cost_usd}}".format())', "an escaped brace, not a field"),
+            ('print("%%(cost_usd)s" % ())', "an escaped percent, not a mapping key"),
+            ("""print(f"{'cost_usd'}")""", "a constant inside an f-string"),
+            ('print("{a}".format(a=1) + " cost_usd")', "a field named elsewhere in prose"),
+    ):
+        check(f"not discovered: {what}", not formats_a_value(src))
     # And the sigil check has to see the percent form too, or the variant above finds the
     # module and the row that matters still passes it.
     # --- the sigil check, ON THE PATH `_producer_problems` USES -------------
