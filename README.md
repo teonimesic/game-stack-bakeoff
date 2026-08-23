@@ -120,7 +120,7 @@ reorder it whenever the play-bot was improved, so it was measuring the bot ([#13
 | **make the play-bot tier harder** | both in-rubric repairs were tried and measured. Promoting a withheld criterion moves every score in a group by the same amount; four harder criteria passed 8 of 8 | **closed.** It is not a shortage of criteria ([#128]) |
 | **a harder game, or a fifth one** | one clean eight-cell field. The price is in [DECISIONS.md](DECISIONS.md#a-harder-task-is-priced-here-and-gated-behind-a-free-pre-test--decided-2026-08-23) | **priced, not bought.** A free offline pre-test ran first and came out *against* buying it ([#139]) |
 | **the LLM judge** | roughly **96 rounds per aspect** for a statistical tie ([`eval/judge/JUDGING.md`](eval/judge/JUDGING.md) prices it), and every stored round would have to be re-run, because none was blind | **not started** |
-| **cost** | it was closed on one group's ratio, and the other 6 groups like it disagree — the between-stack range exceeds the within-cell floor in 5 of 7. Re-deciding it needs no new trial, only an adjudication of what the stored groups say | **re-opened**, offline, by `python3 eval/tools/cost_census.py` ([#63]) |
+| **cost** | it was closed on one group's ratio, and that group turns out to be the lowest of the 7 like it — across the 7 the between-stack range exceeds the within-cell floor in 5. Re-deciding it needs no new trial, only an adjudication of what the stored groups say | **re-opened**, offline, by `python3 eval/tools/cost_census.py` ([#63]) |
 
 **What is being done about it: nothing is currently running against the stack question, and no
 trial is scheduled.** `python3 eval/tools/tasks.py list` holds no item that would buy a new stack
