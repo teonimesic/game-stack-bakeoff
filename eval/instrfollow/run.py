@@ -941,6 +941,35 @@ def cmd_analyse(a) -> int:
     return 0
 
 
+def gates() -> int:
+    """Every control this experiment owns, in one command, exit-1 on any failure.
+
+    Four separate selftests is four things to remember, and a control you have to
+    remember to run is one that will not be run. Each is offline and spends nothing:
+
+      census    the instruction counter goes up, comes back to zero, and declares its
+                own known miss
+      pool      gold 16/16, sixteen mutants each flipping exactly one checker, a variant
+                16/16, and an unparseable artifact 0/16
+      padcheck  the length-control padding carries tokens and no instructions
+      statcheck the hand-rolled statistics against closed-form values
+    """
+    rc = 0
+    for name, fn in (("census", lambda: census.selftest()),
+                     ("pool", lambda: poolmod.selftest()),
+                     ("padcheck", padcheck),
+                     ("statcheck", statcheck)):
+        print("=" * 70)
+        print(f"GATE: {name}")
+        print("=" * 70)
+        r = fn()
+        rc |= r
+        print()
+    print("=" * 70)
+    print("ALL GATES:", "clean" if rc == 0 else "FAILED")
+    return 1 if rc else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -960,6 +989,9 @@ def main() -> int:
     p.add_argument("--limit", type=int)
     p.add_argument("--force", action="store_true")
     p.set_defaults(fn=cmd_build)
+
+    p = sub.add_parser("gates", help="every control this experiment owns, one command")
+    p.set_defaults(fn=lambda a: gates())
 
     p = sub.add_parser("statcheck", help="pin the hand-rolled statistics")
     p.set_defaults(fn=lambda a: statcheck())

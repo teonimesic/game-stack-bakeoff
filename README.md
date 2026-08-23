@@ -155,6 +155,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/starters/<stack>/` | **What a whole-game trial actually copies**, one per stack. `wholegame.py` reads only this directory. Game-agnostic: a placeholder, the harness, the boundary and the `verify` gate. This is the product that every run since 2026-08-12 has measured. |
 | ~~`template*/`~~ | **Deleted 2026-08-23.** The four original trees — a finished Pong per stack — were a fork of the starters with one dormant consumer, and nothing pulled them back into line: 0 of 105 commits touched them while 6 touched `eval/starters/` (#112). Recoverable from git; see `DECISIONS.md`. Their suite's stored results, prompts and answer key all stay — `eval/suites/`, `eval/holdout*/`, `eval/runs/bakeoff-*` (#119). |
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
+| `eval/instrfollow/` | **The instruction-count experiment** — does compliance with this project's own rules fall as more of them are active at once? `DESIGN.md` is pre-registered and written before any trial ran; `RESULT.md` is what came back. The subject is a fresh agent on a fixed task outside this repository, not a trial in the matrix. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
 | `eval/FINDINGS.md` | Findings #19-#124, including retractions. **Read this before trusting any number anywhere.** |

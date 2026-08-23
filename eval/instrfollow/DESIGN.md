@@ -55,7 +55,7 @@ source rather than from the scan that proposed them:
   `eval/judge/aspects.py:281` defines **six** (`IDIOMATIC, ARCHITECTURE, FUN, FUN_FRAMES, AUDIO,
   UX`). This is failure #38 — a doc naming judges that do not exist — running in reverse.
 
-Both are filed separately; they are recorded here because they bear on the design. **The
+Filed as **tasks 77 and 79**; they are recorded here because they bear on the design. **The
 experiment must not be run on a conflicting pool**, or it measures 2510.14842's mechanism while
 claiming to measure 2509.21051's.
 
@@ -224,6 +224,23 @@ single pattern behind most findings in this repository.
   max against it and says so. Per rule 8's qualifier, a ceiling is raised rather than held.
 - **No budget cap is passed.** A budget flag is visible to the callee and is therefore an
   instruction (#33) — and this experiment counts instructions.
+
+### Arm is confounded with time, and what limits it
+
+Trials run **sequentially, arm by arm**, so the order in which arms were measured is also
+the order in which they were run: every `k1` trial precedes every `k16` trial. Rule 10 says
+to partition by anything about the world that changed while a run was in flight, and here a
+drift in the API's behaviour over the run would be indistinguishable from a count effect.
+
+**`k1pad` bounds it, and does so without any extra spend.** It carries the same *k*=1 as the
+first arm and runs **last**, after `k16`. So if `k1` and `k1pad` agree, nothing that varies
+with wall-clock moved compliance across the run — the arm built to control for prompt length
+turns out to control for elapsed time as well, because it is the only arm that repeats an
+earlier arm's *k* at the far end of the schedule.
+
+This is worth stating as a limit rather than a feature: it bounds drift, it does not
+eliminate it, and a within-arm interleaved schedule would be strictly better if this is ever
+re-run.
 
 ### Isolation
 
