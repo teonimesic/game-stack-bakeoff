@@ -4502,3 +4502,54 @@ think of as a decision. Now reads the table rather than the summary.
 > A mutant runner that cannot see a red row reports `SURVIVED`, which is the one word that means
 > *your check has a hole*. **The failure mode of a mutation harness is to accuse the thing it was
 > built to defend.**
+
+---
+
+## 151. A status the queue could hold was counted by nothing, so a ticket entering review would have read as work disappearing
+
+The queue's status vocabulary grew from three values to five — `todo`, `in_progress`,
+`in_review`, `in_testing`, `done` — so the orchestrator can tell whose turn a ticket is.
+
+`heartbeat.py` is the hourly monitor that asks *is new work happening?* by diffing counts against
+the previous hour. It counted statuses from a **hardcoded dictionary of the three old names**.
+
+Measured before the repair, over a scratch queue holding one file in each of the five states:
+**it counted 3 of 5.** The other two were dropped silently — no error, no unknown bucket, no
+warning.
+
+> A ticket moving from `in_progress` to `in_review` would have decremented one counter and
+> incremented nothing. **The hour would have read as work disappearing** — and the monitor's own
+> documentation says "nothing moved" is a claim about the snapshot rather than about the world,
+> a warning written after three separate occasions when the counters sat still through real work.
+> This would have been the fourth, and the first where the snapshot was wrong by construction.
+
+The failure needed no bug. **A vocabulary was extended at one address and read at another**, which
+is `AGENTS.md` rule 12 with the two addresses in different files — and unlike a path, a status
+vocabulary gives no error when the reader's copy is short. It simply reports a smaller world.
+
+The repair is not a longer dictionary. The heartbeat's map is now **asserted equal to
+`tasks.STATUSES` on every run**, and an unrecognised value lands in an explicit `tasks_unknown`
+counter rather than nowhere. The counter reads 0 today; **it exists so that the next extension
+shows up as a number instead of as an absence.**
+
+### Two of the previous ticket's recorded facts did not survive re-measurement
+
+Both were recorded in good faith one task earlier, and both changed the design that depended on
+them:
+
+- **A per-hour review-quota counter, recorded as reading 9, then 8, then 6, is no longer anywhere
+  in the stored pull request.** The reviewer edits its summary comment in place, so the earlier
+  readings are gone rather than superseded. Anything built to read that number would have been
+  reading a value with no durable existence. The procedure now bounds review *rounds* itself.
+- **The auto-pause notice lives in the pull request's ISSUE comments, not its reviews.** A poll
+  reading only the reviews endpoint cannot see the notice that is stopping it — the deadlock and
+  the blindness to the deadlock are the same fact.
+
+> **A measurement taken from a mutable surface is not a measurement; it is a reading of the
+> surface at a moment.** Where a number is going to be depended on, record where it came from and
+> whether that place keeps history — because "I saw it" and "it is there" are different claims
+> about anything a third party can edit.
+
+And the timing bound was set from **three** points across two pull requests rather than one, which
+moved it: reviews scale with the diff, so a bound sized on the smallest observed diff would have
+been 6× too tight rather than the 2.4× margin it now carries.

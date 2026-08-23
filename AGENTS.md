@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#150, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#151, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -82,8 +82,8 @@ so `docstat.py --sweep` asserts the symlink exists and resolves, rather than onl
 | `audit-docs` | after a session, or when a rule failed to prevent what it was written for | this file |
 | `tasks` | reading, claiming, closing or writing an item in the open-work queue | `tasks/` |
 | `prune` | a cleanup exploration pass — text or code that no longer earns its space | `CLEANUP-LOG.md`, this file |
-| `dispatch` | sending a queued task to an agent, and verifying and merging what comes back | `tasks/<id>`, `.agents/skills/work/SKILL.md` |
-| `work` | **you were dispatched to do one task.** Read the ticket, do it, hand back a branch | the ticket at `tasks/<id>-*.md` |
+| `dispatch` | sending a queued task to an agent, and verifying and merging the pull request that comes back | `tasks/<id>`, `.agents/skills/work/SKILL.md` |
+| `work` | **you were dispatched to do one task.** Read the ticket, do it, open a pull request, address the review, hand it back | the ticket at `tasks/<id>-*.md` |
 | `update-readme` | editing `README.md` — the result moved, a count went stale, a reference is bare, a reader could not follow it | `README.md`, this file |
 
 The usual order across one cycle is **`run-matrix` → `evaluate-run` → `refine`**, with

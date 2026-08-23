@@ -35,6 +35,10 @@ not a mechanism:
 
 THE DIRECTIONS
 --------------
+There are seven. The heading counted five while `coverage_rows` had already made it six --
+a census with no producer, in the file whose job is to have one. It is not a cardinal any
+more: `python3 eval/tools/tasks_control.py` prints the row for every direction it ran.
+
 1. ROUND TRIP, byte for byte, over every file in the live shared queue. Not "the values
    survive" -- the BYTES. The value round-trip was green while `_render` was rewriting
    `id: 01` as `id: 1`, because the value was never wrong (see `_id_text`). An
@@ -81,6 +85,16 @@ THE DIRECTIONS
    brief, 0.14) must not -- so raising the threshold and lowering it are each visible.
    A mutant can only show the check CAN fail; the 0.14 row and the ten-task-ids row are
    what ask whether it can still PASS (AGENTS.md rule 15).
+
+6. #141's COVERAGE FIGURE, run rather than quoted -- how little of a task file the pre-fix
+   lint ever read. It is here because the figure was published wrong in both terms and had
+   no producer, so nothing in the repository could disagree with it.
+
+7. THE 5-VALUE STATUS VOCABULARY. `check` only ever asked whether a WRONG status fails; this
+   asks whether each transition WRITES the state it names, and whether `heartbeat.py` -- the
+   one other file that counts statuses -- covers exactly `STATUSES`. Its map was a hardcoded
+   3 keys that dropped the rest silently: over a queue with 1 file in each of the 5 states it
+   counted 3.
 
 THE CONTROLS DO NOT TOUCH THE SHARED QUEUE. `TASKS` is derived at import from
 `git worktree list`, and monkeypatching a module constant that has already been derived is
@@ -247,13 +261,15 @@ WORDINGS: list[tuple[str, bool, str]] = [
      "research/11-doc-linting-for-agents.md exists and names the tool it adopted"),
 ]
 
-_FM = "---\nid: {tid}\ntitle: {title}\nstatus: {status}\npriority: 3\nrefs: ''\n{dw}---\n{body}"
+_FM = ("---\nid: {tid}\ntitle: {title}\nstatus: {status}\npriority: 3\nrefs: ''\n"
+       "{extra}{dw}---\n{body}")
 
 
-def _task_file(tid: str, title: str = "a title", status: str = "open",
-               done_when: str | None = "something observable", body: str = "\nbody\n") -> str:
+def _task_file(tid: str, title: str = "a title", status: str = "todo",
+               done_when: str | None = "something observable", body: str = "\nbody\n",
+               extra: str = "") -> str:
     dw = "" if done_when is None else f"done_when: {done_when}\n"
-    return _FM.format(tid=tid, title=title, status=status, dw=dw, body=body)
+    return _FM.format(tid=tid, title=title, status=status, dw=dw, body=body, extra=extra)
 
 
 def _scratch_pair(tmp: Path) -> tuple[Path, Path]:
@@ -611,6 +627,35 @@ CHECK_CASES: list[tuple[str, dict[str, str], bool, str]] = [
      {"70-a.md": _task_file("70", done_when=None)}, True, "no `done_when`"),
     ("bad status",
      {"70-a.md": _task_file("70", status="wip")}, True, "not in"),
+    # THE FIVE-VALUE VOCABULARY, BOTH DIRECTIONS. The rows above only ever asked whether a
+    # WRONG status fails; nothing asked whether a RIGHT one passes, so dropping a value from
+    # STATUSES would have left every row green. `in_review` carries its `pr` because `check`
+    # requires one -- the row below is what pins that requirement.
+    ("every one of the 5 statuses (the vocabulary can still go green)",
+     {"70-a.md": _task_file("70", status="todo"),
+      "71-b.md": _task_file("71", status="in_progress"),
+      "72-c.md": _task_file("72", status="in_review",
+                            extra="pr: https://github.com/o/r/pull/1\n"),
+      "73-d.md": _task_file("73", status="in_testing",
+                            extra="pr: https://github.com/o/r/pull/2\n"),
+      "74-e.md": _task_file("74", status="done")}, False, "well-formed"),
+    # The legacy names an agent forked before 2026-08-23 still writes into the SHARED queue.
+    # If this ever goes red, every peer's `check` is red on a file none of them touched.
+    ("legacy `open` and `in_flight` still lint clean (a stale worktree writes them)",
+     {"70-a.md": _task_file("70", status="open"),
+      "71-b.md": _task_file("71", status="in_flight")}, False, "well-formed"),
+    ("`in_review` with no `pr` (the state stops being a locator)",
+     {"70-a.md": _task_file("70", status="in_review")}, True, "no `pr`"),
+    # The state the orchestrator MERGES FROM, which is the one that matters more. Its own row,
+    # not a parametrisation of the one above, so narrowing PR_REQUIRED back to `in_review`
+    # alone -- the shipped-but-half-gated shape, not a deleted branch -- goes red.
+    ("`in_testing` with no `pr` (the orchestrator is told to merge nothing)",
+     {"70-a.md": _task_file("70", status="in_testing")}, True, "no `pr`"),
+    ("both PR states WITH a `pr` still lint clean (the requirement can be satisfied)",
+     {"70-a.md": _task_file("70", status="in_review",
+                            extra="pr: https://github.com/o/r/pull/1\n"),
+      "71-b.md": _task_file("71", status="in_testing",
+                            extra="pr: https://github.com/o/r/pull/2\n")}, False, "well-formed"),
     # Direction 5's degenerate half, exercised synthetically as well as on the real blob,
     # because it must hold for a task nobody ever wrote a body for -- not only for the one
     # 436bf64 produced. `_task_file`'s brief is four words, below MISFILED_MIN_BRIEF, so the
@@ -952,6 +997,77 @@ def coverage_rows() -> tuple[list[tuple], list[str]]:
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 7
+def status_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """The 5-value status vocabulary: its transitions, and the one other file that counts it.
+
+    `check_rows` asks whether `check` accepts and rejects the right values. This asks the two
+    questions `check` structurally cannot:
+
+    * do `start`, `review`, `testing` and `done` actually WRITE the state they name? A
+      subcommand wired to the wrong constant produces a queue that lints clean and reports the
+      wrong thing -- the shape this project calls a mechanism that runs and measures nothing.
+    * does `heartbeat.py` count all 5? Its map is a SECOND address for the vocabulary, and
+      rule 12 says two addresses are asserted equal in code. Before this, `_tasks` held a
+      hardcoded 3-key dict and dropped the rest: over a queue with 1 file in each of 5 states
+      it counted 3, so a ticket in review vanished from every counter.
+    """
+    rows, unchecked = [], []
+    main, _ = _scratch_pair(tmp / "status")
+    shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+    tool = main / "eval/tools/tasks.py"
+    (main / "tasks" / "70-a.md").write_text(_task_file("70"))
+
+    # Each transition, run through the real command line, then read back off disk. `review`
+    # and `testing` take an argument, so the row also proves the argument reaches the file.
+    for cmd, argv, want in (("start", (), "in_progress"),
+                            ("review", ("https://github.com/o/r/pull/9",), "in_review"),
+                            ("testing", ("a measurement, not the word completed",), "in_testing"),
+                            ("done", ("a measurement, not the word completed",), "done")):
+        rc, out = _run_tool(tool, cmd, "70", *argv)
+        text = (main / "tasks" / "70-a.md").read_text()
+        got = re.search(r"^status:\s*(\S+)", text, re.M)
+        rows.append((f"`{cmd}` writes status {want}", rc,
+                     rc == 0 and got is not None and got.group(1) == want,
+                     f"exit {rc}, file says {got.group(1) if got else '(none)'}; "
+                     f"{out.splitlines()[-1][:70] if out else ''}"))
+    rows.append(("`review` recorded the pull request in the ticket (the ticket -> PR link)", 0,
+                 "https://github.com/o/r/pull/9" in
+                 (main / "tasks" / "70-a.md").read_text(),
+                 "pr: present" if "pull/9" in (main / "tasks" / "70-a.md").read_text()
+                 else "PR URL NOT IN THE FILE"))
+
+    # The second address. Loaded by path, never by name, for `_load_subject`'s reason.
+    try:
+        HB = _load_module("heartbeat_for_status", TOOLS / "heartbeat.py")
+    except Exception as exc:                                    # noqa: BLE001
+        return rows, [f"heartbeat's status map NOT CHECKED - eval/tools/heartbeat.py did not "
+                      f"load ({type(exc).__name__}). A status counted by nothing is invisible "
+                      f"in exactly the way this row exists to prevent."]
+    rows.append(("heartbeat's TASK_METRIC covers EXACTLY tasks.py's STATUSES (rule 12)",
+                 len(HB.TASK_METRIC), tuple(HB.TASK_METRIC) == T.STATUSES,
+                 f"{tuple(HB.TASK_METRIC)} vs {T.STATUSES}"))
+    # And the count itself, on a queue whose true answer is stated in advance: 1 file per
+    # status plus 1 legacy alias per legacy name. Proving the extraction on a known case is
+    # what rule 12's corollary asks for -- the old code returned 3 here and looked fine.
+    hb_root = tmp / "hbqueue"
+    (hb_root / "tasks").mkdir(parents=True)
+    for i, st in enumerate(list(T.STATUSES) + list(T.LEGACY_STATUSES)):
+        (hb_root / "tasks" / f"{i}-x.md").write_text(f"---\nid: 0{i}\nstatus: {st}\n---\nb\n")
+    n_files = len(T.STATUSES) + len(T.LEGACY_STATUSES)
+    HB.ROOT = hb_root
+    counted = HB._tasks()
+    rows.append((f"heartbeat counts every file in a queue holding all {n_files} spellings",
+                 sum(counted.values()), sum(counted.values()) == n_files,
+                 f"{sum(counted.values())} of {n_files}: {counted}"))
+    rows.append(("heartbeat maps the legacy names onto the canonical states, not onto nothing",
+                 counted.get("todo", 0), counted.get("todo") == 2
+                 and counted.get("in_progress") == 2 and counted.get("") == 0,
+                 f"todo={counted.get('todo')} in_progress={counted.get('in_progress')} "
+                 f"unknown={counted.get('')}"))
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -988,7 +1104,8 @@ def main(argv: list[str]) -> int:
                    lambda: reachability_rows(),
                    lambda: reachability_printed_rows(tmp),
                    lambda: misfiled_rows(tmp),
-                   lambda: coverage_rows()):
+                   lambda: coverage_rows(),
+                   lambda: status_rows(tmp)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)

@@ -1,7 +1,7 @@
 ---
 id: 112
 title: 'eval/RUNS.md cites #17 twice and no finding #17 exists'
-status: open
+status: todo
 priority: 3
 refs: eval/RUNS.md lines 1140 and 1153, eval/findings/limits-and-cost.md lines 345 and 368, eval/FINDINGS.md header, tasks/17
 done_when: 'eval/RUNS.md lines 1140 and 1153 either name a target that resolves - a finding in eval/findings/, a task id spelled as such, or a named regime - or drop the reference and state the open question in words. The claim beside it must be re-read against whatever it ends up naming, not just renumbered: AGENTS.md says never renumber a finding to satisfy a citation. Archive copies in eval/findings/limits-and-cost.md are NOT to be edited. docstat.py --sweep and tasks.py check exit 0 unpiped.'

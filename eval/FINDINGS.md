@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#150 from building and running this evaluator. **Check whether a
+Findings #19-#151 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -226,6 +226,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **148** | A reversal condition can name an aggregate the protected party never observes, so satisfying it makes the protected property worse while looking exactly like progress | [certifies-nothing](findings/certifies-nothing.md) |
 | **149** | A deletion did not survive its own merge, because deleting a directory deletes the .gitignore that was hiding its build output — and nothing reads a tree for a claim a document makes about it | [certifies-nothing](findings/certifies-nothing.md) |
 | **150** | A control that builds its expectation from its subject cannot fail, and rule 12 is what talks you into writing one | [certifies-nothing](findings/certifies-nothing.md) |
+| **151** | A status the queue could hold was counted by nothing, so a ticket entering review would have read as work disappearing | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

@@ -25,11 +25,35 @@ python3 eval/tools/tasks.py show 07    # one task, in full
 The format is grep-first, so no tool is required:
 
 ```bash
-grep -l "^status: open" tasks/*.md                          # which files are open
-grep -h "^title:" $(grep -l "^status: open" tasks/*.md)     # their titles
+grep -l "^status: todo" tasks/*.md                          # which files nobody has
+grep -h "^title:" $(grep -l "^status: todo" tasks/*.md)     # their titles
+grep -l "^status: in_testing" tasks/*.md                    # waiting on the orchestrator
 grep -l "^priority: 1" tasks/*.md                           # the urgent ones
 grep -rl "FINDINGS.md #66" tasks/                           # what refers to a finding
 ```
+
+### The statuses, and where they are defined
+
+**`STATUSES` in `eval/tools/tasks.py` is the definition, and it wins.** If this skill and that
+constant disagree, the constant is right and this skill is the bug — the same rule every skill
+here carries about its authoritative file. `python3 eval/tools/tasks.py check` is what enforces
+it. The table below is the procedure, not the definition:
+
+| status | which command moves a task into it |
+|---|---|
+| `todo` | `tasks.py add` |
+| `in_progress` | `tasks.py start <id>` |
+| `in_review` | `tasks.py review <id> "<pr url>"` |
+| `in_testing` | `tasks.py testing <id> "<evidence>"` |
+| `done` | `tasks.py done <id> "<evidence>"` |
+
+Why each state exists, why the legacy names are accepted forever, and what would re-open any of
+it: `DECISIONS.md`, *"An agent hands back a pull request, and the queue has 5 statuses"*. The
+procedures that drive the transitions are `.claude/skills/work/SKILL.md` (the agent's half) and
+`.claude/skills/dispatch/SKILL.md` (the orchestrator's).
+
+**Do not hand-write `status:` in a task file.** `open` and `in_flight` still parse, but the
+commands above are what keep the field and the tool in agreement.
 
 **Read one task, not the queue.** `show ID` or the file itself. Reading all of them to pick one
 is the cost this layout exists to remove.
@@ -124,12 +148,14 @@ and a cheaper model here buys nothing worth the risk of a wrong number.
 
 ```bash
 python3 eval/tools/tasks.py start 07
-python3 eval/tools/tasks.py done 07 "lint now identical warm and cold, pinned both ways; RUNS.md regime note added"
+python3 eval/tools/tasks.py review 07 "https://github.com/teonimesic/game-stack-bakeoff/pull/7"
+python3 eval/tools/tasks.py testing 07 "lint now identical warm and cold, pinned both ways; RUNS.md regime note added"
+python3 eval/tools/tasks.py done 07 "verified against the artifacts and merged as PR 7"
 ```
 
-`done` requires evidence, and the evidence must be **what established it** — a measurement, a
-pinned control, a file — never "completed". A task closed without evidence is indistinguishable
-from one abandoned.
+`testing` and `done` both require evidence, and the evidence must be **what established it** — a
+measurement, a pinned control, a file — never "completed". A task closed without evidence is
+indistinguishable from one abandoned.
 
 ### `note` — writing what you learned back into the BODY
 
@@ -225,13 +251,15 @@ count on three separate occasions.
 
 Four things, in order:
 
-1. **Verify** — is anything `in_flight` actually still in flight? Is anything `open` already
-   done? Mark it, with what established it. A stale queue is worse than none, because it is
-   believed. Do not infer an agent's state from its files: an artifact mid-write is
-   indistinguishable from one never written.
-2. **Merge** — any task branch whose agent has reported. `git branch --list 'task-*'`. Verify
-   the result against the artifacts, **not against the agent's report of them**, then merge.
-   An unmerged branch is finished work that no one else can build on.
+1. **Verify** — is anything `in_progress` actually still in flight? Is anything `todo` already
+   done? Is anything stuck in `in_review` with a PR that was reviewed an hour ago? Mark it, with
+   what established it. A stale queue is worse than none, because it is believed. Do not infer an
+   agent's state from its files: an artifact mid-write is indistinguishable from one never
+   written.
+2. **Merge** — everything in `in_testing`. `python3 eval/tools/tasks.py list --status in_testing`
+   is the list, and each ticket's `pr` field is the pull request. Verify the result against the
+   artifacts, **not against the agent's report of them and not against its review**, then merge.
+   An unmerged pull request is finished work that no one else can build on.
 3. **Pick**, if there is open work. Highest priority, not newest.
 4. **Add**, if fewer than three are open. Running out has never yet been true of this project —
    re-read `eval/FINDINGS.md` for anything filed and never acted on, and check `IMPROVEMENTS.md`

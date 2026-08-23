@@ -156,6 +156,43 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "    if not risky or _words(prose, HYPOTHETICAL):",
         "    if not risky:  # MUTANT: an escape branch no longer silences anything",
         ("end to end on a universal WITH an escape branch",)),
+    # THE STATUS VOCABULARY. Dropping a value is the shape a half-landed rename takes, and it
+    # is invisible to every row that only asks whether a WRONG status fails: `wip` is still
+    # rejected with 4 values, or with 1. Two rows must notice -- the one that puts a file in
+    # each state, and the one asserting heartbeat's map equals STATUSES.
+    "status_dropped": (
+        'STATUSES = ("todo", "in_progress", "in_review", "in_testing", "done")',
+        'STATUSES = ("todo", "in_progress", "in_testing", "done")  # MUTANT: in_review gone',
+        ("every one of the 5 statuses", "covers EXACTLY")),
+    # THE LEGACY ALIASES, and this one is a VARIANT rather than a mutant (AGENTS.md rule 15):
+    # it does not remove a mechanism a row names, it feeds the queue an input the check must
+    # still stay QUIET on. Losing it turns every peer's `check` red on a file written by an
+    # agent whose worktree forked before 2026-08-23.
+    "legacy_dropped": (
+        'LEGACY_STATUSES = {"open": "todo", "in_flight": "in_progress"}',
+        "LEGACY_STATUSES = {}  # MUTANT: a stale worktree's `in_flight` now fails the lint",
+        ("legacy `open` and `in_flight` still lint clean",
+         "maps the legacy names onto the canonical states")),
+    # A TRANSITION WIRED TO THE WRONG CONSTANT. `check` cannot see this: the queue lints clean
+    # either way and reports a state nobody chose. Only direction 7, which reads the file back
+    # after running the command, can.
+    "start_writes_todo": (
+        '        return _set(a.id, status="in_progress")',
+        '        return _set(a.id, status="todo")  # MUTANT: `start` claims nobody has it',
+        ("`start` writes status in_progress",)),
+    # The pull-request locator. Without it a ticket can reach the state the orchestrator
+    # merges from while naming nothing to merge.
+    "review_needs_no_pr": (
+        '        if t.get("status") in PR_REQUIRED and not (t.get("pr") or "").strip():',
+        "        if False:  # MUTANT: neither PR state has to name its pull request",
+        ("`in_review` with no `pr`", "`in_testing` with no `pr`")),
+    # NARROWING the requirement back to `in_review` alone. A mutant that deletes the branch is
+    # not the interesting failure here -- shipping the branch and gating only the state that
+    # REPORTS, not the state that ACTS, is, and it is what the first version of this did.
+    "pr_required_review_only": (
+        'PR_REQUIRED = ("in_review", "in_testing")',
+        'PR_REQUIRED = ("in_review",)  # MUTANT: the state merged FROM is no longer gated',
+        ("`in_testing` with no `pr`",)),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it
