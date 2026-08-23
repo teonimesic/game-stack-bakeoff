@@ -85,6 +85,7 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `lint_coverage.py --selftest` | 0 | 0.1s | CI fast |
 | `prompt_guard.py` | 0 | 0.1s | CI fast |
 | `manifest_selftest.py` | 0 | 0.3s | CI fast |
+| `cost_census.py --selftest` | 0 | 0.1s | CI fast |
 | `findings_control.py` | 0 | 0.7s | CI fast |
 | `withdrawn_control.py` | 0 | 3.8s | CI fast |
 | `triage_control.py` | 0 | 8.4s | CI fast |
@@ -115,6 +116,7 @@ on it, not a property of the tier.
 | `tools/starter_gate_control.py` | **325s measured**, and it drives `godot`, `cargo`, `pnpm`, Unity and `just`. Toolchains are out of scope for CI by decision |
 | `tools/evidence_set_control.py`, `tools/disclosure_mutants.py` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored (129G) and can never be in a checkout |
 | the CORPUS half of `judge/paired_verdicts.py --selftest` | its 5 pins need `eval/runs/`. The **synthetic** half does run in CI and is 15 checks with every answer written into the check that reads it; the tool prints `CORPUS PINS: NOT RUN` and `0 corpus pins`, which is a non-measurement, not a pass. `judge/discrimination.py --selftest` needs no corpus and runs whole |
+| `tools/census.py`, `tools/cost_census.py` **without** `--selftest` | same reason: both exit 2 on a missing tree by design, which is the honest answer and not a gate. Their `--selftest` arms build their own trees and **are** in CI fast — `cost_census` since task 123, `census` not yet (an existing gap, not a decision) |
 | `judge/audit_criteria.py` | **runs, exits 0, and measures nothing without a corpus**: it printed `0 / 0 / 0` for every line of its verdict in a tree with no `eval/runs/`. That is the shape this repository exists to catch, not a gate |
 | `docstat.py --renumbered` | never gates, by design — its second half is explicitly undecidable. The half that does gate (the triage register) runs inside `--sweep` |
 | `lint.py --gate` (the whole pinned set) | 64 findings with a standing untriaged backlog. See below |

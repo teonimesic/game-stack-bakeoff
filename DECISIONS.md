@@ -1941,6 +1941,39 @@ was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#9
 **To re-open:** GitHub changing its heading-anchor rule, or a second consumer of these documents
 that does not render Markdown links.
 
+## The cost route is re-opened, and a group is `(run, game)` — decided 2026-08-23
+
+`README.md` carried the cost result with **no producer** — the last quantity in the file with no
+way to re-derive it. Writing one (`eval/tools/cost_census.py`, task 123) reproduced every
+published figure to the cent and disagreed with the sentence around them.
+
+**What was published:** *"on the one measure taken on all four stacks at once, the between-stack
+range is 42% of its own noise floor"*. **What the producer prints:** there are **7** such measures
+in the stored tree, 42% is the **lowest** of them, they run **42% to 254%**, and the between-stack
+range **exceeds** the within-cell floor in **5 of 7**. `#63` never claimed exclusivity — it says
+*first* matrix, which was true — so this is a scope that was introduced when the finding was
+summarised, and it is the shape `AGENTS.md` warns about: **a figure quoted correctly, about a
+population nobody had counted.**
+
+**So the cost route is re-opened, and re-deciding it buys no trials.** What survives is the
+mechanism: cost tracks turns taken at **r = 0.65 to 0.97** in all 7 groups, and turns vary by up
+to **165** inside one stack's cell. What does not survive is *"the between-stack range is small
+against its floor"*, which was the half that reached the null. The producer also prints the thing
+that needs adjudicating and is not adjudicated here: **the TypeScript arm has the lowest stack
+mean in 5 of the 7 groups**, and the 7 are not independent — 3 come from one run and 2 from
+another, at n=2 per cell.
+
+**The unit of the measurement is a `(run directory, game)` group**, and that is the load-bearing
+choice. A floor is a property of a population: pooling across runs mixes budget-cap regimes
+(`eval/RUNS.md`, #33) and pooling across games mixes tasks of different sizes. A group qualifies
+only when every stack ran in it, with at least 2 trials per cell, under **one** `terminal_reason`.
+A cell holding a single trial has **no gap** and is refused rather than contributing $0.00 — that
+would deflate the floor and inflate the ratio, which is fail-open in the direction that
+manufactures a difference. `--selftest` pins that direction against 14 mutants and 3 variants.
+
+**To re-open:** an adjudication of what the 7 groups say about ordering — which is queued as an
+offline task and needs no spend — or a matrix that lands an eighth qualifying group.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1962,6 +1995,7 @@ settled question is noise that makes the live ones harder to find.
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
+| The cost route is re-opened | An adjudication of what `cost_census.py`'s **7** groups say about ordering. The producer is offline and costs nothing, so this closes on reading rather than on spending. Two facts have to be reconciled and neither is decisive alone: the between-stack range exceeds the within-cell floor in **5 of 7**, and the same groups are not independent — 3 share one run, 2 share another, at n=2 per cell. **A fifth stack, or an eighth group, re-opens it whatever the adjudication says** |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
