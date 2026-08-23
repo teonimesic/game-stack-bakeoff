@@ -418,6 +418,28 @@ Two refinements that pattern does not cover:
     check.** When a path, root or endpoint is spelled in two files, assert them equal in code —
     a comment promising they match is not a defence.
 
+    **The corollary, measured over one session on 2026-08-23: rule 12 fires far more often
+    against a person than against a tool, and it always looks like a result.** Five instances
+    in a day, each a sound method aimed at an address nobody had verified:
+
+    | what was aimed | at what | what it returned |
+    |---|---|---|
+    | an append to a task file | a filename guessed from a queue listing title | created a second, malformed task |
+    | `packcheck --run` | a run *name* where a *path* was required | exit 0, "clean", on a run never opened |
+    | `grep -c ... \|\| true` | bsdtar rejecting `--wildcards` | `0` for all 20 rows |
+    | `endswith("project.godot")` | an AppleDouble `._` sidecar | "0 of 20 carry the defect" against a true 4 |
+    | a monkeypatched module constant | a value already derived at import | linted the real tree while claiming a bad root |
+
+    Three of the five returned **the same wrong answer for every subject**, which is what made
+    them look like findings rather than bugs — rule 9 pointed at your own instrument.
+
+    > **Before believing a census, prove the extraction on one case you already know the answer
+    > to.** Not the whole set: one row whose true value you can state in advance. Every one of
+    > these would have died on first contact with a single known-good example.
+
+    The tell is uniformity. **A census that returns one value across a population it exists to
+    discriminate is reporting the instrument, not the population.**
+
 13. **Guard the RESOURCE, and verify on the path that actually holds it.** Tasks #14/#15
     were marked complete having guarded the capture and test recipes — already offscreen,
     already silent — while `just run` opened a window with audio on the operator's desk. The
