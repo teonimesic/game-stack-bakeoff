@@ -38,8 +38,13 @@ last stage's.
 
 `--max-budget-usd` is *visible to the agent and instructs it*; `--max-turns` is invisible
 and merely truncates. Any stated budget is an instruction — a large cap is still an
-instruction, only an absent one is neutral. Measured rate is **$0.197/turn**, so 1000
-turns is a ~$197 backstop rather than a ceiling.
+instruction, only an absent one is neutral. Measured rate is **0.197 tokval/turn**, so 1000
+turns is a ~197 backstop rather than a ceiling.
+
+**And no run here is bounded by a money figure at all.** `agent.cost_usd` is a list-price
+valuation of tokens on a subscription account, so a budget cap protects nothing and only
+instructs (#159, `DECISIONS.md`). What bounds a run is turns, wall clock and rate-limit
+capacity.
 
 Do not raise the turn limit while leaving a low budget cap: that governs by the visible
 flag while appearing to govern by the invisible one.

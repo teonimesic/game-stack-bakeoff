@@ -3,6 +3,14 @@
 The deterministic tiers answer *does it work*. This layer answers *is it any good* — the only
 question left once every submission works.
 
+
+> **THE UNIT: every `$n` in this file is `tokval`**, the list price the tokens a call used would
+> carry at published API rates (`sum(modelUsage[*].costUSD)`). The account is a subscription, so
+> none of it is an expenditure and **no decision here may rest on one as money** (FINDINGS #159).
+> The token counts are real and every comparison below stands. `python3 judge/judge_ledger.py
+> --tree runs/` is the producer for every judge figure; `python3 eval/tools/tokenvalue.py
+> --definition` prints this sentence.
+
 ## Why this layer is being redesigned
 
 The matrix produced an exact 24-way tie on the deterministic tiers: all four stacks, all three
@@ -225,12 +233,12 @@ Validated with the model call stubbed, so it cost nothing and both arms were exe
 Two arms, because a control that only exercises the happy path shares the assumption it
 exists to test.
 
-**Cost, at the measured $5.29 per call:** a (game, aspect) that resolves in 4 rounds costs
-~$21; one that runs to `MAX_RUNS = 24` costs ~$127. Five aspects on one game is therefore
-somewhere between **$105 and $635**, and which end depends on the answer — which is the
-point of sampling until the decision resolves rather than a fixed number of times.
+**Resource use, at the measured $5.29 per call:** a (game, aspect) that resolves in 4 rounds is
+~$21; one that runs to `MAX_RUNS = 24` is ~$127. Five aspects on one game is therefore somewhere
+between **$105 and $635**, and which end depends on the answer — which is the point of sampling
+until the decision resolves rather than a fixed number of times.
 
-### Cost is per (GAME, ASPECT), and it spans an order of magnitude
+### It is per (GAME, ASPECT), and it spans an order of magnitude
 
 **Measured, 2026-08-16.** Two separate corrections, the second larger than the first:
 
@@ -244,44 +252,46 @@ An `audio` call is **~11x cheaper** than an `architecture` call on the same game
 pack it reads is a few hundred numbers rather than a hundred source files. Projecting a sweep
 from a per-game mean is therefore still wrong — it averages a $0.60 aspect with an $8 one.
 
-> **Price per (game, aspect), from the pack size.** The cost of a field call is dominated by
-> what the judge has to read, and `evidence_counts` from `build_pack` tells you that before
-> any money is spent.
+> **Project per (game, aspect), from the pack size.** What a field call consumes is dominated by
+> what the judge has to read, and `evidence_counts` from `build_pack` tells you that before a
+> single round runs.
 
 The first correction was cross-game and is kept because the reasoning still holds: three
 `g1_pong` calls (mean $4.39) projected a five-aspect `--max-runs 6` sweep at ~$131; the first
-tetris call measured $8.08 and repriced it at ~$256, over its authorised ceiling.
+tetris call measured $8.08 and re-projected it at **~$256**, past the ceiling it had been
+authorised under. `AGENTS.md` already forbade extrapolating a projection across games; it was
+written in the vocabulary of *agent trials* and did not fire for a *judge call*.
 
-A `--max-runs 6` sweep over five aspects was priced at ~$131 from the pong mean. At the
-measured tetris rate it is **~$256** — over the ceiling it was authorised under. `AGENTS.md`
-already forbade extrapolating a cost projection across games; it was written in the
-vocabulary of *agent trials* and did not fire for a *judge call*.
+The ceiling that was overshot no longer exists — it was `--max-cost`, denominated in a unit
+nobody is charged (#159) — but the projection error is unaffected: **a per-call figure measured
+on one game is not a per-call figure on another**, whatever unit it is quoted in.
 
 > **Price a sweep from a call on the game you are about to sweep, and treat one call as a
 > lower bound rather than an estimate** (#42: one trial cannot calibrate a process whose
 > spread is this wide).
 
-**Depth-first is the wrong shape under a fixed ceiling.** Aspects run in alphabetical order,
-so a budget that stops part-way starves whichever aspects sort last — here `idiomatic` and
+**Depth-first is the wrong shape under any fixed bound.** Aspects run in alphabetical order,
+so a bound that stops part-way starves whichever aspects sort last — here `idiomatic` and
 `ux`, which are the aspect whose subject *is* the variable under test and one of the two that
 read the played result. Losing them would have been an accident of the alphabet. **Go breadth
 first: every aspect at shallow depth, then deepen the ones that look like they carry
 something.** Rounds are stored per seed and re-read for free, so depth added later costs only
 the new rounds.
 
-### What a full sequential sweep costs — priced 2026-08-16, NOT RUN
+### What a full sequential sweep consumes — projected 2026-08-16, NOT RUN
 
 From the measured per-call figures, and the **12** (game, aspect) combinations that build a
 non-empty pack. The range spans the pong and tetris rates:
 
-| assumption | calls | cost |
+| assumption | calls | tokval |
 |---|---|---|
 | floor — every aspect resolves in 4 rounds | 48 | **$211-$388** |
 | median — half resolve at 4, half run to the cap | 168 | **$738-$1,357** |
 | cap — `MAX_RUNS = 24` everywhere | 288 | **$1,264-$2,327** |
 
-**Even the floor is $210**, and the floor assumes every aspect resolves as fast as the
-fastest case in the self-test. The regime this field is actually in — clustered but not
+**Even the floor is $210 of token valuation** — the point is the *ratio* between the rows, not
+the figure, and the floor assumes every aspect resolves as fast as the fastest case in the
+self-test. The regime this field is actually in — clustered but not
 saturated, modal fraction 0.625 — is the expensive one: `TIED_EXACT` stops at 4 rounds only
 when the judge gives *identical* scores, and these judges do not.
 
@@ -290,10 +300,17 @@ when the judge gives *identical* scores, and these judges do not.
 > still reports `UNRESOLVED`. Price the close case, because that is the one this project
 > keeps landing in.
 
-Under a $150 ceiling the affordable experiment is **one game, five aspects, `--max-runs` cut
-to about 6** — roughly 30 calls, ~$131 — which reaches gates 1 to 4 on that game and reports
-`UNRESOLVED` for pairs that need more. `UNRESOLVED` is not a tie and must not be written as
-one.
+**RE-EXAMINED 2026-08-23, and the shape of the answer survives the unit being wrong.** This
+paragraph read *"under a $150 ceiling the affordable experiment is..."*, which appealed to a
+budget nobody is charged. There is no such ceiling and there never was one: the figures are
+token valuations (#159), and what a sweep really commits is wall clock and rate-limit capacity.
+
+The recommendation is unchanged, because it never rested on the money. **One game, five aspects,
+`--max-runs` cut to about 6** — roughly 30 calls — reaches gates 1 to 4 on that game and reports
+`UNRESOLVED` for pairs that need more, and the reason to prefer it is the paragraph above: the
+close case is where this project keeps landing and depth added later re-reads stored rounds for
+free. Bound it with `--max-rounds 30` or `--max-wall-min`, which is what `field_sweep.py` now
+takes. `UNRESOLVED` is not a tie and must not be written as one.
 
 ### The verdicts, and why three are needed
 
@@ -307,11 +324,12 @@ one.
 
 **At affordable N it can detect an ordering but cannot statistically prove a tie.** A Wilson 95%
 half-width at p=0.5 is 0.186 at n=24 and 0.098 at n=96 — so a ±0.10 statistical tie needs about
-**96 rounds per aspect, roughly $1,150**.
+**96 rounds per aspect**, roughly $1,150 of token valuation and, more to the point, 96 sequential
+calls against one account's rate limit.
 
 The honest claims available at n=24 are therefore *"no ordering was found, ±0.19"* or *"the judge
-never separated this pair at all"*. `n_for_statistical_tie` is reported so the cost of the stronger
-claim is visible before anyone commits to it.
+never separated this pair at all"*. `n_for_statistical_tie` is reported so the size of the
+stronger claim is visible before anyone commits to it.
 
 This matters because a tie is the **expected** outcome: three games have already tied on the
 deterministic tiers. The branch this project is most likely to land on is the one the instrument
@@ -376,10 +394,10 @@ into a failure against the pre-registered floor.
 > flipped their ceiling verdict with the evidence held constant, so every gate result in
 > this document that rests on one run per (aspect, seed) rests on n=1.
 
-**Open, and it matters for what to spend next on:** both flips are on seed 1 and both go
+**Open, and it matters for where the next rounds go:** both flips are on seed 1 and both go
 the same way. That is consistent with per-call noise and equally consistent with a drift
 between the two sweeps, and four comparisons cannot separate them. Measuring it properly
-means repeats at a fixed seed — cheap for `audio` ($0.60/call), `ux` and `fun`, expensive
+means repeats at a fixed seed — light for `audio` ($0.60/call), `ux` and `fun`, heavy
 for the two code aspects ($6.50-$8.00).
 
 ### Gate 1. Ceiling test
@@ -659,9 +677,9 @@ moves is close to a coin flip on the harness, not a property of the game.
 
 Re-run on repaired evidence, both orders, all five aspects. Artifacts:
 `runs/wg-tetris-judge-2026-08-17/{pre,post}/`. The heading read *$21.05* until 2026-08-23,
-which is the `charged_to_ceiling_usd` counter in `post/SEQUENTIAL.json` and not a cost: the
-sweep was resumed, so its first four rounds — $10.61 of `architecture` and `audio` — were
-correctly charged $0.00 to that invocation's ceiling and wrongly absent from the published
+which is the `charged_to_ceiling_usd` counter in `post/SEQUENTIAL.json` and not the field's
+figure: the sweep was resumed, so its first four rounds — $10.61 of `architecture` and `audio` —
+correctly contributed 0 to that invocation's counter and were wrongly absent from the published
 figure. FINDINGS #121. The **separates stacks** column is
 `value=score` `order=perround` on the `post` field — `judge/field_ranks.py --per-aspect`
 reproduces all ten of its numbers.

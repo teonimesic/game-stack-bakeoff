@@ -9,6 +9,12 @@ its own run-to-run spread.
 from __future__ import annotations
 
 import argparse, json, os, shutil, subprocess, tempfile, uuid
+import sys
+from pathlib import Path as _Path
+
+sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "tools"))
+
+import tokenvalue  # noqa: E402
 from pathlib import Path
 from typing import Any
 
@@ -155,4 +161,5 @@ if __name__ == "__main__":
     a.out.parent.mkdir(parents=True, exist_ok=True)
     tmp.write_text(json.dumps(res, indent=2)); os.replace(tmp, a.out)
     print(f"wrote {a.out}: normalised={res.get('normalised')} "
-          f"total={res.get('total')}/{res.get('max')} ${res.get('cost_usd')}")
+          f"total={res.get('total')}/{res.get('max')} "
+          f"{tokenvalue.tag(res.get('cost_usd'))}")

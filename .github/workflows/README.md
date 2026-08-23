@@ -8,13 +8,15 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | pushes and pull requests **touching `eval/`, `.agents/`, `.github/`**, plus nightly at 06:17 UTC and on demand |
-| checks | 29 documentation, queue and selftest gates | 5 mutant and control suites |
+| checks | 31 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **51.9s** | **685s** |
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, and every `*_control.py` and `*_selftest.py` that
-runs on Python alone.
+runs on Python alone. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
+`sweep_bounds_control` are the code-side half of the same question — no producer prints a money
+sigil, and no sweep is bounded by a figure nobody is charged (#159).
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `tasks_mutants`, `audio_selftest`, `rusage_selftest`, `skill_layout_control`.

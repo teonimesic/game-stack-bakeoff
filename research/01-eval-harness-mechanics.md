@@ -46,7 +46,7 @@ Fields useful for grading/telemetry:
 | `result` | final assistant text |
 | `is_error`, `terminal_reason`, `api_error_status` | run health; `terminal_reason: "api_error"` |
 | `num_turns` | efficiency metric |
-| `total_cost_usd` | cost metric (sonnet 1-turn probe ≈ $0.03) |
+| `total_cost_usd` | list-price valuation of the tokens used, in `tokval` — not a charge on a subscription account (#159). Sonnet 1-turn probe ≈ 0.03 |
 | `duration_ms`, `duration_api_ms` | wall-clock metric |
 | `usage.{input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens}` | token accounting |
 | `permission_denials` | detects harness friction — should be empty in a well-configured run |

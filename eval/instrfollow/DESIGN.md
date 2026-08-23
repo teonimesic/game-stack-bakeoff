@@ -252,7 +252,8 @@ a shell would only add a variable and a denial stream.
 
 ## The pilot, and what it changed
 
-An 8-trial pilot ran first, at **$0.83 measured**. It was not a smoke test: it changed the
+An 8-trial pilot ran first, at **$0.83 measured** — a token valuation in `tokval`, not money,
+like every `$` figure in this project (#159). It was not a smoke test: it changed the
 apparatus twice, and both changes were invisible to the offline control suite.
 
 **1. One fixture made the behavioural checkers dependent on each other.** The fixture tree

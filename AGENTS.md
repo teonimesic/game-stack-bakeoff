@@ -162,7 +162,8 @@ re-invented.
 | How to launch, watch and stop a run | `eval/PROTOCOL.md` |
 | How the subjective layer works, and its gates | `eval/judge/JUDGING.md` |
 | What each criterion asks and what the tiers weigh | `eval/judge/RUBRIC.md` |
-| What every run cost and what it may be compared with | `eval/RUNS.md` |
+| What resource every run used, and what it may be compared with | `eval/RUNS.md` |
+| What the `$` figures mean — **every one is `tokval`**, a list-price valuation of tokens on a subscription account, never an expenditure (#159) | `eval/tools/tokenvalue.py --definition` |
 | What is decided and why | `DECISIONS.md` |
 | What went wrong and what it taught | `eval/FINDINGS.md` |
 
@@ -216,7 +217,7 @@ what happened, not that it was read.
 | 2. Never infer a process's state from its artifact's state | **yes, twice** | yes | "no files written" said four agents had stalled while they were compiling (#37); later, CPU-time deltas and transcript ages — not artifacts — identified two that really were wedged |
 | 3. A pipeline's exit status is the last stage's | **yes** | yes | the `--only` negative control read exit 0 through `\| head`; unpiped it was exit 1 |
 | 4. Never compute a mean over a heterogeneous population | **yes** | yes | partitioning `wg-audio48` surfaced a `max_turns` population of one, which is #35 |
-| 5. Never quote a value you did not just read | **yes** | yes | re-reading spend from disk gave $604.90 against a recorded $571.15, which is #36 |
+| 5. Never quote a value you did not just read | **yes** | yes | re-reading the run total from disk gave $604.90 against a recorded $571.15, which is #36 |
 | 6. A guard naming an external cause cannot fire on an internal one | no | — | **constructible:** any retry or wait added to the harness. Kept |
 | 7. Every reason not to count a failure is a channel a bug can widen | **partly** | yes | it is why `stage.completes` is diagnostic-only rather than quietly excused per-submission |
 
@@ -489,12 +490,19 @@ Two refinements that pattern does not cover:
    | lands **below** the old ceiling | the ceiling never bound; the comparison was effectively single-variable after all |
    | lands **above** it | the earlier runs were bound by it — a finding in itself, and one that reinterprets their "completed" status |
 
-   Worked example: the no-cap Tetris trial. The $48 run used **232 of its 250 turns**. Holding
-   the limit at 250 "for cleanliness" would truncate an uncapped run that wanted 300, return
-   ~$49, and support the conclusion *"the stated budget was pulling work short"* when the turn
-   limit was — **a confident answer to a question the experiment did not test**, which is the
-   failure this rule exists to prevent. At 1000 turns every outcome is interpretable; at 250 one
-   of them is not.
+   Worked example: the no-cap Tetris trial. The 48-tokval run used **232 of its 250 turns**.
+   Holding the limit at 250 "for cleanliness" would truncate an uncapped run that wanted 300,
+   return ~49, and support the conclusion *"the stated budget was pulling work short"* when the
+   turn limit was — **a confident answer to a question the experiment did not test**, which is
+   the failure this rule exists to prevent. At 1000 turns every outcome is interpretable; at 250
+   one of them is not.
+
+   **And that ceiling turned out not to be one.** `--max-budget-usd` names a list-price valuation
+   of tokens on a subscription account, so it bounded nothing real; it only *instructed* the
+   agent to conserve (#159). Raising a ceiling is self-diagnosing, as above; **a ceiling in a
+   unit that does not bind is not self-diagnosing at all**, because the outcome it reports is
+   about the instruction, not about the resource. `DECISIONS.md` records that no run here is
+   bounded by a money figure.
 
 9. **A repeated identical measurement across independent subjects is not corroboration. It is
    the signature of a shared cause, and the shared cause is usually the instrument.** Six

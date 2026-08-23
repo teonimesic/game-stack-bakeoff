@@ -4,7 +4,7 @@
 WHY THIS EXISTS
 ---------------
 Measured under task 78 at CLI 2.1.220, with the harness's own flags, in two arms costing
-$0.03: a Stop hook that BLOCKS writes a `user` entry with `isMeta: true` beginning
+0.03 tokval: a Stop hook that BLOCKS writes a `user` entry with `isMeta: true` beginning
 `"Stop hook feedback:"` into the transcript, and the agent complies. A Stop hook that
 EXITS 0 writes **nothing, anywhere**.
 
@@ -57,7 +57,7 @@ WHAT THIS FILE CANNOT ESTABLISH
 That the CLI passes `$STARTER_HOOK_LOG` through to a hook it spawns. That is a property
 of the `claude` binary, it cannot be faked with a shim, and it is measured live once:
 `--live` runs the real CLI against a throwaway project with the harness's own flags. It
-costs about $0.02. Without it, every row below is a statement about bash.
+is worth about 0.02 tokval. Without it, every row below is a statement about bash.
 
 Usage, from eval/:
     python3 tools/hook_audit_control.py                 # every starter, offline
@@ -76,6 +76,11 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from pathlib import Path as _Path
+
+sys.path.insert(0, str(_Path(__file__).resolve().parent))
+
+import tokenvalue  # noqa: E402
 from pathlib import Path
 
 EVAL = Path(__file__).resolve().parent.parent
@@ -488,7 +493,7 @@ def check_build_trial() -> list[str]:
     from nowhere, is #133's shape.
 
     `run_agent` is replaced by a stand-in that writes the lines a hook would have written,
-    because the real one costs $11-73. The substitution is ASSERTED to have taken effect
+    because the real one is worth 11-73 tokval. The substitution is ASSERTED to have taken effect
     before anything is concluded from it: a monkeypatch that silently missed is on this
     project's list of five same-day rule-12 failures, and it looks exactly like a result.
     """
@@ -578,7 +583,7 @@ LIVE_FLAGS = ["--setting-sources", "project", "--strict-mcp-config",
 
 
 def live_check() -> list[str]:
-    """One real `claude` session, harness flags, throwaway project. ~$0.02.
+    """One real `claude` session, harness flags, throwaway project. ~0.02 tokval.
 
     A shim cannot answer this: whether a custom environment variable set on the CLI's
     parent reaches a Stop hook the CLI spawns is a property of the CLI binary. Every
@@ -628,8 +633,8 @@ def live_check() -> list[str]:
         # `json.loads(...).get("total_cost_usd")` reads an array and comes back with
         # nothing. The harness already owns the one correct reader; do not write a second.
         try:
-            out.append(f"live   cost     "
-                       f"${_wholegame().parse_agent(p.stdout).get('total_cost_usd')}")
+            _tv = _wholegame().parse_agent(p.stdout).get("total_cost_usd")
+            out.append(f"live   tokens  {tokenvalue.tag(_tv)}")
         except Exception as e:  # noqa: BLE001 - a cost we cannot read is reported, not hidden
             out.append(f"live   cost     UNREAD ({e}); stdout head: {p.stdout[:120]!r}")
         return out
@@ -642,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--stack", choices=STACKS, action="append",
                     help="limit to one stack; repeatable")
     ap.add_argument("--live", action="store_true",
-                    help="also run one real `claude` session (~$0.02)")
+                    help="also run one real `claude` session (~0.02 tokval)")
     args = ap.parse_args(argv)
 
     lines: list[str] = []

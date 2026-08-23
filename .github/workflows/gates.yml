@@ -121,6 +121,17 @@ jobs:
       - name: cost_census_mutants (can that selftest fail?)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/cost_census_mutants.py
+      # Every `$` in this project is a list-price valuation of tokens, not money (#159).
+      # This reads all 11 producer sources and fails if any of them formats a figure with a
+      # money sigil, and re-derives the producer list from the tree so a new one shows up.
+      - name: tokenvalue --selftest (no producer prints a money sigil)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/tokenvalue.py --selftest
+      # The judge sweep's bounds. Python-only: it drives no CLI, it exercises the Bounds
+      # object directly and reads field_sweep.py's tokenised source.
+      - name: sweep_bounds_control (the sweep still stops, and not on a money figure)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/sweep_bounds_control.py
 
       # ---- the controls that check the checkers ------------------------------------
       - name: findings_control

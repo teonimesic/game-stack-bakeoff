@@ -60,8 +60,8 @@ is a hypothesis and not a diagnosis.
 The decision does not rest on the hypothesis being right, and that is the point:
 
 - if it is wrong, `--parallel 2` costs wall clock and nothing else;
-- if it is right and the run goes at 4, roughly half the set is lost at ~$30 a trial plus
-  hours, on the last piece of a four-figure measurement.
+- if it is right and the run goes at 4, roughly half the set is lost — hours of wall clock and
+  a matrix's worth of rate-limit capacity, on the last piece of a long measurement.
 
 **Buying validity with wall clock is the correct trade when the thing being bought is the
 measurement itself.** Treat a recurrence at parallelism 2 as *data*: it would rule the
@@ -81,97 +81,41 @@ In this order, and all of it, because the previous occurrence left none of it:
 Then kill. The evidence is unrecoverable afterwards, and a wedge with no captured state is
 an incident that teaches nothing.
 
-## Choosing a budget cap
-
-**`--max-budget-usd` is visible to the agent. `--max-turns` is not.** Verified three ways
-(7.31 → `EXACT=7.31`; 41.77 → `EXACT=41.77`; absent → `NONE`).
-
-Consequences:
-
-- A cap is an **instruction**, and there is no neutral value. "You have $48" instructs as surely as
-  "You have $25". Only *absent* carries none.
-- **Spend responds to it**: Tetris cost $23.20 at $25 and $35.66 at $48 — 1.54×. See FINDINGS #33.
-- Therefore **a cap change is a task change**, and runs under different caps are not poolable.
-- At ~$0.13/turn the invisible `--max-turns 250` already bounds a trial near $33–40, so a visible
-  cap above that buys little and instructs anyway.
-
-Do not test a cap effect on the cheapest game. Pong costs ~$21 whether the ceiling is $25 or $48 —
-it has no headroom, so it cannot show the effect *whatever the truth is*. **A null measured on a
-saturated instrument is not a null.**
-
-### The two limits interact — set them together
-
-`--max-turns` and `--max-budget-usd` are both ceilings, and **whichever binds first is the one that
-governs the run.** They must be set as a pair, not independently.
-
-> ### MEASURED 2026-08-15 — the table below is superseded by one real datum.
->
-> `g3_arena__rust__t0`, uncapped, `--max-turns 1000`: **$72.83 over 369 turns = $0.1974 per
-> turn**, half as much again as the $0.13 assumed below. At the measured rate:
->
-> | turn limit | cost equivalent at $0.1974/turn |
-> |---|---|
-> | 250 | ~$49 |
-> | 500 | ~$99 |
-> | **1000** | **~$197** |
->
-> So `--max-turns 1000` is a **~$197** backstop, not the ~$130 claimed when it was chosen. It is
-> still a backstop rather than a ceiling — the most expensive trial ever measured is $72.83 —
-> but the headroom is smaller than it looked, and a stack more expensive than rust could get
-> closer to it than expected.
->
-> **One datum, one stack, one game.** The other three stacks have no uncapped measurement at
-> all, and rust is the cell with the most headroom, so $72.83 may be the expensive end rather
-> than the middle. Re-read this table against the full set when it lands.
->
-> ### The original table, UNVERIFIED, kept because a deleted table is one somebody re-derives.
->
-> It converts turns to dollars at ~$0.13 per turn, where "turns" means the `num_turns` field in
-> the trial record. **The data contradicts that conversion.** Under the same `--max-turns 250`,
-> `g2_tetris3d__godot__t0` **completed at 265 turns** while `g3_arena__rust__t1` was **cut off at
-> 251** (FINDINGS #35). A trial finished normally with *more* turns than the limit, so `num_turns`
-> is not the counter the flag applies to, and every figure below inherits the discrepancy —
-> including the ~$130 that justifies `--max-turns 1000`.
->
-> Kept rather than deleted because the *shape* of the argument still holds — two ceilings,
-> whichever binds first governs, only one visible to the agent — and because a deleted table is
-> one somebody re-derives. **The no-cap calibration trial measures the real number. Replace these
-> figures with it.**
-
-At a nominal **~$0.13/turn**:
-
-| turn limit | cost equivalent | binds first against a $48 cap |
-|---|---|---|
-| 250 | ~$33 | turns |
-| 370 | ~$48 | either — they meet here |
-| 500 | ~$65 | **budget** |
-| 1000 | ~$130 | **budget, by a wide margin** |
-
-This matters because the two are not equivalent in kind: **the budget cap is visible to the agent
-and instructs it; the turn limit is invisible and merely truncates.**
-
-So raising the turn limit alone does not make turns the binding constraint — it hands the binding
-role back to the visible flag, and the 1.54× spend response returns with it.
-
-## Standing configuration: `--max-turns 1000`, no budget cap
+## What bounds a trial: `--max-turns 1000`, and no budget cap
 
 **Do not pass `--max-budget-usd`.** The only limit is the turn count, which is invisible to the
 agent and therefore instructs nothing.
 
-Rationale: any stated budget is an instruction, and spend responds to it — 1.54× on a task with
-headroom. A large cap is still an instruction; only an absent one is neutral. 1000 turns is four
-times the limit that was actually observed to bind, and the most expensive trial ever measured is
-$46.40 — but **what it bounds in dollars is not known**, because the turns-to-dollars conversion
-is unverified (see the warning above).
+Two facts settle this, and the second one retired an entire section of this file.
 
-Do not raise the turn limit and leave a low budget cap in place expecting turns to govern. That
-combination governs by the visible flag while looking as though it governs by the invisible one.
+**`--max-budget-usd` is visible to the agent; `--max-turns` is not.** Verified three ways
+(7.31 → `EXACT=7.31`; 41.77 → `EXACT=41.77`; absent → `NONE`). So a cap is an **instruction**,
+there is no neutral value, and usage responds to it — Tetris ran $23.20 at $25 and $35.66 at $48,
+**1.54×** (FINDINGS #33). A cap change is therefore a task change, and runs under different caps
+are not poolable.
 
-**Cost under this configuration is genuinely unknown.** Every measurement so far was taken with a
-budget instruction in force; removing it is a fourth regime and the first with no budget
-communicated at all. Whether agents work to completion at ~$25 or expand toward the turn limit has
-not been measured. **Calibrate with one trial before committing a matrix**, and report the measured
-figure rather than extrapolating from a capped run — those numbers are measurements of their caps.
+**And the resource it names is not scarce.** The account is a subscription: `agent.cost_usd` is a
+list-price valuation of tokens that the CLI computes whatever the billing arrangement, and no
+money moves per token (FINDINGS #159, `DECISIONS.md`). The capped runs were pacing themselves
+against a constraint that does not exist — they produced less, and the record of what those cells
+could have built is correspondingly short, for nothing.
+
+> **A limit denominated in a unit that does not bind is worse than no limit.** It cannot protect
+> what is actually scarce, it truncates real evidence when it fires, and where the figure reaches
+> the subject it instructs the subject to do less.
+
+**What may bound a run is what is finite: turns, wall clock, and rate-limit capacity.** Turns are
+already the build-side bound and are invisible to the agent, which is why that choice was right.
+`judge/field_sweep.py` is bounded by `--max-rounds` and `--max-wall-min` for the same reason.
+
+**Resource use under this configuration is still lightly measured.** Every matrix before
+2026-08-15 ran with a budget instruction in force; removing it is a fourth regime and the first
+with no budget communicated at all. Calibrate with one trial before committing a matrix, and
+report the measured figure rather than extrapolating from a capped run — those numbers are
+measurements of their caps. The largest single trial ever recorded is **$72.83 over 369 turns**
+(`g3_arena__rust__t0`, uncapped, 1000-turn limit); at that trial's 0.1974/turn, 1000 turns is a
+**~197** backstop rather than a ceiling. One datum, one stack, one game: rust is the cell with the
+most headroom, so treat it as the expensive end and re-read it against the full set.
 
 Record which limit bound each trial. `max_turns` and `budget_exhausted` are different populations
 and both are different from `completed`.
@@ -179,7 +123,7 @@ and both are different from `completed`.
 ## While it runs
 
 - **Never infer the run's state from an artifact read taken earlier.** Re-read before reporting.
-  A "0/24" report was stale by 16 trials and $498.
+  A "0/24" report was stale by 16 trials and $498 of token valuation.
 - **A one-shot liveness check confirms a spawn, not a run.** Check again later.
 - **Nothing that consumes account session capacity may run during the build phase.** Not the
   judge, not `field_sweep.py`, not a subagent, not a "quick" side task in another window. A
@@ -191,7 +135,8 @@ and both are different from `completed`.
   to prose).
 - **Do not run engine work during the build phase.** Renders contend and produce flaky captures,
   and load contaminates wall clock in build order.
-- Report cumulative spend every ~$100.
+- Report the cumulative token valuation every ~$100. `tools/runstat.py` prints it in `tokval`
+  and prints what the unit means beside it — it is a resource reading, and nothing is owed on it.
 
 ## When something stops
 
@@ -458,7 +403,7 @@ Two things live here and they have opposite needs.
 after any batch of work lands**, not at the end of a session that may not have one.
 
 **The evidence** is `eval/runs/`, it is gitignored, and it is the part that cannot be rebuilt: a
-matrix costs ~$420 and several days, and the judge rounds cannot be reproduced at all because the
+matrix is ~$420 of token valuation and several days, and the judge rounds cannot be reproduced at all because the
 model and the harness have both moved since they ran.
 
 ### What is evidence and what is build output — the rule

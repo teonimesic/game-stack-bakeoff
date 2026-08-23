@@ -56,6 +56,8 @@ sys.path.insert(0, str(HERE / "suites"))
 sys.path.insert(0, str(HERE / "judge"))
 sys.path.insert(0, str(HERE / "tools"))
 
+import tokenvalue  # noqa: E402
+
 import wholegame_prompts as P  # noqa: E402
 import disclosure as _disclosure  # noqa: E402
 
@@ -71,8 +73,8 @@ EVAL_CAP = {"rust": 1, "ts": 1, "godot": 1, "unity": 1}
 # Budget per trial. Whole-game builds are expensive; these are hard stops, and the
 # harness records terminal_reason so a truncated trial is never confused with a failure.
 # STANDING CONFIGURATION from 2026-08-15 (PROTOCOL.md, DECISIONS.md).
-# 250 was the binding limit at a $48 cap - `g3_arena__rust__t1` stopped at 251 turns with
-# $12 of its stated budget unspent (FINDINGS #35), so the run was governed by the flag the
+# 250 was the binding limit at a 48-tokval cap - `g3_arena__rust__t1` stopped at 251 turns
+# with 12 of its stated budget unused (FINDINGS #35), so the run was governed by the flag the
 # agent cannot see while appearing to be governed by the one it can.
 MAX_TURNS = 1000
 # RAISED FROM 25.0 ON 2026-08-14, and the reason is not only that trials were hitting it.
@@ -83,12 +85,13 @@ MAX_TURNS = 1000
 # Three-way discrimination, so this is not the model guessing.
 #
 # The cap is therefore an INPUT to the agent, not an external kill. Runs with different
-# caps are not comparable, and the observed clustering just under $25 (23.07, 24.33,
+# caps are not comparable, and the observed clustering just under 25 tokval (23.07, 24.33,
 # 24.34, 25.06) is what an agent pacing itself to a budget it was told about looks like -
-# not a coincidence of task size.
+# not a coincidence of task size. On a subscription account it was pacing itself against a
+# constraint that does not exist (#159).
 # None means DO NOT PASS THE FLAG, and that is the point rather than a convenience.
-# `--max-budget-usd` is VISIBLE TO THE AGENT and instructs it: spend rose 1.54x on Tetris
-# when the stated ceiling went 25 -> 48 (FINDINGS #33). Any stated value is an
+# `--max-budget-usd` is VISIBLE TO THE AGENT and instructs it: token usage rose 1.54x on
+# Tetris when the stated ceiling went 25 -> 48 (FINDINGS #33). Any stated value is an
 # instruction, so there is no neutral number - only an absent flag is neutral. The run is
 # bounded by the invisible turn limit instead.
 MAX_BUDGET_USD = None
@@ -501,7 +504,8 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     rec["finished_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
     (run_dir / "trials").mkdir(parents=True, exist_ok=True)
     (run_dir / "trials" / f"{tid}.json").write_text(json.dumps(rec, indent=2))
-    print(f"  [built] {tid}  {rec['wall_s']}s  ${rec['agent']['cost_usd']:.2f}  "
+    print(f"  [built] {tid}  {rec['wall_s']}s  "
+          f"{tokenvalue.tag(rec['agent']['cost_usd'])}  "
           f"turns={rec['agent']['num_turns']}  {rec['agent']['terminal_reason']}",
           flush=True)
     return rec
@@ -870,10 +874,10 @@ def cmd_report(a: argparse.Namespace) -> int:
 
     # PARTITION BY TERMINAL REASON BEFORE ANY AGGREGATE.
     # MEASURED (FINDINGS #22): a per-game mean computed across four real runs and four
-    # trials that died at 25-27 turns produced $7.61 for the arena game - a number that
+    # trials that died at 25-27 turns produced 7.61 tokval for the arena game - a number that
     # described no trial that ever ran, was arithmetically correct, and manufactured the
     # finding "the arena task is too easy" that survived two rounds of scrutiny. The
-    # completed-only mean was $13.62. `completed`, `max_turns`, `budget_exhausted`,
+    # completed-only mean was 13.62. `completed`, `max_turns`, `budget_exhausted`,
     # `api_error` and session-limit aborts are different populations and averaging
     # across them describes none of them.
     def _reason(r: dict[str, Any]) -> str:
@@ -902,7 +906,7 @@ def cmd_report(a: argparse.Namespace) -> int:
         for r in sorted(truncated, key=lambda r: r["trial_id"]):
             print(f"  {r['trial_id']:<26} {_reason(r):<20} "
                   f"turns={r['agent'].get('num_turns')} "
-                  f"${r['agent'].get('cost_usd', 0):.2f}")
+                  f"{tokenvalue.tag(r['agent'].get('cost_usd', 0))}")
         print(f"  n={len(truncated)} excluded, n={len(scored_rows)} aggregated.\n")
     if not scored_rows:
         print("no trial reached terminal_reason=completed; there is nothing to "
@@ -924,7 +928,7 @@ def cmd_report(a: argparse.Namespace) -> int:
           "`regime` says which scheme wrote the stored `overall`: rows marked `w` predate\n"
           "2026-08-23 and are 0.31*prog + 0.69*bot. They are NOT comparable with gate rows.\n")
     hdr = (f"{'stack':<8} {'game':<13} {'overall':>8} {'gate':>7} {'rg':>3} {'prog':>6} "
-           f"{'bot':>6} {'judge*':>7} {'turns':>6} {'$':>7} {'wall':>7}")
+           f"{'bot':>6} {'judge*':>7} {'turns':>6} {tokenvalue.UNIT:>7} {'wall':>7}")
     print(hdr)
     print("-" * len(hdr))
     for r in sorted(rows, key=lambda r: (r["game"], r["stack"], r["trial"])):
@@ -1048,19 +1052,24 @@ def cmd_report(a: argparse.Namespace) -> int:
 # Cost model
 # --------------------------------------------------------------------------- #
 
+# EVERY FIGURE BELOW IS `tokval`, NOT MONEY: the list price the tokens would carry at
+# published API rates, on a subscription account where no money moves per token (#159,
+# `tools/tokenvalue.py`). It is the only per-trial resource number the harness has, and it
+# is kept for that - nothing here is a bill and no run is bounded by it.
+#
 # Measured on this repo: the small spec-conformance bake-off ran 24 Opus trials at a
-# median of ~$2.6 and 32-49 turns for a task that changed a few dozen lines. A
+# median of ~2.6 tokval and 32-49 turns for a task that changed a few dozen lines. A
 # whole-game build is a different order of magnitude, so the estimate below is scaled
 # from those numbers rather than guessed, and the range is deliberately wide.
-COST_PER_TRIAL = {"low": 12.0, "mid": 20.0, "high": 25.0}   # high == the hard cap
+COST_PER_TRIAL = {"low": 12.0, "mid": 20.0, "high": 25.0}
 TURNS_PER_TRIAL = {"low": 90, "mid": 150, "high": 250}
 BUILD_MIN_PER_TRIAL = {"rust": 95, "ts": 65, "unity": 80, "godot": 70}
 EVAL_MIN_PER_TRIAL = {"rust": 14, "ts": 8, "unity": 16, "godot": 10}
 JUDGE_COST_PER_TRIAL = 1.75   # MEASURED: two Sonnet-5 passes over a 95 KB pack plus 12
-                              # frames cost $1.70 and took 30-31 turns each. The first
-                              # estimate here was $0.35 and was wrong by 5x - the judge
-                              # reads files and images with tools, it does not get one
-                              # big prompt.
+                              # frames came to 1.70 tokval and took 30-31 turns each. The
+                              # first estimate here was 0.35 and was wrong by 5x - the
+                              # judge reads files and images with tools, it does not get
+                              # one big prompt.
 
 
 def cmd_plan(a: argparse.Namespace) -> int:
@@ -1069,12 +1078,14 @@ def cmd_plan(a: argparse.Namespace) -> int:
     n = len(stacks) * len(games) * a.trials
     print(f"matrix: {len(games)} games x {len(stacks)} stacks x {a.trials} trials "
           f"= {n} trials\n")
-    print(f"{'':<10} {'low':>10} {'mid':>10} {'cap':>10}")
-    print(f"{'agent $':<10} {n * COST_PER_TRIAL['low']:>10.0f} "
+    print(f"projected {tokenvalue.UNIT} (a token valuation, not a bill - see the "
+          f"footnote)\n")
+    print(f"{'':<14} {'low':>10} {'mid':>10} {'high':>10}")
+    print(f"{'agent':<14} {n * COST_PER_TRIAL['low']:>10.0f} "
           f"{n * COST_PER_TRIAL['mid']:>10.0f} {n * COST_PER_TRIAL['high']:>10.0f}")
-    print(f"{'judge $':<10} {n * JUDGE_COST_PER_TRIAL:>10.0f} "
+    print(f"{'judge':<14} {n * JUDGE_COST_PER_TRIAL:>10.0f} "
           f"{n * JUDGE_COST_PER_TRIAL:>10.0f} {n * JUDGE_COST_PER_TRIAL:>10.0f}")
-    print(f"{'TOTAL $':<10} {n * (COST_PER_TRIAL['low'] + JUDGE_COST_PER_TRIAL):>10.0f} "
+    print(f"{'TOTAL':<14} {n * (COST_PER_TRIAL['low'] + JUDGE_COST_PER_TRIAL):>10.0f} "
           f"{n * (COST_PER_TRIAL['mid'] + JUDGE_COST_PER_TRIAL):>10.0f} "
           f"{n * (COST_PER_TRIAL['high'] + JUDGE_COST_PER_TRIAL):>10.0f}")
 
@@ -1087,35 +1098,30 @@ def cmd_plan(a: argparse.Namespace) -> int:
           f"+ evaluate {eval_min / 60:.1f} h (evaluation is serial by default) "
           f"= ~{build_min / 60 / par_build + eval_min / 60:.1f} h")
     print("\nCaveats worth reading before authorising:")
-    print("  * The per-trial cost band is scaled from measured small-task trials on")
-    print("    this repo ($2.6 median, 32-49 turns) to a task perhaps 8-10x larger.")
-    print("    It is an estimate. The hard caps are what actually bound the spend:")
-    print(f"    --max-budget-usd {MAX_BUDGET_USD} and --max-turns {MAX_TURNS} per trial,")
-    if MAX_BUDGET_USD is None:
-        # THE STANDING CONFIGURATION HAS NO BUDGET CAP, and this line used to add it to
-        # a float. `plan` therefore crashed with a TypeError for every reader after the
-        # no-cap regime was adopted - the one command PROTOCOL.md tells you to run
-        # before authorising a matrix. Nobody ran it, so nobody saw it.
-        #
-        # There is no dollar worst case without a cap. The honest bound is the turn
-        # limit priced at a MEASURED per-turn rate, and it is stated as a range because
-        # the measured rate varies 2.13x across cells (FINDINGS #42).
-        lo, hi = 0.13, 0.20
-        print(f"    and with NO budget cap the dollar worst case is not defined by a "
-              f"flag.")
-        print(f"    Priced from measured per-turn cost ({lo:.2f}-{hi:.2f} $/turn), "
-              f"{MAX_TURNS} turns bounds ONE trial at ${MAX_TURNS * lo:.0f}-"
-              f"${MAX_TURNS * hi:.0f},")
-        print(f"    so the worst case for {n} trials is "
-              f"${n * (MAX_TURNS * lo + JUDGE_COST_PER_TRIAL):.0f}-"
-              f"${n * (MAX_TURNS * hi + JUDGE_COST_PER_TRIAL):.0f}. "
-              f"No trial has ever come close: the most expensive measured is $72.83.")
-    else:
-        print(f"    so the WORST CASE for {n} trials is "
-              f"${n * (MAX_BUDGET_USD + JUDGE_COST_PER_TRIAL):.0f}.")
+    print(f"  * The per-trial band is scaled from measured small-task trials on this")
+    print(f"    repo (2.6 {tokenvalue.UNIT} median, 32-49 turns) to a task perhaps 8-10x")
+    print(f"    larger. It is an estimate, and it is not what bounds the run.")
+    print(f"  * WHAT BOUNDS A TRIAL IS --max-turns {MAX_TURNS}, which the agent cannot")
+    print(f"    see. --max-budget-usd is {MAX_BUDGET_USD}: a stated budget is visible to")
+    print(f"    the agent and instructs it, and on a subscription it would be asking the")
+    print(f"    agent to conserve something that is not scarce (#159).")
+    # THE STANDING CONFIGURATION HAS NO BUDGET CAP, and this arithmetic used to add
+    # `MAX_BUDGET_USD` to a float. `plan` therefore crashed with a TypeError for every
+    # reader after the no-cap regime was adopted - the one command PROTOCOL.md tells you
+    # to run before authorising a matrix. Nobody ran it, so nobody saw it.
+    #
+    # The turn limit priced at a MEASURED per-turn rate is the honest projection, stated
+    # as a range because the measured rate varies 2.13x across cells (FINDINGS #42).
+    lo, hi = 0.13, 0.20
+    print(f"  * At a measured {lo:.2f}-{hi:.2f} {tokenvalue.UNIT}/turn, {MAX_TURNS} turns")
+    print(f"    bounds ONE trial at {MAX_TURNS * lo:.0f}-{MAX_TURNS * hi:.0f}, so {n}")
+    print(f"    trials project to {n * (MAX_TURNS * lo + JUDGE_COST_PER_TRIAL):.0f}-"
+          f"{n * (MAX_TURNS * hi + JUDGE_COST_PER_TRIAL):.0f} {tokenvalue.UNIT}. No trial")
+    print(f"    has come close: the largest measured is 72.83.")
     print("  * Run TWO trials in DIFFERENT cells first and re-run `plan` with the")
     print("    measured range - not one trial, and not a point estimate. Within-cell")
     print("    spread has been measured at 1.62x and across-cell at 2.13x (FINDINGS #42).")
+    print(f"\n  {tokenvalue.DEFINITION}")
     return 0
 
 
@@ -1155,7 +1161,7 @@ def main() -> int:
         # RETRY A SPECIFIC CELL, AND ONLY THAT CELL. `cmd_build` never consults
         # existing trial records and `prepare()` begins with `rmtree`, so re-running
         # a selection that includes completed trials DESTROYS them - sixteen
-        # completed submissions worth $486 were one unscoped rerun away on
+        # completed submissions worth 486 tokval were one unscoped rerun away on
         # 2026-08-15 (FINDINGS #36). `--stacks`/`--games`/`--trials` can only
         # express a product, so "rebuild rust t1 alone" was not expressible at all.
         # REPRODUCING AN EARLIER CONDITION. `_preamble()` is shared by every game, so an
@@ -1183,9 +1189,9 @@ def main() -> int:
                             "silent no-op.")
         p.add_argument("--no-judge", action="store_true")
         # The legacy 13-criterion judge is OPT-IN. It is weighted 0.00, cost a measured
-        # $1.75 per submission, and across 24 submissions its only firings were
+        # 1.75 tokval per submission, and across 24 submissions its only firings were
         # adjudicated as a frame-capture artifact (FINDINGS #26). Running it by default
-        # spent ~$42 a matrix on a tier that carried no information.
+        # used ~42 tokval a matrix on a tier that carried no information.
         p.add_argument("--with-legacy-judge", action="store_true",
                        help="run the retired 13-criterion generalist judge as well")
         # Audio entered the task set on 2026-08-14. Scoring a submission built before

@@ -189,6 +189,13 @@ def main() -> int:
     problems: list[str] = []
 
     with tempfile.TemporaryDirectory() as tmp:
+        # A COPY MUST CARRY ITS IMPORTS. `cost_census` prints through `tokenvalue`, and a
+        # copy alone in a temp directory cannot import it - so every mutant would have
+        # died on `ModuleNotFoundError` and been scored as caught, which is the harness
+        # failing dressed as a clean sweep. The control below is what says so out loud.
+        for dep in ("tokenvalue.py",):
+            (Path(tmp) / dep).write_text((HERE / dep).read_text())
+
         # THE CONTROL FIRST. An unmutated copy must go GREEN from the same temp directory
         # and the same interpreter the mutants use. Without it, every mutant "failing"
         # could be the harness failing, and the sweep would report a clean bill of health

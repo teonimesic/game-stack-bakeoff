@@ -18,7 +18,7 @@ The traps it avoids, each of which produced a confident wrong diagnosis:
                               engines. Match on the process NAME for "is X running".
   find -newermt '-30 minutes' silently matches nothing on macOS. Use -mmin.
   cmd || echo 0               converts an error into a plausible in-range number.
-  a.get("total_cost_usd")     is absent; the key is cost_usd. Reads as $0.00 silently.
+  a.get("total_cost_usd")     is absent; the key is cost_usd. Reads as 0.00 silently.
   %cpu ~0 / frozen CPU        normal for an agent waiting on an API call OR on a running
                               tool. Only "frozen CPU *and* zero descendants" is a wedge.
 
@@ -38,6 +38,10 @@ import os
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import tokenvalue  # noqa: E402
 
 # Where trial work trees live. This MUST track wholegame.py's `default_work`; it was
 # hardcoded to the old $TMPDIR location and kept printing "no writes in last 10 min"
@@ -175,8 +179,9 @@ def report(run_dir: str) -> None:
 
     rows = read_trials(run_dir)
     if rows:
+        print(f"  {'trial':<26} {tokenvalue.UNIT:>7} turns    wall  terminal_reason")
         for r in rows:
-            cost = f"${r['cost']:>6.2f}" if r["cost"] is not None else "   n/a"
+            cost = tokenvalue.fmt(r["cost"], width=7)
             turns = f"{r['turns']:>4}t" if r["turns"] is not None else "  ?t"
             print(f"  {r['id']:<26} {cost} {turns} {r['wall_min']:>6.1f}min  {r['term']}")
         # Partition before aggregating. A mean over mixed terminal reasons is meaningless.
@@ -184,10 +189,10 @@ def report(run_dir: str) -> None:
         # AND PARTITIONING BY TERMINAL REASON IS NOT ENOUGH, because one reason can hold
         # two populations. `wg-g4b` was killed by an external quota limit and printed
         #
-        #     api_error n=8 total $65.57 mean $8.20
+        #     api_error n=8 total 65.57 mean 8.20 tokval
         #
         # over two trials that had worked for 53 minutes and six that never got a turn.
-        # $8.20 describes no trial that has ever run - rule 4 firing INSIDE the partition
+        # 8.20 describes no trial that has ever run - rule 4 firing INSIDE the partition
         # the tool already makes. So the mean is suppressed unless the group is
         # homogeneous in the only way that is cheap to check: did the trial do anything.
         by_term = collections.defaultdict(list)
@@ -198,18 +203,24 @@ def report(run_dir: str) -> None:
             costs = [c for c, _ in cs]
             started = [c for c, n in cs if n > 1]
             never = [c for c, n in cs if n <= 1]
-            head = f"  {str(term):<18} n={len(cs):<3} total ${sum(costs):>8.2f}"
+            head = (f"  {str(term):<18} n={len(cs):<3} "
+                    f"total {tokenvalue.fmt(sum(costs), width=8)}")
             if started and never:
                 # Two populations under one label. Report both; refuse the pooled mean.
                 print(f"{head}  MEAN SUPPRESSED - {len(started)} trial(s) ran, "
                       f"{len(never)} never got a turn")
-                print(f"  {'':<18} ran:   n={len(started)} total ${sum(started):>8.2f}  "
-                      f"mean ${sum(started)/len(started):>7.2f}")
-                print(f"  {'':<18} never: n={len(never)} total ${sum(never):>8.2f}")
+                print(f"  {'':<18} ran:   n={len(started)} "
+                      f"total {tokenvalue.fmt(sum(started), width=8)}  "
+                      f"mean {tokenvalue.fmt(sum(started)/len(started), width=7)}")
+                print(f"  {'':<18} never: n={len(never)} "
+                      f"total {tokenvalue.fmt(sum(never), width=8)}")
             else:
-                print(f"{head}  mean ${sum(costs)/len(costs):>7.2f}")
+                print(f"{head}  mean {tokenvalue.fmt(sum(costs)/len(costs), width=7)}")
     else:
         print("  no trial records yet")
+
+    print()
+    print(f"  {tokenvalue.DEFINITION}")
 
     print()
     drivers = find_drivers()

@@ -71,6 +71,11 @@ import shutil
 import statistics
 import subprocess
 import sys
+from pathlib import Path as _Path
+
+sys.path.insert(0, str(_Path(__file__).resolve().parent / "tools"))
+
+import tokenvalue  # noqa: E402
 import tomllib
 import uuid
 from pathlib import Path
@@ -784,7 +789,8 @@ def run_trial(template: Path, task: Task, arm_name: str, arm: dict[str, Any],
         flag += " TAMPERED"
     print(
         f"  [{flag}] {trial_id}  score={rec['score']:.2f}  {rec['wall_s']}s  "
-        f"${rec['agent']['cost_usd']:.2f}  turns={rec['agent']['num_turns']}  "
+        f"{tokenvalue.tag(rec['agent']['cost_usd'])}  "
+        f"turns={rec['agent']['num_turns']}  "
         f"{rec['agent']['terminal_reason']}",
         flush=True,
     )
@@ -939,7 +945,8 @@ def report(run_dir: Path) -> None:
         print("'score' below is normalised: 0.00 = did nothing, 1.00 = fully solved\n")
     else:
         print("WARNING: no floors.json - run `check-suite` first or scores are inflated\n")
-    hdr = f"{'arm':<20} {'pass':>7} {'rate':>6} {'95% CI':>14} {'score':>7} {'±SE':>6} {'$':>7} {'turns':>6} {'wall':>7}"
+    hdr = (f"{'arm':<20} {'pass':>7} {'rate':>6} {'95% CI':>14} {'score':>7} "
+           f"{'±SE':>6} {tokenvalue.UNIT:>7} {'turns':>6} {'wall':>7}")
     print(hdr)
     print("-" * len(hdr))
     for arm, ts in sorted(by_arm.items()):

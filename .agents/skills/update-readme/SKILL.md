@@ -46,9 +46,10 @@ No run names, no trial ids, no per-run costs, no per-run trial counts. The argum
 scope inline was falsifiability — a claim with no scope cannot be checked. **A producer command
 or a finding link does that job without the provenance**, so cite one of those instead.
 
-This bites hardest where a price is the point. *"A harder game would cost $421"* is a per-run
-cost; *"the price is in `DECISIONS.md`, section X"* is not, and the reader who needs the number
-is one click away.
+This bites hardest where a figure is the point. *"A harder game would cost $421"* is a per-run
+number — and doubly wrong, because that figure is a list-price valuation of tokens on a
+subscription account rather than a price (#159). *"What a harder game would commit is in
+`DECISIONS.md`, section X"* is neither, and the reader who needs the number is one click away.
 
 ## 3. Every quantity carries its producer, and you run the producer in this session
 

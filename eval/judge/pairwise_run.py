@@ -15,6 +15,9 @@ from itertools import combinations
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+
+import tokenvalue  # noqa: E402
 from judge_pairwise import compare  # noqa: E402
 
 
@@ -107,11 +110,13 @@ def main() -> int:
             os.replace(tmp, f)
             results.append(r)
             print(f"  {tag} {subs[x]['id']} vs {subs[y]['id']}: "
-                  f"overall={r.get('overall')} ${r.get('cost_usd', 0):.2f}", flush=True)
+                  f"overall={r.get('overall')} "
+                  f"{tokenvalue.tag(r.get('cost_usd', 0))}", flush=True)
     stats = analyse(results)
     (a.out / "_analysis.json").write_text(json.dumps(stats, indent=2))
     print(json.dumps(stats, indent=2))
-    print(f"total ${sum(r.get('cost_usd', 0) or 0 for r in results):.2f}")
+    print(f"total {tokenvalue.tag(sum(r.get('cost_usd', 0) or 0 for r in results))}")
+    print(tokenvalue.DEFINITION)
     shutil.rmtree(work, ignore_errors=True)
     return 0
 

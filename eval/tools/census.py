@@ -52,6 +52,10 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import tokenvalue  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
 
@@ -192,7 +196,7 @@ def render(c: dict) -> str:
         f"({wg['trials_per_cell_min']}-{wg['trials_per_cell_max']} trials each, pooled "
         f"across runs — NOT a per-cell replicate count)",
         f"  terminal_reason    {_fmt_counter(wg['terminal_reason'])}",
-        f"  agent.cost_usd     ${wg['agent_cost_usd']:,.2f}",
+        f"  agent.cost_usd     {wg['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
     ]
     if biggest:
         name, info = biggest
@@ -208,17 +212,19 @@ def render(c: dict) -> str:
         f"SPEC-CHANGE — population: {sc['population']}",
         f"  trial records      {sc['trial_records']}",
         f"  run directories    {sc['run_directories']}",
-        f"  agent.cost_usd     ${sc['agent_cost_usd']:,.2f}",
+        f"  agent.cost_usd     {sc['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
         "",
         "WHOLE TREE — both populations, summed only where a sum is meaningful",
         f"  trial records      {tree['trial_records']} across "
         f"{tree['run_directories']} run directories, found at any depth",
-        f"  agent.cost_usd     ${tree['agent_cost_usd']:,.2f}",
+        f"  agent.cost_usd     {tree['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
         f"  skipped            {tree['skipped_agent_authored']} trials/*.json under "
         f"{'/, '.join(sorted(NOT_A_RUN))}/ — agent-authored, not harness records",
         "",
-        "judge-round cost is a different producer: "
+        "judge-round token valuation is a different producer: "
         "python3 eval/judge/judge_ledger.py --tree eval/runs/",
+        "",
+        tokenvalue.DEFINITION,
     ]
     return "\n".join(lines)
 
@@ -260,10 +266,10 @@ def selftest() -> int:
 
         # The known-answer tree, stated before it is measured:
         #   3 whole-game records over 2 run dirs, 2 games, 2 stacks, 3 cells,
-        #   terminal completed 1 / api_error 1 / absent 1, $6.00;
-        #   2 spec-change records over 2 run dirs, $9.00 — ONE OF THEM NESTED inside an
+        #   terminal completed 1 / api_error 1 / absent 1, 6.00 tokval;
+        #   2 spec-change records over 2 run dirs, 9.00 tokval — ONE OF THEM NESTED inside an
         #   archive wrapper, which is the case a one-level glob lost (#126);
-        #   tree 5 records, 4 dirs, $15.00, 1 skipped as agent-authored.
+        #   tree 5 records, 4 dirs, 15.00 tokval, 1 skipped as agent-authored.
         _write(runs / "wg-a" / "trials" / "g1__rust__t0.json",
                {"game": "g1", "stack": "rust", "trial": 0,
                 "agent": {"cost_usd": 1.0, "terminal_reason": "completed"}})

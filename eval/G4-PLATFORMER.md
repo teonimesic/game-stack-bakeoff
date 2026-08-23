@@ -44,13 +44,20 @@ what was built. Estimated cost is in "Cost" below and it is the
 first matrix that would run under the new standing configuration (`--max-turns 1000`, no budget
 cap), so its cost is **unmeasured** and a calibration trial comes first (`PROTOCOL.md`).
 
+> **THE UNIT: every `$n` below is `tokval`** — the list price the tokens would carry at
+> published API rates, on a subscription account where no money moves per token. It is a
+> resource proxy, not a price, and **no decision here may rest on one as money** (FINDINGS
+> #159). What a matrix really commits is days of wall clock and a share of rate-limit capacity.
+
 ## Why this game and not another
 
 Pong, 3D Tetris and the arena shooter have tied on the deterministic tiers across three games,
 four stacks and two cap regimes. Every deviation found so far has been a grader defect, not a
-submission defect. A fourth game is only worth $250–300 if it stresses machinery the other three
+submission defect. A fourth game is only worth a whole matrix if it stresses machinery the other three
 do **not**, because "the same four templates solve another task they all find easy" is a result
-we already have three times.
+we already have three times. (This read *"only worth $250-300 if..."* until 2026-08-23. The
+argument never rested on the figure and does not now: what is being weighed is days of wall
+clock against whether the answer could come out differently.)
 
 | system | pong | tetris3d | arena | **g4** |
 |---|---|---|---|---|

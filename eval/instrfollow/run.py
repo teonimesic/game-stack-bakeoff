@@ -66,6 +66,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "eval" / "tools"))
 
+import tokenvalue  # noqa: E402
+
 import pool as poolmod                                          # noqa: E402
 import instruction_census as census                             # noqa: E402
 
@@ -662,11 +664,13 @@ def cmd_build(a) -> int:
             got = sum(c["passed"] for c in ev["checks"].values())
             print(f"[{n}/{len(trials)}] {t['trial_id']:<12} k={t['k']:<2} "
                   f"{got}/{len(t['instructions'])} pass  "
-                  f"turns={rec['num_turns']} ${rec['cost_usd']:.4f} "
-                  f"{rec['terminal_reason']}  spend=${spend:.2f}")
+                  f"turns={rec['num_turns']} {tokenvalue.fmt(rec['cost_usd'], 4)} "
+                  f"{rec['terminal_reason']}  "
+                  f"cumulative {tokenvalue.tag(spend)}")
     finally:
         shutil.rmtree(work_root, ignore_errors=True)
-    print(f"\ntotal measured spend: ${spend:.2f} over {len(trials)} trials")
+    print(f"\ntotal measured {tokenvalue.tag(spend)} over {len(trials)} trials")
+    print(tokenvalue.DEFINITION)
     return 0
 
 
@@ -862,7 +866,7 @@ def cmd_analyse(a) -> int:
     # COST IS REPORTED PER ARM, NEVER POOLED.
     # The arms differ in prompt length and in how much the agent has to write, so a
     # per-trial mean across them is arithmetically correct and describes nothing
-    # (rule 4). The pilot measured $0.054 at k1 and $0.322 at k16 -- a 6x spread that a
+    # (rule 4). The pilot measured 0.054 tokval at k1 and 0.322 at k16 -- a 6x spread that a
     # single mean would hide, and anyone pricing a follow-up from that mean would
     # misprice every arm.
     # POSITION WITHIN THE BLOCK. Free, because order was randomised and recorded, and it
@@ -935,15 +939,15 @@ def cmd_analyse(a) -> int:
                   f"{abs(lo)*100:.1f} percentage points.")
 
     spend = sum(t["cost_usd"] for t in trials)
-    print(f"\nCOST: ${spend:.2f} over {len(trials)} trials, per arm:")
+    print(f"\nRESOURCE: {tokenvalue.tag(spend)} over {len(trials)} trials, per arm:")
     for arm in ARMS:
         ts = [t for t in trials if t["arm"] == arm]
         if not ts:
             continue
         cs = [t["cost_usd"] for t in ts]
-        print(f"  {arm:<7} n={len(ts):<4} ${sum(cs):>7.2f}   "
-              f"${statistics.fmean(cs):.4f} each "
-              f"(min ${min(cs):.4f}, max ${max(cs):.4f})")
+        print(f"  {arm:<7} n={len(ts):<4} {tokenvalue.fmt(sum(cs), width=7)}   "
+              f"{tokenvalue.fmt(statistics.fmean(cs), 4)} each "
+              f"(min {tokenvalue.fmt(min(cs), 4)}, max {tokenvalue.fmt(max(cs), 4)})")
     turns = [t["num_turns"] for t in trials if t["num_turns"]]
     if turns:
         print(f"TURNS: median {statistics.median(turns)}, max {max(turns)} "
