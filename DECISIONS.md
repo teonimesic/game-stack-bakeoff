@@ -1160,18 +1160,18 @@ half is a GitHub App authorisation that only the operator can perform, and `task
 steps.
 
 **`path_filters` carries exclusions and never an inclusion.** Per the schema those patterns also
-drive a sparse checkout, so a single positive pattern turns the list into an allowlist and blinds
-the reviewer to everything not named — including `.coderabbit.yaml` itself. An exclusion-only
-list cannot do that.
+drive a sparse checkout, so 1 positive pattern turns the list into an allowlist and blinds the
+reviewer to everything not named — including `.coderabbit.yaml` itself. An exclusion-only list
+cannot do that.
 
 What is excluded, and the population each pattern covers (`git ls-files`, 662 tracked files,
 2026-08-23):
 
 | pattern | files | why |
 |---|---|---|
-| `!eval/instrfollow/runs/**` | 115 | committed stored evidence — one JSON record per trial. Data, not source |
+| `!eval/instrfollow/runs/**` | 115 | committed stored evidence — 1 JSON record per trial. Data, not source |
 | `!eval/findings/**`, `!eval/FINDINGS.md`, `!eval/IMPROVEMENTS.md`, `!IMPROVEMENTS.md`, `!CLEANUP-LOG.md` | 10 | archives. A figure published and later proven wrong **stays** there, so a comment flagging one is a false positive with certainty, not with probability |
-| `!eval/runs/**` | **0** | gitignored, so it matches nothing today. Kept as a second guard, and the firing case is constructible: `.gitignore` changes, or one record is committed as a fixture |
+| `!eval/runs/**` | **0** | gitignored, so it matches nothing today. Kept as a second guard, and the firing case is constructible: `.gitignore` changes, or 1 record is committed as a fixture |
 
 **`eval/instrfollow/runs/` is the stored evidence that can actually reach a diff, and `eval/runs/`
 is not** — the opposite of what is easy to assume. `eval/runs/` is 129G and gitignored;
@@ -1185,10 +1185,10 @@ written statement of what the diff was supposed to do. The false-positive risk i
 
 **`eval/starters/*/` is reviewed too, not excluded, and its instruction redirects what is asked.**
 It is the experimental material, so "this could be better" is out of scope by construction. What a
-reviewer *can* do there is procedural and valuable: ask whether a change to one stack's tree was
-made to the other three, and whether the regime-boundary gates named in `AGENTS.md` were run.
+reviewer *can* do there is procedural and valuable: ask whether a change to 1 of the 4 stack trees
+was made to the other 3, and whether the regime-boundary gates named in `AGENTS.md` were run.
 
-**`reviews.review_details: true`** is the one setting changed for a reason particular to this
+**`reviews.review_details: true`** is the only setting changed for a reason particular to this
 project rather than to code review: it makes each review state which files it ignored, so *"did
 our own filters swallow the change?"* is answerable from the artifact. That is `AGENTS.md`,
 "capture what the instrument DID".
@@ -1198,14 +1198,32 @@ which resolves to **global** on a private repository — what CodeRabbit learns 
 applied to unrelated repositories on the same account. Same reason skills may not live in
 `~/.claude`.
 
-**`code_guidelines.filePatterns` enumerates six files rather than globbing `**/AGENTS.md`.** That
+**`code_guidelines.filePatterns` enumerates 6 files rather than globbing `**/AGENTS.md`.** That
 glob matches 8, and 4 of them are `eval/starters/{rust,ts,unity,godot}/AGENTS.md` — the product,
 not standards this repository holds itself to. It is an enumeration, which is normally the wrong
-shape, and it goes stale in exactly one way: **a new folder-scoped `AGENTS.md` outside
+shape, and it goes stale in exactly 1 way: **a new folder-scoped `AGENTS.md` outside
 `eval/starters/` has to be added to it.**
 
 **`reviews.tools` is deliberately empty.** Disabling `markdownlint` and `languagetool` over 168
 markdown files is the obvious edit and it is a guess. The first reviews are the measurement.
+
+**What the first review actually did, on PR #1, 2026-08-23 — because a configuration that has
+never caused a review is a mechanism that runs and measures nothing.** It posted 1 actionable
+comment across a 2-file diff, and the comment was a **true positive against this repository's own
+rules, not against a style guide**: the section you are reading spelled its counts as *single*,
+*one*, *three* and *six*, and `AGENTS.md` requires a count in a live document to be written in
+digits, because no check can read a cardinal spelled in words — the failure that let a stale
+findings figure survive 11 days. The reviewer derived that rule from `DECISIONS.md` through
+`code_guidelines.filePatterns` and cited it as its source. The counts are now digits.
+
+**The boundary applied when fixing it, because the rule does not state one:** digits wherever the
+number is a quantity of something in this repository that could change; words where the word is an
+indefinite article or a compound modifier naming no population — *a one-task branch* stays.
+
+`profile: chill` produced no prose comments on the markdown file, which is 1 review's worth of
+evidence against the guess that `markdownlint` and `languagetool` need disabling, and not enough
+to act on. `review_details: true` worked as intended: the review listed which path instructions
+and which learnings it used, so what the reviewer consumed is on the record.
 
 ---
 ## Reversal conditions — what would re-open a decision
@@ -1235,7 +1253,7 @@ settled question is noise that makes the live ones harder to find.
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
-| `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then one line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
+| `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
 | `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 168 markdown files must be noisy — that argument is available now and is not evidence |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 

@@ -47,11 +47,11 @@ reviews:
   # ---- path_filters ---------------------------------------------------------------------
   #
   # EXCLUSIONS ONLY, DELIBERATELY. Per the schema, these patterns also drive a sparse
-  # checkout: adding a single positive pattern would turn this into an allowlist and make the
+  # checkout: adding 1 positive pattern would turn this into an allowlist and make the
   # reviewer blind to everything not named, including this file. An exclusion-only list cannot
   # do that.
   path_filters:
-    # 115 tracked JSON trial records — one file per trial of the instruction-following
+    # 115 tracked JSON trial records — 1 file per trial of the instruction-following
     # experiment, plus its manifests and summaries. This is stored EVIDENCE, committed
     # (unlike eval/runs/, below). It is data, not source: reviewing it is noise, and it is
     # the one directory here large enough to dominate a diff.
@@ -104,12 +104,12 @@ reviews:
         added tests, or style changes here. A defect in a starter is often the thing being
         measured.
 
-        DO comment on exactly two things:
+        DO comment on exactly 2 things:
 
-        1. PARITY. The four stack trees are deliberately held equivalent to each other so that
-           a difference in results is attributable to the stack and not to the starter. If a
-           diff changes one stack's tree, ask in your comment whether the same change was made
-           to the other three, and say which ones the diff did not touch.
+        1. PARITY. The 4 stack trees are deliberately held equivalent to each other so that a
+           difference in results is attributable to the stack and not to the starter. If a diff
+           changes 1 of them, ask in your comment whether the same change was made to the other
+           3, and say which ones the diff did not touch.
         2. THE PROCEDURE. `AGENTS.md` states that editing a starter is a regime boundary, and
            requires `eval/judge/verify_blind.py`, `eval/judge/starter_parity.py`,
            `eval/tools/starter_gate_control.py` and a note in `eval/RUNS.md`. If the pull
