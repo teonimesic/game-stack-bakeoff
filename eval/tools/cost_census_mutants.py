@@ -44,6 +44,28 @@ makes a mutant necessary rather than merely tidy:
 | `swallow_bad_json` | naming the file in a parse failure | a record vanishes from the population with nothing a reader can see |
 | `drop_field` | a field the selftest reads, renamed | the selftest dying on a `KeyError` instead of reddening its row |
 
+The ordering adjudication (`--ordering`) is the same discipline over a p-value, and a p-value is
+the worst quantity here to get silently wrong: every mutant below returns a number in [0, 1].
+
+| mutant | what it deletes | what the tool would then report |
+|---|---|---|
+| `per_group_not_per_cluster` | clustering, so every group is its own unit | groups that share a run counted as independent evidence. **This is the fail-open that manufactures significance** — it is the whole reason the test exists rather than a table |
+| `components_ignore_game` | the game channel of the connected-component unit | the most conservative unit silently becomes the run unit, and the 0.25 floor the adjudication turned on disappears |
+| `p_any_is_p_named` | the post-hoc correction | the p for a stack *named in advance*, reported for one chosen because it looked lowest — a factor of k too small |
+| `p_excludes_the_observed` | the observed assignment's own membership of the tail | a permutation p that excludes itself; at the extreme it returns `0.0000` |
+| `attainable_min_is_one_cluster` | the design floor summed over clusters | the floor read off a single cluster, so `at_the_extreme` goes False and the "no margin left" warning never prints on the one result that needs it |
+| `ranks_ignore_ties` | shared average ranks | two stacks with the same mean ordered by the sort's stability — **a lead manufactured by the order of a list**, in exactly the quantity being adjudicated |
+| `leader_is_dearest` | the ordering's direction | the adjudication run on the *dearest* arm |
+| `margin_over_dearest` | the runner-up as the comparison | the lead measured against the dearest stack — the whole between-stack range, reported as one arm's margin |
+| `margin_beats_zero` | the comparison against the noise floor | "the lead beats the noise" becomes "the lead is positive", which is true whenever there is a lead at all |
+| `margin_where_it_lost` | measuring the margin only where the leader leads | the gap in a group the leader **lost** counted as evidence for it |
+| `no_groups_guard` | the refusal on an empty population | a p-value over no groups. It is caught by the *message*: a second guard also refuses here, so a type-only check passes while the reader is told the wrong thing |
+| `stack_set_guard` | the one-stack-set refusal | labels permuted across groups holding different stacks, which is undefined |
+| `materialise_the_assignments` | walking the assignments instead of building a table of them | ~199 MB on a design the limit **accepts**. `EXACT_ASSIGNMENT_LIMIT` budgets `(k!)**m` — assignments, a TIME cost — while a table costs `k! * m` vectors, a MEMORY cost, and the two decouple at high k with low m. No limit catches it, because the limit is not the quantity that grew |
+| `limit_checked_after_allocation` | refusing an over-limit design **before** enumerating | the same refusal, raised after `k!` vectors per cluster have been built — 725,760 tuples and hundreds of megabytes spent on the way to saying no. Both structures raise the same error, so only a pin on the RESOURCE can see it, and only in a **child** process: `ru_maxrss` is a process-lifetime high-water mark (rule 13) |
+| `render_drops_the_fragility_line` | the design-floor line from the REPORT | the producer is right and the report is silent about the one line that decides the adjudication. Every other pin here reads the result dict; this reads what a person sees |
+| `drop_ordering_field` | an ordering field the selftest reads, renamed | `drop_field` one level down |
+
 **`drop_field` is the one that is about the selftest rather than about the tool**, and it is
 here because it already happened: a fixed placeholder dict inside `only_group()` drifted the
 moment a field was added, and three mutants died on a `KeyError` instead of naming a failure.
@@ -55,14 +77,23 @@ WHAT THIS DOES NOT DO
 A mutant asks whether a check **can** fail. Only a **variant** asks whether it can still
 **pass** on an input it mishandles, and every false negative adjudicated in this project has
 been of the second kind (`AGENTS.md` rule 15). The variants live in `cost_census.selftest`
-itself — a `$0.00` trial, a record with no cost field, an uneven 3-trial cell — because they
-must pass, and `spread_divides`, `no_cost_guard` and `first_two_only` above are the mutants
-that prove those three rows can go red.
+itself, because a variant must **pass**. There are 7, each paired with the mutant that proves
+its rows can go red:
+
+| variant, by its label in `cost_census.selftest` | the input it must still handle | proved reddenable by |
+|---|---|---|
+| `Variant A` | a `$0.00` trial | `spread_divides` |
+| `Variant B` | a record with no cost field | `no_cost_guard` |
+| `Variant C` | an uneven 3-trial cell | `first_two_only` |
+| `O3` | a leader that loses one cluster | `margin_where_it_lost` |
+| `O5` | a tied cheapest pair | `ranks_ignore_ties`, `leads_by_alphabetical_tiebreak` |
+| `O6` | a lead that sits *inside* the noise floor | `margin_beats_zero` |
+| `O7` | a cluster whose smallest column is not unique | `fragility_from_closed_form` |
 
 **Needs no corpus.** `cost_census.py --selftest` builds its own trees under `tempfile`, so
 this runs anywhere, including an agent worktree with no `eval/runs/`.
 
-    python3 eval/tools/cost_census_mutants.py          # every mutant, ~2s
+    python3 eval/tools/cost_census_mutants.py          # every mutant, 6s
     python3 eval/tools/cost_census_mutants.py --list   # the count and the names only
 """
 
@@ -160,6 +191,75 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "one_level": (
         '    for path in sorted(runs_dir.rglob("trials/*.json")):',
         '    for path in sorted(runs_dir.glob("*/trials/*.json")):'),
+
+    # ---- the ordering adjudication. Every one of these returns a p-value in [0,1].
+    "ranks_ignore_ties": (
+        "        while j + 1 < len(ordered) and ordered[j + 1][0] == ordered[i][0]:",
+        "        while False:"),
+    "per_group_not_per_cluster": (
+        "        clusters = build(groups)",
+        "        clusters = [(f'g{i}', [i]) for i in range(len(groups))]"),
+    "components_ignore_game": (
+        '    for key in ("run", "game"):',
+        '    for key in ("run",):'),
+    "p_any_is_p_named": (
+        "            if smallest <= obs_leader:\n                n_any += 1",
+        "            if v[leader_idx] <= obs_leader:\n                n_any += 1"),
+    "p_excludes_the_observed": (
+        "            if v[leader_idx] <= obs_leader:\n                n_named += 1",
+        "            if v[leader_idx] < obs_leader:\n                n_named += 1"),
+    "attainable_min_is_one_cluster": (
+        "    attainable_min = sum(min(col) for col in cols)",
+        "    attainable_min = min(min(col) for col in cols)"),
+    "leader_is_dearest": (
+        "    leader = min(stacks, key=lambda s: observed[s])",
+        "    leader = max(stacks, key=lambda s: observed[s])"),
+    "margin_over_dearest": (
+        "            margin = means[1][0] - means[0][0]",
+        "            margin = means[-1][0] - means[0][0]"),
+    "margin_beats_zero": (
+        "                       margin_exceeds_floor=margin > floor)",
+        "                       margin_exceeds_floor=margin >= 0)"),
+    "margin_where_it_lost": (
+        '        if row["leads"] and len(means) > 1:',
+        "        if len(means) > 1:"),
+    "leads_by_alphabetical_tiebreak": (
+        '               "cheapest": means[0][1], "leads": r[leader] == 1.0,',
+        '               "cheapest": means[0][1], "leads": means[0][1] == leader,'),
+    "no_groups_guard": (
+        "    if not groups:\n        raise CostCensusError(",
+        "    if False:\n        raise CostCensusError("),
+    "stack_set_guard": (
+        "    if len(stack_sets) != 1:\n        raise CostCensusError(",
+        "    if False:\n        raise CostCensusError("),
+    "materialise_the_assignments": (
+        "    def walk(depth: int, running: list[float]) -> None:",
+        "    _perms = list(itertools.permutations(range(k)))\n"
+        "    _table = [[tuple(col[q[j]] for j in range(k)) for q in _perms]\n"
+        "              for col in cols]\n\n"
+        "    def walk(depth: int, running: list[float]) -> None:"),
+    "limit_checked_after_allocation": (
+        "    total = math.factorial(k) ** len(cols)\n"
+        "    if total > EXACT_ASSIGNMENT_LIMIT:",
+        "    perms_eager = list(itertools.permutations(range(k)))\n"
+        "    _eager = [[tuple(col[q[j]] for j in range(k)) for q in perms_eager]\n"
+        "              for col in cols]\n"
+        "    total = math.factorial(k) ** len(cols)\n"
+        "    if total > EXACT_ASSIGNMENT_LIMIT:"),
+    "fragility_from_closed_form": (
+        "        worst = max(worst, _permutation_test(sub, sum(min(c) for c in sub), k)"
+        '["p_floor"])',
+        "        worst = max(worst, k * (1.0 / k) ** len(sub))"),
+    # The RENDERER is a second component. Until 2026-08-23 nothing called it from the
+    # selftest, and it shipped a KeyError on a field the producer had stopped emitting —
+    # green suite, broken command.
+    "render_drops_the_fragility_line": (
+        "            f\"    ... and with any one cluster dropped "
+        "{_fmt(t['p_floor_dropping_one_cluster'], '.4f')}\"",
+        '            f\"\"'),
+    "drop_ordering_field": (
+        '        "p_floor": n_floor / total,',
+        '        "p_floor_RENAMED": n_floor / total,'),
 
     # ---- the selftest's own drift guard
     "drop_field": (

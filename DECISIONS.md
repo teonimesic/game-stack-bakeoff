@@ -2058,7 +2058,7 @@ agent was told to conserve something that is not scarce and produced less for no
 ceiling becomes a real protection. Then the build-side reasoning still applies — a cap the agent
 can see is an instruction, so it belongs outside the agent's view or not at all.
 
-## The cost route is re-opened, and a group is `(run, game)` — decided 2026-08-23
+## The cost route is adjudicated and does not resolve, and a group is `(run, game)` — decided 2026-08-23
 
 `README.md` carried the cost result with **no producer** — the last quantity in the file with no
 way to re-derive it. Writing one (`eval/tools/cost_census.py`, task 123) reproduced every
@@ -2072,15 +2072,61 @@ range **exceeds** the within-cell floor in **5 of 7**. `#63` never claimed exclu
 summarised, and it is the shape `AGENTS.md` warns about: **a figure quoted correctly, about a
 population nobody had counted.**
 
-**So the cost route is re-opened, and re-deciding it buys no trials.** What survives is that usage is dominated by a
+**So the cost route was re-opened, and re-deciding it bought no trials.** What survives is that usage is dominated by a
 per-agent choice: turns vary by up to **165** inside one stack's cell. The **r = 0.65 to 0.97**
 correlation with turns is **not** the evidence for that — it is arithmetic, because the figure is
 computed from token counts and token counts scale with turns (#159). The correlation was the
 measurement reported twice and correlated with itself. What does not survive is *"the between-stack range is small
-against its floor"*, which was the half that reached the null. The producer also prints the thing
-that needs adjudicating and is not adjudicated here: **the TypeScript arm has the lowest stack
-mean in 5 of the 7 groups**, and the 7 are not independent — 3 come from one run and 2 from
-another, at n=2 per cell.
+against its floor"*, which was the half that reached the null.
+
+### The ordering: TypeScript leads 5 of 7 and the stored tree cannot say whether that is real
+
+`python3 eval/tools/cost_census.py --ordering` is the producer. **No reading of the stored
+records settles the ordering**, and the reason is structural rather than marginal.
+
+**The statistic** is an exact permutation test on the usage ranks, all 331,776 assignments
+enumerated, with the **stack labels** permuted *within a cluster* and held constant across every
+group in that cluster. The null is that
+which stack got which of a group's four cells is arbitrary; rejecting it is the only sense in which
+"the stacks are ordered" is a claim rather than a reading of a table. The leading stack was chosen
+**post hoc**, because it looked lowest, so the statistic is *the smallest rank sum any of the four
+stacks reaches* — the version that carries its own multiplicity. TypeScript's rank sum is **10**
+against a null expectation of 17.5.
+
+**The dependence structure is the whole result, and the unit is not obvious.** 3 units are
+defensible and they do not agree:
+
+| independent unit | n | p, post-hoc-safe | smallest p the design could return |
+|---|---|---|---|
+| **run directory** — one launch, one harness, one day | 4 | **0.0156** | **0.0156** |
+| **game** — because games recur across runs | 4 | 0.0469 | 0.0156 |
+| **connected component of run *and* game** | **2** | **0.25** | **0.25** |
+
+**Two things make this unresolved rather than significant.**
+
+1. **At the run unit the observed p IS the design's floor.** 0.0156 is `4 × (1/4)⁴`: TypeScript
+   holds the cheapest column in all four runs, which is the most extreme outcome available. Any
+   less-than-perfect ordering returns the next attainable value, which is above 0.05. **A test
+   with exactly one rejecting outcome has no margin**, and dropping any single run puts the floor
+   at 0.0625 — no subset of three runs could reach α whatever it said.
+2. **The runs are not independent of each other.** 3 of the 4 games recur across runs, so a stack
+   that is cheap on one game contributes the same evidence twice. Merging both channels leaves
+   **6 of the 7 groups in a single connected component**, and there the smallest attainable p is
+   **0.25**. At the honest unit the question is **not answered no — it is unasked.**
+
+**And the lead is inside the noise.** Where TypeScript leads at all, its margin over the
+runner-up is **14.9% to 93.7% of that group's own within-cell floor — above it in 0 of 5**. A
+consistent ordering and a lead that beats the noise are different claims, and only the first was
+ever on the table.
+
+**So: suggestive, not established, and not a finding about the stacks.** The count of instruments
+reaching the null in `README.md` does **not** change — this route reaches no null either, which is
+what its row already says. `cost_usd` is a list-price valuation of tokens on a subscription
+account (#159), so none of this is about money.
+
+**What would settle it is now priced, and it is not a re-reading.** 4 qualifying groups sharing
+**neither a run nor a game** put the design floor back at 0.0156 with independent clusters behind
+it. The stored tree cannot be rearranged into that; it needs new runs on games that do not recur.
 
 **The unit of the measurement is a `(run directory, game)` group**, and that is the load-bearing
 choice. A floor is a property of a population: pooling across runs mixes budget-cap regimes
@@ -2100,8 +2146,8 @@ hidden: **2 of the mutants were exiting non-zero via a traceback rather than red
 check**, which a by-hand pass scores as "caught". The 3 **variants** stay inside
 `cost_census.selftest` because a variant must *pass*.
 
-**To re-open:** an adjudication of what the 7 groups say about ordering — which is queued as an
-offline task and needs no spend — or a matrix that lands an eighth qualifying group.
+**To re-open:** a matrix that lands 4 qualifying groups sharing neither a run nor a game with the
+7, or a fifth stack — both of which change the cluster structure the adjudication turned on.
 
 
 ## Reversal conditions — what would re-open a decision
@@ -2125,7 +2171,7 @@ settled question is noise that makes the live ones harder to find.
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
-| The cost route is re-opened | An adjudication of what `cost_census.py`'s **7** groups say about ordering. The producer is offline and costs nothing, so this closes on reading rather than on spending. Two facts have to be reconciled and neither is decisive alone: the between-stack range exceeds the within-cell floor in **5 of 7**, and the same groups are not independent — 3 share one run, 2 share another, at n=2 per cell. **A fifth stack, or an eighth group, re-opens it whatever the adjudication says** |
+| The cost route is adjudicated and does not resolve | **4 qualifying groups that share neither a run nor a game.** The adjudication ran (`cost_census.py --ordering`) and came back unresolved for a structural reason, not a marginal one: 6 of the 7 stored groups are one cluster once game recurrence is counted, so the smallest p the design can return is **0.25** and no outcome could have reached α. Re-reading the stored tree cannot change that — only new runs on non-recurring games can. **A fifth stack also re-opens it**, by widening the label space the permutation draws from |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
