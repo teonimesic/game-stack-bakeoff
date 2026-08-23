@@ -102,6 +102,10 @@ consistent and mutually incomparable. `wg-audio` at $25 is a partial third regim
 from 2026-08-15 onward is a fourth, and its arena trials answer a different question from every
 arena trial before them.
 
+**Those two runs are also barred from code-aspect judging**, which is a separate axis from the
+regime boundaries above and applies within each of them: their packs cannot be re-packed and the
+builder already refuses them. See the section on their stored packs, below.
+
 ## A fifth boundary, and this one is in the GRADER, not the run
 
 **On 2026-08-23 tier 1 stopped being 0.31 of `overall` and became a pass/fail gate** (task 29,
@@ -445,6 +449,87 @@ because there is nothing here to test one against.
 - **`wg-audio48`'s arena wall-clock is not comparable to its pong and tetris wall-clock.** The
   retry ran four trials at once against a different background load; the original ran within a
   24-trial schedule.
+- **Neither `wg-matrix` nor `wg-audio48` may have a code-aspect field built from it**, and neither
+  can be re-packed — their stored packs carry #83's answer key and the `starter baseline` commits
+  that would corroborate an exclusion set are destroyed. Next section.
+
+## `wg-matrix` AND `wg-audio48` CARRY #83's ANSWER KEY IN THEIR STORED PACKS, CANNOT BE RE-PACKED, AND ARE BARRED FROM CODE RE-GRADING — 2026-08-23
+
+`wg-g4c` was re-packed and verified clean (below). **Those two runs were not**, and they cannot
+be: the evidence a computed exclusion set is checked against no longer exists on this machine.
+
+### The radius, measured file by file
+
+Every stored `judge_pack/code` in both runs, grepped for the trial id, `.codex` and the work
+path. Where it is present it is always **exactly one file**, always `code/other/NN.json`, and it
+is the `.codex` hooks configuration verbatim — for `wg-matrix`'s `g1_pong__godot__t0`:
+
+```json
+{"hooks": {"Stop": [{"hooks": [{"type": "command", "command":
+  "'/private/var/folders/.../T/wholegame-work/g1_pong__godot__t0/.codex/hooks/verify-gate.sh'"}]}]}}
+```
+
+| run | packs carrying the key, per stack | total |
+|---|---|---|
+| `wg-matrix-2026-08-13T14-02-50` | godot 4/6, rust 5/6, **ts 6/6**, unity 2/6 | **18 of 24** |
+| `wg-audio48-2026-08-14T19-55-47` | godot 3/4, ts 3/4, rust 0/4, unity 0/4 | **6 of 16** |
+
+### They cannot be re-packed, and the reason is that the corroboration is destroyed
+
+`python3 judge/repack.py runs/<run>` (dry run, unpiped) **refuses 24 of 24 and 16 of 16**:
+
+| run | submissions | refusal |
+|---|---|---|
+| `wg-matrix` | 24 | no `pack.manifest` in `eval/report.json` — there is no stored set to subtract from, so the exclusion set is *unrecoverable*, not empty |
+| `wg-audio48` | 12 | `files_dropped_for_length` is 1–11, not 0: those packs were built under the pre-#69 character cap and files are legitimately returning |
+| `wg-audio48` | 4 (`g1_pong` godot t0/t1, ts t0/t1) | the work tree has no `starter baseline` root commit |
+
+The last row is the one that closes the question, and it is not a tool artefact. The work trees
+are still on disk under `$TMPDIR/wholegame-work/`, but `$TMPDIR`'s reaper has gutted them — the
+same mechanism as #45, the outcome #104 predicted:
+
+| | trials | work tree present | `.git` present | `.git/HEAD` present | loose objects |
+|---|---|---|---|---|---|
+| `wg-matrix` | 24 | 24 | 24 | **0** | **0** |
+| `wg-audio48` | 16 | 16 | 16 | **0** | **0** |
+| `wg-g4c` *(control)* | 8 | 8 | 8 | 8 | 87–211 |
+
+`hooks/ info/ logs/ objects/ refs/` survive as empty directory skeletons; `HEAD`, `config`,
+`index` and every object are gone. **The starter as the agent received it is unrecoverable for
+all 40 submissions**, so a rebuilt pack would reclassify template code as authored work (#77) with
+nothing able to say by how much. Re-packing them is therefore the wrong repair, not a deferred one.
+
+### What is barred, and what already bars it
+
+**No code-aspect field may be built from either run.** That is not only a rule here — it is
+already enforced, and it was verified by calling the builder rather than by reading it.
+`field.build_pack(..., sees="code")` on every game in both runs:
+
+| field | result |
+|---|---|
+| `wg-matrix` / `g1_pong`, `g3_arena` | refused — pack/manifest parity UNMEASURABLE for 8 submissions each |
+| `wg-matrix` / `g2_tetris3d` | refused — TRUNCATION HAS RETURNED, 5 of 8 dropped, max 3 |
+| `wg-audio48` / `g1_pong` | refused — 4 of 8 dropped, max 7 |
+| `wg-audio48` / `g2_tetris3d` | refused — 8 of 8 dropped, max 11 |
+| `wg-g4c` / `g4_platformer` *(control)* | **built**, 199 files |
+
+The control matters: the five refusals are properties of these two runs, not a builder that
+refuses everything. `fun`, `fun_frames`, `ux` and `audio` never read `judge_pack/code` and are
+unaffected; a *frames* or *telemetry* re-grade of either run remains available.
+
+### What is NOT true, and the ticket said it was
+
+The live exposure was described as armed — that an offline re-grade would hand a judge the key
+again. **It would not.** `field.build_pack` writes `anonymise.neutralise(text)` rather than
+copying, and `neutralise` rewrites any `g<n>_<game>__<stack>__t<n>` token to `SUBMISSION`.
+Applying it to all 40 packs' code leaves **0 files in which the trial id survives**, and the
+32 `telemetry.json`/`audio.json` evidence blobs those runs would produce carry no trial id, work
+path or `.codex` string either.
+
+So the two exposures separate cleanly: the **stored** packs carry the key and always will; **what
+a judge would be handed does not.** The bar above rests on the destroyed baseline and the #62
+truncation, which are independent of #83 and would bar these fields even if the key had never
+existed.
 
 ## Offline re-grade, 2026-08-16 — tier 2 only, tier 1 untouched
 
