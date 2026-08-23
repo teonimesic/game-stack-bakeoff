@@ -14,6 +14,13 @@ the audio criteria decode every clip rather than trusting its extension.
 spec-change suite's design — history now, but the history 71 stored trials are read against.
 Stored results live in `runs/<name>/`, one directory per run — that is data, not guidance.
 
+**The producer for that 71, and for every count of the tree, is `python3 tools/census.py`.**
+It is `71 over 12 run directories, $153.82`. Do not reach for a glob instead:
+`runs/archive-run1-byte-identical-prompts/` is a **wrapper holding four run directories**, so a
+`runs/*/trials/*.json` pattern misses 24 records and reports 47 — which is what the tool itself
+did until 2026-08-23, agreeing to the digit with a `RUNS.md` figure produced the same wrong way
+(#126). Search at any depth or use the producer.
+
 **`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
 suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded
 on: the trial JSON stores `task: "t1_rally"` and no prompt (#119). Nothing launches from them and

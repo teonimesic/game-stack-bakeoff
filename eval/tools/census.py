@@ -8,7 +8,7 @@ produced any of them, so nothing could notice when they stopped being true. This
 producer. It reports the counts and, with every one, the **population** it counted over —
 an aggregate without its scope is unfalsifiable (#113).
 
-Two populations live under `eval/runs/*/trials/*.json` and must never be summed blind:
+Two populations live under `eval/runs/**/trials/*.json` and must never be summed blind:
 
 | population | test | what it is |
 |---|---|---|
@@ -18,6 +18,15 @@ Two populations live under `eval/runs/*/trials/*.json` and must never be summed 
 Within the whole-game population, partition by `agent.terminal_reason` before computing
 anything (`eval/AGENTS.md`, rule 4). Four `archive-arena2d` records predate the field and
 are reported as `absent`, not folded into any other bucket.
+
+**A run directory is not always a child of `runs/`.** `archive-run1-byte-identical-prompts/`
+is a wrapper holding four run directories one level deeper, and the `*/trials/*.json` glob
+this tool shipped with dropped all 24 of their records without saying so — reporting 47
+spec-change records against a tree holding 71, and 137 tree-wide against 161 (#126). The
+search is now depth-independent and a run is identified by its path relative to `runs/`, so
+the count cannot be wrong about where it looked. Directories holding agent-authored trees
+(`work/`, `artifacts/`, `targets/`) are excluded and the number excluded is reported, because
+a skip nobody counts is the defect this replaces.
 
 **This tool fails rather than returning zero.** A missing runs directory and an empty one
 both exit 2. An agent worktree has no `eval/runs/` — it is gitignored — so the honest
@@ -51,13 +60,36 @@ DEFAULT_RUNS = ROOT / "eval" / "runs"
 # which never does.
 WHOLEGAME_KEY = "game"
 
+# Directories that hold trees written by a building agent or by a toolchain, not by a
+# harness. A `trials/` directory appearing under one of these is not ours; counting it
+# would be fail-open. Every skip is counted and reported.
+NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
+
 
 class CensusError(RuntimeError):
     """The tree could not be read. Never downgraded to a count of zero."""
 
 
-def load_records(runs_dir: Path) -> list[tuple[str, str, dict]]:
-    """Every stored trial record as (run_directory, filename, parsed).
+def trial_paths(runs_dir: Path) -> tuple[list[Path], list[Path]]:
+    """(counted, skipped) trial-record paths, found at any depth under runs_dir.
+
+    Depth-independent because `archive-run1-byte-identical-prompts/` wraps four run
+    directories and a one-level glob silently lost all 24 of their records (#126).
+    """
+    counted, skipped = [], []
+    for path in sorted(runs_dir.rglob("trials/*.json")):
+        # parts between runs_dir and the `trials/` component
+        stem = path.relative_to(runs_dir).parts[:-2]
+        (skipped if NOT_A_RUN.intersection(stem) else counted).append(path)
+    return counted, skipped
+
+
+def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path]]:
+    """Every stored trial record as (run_directory, filename, parsed), plus the skips.
+
+    `run_directory` is the run's path RELATIVE to runs_dir, so a nested archive is
+    distinguishable from a top-level run of the same name and the identifier says where
+    the record was read from (rule 12).
 
     Raises CensusError if the directory is missing or holds no trial records, and lets a
     JSONDecodeError escape naming its file. Returning an empty list for any of those
@@ -66,16 +98,18 @@ def load_records(runs_dir: Path) -> list[tuple[str, str, dict]]:
     if not runs_dir.is_dir():
         raise CensusError(f"no runs directory at {runs_dir} (it is gitignored; an agent "
                           f"worktree does not have one — read the main checkout)")
+    counted, skipped = trial_paths(runs_dir)
     out = []
-    for path in sorted(runs_dir.glob("*/trials/*.json")):
+    for path in counted:
         try:
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CensusError(f"{path}: {exc}") from exc
-        out.append((path.parents[1].name, path.name, data))
+        out.append((str(path.parent.parent.relative_to(runs_dir)), path.name, data))
     if not out:
-        raise CensusError(f"{runs_dir} holds no */trials/*.json — refusing to report 0")
-    return out
+        raise CensusError(f"{runs_dir} holds no **/trials/*.json — refusing to report 0 "
+                          f"({len(skipped)} paths skipped as agent-authored)")
+    return out, skipped
 
 
 def _cost(record: dict) -> float:
@@ -87,7 +121,7 @@ def _terminal(record: dict) -> str:
 
 
 def census(runs_dir: Path) -> dict:
-    records = load_records(runs_dir)
+    records, skipped = load_records(runs_dir)
     wholegame = [r for r in records if WHOLEGAME_KEY in r[2]]
     specchange = [r for r in records if WHOLEGAME_KEY not in r[2]]
 
@@ -112,6 +146,7 @@ def census(runs_dir: Path) -> dict:
             "trial_records": len(records),
             "run_directories": len({r for r, _, _ in records}),
             "agent_cost_usd": round(sum(_cost(d) for _, _, d in records), 2),
+            "skipped_agent_authored": len(skipped),
         },
         "wholegame": {
             "population": "stored trial records carrying a `game` field",
@@ -177,8 +212,10 @@ def render(c: dict) -> str:
         "",
         "WHOLE TREE — both populations, summed only where a sum is meaningful",
         f"  trial records      {tree['trial_records']} across "
-        f"{tree['run_directories']} run directories",
+        f"{tree['run_directories']} run directories, found at any depth",
         f"  agent.cost_usd     ${tree['agent_cost_usd']:,.2f}",
+        f"  skipped            {tree['skipped_agent_authored']} trials/*.json under "
+        f"{'/, '.join(sorted(NOT_A_RUN))}/ — agent-authored, not harness records",
         "",
         "judge-round cost is a different producer: "
         "python3 eval/judge/judge_ledger.py --tree eval/runs/",
@@ -224,7 +261,9 @@ def selftest() -> int:
         # The known-answer tree, stated before it is measured:
         #   3 whole-game records over 2 run dirs, 2 games, 2 stacks, 3 cells,
         #   terminal completed 1 / api_error 1 / absent 1, $6.00;
-        #   1 spec-change record, 1 run dir, $1.00; tree 4 records, 3 dirs, $7.00.
+        #   2 spec-change records over 2 run dirs, $9.00 — ONE OF THEM NESTED inside an
+        #   archive wrapper, which is the case a one-level glob lost (#126);
+        #   tree 5 records, 4 dirs, $15.00, 1 skipped as agent-authored.
         _write(runs / "wg-a" / "trials" / "g1__rust__t0.json",
                {"game": "g1", "stack": "rust", "trial": 0,
                 "agent": {"cost_usd": 1.0, "terminal_reason": "completed"}})
@@ -236,6 +275,15 @@ def selftest() -> int:
         _write(runs / "core-x" / "trials" / "t1_rally__rust__t0.json",
                {"task": "t1_rally", "agent": {"cost_usd": 1.0,
                                               "terminal_reason": "completed"}})
+        # Direction 4a: a run nested inside an archive wrapper MUST be counted, as its
+        # own run directory, identified by its path relative to runs/.
+        _write(runs / "archive-x" / "core-y" / "trials" / "t2_net__ts__t0.json",
+               {"task": "t2_net", "agent": {"cost_usd": 8.0,
+                                            "terminal_reason": "completed"}})
+        # Direction 4b: a trials/ directory inside an agent-authored tree must NOT be
+        # counted, and the skip must be reported rather than silent.
+        _write(runs / "wg-a" / "work" / "someagent" / "trials" / "notours.json",
+               {"game": "g9", "stack": "rust", "agent": {"cost_usd": 999.0}})
 
         c = census(runs)
         wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
@@ -247,15 +295,26 @@ def selftest() -> int:
         check("wholegame.terminal_reason", wg["terminal_reason"],
               {"absent": 1, "api_error": 1, "completed": 1})
         check("wholegame.agent_cost_usd", wg["agent_cost_usd"], 6.0)
-        # The spec-change record must NOT be counted as whole-game, and must be counted.
-        check("specchange.trial_records", sc["trial_records"], 1)
-        check("specchange.run_directories", sc["run_directories"], 1)
-        check("specchange.agent_cost_usd", sc["agent_cost_usd"], 1.0)
-        check("tree.trial_records", tree["trial_records"], 4)
-        check("tree.run_directories", tree["run_directories"], 3)
-        check("tree.agent_cost_usd", tree["agent_cost_usd"], 7.0)
+        # The spec-change records must NOT be counted as whole-game, and must be counted
+        # — including the one nested inside the archive wrapper.
+        check("specchange.trial_records", sc["trial_records"], 2)
+        check("specchange.run_directories", sc["run_directories"], 2)
+        check("specchange.agent_cost_usd", sc["agent_cost_usd"], 9.0)
+        check("tree.trial_records", tree["trial_records"], 5)
+        check("tree.run_directories", tree["run_directories"], 4)
+        check("tree.agent_cost_usd", tree["agent_cost_usd"], 15.0)
         check("largest matrix is wg-a", max(
             wg["per_run"].items(), key=lambda kv: kv[1]["records"])[0], "wg-a")
+        # The nested run is identified by its path, not by its bare name.
+        counted, skipped = trial_paths(runs)
+        check("nested run identified by relative path",
+              sorted({str(Path(p).parent.parent.relative_to(runs)) for p in counted}),
+              ["archive-x/core-y", "core-x", "wg-a", "wg-b"])
+        # 4b, both halves: excluded from the counts AND reported.
+        check("agent-authored trials/ skipped", len(skipped), 1)
+        check("skip is reported", tree["skipped_agent_authored"], 1)
+        check("agent-authored record did not reach the cost total",
+              999.0 not in [_cost(d) for _, _, d in load_records(runs)[0]], True)
 
         # Direction 3: a record that is malformed must fail loudly, naming its file.
         (runs / "wg-b" / "trials" / "broken.json").write_text("{not json")

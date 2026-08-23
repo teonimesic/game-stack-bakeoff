@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#126 from building and running this evaluator. **Check whether a
+Findings #19-#127 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -203,6 +203,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **124** | The findings index split into two tables and the sweep that checks the log was green on it — every row resolved, and what broke was the thing holding them together | [documentation](findings/documentation.md) |
 | **125** | A guard stated as a resource was implemented as a layout, so reusing it verbatim would have broken two documented readers | [fail-open](findings/fail-open.md) |
 | **126** | A near-miss heading check could not tell a rename from a forgotten copy, produced two rows, and both were false — in opposite directions | [certifies-nothing](findings/certifies-nothing.md) |
+| **127** | The producer built to stop a count going stale globbed one level deep and lost 15% of the tree — 137 records against a true 161 — and the cross-check that certified it had been produced by the same glob | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
