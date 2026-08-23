@@ -1,6 +1,7 @@
 ---
+established_by: Surveyed 15 capabilities across the four pinned stacks into research/10-stack-capability-matrix.md, with status, an E1-E4 effort tier, Apple-silicon conditionality and a source per cell, plus 10 unresolved cells each with what would settle it. Ground truth was the vendored Bevy 0.19.0 crate sources, the three 0.185.1 npm tarball with live Playwright probes on the real capture path, live Unity batchmode probes plus the installed 6000.0.45f1 editor, and the installed Godot 4.7.1 binary via doctool, headless ProjectSettings reads and otool. Measured on the machine rather than inferred: a wgpu 29.0.4 adapter probe showing EXPERIMENTAL_RAY_QUERY true but BUFFER_BINDING_ARRAY false, so bevy_solari 0.19 cannot initialise on this M3 Max and fails open with a warn; Unity supportsRayTracing False corroborated by absence of the five Metal acceleration-structure selectors, with the same otool command on the Godot binary as the positive control; Godot Jolt present in-tree but NOT the default, settled behaviourally with both positive controls. Established that three narrowings decide most outcomes: the Rust pin is Bevy's 2d bundle with no PBR, lights, glTF or audio; Unity is Built-in RP with five packages and no physics, particle, audio or animation module; the TypeScript arm films on SwiftShader. Nine of the fifteen capabilities are irrelevant to the current four games and that judgement is argued in the document. DECISIONS.md corrected in two places where the survey contradicted it, and a new task 27 filed for two measured TypeScript capture-harness defects found along the way.
 id: 24
-status: open
+status: done
 priority: 2
 title: Survey what each stack can actually do at its pinned version
 refs: research/AGENTS.md, feeds tasks 25 and 26

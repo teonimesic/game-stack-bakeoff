@@ -147,7 +147,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 
 | Directory | What it is |
 |---|---|
-| `research/` | Ten briefs answering the original questions, plus `DECISION.md`. Every claim dated and sourced; unverified claims labelled. `DECISION.md` opens with a retraction — it decided on paper, and two of its eliminations were wrong. |
+| `research/` | Eleven briefs answering the original questions, plus `DECISION.md`. Every claim dated and sourced; unverified claims labelled. `DECISION.md` opens with a retraction — it decided on paper, and two of its eliminations were wrong. `10-stack-capability-matrix.md` is what each stack can do **at its pinned version**. |
 | `template/` | **Rust + Bevy 0.19.** The reference template. Deterministic sim crate, headless GPU pixel readback. |
 | `template-ts/` | **TypeScript + three.js.** |
 | `template-unity/` | **Unity 6.** Boundary enforced by `noEngineReferences: true` — compiler-enforced, the strongest of the four. |
@@ -155,13 +155,14 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#89, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#94, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
 - **What was decided and why?** → `DECISIONS.md`
 - **What went wrong and what it taught?** → `eval/FINDINGS.md`
 - **Why this stack?** → `research/DECISION.md` (the *prior*; the bake-off is the evidence)
+- **What can each stack actually do at its pinned version?** → `research/10-stack-capability-matrix.md`
 - **What does a building agent read?** → `template*/AGENTS.md`
 - **How is a submission graded?** → `eval/judge/RUBRIC.md`
 - **How does subjective judging work, and what is being changed?** → `eval/judge/JUDGING.md`

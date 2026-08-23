@@ -207,9 +207,17 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 - **Statistical power.** With 2 trials per cell, if two stacks land within ~0.015 this design
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
-- **The rubric ceiling.** A real agent-built TypeScript Pong scored 13/13 unanimously, six times.
-  If matrix submissions cluster at 12–13/13 the tier is uninformative at the top end regardless of
-  stability — not yet checked against matrix data.
+- **The rubric ceiling — CHECKED against matrix data 2026-08-23 for the deterministic tiers, and
+  it is worse than "clustering".** Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`**
+  and on all 16 of `wg-audio48` — 40 of 56 matrix trials at the ceiling with *zero* variance, not
+  merely near it. Tier 2 is at the ceiling on 24 of 56 (`wg-audio48` and `wg-g4c` entire).
+  `wg-audio48` returns **1.0 on both scored tiers for all 16 trials**: its whole deterministic
+  grade is a constant. Measured by `eval/judge/weight_sensitivity.py`, FINDINGS #92.
+  **Tier 1 is a floor test that works, weighted 0.31 as though it discriminated.** It still
+  catches the submission that fails outright (`wg-arena3d` 0.0, `wg-g4c` 0.857), which is worth
+  keeping — but it separates nothing among submissions that pass. What remains open is what to do
+  about it: whether to keep the split, re-scope tier 1 explicitly as a gate, or add criteria with
+  headroom. That is task 27, and it is a rubric change requiring mutants, not a doc edit.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for $46.79. Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53);
@@ -305,10 +313,25 @@ restricted to what the weakest can do* — and the headline it produces ("these 
 indistinguishable") is then partly an artifact of the restriction.
 
 **What is now being measured: what a competent agent can build in each stack when the template
-does not hold it back.** Native physics where the engine ships it (Unity PhysX, Godot Jolt) and
-a pinned crate or library where it does not (Bevy, three.js). Native particle systems where they
-exist. Ray tracing where the platform supports it. That asymmetry is the subject, not a confound
-to be designed away.
+does not hold it back.** That asymmetry is the subject, not a confound to be designed away.
+
+**The survey it was decided ahead of has now run** (`research/10-stack-capability-matrix.md`,
+2026-08-23), and it corrects two of the examples this decision was originally stated with:
+
+- **Ray tracing is not reachable in any arm on the measurement machine.** Bevy has the Metal
+  ray-query feature and `bevy_solari` still cannot initialise (it needs `BUFFER_BINDING_ARRAY`,
+  which wgpu 29 sets only on Vulkan) — and it fails open with a `warn!`. Unity measures
+  `supportsRayTracing = False` and ships no Metal acceleration-structure path. three.js has no
+  WebGPU under the capture harness. Godot has the API but no scene-renderer integration. The
+  clause "ray tracing where the platform supports it" therefore selects nothing.
+- **Native physics is the inverse of how it reads.** Godot ships Jolt in-tree but Godot Physics
+  is the default; Unity ships PhysX. Both are one pin change away — and **neither can be used
+  where game rules must live**, because `Sim.asmdef`'s `noEngineReferences` and
+  `tools/boundary.gd` forbid it. Bevy and three.js, which ship no physics, are the two that
+  *could* pin a deterministic solver inside `sim`.
+
+Native particle systems remain a real and large asymmetry: Godot ships them, Unity's is one
+manifest line, Bevy and three.js have none at any effort below writing one.
 
 **What this costs, stated plainly so it is not discovered later:**
 
@@ -316,9 +339,11 @@ to be designed away.
   *the stack as exercised by this template* — and the template author's judgement about what
   "best" means becomes a variable. This was always partly true; deliberately diverging templates
   make it matter more.
-- The defence is that "best" must be **sourced, not asserted** — see the capability survey
-  (`research/`, task 24) and `research/AGENTS.md`'s sourcing rules. A capability included because
-  it is documented and reachable is defensible; one included because it seemed impressive is not.
+- The defence is that "best" must be **sourced, not asserted** — see
+  `research/10-stack-capability-matrix.md` and `research/AGENTS.md`'s sourcing rules. A capability
+  included because it is documented and reachable is defensible; one included because it seemed
+  impressive is not. The survey also lists ten cells it could **not** establish; those are not
+  available for "best" until someone settles them.
 - `judge/starter_parity.py` must continue to REPORT capability divergence rather than fail on it.
   Under this decision, divergence is the design; a guard that reads it as drift would be wrong
   and would be switched off, which is worse.
@@ -331,6 +356,51 @@ retired. So capability work is gated on making capability observable by a signal
 palette-coupled (task 25), or it cannot be shown to have helped.
 
 ---
+
+## What in `eval/runs/` is evidence — decided 2026-08-22
+
+**A file under `eval/runs/` is evidence until something in the tree itself proves it can be
+regenerated, and the proof must name a producer that declared the file its own output.**
+
+Two proofs are accepted, both being the toolchain speaking about its own output: a `CACHEDIR.TAG`
+with a valid signature at a directory root, and the work tree's own `.gitignore`. Anything no
+proof reaches is copied.
+
+Stated as a rule rather than a list of directories because an enumeration misses the next stack
+and fails in the direction that loses evidence. It is applied by `eval/tools/evidence_set.py`;
+`eval/PROTOCOL.md` says when to re-sync and `#90` says what this replaced.
+
+Measured on that rule: 14,192 files, 1.109 GB of 138.146 GB — 99.20% of `eval/runs/` is
+regenerable. **Reclaiming the 137 GB remains task 10's call**, and nothing was deleted here.
+
+**Where the copy goes is still open.** The current copy at `/Users/stefano/game-research-evidence`
+is on the same physical disk as the original and is therefore not a backup — it survives `rm -rf`
+and a bad `git clean`, and nothing else. This machine has no external disk, no `rclone`/`restic`
+remote, and its only cloud target is the operator's personal iCloud Drive, which is not somewhere
+project evidence belongs. Every evidence file is under 50 MB, so an external disk or a private
+GitHub repo would each work without LFS; both need the operator's go-ahead.
+
+---
+## Reversal conditions — what would re-open a decision
+
+**Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
+Labelled honestly: this is UNVERIFIED as an improvement.** No finding in `eval/FINDINGS.md` is
+known to have been caused by a decision outliving its basis, so the case for it is an argument,
+not a measurement. It is adopted narrowly — only where a decision rests on a measurement that
+could plausibly move — rather than on every row, because a reversal condition attached to a
+settled question is noise that makes the live ones harder to find.
+
+| Decision | Re-open when |
+|---|---|
+| Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
+| Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
+| Deterministic tiers may not rank stacks | Any instrument change producing **non-zero within-cell verdict variance** — currently 0 of 380 |
+| Tier weights 0.31/0.69 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound**. Currently 0 of 10 groups flip, and the one group with both tiers varying is `wg-arena3d`, which `eval/RUNS.md` declares void (#92) |
+| No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
+| 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
+
+The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
+input and no measurement would overturn them.
 
 ## Keeping this current
 

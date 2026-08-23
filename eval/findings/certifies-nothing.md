@@ -2408,3 +2408,177 @@ This is the same shape as #82's cause 6 one level up. There, the bot's own input
 criterion unmeasurable; here, the *level's* legitimate geometry did. **Both are the instrument
 scoring conformity to its own expectations** — and in both, the submission was correct and said
 so in its own source.
+## 91. Three of four mutants were inert because the real data never reached the branch they broke
+
+A `.gitignore` matcher decides which files get copied to the evidence backup, so a
+false positive there silently drops evidence. It was controlled the way this project controls
+things: real path lists from all five distinct shipped `.gitignore` files, reproduced in scratch
+repos, with **git itself** adjudicating — 7,461 paths, 11 fixtures, all agreeing.
+
+Then four mutants, each removing one mechanism the matcher relies on:
+
+| mutant | breaks | result |
+|---|---|---|
+| `depth` | unanchored patterns match only at the root | **killed** — 4 fixtures red |
+| `dir_only` | `.godot/` also matches a plain file | survived |
+| `anchored` | `/Library/` matches at any depth | survived |
+| `last_wins` | first matching pattern wins, not the last | survived |
+
+Three survived, and not because the matcher was wrong. **They were inert.** No shipped
+`.gitignore` contains a negation, so precedence never decides anything. No work tree contains a
+*file* named `Library` or `.godot`, so directory-only matching never discriminates. No work tree
+has a nested `Assets/Library/`, so anchoring never bites. Each mutant removed a mechanism that no
+input in the corpus exercises, and 10/10 green after the removal is the literal truth.
+
+The fix was not a better mutant. It was one synthetic fixture of nine paths — a file named
+`Library`, an `Assets/Library/foo.dll`, a `deep/node_modules/…`, and `*.log` with `!important.log`
+— adjudicated by git like the rest. All four mutants died immediately, each naming the one path it
+now got wrong.
+
+> **A mutant removes a mechanism; only an input decides whether the mechanism was ever load-bearing.
+> A surviving mutant is ambiguous between "the check is blind" and "the corpus is silent", and those
+> demand opposite responses.** The corpus was silent, and nothing in a green suite said so.
+
+This is AGENTS.md rule 15 arriving from the other side. That rule was written about false
+negatives — a mutant cannot manufacture an input the check mishandles. Here the mutant could not
+manufacture an input the check *handles*, and so certified a branch that had never run. Same
+missing half, opposite sign.
+
+The uncomfortable part is that the corpus was the strongest kind available: **real files, from
+real trials, across all four stacks, judged by the reference implementation.** Realism bought
+nothing here, because a real corpus is a sample of what happened, not of what the code must
+handle. The moment a fifth template ships a `!keep.this`, precedence starts deciding what gets
+backed up — and the only thing that would have noticed is the nine synthetic paths.
+
+**When a mutant survives, do not first ask whether the check is weak. Ask whether any input
+reaches the code you deleted** — the answer is cheaper to get and it is the more common cause.
+
+---
+
+## 92. A scored tier that returns the same number for every submission, and the weight in front of it
+
+Found while executing task 11 (comparing against `game-research-gpt`). Their
+`RESEARCH_SYNTHESIS.md` publishes a weighted decision matrix and then states which
+reweightings would change its answer — *"increasing 2D/console weight can select Defold"*.
+This project publishes `overall = 0.31*tier1 + 0.69*tier2` and **nowhere states where 0.31
+came from or what would change if it were different**. `RUBRIC.md`, `JUDGING.md`,
+`DECISIONS.md` and `README.md` all quote the split; none derives it.
+
+A weight that has never been varied is indistinguishable from a weight that does not
+matter, and those two states call for opposite actions.
+
+### The measurement
+
+`judge/weight_sensitivity.py` sweeps w1 across the open interval (0,1) against stored tier
+scores, partitioned by `(run, game)` because two games are not one population. 10 groups,
+68 scored trials.
+
+| verdict | groups | meaning |
+|---|---|---|
+| FLIPS | **0** | no ordering anywhere changes with the weight |
+| STABLE | 3 | both tiers vary, ordering identical at every weight in (0,1) |
+| UNIDENTIFIABLE | **7** | tier 1 has ONE distinct value across the whole group — the weight cannot act |
+
+**The weight is safe, and it is safe for a reason worse than the question being asked.**
+
+### What the tiers actually returned
+
+| run | n | tier 1 values observed | tier 2 values observed |
+|---|---|---|---|
+| `wg-matrix-2026-08-13` g1_pong | 8 | **{1.0}** | {0.7692, 0.8462, 0.9231, 1.0} |
+| `wg-matrix-2026-08-13` g2_tetris3d | 8 | **{1.0}** | {0.6923, 0.9231, 1.0} |
+| `wg-matrix-2026-08-13` g3_arena | 8 | **{1.0}** | {0.2667, 0.9333, 1.0} |
+| `wg-audio48-2026-08-14` g1_pong | 8 | **{1.0}** | **{1.0}** |
+| `wg-audio48-2026-08-14` g2_tetris3d | 8 | **{1.0}** | **{1.0}** |
+| `wg-g4c-2026-08-21` g4_platformer | 8 | {0.8571, 0.9286, 1.0} | **{1.0}** |
+| `wg-arena3d-2026-08-15` g3_arena | 8 | {0.0, 0.8571, 1.0} | {0.0, 1.0} |
+
+Tier 1 scored **1.0 on all 24 submissions of the flagship matrix**. Its 0.31 of the grade
+is a constant added to every cell — arithmetically present, informationally absent. At the
+w1=1 endpoint (tier 1 alone) all four stacks tie in all three matrix games.
+
+`wg-audio48` is the sharpest case: **16 trials, both scored tiers returning 1.0 for every
+one.** The entire deterministic grade of that run is the constant 1.0. It ran, it reported
+success, and it partitioned nothing — the house pattern, at run scale rather than criterion
+scale.
+
+Only `wg-arena3d` has both tiers varying — and **every one of its deductions is on the
+15-August side of the `syspolicyd` repair** (#49). `eval/RUNS.md` records the split exactly:
+rust and ts built while the daemon gated `execve` of freshly created binaries and neither
+ever ran its own `just verify`; unity and godot built after the restart. Rust's `0.000` and
+ts's `0.956` are both confound-side, and unity's and godot's `1.000` are both clean-side.
+
+So the one group in which the tier weight could in principle act is the one group whose
+variance `RUNS.md` already declares void for comparison. **Across all 68 stored trials there
+is not a single group where the two scored tiers both vary for reasons attributable to the
+work.**
+
+### What this does and does not license
+
+- It **does** answer the `DECISIONS.md` open item *"the rubric ceiling ... not yet checked
+  against matrix data"*, for the deterministic tiers. Checked. Tier 1 is at the ceiling with
+  zero variance on 40 of 56 matrix trials; tier 2 is at the ceiling on 24 of 56.
+- It **does not** rank stacks, and the orderings the tool prints are not results.
+  `DECISIONS.md` bars that at any gap and this measurement is not an exception to it — it
+  is a second, independent reason for the same bar, arrived at from the weight rather than
+  from within-cell agreement.
+- It **does not** say tier 1 is worthless. A criterion that everything passes still catches
+  the submission that does not, which is what tier 1 did on `wg-arena3d` (0.0) and
+  `wg-g4c` (0.857). Tier 1 is a **floor test that is working**, mislabelled as a
+  discriminating score and weighted as one.
+
+### The instrument had to be able to be wrong
+
+The first version swept the closed interval [0,1] and reported **FLIPS on 3 of 10 groups**.
+Every one of those flips sat between w1=0 and w1=0.005 — the endpoint where tier 1 is
+discarded entirely, which is not a candidate weighting. A check that fires where nothing is
+wrong spends exactly the attention that a check firing correctly needs, so the sweep now
+covers the open interval and reports endpoint behaviour separately as the diagnostic it is.
+
+The positive control — a constructed pair whose tiers disagree, crossing at w1=0.5 — was
+kept green across that change, which is the only reason the narrowing is known to have
+removed false alarms rather than the tool's ability to see anything at all. `--selftest`
+carries 12 checks including that control and a regression guard for the endpoint bug.
+
+## 94. A guard that succeeded three times while three agents took the same number
+
+`tasks.py add` allocated task ids and defended the allocation with an exclusive create
+(`O_EXCL`) plus retry-on-collision. It was written after two agents in one checkout both
+created a `12` and one task vanished silently, and it fixed that.
+
+On 2026-08-23 the queue moved to one-agent-per-task, each agent in its own git worktree.
+**Three agents filed a "task 27" within the same hour. All three `O_EXCL` calls succeeded.
+No retry fired, nothing collided, and nothing reported a problem** — because `tasks/` is a
+tracked directory and each worktree therefore had its own copy. The guard was protecting
+one directory while the thing that needed protecting was the *numbering*, which is shared.
+
+The same day, and for the same reason, three branches independently allocated findings
+**#89, #90 and #91**. Four identifiers had to be renumbered by hand at merge time, every
+one of them found by a person reading a diff.
+
+> **A guard on a copy certifies nothing about the original.** When work forks, ask which
+> state is per-fork and which is global; a guard placed on the per-fork copy will pass
+> every time and defend nothing.
+
+This is the RESOURCE-versus-INSTANCE failure (rule 6) with a new instance, and the earlier
+wording could not have caught it: the guard named a directory because at the time there was
+only one. It is also #37's shape — every check agreed and every check was wrong — arriving
+by a different route, since three independent successes read as three confirmations.
+
+**Repaired structurally rather than clerically.** Renumbering at merge time treats a design
+fault as a clerical one and would have recurred on the next parallel run. `tasks.py` now
+resolves `tasks/` to the **main worktree** from wherever it is invoked, so there is one
+queue that every agent reads and writes. Agents also see each other's newly filed tasks,
+which prevents duplicated *work* and not merely duplicated *numbers* — two of the three
+task 27s were about genuinely different things, but nothing would have stopped them being
+about the same thing.
+
+Allocation is additionally serialised by a lock in the repository's **common git dir**,
+which every worktree shares, and ids are allocated above everything git has ever tracked
+under `tasks/` so a merged-and-pruned branch cannot free a number that a document cites.
+
+Pinned: `tasks.py check` now fails on duplicate ids, verified red with a planted duplicate
+and green after its removal. The shared-queue resolution was verified by running the new
+tool from inside an agent worktree — the first attempt tested the worktree's STALE copy of
+the tool and reported the fix absent, which is #60's "a control run after the fix tests the
+fix" with the staleness on the other side.

@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#89 from building and running this evaluator. **Check whether a
+Findings #19-#94 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -164,7 +164,12 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **87** | A directory's size is not the size of the thing you are protecting | [limits-and-cost](findings/limits-and-cost.md) |
 | **88** | #84's two other candidates were measured and both are clean | [certifies-nothing](findings/certifies-nothing.md) |
 | **89** | `knockback.applied` scored a deliberate design branch as an absent feature | [certifies-nothing](findings/certifies-nothing.md) |
-| **90** | The judge pack directory is never cleared, so nine evaluation passes left ten percent stale files | [one-arm-bias](findings/one-arm-bias.md) |
+| **90** | #87's decomposition fixed the number and got the boundary wrong, in the direction that loses evidence | [limits-and-cost](findings/limits-and-cost.md) |
+| **91** | Three of four mutants were inert because the real data never reached the branch they broke | [certifies-nothing](findings/certifies-nothing.md) |
+| **92** | A scored tier that returns the same number for every submission, and the weight in front of it | [certifies-nothing](findings/certifies-nothing.md) |
+| **93** | `suite.json` describes the last thing written into the directory, not the run | [documentation](findings/documentation.md) |
+| **94** | A guard that succeeded three times while three agents took the same number | [certifies-nothing](findings/certifies-nothing.md) |
+| **95** | The judge pack directory is never cleared, so nine evaluation passes left ten percent stale files | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

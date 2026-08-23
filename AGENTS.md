@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | Current status and where things live |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#70, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#91, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -65,9 +65,44 @@ trials.
 | `add-game` | writing a task prompt, a play-bot criterion, or changing one | `eval/suites/wholegame_prompts.py` docstring |
 | `refine` | a run has finished and been evaluated — improve templates, prompts, rubrics, docs from it | `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md` |
 | `audit-docs` | after a session, or when a rule failed to prevent what it was written for | this file |
+| `tasks` | reading, claiming, closing or writing an item in the open-work queue | `tasks/` |
+| `prune` | a cleanup exploration pass — text or code that no longer earns its space | `CLEANUP-LOG.md`, this file |
 
 The usual order across one cycle is **`run-matrix` → `evaluate-run` → `refine`**, with
 `add-game` when the task set changes and `audit-docs` folded into `refine` or run alone.
+
+## The two monitors, and how to relaunch them
+
+Both are background monitors owned by whatever session is driving the work. **They do not
+survive a session**, so a new session should relaunch them — they are the mechanism by which
+work keeps happening rather than waiting to be asked for.
+
+| | fires | asks | measurement |
+|---|---|---|---|
+| **heartbeat** | hourly | *is new work happening?* verify the queue, merge finished task branches, pick the next item | `python3 eval/tools/heartbeat.py` |
+| **cleanup** | every 6 hours | *what no longer earns its space?* explore one area, record it, file tasks | `.claude/skills/prune/SKILL.md`, log in `CLEANUP-LOG.md` |
+
+**The heartbeat** diffs `heartbeat.py`'s counts against the previous hour and prints what
+moved. It counts **outputs** (`judge_rounds`, `graded_submissions`) as well as source, because
+judge rounds land inside existing run directories and moved no source-line count on three
+separate occasions. `project_lines` is defined over **git-tracked files**, so agent worktrees —
+which are full checkouts and once made it read a fivefold jump in one hour — are excluded by
+construction rather than by a list.
+
+> **"Nothing moved" is a claim about the snapshot, not about the world.** Three times the
+> counters sat still through real work: once the file list went by extension, once by
+> directory, once it counted source when the work produced JSON. Check the artifacts before
+> concluding an interval was idle.
+
+**The cleanup monitor** does not run a tool and report it. It **explores**: reads
+`CLEANUP-LOG.md` to see what previous passes covered, picks one area nobody has looked at
+recently, reads it properly, files tasks for what it finds, and appends what it looked at —
+**including what it examined and judged sound**, so the next pass does not redo it.
+`eval/tools/prune_scan.py` is an aid it may run, not its definition.
+
+Both monitors are launched with the `Monitor` tool, `persistent: true`. Neither should ever do
+the work itself beyond something small and obvious: their output is a prompt to the session,
+and anything larger belongs in `tasks/` where it can be picked up, reviewed and reverted.
 
 **A skill is a procedure; a doc is what is true; a rule is always loaded.** The rules
 below are deliberately *not* skills — a constraint you have to remember to invoke is a
@@ -407,3 +442,21 @@ Two refinements that pattern does not cover:
    limit was — **a confident answer to a question the experiment did not test**, which is the
    exact failure it exists to avoid. At 1000 turns every outcome is interpretable; at 250 one of
    them is not.
+
+16. **A weighted result must state what reweighting would change it — and a weight that cannot
+   change anything is reporting that its tier has no variance, not that the weight is safe.**
+   Every free parameter in an aggregate is a claim until someone varies it. `overall =
+   0.31*tier1 + 0.69*tier2` was quoted in four documents and derived in none; sweeping it over
+   68 stored trials moved **no ordering at any weight**, which sounds like a clean bill of health
+   and is not. In 7 of 10 groups tier 1 returned a **single value across every submission**, so
+   the weight was inert for the reason that matters least: there was nothing for it to weigh
+   (#90).
+
+   The check is free, it is offline, and it comes out either way — which is what makes it worth
+   running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the
+   rule is about **any parameter chosen by judgement that a published number depends on.**
+
+   Its companion, learned in the same hour: **sweep the OPEN interval.** The first version swept
+   `[0,1]` and reported flips on 3 of 10 groups, every one of them at the endpoint where a tier
+   is discarded outright — not a weight anyone would choose. *A check that fires where nothing is
+   wrong spends exactly the attention that a check firing correctly needs.*

@@ -1,6 +1,6 @@
 # research/ — the briefs
 
-Ten briefs answering the original questions, plus `DECISION.md`.
+Eleven briefs answering the original questions, plus `DECISION.md`.
 
 | File | Covers |
 |---|---|
@@ -14,6 +14,7 @@ Ten briefs answering the original questions, plus `DECISION.md`.
 | `07-loop-and-schedule-graph.md` | Fixed timestep, schedule ordering, ambiguity |
 | `08-agent-performance-evidence.md` | Published measurements of agent coding performance |
 | `09-game-testing-sota.md` | Rendering tests, play-bots, frame verification |
+| `10-stack-capability-matrix.md` | **What each stack can do at its pinned version**, with effort and Apple-silicon conditionality marked, and what is unresolved. The evidence base `DECISIONS.md` requires task 26 to cite |
 | `DECISION.md` | The stack choice made from the briefs |
 
 ## `DECISION.md` is a prior, not evidence
