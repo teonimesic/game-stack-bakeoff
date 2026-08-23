@@ -53,6 +53,7 @@ contain — a peer's in-flight status change would block a commit that has nothi
 | `docstat --renumbered` | never gates by design; its second half is undecidable. The half that does gate runs inside `--sweep` |
 | `coderabbit_config.py --schema` | needs the network — it reads the published CodeRabbit schema. Run it by hand when `reviews.tools` changes; it is the only thing that catches a misspelled tool key, because the schema does not close that object and the key is accepted silently |
 | `integrity_census.py` | a census, not a gate: it exits 0 on a historical hit by construction. Its control calls the two integrity pins `--sweep` already runs |
+| `ci_minutes.py` without `--selftest` | it reads the Actions API once per run, and the run count grows with every push — gating it would make CI cost grow quadratically in its own history. The offline `--selftest` half IS gated |
 | the full `lint.py` rule set | 72 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 
 ## Minutes
@@ -81,3 +82,11 @@ have skipped runs where `main` had moved underneath in a filtered path.
    one silently absent is not.
 
 Every step uses `set -e`; a `run:` block reports only its last command's status otherwise.
+
+**Verify a deliberate break locally before pushing it** — a plant in a file the check does not
+read comes back green, and green is the reassuring answer when you are trying to prove a gate
+works.
+
+**A tier budget is a measurement with a date on it, not a property of the tier.** One control
+suite went 39s to 157s when a task landed. Re-time with `ci_minutes.py` rather than trusting a
+number written here.

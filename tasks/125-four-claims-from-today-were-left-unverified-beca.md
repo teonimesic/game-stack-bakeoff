@@ -1,11 +1,12 @@
 ---
 id: 125
 title: Four claims from today were left unverified because the case that would test them did not arise
-status: in_review
+status: done
 priority: 3
 refs: 'eval/findings/certifies-nothing.md #152 #153 #156, eval/tools/coderabbit_config.py, eval/tools/docstat.py duplicate-fragment and orphaned-tail, .coderabbit.yaml'
 done_when: each of the four is either verified with the measurement stated, or closed with why it still cannot be tested and what would change that; the SkillSpector one requires a real pull request that edits a SKILL.md, and reporting zero attachments without one does not close it
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/11
+established_by: 'Three of four claims settled; the fourth needs a real skill diff. The one that produced a tool: a misspelled key in .coderabbit.yaml''s tools block is accepted and silently ignored, confirmed against the published schema - (root).additionalProperties is false but reviews.tools does not set it, so the closure is one level deep. coderabbit_config.py --schema reddens undeclared keys, pinned green on the real file and red on a misspelled tool name; deliberately not in CI because it needs the network. PR #11, both workflows green.'
 ---
 
 Each was stated honestly as unestablished by the agent that shipped it, and each is now cheaply testable because the blocking condition has passed. Left together because they are one question - a check whose triggering case has not occurred is indistinguishable from a check that cannot fire - and separately none is worth a dispatch. (1) FINDINGS 153: SkillSpector was disabled and the pull request that disabled it touched no SKILL.md, so its zero attachments are zero for the wrong reason; any pull request editing a skill settles it. (2) FINDINGS 153: a misspelled tool key in .coderabbit.yaml is accepted and silently ignored, because that schema does not forbid unknown properties - it was documented rather than gated because confirming it needed the network. (3) FINDINGS 152: the stranded-tail gate has a corpus census of 0, so it is protecting silently and its only known instance is historical. (4) FINDINGS 156: the 12-word window was chosen against a 183-document corpus with two words of margin over the nearest antithesis, and the corpus grows daily.

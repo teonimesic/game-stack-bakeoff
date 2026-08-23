@@ -95,6 +95,13 @@ jobs:
       - name: lint_coverage --selftest (the 7.1% figure's pins)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/lint_coverage.py --selftest
+      # Offline: it asserts the billing arithmetic, that an in-flight job stays out of the
+      # total, and that FILTER_* here still matches controls.yml's `paths:`. The API half
+      # is NOT run in CI -- it would spend an API call per run on every push, and it needs
+      # no network to go red on the thing that would actually rot.
+      - name: ci_minutes --selftest (the minutes producer, and controls.yml's filter)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/ci_minutes.py --selftest
 
       # ---- the prompts and the packs -----------------------------------------------
       - name: prompt_guard (no engine names in game bodies, rules identical per stack)
