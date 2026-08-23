@@ -143,52 +143,120 @@ which ticket it is.
 
 ### Waiting for the review
 
-**Bounded, and pinned on a case whose answer you already know.** The address is the full 40-character
-`commit_id` the reviews API returns, compared against the sha GitHub thinks is the head — not the
-5-character abbreviation in the walkthrough text, which is what made a poll loop report *"not yet
-reviewed"* through 8 polls after the review had landed (`tasks/108`, AGENTS.md rule 12).
+**Bounded, and pinned on cases whose answer you already know.** The address is the full
+40-character head sha — never the 5-character abbreviation in the walkthrough text, which is what
+made a poll loop report *"not yet reviewed"* through 8 polls after the review had landed
+(`tasks/108`, AGENTS.md rule 12).
+
+**A landed review has 2 shapes, and a check that reads only the first one times out on the good
+outcome.** When CodeRabbit finds nothing actionable it creates **no review object at all** — it
+edits its summary issue comment instead. So *reviewed at this head* is: a `coderabbitai[bot]`
+**review object** carrying the head sha, **OR** a `coderabbitai[bot]` **issue comment** that names
+the head sha and does **not** carry the in-progress marker. **`DECISIONS.md` holds the derivation,
+the per-pull-request evidence and what was rejected** — if it and this recipe disagree, it wins and
+the recipe is the bug.
 
 ```bash
 REPO=teonimesic/game-stack-bakeoff
 PR=<n>
+INPROG='auto-generated comment: review in progress by coderabbit.ai'
+
 HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid) || exit 1
-[ ${#HEAD} -eq 40 ] || { echo "no head sha - this is an error, not a poll result"; exit 1; }
-gh api "repos/$REPO/pulls/$PR/reviews" \
-  --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .commit_id] | index(\"$HEAD\") != null" \
-  || exit 1
+[ ${#HEAD} -eq 40 ] || { echo "no head sha - an error, not a poll result"; exit 1; }
+
+REVIEWS=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews") || exit 1
+BY_REVIEW=$(jq -s "[.[][] | select(.user.login==\"coderabbitai[bot]\") | select(.body != \"\")
+                   | .commit_id] | index(\"$HEAD\") != null" <<<"$REVIEWS") || exit 1
+case "$BY_REVIEW" in true|false) ;; *) echo "reviews query returned no boolean - an error"; exit 1;; esac
+
+COMMENTS=$(gh api --paginate "repos/$REPO/issues/$PR/comments") || exit 1
+BY_COMMENT=$(jq -s "[.[][] | select(.user.login==\"coderabbitai[bot]\") | .body
+                    | select(contains(\"$HEAD\")) | select(contains(\"$INPROG\") | not)]
+                   | length" <<<"$COMMENTS") || exit 1
+case "$BY_COMMENT" in ''|*[!0-9]*) echo "comments query returned no count - an error"; exit 1;; esac
+
+if   [ "$BY_REVIEW" = true ]; then echo "LANDED by review object at $HEAD"
+elif [ "$BY_COMMENT" -gt 0 ]; then echo "LANDED by summary comment naming $HEAD, not in progress"
+else echo "not yet (by_review=$BY_REVIEW by_comment=$BY_COMMENT)"
+fi
 ```
 
-It prints `true` or `false` and exits 0 either way, so read the **word**, not the exit code — and
-never wrap it in `|| true`, which would turn an API failure into a plausible `false` that polls
-forever. Verified against the merged PR #1 on 2026-08-23: `true` for the head it was reviewed at,
-`false` for `941e5f5`, the commit that was pushed and never reviewed.
+**Say which arm fired, because they mean different things.** *Review object* means the reviewer
+wrote comments and you have something to read; *summary comment* means it finished and had nothing
+to say. Read the **word**, never the exit code: exit 1 is an API failure and must stop the loop,
+which is why nothing here is wrapped in `|| true`.
 
-**All three guards are load-bearing.** If `gh pr view` fails, `$HEAD` is empty — and `jq`'s
-`index("")` on an array of shas is `null`, measured, so the query answers `false` about a
-question it never asked, and the loop polls to its deadline reporting a review state inferred
-from a read that failed (rule 2). Check the exit status **and** that 40 characters came back;
-either alone leaves the other hole open. The `|| exit 1` on the query itself is the same rule
-one line down: an API that is failing must stop the loop, not quietly contribute a `false` to it.
+**Read every page.** `gh api` returns only the first 30 records without `--paginate`, and the review
+at the head sha is the **newest**, so it is the first thing to fall off page 1 — a PR that
+accumulates reviews would poll to its deadline about a review sitting on page 2. Measured on PR #6's
+reviews at `per_page=2`: **2** records unpaginated against **10** paginated. `gh` rejects `--slurp`
+alongside `--jq`, so the pages are aggregated by an external `jq -s` reading a **here-string, not a
+pipe** — a pipeline's exit status is the last stage's (rule 3), and each of the 4 commands keeps its
+own `|| exit 1`.
 
-**How long it takes scales with the diff, so do not size the wait off one number.** Both
-measurements, from the 2 pull requests this repository has had:
+> **`select(.body != "")` is not tidying, and leaving it out is how you get a review you never
+> had.** When `coderabbitai[bot]` **replies to a comment**, GitHub creates a review object to hold
+> the reply and stamps it with the pull request's **current head** — body empty, one reply comment,
+> no top-level comments. Without the guard that object is indistinguishable from a review of that
+> head. Measured on this very procedure: declining 3 of a round's comments drew 3 replies, and the
+> poll reported `LANDED` **33 seconds** after the next push, on a round that had not started.
+>
+> The body separates them with no overlap — `DECISIONS.md` states the counts and the command that
+> re-derives them, because the population grows with every review. **PR #4's head carries only a
+> reply container**, so without the guard the arm reports a review of a head that never had one, and
+> only the comment arm makes that verdict true.
+>
+> This is the deadlock section's own warning one arm over: *a check on an unfiltered stream is a
+> check the agent can trip by describing it.* There it was a comment quoting the string; here it is
+> **replying to the reviewer at all**, which §6 tells you to do. The failure direction if the guard
+> is ever wrong — a real review with an empty body, of which there are 0 in 22 — is a timeout, not
+> a false pass.
+
+**The in-progress clause is load-bearing, and the obvious fix without it is fail-open.** CodeRabbit
+writes the head sha into the summary comment **while the round is still running** — the line
+`Reviewing files that changed from the base of the PR and between <base> and <head>`, under
+`<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->` — and the
+*"No actionable comments were generated"* line sitting below it at that moment is the **previous**
+round's verdict. Matching the sha alone reported `LANDED` **31 seconds** after a push, mid-review.
+Taking PR #5's real stored comment and injecting the marker: the arm returns **0** with the
+`| not` clause and **1** without it, while on the real finished body it is **1** either way.
+
+**The guards are what keep an empty `$HEAD` from ever reaching the queries, and that matters more
+now than it did.** Nothing below is a description of what the recipe above does — it is what would
+happen **without** each guard, which is the only reason each one is there:
+
+| removed | what an empty or short `$HEAD` would then do |
+|---|---|
+| `\|\| exit 1` on `gh pr view` | a failed read becomes a poll result: the loop reports a review state inferred from a command that did not run (rule 2) |
+| `[ ${#HEAD} -eq 40 ]` | `contains("")` is **true for every string**, measured, so the comment arm reports **every** pull request reviewed. The reviews arm fails the other way — `index("")` is `null`, hence `false` — so adding the comment arm turned this from fail-slow into fail-**open** (rule 7) |
+| `\|\| exit 1` on either query | an API that is failing quietly contributes a `false`, and the loop polls to its deadline |
+| either `case` | an empty or `null` jq result falls through to a plausible "not yet" instead of stopping |
+
+With all 4 in place a failed `gh pr view` and a short sha both exit before either query runs —
+verified, the 5-character abbreviation exits 1 with `no head sha`.
+
+**How long it takes scales with the diff, so do not size the wait off one number.** Every
+measurement taken so far:
 
 | PR | diff | acknowledged | review posted |
 |---|---|---|---|
 | #1 | 2 files | 31s | **2m 30s** |
 | #2 | 17 files, 615 insertions | 49s | **6m 15s** |
+| #5 round 2 | 3 commits, 1 file plus 2 docs | 65s | **~35s after acknowledgement** |
 
 | | |
 |---|---|
 | poll | every 30s |
-| give up after | **15 minutes** per round — 2.4x the slower of the two. If a diff much larger than 17 files takes longer than that, the bound is wrong and the evidence is in the PR: say so rather than extending it in place |
+| give up after | **15 minutes** per round — 2.4x the slowest measured. If a diff much larger than 17 files takes longer than that, the bound is wrong and the evidence is in the PR: say so rather than extending it in place |
 
 ### The ways this deadlocks, and what you do
 
 **CodeRabbit says *"I am not going to review this"* in an issue comment, never in the reviews
-array** — so to a poll that only reads reviews, "declined" and "not yet" are the same answer.
-Both notices it has actually posted here are a **GitHub alert callout with a heading**, and
-GitHub's alert vocabulary is a closed class of 5. So: extract the heading, and **read it.**
+array** — and it says it without naming a sha, so **neither arm of the check above can tell
+"declined" from "not yet"**: the 2 deadlock notices this repository has received carry **zero**
+40-character shas between them, measured, which is also what keeps them from firing the comment
+arm falsely. Both are a **GitHub alert callout with a heading**, and GitHub's alert vocabulary is
+a closed class of 5. So: extract the heading, and **read it.**
 
 ```bash
 gh api "repos/$REPO/issues/$PR/comments" --jq \
@@ -228,7 +296,7 @@ you meet that is not a row here is new, and the row to add is what you learn fro
 |---|---|---|
 | **Reviews paused** — *"this branch is under active development … to avoid overwhelming you with review comments"* | **triggered by being productive.** `@coderabbitai resume` restores automatic reviews; `@coderabbitai review` buys one | post `@coderabbitai review`, resume polling |
 | **Review limit reached** — *"you've used all N included reviews currently available"* | the org's allowance is spent. The body states how long until the next one frees up | wait out the stated interval, post `@coderabbitai review`, resume polling **within the same 15-minute bound** — do not restart the clock |
-| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask. **It is stale the moment you push** — CodeRabbit edits its comments in place, so a heading here is a diagnostic and `reviewed_at_head` is the authority |
+| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask. **It is stale the moment you push** — CodeRabbit edits its comments in place, so a heading here is a diagnostic and the check above is the authority |
 
 **Push once per round, not once per fix.** Batching is what keeps the pause from firing at all,
 and under a spent allowance it is the difference between one round and none.

@@ -491,7 +491,36 @@ FOREIGN_FLAG_PREFIXES = (
     # list exists for; the alternative is paraphrasing the error, which is how a quoted
     # measurement stops being quotable.
     "--bin",
+    # gh's. `DECISIONS.md`'s review-completion entry argues WHY the poll paginates and why
+    # the pages are aggregated by an external `jq -s` — gh rejects `--slurp` alongside
+    # `--jq`, which is the whole reason the recipe is shaped the way it is (task 121). The
+    # flags appear backticked in prose because the argument is about them; the fenced
+    # recipe in `.agents/skills/work/SKILL.md` was already green, because a flag on a
+    # command line naming `gh` is not read as one of ours. That asymmetry is the case this
+    # list exists for.
+    #
 )
+
+# Foreign flags matched EXACTLY, not by prefix. Everything above is a prefix because it
+# has to be -- `--experimental-` is written as one, and `--max-budget` stands in for
+# `--max-budget-usd`. These do not, and prefix-matching them would be a widening nobody
+# asked for: `--jq` is 4 characters, so `--jq-local` on one of our own scripts would be
+# silently exempt forever, and every reason not to count a failure is a channel a bug can
+# widen (root AGENTS.md rule 7).
+#
+# gh's. `DECISIONS.md`'s review-completion entry argues WHY the poll paginates and why the
+# pages are aggregated by an external `jq -s` -- gh rejects `--slurp` alongside `--jq`,
+# which is the whole reason the recipe is shaped the way it is (task 121). The flags appear
+# backticked in prose because the argument is about them; the fenced recipe in
+# `.agents/skills/work/SKILL.md` was already green, because a flag on a command line naming
+# `gh` is not read as one of ours. That asymmetry is the case this list exists for.
+#
+# The red control was run both ways on 2026-08-23 and the FIRST attempt was a FALSE GREEN:
+# the planted token was `--zzqphantomflag`, and `_DELIBERATELY_FAKE` matches the substring
+# `phantom`, so the check reported clean about a line it never read. Plant a name with no
+# exemption word in it. `--zzqnotaflag` turns this red; `--jq-local` turns it red too, which
+# is the pin that the exact match is doing something.
+FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq"})
 
 
 def _check_skill_frontmatter() -> list[str]:
@@ -3298,7 +3327,7 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
         """What the check reports for a document made of `body`, foreign/known filtered."""
         out = []
         for tok in _bare_fenced_flags(body.split("\n"), scripts):
-            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in real:
+            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in FOREIGN_FLAGS_EXACT or tok in real:
                 continue
             out.append(tok)
         return out
@@ -3332,6 +3361,17 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
          fence("cargo doc --open -p bevy"), False),
         ("GREEN: a known-foreign flag on one of our own command lines",
          fence("python3 tools/wholegame.py run --max-turns 250"), False),
+        # FOREIGN_FLAGS_EXACT, both directions. The three gh flags are exempt by EQUALITY,
+        # so a flag of ours that merely starts with one is still caught -- the widening a
+        # prefix entry would have bought silently, and the reason the exact set exists.
+        ("GREEN: an exactly-exempt foreign flag on our command line",
+         fence("python3 tools/docstat.py --sweep --jq ."), False),
+        ("GREEN: the prefix entries still match by prefix",
+         fence("python3 tools/wholegame.py run --max-budget-usd 40"), False),
+        ("a flag of ours merely PREFIXED by an exactly-exempt one",
+         fence("python3 tools/docstat.py --jq-local"), True),
+        ("another one, so the pin is not about a single token",
+         fence("python3 tools/docstat.py --paginated"), True),
         # The flag must come AFTER the script name here, or this pin is unmoved by the
         # mutant that drops the fence requirement and it guards nothing. Written the
         # other way round first, and the mutant sailed through it: the check reads the
@@ -3458,7 +3498,7 @@ def cmd_sweep() -> int:
                 if re.search(_DELIBERATELY_FAKE, ln, re.I):
                     continue
                 for tok in re.findall(r"`(--[a-z0-9-]{2,})`", ln):
-                    if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in flags:
+                    if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in FOREIGN_FLAGS_EXACT or tok in flags:
                         continue
                     bad_flags.add(tok)
         # The bare half. Deliberately OUTSIDE the `harness` gate: its trigger is the
@@ -3468,7 +3508,7 @@ def cmd_sweep() -> int:
         # both ways in one document is still one problem.
         for tok in _bare_fenced_flags(lines, scripts):
             bare_seen += 1  # the POPULATION, reported below: 0 hits out of 0 looked at
-            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in flags:
+            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in FOREIGN_FLAGS_EXACT or tok in flags:
                 continue           # is a check that cannot fire, and reads identically
             bad_flags.add(tok)
         for tok in sorted(bad_flags):
