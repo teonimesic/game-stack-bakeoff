@@ -1,7 +1,7 @@
 ---
 id: 31
 title: Two measured TypeScript capture-harness defects that bias one arm
-status: open
+status: in_flight
 priority: 2
 refs: eval/starters/ts/src/view/harness.ts, eval/starters/ts/src/view/capture.ts, research/10-stack-capability-matrix.md
 done_when: either both defects are fixed and a render test proves each (an asset-loaded texture appears in a filmed frame; a skeletal or time-driven animation differs between frame_0000 and frame_0011), or each is recorded as an accepted limitation in the ts starter AGENTS.md with the reason, and eval/FINDINGS.md carries the one-arm-bias entry

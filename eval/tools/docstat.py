@@ -225,8 +225,15 @@ def cmd_sweep() -> int:
         # findings/ is an archive: naming a superseded aspect is its subject matter.
         if aspects and "findings/" not in rel:
             for ln in text.split("\n"):
+                # `phantom` and `planted` are this project's OWN vocabulary for an id that
+                # deliberately does not exist -- the comment above this function already
+                # says "the planted-phantom control went green". A task describing how to
+                # plant one therefore names `feel` and `tuning` legitimately, and on
+                # 2026-08-23 that turned the whole sweep red for a document that was
+                # correct. A gate that fails on correct input is a gate that gets disabled,
+                # which is why the path check below this was deleted rather than tuned.
                 if re.search(r"(no `\w+` judge|not built|candidate|does not exist|retired|"
-                             r"superseded|do not name them)", ln, re.I):
+                             r"superseded|do not name them|phantom|planted)", ln, re.I):
                     continue
                 for tok in set(re.findall(r"`(feel|tuning|design|polish|gameplay)`", ln)):
                     problems.append(
