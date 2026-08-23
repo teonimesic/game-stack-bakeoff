@@ -86,7 +86,10 @@ sixteen mutants each flipping **exactly one** checker; a legitimately different 
 Stated as plainly as the result, because the number is what will get quoted.
 
 - **It does not test this repository's actual instruction count.** The always-loaded set
-  holds **73–113** instructions (`AGENTS.md` alone 39–60). This experiment reached **16**.
+  holds **108–151** instructions depending on definition (`AGENTS.md` alone 43–66), read on
+  2026-08-23 from `python3 eval/tools/instruction_census.py`. This experiment reached **16**.
+  It read *73–113* when this result was written and the tool has not changed since — the
+  always-loaded documents grew, which is what a count with a producer is supposed to reveal.
   The claim *"instruction count does not degrade compliance in this repository"* is
   **untested** — everything above stops at roughly a seventh of the real load.
 - **It does not refute arXiv:2509.21051.** That paper's benchmarks reach 10 (text) and 6
@@ -106,7 +109,8 @@ Stated as plainly as the result, because the number is what will get quoted.
 
 ## What would actually test the open question
 
-The gap is between 16 and 73–113, and closing it needs instructions, not trials. Sketch,
+The gap is between 16 and whatever `instruction_census.py` reports today — 108–151 as of
+2026-08-23, and growing — and closing it needs instructions, not trials. Sketch,
 costed from what this run measured:
 
 - **Grow the pool past 32.** The binding constraint is writing checkable, mutually
