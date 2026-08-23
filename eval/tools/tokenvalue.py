@@ -107,7 +107,13 @@ _CONV = r"[fgdeisu]"
 #: This module's own renderers. A module that calls one of them is a producer whether or
 #: not it ever names a `*_usd` field.
 _RENDERERS = frozenset({"fmt", "tag", "total"})
-_PCT = re.compile(rf"%[-+ #0-9.*]*{_CONV}", re.I)
+_PCT = re.compile(rf"%(?:\([^)]*\))?[-+ #0-9.*]*{_CONV}", re.I)
+
+#: The NAME inside a `%(name)s` mapping key, and inside a `{name:spec}` replacement field.
+#: Only the name is read out of a format literal - never the literal as a whole, which
+#: would fire on any string that merely mentions one of these fields in prose.
+_MAP_KEY = re.compile(r"%\(([^)]+)\)")
+_FIELD = re.compile(r"\{([^{}:!]*)")
 
 
 #: A `$` immediately in front of an interpolation or a digit, inside an f-string. This is
@@ -223,10 +229,24 @@ def formats_a_value(text: str) -> bool:
                 and isinstance(node.left, ast.Constant)
                 and isinstance(node.left.value, str)
                 and _PCT.search(node.left.value)):
-            expr = ast.unparse(node.right)
+            # THE NAME IS NOT ALWAYS IN THE OPERAND. `"%(cost_usd).2f" % row` puts it in
+            # the FORMAT STRING and unparses to `row`, and `"{c:.2f}".format(c=cost_usd)`
+            # puts it in a keyword. Both are ordinary Python and both were invisible - the
+            # same silent-miss class as the prefixes and the quoting, one level in.
+            expr = ast.unparse(node.right) + " " + " ".join(
+                _MAP_KEY.findall(node.left.value))
         elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and node.func.attr == "format"):
-            expr = " ".join(ast.unparse(a) for a in node.args)
+            parts = [ast.unparse(a) for a in node.args]
+            parts += [ast.unparse(k.value) for k in node.keywords]
+            parts += [k.arg for k in node.keywords if k.arg]
+            if (isinstance(node.func.value, ast.Constant)
+                    and isinstance(node.func.value.value, str)):
+                # `"{cost_usd:.2f}".format(**row)` names it in the replacement field. Only
+                # the FIELD NAME is read, never the surrounding prose: a literal scanned
+                # whole would fire on any string that happens to mention `cost_usd`.
+                parts += _FIELD.findall(node.func.value.value)
+            expr = " ".join(parts)
         if expr and _VALUE.search(expr):
             return True
     return False
@@ -376,6 +396,10 @@ def selftest() -> int:
             ('print(f"""\n{cost_usd:.2f}\n""")', "a triple-quoted f-string"),
             ('print(f"{a}" f"{cost_usd}")', "implicit concatenation"),
             ('print("%.2f" % (spent,))', "a percent form over a tuple"),
+            ('print("{c:.2f}".format(c=cost_usd))', "a .format keyword ARGUMENT"),
+            ('print("{cost_usd:.2f}".format(**row))', "a .format replacement FIELD name"),
+            ('print("%(cost_usd).2f" % row)', "a percent MAPPING key"),
+            ('print("{0[cost_usd]}".format(row))', "an indexed replacement field"),
     ):
         check(f"discovered: {what}", formats_a_value(src))
     check("source that does not parse raises rather than reading as clean",
@@ -384,6 +408,12 @@ def selftest() -> int:
           not formats_a_value('print("hello %s" % name)\nx = cost_usd\n'))
     check("a value merely ASSIGNED, never rendered, is not discovered",
           not formats_a_value('total = rec["cost_usd"]\nreturn total\n'))
+    # THE LITERAL IS READ FOR FIELD NAMES ONLY. Scanning a format string whole would turn
+    # every sentence that mentions one of these fields into a producer.
+    check("prose inside a format literal is not a replacement field",
+          not formats_a_value('print("the key is cost_usd, not {x}".format(x=1))'))
+    check("a percent literal that merely mentions the name is not a mapping key",
+          not formats_a_value('print("cost_usd is absent: %d" % n)'))
     # And the sigil check has to see the percent form too, or the variant above finds the
     # module and the row that matters still passes it.
     # --- the sigil check, ON THE PATH `_producer_problems` USES -------------
