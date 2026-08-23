@@ -1,7 +1,7 @@
 ---
 id: 48
 title: template-ts carries the pre-fix capture harness, a second live copy of a repaired defect
-status: open
+status: in_flight
 priority: 3
 refs: template-ts/src/view/harness.ts, eval/starters/ts/src/view/harness.ts, eval/findings/one-arm-bias.md
 done_when: either template-ts/src/view/harness.ts serves a real origin with addInitScript before goto and a virtual rather than frozen clock, with that tree's own just verify green and the capture-environment tests ported and passing; or template-ts is recorded as retired for the spec-change suite and no longer accepting trials, stated in eval/RUNS.md

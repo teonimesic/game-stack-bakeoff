@@ -1,7 +1,7 @@
 ---
 id: 50
 title: Repair the same merged-stream capture in runner.py, where the agent's own gate output is stored
-status: open
+status: in_flight
 priority: 4
 refs: eval/runner.py:177, eval/runner.py:592, eval/runner.py:622, eval/judge/static.py, eval/FINDINGS.md #100
 done_when: sh() returns the two streams separately or the callers stop merging them; self_verify and holdout store stdout and stderr apart with the full length of each recorded; every caller of sh() that parses the text is checked, and parse_test_counts and parse_skipped keep reading exactly what they read today; a selftest in the shape of judge/capture_selftest.py pins both directions against the runner path, run against the unfixed function first; and if any reader of the old self_verify.tail or holdout.tail field is found, it is listed and updated rather than left to fail quietly

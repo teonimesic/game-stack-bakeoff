@@ -1,7 +1,8 @@
 ---
+established_by: Reference sweep now reads the skill files. reference_docs() = project_docs() + _all_skill_files(); project_docs() deliberately unchanged so the bare-trial-id ratchet is not moved. Exemption is the property 'a fenced line is not a claim', line-scoped via the existing _fence_mask, not a filename. Task premise is stale: .agents/skills was deleted by #99, so the corpus is 7 SKILL.md files, not 13, and the aspect check gave 2 hits not 4 - both the same printf in audit-docs/SKILL.md that plants this sweep's own positive control. Measured: flags 0 hits (and 0 unresolved among the 17 flags skills name without backticks), aspects 0 after fence masking, bare trial ids 0 in any skill and scoped to findings/ regardless. Controls both directions: phantom aspect id appended unfenced to a SKILL.md exits 1; phantom flag exits 1; mutant reverting only reference_docs to project_docs makes the same phantom exit 0, proving the corpus change carries it; the documented JUDGING.md control still exits 1 under fence masking; clean tree exits 0. Also widened the aspect exemption from planted to plant-stem: it listed one inflection of a verb, so present participle was red and past tense green - caught by the new corpus on a line written to document the new corpus. Finding #111. Branch task-44-sweep-skills, commit cad014e, not pushed.
 id: 44
 title: Extend the docstat reference sweep to the skill files it has never read
-status: open
+status: done
 priority: 4
 refs: eval/tools/docstat.py, tasks/37-add-two-deterministic-documentation-gates-to-doc.md
 done_when: python3 eval/tools/docstat.py --sweep reads the 13 SKILL.md files under .claude/skills and .agents/skills with the flag and aspect-id checks, at 0 false positives, pinned by a planted phantom aspect inside a SKILL.md going red; or the check is left scoped out and the reason is recorded in docstat.py next to the scope
