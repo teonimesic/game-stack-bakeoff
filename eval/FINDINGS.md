@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#85 from building and running this evaluator. **Check whether a
+Findings #19-#86 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -160,6 +160,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **83** | The answer key was in the judge's pack again: `.codex` hook scripts carried the trial id | [one-arm-bias](findings/one-arm-bias.md) |
 | **84** | A criterion can measure the play-bot's input policy instead of the submission | [certifies-nothing](findings/certifies-nothing.md) |
 | **85** | A per-tick filter will fire during a state the agent itself created | [certifies-nothing](findings/certifies-nothing.md) |
+| **86** | What a round cannot say about itself, and why prose is not a substitute for a field | [documentation](findings/documentation.md) |
 
 ---
 

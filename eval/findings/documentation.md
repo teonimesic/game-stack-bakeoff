@@ -325,3 +325,53 @@ aspect cites no numbers would have been unresolvable.
 **What made this recoverable was insisting the answer come from the round files rather than from
 either party's reasoning.** Both readings were coherent, both were argued from real evidence, and
 one was wrong. The values decided it in a single query.
+
+---
+
+## 86. What a round cannot say about itself, and why prose is not a substitute for a field
+
+Two fields were missing from every stored judge round, and both turned out to matter within days
+of being noticed:
+
+- **`files_opened`** was added in task 09 to answer an unrelated question — does a bigger pack
+  make the judge read more? It is the only reason #83 could be bounded to 14 compromised rounds
+  instead of a class-wide suspicion.
+- **`run`** was absent, so a round named only its **game**. `g2_tetris3d` is four stored fields in
+  different states of repair, and that gap produced a false report that tier 3's only positive
+  result was compromised.
+
+The second was recovered by matching numbers quoted in `fun`'s evidence prose against stored
+telemetry — 7 of 7 quiet-fractions and 4 of 4 events-per-second, unique to one run.
+
+> **That rescue was a property of one aspect's writing style, not of the record.** `ux` and
+> `idiomatic` quote no telemetry figures. In the same position the question would have been
+> unanswerable, and the false report would have stood. **Prose is not a substitute for a field:**
+> it happens to contain the answer, for aspects that happen to cite numbers, until it does not.
+
+### The question worth asking of any record
+
+**If someone asks in a month what this round saw, which parts of the answer are gone?** Applied
+to a judge round, everything below was in that category and is now recorded:
+
+| field | why it is not reconstructible later |
+|---|---|
+| `run` | the same game exists as several fields in different repair states |
+| `sees`, `blind_language` | which evidence channels the judge was given, and whether paths were neutralised |
+| `brief_sha256`, `brief_chars` | **the brief is not fixed** — a geometry note was added to it on 2026-08-22, and rounds either side saw different text. This is why task 08 had to re-run seven repeats rather than top up four, a decision made by argument that a hash makes a comparison |
+| `evidence_counts` | how much of each kind of evidence each label actually had |
+| `capture_geometry` | frame sizes, which #59 turned on |
+| `knowingly_truncated` | whether the completeness gate was deliberately bypassed |
+| `max_turns`, `per_call_budget_usd` | limits are visible to the callee and instruct it (#33) |
+| `judged_at` | which side of a repair a round sits on |
+
+`field_sweep.warn_rounds_without_provenance()` reports stored rounds that predate this: 10 of 10
+in the tetris judge round, 12 of 12 in the cross-game sweep. They are not wrong — they are
+**unfalsifiable about their own inputs**, which is the same defect as an aggregate without its
+scope, one level down.
+
+### The general form
+
+**Capture what the instrument did, not only what it concluded** — and the test of whether a field
+is needed is not whether you can imagine using it, but whether its absence would be recoverable.
+`run` and `files_opened` were each cheap to add and each answered a question nobody had when they
+were added. Neither would have been recoverable from the conclusion alone.

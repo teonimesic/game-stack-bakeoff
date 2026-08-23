@@ -13,6 +13,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
+import hashlib
 import json
 import os
 import random
@@ -605,8 +607,8 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         return {"usable": False,
                 "error": f"pack was built with sees={built_for!r} but aspect "
                          f"{aspect_id!r} needs sees={aspect.sees!r}"}
-    (pack / "BRIEF.md").write_text(
-        _brief(aspect, mapping["game"], mapping.get("capture_geometry")))
+    brief_text = _brief(aspect, mapping["game"], mapping.get("capture_geometry"))
+    (pack / "BRIEF.md").write_text(brief_text)
 
     argv = [
         "claude", "-p",
@@ -700,6 +702,37 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         # record; `run_field` simply never carried it into the stored round.
         "usable": True, "aspect": aspect_id, "game": mapping["game"],
         "run": mapping.get("run"),
+        # PROVENANCE: what this round actually SAW, so the question "what exactly did it
+        # see?" is answerable from the record instead of reconstructed.
+        #
+        # Two fields were missing before this and both mattered within days. `run` was
+        # absent, so a round named only its game - and `g2_tetris3d` is four stored fields
+        # in different states of repair. `files_opened` was absent until task 09 added it
+        # for an unrelated reason, and it is the only thing that bounded #83.
+        #
+        # The rescue that found the missing `run` worked by matching numbers quoted in
+        # `fun`'s prose against stored telemetry. **That was luck about one aspect's
+        # writing style**: `ux` or `idiomatic` quote no telemetry and would have been
+        # unresolvable. Prose is not a substitute for a field.
+        #
+        # So the test applied here is: if someone asks in a month what this round saw,
+        # which parts of the answer are gone? Everything below was in that category.
+        "provenance": {
+            "sees": mapping.get("sees"),
+            "blind_language": aspect.blind_language,
+            # The BRIEF is not fixed. A geometry note was added to it on 2026-08-22, and
+            # rounds either side of that saw different text - which is why task 08 had to
+            # re-run seven repeats rather than top up four. Hashing it makes "same brief?"
+            # a comparison instead of an argument.
+            "brief_sha256": hashlib.sha256(brief_text.encode()).hexdigest()[:16],
+            "brief_chars": len(brief_text),
+            "evidence_counts": mapping.get("evidence_counts"),
+            "capture_geometry": mapping.get("capture_geometry"),
+            "knowingly_truncated": mapping.get("knowingly_truncated"),
+            "max_turns": max_turns,
+            "per_call_budget_usd": budget,
+            "judged_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+        },
         "order_seed": mapping["order_seed"], "model": model,
         "cost_usd": data.get("total_cost_usd"),
         "mapping": mapping["mapping"],

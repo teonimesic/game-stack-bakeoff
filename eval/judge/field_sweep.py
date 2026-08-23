@@ -48,6 +48,31 @@ from sequential import MAX_RUNS, Sampler  # noqa: E402
 _EPHEMERAL = ("/tmp", "/private/tmp", "/var/folders", "/private/var/folders")
 
 
+def warn_rounds_without_provenance(out: Path) -> list[str]:
+    """Stored rounds that cannot say what they saw.
+
+    Every round written from 2026-08-22 carries `run` and a `provenance` block. Earlier
+    ones do not, and two of the missing fields turned out to matter within days: `run`
+    (a game names four fields in different states of repair) and `files_opened` (the only
+    thing that bounded #83). A round without them is not wrong - it is unfalsifiable about
+    its own inputs, which is the same defect as an aggregate without its scope.
+    """
+    old = []
+    for f in sorted(out.glob("*.json")):
+        if f.name == "GATES.json":
+            continue
+        try:
+            d = json.loads(f.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if "submissions" not in d:
+            continue
+        missing = [k for k in ("run", "provenance", "files_opened") if not d.get(k)]
+        if missing:
+            old.append(f"{f.name}: no {', '.join(missing)}")
+    return old
+
+
 def assert_out_root_durable(out: Path) -> None:
     """A judge round is an artifact of record. It must not live where the OS reaps.
 
