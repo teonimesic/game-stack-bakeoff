@@ -678,3 +678,35 @@ separate matrices. None of them is denominated in dollars, and none is recorded 
 **The repair is not to delete the figures.** They are a real proxy for token consumption and the
 only per-trial resource number the harness has. They must be **named for what they are**, and no
 decision may rest on them as money.
+
+### The capped runs were paced against a constraint that does not exist
+
+`wholegame.py` records a measurement worth re-reading under #159. `--max-budget-usd` is **visible
+to the building agent and instructs it**, established by three-way discrimination: an agent
+launched with 7.31 answers 7.31 when asked its limit, one launched with 41.77 answers 41.77, one
+launched without the flag answers NONE. Usage rose **1.54×** when the stated ceiling moved 25 → 48,
+and capped trials clustered just under their cap (23.07, 24.33, 24.34, 25.06).
+
+The reading at the time was that runs under different caps are not comparable. That stands. **The
+stronger reading is that a capped agent was told to conserve a resource that is not scarce** — it
+paced itself, produced less, and the record of what it could have built at that task is
+correspondingly short. The cap did not merely make those runs incomparable; it made them worse,
+for nothing.
+
+`MAX_BUDGET_USD = None` is already the standing configuration, and the reasoning that put it there
+— any stated value is an instruction, so only an absent flag is neutral — was right for a reason
+better than the one given.
+
+**The judge path still carries hard money limits.** `field_sweep.py` defaults to `--max-cost 60`
+with `--per-call-budget 12`, and refuses a call when `spent + 12 > 60`. A sweep is therefore
+truncated at roughly $48 of *valuation* — a run stopped part-way through its evidence by a
+threshold on a quantity nobody is charged for. Nothing in the stored record shows this having
+bound yet; the blind field charged 27.68 against it and stopped because it was finished.
+
+> **A limit denominated in a unit that does not bind is worse than no limit.** It cannot protect
+> the resource that is actually scarce, it truncates real evidence when it fires, and where the
+> figure is visible to the subject it instructs the subject to do less.
+
+What should bound a run is what is actually finite: **turns, wall clock, and rate-limit capacity.**
+Turns are already the build-side bound and are invisible to the agent, which is why that choice
+was correct.

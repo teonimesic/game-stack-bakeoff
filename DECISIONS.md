@@ -1941,6 +1941,31 @@ was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#9
 **To re-open:** GitHub changing its heading-anchor rule, or a second consumer of these documents
 that does not render Markdown links.
 
+## No run is bounded by a money figure; token counts and time are measured, not capped — decided 2026-08-23
+
+The account is a subscription. `agent.cost_usd` is a list-price valuation of token counts that the
+CLI computes whatever the billing arrangement, so no dollar figure here is an expenditure (#159).
+
+**Tokens and wall clock are kept and are the point.** They are how output is weighed against
+resource used, and they are the only per-trial resource numbers the harness has. Nothing about
+#159 makes them less worth recording — it makes the *unit* wrong, not the measurement.
+
+**Nothing is bounded by them.** A ceiling denominated in a unit that does not bind cannot protect
+what is scarce, and it truncates real evidence when it fires. Where the figure reaches the subject
+it is worse than inert: `--max-budget-usd` is visible to a building agent and instructs it, proven
+by three-way discrimination, and usage rose 1.54x when a stated ceiling moved 25 to 48. A capped
+agent was told to conserve something that is not scarce and produced less for nothing.
+
+| | |
+|---|---|
+| builds | `MAX_BUDGET_USD = None`, `--max-turns 1000`. Turns are invisible to the agent and truncate rather than instruct |
+| judge sweeps | `--max-cost` and `--per-call-budget` are money limits and must stop being the bound. Until they are replaced, pass a value high enough not to bind and say so |
+| what may bound a run | turns, wall clock, rate-limit capacity — the things that are actually finite |
+
+**What re-opens this:** moving to per-token billing, at which point the figures become real and a
+ceiling becomes a real protection. Then the build-side reasoning still applies — a cap the agent
+can see is an instruction, so it belongs outside the agent's view or not at all.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
