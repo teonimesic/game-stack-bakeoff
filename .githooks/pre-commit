@@ -1,0 +1,5 @@
+#!/bin/sh
+# The cheap gates on the content you are about to commit.
+# The gate list, the bypass, the worktree caveat and the measured cost of each tier are in
+# run-gates.sh and .github/workflows/README.md.
+exec "$(git rev-parse --show-toplevel)/.githooks/run-gates.sh" pre-commit

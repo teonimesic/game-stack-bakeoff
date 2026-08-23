@@ -1,0 +1,100 @@
+# The SLOW tier: the mutant suites, and the two selftests that spend real seconds.
+#
+# Split out of gates.yml for one reason and it is not tidiness: this repository is
+# PRIVATE, so Actions minutes are metered against a monthly account allowance. These
+# five steps are 521s measured (bot_mutants 226s, tasks_mutants 157s, skill_layout 125s)
+# against the fast tier's 42s, so running them on every event would be an order of
+# magnitude more bill for checks whose inputs are only source.
+#
+# WHAT THE PATH FILTER IS CLAIMING, so it can be argued with: every check here reads
+# source under eval/, or the skill layout under .agents/ and .claude/, and nothing else.
+# bot_mutants mutates judge criteria, tasks_mutants mutates a COPY of eval/tools/tasks.py,
+# audio/rusage are fixture-driven, and skill_layout_control plants and restores five
+# breakages of the symlink. A change to a document or a task file cannot alter their
+# verdict. Anything that reads a document or the queue is in gates.yml and runs
+# unconditionally, precisely because a path filter on those would be a gate that is
+# silently absent.
+#
+# The nightly run exists because a path filter is a claim, and the claim is checked by
+# running the suite on main whether or not anything it names moved.
+name: controls
+
+on:
+  pull_request:
+    paths:
+      - 'eval/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '.github/workflows/controls.yml'
+  push:
+    branches: [main, 'ci-control-**']
+    paths:
+      - 'eval/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '.github/workflows/controls.yml'
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controls-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0   # tasks_mutants exits 2 on a shallow clone -- measured
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - run: python3 -m pip install --disable-pip-version-check pyyaml==6.0.2
+
+      # `just` is NOT a stack toolchain here. bot_mutants drives eval/judge/fixtures/*,
+      # whose justfiles run `python3` and nothing else -- `just` is only the recipe runner.
+      # It refuses to run without it (exit 2, fail-closed), which is how CI found this.
+      # Pinned to the operator's version so a recipe cannot behave differently in the two
+      # places. Downloaded to a file rather than piped into tar: a pipeline's exit status
+      # is the last stage's (AGENTS.md rule 3).
+      - name: fetch just 1.58.0
+        run: curl -fsSL -o /tmp/just.tar.gz https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz
+      - name: install just
+        run: sudo tar -xzf /tmp/just.tar.gz -C /usr/local/bin just
+      - name: just --version
+        run: just --version
+
+      # ffmpeg is what `judge/audio.py` measures loudness and silence with, so
+      # audio_selftest exits 2 without it -- fail-closed, and again a dependency nothing
+      # had ever named because every machine that ran the judge had it. Not a stack
+      # toolchain: no engine, no compiler, no package manager for a submission.
+      - name: install ffmpeg (judge/audio.py's measuring instrument)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+
+      # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
+      # others. Without it a broken run reports one failure per push, and clearing three
+      # takes three pushes on a metered account.
+      - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/bot_mutants.py
+      - name: tasks_mutants (the five mutants tasks_control's rows must catch)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/tasks_mutants.py
+      - name: judge/audio_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/audio_selftest.py
+      - name: judge/rusage_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/rusage_selftest.py
+      # 124.7s, and it plants five breakages in the skill layout and restores them. The
+      # `.claude/skills` symlink is load-bearing and fails silently, so this is exactly the
+      # kind of gate nobody would remember to run.
+      - name: skill_layout_control (the .agents/.claude symlink, five ways it can break)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/skill_layout_control.py

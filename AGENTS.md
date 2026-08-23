@@ -89,6 +89,23 @@ so `docstat.py --sweep` asserts the symlink exists and resolves, rather than onl
 The usual order across one cycle is **`run-matrix` → `evaluate-run` → `refine`**, with
 `add-game` when the task set changes and `audit-docs` folded into `refine` or run alone.
 
+## The gates run without being remembered
+
+Every verification command here used to run only when someone invoked it, which is a check with
+a duty cycle — and the rate was measured above zero. GitHub Actions runs them on every pull
+request and on every push to `main`; two git hooks run the cheap ones locally.
+
+    install the hooks:  git config core.hooksPath .githooks
+    bypass:             git commit --no-verify  /  git push --no-verify
+
+**`.github/workflows/README.md` is the register**: what runs in which tier, what each costs, and
+**every gate deliberately left out with the reason**. Read it before adding a gate, before
+concluding one is missing, and before assuming a green run covered something. A gate excluded and
+recorded is fine; one silently absent is not.
+
+The hooks are **not** installed automatically. `core.hooksPath` is shared git config, so one
+invocation arms the main checkout and every worktree at once.
+
 ## The two monitors, and how to relaunch them
 
 Both are background monitors owned by whatever session is driving the work. **They do not

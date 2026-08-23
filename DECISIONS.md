@@ -1153,20 +1153,79 @@ totals; both call the same `run_ruff()` in `prune_scan.py`, and `LINT_SELECT`, `
 
 **It exits 0 with findings.** A gate added while the codebase still violates it is a gate that
 gets switched off, and switching it off is silent. `--gate` exists so whoever wires one later
-need not edit the tool; nothing calls it.
+need not edit the tool. **CI now calls it, for one rule only** — see the CI decision below.
 
-**What the baseline means, and what it does not.** `PLW1510` and `BLE001` are at **0** and are a
-real baseline: every `subprocess.run` under the lint root states its `check=`, and every blind
-`except Exception` that remains carries a `# noqa: BLE001` naming why the exception set is open
-there. A new hit from either rule is therefore a site nobody has considered. The other 44
-findings — `B905`, `F401`, `F541`, `B007`, `B023`, `F841` — were **not** triaged and are a
-standing backlog, not a clean baseline. The reasoning is in #105 and in `eval/tools/lint.py`.
+**What the baseline means, and what it does not.** `PLW1510` and `BLE001` were triaged to **0**
+on 2026-08-23: every `subprocess.run` under the lint root stated its `check=`, and every blind
+`except Exception` that remained carried a `# noqa: BLE001` naming why the exception set is open
+there. A new hit from either rule is therefore a site nobody has considered — and **re-measured
+later the same day there are 11 of them**: 10 `PLW1510` (`judge/blind_dir_selftest.py`,
+`judge/blind_ext_selftest.py`, `judge/starter_parity.py` x2, `tools/disclosure_mutants.py`,
+`tools/findings_control.py`, `tools/tasks_control.py` x3, `tools/tasks_mutants.py`) and 1
+`BLE001` (`tools/tasks_control.py:497`). Re-derive with `python3 eval/tools/lint.py --counts`
+rather than quoting this paragraph. The other findings — `B905`, `F401`, `F541`, `B007`, `B023`,
+`F841` — were **not** triaged and are a standing backlog, not a clean baseline. The reasoning is
+in #105 and in `eval/tools/lint.py`.
+
+> **A triaged-to-zero baseline decays in hours at this parallelism, and nothing was watching it.**
+> That is the argument for the CI decision below rather than an argument against the baseline.
 
 **`eval/judge/fixtures/` is out of scope**, alongside `eval/runs/`. Those are stand-in
 *submissions* — the same class of artifact as `eval/starters/*/`, one of them deliberately
 defective — and linting the object of measurement is measuring the thing being measured. They
 contributed 14 of the 30 `BLE001` and 3 of the 11 `B905`, every one of them an idiom a fixture
 needs.
+
+---
+## The gates run in CI and in git hooks, in three tiers — decided 2026-08-23
+
+Every verification command here used to run only when somebody remembered to. That is a check
+with a duty cycle, and the rate was measured above zero twice in one session: a commit was
+pushed while `docstat.py --findings` was exit 1, and the stale-citation rows in `--sweep` stayed
+red across several merges.
+
+**The register of what runs where, and of every gate deliberately left out with its reason, is
+`.github/workflows/README.md`.** It is not restated here — a second copy is a second source of
+truth. What is decided:
+
+**Three tiers, split on a budget rather than on coverage.** `.githooks/pre-commit` is 1.2s and
+`.githooks/pre-push` is 12.0s, both measured; `gates.yml` is 42s of gates and `controls.yml` is
+281s. A hook nobody bypasses is worth more than a hook that covers everything, and `--no-verify`
+is one flag. **A hook checks the CONTENT; CI additionally checks the CHECKERS** — a control over
+a tool changes only when the tool changes.
+
+**The hooks are installed by hand, with `git config core.hooksPath .githooks`, and are not
+installed by anything automatic.** `core.hooksPath` lives in the shared git config, so one
+invocation arms the main checkout and every agent worktree at once. That is a change to how
+every concurrent agent's commits behave and it is the operator's to make.
+
+**`tasks.py check` blocks in a real checkout and warns in a linked worktree**, because
+`tasks.py` resolves the queue to the main checkout: from a worktree it reads state your commit
+does not contain and peers are editing. It went red mid-session on a peer's `in_review` while
+this was being built.
+
+**CI gates `lint.py --gate --rule invalid-syntax` and not the full pinned set.** Wiring 64
+findings in on day one teaches everyone to skip CI. `invalid-syntax` is the subset that is at
+zero and can still go red. What would widen it is triaging the 11 `PLW1510`/`BLE001` sites
+above, not relaxing the rule.
+
+**`fetch-depth: 0`, measured.** At depth 1, `tasks_control` exits 3 with 5 of 28 rows
+`NOT CHECKED`, `withdrawn_control` exits 1, `dead_private_control` exits 3 and `tasks_mutants`
+exits 2 — established against a `file://` depth-1 clone of a full clone, so the trees were
+byte-identical and history was the only variable, with `git rev-parse
+--is-shallow-repository` asserting the depth rather than a commit count implying it.
+
+**Nothing in CI spends money, drives the `claude` CLI, or needs a stack toolchain.** That rules
+out `starter_parity.py`, `parity_selftest.py` and `starter_gate_control.py` (325s, and it drives
+Godot, cargo, pnpm and Unity), and `evidence_set_control.py` and `disclosure_mutants.py`, which
+need `eval/runs/` and correctly exit 2 without it.
+
+**The repository is PRIVATE, so Actions minutes are metered** — the MIT licence is a separate
+setting and buys nothing here. The allowance could not be read (`gh api
+/users/teonimesic/settings/billing/actions` is 404 without the `user` token scope), so the design
+is lean rather than sized: `ubuntu-latest`, push narrowed to `main`, `cancel-in-progress`, and
+the 281s tier behind a path filter plus a nightly cron. **Whether to make the repository public
+is the operator's call and nobody else's**; it would remove the constraint entirely.
 
 ---
 ## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]

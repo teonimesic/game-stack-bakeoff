@@ -1,0 +1,159 @@
+# The FAST tier: every gate that reads documents, the queue, or a register.
+#
+# Budget: 42s of gates, measured 2026-08-23 (see .github/workflows/README.md for the
+# table and for what is deliberately NOT here). Nothing waits on this except a review,
+# so completeness matters more than latency -- but the repository is PRIVATE and Actions
+# minutes are metered, which is why the 521s of mutant suites live in controls.yml.
+#
+# EVERY GATE IS ITS OWN STEP. A `run: |` block reports only its last command's exit
+# status (AGENTS.md rule 3), so a multi-command step is a step that can pass while a
+# gate inside it failed. One command per step, no pipes, no `|| true`.
+name: gates
+
+on:
+  pull_request:
+  push:
+    # Metered minutes: agent branches are pushed often and reviewed as PRs, so the push
+    # trigger is narrowed to main. `ci-control-**` exists to re-prove the push path
+    # itself without spending a run on every agent branch -- see the control in tasks/110.
+    branches: [main, 'ci-control-**']
+
+# The job runs code out of the repository, and on a pull_request that code can come from
+# the branch under review. Least privilege for the token it can see, and the checkout
+# credential is not written into .git/config where a step could read it. Raised by
+# CodeRabbit on PR #3; costs nothing, and nothing here needs write access.
+permissions:
+  contents: read
+
+concurrency:
+  group: gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest   # private repo: Linux is 1x, macOS 10x, Windows 2x
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          # MEASURED, not assumed. At depth 1 four controls fail closed and one loses 5
+          # of 28 rows to NOT CHECKED: tasks_control exit 3, withdrawn_control exit 1,
+          # dead_private_control exit 3, tasks_mutants exit 2. They read blobs at named
+          # revisions. A shallow clone has no history to measure, and that is not the
+          # same as a passing check.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          # Pinned to the operator's local interpreter (3.14.6, measured 2026-08-23).
+          # An unpinned toolchain is a gate that will disagree with the machine the
+          # work is done on and be blamed for it.
+          python-version: '3.14'
+
+      # pyyaml: eval/tools/tasks_control.py parses frontmatter out of git history, and
+      #         eval/tools/lint_coverage.py --selftest re-derives its figure through it.
+      # ruff:   eval/tools/lint.py. Pinned exactly -- the syntax-error finding is
+      #         reported under the code `invalid-syntax`, and a version that renames it
+      #         would turn the gate below into a step that cannot fail.
+      - run: python3 -m pip install --disable-pip-version-check pyyaml==6.0.2 ruff==0.16.4
+
+      # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
+      # others. Without it a broken run reports one failure per push, and clearing three
+      # takes three pushes on a metered account.
+
+      # ---- the documentation gates -------------------------------------------------
+      - name: docstat --selftest (the sweep's own pins, in both directions)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/docstat.py --selftest
+      - name: docstat --findings (the producer for any count of the findings log)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/docstat.py --findings
+      - name: docstat --withdrawn (a retired figure restated as current)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/docstat.py --withdrawn
+      - name: docstat --sweep (names in docs that do not resolve, plus structure)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/docstat.py --sweep
+      - name: linkcheck (markdown links that resolve to nothing)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/linkcheck.py
+
+      # ---- the queue ---------------------------------------------------------------
+      - name: tasks.py check
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/tasks.py check
+
+      # ---- source ------------------------------------------------------------------
+      # NOT `lint.py --gate`. That gates the whole pinned set, which stands at 64
+      # findings with an untriaged backlog; wiring it red on day one teaches everyone
+      # to skip CI. `invalid-syntax` is the subset that is at zero today and can still
+      # go red -- pinned both ways in tasks/110.
+      - name: lint.py, syntax errors only
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/lint.py --gate --rule invalid-syntax
+      - name: lint_coverage --selftest (the 7.1% figure's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/lint_coverage.py --selftest
+
+      # ---- the prompts and the packs -----------------------------------------------
+      - name: prompt_guard (no engine names in game bodies, rules identical per stack)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/prompt_guard.py
+      - name: manifest_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/manifest_selftest.py
+
+      # ---- the controls that check the checkers ------------------------------------
+      - name: findings_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/findings_control.py
+      - name: withdrawn_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/withdrawn_control.py
+      - name: triage_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/triage_control.py
+      - name: tasks_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/tasks_control.py
+      - name: dead_private_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/dead_private_control.py
+      - name: backup_evidence_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/backup_evidence_control.py
+      - name: hook_audit_control
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/hook_audit_control.py
+
+      # ---- the judge's cheap selftests ---------------------------------------------
+      - name: judge/aspects_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/aspects_selftest.py
+      - name: judge/anonymise_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/anonymise_selftest.py
+      - name: judge/blind_dir_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/blind_dir_selftest.py
+      - name: judge/blind_ext_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/blind_ext_selftest.py
+      - name: judge/blurb_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/blurb_selftest.py
+      - name: judge/capability_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/capability_selftest.py
+      - name: judge/gate_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/gate_selftest.py
+      - name: judge/pack_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/pack_selftest.py
+      - name: judge/sequential_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/sequential_selftest.py
+      - name: judge/capture_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/capture_selftest.py
