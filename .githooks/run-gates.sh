@@ -18,6 +18,17 @@ set -u
 
 tier="${1:?usage: run-gates.sh pre-commit|pre-push}"
 
+# VALIDATE THE TIER, because an unrecognised one FAILS OPEN. `pre-push` is selected by an
+# equality test below, so `run-gates.sh pre-pushx` would silently run the pre-commit set,
+# skip the 11s sweep, print `pre-pushx: ...` and exit 0 -- fewer gates, and indistinguishable
+# from a hook that worked. AGENTS.md rule 7: every reason not to run a check is a channel a
+# bug can widen. Raised by CodeRabbit on PR #3.
+case "$tier" in
+    pre-commit|pre-push) ;;
+    *) printf 'run-gates.sh: unknown tier %s (want pre-commit or pre-push)\n' "$tier" >&2
+       exit 2 ;;
+esac
+
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 

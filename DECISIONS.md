@@ -1164,8 +1164,9 @@ above, not relaxing the rule.
 
 **`fetch-depth: 0`, measured.** At depth 1, `tasks_control` exits 3 with 5 of 28 rows
 `NOT CHECKED`, `withdrawn_control` exits 1, `dead_private_control` exits 3 and `tasks_mutants`
-exits 2 — established against a depth-1 clone of a full clone, so the trees were byte-identical
-and history was the only variable.
+exits 2 — established against a `file://` depth-1 clone of a full clone, so the trees were
+byte-identical and history was the only variable, with `git rev-parse
+--is-shallow-repository` asserting the depth rather than a commit count implying it.
 
 **Nothing in CI spends money, drives the `claude` CLI, or needs a stack toolchain.** That rules
 out `starter_parity.py`, `parity_selftest.py` and `starter_gate_control.py` (325s, and it drives

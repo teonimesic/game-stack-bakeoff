@@ -154,6 +154,18 @@ breaking something breaks it.
 
 Both control branches were deleted afterwards; the plant never touched `main` or the PR.
 
+## The review
+
+CodeRabbit reviewed PR #3 and posted **4 actionable comments**. All four were acted on; none
+was waved away, and one of them was a real fail-open defect:
+
+| finding | verdict |
+|---|---|
+| `run-gates.sh` never validated its tier argument | **real, and fail-open.** `run-gates.sh pre-pushx` matched neither branch of the `pre-push` equality test, so it silently ran the *pre-commit* set, skipped the 11s sweep and exited 0 — fewer gates and indistinguishable from a hook that worked. Now `exit 2` on an unknown tier, pinned both ways |
+| the pre-push hook stated `12.8s` while this file stated `12.0s` | **real.** Two copies of one measurement, already disagreeing. The durations are now stated here only, and the hooks point at this file |
+| no `permissions:` block, and the checkout credential persisted | **real.** Both workflows now declare `contents: read` and `persist-credentials: false`. Nothing here needs write access |
+| the shallow-clone evidence did not prove the clone was shallow | **raised correctly, and the evidence holds.** `git` does ignore `--depth` on a plain local path; the clone used a `file://` URL. Now asserted with `rev-parse --is-shallow-repository` rather than inferred from a commit count |
+
 ## What CI found on its first run
 
 The fast tier was green first time. The slow tier was **red, correctly**: `bot_mutants.py`
@@ -188,9 +200,16 @@ of the others. Without it a broken run reports one failure per push.
 revisions, and a shallow clone has no history to measure — which is not the same as a
 passing check.
 
-Single-variable comparison, 2026-08-23: a full clone at `3d0c84e`, then `git clone --depth 1`
-**of that clone**, so the two working trees are byte-identical (`diff -rq` empty) and the
-only thing that differs is history.
+Single-variable comparison, 2026-08-23: a full clone at `3d0c84e`, then
+`git clone --depth 1 file:///.../full` **of that clone**, so the two working trees are
+byte-identical (`diff -rq` empty) and the only thing that differs is history. The `file://`
+matters — git ignores `--depth` on a plain local path — so the shallowness is asserted rather
+than assumed:
+
+| | `rev-parse --is-shallow-repository` | `rev-list --count HEAD` |
+|---|---|---|
+| full clone | `false` | 347 |
+| depth-1 clone | `true` | 1 |
 
 | gate | full (347 commits) | depth 1 |
 |---|---|---|

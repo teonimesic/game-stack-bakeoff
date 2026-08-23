@@ -37,6 +37,9 @@ on:
     - cron: '17 6 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: controls-${{ github.ref }}
   cancel-in-progress: true
@@ -47,6 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false
           fetch-depth: 0   # tasks_mutants exits 2 on a shallow clone -- measured
       - uses: actions/setup-python@v6
         with:

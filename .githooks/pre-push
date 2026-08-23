@@ -1,4 +1,6 @@
 #!/bin/sh
-# The pre-commit set plus the full documentation sweep. 12.8s measured 2026-08-23.
-# The gate list, the bypass and the worktree caveat are in run-gates.sh.
+# The pre-commit set plus the full documentation sweep.
+# The gate list, the bypass, the worktree caveat and the measured cost of each tier are in
+# run-gates.sh and .github/workflows/README.md. A duration written here as well would be a
+# second copy of a measurement, and the two would disagree -- they already did once.
 exec "$(git rev-parse --show-toplevel)/.githooks/run-gates.sh" pre-push

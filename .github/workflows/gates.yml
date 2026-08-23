@@ -3,7 +3,7 @@
 # Budget: 42s of gates, measured 2026-08-23 (see .github/workflows/README.md for the
 # table and for what is deliberately NOT here). Nothing waits on this except a review,
 # so completeness matters more than latency -- but the repository is PRIVATE and Actions
-# minutes are metered, which is why the 281s of mutant suites live in controls.yml.
+# minutes are metered, which is why the 521s of mutant suites live in controls.yml.
 #
 # EVERY GATE IS ITS OWN STEP. A `run: |` block reports only its last command's exit
 # status (AGENTS.md rule 3), so a multi-command step is a step that can pass while a
@@ -18,6 +18,13 @@ on:
     # itself without spending a run on every agent branch -- see the control in tasks/110.
     branches: [main, 'ci-control-**']
 
+# The job runs code out of the repository, and on a pull_request that code can come from
+# the branch under review. Least privilege for the token it can see, and the checkout
+# credential is not written into .git/config where a step could read it. Raised by
+# CodeRabbit on PR #3; costs nothing, and nothing here needs write access.
+permissions:
+  contents: read
+
 concurrency:
   group: gates-${{ github.ref }}
   cancel-in-progress: true
@@ -28,6 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false
           # MEASURED, not assumed. At depth 1 four controls fail closed and one loses 5
           # of 28 rows to NOT CHECKED: tasks_control exit 3, withdrawn_control exit 1,
           # dead_private_control exit 3, tasks_mutants exit 2. They read blobs at named
