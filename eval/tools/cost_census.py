@@ -73,12 +73,12 @@ are not counted as independent evidence. It reports three units side by side —
 connected component of both — because which of them is independent is a judgement and the three
 disagree.
 
-**It is exact only while `(k!)**m` stays under `EXACT_ASSIGNMENT_LIMIT`, and the result says
-which mode it used.** At today's 4 stacks and 4 clusters that is 331,776, comfortably under. A
-fifth stack takes m=4 to 207,360,000 and a fifth run takes k=4 to 7,962,624 — **both above the
-limit, and both are recorded re-open conditions**, so the sampled path is what the next widening
-of this corpus will select. `exact: false` means the p is a seeded sample of `SAMPLE_DRAWS`
-draws; never quote one as an enumeration.
+**Above `EXACT_ASSIGNMENT_LIMIT` it REFUSES rather than sampling.** At today's 4 stacks and 4
+clusters `(k!)**m` is 331,776, comfortably under. A fifth stack takes m=4 to 207,360,000 and a
+fifth run takes k=4 to 7,962,624 — **both above the limit, and both are recorded re-open
+conditions**, so widening this corpus means implementing a sampled test WITH a confidence bound,
+not raising the limit. Every p here is read against `ALPHA` and nothing else, and a sampled p
+compared with a threshold decides by luck of the draw.
 
 **Read `smallest p this design could return` before reading the p.** With k stacks and m clusters
 an unbroken lead has probability `k * (1/k)**m`, whatever the data says. Over the stored tree the
@@ -100,7 +100,6 @@ import datetime as _dt
 import itertools
 import json
 import math
-import random
 import sys
 from pathlib import Path
 
@@ -417,15 +416,6 @@ ALPHA = 0.05
 # that gets acted on. 4 stacks over 4 clusters is 331,776, comfortably under.
 EXACT_ASSIGNMENT_LIMIT = 2_000_000
 
-# Sized from the precision the answer needs, not picked round. The only decision taken from
-# a p here is against ALPHA, and the binomial standard error of a sampled p at 0.05 is
-# sqrt(0.05 * 0.95 / n) — 0.00097 at 50,000 draws, which is 50x finer than the distance
-# between the attainable p-values this design produces (0.0156, 0.0625, 0.25). It was
-# 200,000 for no stated reason, at 4x the cost, and the sampled path is walked m+1 times per
-# clustering because the fragility floor re-runs it with one cluster dropped.
-SAMPLE_DRAWS = 50_000
-SAMPLE_SEED = 20260823
-
 
 def group_ranks(group: dict) -> dict[str, float]:
     """Usage rank of each stack in one group, 1 = lowest stack mean. Ties share the average.
@@ -497,7 +487,7 @@ CLUSTERINGS = {
 
 def _permutation_test(cols: list[list[float]], obs_leader: float,
                       k: int) -> dict:
-    """Exact (or seeded-sampled) permutation over stack labels, permuted WITHIN a cluster.
+    """EXACT permutation over stack labels, permuted WITHIN a cluster.
 
     `cols[c][j]` is stack `j`'s summed rank over every group in cluster `c`. A label
     assignment picks one permutation per cluster and holds it across every group in that
@@ -513,13 +503,29 @@ def _permutation_test(cols: list[list[float]], obs_leader: float,
                     best this design could ever return, whatever the data said, and a
                     `p_any` equal to it is a test that returned its most extreme outcome
                     with no margin left.
+
+    **Above `EXACT_ASSIGNMENT_LIMIT` this REFUSES rather than sampling.** Every p here is
+    read against `ALPHA` and nothing else, and a sampled p cannot be compared with a
+    threshold without a confidence bound — a true 0.049 and a true 0.051 both land on
+    either side of it by luck of the draw, so `resolves` would be a coin toss reported as
+    a decision (rule 7: every reason not to count a failure is a channel a bug can widen).
+    An estimator that no stored corpus exercises is not worth the fail-open channel, so
+    the honest answer at that size is the same one this tool gives for a missing tree: a
+    named refusal, not a number.
     """
-    # DECIDE THE MODE FROM ARITHMETIC, BEFORE ALLOCATING ANYTHING. The exact path
-    # materialises k! vectors per cluster; at k=10 that is 3,628,800 of them, so a
-    # limit checked after the build is a limit the process can run out of memory
-    # reaching. The count is a factorial power — compute it, do not enumerate to find it.
+    # REFUSE FROM ARITHMETIC, BEFORE ALLOCATING ANYTHING. Enumerating materialises k!
+    # vectors per cluster; at k=9 over 2 clusters that is 725,760 of them and hundreds of
+    # megabytes, so a limit checked after the build is a limit the process spends the
+    # memory to reach. The count is a factorial power — compute it, never enumerate to
+    # find it.
     total = math.factorial(k) ** len(cols)
-    exact = total <= EXACT_ASSIGNMENT_LIMIT
+    if total > EXACT_ASSIGNMENT_LIMIT:
+        raise CostCensusError(
+            f"{k} stacks over {len(cols)} clusters is {total:,} label assignments, past "
+            f"the {EXACT_ASSIGNMENT_LIMIT:,} this enumerates exactly. It refuses rather "
+            f"than sampling: every p here is read against alpha={ALPHA}, and a sampled p "
+            f"needs a confidence bound before it can be compared with a threshold. "
+            f"Widening this corpus means implementing that bound, not raising the limit")
 
     # Permutations are chosen independently per cluster, so the smallest total any single
     # stack can be driven to is the sum of each cluster's smallest column. Computed in
@@ -535,28 +541,11 @@ def _permutation_test(cols: list[list[float]], obs_leader: float,
             v[perm[j]] += col[j]
         return tuple(v)
 
-    if exact:
-        perms = list(itertools.permutations(range(k)))
-        per_cluster = [[relabel(p, col) for p in perms] for col in cols]
-        draws = itertools.product(*per_cluster)
-        n_draws = total
-    else:
-        # Lazy: one shuffled label order per cluster per draw, nothing materialised.
-        rng = random.Random(SAMPLE_SEED)
-        n_draws = SAMPLE_DRAWS
-        order = list(range(k))
+    perms = list(itertools.permutations(range(k)))
+    per_cluster = [[relabel(p, col) for p in perms] for col in cols]
 
-        def sampled():
-            for _ in range(n_draws):
-                combo = []
-                for col in cols:
-                    rng.shuffle(order)
-                    combo.append(relabel(order, col))
-                yield combo
-
-        draws = sampled()
     n_named = n_any = n_floor = 0
-    for combo in draws:
+    for combo in itertools.product(*per_cluster):
         v = [0.0] * k
         for c in combo:
             for j in range(k):
@@ -569,16 +558,18 @@ def _permutation_test(cols: list[list[float]], obs_leader: float,
         if smallest <= attainable_min:
             n_floor += 1
 
+    # These p-values can never be 0, and that is a property of the test rather than of the
+    # data: the unpermuted assignment is one of the `total` and always satisfies its own
+    # condition, so the smallest value reachable here is `1/total`. A 0 would mean the
+    # enumeration missed the identity — which is why it is pinned rather than assumed.
     return {
         "assignments": total,
-        "exact": exact,
-        "draws": n_draws,
         "attainable_min_rank_sum": attainable_min,
-        "p_named": n_named / n_draws,
+        "p_named": n_named / total,
         "p_named_count": n_named,
-        "p_any": n_any / n_draws,
+        "p_any": n_any / total,
         "p_any_count": n_any,
-        "p_floor": n_floor / n_draws,
+        "p_floor": n_floor / total,
         "at_the_extreme": obs_leader <= attainable_min,
     }
 
@@ -830,8 +821,7 @@ def render_ordering(c: dict) -> str:
         "group in it, so groups that share a cluster are not counted as independent evidence.",
     ]
     for t in o["clusterings"]:
-        mode = (f"exact over {t['assignments']} assignments" if t["exact"]
-                else f"seeded sample, {t['draws']} draws of {t['assignments']}")
+        mode = f"exact over {t['assignments']} assignments"
         lines += [
             "",
             f"  UNIT = {t['unit']}  ({t['n_clusters']} clusters, {mode})",
@@ -840,9 +830,9 @@ def render_ordering(c: dict) -> str:
             lines.append(f"    {cl['label']:34} {len(cl['groups'])} group(s)")
         lines += [
             f"    p, had {o['leader']} been named in advance    {t['p_named']:.4f}"
-            f"   ({t['p_named_count']}/{t['draws']})",
+            f"   ({t['p_named_count']}/{t['assignments']})",
             f"    p, post-hoc-safe (any stack leading) {t['p_any']:.4f}"
-            f"   ({t['p_any_count']}/{t['draws']})   "
+            f"   ({t['p_any_count']}/{t['assignments']})   "
             + ("< alpha" if t["resolves"] else ">= alpha"),
             f"    smallest p this design could return  {t['p_floor']:.4f}"
             + ("   <- the observed p IS the floor: the most extreme outcome available, "
@@ -906,6 +896,50 @@ def _rec(game: str, stack: str, cost: float, turns: int | None = None,
     if turns is not None:
         agent["num_turns"] = turns
     return {"game": game, "stack": stack, "agent": agent}
+
+
+# Refusing before enumerating costs a few MB. Enumerating 9! vectors over 2 clusters first
+# costs hundreds. Anywhere between is the same verdict, so the ceiling is set well clear of
+# the passing case rather than tuned to the failing one.
+CHILD_RSS_CEILING_MB = 60
+
+
+def _refusal_in_child(cols: list[list[float]], k: int) -> tuple[str, float | None]:
+    """Call `_permutation_test` in a FRESH interpreter; return (exception name, peak MB).
+
+    A child, not this process, because `ru_maxrss` is a process-lifetime high-water mark:
+    measured in-process, the delta reads zero as soon as anything earlier allocated more,
+    and the pin stops working without ever going red — a check that cannot fail.
+
+    The child imports the module under test **by path**, so a mutated copy measures itself
+    rather than whatever `cost_census` resolves to on `sys.path`.
+    """
+    import subprocess
+
+    source = f"""
+import importlib.util, resource, sys, json
+spec = importlib.util.spec_from_file_location("m", {str(Path(__file__).resolve())!r})
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+name = "no exception"
+try:
+    m._permutation_test({cols!r}, 0.0, {k!r})
+except Exception as exc:
+    name = type(exc).__name__
+raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+mb = raw / (1 << 20) if sys.platform == "darwin" else raw / 1024
+print(json.dumps([name, mb]))
+"""
+    proc = subprocess.run([sys.executable, "-c", source],
+                          capture_output=True, text=True, check=False)
+    try:
+        name, mb = json.loads(proc.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        # The child died — most likely killed reaching for the memory this pin exists to
+        # forbid. That is the failing direction, reported as such rather than as a pass.
+        return (f"child exited {proc.returncode} without a verdict: "
+                f"{(proc.stderr.strip().splitlines() or ['<no stderr>'])[-1][:120]}", None)
+    return name, mb
 
 
 def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
@@ -1387,7 +1421,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         "run", "game", "leader_rank", "cheapest", "leads", "runner_up", "margin_usd",
         "floor_usd", "margin_pct_of_floor", "margin_exceeds_floor")
     EXPECTED_CLUSTERING_FIELDS = (
-        "clustering", "unit", "n_clusters", "clusters", "assignments", "exact", "draws",
+        "clustering", "unit", "n_clusters", "clusters", "assignments",
         "attainable_min_rank_sum", "p_named", "p_named_count", "p_any", "p_any_count",
         "p_floor", "at_the_extreme", "resolves", "design_can_resolve",
         "p_floor_dropping_one_cluster")
@@ -1450,11 +1484,10 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("O1 all three clusterings see the same 2 clusters",
               [t["n_clusters"] for t in got["clusterings"]], [2, 2, 2])
         run1 = by_unit(got, "run")
-        check("O1 assignments enumerated exactly", (run1["assignments"], run1["exact"]),
-              (576, True))
-        check("O1 p named in advance is 1/16", (run1["p_named_count"], run1["draws"]),
+        check("O1 assignments enumerated exactly", run1["assignments"], 576)
+        check("O1 p named in advance is 1/16", (run1["p_named_count"], run1["assignments"]),
               (36, 576))
-        check("O1 p post-hoc-safe is 4/16", (run1["p_any_count"], run1["draws"]),
+        check("O1 p post-hoc-safe is 4/16", (run1["p_any_count"], run1["assignments"]),
               (144, 576))
         check("O1 the lead is as extreme as the design allows",
               (run1["attainable_min_rank_sum"], run1["at_the_extreme"]), (2.0, True))
@@ -1486,9 +1519,9 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         got = order("O2 unbroken lead, k=2 m=7", o2, min_stacks=2)
         run2 = by_unit(got, "run")
         check("O2 rank sums", got["rank_sum_per_stack"], {"rust": 14.0, "ts": 7.0})
-        check("O2 p named in advance is 1/128", (run2["p_named_count"], run2["draws"]),
+        check("O2 p named in advance is 1/128", (run2["p_named_count"], run2["assignments"]),
               (1, 128))
-        check("O2 p post-hoc-safe is 2/128", (run2["p_any_count"], run2["draws"]), (2, 128))
+        check("O2 p post-hoc-safe is 2/128", (run2["p_any_count"], run2["assignments"]), (2, 128))
         check("O2 resolves, and the design could",
               (run2["resolves"], run2["design_can_resolve"]), (True, True))
         check("O2 lead beats the floor in every group it leads",
@@ -1515,9 +1548,9 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("O3 rank sums", got["rank_sum_per_stack"], {"rust": 13.0, "ts": 8.0})
         check("O3 ts is no longer at the attainable extreme",
               (run3["attainable_min_rank_sum"], run3["at_the_extreme"]), (7.0, False))
-        check("O3 p named in advance is 8/128", (run3["p_named_count"], run3["draws"]),
+        check("O3 p named in advance is 8/128", (run3["p_named_count"], run3["assignments"]),
               (8, 128))
-        check("O3 p post-hoc-safe is 16/128", (run3["p_any_count"], run3["draws"]),
+        check("O3 p post-hoc-safe is 16/128", (run3["p_any_count"], run3["assignments"]),
               (16, 128))
         check("O3 the design could resolve; the data does not",
               (run3["resolves"], run3["design_can_resolve"]), (False, True))
@@ -1636,30 +1669,48 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("O7 nor is the fragility floor",
               run7["p_floor_dropping_one_cluster"], 1.0)
 
-        # ---- O7b. THE SAMPLED PATH MUST NOT ALLOCATE THE EXACT PATH FIRST. `k=10` over one
-        # cluster is 3,628,800 assignments, which is above the limit and therefore sampled
-        # — but only if the mode is decided before `k!` vectors per cluster are built.
-        # Measured: deciding first peaks at 24 MB, building first at 2085 MB. This pins the
-        # RESOURCE rather than the return value, because both structures return the same
-        # numbers (rule 13: guard the resource, and verify on the path that holds it).
-        import resource as _resource
-
-        def _peak_mb() -> float:
-            # ru_maxrss is BYTES on macOS and KILOBYTES on Linux. Reading it as one unit on
-            # both makes this pin off by 1024x on one of them — passing vacuously on Linux.
-            raw = _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss
-            return raw / (1 << 20) if sys.platform == "darwin" else raw / 1024
-
-        before = _peak_mb()
-        big = _permutation_test([[float(j) for j in range(10)]], 0.0, 10)
-        grew = _peak_mb() - before
-        check("the sampled path reports the right size without enumerating it",
-              (big["exact"], big["assignments"], big["draws"]),
-              (False, 3628800, SAMPLE_DRAWS))
-        if grew > 200:
+        # ---- O7b. A DESIGN TOO BIG TO ENUMERATE MUST REFUSE **BEFORE** ALLOCATING.
+        # `k=9` over 2 clusters is 1.3e11 assignments, far past the limit — and the refusal
+        # is worth nothing if it arrives after `k!` vectors per cluster have been built,
+        # which is 725,760 tuples and hundreds of megabytes on the way to saying no.
+        #
+        # Both structures raise the same error, so no pin on the RETURN VALUE can see the
+        # difference. This pins the RESOURCE (rule 13), and it measures it in a CHILD
+        # process: `ru_maxrss` is a process-LIFETIME high-water mark, so a delta taken in
+        # this process would sit at zero the moment anything earlier allocated more —
+        # a pin that stops working without ever going red.
+        big_cols = [[float(j) for j in range(9)], [float(j) for j in range(9)]]
+        refused, peak_mb = _refusal_in_child(big_cols, 9)
+        check("a design past the enumeration limit refuses", refused, "CostCensusError")
+        if peak_mb is not None and peak_mb > CHILD_RSS_CEILING_MB:
             failures.append(
-                f"sampled mode grew peak RSS by {grew:.0f} MB: it materialised the exact "
-                f"path before checking the limit (deciding first measures ~2 MB here)")
+                f"refusing a {9}-stack, {len(big_cols)}-cluster design cost "
+                f"{peak_mb:.0f} MB in a fresh process: it enumerated before checking the "
+                f"limit (refusing first measures well under {CHILD_RSS_CEILING_MB} MB)")
+
+        # A p of exactly 0 is a value this test cannot produce: the unpermuted assignment
+        # is one of the `total` and always satisfies its own condition. A 0 would mean the
+        # enumeration had missed the identity.
+        check("an exact p counts the observed assignment itself, so it is never 0",
+              _permutation_test([[1.0, 2.0]], 1.0, 2)["p_named_count"], 1)
+
+        # ---- O7c. RENDER IT. Every pin above reads the RESULT DICT, and the thing a person
+        # actually runs is the renderer — which reached a field the producer had stopped
+        # emitting and died on a `KeyError`, at a green selftest, because nothing here had
+        # ever called it. A producer and its report are two components; pinning one is not
+        # pinning the other.
+        try:
+            rendered_census = cost_census(o1)
+            text = render_ordering(
+                {**rendered_census, "ordering": ordering_test(rendered_census)})
+        except Exception as exc:  # noqa: BLE001 - the report dying IS the failure
+            failures.append(f"render_ordering raised {type(exc).__name__}: {exc}")
+            text = ""
+        for phrase in ("UNIT = run directory", "smallest p this design could return",
+                       "and with any one cluster dropped", "HOW BIG THE LEAD IS",
+                       "exact over 576 assignments"):
+            if phrase not in text:
+                failures.append(f"render_ordering dropped {phrase!r} from its report")
 
         # ---- O8. Two refusals. Both would otherwise return a plausible in-range p, and
         # both must be a NAMED CostCensusError — a KeyError several frames down exits
@@ -1722,7 +1773,7 @@ def main() -> int:
     ap.add_argument("--ordering", action="store_true",
                     help="adjudicate whether any stack is systematically cheapest, by "
                          "permutation of the stack labels within a cluster, enumerated "
-                         "exactly below the assignment limit and seeded-sampled above it")
+                         "exactly; refuses above the assignment limit rather than sampling")
     ap.add_argument("--selftest", action="store_true",
                     help="pin the extraction against a tree with a known answer")
     args = ap.parse_args()

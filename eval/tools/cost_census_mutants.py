@@ -54,7 +54,6 @@ the worst quantity here to get silently wrong: every mutant below returns a numb
 | `p_any_is_p_named` | the post-hoc correction | the p for a stack *named in advance*, reported for one chosen because it looked lowest — a factor of k too small |
 | `p_excludes_the_observed` | the observed assignment's own membership of the tail | a permutation p that excludes itself; at the extreme it returns `0.0000` |
 | `attainable_min_is_one_cluster` | the design floor summed over clusters | the floor read off a single cluster, so `at_the_extreme` goes False and the "no margin left" warning never prints on the one result that needs it |
-| `sample_never_exact` | the exact-enumeration threshold | every p silently sampled, while the output still says which mode it used |
 | `ranks_ignore_ties` | shared average ranks | two stacks with the same mean ordered by the sort's stability — **a lead manufactured by the order of a list**, in exactly the quantity being adjudicated |
 | `leader_is_dearest` | the ordering's direction | the adjudication run on the *dearest* arm |
 | `margin_over_dearest` | the runner-up as the comparison | the lead measured against the dearest stack — the whole between-stack range, reported as one arm's margin |
@@ -62,7 +61,8 @@ the worst quantity here to get silently wrong: every mutant below returns a numb
 | `margin_where_it_lost` | measuring the margin only where the leader leads | the gap in a group the leader **lost** counted as evidence for it |
 | `no_groups_guard` | the refusal on an empty population | a p-value over no groups. It is caught by the *message*: a second guard also refuses here, so a type-only check passes while the reader is told the wrong thing |
 | `stack_set_guard` | the one-stack-set refusal | labels permuted across groups holding different stacks, which is undefined |
-| `limit_checked_after_allocation` | deciding exact-vs-sampled **before** allocating | the sampled path builds `k!` vectors per cluster on its way to discovering it should not have. Measured at k=10 over one cluster: **2085 MB** peak RSS against **24 MB**. Both structures return the same numbers, so only a pin on the RESOURCE can see it (rule 13) |
+| `limit_checked_after_allocation` | refusing an over-limit design **before** enumerating | the same refusal, raised after `k!` vectors per cluster have been built — 725,760 tuples and hundreds of megabytes spent on the way to saying no. Both structures raise the same error, so only a pin on the RESOURCE can see it, and only in a **child** process: `ru_maxrss` is a process-lifetime high-water mark (rule 13) |
+| `render_drops_the_fragility_line` | the design-floor line from the REPORT | the producer is right and the report is silent about the one line that decides the adjudication. Every other pin here reads the result dict; this reads what a person sees |
 | `drop_ordering_field` | an ordering field the selftest reads, renamed | `drop_field` one level down |
 
 **`drop_field` is the one that is about the selftest rather than about the tool**, and it is
@@ -92,7 +92,7 @@ its rows can go red:
 **Needs no corpus.** `cost_census.py --selftest` builds its own trees under `tempfile`, so
 this runs anywhere, including an agent worktree with no `eval/runs/`.
 
-    python3 eval/tools/cost_census_mutants.py          # every mutant, 18s
+    python3 eval/tools/cost_census_mutants.py          # every mutant, 6s
     python3 eval/tools/cost_census_mutants.py --list   # the count and the names only
 """
 
@@ -210,9 +210,6 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "attainable_min_is_one_cluster": (
         "    attainable_min = sum(min(col) for col in cols)",
         "    attainable_min = min(min(col) for col in cols)"),
-    "sample_never_exact": (
-        "EXACT_ASSIGNMENT_LIMIT = 2_000_000",
-        "EXACT_ASSIGNMENT_LIMIT = 0"),
     "leader_is_dearest": (
         "    leader = min(stacks, key=lambda s: observed[s])",
         "    leader = max(stacks, key=lambda s: observed[s])"),
@@ -235,18 +232,27 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "    if len(stack_sets) != 1:\n        raise CostCensusError(",
         "    if False:\n        raise CostCensusError("),
     "limit_checked_after_allocation": (
-        "    if exact:\n        perms = list(itertools.permutations(range(k)))\n"
-        "        per_cluster = [[relabel(p, col) for p in perms] for col in cols]",
-        "    perms = list(itertools.permutations(range(k)))\n"
-        "    per_cluster = [[relabel(p, col) for p in perms] for col in cols]\n"
-        "    if exact:"),
+        "    total = math.factorial(k) ** len(cols)\n"
+        "    if total > EXACT_ASSIGNMENT_LIMIT:",
+        "    perms_eager = list(itertools.permutations(range(k)))\n"
+        "    _eager = [[tuple(col[q[j]] for j in range(k)) for q in perms_eager]\n"
+        "              for col in cols]\n"
+        "    total = math.factorial(k) ** len(cols)\n"
+        "    if total > EXACT_ASSIGNMENT_LIMIT:"),
     "fragility_from_closed_form": (
         "        worst = max(worst, _permutation_test(sub, sum(min(c) for c in sub), k)"
         '["p_floor"])',
         "        worst = max(worst, k * (1.0 / k) ** len(sub))"),
+    # The RENDERER is a second component. Until 2026-08-23 nothing called it from the
+    # selftest, and it shipped a KeyError on a field the producer had stopped emitting —
+    # green suite, broken command.
+    "render_drops_the_fragility_line": (
+        "            f\"    ... and with any one cluster dropped "
+        "{_fmt(t['p_floor_dropping_one_cluster'], '.4f')}\"",
+        '            f\"\"'),
     "drop_ordering_field": (
-        '        "p_floor": n_floor / n_draws,',
-        '        "p_floor_RENAMED": n_floor / n_draws,'),
+        '        "p_floor": n_floor / total,',
+        '        "p_floor_RENAMED": n_floor / total,'),
 
     # ---- the selftest's own drift guard
     "drop_field": (
