@@ -6,6 +6,9 @@ when_to_use: "After a working session; a rule failed to prevent what it was writ
 
 # Auditing the documentation
 
+**Authoritative file: `AGENTS.md` — the rules, the rule audit and the pruning principle. If
+this skill and that file disagree, it wins and this skill is the bug.**
+
 The docs are an instrument, and the same question applies to them as to any grader:
 *what would it take for this to be wrong?*
 
@@ -34,7 +37,7 @@ numbers from git history, resolves each citation against the numbering its own a
 commit saw, and prints two lists: **decided** (a verdict, and the half `--sweep` echoes) and
 **undecidable** (a short list to read, because a merge writes the renumber and the citation
 in one commit and there is no ordering inside a commit). 27 stale citations across eight
-corpora on first run, plus two more that landed while it was being written (#117).
+corpora on first run, plus two more that landed while it was being written (#118).
 
 Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
 the citation is what is wrong.
@@ -54,8 +57,10 @@ repository and produced **over 14,000 alerts and two defects, both structural**
 (`research/11-doc-linting-for-agents.md`). Do not add a prose linter; that survey already
 came out.
 
-**Do not hand-roll this scan.** Four hand-written versions were wrong before the tool
-existed, each in a way whose output looked like a real finding:
+### Do not hand-roll it
+
+Four hand-written versions were wrong before the tool existed, each in a way whose output
+looked like a real finding:
 
 | attempt | failure |
 |---|---|
@@ -68,8 +73,9 @@ The last one matters most: the sweep read **clean**, and clean-because-nothing-i
 was indistinguishable from clean-because-it-cannot-fire. Only the planted-phantom control
 separated them.
 
-**If you change the tool, re-run both controls**, or you have not changed it — you have
-replaced it with something that agrees with you:
+### If you change the tool, re-run both controls
+
+Or you have not changed it — you have replaced it with something that agrees with you:
 
 ```
 # negative: clean corpus -> exit 0
@@ -94,7 +100,9 @@ ran, not because the tool is sound.
 Both structure checks arrived on an **already-repaired** repository, which is the state in
 which a gate has never been seen to fail. Plant the defect each names before trusting it.
 
-**What it deliberately does not check**, and why — do not "fix" these by adding them back:
+### What it deliberately does not check
+
+Do not "fix" these by adding them back. Each was measured and removed:
 
 - **Paths.** Docs legitimately write them relative to a context stated in prose or a table
   cell: `README.md` names `tools/boundary.gd` in a row about `template-godot/`, where it

@@ -265,3 +265,60 @@ reference that survived the thing it referred to.
 agent worktree may only edit its own copy. So the six corrections above are on this branch and
 land when it merges, while tasks 57-59 were filed with `tasks.py` — which is what reserved ids
 57, 58 and 59 rather than colliding on 54, the number a worktree-local guess would have taken.
+
+---
+
+## 2026-08-23 — the fat sections: is the doubling earned? (task 53)
+
+**Looked for:** `prune_scan.py --only fat` had gone from ~12,053 tokens over 6 sections in the
+morning to ~24,416 in the evening of 2026-08-22. One question per section: **would a fresh agent
+reading this be better off reading half of it?** Not "is it bigger".
+
+**Read:** all 14 reported sections in full — `AGENTS.md` "Rules" (1-16), `.claude/skills/audit-docs/SKILL.md`
+§1, the five `tasks/` files (08, 24, 27, 34, 52), this log's 2026-08-23 `tasks/` entry, and
+read-only: `README.md` §"THE RESULT" and §"In flight", `eval/judge/JUDGING.md` §"Validation gates",
+`eval/IMPROVEMENTS.md` §"Verdicts", `DECISIONS.md` §"templates at each stack's best",
+`eval/FINDINGS.md` §"Every finding". Also `prune_scan.py:cat_fat` itself, and every skill's
+authoritative-file declaration.
+
+**Measured: 28,852 tokens over 14 sections before, 27,212 over 13 after.** The task's own
+baselines were 12,053 and 24,416; the number had grown again before this pass started. **The
+total was not the target and it barely moved — 11 of 14 sections are keeps, and that is the
+result.**
+
+This entry is itself ~1,680 tokens and therefore joins the list, putting the measured total at
+**28,890 over 14** — re-read from the tool after this paragraph was written, not before. Left as it stands rather than trimmed under the 6,000-character threshold: a
+record of fourteen decisions with the reason for each is dense, not padded, and shaving it to
+duck a threshold is the exact move this task says not to make.
+
+| section | tok | decision | why |
+|---|---|---|---|
+| `AGENTS.md` Rules 1-16 | 2,945 | **split (done)** | The turn-ceiling worked example (232 of 250 turns) sat under rule 15, which is about mutants and variants and has nothing to do with ceilings. It is the evidence for rule 8's qualifier — *hold variables constant EXCEPT a ceiling that may be binding* — which otherwise ends on an abstract two-row table. Moved, one clause reworded so "the failure this rule exists to prevent" still refers to the right rule. No text cut: every rule here carries the incident that bought it, and that is what stops the next reader talking themselves out of it |
+| `.claude/skills/audit-docs/SKILL.md` §1 | 1,639 | **split (done)** | Four things under one heading: how to run the sweep, why not to hand-roll it, the two controls to re-run if you change it, and the seven checks it deliberately omits. The last is the one a reader needs when *tempted to add a path check back*, and it was unreachable at the bottom of a 6,800-character section. Now three `###` subheadings, no content changed. Off the fat list entirely. Also added the missing **authoritative-file** line — it was the only one of seven skills without one, while itself being the skill that states the rule |
+| `tasks/` 24, 34, 52, 27, 08 | 8,682 | **keep ×5** | Measured rather than assumed: **50% of those 34,731 characters is `established_by`** (17,341), which the prune skill protects outright, and task 52 is 90% evidence with a 719-character brief. The rest is the question the evidence answers — delete it and the answer has no question. And **none of it is ever loaded unless a reader opens that one ticket**: the queue prints one line per task. `(preamble)` is the wrong unit here — a whole task file is not a section a reader must scroll past |
+| `CLEANUP-LOG.md` 2026-08-23 `tasks/` entry | 1,820 | **keep** | Its "Cleared" list is what stops the next pass re-reading 42 closed tasks. Compressing a pass record deletes exactly the negative results this log exists to hold |
+| `eval/FINDINGS.md` "Every finding" | 3,994 | **must not touch — and the scanner should not have offered it** | `cat_fat` accepts `include_archive` and never uses it, so the archive is scanned by default while the banner printed three lines above says it is excluded. The largest entry in the list, 14% of the total, is the one section the skill names as never-prune. Filed as **task 60**. Not fixed here on purpose: the before and after numbers had to come from one unchanged instrument |
+| `eval/judge/JUDGING.md` "Validation gates" | 2,271 | **split — filed, not done** | Six gates each with its own evidence table under one heading; nothing below the heading is addressable, by `--outline` or by a citation. Filed as **task 61**. Four agents were in `eval/judge/` |
+| `README.md` "In flight" | 2,287 | **keep — left to its owner** | Status prose carrying the four-ways-to-read-one-field caveat and the #83 blindness warning. Its length is per-number qualification, which is the part that gets dropped first and costs the most |
+| `README.md` "THE RESULT" | 1,698 | **keep — left to its owner** | The headline null, five instruments, plus the withdrawn/superseded distinction. Every sentence is a claim with its population attached |
+| `eval/IMPROVEMENTS.md` "Verdicts" | 1,930 | **keep — left to its owner** | Ten rows, each a foreign practice with the measurement that accepted or rejected it. A table is already the compressed form; the only way to shorten it is to drop the measurements, which turns ten verdicts into ten opinions |
+| `DECISIONS.md` "templates at each stack's best" | 1,586 | **keep — left to its owner** | A decision plus the survey that later corrected two of its examples. `AGENTS.md` protects the *reasoning* in this file by name |
+
+**Cleared — looked at and judged sound, do not re-examine:**
+
+- **`eval/PROTOCOL.md`, `eval/judge/RUBRIC.md`, `research/` and the other six skills have no
+  section over 6,000 characters at all.** The doubling is not general document bloat; it is
+  concentrated in four files, and three of those are `README.md`/`DECISIONS.md`/`IMPROVEMENTS.md`,
+  where long means "a number with its population and its caveat attached".
+- **`docstat.py --sweep` was run unpiped before and after: exit 0, clean over 131 docs.** Its
+  `--renumbered` half reports three citations of `#117` that git history says now names `#118`
+  (the finding is *"Fixing the collision is what created the dangling reference"*, and #117 today
+  is a different one). Two were in files this pass was editing — `AGENTS.md:291` and
+  `audit-docs/SKILL.md:40` — and are repaired. **`DECISIONS.md:281` is the third and is
+  untouched**, because another agent held that file.
+
+**What this pass says about the area:** the fat list conflates three different things — a section
+that rambles, a section that is dense evidence in table form, and a whole file the scanner has no
+heading to split on. Only one of the fourteen was actually a reader problem (the skill), and one
+more was misfiled evidence rather than excess evidence. **~24,000 of the 27,212 tokens are earned**,
+and the honest output of this task is the per-section reasoning above rather than the 1,640 saved.

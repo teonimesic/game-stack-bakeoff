@@ -288,7 +288,7 @@ published and later proven wrong stays marked there, because someone may have ac
 Four identifier namespaces here are allocated by hand — task ids, finding numbers, regime ordinals,
 pack labels — and every one has collided. Three are gated. The gates catch the collision;
 `--renumbered` is the only thing that asks what the collision broke, and it decides about a third
-of what it reports and hands you the rest to read (#117). **Never renumber a finding to satisfy a
+of what it reports and hands you the rest to read (#118). **Never renumber a finding to satisfy a
 citation** — the number in `eval/findings/` is published, and the citation is what is wrong.
 
 ## Decide it yourself unless it is genuinely the operator's call
@@ -396,6 +396,13 @@ Two refinements that pattern does not cover:
    | lands **below** the old ceiling | the ceiling never bound; the comparison was effectively single-variable after all |
    | lands **above** it | the earlier runs were bound by it — a finding in itself, and one that reinterprets their "completed" status |
 
+   Worked example: the no-cap Tetris trial. The $48 run used **232 of its 250 turns**. Holding
+   the limit at 250 "for cleanliness" would truncate an uncapped run that wanted 300, return
+   ~$49, and support the conclusion *"the stated budget was pulling work short"* when the turn
+   limit was — **a confident answer to a question the experiment did not test**, which is the
+   failure this rule exists to prevent. At 1000 turns every outcome is interpretable; at 250 one
+   of them is not.
+
 9. **A repeated identical measurement across independent subjects is not corroboration. It is
    the signature of a shared cause, and the shared cause is usually the instrument.** Six
    independent TypeScript submissions each scoring exactly 6/14 read as a stack characteristic;
@@ -476,13 +483,6 @@ Two refinements that pattern does not cover:
     sixteen in one sweep, then three more under a harder task, then two more (#46). Both halves
     now run in `judge/bot_mutants.py`, because a discipline you have to remember is one that
     will fail.
-
-    Worked example: the no-cap Tetris trial. The $48 run used **232 of its 250 turns**. Holding
-    the limit at 250 "for cleanliness" would truncate an uncapped run that wanted 300, return
-    ~$49, and support the conclusion *"the stated budget was pulling work short"* when the turn
-    limit was — **a confident answer to a question the experiment did not test**, which is the
-    exact failure it exists to avoid. At 1000 turns every outcome is interpretable; at 250 one of
-    them is not.
 
 16. **A weighted result must state what reweighting would change it — and a weight that cannot
     change anything is reporting that its tier has no variance, not that the weight is safe.**
