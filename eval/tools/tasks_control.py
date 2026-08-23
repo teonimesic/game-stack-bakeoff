@@ -19,7 +19,12 @@ not a mechanism:
     list, four of whose entries were sentences copied off tasks 01 and 08. It warned on
     tasks 32, 35 and 58, all three of which have an escape branch (task 38).
 
-THE FOUR DIRECTIONS
+  * `check` gated the frontmatter and never looked at the BODY, which is the only part an
+    agent is briefed from. `436bf64` appended task 71's whole brief to `tasks/70-...md` and
+    created `tasks/71-...md` empty; `check` exited 0 on both for a day while task 71's agent
+    worked from a ticket with no body (task 82).
+
+THE FIVE DIRECTIONS
 -------------------
 1. ROUND TRIP, byte for byte, over every file in the live shared queue. Not "the values
    survive" -- the BYTES. The value round-trip was green while `_render` was rewriting
@@ -39,6 +44,14 @@ THE FOUR DIRECTIONS
 4. THE REACHABILITY WARNING, both ways. It must stay quiet on the four wordings that carry
    an escape branch and still fire on the two originals, on a bare universal and on a bare
    threshold. Only direction 4b -- must still WARN -- keeps a repair from being a deletion.
+
+5. THE MISFILED-BODY CHECK, both ways, ON THE REAL BLOBS. `check` must fail on the actual
+   `436bf64` pair naming both halves, and go quiet on the same two tickets as `28f6598`
+   repaired them. `MISFILED_MARGIN` is pinned from BOTH sides -- the true positive at 0.36
+   must fire, and the worst non-defect the history contains (task 62 against task 70's
+   brief, 0.14) must not -- so raising the threshold and lowering it are each visible.
+   A mutant can only show the check CAN fail; the 0.14 row and the ten-task-ids row are
+   what ask whether it can still PASS (AGENTS.md rule 15).
 
 THE CONTROLS DO NOT TOUCH THE SHARED QUEUE. `TASKS` is derived at import from
 `git worktree list`, and monkeypatching a module constant that has already been derived is
@@ -147,13 +160,13 @@ WORDINGS: list[tuple[str, bool, str]] = [
      "research/11-doc-linting-for-agents.md exists and names the tool it adopted"),
 ]
 
-_FM = "---\nid: {tid}\ntitle: {title}\nstatus: {status}\npriority: 3\nrefs: ''\n{dw}---\n\nbody\n"
+_FM = "---\nid: {tid}\ntitle: {title}\nstatus: {status}\npriority: 3\nrefs: ''\n{dw}---\n{body}"
 
 
 def _task_file(tid: str, title: str = "a title", status: str = "open",
-               done_when: str | None = "something observable") -> str:
+               done_when: str | None = "something observable", body: str = "\nbody\n") -> str:
     dw = "" if done_when is None else f"done_when: {done_when}\n"
-    return _FM.format(tid=tid, title=title, status=status, dw=dw)
+    return _FM.format(tid=tid, title=title, status=status, dw=dw, body=body)
 
 
 def _scratch_pair(tmp: Path) -> tuple[Path, Path]:
@@ -237,7 +250,11 @@ def add_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
     def probe(src: Path, title: str) -> tuple[int, str, list[str]]:
         shutil.copy(src, main / "eval/tools/tasks.py")
         shutil.copy(src, wt / "eval/tools/tasks.py")
+        # `--why` is passed because the CURRENT copy requires it and `check` now fails on an
+        # empty body. The pre-fix positive control accepts it too -- it was optional there --
+        # so one argv still exercises both copies.
         rc, out = _run_tool(wt / "eval/tools/tasks.py", "add", title,
+                            "--why", "a body, so the file `add` writes passes `check`",
                             "--done-when", "an observable condition")
         return rc, out, sorted(q.name for q in (main / "tasks").glob("*.md"))
 
@@ -293,6 +310,12 @@ CHECK_CASES: list[tuple[str, dict[str, str], bool, str]] = [
      {"70-a.md": _task_file("70", done_when=None)}, True, "no `done_when`"),
     ("bad status",
      {"70-a.md": _task_file("70", status="wip")}, True, "not in"),
+    # Direction 5's degenerate half, exercised synthetically as well as on the real blob,
+    # because it must hold for a task nobody ever wrote a body for -- not only for the one
+    # 436bf64 produced. `_task_file`'s brief is four words, below MISFILED_MIN_BRIEF, so the
+    # containment check cannot reach these rows and this isolates the empty-body branch.
+    ("empty body (the stub `add` writes, never filled in)",
+     {"70-a.md": _task_file("70", body="\n\n")}, True, "body is empty"),
 ]
 
 
@@ -336,6 +359,180 @@ def reachability_rows() -> tuple[list[tuple], list[str]]:
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 5
+#: The commit that misfiled task 71's whole brief into `tasks/70-...md` and left `tasks/71`
+#: a stub. Both halves are read as BLOBS rather than reconstructed, for the reason direction
+#: 2 reads its positive control from git: a defect retyped from memory is a defect you have
+#: already decided the shape of.
+MISFILE_COMMIT = "436bf64"
+
+#: The commit that repaired it. Its two files are direction 5's negative control -- the same
+#: two tickets, correctly filed, which must go quiet.
+REPAIR_COMMIT = "28f6598"
+
+#: A queue snapshot holding the highest-scoring pair in the whole history that is NOT a
+#: defect: task 62's body against task 70's brief, margin 0.1399. Task 62 is genuinely about
+#: the DECISIONS.md row task 70 owns, so it is the nearest thing to a false positive this
+#: corpus contains, and the row below is what makes lowering `MISFILED_MARGIN` toward it go
+#: red. Fixed commit, not the live queue: 62 is editable by peers and a pin that moves is not
+#: a pin.
+NEAR_MISS_COMMIT = "fc7e0cf1"
+
+_T70 = "tasks/70-set-a-size-for-the-within-cell-verdict-variance-.md"
+_T71 = "tasks/71-nothing-reads-the-disclosures-31-of-75-completed.md"
+_T62 = "tasks/62-register-the-other-three-withdrawn-readme-figure.md"
+#: Ten other task ids in its body, and it is correctly filed. The row that pins what this
+#: check is NOT keyed on: 58 of 85 live bodies name another task's id, so a check that fired
+#: on id mentions would fire on 68% of the queue -- and would still have missed 436bf64,
+#: whose 59 misfiled lines never say "task 71" once.
+_T72 = "tasks/72-decide-what-the-templates-improvement-loop-is-fo.md"
+
+
+def _blob(commit: str, path: str) -> str | None:
+    """A blob BYTE FOR BYTE. Deliberately not `_run_tool_git`, which `.strip()`s its output.
+
+    That strip is right for a command's report and wrong for a file: task 71's stub body is
+    exactly "\\n\\n", so stripping leaves a file ending `---` with no trailing newline, and
+    `_FM_RE` then reads the whole thing as "no frontmatter". The control's first run said
+    the defect blob was malformed rather than misfiled -- a green-adjacent wrong answer
+    produced by the harness, not by the subject.
+    """
+    p = subprocess.run(["git", "-C", str(TOOLS), "show", f"{commit}:{path}"],
+                       capture_output=True, text=True)
+    return p.stdout if p.returncode == 0 else None
+
+
+def _snapshot_briefs(commit: str) -> tuple[dict[str, str], dict[str, str]]:
+    """(briefs, bodies) for every task file at `commit`, keyed by id. Built through
+    `tasks.py`'s own `brief`, so a change to it shows up here.
+
+    `--full-tree` because a pathspec is resolved relative to CWD and this runs `-C` into
+    `eval/tools`, where `tasks/` names nothing. Without it every row below reported NOT
+    CHECKED -- AGENTS.md rule 12, the address is an input to the check.
+    """
+    rc, out = _run_tool_git("ls-tree", "-r", "--full-tree", "--name-only", commit, "tasks/")
+    if rc != 0:
+        return {}, {}
+    briefs, bodies = {}, {}
+    for path in out.split("\n"):
+        if not path.endswith(".md"):
+            continue
+        text = _blob(commit, path)
+        if text is None:
+            continue
+        m = re.match(r"^---\n(.*?)\n---\n(.*)$", text if text.endswith("\n") else text + "\n",
+                     re.S)
+        if not m:
+            continue
+        import yaml
+        try:
+            fm = yaml.safe_load(m.group(1))
+        except Exception:
+            continue
+        if not isinstance(fm, dict):
+            continue
+        tid = path.split("/")[1].split("-")[0]
+        briefs[tid] = T.brief(fm)
+        bodies[tid] = m.group(2)
+    return briefs, bodies
+
+
+def misfiled_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    rows, unchecked = [], []
+
+    # 5a/5b -- `check` end to end on the real blobs, broken then repaired. The scratch queue
+    # carries the four tickets those two cite, so the containment check has real neighbours
+    # to lose against rather than a two-file field.
+    def scratch_check(label: str, files: dict[str, str], want_rc: int, phrases: list[str],
+                      i: int) -> None:
+        main, _ = _scratch_pair(tmp / f"misfiled{i}")
+        shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+        for name, text in files.items():
+            (main / "tasks" / name).write_text(text)
+        rc, out = _run_tool(main / "eval/tools/tasks.py", "check")
+        missing = [p for p in phrases if p not in out]
+        rows.append((f"`check` {label}", rc, rc == want_rc and not missing,
+                     f"want exit {want_rc}"
+                     + (f" naming {phrases}" if phrases else "")
+                     + f"; got exit {rc}: {out.splitlines()[-1][:100] if out else '(none)'}"
+                     + (f"; MISSING {missing}" if missing else "")))
+
+    neighbours = {}
+    for path in (_T62, "tasks/13-pin-or-withdraw-the-380-paired-criteria-figure.md",
+                 "tasks/46-pre-register-whether-a-required-finish-report-se.md"):
+        text = _blob(MISFILE_COMMIT, path)
+        if text is not None:
+            neighbours[path.split("/")[1]] = text
+
+    broken70, broken71 = _blob(MISFILE_COMMIT, _T70), _blob(MISFILE_COMMIT, _T71)
+    fixed70, fixed71 = _blob(REPAIR_COMMIT, _T70), _blob(REPAIR_COMMIT, _T71)
+    if None in (broken70, broken71, fixed70, fixed71):
+        unchecked.append(
+            f"the misfiled-body rows are NOT CHECKED - could not read {MISFILE_COMMIT} or "
+            f"{REPAIR_COMMIT} from git. Nothing below shows this check can see the defect.")
+    else:
+        scratch_check("FAILS on the real 436bf64 pair, naming BOTH halves",
+                      {**neighbours, _T70.split("/")[1]: broken70,
+                       _T71.split("/")[1]: broken71},
+                      1, ["reads as task 71's brief", "body is empty"], 0)
+        # The negative control that matters most: the same two tickets, repaired. If this
+        # goes red the check is not discriminating misfiling, it is disliking these files.
+        scratch_check("is QUIET on the same two tickets once repaired (28f6598)",
+                      {**neighbours, _T70.split("/")[1]: fixed70,
+                       _T71.split("/")[1]: fixed71},
+                      0, ["well-formed"], 1)
+
+    # 5c -- `misfiled_body` directly, which is where the THRESHOLD is pinned from both sides.
+    briefs, bodies = _snapshot_briefs(NEAR_MISS_COMMIT)
+    mis_briefs, mis_bodies = _snapshot_briefs(MISFILE_COMMIT)
+    if not mis_briefs or "70" not in mis_bodies:
+        unchecked.append(f"threshold rows NOT CHECKED - no queue snapshot at {MISFILE_COMMIT}")
+    else:
+        msg = T.misfiled_body(mis_bodies["70"], mis_briefs, "70")
+        rows.append(("threshold, upper side: the real misfiled body FIRES and names 71",
+                     0, bool(msg) and "task 71" in msg, (msg or "(quiet)")[:110]))
+    if not briefs or "62" not in bodies:
+        unchecked.append(f"near-miss row NOT CHECKED - no queue snapshot at {NEAR_MISS_COMMIT}")
+    else:
+        msg = T.misfiled_body(bodies["62"], briefs, "62")
+        rows.append(("threshold, lower side: the worst real NON-defect (62 vs 70, margin "
+                     "0.14) stays quiet", 0, msg is None, (msg or "(quiet)")[:110]))
+        if "72" in bodies:
+            msg = T.misfiled_body(bodies["72"], briefs, "72")
+            rows.append(("a body naming TEN other task ids stays quiet (id mentions are not "
+                         "the trigger)", 0, msg is None, (msg or "(quiet)")[:110]))
+        else:
+            unchecked.append(f"the id-mention row NOT CHECKED - no {_T72} at "
+                             f"{NEAR_MISS_COMMIT}")
+
+    # 5d -- a brief too short to accuse anyone with.
+    #
+    # THE FIRST VERSION OF THIS ROW MEASURED NOTHING, and a mutant said so: setting
+    # MISFILED_MIN_BRIEF to 0 left all 28 rows green. It fed a five-word brief whose shingles
+    # were absent from the body, so containment was 0 with the floor and 0 without it -- the
+    # floor was never the reason it was quiet. The row now uses a short brief drawn FROM the
+    # body, so its containment is 1.0 and only the floor keeps it quiet.
+    #
+    # That is the case the floor exists for: a genuine stub ticket whose title happens to
+    # share a phrase with a long neighbouring body would otherwise be "restated 100%" by it.
+    # Measured on the live queue the same day, the SMALLEST real brief is 23 shingles against
+    # a floor of 8, so this costs no coverage on anything anyone has actually written.
+    if mis_bodies.get("70"):
+        short = "the grading pipeline reads any"       # 3 shingles, all present in the body
+        n_short = len(T._shingles(short))
+        got = T.misfiled_body(mis_bodies["70"], {"70": mis_briefs.get("70", ""),
+                                                 "71": short}, "70")
+        # The row asserts its own PRECONDITION as well as its result. Otherwise dropping the
+        # floor to 0 makes the premise false rather than the row red, and a row whose premise
+        # a mutant can delete is a row that stops measuring silently.
+        rows.append(("a brief too short to accuse with stays quiet EVEN AT 100% containment "
+                     "(MISFILED_MIN_BRIEF)", n_short,
+                     n_short < T.MISFILED_MIN_BRIEF and got is None,
+                     f"{n_short} shingles vs floor {T.MISFILED_MIN_BRIEF}; "
+                     + (got or "(quiet)")[:90]))
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -354,7 +551,8 @@ def main(argv: list[str]) -> int:
         for fn in (lambda: roundtrip_rows(),
                    lambda: add_rows(tmp, a.skip_prefix),
                    lambda: check_rows(tmp),
-                   lambda: reachability_rows()):
+                   lambda: reachability_rows(),
+                   lambda: misfiled_rows(tmp)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)

@@ -19,6 +19,22 @@ tool that prints the minimum.
 `check` fails when a task has no `done_when`. A task that cannot be completed is a permanent
 excuse, which is the task-list version of a criterion that cannot fail.
 
+IT ALSO FAILS WHEN A TICKET IS NOT ITS OWN TICKET
+-------------------------------------------------
+The frontmatter of a task file was gated from the start; its BODY was not, and the body is the
+only part an agent is actually briefed from. On 2026-08-23 commit `436bf64` appended task 71's
+entire 59-line brief to `tasks/70-set-a-size-...md` -- a filename guessed from a queue listing
+title, which is AGENTS.md rule 12 -- and created `tasks/71-...md` with no body at all. `check`
+exited 0 on both files for a day, while task 71's agent worked from an empty ticket and
+`show 70` rendered a brief about trial disclosures.
+
+So two failures, and they are the two halves of that one commit:
+
+  * `body is empty` -- the stub `add` writes is not the task. Exact, no heuristic.
+  * `body reads as task N's brief` -- `misfiled_body` below.
+
+See `misfiled_body` for the measurement behind the threshold and for what it cannot catch.
+
 THE FRONTMATTER IS YAML, AND IS READ AND WRITTEN AS YAML
 -------------------------------------------------------
 It did not used to be. `_parse` split each line on its first colon and `_set` wrote back an
@@ -328,6 +344,100 @@ def reachability_warning(done_when: str) -> str | None:
             f"it is NOT met (#75).")
 
 
+#: Word 3-grams. Shingles rather than a bag of words because the signal is phrasing, not
+#: vocabulary: every ticket in this queue talks about runs, criteria, judges and trials, so
+#: unigram overlap between any two of them is high and discriminates nothing.
+def _shingles(text: str, n: int = 3) -> set[tuple[str, ...]]:
+    w = re.findall(r"[a-z0-9]+", (text or "").lower())
+    return {tuple(w[i:i + n]) for i in range(len(w) - n + 1)}
+
+
+def brief(meta_or_fm) -> str:
+    """The text a body is compared against: `title` + `done_when`, and nothing else.
+
+    NOT the body, because comparing bodies to bodies is what a misfiling makes identical.
+    NOT `established_by` either: it is written at `done` time and often quotes another
+    task's mechanism at length, which would make every closed task look like its neighbour.
+    Title and done_when are the two fields a ticket's own author wrote about this task and
+    no other.
+    """
+    return f"{_scalar(meta_or_fm.get('title'))} {_scalar(meta_or_fm.get('done_when'))}"
+
+
+#: How far another task's brief must beat this task's own before the body is called misfiled.
+#:
+#: MEASURED, NOT CHOSEN. Scored over every version of every task file git has ever tracked --
+#: 3175 file-versions across 81 queue snapshots on 2026-08-23 -- the margin
+#: `best_other - own` separates completely:
+#:
+#:   | margin | what it is |
+#:   |--------|------------|
+#:   | 0.3615 | tasks/70 carrying task 71's brief. THE defect, and the only true positive |
+#:   | 0.1399 | the highest of the other 3174: task 62, whose subject really is task 70's |
+#:   | 0.1333 | task 31 vs 26, next |
+#:
+#: 0.25 sits 1.45x below the true positive and 1.79x above the worst false positive. It is a
+#: threshold with air on both sides of it rather than one fitted to a single point, and the
+#: sweep that produced it is reproducible from git alone.
+MISFILED_MARGIN = 0.25
+
+#: A brief too short to accuse anyone with. Containment over a handful of 3-grams is noise --
+#: `_task_file` in `tasks_control.py` builds briefs of four words, which is two shingles, and
+#: two shingles will coincide with something eventually. 8 is roughly a ten-word brief.
+MISFILED_MIN_BRIEF = 8
+
+
+def misfiled_body(body: str, briefs: dict[str, str], own_id: str) -> str | None:
+    """The message `check` should print for this body, or None. Pinned both ways by
+    `eval/tools/tasks_control.py`; it is a module-level function so that it can be.
+
+    WHY NOT "THE BODY NAMES ANOTHER TASK ID", WHICH IS HOW THE TICKET ASKED FOR IT.
+    Because it is not implementable: **58 of the 85 live bodies name another task id**,
+    measured before this was written. Tickets cite their neighbours constantly -- that is the
+    queue working, not failing. And the defect itself would have walked straight through it:
+    the 59 lines misfiled into task 70 never say "task 71" once. A check keyed on id mentions
+    fires on 68% of the queue and misses the case it was filed for.
+
+    What actually distinguishes a misfiled body is that it is ABOUT a different task, and the
+    checkable shape of that is containment: what fraction of task X's brief does this body
+    restate? The misfiled 59 lines restate 45.6% of task 71's title-and-done_when -- its
+    closing section is task 71's done_when in other words -- against 9.4% of task 70's own.
+
+    ITS LIMITS, and they are the reason this reports the target rather than just failing:
+
+      * A body misfiled into a task whose brief is VAGUE scores low against it and passes.
+      * A body misfiled between two tasks with SIMILAR briefs raises `own` too, shrinking the
+        margin below the threshold. Adjacent tickets are exactly where a misfiling is most
+        likely and least detectable.
+      * A body that is simply off-topic, resembling no task in the queue, is invisible here.
+        Only `body is empty` catches the degenerate case.
+
+    None of those are hypothetical-in-principle; they are what a variant would exploit, and a
+    mutant cannot manufacture them (AGENTS.md rule 15). The empty-body check has no such gap,
+    which is why the two are separate failures and not one.
+    """
+    bg = _shingles(body)
+    if not bg:
+        return None                     # empty; `check` reports that separately and exactly
+
+    def containment(tid: str) -> float:
+        fp = _shingles(briefs.get(tid, ""))
+        if len(fp) < MISFILED_MIN_BRIEF:
+            return 0.0
+        return len(bg & fp) / len(fp)
+
+    own = containment(own_id)
+    others = sorted(((containment(t), t) for t in briefs if t != own_id), reverse=True)
+    if not others:
+        return None
+    best, target = others[0]
+    if best - own < MISFILED_MARGIN:
+        return None
+    return (f"body restates task {target}'s title/done_when ({best:.0%}) far more than its "
+            f"own ({own:.0%}) - this reads as task {target}'s brief filed under {own_id}. "
+            f"Move it, or if it belongs here say so in the body (#94, AGENTS.md rule 12).")
+
+
 def _scalar(v) -> str:
     """What every caller of `_parse` has always been handed: a string, never None.
 
@@ -589,6 +699,24 @@ def cmd_check() -> int:
             bad.append(f"{t.get('id')}: status {t.get('status')!r} not in {STATUSES}")
         if not t.get("title"):
             bad.append(f"{t.get('id')}: no title")
+    # THE BODY IS ITS OWN TICKET. Both halves of commit 436bf64, which `check` read as clean.
+    #
+    # These run on `done` tasks too, unlike the reachability warning below. That exemption is
+    # documented there as having cost something -- it is why task 32's false positive was
+    # invisible until task 38 was filed -- and there is no reason to buy it again here: the
+    # 3175-version sweep behind `MISFILED_MARGIN` found zero false positives at ANY status,
+    # so skipping the archive would remove coverage and prevent nothing.
+    live = [t for t in _load() if not t.get("malformed")]
+    briefs = {str(t.get("id")): brief(t) for t in live}
+    for t in live:
+        tid = str(t.get("id"))
+        if not (t.get("body") or "").strip():
+            bad.append(f"{tid}: body is empty - `add` writes a stub and the stub is not the "
+                       f"task. An agent dispatched to this reads a ticket with no brief")
+            continue
+        msg = misfiled_body(t.get("body") or "", briefs, tid)
+        if msg:
+            bad.append(f"{tid}: {msg}")
     # UNREACHABLE done-whens. The reasoning lives on `reachability_warning`, which is a
     # module-level function so `tasks_control.py` can pin it on wordings that are not in
     # the queue -- the two ORIGINALS it was built from are not in git, having been repaired
@@ -632,7 +760,12 @@ def main() -> int:
     s = sub.add_parser("done"); s.add_argument("id"); s.add_argument("evidence")
     s = sub.add_parser("list"); s.add_argument("--status", choices=STATUSES)
     s = sub.add_parser("add")
-    s.add_argument("title"); s.add_argument("--why"); s.add_argument("--done-when", required=True)
+    # `--why` is REQUIRED because it is what `add` writes into the body, and `check` now fails
+    # on an empty body. A tool that creates a file its own lint rejects is a fail-open channel
+    # (AGENTS.md rule 7): the failure arrives later, at whoever runs the gate next, rather than
+    # at the person who can still fix it in one line.
+    s.add_argument("title"); s.add_argument("--why", required=True)
+    s.add_argument("--done-when", required=True)
     # `type=int` so a bad priority fails at the command line rather than as a ValueError from
     # the sort key of the next `_load`, and so it is written as a YAML integer, not a string.
     s.add_argument("--refs"); s.add_argument("--priority", type=int, default=3)
