@@ -247,6 +247,17 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 submissions **within one stack**. They may never contribute to a cross-stack claim, and this is
 not a defect awaiting repair.
 
+> **The within-stack permission is conditional on the field's packs matching their manifests,
+> and on `wg-g4c-2026-08-21` they do not (#95).** That run carries 23 stale files in 222, and
+> the loss is uneven *within* a stack as well as across one — `unity__t0` 6 against `unity__t1`
+> 4, `ts__t0` 1 against `ts__t1` 2. Two submissions of the same stack were therefore shown
+> different amounts of their own code, so **neither a cross-stack nor a within-stack code-aspect
+> reading is available on that field.**
+>
+> Check before relying on this permission, at the run you are actually reading:
+> `python3 eval/judge/field.py packcheck --run eval/runs/<run>` — exit 0 clean, 1 dirty, 2 if it
+> could not evaluate the address you gave it (#96). It takes a **path**, not a run name.
+
 ### The measurement
 
 Across 26 stored code-aspect rounds, 208 evidence strings, counting strings that name their own

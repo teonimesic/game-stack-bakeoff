@@ -1296,8 +1296,31 @@ def main() -> int:
         print(json.dumps(out, indent=2))
         return 0
     if a.cmd == "packcheck":
+        # THE ADDRESS IS AN INPUT TO THE CHECK (rule 12).
+        #
+        # `--run` is a PATH, not a run name. Given a name, or a stale path, or any
+        # directory without an `artifacts/` child, the glob below returned nothing, `games`
+        # was empty, the loop never ran and this returned 0 -- a clean bill of health for a
+        # run that was never looked at. Measured 2026-08-23, immediately after this gate
+        # was written: `packcheck --run wg-g4c-2026-08-21` (the name, not the path) and
+        # `--run /tmp` both exited 0 in silence, while the same gate correctly exited 1 on
+        # the real path.
+        #
+        # A check that certifies nothing when misaddressed is worse than no check, because
+        # its silence is indistinguishable from a pass. Refuse instead.
+        if not a.run.is_dir():
+            print(f"packcheck: no such run directory: {a.run}", file=sys.stderr)
+            return 2
+        if not (a.run / "artifacts").is_dir():
+            print(f"packcheck: {a.run} has no artifacts/ - this is not a run directory. "
+                  f"--run takes a PATH (eval/runs/<run>), not a run name.", file=sys.stderr)
+            return 2
         games = a.game or sorted({p.name.split("__")[0]
                                   for p in (a.run / "artifacts").glob("*__*")})
+        if not games:
+            print(f"packcheck: {a.run}/artifacts contains no <game>__<stack>__<trial> "
+                  f"directories - nothing was checked", file=sys.stderr)
+            return 2
         bad = 0
         for game in games:
             res = pack_matches_manifest(a.run, game)

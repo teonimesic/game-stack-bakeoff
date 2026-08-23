@@ -2582,3 +2582,40 @@ and green after its removal. The shared-queue resolution was verified by running
 tool from inside an agent worktree — the first attempt tested the worktree's STALE copy of
 the tool and reported the fix absent, which is #60's "a control run after the fix tests the
 fix" with the staleness on the other side.
+
+## 96. The gate written for #95 was exit-0 vacuous at every address but the right one
+
+`field.py packcheck` was added the same day as #95 to answer "does this run's judge pack match
+its manifest". Against the real path it works: `eval/runs/wg-g4c-2026-08-21T02-26-46` returns
+**exit 1** and names all 23 stale files.
+
+Against anything else it returned **exit 0 in silence**. Measured within minutes of the merge:
+
+| `--run` argument | before | after |
+|---|---|---|
+| the real run path | 1 | 1 |
+| `wg-g4c-2026-08-21` (the run NAME, not a path) | **0** | 2 |
+| `eval/runs/THIS-DOES-NOT-EXIST` | **0** | 2 |
+| `/tmp` | **0** | 2 |
+
+`--run` is a `Path`. Given anything without an `artifacts/` child, the glob produced no games,
+the loop never executed, and the function returned 0 — a clean bill of health for a run nobody
+looked at.
+
+**This is rule 12 arriving inside a gate written to fix a rule-12-shaped defect.** #60 is the
+same shape: `runstat.py` obeyed its flags faultlessly against a path that no longer existed. The
+author knew the rule; the rule did not fire, because "the address is an input" reads as advice
+about paths in DOCS, not about a CLI argument that silently means a different thing than the
+reader typed.
+
+> **A check must refuse an address it cannot evaluate.** Returning "clean" for a directory it
+> never opened is indistinguishable from success, and the caller has no way to tell.
+
+Repaired to exit **2** — distinct from both 0 (clean) and 1 (dirty) — for a missing directory, a
+directory with no `artifacts/`, and an `artifacts/` holding no trial directories. Pinned in both
+directions: the dirty run still exits 1, and `wg-audio48` still exits **0**, so the gate can
+still go green.
+
+Found only because the finding was being checked against a published decision — the wrong run
+name was a typo, and the typo passed. **A gate that passes on a typo is a gate that will be
+fed one.**
