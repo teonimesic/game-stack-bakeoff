@@ -40,6 +40,21 @@ is the cost this layout exists to remove.
 Do not wait for confirmation to begin planned work — if a task raises a question nobody
 anticipated, ask that question and continue with the rest of the queue rather than stalling.
 
+**One task, one agent, one worktree.** A single agent holding the whole queue serialises work
+that is independent and makes a bad result hard to isolate. Spawn one subagent per task with
+`isolation: "worktree"`, let it commit on a `task-NN-slug` branch, and merge each branch after
+verifying the result against the artifacts — not against the agent's report of them. Respect the
+dependency order stated in each ticket's `refs`; run everything else concurrently.
+
+**Task subagents run on Opus.** The queue is the project's own reasoning about its instrument,
+and a cheaper model here buys nothing worth the risk of a wrong number.
+
+> **This does NOT extend to the judges or the building agents.** The judge model is a live
+> research question with a cost argument attached, and the building agents' model is the
+> *subject* of the measurement — changing either from a queue-side default would silently
+> alter what is being measured. Model choice there is set by `eval/PROTOCOL.md` and
+> `eval/judge/JUDGING.md`, never inherited from how a task happened to be run.
+
 
 ```bash
 python3 eval/tools/tasks.py start 07
