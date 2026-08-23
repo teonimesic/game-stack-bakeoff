@@ -1,6 +1,7 @@
 ---
+established_by: eval/runs partitioned by regenerability: 368,571 files / 138.146 GB total, evidence 14,192 files / 1.109 GB. Copied to /Users/stefano/game-research-evidence and verified by reading the destination back — SHA-256 matched on both sides for all 14,192 files, 728 harness JSON records parsed, 89/89 submission tarballs extracted (25,642 members decompressed), and shasum -c on MANIFEST.sha256 exited 0. Verifier pinned red by deleting one file, truncating one tarball and flipping 100 bytes in a JSON: tiers 1, 2 and 3 each caught their own, exit 1. Classifier controlled against real git on 7,461 paths across 11 fixtures, plus 4 mutants (3 were inert until a synthetic fixture reached their branches — finding #90). Also found and copied 2 work trees in ~/game-research-work/wg-g4 with no submission tarball anywhere. CAVEAT: the copy is SAME-DISK and is documented in eval/PROTOCOL.md and the destination README as NOT a backup.
 id: 17
-status: in_flight
+status: done
 priority: 2
 title: Back up eval/runs (the evidence) and keep the git mirror current
 refs: https://github.com/teonimesic/game-stack-bakeoff, eval/RUNS.md
