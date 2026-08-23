@@ -56,6 +56,18 @@
       "declared_in": "eval/findings/certifies-nothing.md, finding #54, section 'WITHDRAWN 2026-08-17'; and eval/judge/JUDGING.md, 'RESULT after the repairs'",
       "replaced_by": "What survives is the method, not the result: giving two judges disjoint evidence and checking they disagree is still the cheapest detector for a shared prior, but a positive reading needs repeats at a FIXED order (#58). Do not cite #54 as evidence of anything.",
       "retired_from_live_docs_by": "task 55"
+    },
+    {
+      "id": "WR-readme-opening-counts",
+      "withdrawn": "2026-08-23",
+      "kind": "figure",
+      "claim": "the project's scale stated as '24 whole-game submissions, three games, four stacks, two independent trials per cell'",
+      "why": "Each count was true of wg-matrix-2026-08-13 alone and the sentence named no population, so as written it describes nothing that can be checked. Over the population it appeared to claim - every stored trial record carrying a `game` field - the tree holds 90 records in 11 run directories, 4 games, 4 stacks, and a pooled game x stack cell of 4 to 8 trials, not 2. Nothing in the repository produced any of the four numbers, which is why they outlived their scope by three runs; the cost half of the same sentence had the identical shape and was 34% low.",
+      "match": ["24 whole-game submissions", "three games"],
+      "anchor": "tasks/64-readme-s-opening-line-states-counts-nobody-re-de.md",
+      "declared_in": "README.md, the notice under the counts table; task 64",
+      "replaced_by": "python3 eval/tools/census.py, which prints every count with the population it was counted over and exits 2 rather than reporting 0. Quote the matrix scope for replication - wg-matrix-2026-08-13 is 24 records = 3 games x 4 stacks x 2 trials per cell - and never the pooled tree, whose runs mostly may not be compared (eval/RUNS.md).",
+      "retired_from_live_docs_by": "task 64"
     }
   ]
 }
