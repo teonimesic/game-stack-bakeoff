@@ -165,3 +165,103 @@ an agent worktree*, where `eval/runs/` is not checked out, and produced a confid
 picture. `AGENTS.md` rule 12 — the address is an input to the check — arriving unprompted during a
 pass about checking things. **A cleanup pass that measures anything about run artifacts must run
 against the main checkout.**
+
+---
+
+## 2026-08-23 — `tasks/`: does each closed task's evidence still hold?
+
+**Looked for:** the first pass to read an area rather than build an instrument. One question,
+asked of all **42 done tasks**: given what has been learned since it closed, does the
+`established_by` string still support the closure? A closed task whose evidence was overturned is
+worse than an open one — it reads as settled, and its conclusion is still authorising things.
+
+**Read:** every `established_by` and `refs` of all 42 done tasks (dumped in full, not skimmed);
+task bodies of 10, 17, 24, 45; `eval/FINDINGS.md` and the headings of all six files in
+`eval/findings/`; `eval/findings/limits-and-cost.md` #87, #90 and #104 in full; `eval/PROTOCOL.md`
+lines 413-605 (the evidence boundary and the reclaim section); `.claude/skills/tasks/SKILL.md`;
+`git log` over `eval/findings/`. Ran three measurements: every `## NN.` heading ever added under
+`eval/findings/` replayed against the current numbering; duplicate ids and titles across `tasks/`;
+the shared starter `AGENTS.md` block hashed in all four arms.
+
+**Found — 6 of 42 corrected, 36 clear.**
+
+- **Task 10 (the lead) — evidence superseded, corrected in place.** It established *"delete a
+  work tree whose own tarball exists"*. #104, recorded after it closed, established that
+  `submission.tar.gz` carries no `.git/`, so the tree's `starter baseline` root commit is the only
+  record anywhere of the starter an agent was given — and all eight `wg-g4c` trees had tarballs,
+  so the rule declared every one safe to delete. Baselines survived for 22 trees because task 42
+  ran before anyone reclaimed, which is sequencing luck, not the rule working. Not reopened: the
+  work was genuinely done and `eval/PROTOCOL.md` already requires **both** the tarball and a
+  preserved baseline. `established_by` now carries the supersession and points at the file.
+
+- **A closed task silently opened a deletion permission.** `PROTOCOL.md` said *"do not reclaim
+  `wg-g4c` until task 07 is closed"*. Task 07 closed on 2026-08-23, and with it the only
+  protection on the trees that are #66's sole reproduction — a repaired starter answers cold by
+  construction, so the warm state cannot be rebuilt at any price. Rewritten to name the resource
+  instead of the task id, with the general form: **a trigger written as a task id expires the
+  moment someone finishes the task, and finishing it is not the same decision as destroying the
+  evidence it was measured on.** Reclaiming those trees is now explicitly an ask-the-operator
+  decision.
+
+- **Eight findings have been renumbered at merge, and nothing updates what cited them.** Parallel
+  agents pick the same next number; the merge renumbers one finding; every citation of the old
+  number still *resolves*, so no sweep can see it, and it now points confidently at a stranger.
+  Five stale citations repaired by hand — task 25 cited #95 for what is now #97, task 34 cited
+  #104 for #105, task 42 cited #103 for #104, task 45 cited #99 for #100 in both `refs` and body,
+  and `PROTOCOL.md` carried a `(#103)` meaning #104. Each repair keeps the original number and
+  says why it moved, so the record is corrected rather than silently rewritten. This is **#94 with
+  the damage moved downstream**: the collision is caught now, and catching it is what creates the
+  dangling references. Filed as **task 58** — `tasks/` was swept by grep, and `DECISIONS.md`,
+  `README.md`, `eval/RUNS.md`, both `IMPROVEMENTS.md`, `research/`, the skills and the
+  cross-references inside `eval/findings/` have not been looked at.
+
+- **Task 24 — two cells overturned, corrected in place.** Its Unity narrowing ("no physics,
+  particle, audio or animation module") is no longer true of the starter after task 52 added the
+  audio and particlesystem modules, and its three.js instancing cell — "the largest measured
+  effect in the matrix" — did not survive re-measurement (#110). The research document carries the
+  corrected rows; only the task record was stale. It also says it "filed task 27" for the
+  TypeScript capture defects; that is the id that collided three ways that hour (#94), and the
+  work survived as **task 31**.
+
+- **Task 17's closure no longer describes the world.** Filed as **task 57**: the verified second
+  copy at `/Users/stefano/game-research-evidence` is stamped `2026-08-23T00:08:58`, and the three
+  `eval/runs/*/starter-baselines` directories — the 7.5 MB that #104 exists about — are **not in
+  it**. `find` over the whole destination returns zero. The evidence held when written; the
+  re-sync step in `PROTOCOL.md` fires on "a run completes" and this evidence was created by a
+  *repair*.
+
+- **The `eval/FINDINGS.md` index has a blank line between the `#105` and `#106` rows**, so under
+  CommonMark the last six findings are a second, headerless table; and its stated range still says
+  `#19-#110` while `#111` is present, as does the matching line in `AGENTS.md`. Not touched — this
+  pass may not edit the findings log. Filed as **task 59**.
+
+**Cleared — do not re-examine these.** The other 36 done tasks' evidence stands. Named where the
+reason is not obvious:
+
+- **Already self-correcting, and the chain is intact:** 15 → 18 → 20 (each records that the
+  previous fix caused or mis-diagnosed part of the next); 16 and 22 both carry a dated inline
+  CORRECTION of the same wrong claim; 07 is marked superseded-in-part in #66 itself; 26's
+  not-done bullet was marked wrong by 52; 33's "the 23 files are NOT removed" was superseded by
+  42, which says so; 37's `.agents/skills` premise was recorded as stale by 44.
+- **Superseded, but the caveat lives in the authoritative file rather than the task string,
+  which is correct:** 23's rounds read `wg-g4c` before the re-pack — the comparability note is in
+  `eval/RUNS.md` and the ordering caveat in task 33, and the numbers 23 reports are reliability,
+  not orderings, so they are unaffected.
+- **Re-measured today rather than taken on trust:** 41's "no duplicate ids, no duplicate titles"
+  holds at 58 tasks, not the 40 it was measured on; 47's 218-word shared block is still
+  byte-identical in all four `eval/starters/*/AGENTS.md`; 43 and 51 were re-run green by task 52's
+  gate sweep on 2026-08-23.
+- **Measurements that do not decay:** 01-06, 08, 09, 12-14, 19, 21, 25 (aside from its citation),
+  27, 31, 32, 34-36, 44, 49, 52. Each stores a measurement with its own controls; nothing
+  recorded since contradicts one.
+
+**What this pass says about the area:** the failure mode in `tasks/` is not stale conclusions —
+the evidence discipline is working, and 36 of 42 closures are supported by measurements that are
+still true. It is **stale pointers**: five broken finding citations, one wrong task id, one
+permission keyed to a task id, one closure that named a state rather than a rule. Every one is a
+reference that survived the thing it referred to.
+
+**Method note:** `tasks/` is a shared queue that `tasks.py` resolves to the main checkout, but an
+agent worktree may only edit its own copy. So the six corrections above are on this branch and
+land when it merges, while tasks 57-59 were filed with `tasks.py` — which is what reserved ids
+57, 58 and 59 rather than colliding on 54, the number a worktree-local guess would have taken.

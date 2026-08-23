@@ -538,7 +538,7 @@ tracing failures whose real cause was environmental.
 > the only record anywhere of *the starter the agent was actually given*. Without it a stored
 > judge pack can never be honestly re-packed: the exclusion set for starter drift (#77) can be
 > computed by subtraction and never checked, and `judge/repack.py` refuses on exactly that
-> ground. Of 68 stored judge packs, the baseline survives for **8** (#103).
+> ground. Of 68 stored judge packs, the baseline survives for **8** (#104).
 >
 > **The three surviving work roots were preserved on 2026-08-23**, so this rule is now
 > satisfiable rather than merely stated: `eval/runs/<run>/starter-baselines/` holds
@@ -592,12 +592,20 @@ a `0/0` that reads as a pass.
 `eval/runs/`. The assumption that "every submission is archived as `submission.tar.gz`" is false
 for exactly these two trials, and it is false in the direction that loses work.
 
-### Keep one warm tree while the Unity lint question is open
+### Keep a warm tree that is a finding's only reproduction
 
 `wg-g4c`'s unity trees are the evidence for **#66**: `just lint` answers differently on a warm
 tree than on a clean extract, which is *why* that finding is provable at all. Deleting them
-destroys the ability to reproduce it. **Do not reclaim `wg-g4c` until task 07 is closed** — and
-when reclaiming any run, keep at least one warm tree per stack for the same reason.
+destroys the ability to reproduce it, and **the repair does not restore it** — a fixed starter
+answers cold by construction, so once the warm trees are gone #66 has no reproduction at any
+price. Keep at least one warm tree per stack when reclaiming any run.
+
+> This rule used to read *"do not reclaim `wg-g4c` until task 07 is closed"*. Task 07 closed on
+> 2026-08-23 and the permission opened silently, which is the defect: **a trigger written as a
+> task id expires the moment someone finishes the task, and finishing it is not the same
+> decision as destroying the evidence it was measured on.** Reclaiming these trees deletes the
+> only reproduction of a published finding, which `AGENTS.md` puts in the ask-the-operator
+> column. Ask; do not infer it from a queue state.
 
 > **A warm build cache is evidence, not waste.** It is the only copy of a state that cannot be
 > reconstructed from the archive, because the archive stores sources and a cache is a *history*.
