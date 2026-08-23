@@ -116,15 +116,29 @@ session that wrote them.
 
 ## When the heartbeat fires
 
-Three things, in order:
+The heartbeat's measurement is `eval/tools/heartbeat.py` — a file, so it can be corrected when
+it is wrong, which it has been. It counts **outputs** (`judge_rounds`, `graded_submissions`) as
+well as source, because work lands inside existing run directories and moved no source-line
+count on three separate occasions.
+
+Four things, in order:
 
 1. **Verify** — is anything `in_flight` actually still in flight? Is anything `open` already
    done? Mark it, with what established it. A stale queue is worse than none, because it is
-   believed.
-2. **Pick**, if there is open work. Highest priority, not newest.
-3. **Add**, if fewer than three are open. Running out has never yet been true of this project —
+   believed. Do not infer an agent's state from its files: an artifact mid-write is
+   indistinguishable from one never written.
+2. **Merge** — any task branch whose agent has reported. `git branch --list 'task-*'`. Verify
+   the result against the artifacts, **not against the agent's report of them**, then merge.
+   An unmerged branch is finished work that no one else can build on.
+3. **Pick**, if there is open work. Highest priority, not newest.
+4. **Add**, if fewer than three are open. Running out has never yet been true of this project —
    re-read `eval/FINDINGS.md` for anything filed and never acted on, and check `IMPROVEMENTS.md`
    (root, and `eval/`) for hypotheses left open.
+
+**"Nothing moved" is a claim about the snapshot, not about the world.** Three times the counters
+sat still through real work — once because the file list went by extension, once because it went
+by directory, once because it counted source and the work produced JSON. Check the artifacts
+before concluding the hour was idle.
 
 ## Priorities
 
