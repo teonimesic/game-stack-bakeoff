@@ -1,7 +1,7 @@
 ---
 id: 79
 title: evaluate-run skill says five aspects exist; aspects.py defines six
-status: open
+status: in_flight
 priority: 3
 refs: .claude/skills/evaluate-run/SKILL.md, eval/judge/aspects.py, eval/judge/RUBRIC.md, eval/judge/JUDGING.md
 done_when: The skill, RUBRIC.md and JUDGING.md all state the same aspect count as aspects.py, verified by running docstat.py --sweep and by grepping the ASPECTS tuple and each doc's count sentence side by side. If fun_frames is deliberately not a scored aspect, that is stated where the count is, with the reason.
