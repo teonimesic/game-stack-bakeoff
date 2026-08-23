@@ -698,3 +698,62 @@ correctly green SHA-256 check.
 **What is unmeasurable, and stated rather than estimated:** whether either record has actually
 lost anything historically. The pre-repair writers left no trace of what they replaced, which is
 the defect itself, so the loss is unbounded below and unmeasurable above.
+
+## 138. The one entry point the module docstring tells a human to type built a completely unblinded pack, because it read half the object — and every test called the function underneath it
+
+Found by aiming the finished repair for #137 at a real run instead of at its fixture.
+
+`field.py pack --aspect architecture` is the command `field.py`'s own docstring gives a reader who
+wants a pack. It constructed one with `build_pack(..., sees=aspect.sees)` and **never passed
+`blind_language`**, so the argument fell to its default of `False`. The aspect knew it was blind;
+the CLI asked it one of the two questions.
+
+### Both directions, one variable, on a real field
+
+`wg-g4c/g4_platformer`, aspect `architecture`, eight submissions, the same command run against a
+copy of the module with that one keyword removed and against the shipped one:
+
+| | pre-repair | repaired |
+|---|---|---|
+| files on disk | 208 | 208 |
+| evidence files keeping their real suffix | **199 of 207** | 0 |
+| filenames naming an arm (`field.BLIND_EXT`) | **191** | **0** |
+| arm-naming extension tokens in content | **667** | **11** |
+
+The 199 are `.gd` 50, `.cs` 50, `.ts` 43, `.rs` 43, `.py` 5, `.json` 3, `.mjs` 3, `.shader` 2 —
+every one of them `.src` after the repair. The 207 denominator is the evidence: 199 code files
+plus 8 `CHANGED.txt`. The 208th file on disk is the packer's own
+`.claude/skills/sampling-code/SKILL.md`, which carries no extension token in either arm; **state
+which denominator a ratio uses, because both are defensible and they differ.**
+
+All **11** residual tokens are `import.meta` — the construct #137 declines deliberately — and
+naming them is the difference between "0 by the pattern I chose" and "0 paths, 11 known
+non-paths". Two consecutive builds of the pre-repair pack gave 667 both times, so the figure is
+the packer's and not a sampling artifact.
+
+The task-87 ticket recorded **663** for the same quantity. Under the pattern stated here — the
+`field.BLIND_EXT` alternation with a `(?![A-Za-z0-9_])` tail, every file in the pack — it is 667,
+and the earlier pattern was not recorded. The gap is 4 and unresolved; the split that carries the
+argument (345 in `CHANGED.txt` against 322 in code) is unaffected either way.
+
+### Why nothing noticed, which is the whole finding
+
+`field_sweep.py` passes **both** properties at all **three** of its call sites, and every stored
+judge round was packed through `field_sweep.py`. **No stored round is affected.** That is not a
+mitigation — it is the mechanism: the defect sat on the only path with no output anyone checks,
+so it could not go red, and it had been there for as long as the CLI had.
+
+And every test called `build_pack` **directly**, where `blind_language` is written out in the
+call. A test that constructs the arguments itself cannot discover a caller that constructs them
+wrongly. The suite was green on the property and blind to the path.
+
+> **When an object gains a property, grep for every reader of its siblings.** `Aspect.sees` had
+> readers; `blind_language` was added beside it and the reader list was never re-derived. One
+> call site holding half an object is invisible to every test that calls the function rather than
+> the command.
+
+This is rule 13 with the resource being *the blinding* and the unverified path being *the one the
+documentation recommends* — #61's shape, where the guarded path was the one already safe.
+`blind_ext_selftest.py` check 7 now drives `field.py pack` **as a subprocess**, for `architecture`
+(must be 16/16 neutral names and 0 tokens) and for `idiomatic` (must be 0 neutral names and >0
+tokens, so the check cannot pass by blinding everything).

@@ -3,10 +3,11 @@
 
 WHAT THIS EXISTS FOR. `field.build_pack`'s whole blinding for the one aspect judged
 with `blind_language=True` was renaming each file to `.src`. That hid the extension
-of the file the judge OPENS and nothing hid the ones it READS: measured over all 84
-stored judge packs after `neutralise`, 1,876 occurrences of `.ts`/`.gd`/`.rs`/`.cs`
-across 76 of them, plus a `CHANGED.txt` in each blind pack listing every authored
-path with its true suffix.
+of the file the judge OPENS and nothing hid the ones it READS (#137): measured over
+all 84 stored judge packs after `neutralise`, 1,876 occurrences of
+`.ts`/`.gd`/`.rs`/`.cs` across 76 of them and 2,083 over the whole vocabulary across
+all 84, plus a `CHANGED.txt` in each blind pack listing every authored path with its
+true suffix.
 
 FOUR HALVES, and none of them is redundant:
 
@@ -346,9 +347,10 @@ print(f"6 blind aspects            "
 # 7. THE PATH A HUMAN TYPES. Everything above calls `build_pack` directly, and the
 #    module docstring tells a reader to run `field.py pack --aspect architecture`.
 #    That CLI read the aspect's `sees` and NOT its `blind_language` until 2026-08-23,
-#    so a pack built the documented way was not blinded at all - 199 of 207 files in
-#    a real `wg-g4c` field kept a language-naming filename. Guard the resource, and
-#    verify on the path that actually holds it (rule 13).
+#    so a pack built the documented way was not blinded at all (#138) - 199 of the 207
+#    evidence files in a real `wg-g4c` field kept their real suffix and the content
+#    carried 667 arm-naming extension tokens. Guard the resource, and verify on the
+#    path that actually holds it (rule 13).
 # ---------------------------------------------------------------------------
 with tempfile.TemporaryDirectory() as td:
     root = Path(td)

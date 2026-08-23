@@ -2724,3 +2724,104 @@ on line 120` last, so **the last line of a failed row names the recipe and never
 the reason had to be rebuilt outside the tool before any of the above could be seen. `--log-dir`
 now writes the full output of every invocation, streams kept apart (#100/#114), and the failure
 section points at it.
+
+## 137. The blinding was stated as a property and implemented as a suffix, so it hid the extension of the file the judge OPENS and none of the ones it READS — and the densest leak was written by the packer, not by any agent
+
+Task 87, closing #130's residue. `architecture` is the one aspect judged with
+`blind_language=True`, and the property it claims is *the judge is not told which language this
+is*. What `field.build_pack` implemented was **rename each file on disk to `.src`** — which hides
+the suffix of the file the judge opens and nothing about the suffixes that file names.
+
+Measured over every stored judge pack after `neutralise`, so this is the leak that survived the
+anonymiser rather than one it would have caught:
+
+| pattern | before | after `blind_extensions` |
+|---|---|---|
+| `.ts` / `.gd` / `.rs` / `.cs` | **1,876** in **76 of 84** packs | 0 |
+| every arm-naming suffix in `field.BLIND_EXT` | **2,083**, in all 84 | **0** |
+
+1,876 = `.ts` 973 + `.gd` 583 + `.rs` 258 + `.cs` 62, which reproduces the ticket's figure on the
+count. **Its pack union is 76, not the 78 the ticket carried.** They are cross-file references in
+comments and import specifiers — `import { f32 } from './vec2.ts'`, `` `tests/render_test.gd`
+builds and positions this entire scene`` — so a judge that opens `sim/03.src` and reads a sibling
+named `sim/tuning.gd` has been told the arm by the file it was handed.
+
+`import.meta` is **81 occurrences declined on purpose**: it is a language construct, not a path,
+and rewriting it would corrupt code the judge is being asked to assess. Recorded rather than
+silently matched, because a declined case that is not written down is indistinguishable from one
+nobody thought of.
+
+### The part worth publishing is WHERE the worst of it was
+
+Not in agent-authored code. In **`CHANGED.txt`** — a file `field.build_pack` writes itself, from
+`git diff --stat`, into a directory whose every other file it had just renamed to `.src`. It is a
+complete list of every path the submission's author touched, with its true suffix.
+
+Per-pack, in the eight stored `architecture` packs, it is not a smear across the field — it is a
+clean partition:
+
+| pack | what its `CHANGED.txt` names |
+|---|---|
+| A, C | `.ts` 22, 21 |
+| B, E | `.gd` 38, 40 |
+| D, F | `.rs` 26, 17 |
+| G, H | `.cs` 38, 42 and `.meta` 27, 33 |
+
+Totals `.cs` 80, `.gd` 78, `.meta` 60, `.ts` 43, `.rs` 43. **Every pack's `CHANGED.txt` names
+exactly one arm's suffixes and no other arm's**, which is the strongest form the leak can take:
+not a hint, a label.
+
+In a whole `architecture` field rebuilt from `wg-g4c/g4_platformer` with the blinding disabled,
+**345 of the 667 extension tokens are in `CHANGED.txt` and 322 are in all 199 code files put
+together.** The harness contributed more than half of what the blinding was supposed to remove.
+
+> **When you ask what a pack leaks, ask what the PACKER ADDED, and not only what the submission
+> carried.** `verify_blind.py` scans the trial tree, `anonymise.find_stack_names` scans submission
+> text, `packcheck` compares the pack against its manifest. Every gate this project owns is
+> pointed at the subject. Nothing was pointed at the instrument's own contribution to the
+> evidence.
+
+The two figures above are **one population, not two**: the stored `architecture` packs and the
+rebuilt field are the same eight `g4_platformer` submissions, 5 of 8 `CHANGED.txt` byte-identical
+between them and the arm-suffix totals equal. They corroborate the extraction, not the claim
+(rule 9).
+
+### The vocabulary has two halves and neither can be derived from the other
+
+- **Which suffixes are arm-exclusive** comes from `eval/starters/` and is audited mechanically —
+  20 arm-exclusive, 0 unaccounted, re-derived by `blind_ext_selftest.py` every run.
+- **Which of those can also be a member name** comes only from the corpus, and it is what stops
+  the obvious repair being worse than the leak. `.lock` is **108 `Mutex::lock()` calls and 0
+  filenames**; `.anim` is **128 `player.anim` accesses and 0 filenames**. A starter census lists
+  both as arm-exclusive. Both are excluded by name in `field._NOT_AN_EXTENSION`, each with the
+  count that decided it.
+
+### Two extraction traps, both of which returned a confident wrong answer first
+
+1. A `(?<![A-Za-z0-9_])` lookbehind in front of the dot excludes **exactly the character a
+   filename stem ends with**. `vec2.ts` and `bot_arena.gd` are invisible to it: it reported
+   **10** hits where the truth is 1,876.
+2. `runs/*/artifacts/*/eval/judge_pack/code` finds **68** of the 84 packs — `wg-g4c-capgate`
+   nests its two arms one level deeper. `**/judge_pack/code` finds all 84.
+
+Both are rule 12 against the author rather than the tool, and both produced a uniform,
+plausible, publishable number.
+
+### What is NOT repaired
+
+**Directory names are the same defect through the sibling property, and this finding does not
+touch them.** The measurement that scoped task 95 counted 1,561 arm-naming path segments
+surviving in the stored blind packs — `public` 1,148, `Assets` 128, `res://` 34, `src/sim` —
+and is quoted here as that task's evidence, not re-measured. Deliberately out of scope: an
+extension vocabulary can be audited against the four starters mechanically and a directory
+vocabulary raises a separate question about what a rewrite would cost the judge. It is stated so
+that nobody reads "0 extension tokens" as "the pack is blind" — see tasks 95 and 103 for where
+that half stands.
+
+The repair lives in `field.BLIND_EXT` / `field.blind_extensions()` and runs **only** in the
+`blind_language` branch — never in `neutralise`, which runs for every aspect and would otherwise
+be asked whether Rust reads like Rust with `.rs` taken out of it. `judge/blind_ext_selftest.py`
+pins it in both directions: a mutant that removes the rewrite (16 leaking files, 28 occurrences),
+a **variant** proving a non-blind field is byte-identical to `neutralise` alone with all four
+suffixes kept, and 12 collision inputs the rewrite must leave untouched. The CLI half of the same
+task is #138.

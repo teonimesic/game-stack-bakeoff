@@ -150,10 +150,11 @@ NEUTRAL_EXT = ".src"
 # ---------------------------------------------------------------------------
 # `blind_language` renamed every file in the pack to `.src` and stopped there, so it
 # hid the extension of the file the judge was READING and nothing hid the extensions
-# that file MENTIONED. Measured over all 84 stored packs after `neutralise`: 1,876
-# occurrences of `.ts`/`.gd`/`.rs`/`.cs` across 76 of them - `import { f32 } from
-# "./vec2.ts"`, `tests/render_test.gd builds and positions this entire scene`. A judge
-# that opens `sim/01.src` and reads that its sibling is `sim/tuning.gd` is not blind.
+# that file MENTIONED (#137). Measured over all 84 stored packs after `neutralise`:
+# 1,876 occurrences of `.ts`/`.gd`/`.rs`/`.cs` across 76 of them, 2,083 over the whole
+# vocabulary below across all 84 - `import { f32 } from "./vec2.ts"`,
+# `tests/render_test.gd builds and positions this entire scene`. A judge that opens
+# `sim/01.src` and reads that its sibling is `sim/tuning.gd` is not blind.
 #
 # WHY THIS IS HERE AND NOT IN `anonymise.neutralise`. `neutralise` runs for EVERY
 # aspect. `idiomatic` is asked whether Rust was written like Rust and legitimately
@@ -701,19 +702,27 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                     continue
                 n["code"] += 1
                 written.add(str(tgt.relative_to(out)))
-            # CHANGED.txt IS PACK CONTENT AND IT WAS THE DENSEST LEAK OF ALL: it is a
-            # whole `git diff --stat`, one true path per authored file, beside a
+            # CHANGED.txt IS PACK CONTENT AND IT WAS THE DENSEST LEAK OF ALL (#137): it
+            # is a whole `git diff --stat`, one true path per authored file, beside a
             # directory whose every file was renamed to `bucket/NN.src`. The eight
             # stored `architecture` packs carried 80 `.cs`, 78 `.gd`, 60 `.meta`, 43
             # `.ts` and 43 `.rs` in this file alone, and 182 arm-naming DIRECTORY
             # segments that `blind_extensions` does not touch.
             #
+            # Per pack it is a clean PARTITION, not a smear - each names exactly one
+            # arm's suffixes and no other arm's, which is a label rather than a hint.
+            # In a whole unblinded field it is 345 of the 667 extension tokens against
+            # 322 in all 199 code files put together: THE PACKER CONTRIBUTED MORE OF
+            # THIS LEAK THAN THE SUBJECTS DID.
+            #
             # Under `blind_language` the whole file is now rebuilt from the pack's own
-            # origin -> label manifest rather than rewritten (see `blind_changed_txt`).
-            # `_text` still runs over the result: the labels and churn columns are
-            # harness-generated and it is a no-op on them, but "one function for every
-            # piece of text this pack writes" is the invariant that stops a channel
-            # being blinded on one path and not another.
+            # origin -> label manifest rather than rewritten (see `blind_changed_txt`),
+            # which repairs both properties at once - a manifest can neither fire on a
+            # non-path nor miss an unlisted directory. `_text` still runs over the
+            # result: the labels and churn columns are harness-generated and it is a
+            # no-op on them, but "one function for every piece of text this pack
+            # writes" is the invariant that stops a channel being blinded on one path
+            # and not another.
             stat = sub / "diff.stat"
             if stat.is_file():
                 raw = stat.read_text(errors="ignore")
@@ -1596,12 +1605,15 @@ def main() -> int:
         # BOTH aspect properties, not one. This read `sees` and not `blind_language`
         # until 2026-08-23, so a pack built through the CLI - the path the module
         # docstring tells a human to type - was not blinded AT ALL: files kept their
-        # real suffixes and the `.src` rename never ran. Measured on
-        # `wg-g4c/g4_platformer`: 199 of 207 files kept a language-naming filename and
-        # the content carried 663 extension tokens. `field_sweep.py` passed both at all
-        # three of its call sites, so no stored round is affected - which is exactly why
-        # nothing noticed. **Guard the resource, and verify on the path that actually
-        # holds it** (rule 13); `blind_ext_selftest.py` now drives this entry point.
+        # real suffixes and the `.src` rename never ran (#138). Measured on
+        # `wg-g4c/g4_platformer`, architecture, 8 submissions: 199 of the 207 evidence
+        # files kept their real suffix, 191 of those names an arm, and the content
+        # carried 667 arm-naming extension tokens, against 0 filenames and 11 tokens
+        # after the repair - all 11 `import.meta`, which is declined on purpose.
+        # `field_sweep.py` passed both at all three of its call sites, so no stored
+        # round is affected - which is exactly why nothing noticed. **Guard the
+        # resource, and verify on the path that actually holds it** (rule 13);
+        # `blind_ext_selftest.py` check 7 now drives this entry point as a subprocess.
         aspect = ASPECTS[a.aspect]
         info = build_pack(a.run, a.game, a.out, a.order_seed,
                           sees=aspect.sees, blind_language=aspect.blind_language)
