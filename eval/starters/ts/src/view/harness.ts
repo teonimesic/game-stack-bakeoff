@@ -9,11 +9,12 @@
 
 import { Buffer } from 'node:buffer';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { PNG } from 'pngjs';
 import { type Browser, type Page, chromium } from 'playwright';
+import { TICK_HZ } from '../sim/index.ts';
 import type { Intents, Seed } from '../sim/index.ts';
 import type { CaptureRequest, CaptureResult } from './capture.ts';
 import { VIEW_HEIGHT, VIEW_WIDTH } from './index.ts';
@@ -259,9 +260,25 @@ export function formatDiffReport(report: DiffReport): string {
  * Make the page reproducible before any of our code runs.
  *
  * The same injection three.js uses in its own screenshot CI: seed `Math.random`
- * so anything that reaches for entropy gets the same sequence, freeze both
- * clocks so time-dependent code cannot vary, and make `requestAnimationFrame`
- * single-shot so a stray animation loop cannot race the capture.
+ * so anything that reaches for entropy gets the same sequence, put both clocks
+ * under the harness's control so time-dependent code cannot vary, and make
+ * `requestAnimationFrame` single-shot so a stray animation loop cannot race the
+ * capture.
+ *
+ * `addInitScript` only runs on document creation, so this is registered BEFORE
+ * `page.goto`. Registering it against an `about:blank` page that is never
+ * navigated leaves the whole script dead, and a dead determinism script is
+ * indistinguishable from a live one by anything the page can see: `Math.random`
+ * simply stays unseeded and both clocks stay on wall time.
+ *
+ * THE CLOCKS ARE NOT FROZEN — they are VIRTUAL. `captureFrame` sets
+ * `__nowMs` to the wall-clock time the captured tick corresponds to, so
+ * `performance.now()` is a pure function of the request (same tick, same
+ * value: still deterministic) that nevertheless ADVANCES from one filmed frame
+ * to the next. Pinning it to a constant instead makes every time-driven view
+ * effect — a tween, a shader `uTime`, `AnimationMixer.setTime` — show its t=0
+ * state in all 12 frames of `just film`, which looks exactly like a submission
+ * that never animated anything.
  */
 const DETERMINISM_SCRIPT = `
   let seed = 1;
@@ -269,12 +286,68 @@ const DETERMINISM_SCRIPT = `
     seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
   };
-  Date.now = () => 0;
-  performance.now = () => 0;
+  window.__nowMs = 0;
+  Date.now = () => window.__nowMs;
+  performance.now = () => window.__nowMs;
   const raf = window.requestAnimationFrame;
   let fired = false;
   window.requestAnimationFrame = (callback) => (fired ? 0 : ((fired = true), raf(() => callback(0))));
+  // Record that this ran. A determinism script registered against a page that
+  // is never navigated is dead, and a dead one is invisible from inside the
+  // page — every pixel assertion passes either way. This is the marker that
+  // makes "did the instrument do its job?" answerable rather than assumed.
+  window.__determinismApplied = true;
 `;
+
+/**
+ * A real origin for the capture page.
+ *
+ * `page.setContent` leaves the document on `about:blank`, whose origin is
+ * `null` and which has no base URL. In that page a relative `fetch` does not
+ * fail — it THROWS at URL parsing, before any request — so `TextureLoader`,
+ * `GLTFLoader`, `FileLoader` and everything else in three that routes through
+ * `fetch` reports a bare `error` with no cause. An asset pipeline that works
+ * under `just run` then renders nothing into any of the 12 PNGs `just film`
+ * produces, with no error anywhere the judge or the agent can see.
+ *
+ * Nothing is ever fetched over the network: `page.route` intercepts this origin
+ * and serves it from `public/` on disk. The hostname is under `.localhost`,
+ * which Chromium treats as a secure context, so `AudioContext`, `crypto.subtle`
+ * and friends behave as they do under the dev server.
+ */
+const HARNESS_ORIGIN = 'http://harness.localhost';
+
+/** Served as the capture document root. */
+const HARNESS_PUBLIC = fileURLToPath(new URL('../../public/', import.meta.url));
+
+const CONTENT_TYPES: Readonly<Record<string, string>> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.gltf': 'model/gltf+json',
+  '.glb': 'model/gltf-binary',
+  '.bin': 'application/octet-stream',
+  '.ktx2': 'image/ktx2',
+  '.hdr': 'image/vnd.radiance',
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.html': 'text/html; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+};
+
+/** `public/` is the document root and nothing above it is reachable. */
+function resolveUnderPublic(pathname: string): string | null {
+  const candidate = resolve(join(HARNESS_PUBLIC, decodeURIComponent(pathname).replace(/^\/+/, '')));
+  const inside = relative(resolve(HARNESS_PUBLIC), candidate);
+  return inside === '' || (!inside.startsWith('..') && !inside.startsWith(sep)) ? candidate : null;
+}
 
 /**
  * Pin the rasteriser instead of taking whatever the host has.
@@ -319,12 +392,71 @@ async function harnessPage(): Promise<Page> {
     const page = await browser.newPage();
     page.on('console', (message) => pageLog.push(`[${message.type()}] ${message.text()}`));
     page.on('pageerror', (error) => pageLog.push(`[pageerror] ${error.message}`));
+
+    // Serve the capture document and everything under `public/` from disk, so
+    // the page has a real origin and relative URLs resolve the way they do
+    // under `just run`. Requests never leave the process.
+    await page.route(`${HARNESS_ORIGIN}/**`, (route) => {
+      const { pathname } = new URL(route.request().url());
+      if (pathname === '/') {
+        return route.fulfill({
+          contentType: 'text/html; charset=utf-8',
+          body: '<!doctype html><meta charset="utf-8"><body></body>',
+        });
+      }
+      const file = resolveUnderPublic(pathname);
+      if (file === null) {
+        pageLog.push(`[harness] refused to serve outside public/: ${pathname}`);
+        return route.fulfill({ status: 403, body: 'outside public/' });
+      }
+      let body: Buffer;
+      try {
+        body = readFileSync(file);
+      } catch {
+        // Logged, not silent: "the texture is missing from public/" and "the
+        // loader is broken" look identical from inside the page.
+        pageLog.push(`[harness] 404 ${pathname} (looked in ${HARNESS_PUBLIC})`);
+        return route.fulfill({ status: 404, body: 'not found' });
+      }
+      const extension = pathname.slice(pathname.lastIndexOf('.')).toLowerCase();
+      return route.fulfill({
+        contentType: CONTENT_TYPES[extension] ?? 'application/octet-stream',
+        body,
+      });
+    });
+
+    // ORDER IS LOAD-BEARING: `addInitScript` runs on document creation, so it
+    // must be registered before the navigation that creates the document.
     await page.addInitScript(DETERMINISM_SCRIPT);
-    await page.setContent('<!doctype html><meta charset="utf-8"><body></body>');
+    await page.goto(`${HARNESS_ORIGIN}/`);
     await page.addScriptTag({ content: await captureBundle() });
     return { browser, page };
   })();
   return (await session).page;
+}
+
+/**
+ * Run `body` inside the very page the captures happen in.
+ *
+ * For asserting things ABOUT the capture environment — its origin, whether an
+ * asset URL resolves, whether the injected determinism actually took effect.
+ * Those are exactly the properties that cannot be checked from a replica page:
+ * a second page built "the same way" shares whatever assumption is wrong, so it
+ * agrees with the harness and proves nothing. A dead `addInitScript` went
+ * unnoticed here for precisely that reason.
+ *
+ * This is a test and diagnostic seam. Game code has no reason to call it.
+ */
+export async function evaluateInCapturePage<T>(
+  body: (argument: string | null) => T | Promise<T>,
+  argument: string | null,
+): Promise<T> {
+  const page = await harnessPage();
+  // The body is serialised and re-parsed in the page, so it cannot close over
+  // anything from this module — everything it needs arrives as `argument`.
+  // Deliberately `string | null` rather than a generic: this is a diagnostic
+  // seam, and a concrete argument type keeps it free of casts.
+  return page.evaluate(body, argument);
 }
 
 /** The last `limit` lines the page logged, formatted for a failure message. */
@@ -368,6 +500,30 @@ export async function captureFrame(
     width: size.width,
     height: size.height,
   };
+
+  // Move the virtual clock to the moment this tick happens, so a time-driven
+  // view effect reads a DIFFERENT time in each filmed frame while staying a
+  // pure function of the request. See DETERMINISM_SCRIPT.
+  await page.evaluate(
+    (ms: number) => {
+      window.__nowMs = ms;
+    },
+    (ticks / TICK_HZ) * 1000,
+  );
+
+  // `capture()` is synchronous — it steps, renders and reads back inside one
+  // call — so anything that resolves on a later task (an image decode, a
+  // loader, a `fetch`) has to have finished BEFORE it runs. A view that loads
+  // assets registers `window.__capturePreload` and warms its cache here; it is
+  // awaited once per capture and is a no-op if unset.
+  try {
+    await page.evaluate(async () => {
+      await window.__capturePreload?.();
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`__capturePreload failed: ${message}\n${pageDiagnostics()}`, { cause: error });
+  }
 
   let result: CaptureResult;
   try {
