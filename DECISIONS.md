@@ -293,6 +293,45 @@ discovered; this records what is now done about it.
 
 ---
 
+## The templates are measured at each stack's best, not at a common floor — decided 2026-08-22
+
+**Every template showcases the best its own stack can do. It is not held to a capability floor
+shared by all four.**
+
+The alternative was a common floor: every template exposes only what all four stacks can do,
+which keeps the comparison tightly controlled and measures the stacks on shared ground. That was
+rejected. It answers a question nobody is asking — *how do four engines compare when each is
+restricted to what the weakest can do* — and the headline it produces ("these four are
+indistinguishable") is then partly an artifact of the restriction.
+
+**What is now being measured: what a competent agent can build in each stack when the template
+does not hold it back.** Native physics where the engine ships it (Unity PhysX, Godot Jolt) and
+a pinned crate or library where it does not (Bevy, three.js). Native particle systems where they
+exist. Ray tracing where the platform supports it. That asymmetry is the subject, not a confound
+to be designed away.
+
+**What this costs, stated plainly so it is not discovered later:**
+
+- A cross-stack difference is no longer attributable to the stack alone. It is attributable to
+  *the stack as exercised by this template* — and the template author's judgement about what
+  "best" means becomes a variable. This was always partly true; deliberately diverging templates
+  make it matter more.
+- The defence is that "best" must be **sourced, not asserted** — see the capability survey
+  (`research/`, task 24) and `research/AGENTS.md`'s sourcing rules. A capability included because
+  it is documented and reachable is defensible; one included because it seemed impressive is not.
+- `judge/starter_parity.py` must continue to REPORT capability divergence rather than fail on it.
+  Under this decision, divergence is the design; a guard that reads it as drift would be wrong
+  and would be switched off, which is worse.
+
+**This decision does not license showcasing what cannot be observed.** The evidence pipeline
+currently captures no performance signal at all, and `ux` — the aspect most sensitive to visual
+richness — was retired for correlating +0.53 to +0.73 with distinct-colour count (#59). Prettier
+output moves that metric in the direction that looks like improvement, for the reason it was
+retired. So capability work is gated on making capability observable by a signal that is not
+palette-coupled (task 25), or it cannot be shown to have helped.
+
+---
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
