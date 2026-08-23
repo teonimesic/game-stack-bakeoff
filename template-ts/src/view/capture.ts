@@ -114,6 +114,31 @@ function encode(bytes: Uint8Array): string {
 declare global {
   interface Window {
     __capture?: (request: CaptureRequest) => CaptureResult;
+    /**
+     * Virtual wall-clock milliseconds, owned by `harness.ts`.
+     *
+     * `Date.now()` and `performance.now()` both read it, and the harness sets
+     * it to the time of the tick being captured. Do not write to it from view
+     * code: that is what makes a captured frame reproducible.
+     */
+    __nowMs: number;
+    /** Set by the harness's injected determinism script, to prove it ran. */
+    __determinismApplied?: boolean;
+    /**
+     * Optional: warm anything that cannot be built synchronously.
+     *
+     * `capture()` steps, renders and reads back in ONE synchronous call, so a
+     * `TextureLoader`, an `<img>` decode or a `fetch` cannot complete inside
+     * it — the frame would be captured with the texture still pending. The
+     * harness awaits this hook once before each capture, which is where an
+     * asset-loading view resolves its loaders into a cache that `createView`
+     * can then read synchronously.
+     *
+     * Assets are served from `public/` at the page's real origin, so a relative
+     * URL like `./sprites/hero.png` resolves exactly as it does under
+     * `just run`.
+     */
+    __capturePreload?: (() => Promise<void>) | undefined;
   }
 }
 

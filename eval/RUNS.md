@@ -1168,6 +1168,47 @@ starters (**BLIND**, 81 criterion ids, exit 0); `judge/starter_parity.py` with t
 including the verify-idempotence direction on the modified unity and ts trees.
 
 
+## `template-ts/` CHANGED ON 2026-08-23 — a FOURTEENTH comparability break, and the first that is NOT about the starters
+
+**This one bounds a different suite.** Every ordinal above is about `eval/starters/*/`, which is
+what `wholegame.py` copies. This is about `template-ts/`, which only `eval/run-bakeoff.sh` ->
+`runner.py --template` ever reads. **No whole-game number is affected, and that was verified
+rather than assumed**: `STARTERS = HERE / "starters" / s` is the only starter address in
+`wholegame.py`, and no `run` subcommand of it takes a template path.
+
+Task 48. `template-ts/src/view/harness.ts` carried the pre-fix capture page that #101 repaired in
+`eval/starters/ts/` a day earlier: a `null` document origin, an `addInitScript` registered against
+a `setContent` that never navigates so the determinism script was dead, and the frozen clock that
+the origin fix would otherwise have activated. All three are now repaired the same way — a
+`page.route` origin served from `public/`, `addInitScript` before `goto`, and a **virtual** clock
+at `ticks / TICK_HZ * 1000`.
+
+**What it invalidates:** the four stored `bakeoff-*` runs (2026-08-10..12) were built on the
+pre-fix templates. They are already outside this ledger — see its opening note about the $91.73 of
+`bakeoff-*` and `core-*` runs — and no spec-change run has happened since **2026-08-12**. Nothing
+stored is re-read; a future spec-change run on `template-ts` is not comparable with those four on
+what a captured frame could contain.
+
+| property | before | after |
+|---|---|---|
+| `location.origin` in the capture page | `"null"` | `http://harness.localhost` |
+| a relative `fetch` | **threw at URL parsing**, so every three loader was dead | `200`, served from `public/` |
+| the determinism script | never ran; `Math.random` unseeded, both clocks on wall time (`performance.now()` 130.9 -> 194.4 over a 60 ms sleep) | runs; `__determinismApplied`, the injected LCG, virtual clocks |
+| `just verify`, warm | green, 53 sim + 5 render | green, 53 sim + **13** render |
+| `AGENTS.md` | said nothing about assets, preload or clock semantics | documents `__capturePreload` and virtual time, as the ts starter does |
+
+**The golden frame is unchanged and was not re-blessed.**
+
+Gates re-run after the change: `judge/verify_blind.py` on an out-of-repo copy of `template-ts`
+(**BLIND**, 81 criterion ids, exit 0; **CONTAMINATED, exit 1** with the canary planted, so the
+scanner was shown able to fail on this input). Four mutants against the ported
+`tests/render/capture-environment.test.ts`: restoring `setContent` reddens 7 of 8, a constant
+clock reddens the clock test, an unawaited preload reddens the failing-preload test, and removing
+the document-root containment reddens the escape test. `judge/starter_parity.py` is **not**
+applicable — it reads `eval/starters/` and compares stacks, never a stack against its own second
+tree, which is the gap FINDINGS #112 is about.
+
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
