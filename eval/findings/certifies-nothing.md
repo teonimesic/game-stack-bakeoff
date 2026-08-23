@@ -4271,3 +4271,67 @@ And they cannot be fixed by reading, because the intended target is unknown. **A
 found two months late is a permanent hole** — which is the argument for the check that the
 false-positive count says cannot yet be built, and the reason this finding records the tension
 rather than resolving it.
+
+---
+
+## 147. The positive control was built on a defect somebody was supposed to fix, so closing the defect broke the control — and the control said `ok` while it broke
+
+A mutant runner needs one mutation that **survives**. A harness that can only ever print `CAUGHT`
+is rule 1's `total=0 passed=0`: it cannot distinguish "every mutant is killed" from "the report
+only has one word in it". So `tasks_mutants.py --selftest` carried an **inert** mutation and
+asserted it comes back `SURVIVED`.
+
+The inert mutation chosen was `if warn:` → `if False:` in `cmd_check`. It was inert because it was
+a **real, measured gap**: `tasks.py` computed every reachability warning and printed none, and all
+34 control rows stayed green. That gap was filed as a ticket, which said in as many words that
+closing it would break the selftest *"loudly, with a message saying to pick another inert
+mutation"*.
+
+**It did not break loudly. It did not break at all.** With the end-to-end row added and the
+selftest untouched, it printed:
+
+    ok  the INERT mutation is reported as SURVIVED
+
+over a mutation that had just stopped being inert.
+
+### Why the guard could not fire
+
+`_cycle` decided `CAUGHT` by asking whether a row **whose name it enumerated** had gone red. The
+row that closed the gap has a different name, so the enumeration did not contain it, and the
+runner concluded nothing had been caught.
+
+**This is the rule audit's own lesson, landing on code instead of prose.** *A rule whose trigger
+is a list must be re-derived by every reader who meets an item not on the list* — and here the
+reader was a function, which cannot re-derive anything. `INERT` is a property of **the whole
+report**, not of a named subset of it, so the selftest now requires **zero red rows**. Controlled
+both ways: pointed at the non-inert mutation it now reports `CAUGHT` and returns 1 — the exact
+case where the old one said `ok` — and pointed at the shipped mutation it reports `SURVIVED` at
+0 red of 37 and returns 0.
+
+### The general form, and it is a rule about controls rather than about this tool
+
+> **Never build a positive control on a defect somebody is supposed to fix.** The control's
+> validity and the defect's existence are the same fact, so closing the defect silently invalidates
+> the control — and the repair then has to carry an unrelated fix, which is what this ticket cost.
+
+The replacement is a trailing comment appended to a constant. It changes no value, so **no
+behavioural row can ever go red on it and no future row can close it.** The line is chosen
+deliberately rather than arbitrarily: two other mutants mutate that same constant and both are
+caught, so `SURVIVED` here cannot be misread as *"nothing tests that line"*.
+
+### What the new row does not establish
+
+`_run_tool` merges stdout and stderr, so the end-to-end rows assert the warning is **reported**,
+not that it reaches stdout. A change routing it to stderr stays green. Deliberate — nothing reads
+this warning from a pipe — and recorded because it is exactly the variant these rows would miss.
+
+### An adjacent repair, found because no check can read a duration
+
+#141 retired *"for a day"* as the exposure of the misfiled-ticket defect; the true figure is
+**25m48s**. `tasks/93` records fixing it in one docstring. **Three more live copies survived** —
+`tasks.py`'s module docstring, `.claude/skills/tasks/SKILL.md`, and a comment in
+`tasks_mutants.py`. All three now state the measured figure and cite #141.
+
+**Nothing in the repository could have found them.** Every gate here reads numbers, ranges,
+identifiers and paths; a wrong *duration* written in words is invisible to all of them, which is
+the same blind spot that let a findings count spelled in words stand for eleven days.
