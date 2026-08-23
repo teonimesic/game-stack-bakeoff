@@ -3257,7 +3257,7 @@ trials:
 | of the 9 selective failures, how many are from a run later than `wg-matrix-2026-08-13` | **0** |
 
 That last row is the finding in one number. **Every time tier 2 has ever ranked one submission
-above another, it was in the first matrix.** Four runs and 44 trials later it has detected two
+above another, it was in the first matrix.** Four runs and 43 trials later it has detected two
 build failures and separated nothing.
 
 ### The withheld criteria cannot help, and that is a measurement, not an argument
@@ -3271,6 +3271,7 @@ spread only if `v` differs across the group. The stored values:
 | `wg-audio48` | g2_tetris3d | `layer.clears` | 8 | **{False}** |
 | `wg-audio48` | g2_tetris3d | `score.rewards_clears` | 8 | **{False}** |
 | `wg-matrix` | g2_tetris3d | both | 8 | **{False}** |
+| `wg-audio` | g2_tetris3d | both | 3 | **{False}** |
 | `wg-g4c` | g4_platformer | `stage.completes` | 8 | **{False}** |
 
 Seven group-criterion pairs, **zero** with more than one value. Promoting any of them lowers every
