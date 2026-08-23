@@ -449,3 +449,64 @@ inferring from a name, both fail closed, and a fifth stack updates the classifie
 **#87's closing line said the difference was six lines of `du`. It was not** — `du` is what
 produced the mislabelled row. The difference was asking, per file, *who wrote this and can they
 write it again?*
+
+## 103. The only record of the starter a run was given is a git commit no archive contains, and the reclamation rule says to delete it
+
+Re-packing `wg-g4c` (task 42) needed one thing that is not a score: **the starter as the agent
+actually received it.** `anonymise.build_pack` drops files byte-identical to the starter, and it
+compares against the starter as it is *now*, so rebuilding an old pack against a moved starter
+reclassifies template code as authored work (#77). `build_pack` takes an `exclude_origins` set for
+this, and its docstring gives the formula — *(rebuilt origins) minus (stored manifest) minus
+(files dropped for length)*.
+
+**The formula returns an answer for any run, and nothing in it can say whether the answer is
+right**, because both terms come out of the same packer. The independent record is
+`wholegame.prepare`, which copies the starter into the work tree and commits it as
+`starter baseline`. Checked against that commit, the exclusion set was three files, all
+TypeScript, from a capture-page repair landed **3.5 hours earlier** — and the Godot starter, which
+moved the same morning, correctly produced none, because both Godot agents had edited
+`tools/check.gd` themselves.
+
+**That commit is in no archive.** `submission.tar.gz` holds the submission and **no `.git/`** —
+verified by listing one: 0 entries under `.git/`. `diff.patch` and `diff.stat` name which files
+changed, not what the unchanged ones contained. The baseline exists in exactly one place, the live
+work tree under `~/game-research-work/`, and `PROTOCOL.md` said:
+
+> `~/game-research-work/<run>/<trial>/` — **only if that trial's `submission.tar.gz` exists**.
+
+All eight `wg-g4c` trees have tarballs. **The rule declared every one of them safe to delete**, and
+following it would have made this repair impossible — the rule was written the previous day, by a
+session that had just established (#90) that a file is evidence until something proves it
+regenerable.
+
+The census, over every stored judge pack:
+
+| | packs |
+|---|---|
+| stored judge packs on disk | 68 |
+| carrying a `pack.manifest` at all (the formula's minuend) | 43 |
+| with a recoverable `starter baseline` | **8** |
+
+All eight are `wg-g4c`. **The 22 surviving work trees' baselines are now preserved** —
+`eval/runs/<run>/starter-baselines/`, a `git archive` of the root commit plus its `ls-tree`, 7.5 MB
+across `wg-g4`, `wg-g4b` and `wg-g4c` against the 55 GB those trees occupy. That is the whole
+remaining population; for every earlier run the tree is already gone.
+
+For the other 60 packs an exclusion set can be computed and never checked, and
+`repack.py` refuses them rather than guessing — which is why the refusal is in the tool and not in
+a paragraph. Two other refusal reasons fired on real data in the same sweep: 24 `wg-matrix` packs
+have no manifest, and 8 `wg-arena3d` packs dropped 4–21 files each for length, so the formula's
+third term is non-zero and those files are legitimately returning.
+
+> **A preservation rule is only as good as the artifact it names.** "Keep the tree until its
+> tarball exists" is a correct statement about the *submission* and a false one about the *trial*,
+> and the two are indistinguishable from the tree's size. #90 replaced "is this build output?"
+> with "who wrote this and can they write it again?"; this is the same question asked of a
+> directory that the earlier answer had already cleared.
+
+The starter is also recorded a second, weaker way: `report.json` stores the absolute starter
+**path**, which is what `repack.py` now reads instead of deriving one. That mattered immediately —
+a derived default resolved inside an agent's git worktree, where the Unity starter's untracked
+`tools/analyzer/bin/` does not exist, and three Unity files then looked like authored work. The
+corroboration check refused two submissions and was right about the symptom and wrong about the
+cause, which is rule 12 with the address supplied by `__file__`.

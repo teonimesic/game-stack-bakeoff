@@ -296,13 +296,18 @@ submissions **within one stack**. They may never contribute to a cross-stack cla
 not a defect awaiting repair.
 
 > **The within-stack permission is conditional on the field's packs matching their manifests,
-> and on `wg-g4c-2026-08-21` they do not (#95).** That run carries 23 stale files in 222, and
-> the loss is uneven *within* a stack as well as across one — `unity__t0` 6 against `unity__t1`
-> 4, `ts__t0` 1 against `ts__t1` 2. Two submissions of the same stack were therefore shown
-> different amounts of their own code, so **neither a cross-stack nor a within-stack code-aspect
-> reading is available on that field.**
+> and the condition is a property of the pack ON DISK NOW — not of the run, and not of a round
+> already taken.** `wg-g4c-2026-08-21T02-26-46` failed it with 23 stale files in 222 (#95) and
+> **passes it since the 2026-08-23 re-pack**: 199 files, `stale=0`, `clean=True`, with the
+> starter-drift exclusion set computed and corroborated rather than guessed (`eval/RUNS.md`).
 >
-> Check before relying on this permission, at the run you are actually reading:
+> **A re-pack licenses new rounds, never stored ones.** The 30 `wg-aspect-reliability` rounds
+> read the 222-file field; nothing can re-run their reading, so their `idiomatic` and
+> `architecture` orderings stay unreadable. Within-stack code comparison on this field means a
+> round taken after the re-pack.
+>
+> Check before relying on this permission, at the run you are actually reading, and check it
+> again if anything re-packed since:
 > `python3 eval/judge/field.py packcheck --run eval/runs/<run>` — exit 0 clean, 1 dirty, 2 if it
 > could not evaluate the address you gave it (#96). It takes a **path**, not a run name.
 

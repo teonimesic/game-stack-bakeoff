@@ -523,7 +523,23 @@ tracing failures whose real cause was environmental.
 **Safe to delete, once verified:**
 
 - `~/game-research-work/<run>/_targets/` — build output, always reproducible.
-- `~/game-research-work/<run>/<trial>/` — **only if that trial's `submission.tar.gz` exists**.
+- `~/game-research-work/<run>/<trial>/` — **only if that trial's `submission.tar.gz` exists AND
+  the tree's `starter baseline` commit has been preserved.** Both, not either.
+
+> ⚠️ **The tarball is the submission. It is not the trial.** `submission.tar.gz` carries **no
+> `.git/`** — verified by listing one — and the work tree's root commit, `starter baseline`, is
+> the only record anywhere of *the starter the agent was actually given*. Without it a stored
+> judge pack can never be honestly re-packed: the exclusion set for starter drift (#77) can be
+> computed by subtraction and never checked, and `judge/repack.py` refuses on exactly that
+> ground. Of 68 stored judge packs, the baseline survives for **8** (#103).
+>
+> **The three surviving work roots were preserved on 2026-08-23**, so this rule is now
+> satisfiable rather than merely stated: `eval/runs/<run>/starter-baselines/` holds
+> `<trial>.starter-baseline.tar.gz` (`git archive` of the root commit) and
+> `<trial>.starter-baseline.blobs.txt` (its `ls-tree -r`, with the commit id) for all 22 trees of
+> `wg-g4`, `wg-g4b` and `wg-g4c` — **7.5 MB against 55 GB of work trees**. Produce the same pair
+> before deleting any future tree. `git bundle` does not work here: a bare commit id is not a
+> ref, and it exits `Refusing to create empty bundle`.
 
 ### Verify per TREE, never per run
 
