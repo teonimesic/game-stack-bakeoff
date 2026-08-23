@@ -10,8 +10,9 @@ relaxes one on the grounds that it looks paranoid.
 
 **Run `python3 tools/precampaign_smoke.py` first.** It exercises every command that is run
 once per campaign — `plan` for each game, `prompt_guard --snapshot`, `starter_parity`,
-`verify_blind`, `audio_selftest`, `sequential_selftest`, `docstat --sweep` — **unpiped, reading
-each exit code**, and it exists because two of them were silently broken:
+`starter_gate_control`, `verify_blind`, `audio_selftest`, `sequential_selftest`,
+`docstat --sweep` — **unpiped, reading each exit code**, and it exists because two of them were
+silently broken:
 
 - `plan` had crashed with a `TypeError` since the no-cap regime made `MAX_BUDGET_USD` `None`.
   It is the one command this file tells you to run before authorising a matrix, and it is run

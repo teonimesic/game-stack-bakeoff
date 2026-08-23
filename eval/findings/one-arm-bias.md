@@ -1771,3 +1771,105 @@ manufacture the input that produces this; only running the real function twice o
 destination with a *changed exclusion set* can. `judge/pack_selftest.py` does that, and against
 the unfixed function it fails 4 of 7 expectations; the same three-pass check run over the 16 real
 submissions of two runs fails **8 of 8** before the fix and **0 of 16** after.
+
+## 98. The Godot template's own gate was red before any agent touched it, and only that arm paid
+
+`build.compiles` and `verify.green` are two of the fourteen tier-1 criteria and both are nothing
+more than the exit code of a recipe in the submission's own justfile (`judge/static.py:380`). So a
+starter whose gate is red on an untouched tree hands **every submission in that arm** two
+automatic failures in the tier weighted 0.31, and no other arm pays it.
+
+`eval/starters/godot/tools/check.gd:51` called `script.reload()` on every `.gd` file it scanned.
+`tools/no_raise.gd` is declared `NoRaise="*res://tools/no_raise.gd"` under `[autoload]` in
+`project.godot:79`, so the engine has already instantiated it by the time a `SceneTree` script
+runs. Godot refuses to reload a script with a live instance, returns an error, and the loop cannot
+tell that error apart from a parse error. Measured 2026-08-23 on a fresh copy with the harness
+uninvolved, twice:
+
+```
+ERROR: Cannot reload script while instances exist.
+   at: reload (modules/gdscript/gdscript.cpp:754)
+COMPILE res://tools/no_raise.gd — see the SCRIPT ERROR lines above
+CHECK scripts=18 failures=1
+```
+
+`just check` exit 1, `just verify` exit 1, on a file that compiles perfectly. The other three
+starters were measured the same day, two ways — an `rsync` reproducing `wholegame.prepare()`'s
+ignore list, and `tools/starter_gate_control.py` importing that list — and **rust, ts and unity
+are all exit 0 on `just check` and on `just verify` from a pristine copy.** The red baseline is
+one arm.
+
+### How much stored evidence paid for it: none, and the reason is luck
+
+20 stored Godot whole-game submissions exist across seven runs. The autoload arrived with the
+2026-08-17 no-raise starter edit — RUNS.md's seventh comparability break — so **only 4 carry the
+defect at all**: `wg-g4b-2026-08-17` t0/t1 and `wg-g4c-2026-08-21` t0/t1. The 16 earlier ones have
+neither `tools/no_raise.gd` nor a `NoRaise=` line in their stored `project.godot`.
+
+Of those 4, **0 were graded with the defect unrepaired**:
+
+| trial | terminal | graded? | what happened |
+|---|---|---|---|
+| `wg-g4b` t0, t1 | `api_error` | **no** — the run holds 0 `report.json` | both aborted with a 71-character final text |
+| `wg-g4c` t0 | completed | yes, 14/14 | repaired it itself: `reload(true)` |
+| `wg-g4c` t1 | completed | yes, 13/14 | repaired it itself: a skip list |
+
+Both graded trials scored `build.compiles` **True** (`just check` exit 0) and `verify.green`
+**True**. `wg-g4c-capgate` re-grades those same two work trees, so it adds no submissions. **No
+published tier-1 Godot figure needs marking.** What the defect cost was turns and money inside
+two trials, not a score — and that is a distinction the stored record cannot make, because
+nothing counts a turn spent repairing the harness.
+
+### The under-report, which is the transferable part
+
+The defect was first written up as *"both godot agents patched `tools/check.gd` to call
+`script.reload(true)`"*. A grep for `reload(true)` across the two diffs finds it in **one**. `t1`
+added a `const INSTANCED` skip list instead. Same defect, same baseline, two mechanisms — and a
+search keyed to either one under-reports by half.
+
+> **Search for the DEFECT, not for the repair somebody happened to apply.** The trigger written as
+> one instance of a fix is AGENTS.md's own most-repeated failure, pointed at evidence instead of
+> at rules. The reliable signals were whether the submission's `check.gd` differs from pristine at
+> all, and what the agent said in `agent.final_text`.
+
+Both agents documented it unprompted, in the paragraph rule 11 exists for and nothing reads:
+
+- `t0`: *"The starter baseline was already red here, before I touched anything … the loop reported
+  it as a COMPILE failure. I changed it to `reload(true)`"*
+- `t1`: *"The baseline was already red. `tools/check.gd` called `reload()` on the `NoRaise`
+  autoload, which has a live instance; that's fixed with a skip list"*
+
+Scanning all 20 stored Godot `agent_result.json` for the vocabulary of the defect returns exactly
+these two and nothing else, which is also how the blast radius was bounded.
+
+### The obvious repair is worse than the defect, and it shipped
+
+`t1`'s skip list makes `just check` green by no longer re-parsing the file the engine loads first.
+Measured as an adversarial variant of the repaired starter: plant an unparseable function in
+`tools/no_raise.gd`, and with the skip list `just check` **exits 0** while the engine prints
+`Failed to instantiate an autoload`. `ResourceLoader.load` returns the cached resource, so the
+`script == null` arm never fires. A gate that stopped failing is indistinguishable from a passing
+submission — this project's rule 7, arriving as a fix.
+
+The repair taken instead is `script.reload(true)` — `keep_state` — which re-parses for real.
+
+### Why nothing caught it, and what now does
+
+The grader runs a starter's gate **only on submissions**, where a red result is the answer it is
+looking for. Nothing had ever run one on a pristine copy, so a template could ship red
+indefinitely; `starter_parity.py` compares the four starters to each other and would have to see
+all four go red to notice, and `verify_blind.py` asks a different question entirely.
+
+`eval/tools/starter_gate_control.py` runs both directions on a pristine copy of all four starters
+and is registered in `tools/precampaign_smoke.py` (~160s, once per campaign). It imports
+`wholegame.IGNORE` rather than restating it, so the copy it measures cannot drift from the copy a
+trial gets. Pinned three ways on 2026-08-23:
+
+| input | GREEN direction | RED direction |
+|---|---|---|
+| repaired starter | exit 0 ✅ | planted parse error in the autoload → exit 1 ✅ |
+| the original defect restored | **exit 1, tool reports FAILED** | exit 1 |
+| `t1`'s skip-list repair | exit 0 | **exit 0, tool reports FAILED** |
+
+The third row is the one that earns the second direction. A mutant — deleting the reload call —
+cannot produce it; only a variant that manufactures the input the gate mishandles can (rule 15).

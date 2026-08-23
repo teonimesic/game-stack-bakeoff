@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#97 from building and running this evaluator. **Check whether a
+Findings #19-#98 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -172,6 +172,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **95** | A judge pack is a numbering, not a set, so re-evaluating a run left nine passes stacked on disk | [one-arm-bias](findings/one-arm-bias.md) |
 | **96** | The gate written for #95 was exit-0 vacuous at every address but the right one | [certifies-nothing](findings/certifies-nothing.md) |
 | **97** | Four of the nine performance fields had been written on every submission since the first matrix, and nothing ever read them | [certifies-nothing](findings/certifies-nothing.md) |
+| **98** | The Godot template's own gate was red before any agent touched it, and only that arm paid | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

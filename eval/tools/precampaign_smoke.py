@@ -162,6 +162,13 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
                  str(tmp / "prompts-liveness-check-not-the-launch-artifact")], EVAL))
     out.append(("starter_parity",
                 ["python3", "judge/starter_parity.py"], EVAL))
+    # ~160s, and it belongs to this file's class exactly: nothing ever ran a starter's
+    # OWN gate on a PRISTINE copy, because the grader only ever runs it on submissions,
+    # where red is the answer you are looking for. The godot template shipped `just check`
+    # exiting 1 on an untouched tree for four months, handing that one arm
+    # build.compiles=False and verify.green=False in the tier weighted 0.31 (#98).
+    out.append(("starter_gate_control (pristine green + planted red, 4 stacks)",
+                ["python3", "tools/starter_gate_control.py"], EVAL))
     # verify_blind on COPIES outside the repo: pointed at `starters/` in place it
     # reports RUBRIC REACHABLE from an ancestor, which is true and not the question.
     blind = tmp / "blind"
