@@ -1,7 +1,7 @@
 ---
 id: 99
 title: eval/FINDINGS.md line 6 is an orphaned half-sentence left by an edit that replaced the line above it
-status: todo
+status: in_progress
 priority: 4
 refs: eval/FINDINGS.md, eval/tools/docstat.py, tasks/88
 done_when: eval/FINDINGS.md line 6 is gone, docstat.py --sweep exits 0, and the sweep gains a check that would have caught it -- an unfenced line in a live or archive instruction document that is a strict suffix of the sentence ending on the line above, pinned red on the real line as it stands at HEAD before the fix and green after

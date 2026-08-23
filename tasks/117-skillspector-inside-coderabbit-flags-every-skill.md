@@ -1,7 +1,7 @@
 ---
 id: 117
 title: SkillSpector inside CodeRabbit flags every skill that points at another skill, and this project requires them to
-status: todo
+status: in_progress
 priority: 4
 refs: .coderabbit.yaml, DECISIONS.md Pull requests are reviewed by CodeRabbit, tasks/108, https://github.com/teonimesic/game-stack-bakeoff/pull/2
 done_when: PR 2 review 1 has been counted - how many comments carried an AS3 attachment and how many of those were true positives - and either .coderabbit.yaml disables the analyser with that count recorded beside the change, or DECISIONS.md records that attachment-only noise does not meet the reversal condition together with the observation that would
