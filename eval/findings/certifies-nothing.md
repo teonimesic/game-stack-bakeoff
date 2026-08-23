@@ -3963,3 +3963,81 @@ run them.** `eval/tools/` holds `disclosure_mutants.py` and no `tasks_mutants.py
 session and survive as a sentence in a closed ticket's `established_by` field — so the claim that
 these two rows *can* fail is today exactly as durable as the comment in #132, which is the
 finding about a claim that survived every grep because nothing read it. Filed as `tasks/105`.
+
+---
+
+## 142. The flag gate covered the position a reader ignores and not the one a reader copies, and the obvious widening is 8 false positives against 0 true
+
+`docstat.py --sweep` checks that every flag a document names resolves to a real `argparse`
+somewhere in `eval/`. It is the gate against a phantom flag — a document confidently instructing
+someone to run something that does not exist.
+
+It required **backticks**. So it read this:
+
+> Pass `-⁠-no-such-flag` to `judge/runner.py`.
+
+and never read this:
+
+    python3 judge/runner.py -⁠-no-such-flag
+
+**The second is the usage block, and the usage block is the text a reader copies and pastes.** The
+first is a prose mention a reader skims. The gate covered the low-damage position, missed the
+high-damage one, and read clean throughout — there was no fence exemption to notice, because a
+*backticked* flag inside a fence was caught. Only bare ones were invisible, and bare is how a
+command line is written.
+
+Reproduced at the pre-repair tree before anything changed (rule 14), with the tool and the corpus
+both held at that commit: baseline exit **0**; a bare `python3 judge/runner.py -⁠-no-such-flag-bare1`
+in a fenced block in `eval/judge/JUDGING.md` exit **0**; the same flag backticked in the same
+fence exit **1**. After the repair the middle reading is **1**.
+
+### The widening that looks obvious is the open-class failure again
+
+The repair a reader reaches for first is *trigger on the `--` token*. Measured over the live
+167-document reference corpus:
+
+| trigger | hits | true positives |
+|---|---|---|
+| any bare flag on any fenced line | **8** | **0** |
+| the same, extended to prose as well | 2 | 0 |
+| **shipped**: a flag after the name of a script this repo owns, on a fenced line, cut at the first shell operator | **0** | — |
+
+The 8 are `git merge --no-ff`, `cargo doc --open`, `Godot --path`, `vale --config`, `npx --yes`
+and the `claude` CLI's `--output-format`. Every one is a correct line in a correct document. This
+is the third time this project has measured the same shape — a trigger drawn from an open class
+turning correct input red — after the aspect-census quantifier (#140) and the `LOCK_HINTS`
+phrasing list (#30). **The closed class here is "a script this repository owns", and it is derived
+from the code rather than enumerated**: the same `eval/` glob for files containing `add_argument`
+that the existing half already walked.
+
+> **A trigger's generality is not the thing to optimise. Its false-positive count on the live
+> corpus is.** The general version fires on every tool in the world; the specific one fires on
+> ours, which is the only population the gate can adjudicate.
+
+### The number that keeps the 0 honest
+
+**A 0 with no population behind it is `total=0 passed=0`.** The shipped trigger reads **56 fenced
+lines naming our scripts and 31 in-scope tokens** — 30 resolving to our own argparse, 1
+known-foreign. The sweep's summary line now prints that population beside the result, so
+0-of-31-examined can never again be read the same way as 0-of-0.
+
+### Two things found in the building that the ticket did not ask for
+
+- **A green pin that passed for the wrong reason, found by a mutant and not by reading.** The
+  out-of-scope prose pin was first written as `Pass -⁠-no-such-flag-prose to judge/runner.py` —
+  flag *before* the script name, a position the check never reads in any configuration. The
+  mutant that removes the fence requirement sailed straight through the pin written to catch it.
+  This is rule 15's point sharpened: **a green pin is an assertion about the input as much as
+  about the check**, and only a mutant can tell you the input was never exercising it.
+- **`--output-format` was a latent false positive of the *existing* half**, kept quiet by the
+  shape of a mention rather than by anything being right. It is the `claude` CLI's flag, named
+  in two documents, and both wrote it **bare** — which the backticked half could not see. The
+  first live document to backtick it turned the sweep red. Same shape as the `--wildcards` entry
+  already beside it in `FOREIGN_FLAG_PREFIXES`.
+
+**The examples above are written with a word-joiner between the two dashes**, because this finding's own illustrations turned the sweep red the moment it was written — the new check firing on the document describing it, before the commit. That is the gate working, and it is also a real cost: a document cannot quote a phantom flag as an example without either an escape or an exemption. The escape was chosen; an exemption list is the fail-open channel rule 7 names.
+
+Cost: the sweep goes 10.05s → 10.43s. Pinned by `_bare_flag_pins()`, which runs inside `--sweep`
+every time rather than behind a flag someone must remember: 6 red cases, 9 green, and four mutants
+of the implementation — drop the fence rule, drop the shell-operator cut, delete backticked spans
+instead of blanking them, disable the check — all four caught.

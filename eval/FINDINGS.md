@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#141 from building and running this evaluator. **Check whether a
+Findings #19-#142 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -217,6 +217,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **139** | Repairing the play-bot reordered the field a proposed scalar ranked, so the scalar was measuring the bot | [certifies-nothing](findings/certifies-nothing.md) |
 | **140** | The census gate could catch only the wordings of the two documents it was built from — 4 of 15 planted censuses, 0 of the 11 nobody had in front of them — and the obvious widening turns 27 correct lines red with no true positive among them | [certifies-nothing](findings/certifies-nothing.md) |
 | **141** | The queue lint validated the frontmatter and never read the body, so a wrong filename that MISSED was caught and the same mistake that HIT an existing ticket was certified well-formed | [certifies-nothing](findings/certifies-nothing.md) |
+| **142** | The flag gate covered the position a reader ignores and not the one a reader copies, and the obvious widening is 8 false positives against 0 true | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
