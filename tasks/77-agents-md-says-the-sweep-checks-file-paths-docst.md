@@ -1,10 +1,11 @@
 ---
 id: 77
 title: AGENTS.md says the sweep checks file paths; docstat.py says NO PATH CHECK
-status: in_flight
+status: done
 priority: 3
 refs: AGENTS.md, eval/tools/docstat.py, .claude/skills/audit-docs/SKILL.md
 done_when: AGENTS.md no longer claims a path check that docstat.py does not implement - either the sentence is corrected to name what the sweep actually covers, or the path check is reinstated with the positive control the earlier measurement lacked. Verify by grepping both files and quoting the two lines side by side.
+established_by: 'AGENTS.md:214-221 no longer claims a path or criterion-id check. Measured, not read: phantom path and two phantom criterion ids planted in eval/judge/JUDGING.md both read exit 0; phantom aspect and phantom flag planted in the same position read exit 1, so the greens mean no check rather than no reader. Path check NOT reinstated - docstat.py and audit-docs/SKILL.md both record its removal as 0 true positives, 2 false. Dead _criterion_ids() deleted (defined once, called nowhere). Second defect found and fixed: the flag check had no deliberately-fake exemption, so a correct document describing a planted phantom flag turned the sweep red; now line-scoped, sharing one _DELIBERATELY_FAKE constant with the aspect check, pinned red and green in both directions. Prediction corrected by control: the flag check is backtick-gated, so a bare flag in a fenced usage block is invisible - filed as task 89. Gates unpiped: sweep 0, selftest 0, withdrawn_control 54/54 exit 0, tasks check 0. Branch task-77-sweep-path-claim, commit eb805d1.'
 ---
 
 AGENTS.md:215 states the mechanical sweep covers 'aspect ids, criterion ids, --flags and file paths across every doc'. eval/tools/docstat.py:1597 reads '# NO PATH CHECK.' and records why it was removed: 0 true positives, 2 false. Both re-read from source 2026-08-23 under task 39. This is failure #38 running backwards: the always-loaded file names a gate that does not exist, so a reader believes the phantom-path class is covered when nothing checks it. It is also one of only two certain contradictions found in a full read of the four always-loaded docs plus all nine skills, which matters because arXiv:2510.14842 identifies conflict between instructions, not their number, as the mechanism behind compliance decay.

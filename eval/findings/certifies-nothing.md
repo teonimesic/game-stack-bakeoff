@@ -3441,3 +3441,44 @@ Only one of the five saturated groups was re-driven. `wg-audio48` and `wg-audio`
 gone, so the pong and Tetris groups were read from stored records and not probed with new
 criteria. The claim *"harder criteria of the same kind do not separate"* is measured on
 `g4_platformer` with n=8 and inferred elsewhere.
+
+## 130. "The hook never blocked" and "the hook never ran" are the same artifact, and the guard was verified from file presence
+
+Three of the four starter guides never mentioned the Stop hook that re-runs the gate when an
+agent tries to finish. The hook itself is wired identically in all four `.claude/settings.json`,
+and `wholegame.py` passes `--setting-sources project`, which is what loads them.
+
+The ticket asked for the exposure to be measured. **The measurement is a null, and the reason is
+worth more than the null.** Across the 12 trials with a stored starter baseline that reached a
+stop, the gate blocked **0 times in both arms** — 0/4 rust, 0/8 the other three. Every block in
+the whole archive, 19 transcripts, is dated 2026-08-11 or 2026-08-12.
+
+A null with no variance cannot be read as "the sentence does not matter". So the question becomes
+whether the hook was running at all, and that is where the shape is:
+
+| arm | hook | transcript |
+|---|---|---|
+| A | blocks | `Stop hook feedback:` present, agent complied |
+| B | same wiring, exits 0 | **nothing** |
+
+> **A hook that passes and a hook that never ran leave the same artifact — none.** So "no block"
+> is not evidence the gate was live, and a run's silence cannot distinguish the two.
+
+Task 67 had recorded that *"the hook is live in all four"*. That rested on the file being present
+and wired — which is **rule 2**, inferring a process's state from an artifact's state, in a claim
+made while repairing a different instance of the same class. Two live probe arms at the CLI
+version every stored transcript records, costing $0.03, are what actually established that
+`--setting-sources project` honours a project Stop hook.
+
+**The extraction was proved before the census**, on a trial known in advance to carry exactly two
+blocks — and the naive grep was rejected because another trial `cat`s the hook file, putting the
+reason text into a `tool_result` where it means the opposite.
+
+The durable check keys on **the wired event**, not the word "Stop": every hook event wired in
+every starter's `settings.json` must be named in every guide. Red before the repair naming
+exactly the three guides, green after.
+
+**One of its own controls failed on first run** because its substitution never matched anything —
+so that control had been passing for the wrong reason. It was repaired rather than relaxed, which
+is the distinction that matters: a control that cannot fail is not evidence, and the fix is to
+make it able to, not to accept its green.
