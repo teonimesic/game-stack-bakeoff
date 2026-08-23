@@ -32,10 +32,16 @@ have a within-cell gap at all, under **one** `terminal_reason`. Per group:
 THE THING THIS TOOL FOUND ON ITS FIRST RUN
 ------------------------------------------
 `README.md` introduced the ratio as *"on the one measure taken on all four stacks at
-once"*. There are **7** such groups in the stored tree, and 42% is the lowest of them; in
-6 of 7 the between-stack range is **larger** than the within-cell floor. The figure was
-reproduced to the cent and its scope was wrong, which is the failure a producer exists to
-make visible in one command rather than in a re-derivation nobody performs.
+once"*. There are **7** such groups in the stored tree, and 42% is the lowest of them; the
+seven run 42% to 254%, and in **5 of 7** the between-stack range is **larger** than the
+within-cell floor. The figure was reproduced to the cent and its scope was wrong, which is
+the failure a producer exists to make visible in one command rather than in a re-derivation
+nobody performs.
+
+That sentence read *"6 of 7"* until it was checked against the tool's own output, which is
+this docstring committing the error it documents: one group sits at **96%**, below the line,
+and eyeballing a rendered table is not running the producer. Any figure here that the tool
+prints must be read from the tool.
 
 WHAT WOULD MAKE THIS TOOL LIE
 -----------------------------
