@@ -750,7 +750,7 @@ class PlatformerBot(Bot):
         `enemy.damages_player`, `invuln.window`, `knockback.applied` and
         `gameover.triggers` went red with "0 player_hit events over 4097 ticks" (task 76).
 
-        The third copy, `_approach`, was **never called**, and that is FINDINGS #135. It
+        The third copy, `_approach`, was **never called**, and that is FINDINGS #136. It
         is defined in five of the six commits that have ever touched this file and no
         tree at any of them contains a CALL SITE - `self._approach(` - only the `def`
         line and comments naming it. Say it that way rather than "the string does not

@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | Current status and where things live |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#135, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#136, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -243,6 +243,29 @@ The same shape runs through the others. "Two bad signals corroborate each other"
 two; four agreed and were all wrong (#37). `LOCK_HINTS` enumerated the phrasings of an
 *external* lock holder and could never match an internal one (#30). A rule stated as its
 instances is a rule that fails on the first instance you did not have when you wrote it.
+
+**Which property is itself a measurement, and the first one you reach for may be all false
+positives.** Task 92 is the first time this rule fired against **code** — a regex rather than a
+sentence — and the repair showed the rule under-specified, because more than one property fits.
+For `docstat.py`'s aspect-census trigger the obvious one was the QUANTIFIER: a cardinal, or
+`all`/`every`/`each`, governing `aspects`. It turned **26 correct live lines red with no true
+positive among them**, while catching only 10 of 14 planted censuses (task 92). That is not one
+unlucky regex: an independently rebuilt quantifier trigger of the same shape, run 2026-08-23
+over the 53 live documents of a 162-document sweep, lands on **31 red lines, again with no true
+positive**, and gets **12 of the 28 shipped pins wrong** — 6 real censuses missed, 6 correct
+corpus lines reddened. The count grew with the corpus, which is what an open-class trigger does.
+**The three-wording enumeration it was replacing produced 0 false positives** — so the obvious
+property was strictly worse than the list it was meant to fix. The shipped PREDICATE — existence,
+identity or definition, present tense, with the list adjacent — is at **0** false positives and
+**0 of 28** pins wrong, which `python3 eval/tools/docstat.py --sweep` re-runs every time.
+
+> **Prefer a property that is a CLOSED class, and choose between candidates on the live-corpus
+> false-positive count, never on which one sounds more general.** Copula, existential *there
+> are* and `define` are closed classes of English; the verb phrases the original enumerated are
+> open, and so is what a counted plural can be doing in a sentence. **A property drawn from an
+> open class is an enumeration in disguise** — it fails later rather than sooner, and by then it
+> is firing on correct input, which is how a gate gets disabled. The derivation is in
+> `DECISIONS.md`, the census-trigger section.
 
 **When writing the next rule, state what it protects, not what went wrong last time.**
 
@@ -482,14 +505,21 @@ Two refinements that pattern does not cover:
       `agent.final_text` is the **last 3000 characters** and 43 of the 90 stored messages are
       longer. One run's disclosure sits at character 0 of 3912.
     - It is a **locator, not a classifier**: it prints the agent's sentences, and `quiet`
-      means no cue matched, not that the trial disclosed nothing. It finds 26 of 75 against a
-      hand-classified 31 (`eval/RUNS.md`).
+      means no cue matched, not that the trial disclosed nothing.
+    - **It answers two questions and keeps two counts.** *What the agent could not verify
+      about its own work*: 25 of 75 located against a hand-classified 31 (`eval/RUNS.md`).
+      *What arrived broken in the starter it was given*: 15 of 75 against a hand-classified
+      18 (`eval/tools/disclosure.py`'s docstring). **Never pool them** — they have different
+      denominators, and pooling them put one starter-only row inside the first figure, so
+      three documents said 26 where the comparable number is 25 (`tasks/94`).
     - **`no message` is a third value.** 15 of 90 stored messages are `null` or hold the API's
       own limit string; anything testing for non-empty scores an error as a closing report.
 
     Its first pass over the stored corpus found four Rust agents in three runs reporting the
     same broken starter recipe, which nothing had noticed in ten days of evidence
-    (`tasks/81`).
+    (`tasks/81`). **It was 12 across five runs**, and the gap was the cue set, not the
+    corpus: 8 of the 12 phrase the defect as the repair rather than as the complaint, and
+    the cue could only match the complaint (`tasks/94`).
 
 12. **Every rule here says HOW to check. None says WHERE.** A correct method pointed at the
     wrong place produces a confident answer: `runstat.py` obeyed `-mmin, never -newermt`

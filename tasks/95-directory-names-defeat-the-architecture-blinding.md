@@ -1,7 +1,7 @@
 ---
 id: 95
 title: 'Directory names defeat the architecture blinding the way extensions did: 1,561 arm-naming path segments survive in the 8 stored blind packs'
-status: open
+status: in_flight
 priority: 2
 refs: eval/judge/field.py blind_extensions, eval/judge/anonymise.py _bucket, tasks/87
 done_when: a decision is recorded for CHANGED.txt - mapped through the manifest, or dropped for blind aspects, or rewritten - with the measurement that chose it; any rewrite applies only where blind_language is true, pinned by a mutant AND a variant proving a non-blind pack is byte-unchanged; and a re-sweep reports the surviving count per arm-naming segment rather than a single total

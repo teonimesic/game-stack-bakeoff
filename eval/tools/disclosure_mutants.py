@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Six mutants of `disclosure.py`, each removing one mechanism its selftest names.
+"""Ten mutants of `disclosure.py`, each removing one mechanism its selftest names.
 
 `disclosure.py --selftest` mutates its own cue LIST in process, which cannot reach the
 helper patterns the cues are built from, nor the line that chooses which field to read.
@@ -18,13 +18,21 @@ because a documented row disagreed:
 | `limit` | recognising the API's own limit string | 2 aborted trials scored as having written a quiet closing report |
 | `tail` | reading `.result` whole instead of its last 3000 characters | `wg-arena3d` `rust__t1`, whose disclosure is at character 0 of 3912 |
 | `nobody` | the verb list after "nobody has" | 2 game descriptions read as disclosures |
-| `starter` | the whole starter-arrived-broken family | #98's own two Godot rows |
+| `starter` | the `starter` cue | #98's own two Godot rows, and both `wg-matrix` Pong Rust rows |
+| `recipe_red` | the recipe-did-not-work cue | its variant; it locates no corpus row the other two miss |
+| `given_fix` | the repair-phrased-as-a-fix cue | `wg-audio` `g1_pong__unity__t0`, which no other family reaches |
+| `not_a_report` | the guard separating breakage from documented behaviour | 3 corpus rows and 4 variants go loud, incl. the row that says the refusal is "not a defect to repair" |
+| `family_split` | telling the two families apart at all | `archive-arena2d` `rust__t0`'s starter passage lands in the unverified-own-work count |
+
+The last two exist because their loss makes the instrument look **healthier**: a dead guard
+and a pooled count both raise the located figure, and nothing that merely asks "does the
+family still find what it should" can see either.
 
     python3 eval/tools/disclosure_mutants.py                   # against eval/runs/
     python3 eval/tools/disclosure_mutants.py --runs-dir PATH   # against another corpus
 
-A missing corpus exits 2. These mutants are not meaningful against fixtures alone: four of
-the six are caught only by a real stored message.
+A missing corpus exits 2. These mutants are not meaningful against fixtures alone: six of
+the ten are caught only by a real stored message.
 """
 
 from __future__ import annotations
@@ -74,6 +82,28 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '    ("starter_removed", re.compile(\n'
         '        r"MATCHES NOTHING AT ALL EVER")),\n'
         '    ("starter_unreachable", re.compile('),
+    "recipe_red": (
+        '    ("recipe_red", re.compile(',
+        '    ("recipe_red_removed", re.compile(\n'
+        '        r"MATCHES NOTHING AT ALL EVER")),\n'
+        '    ("recipe_red_unreachable", re.compile('),
+    "given_fix": (
+        '    ("given_fix", re.compile(',
+        '    ("given_fix_removed", re.compile(\n'
+        '        r"MATCHES NOTHING AT ALL EVER")),\n'
+        '    ("given_fix_unreachable", re.compile('),
+    # The guard is the only thing separating "the starter arrived broken" from "the
+    # starter documents this as not a defect", and its loss is invisible to any check
+    # that only asks whether the family still finds what it should.
+    "not_a_report": (
+        'NOT_A_REPORT = re.compile(\n',
+        'NOT_A_REPORT = re.compile(  # mutated\n'
+        '    r"MATCHES NOTHING AT ALL EVER") or re.compile(\n'),
+    # The two families share a `passages()` call and are told apart only here. Pooling
+    # them is the defect tasks/94 repaired, and it reads as a larger, healthier number.
+    "family_split": (
+        "STARTER_FAMILY = frozenset(name for name, _ in STARTER_CUES)",
+        "STARTER_FAMILY = frozenset()"),
 }
 
 

@@ -2167,7 +2167,7 @@ The gap-crossing code written for the wrong hypothesis is kept: it establishes t
 needs it. But it is **not** what fixed this, and it fixed nothing on its own — measured, the
 re-grade with gap-crossing alone left `ts__t0` byte-identical at 0.793.
 
-> **That last sentence is not evidence, and #135 is why.** At the commit this finding was
+> **That last sentence is not evidence, and #136 is why.** At the commit this finding was
 > published from, the gap-crossing code sat entirely inside `_approach` — a method with no
 > caller — and `_edge_distance` measures **0 calls** across a full session there. Byte-identical
 > was the only obtainable result. The height fix in `_nearest` is live (391 and 1796 calls) and
@@ -2187,7 +2187,7 @@ visible once the one before it was removed:
 | 4 | the jump fired **too early** | at `_EDGE_JUMP_WITHIN = 48` the bot left the ground 48 units before a 78.5-unit gap and landed in it; at 24, 12 and 6 it crossed with **full health** | threshold → 20 |
 | 5 | `_combat` is a **second** movement loop | `_approach` got the fix; `attack.damages` did not move **at all** — byte-identical evidence — because `_combat` re-implements "walk toward the target" inline | same edge logic added |
 
-> **Row 5's repair was right and its stated cause was wrong — #135.** `_approach` had no caller
+> **Row 5's repair was right and its stated cause was wrong — #136.** `_approach` had no caller
 > in any commit that ever contained it (0 calls, spied, in a full session; positive controls
 > `_nearest` 391 and `_walk_toward` 390). A repair to it moved nothing whether or not `_combat`
 > re-implemented the loop. **A second copy of a loop and an unreachable copy of a loop are
@@ -3599,9 +3599,51 @@ in a tempdir; the repository's file is never written to.
 The gate proved itself within the hour: merging `main` moved the log from 113 to 114 findings,
 and `--findings` went red on the count this very task had just written.
 
+## 135. A locator answering two questions kept one counter, so a published agreement figure was one too high
+
+`disclosure.py` locates two different things in a trial's closing message: *the agent could not
+verify its own work*, and *the starter it was handed arrived broken*. They are different
+families with different denominators.
+
+**They shared one list and one counter.** So `wg-matrix g2_tetris3d__rust__t1`, located **only**
+by the starter cue, sat inside the figure published as the unverified-work rate — and that figure
+was compared against a hand pass which never covered the starter family at all. The comparable
+number is **25**, not 26. Per stack, only rust moves: 12 to 11.
+
+The figure appeared in three documents. It was not wrong by much, and that is the point: a
+one-unit error inside a rate nobody could decompose is invisible, and it was quoted as evidence
+of agreement between two instruments measuring **different populations**.
+
+> **A locator that answers two questions must keep two counters.** Otherwise its output is a
+> number about a union nobody named, and every comparison against it silently changes what is
+> being compared.
+
+**The under-reporting had a second cause, and it was not vocabulary.** The cue matched the
+*complaint*; **8 of the 12** state the defect as the **repair** — *"`crates/game` gained
+`default-run`"* — which no complaint word appears in. It also required the artifact word to
+precede the breakage inside one window, so `` **`just run` was already broken** in the starter ``
+missed while `` `just run` was broken in the starter `` matched: same defect, same run, two
+trials apart.
+
+The extraction was proved before the census was believed: 12 of the 18 hand-classified rows are
+the Rust subfamily, and that set is **equal** to the 12 a different producer counted
+independently in another task — same five runs, same twelve trial ids.
+
+**Three of eighteen remain unlocated, and the miss is measured rather than asserted.** All three
+are godot agents describing an inherited defect in starter-owned code without ever attributing it
+to the starter. Every draft wide enough to catch them produced false positives, because those
+sentence shapes are identical to an agent describing a bug in code it wrote itself. Named in the
+docstring so the next reader does not re-derive the attempt.
+
+Two of its mutants are worth naming: `not_a_report` and `family_split` both make the instrument
+look **healthier** when removed. A mutant whose absence improves the number is the one most likely
+to survive review.
+
 ---
 
-## 135. The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available
+---
+
+## 136. The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available
 
 `PlatformerBot._approach` existed for five of the six commits that have touched
 `eval/judge/bot_platformer.py`. It was never called from anywhere, in any of them. Two
