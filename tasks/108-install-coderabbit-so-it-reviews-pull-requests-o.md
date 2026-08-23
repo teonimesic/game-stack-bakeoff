@@ -97,3 +97,16 @@ WHAT EACH OUTCOME MEANS
 - **The app is authorised but reviews nothing** — the most useful outcome to investigate. Check
   whether your own exclusions swallowed the PR you opened. That is a live failure mode of step 2
   and the reason step 3 exists.
+
+## Measured at dispatch, 2026-08-23 — the repository is PRIVATE
+
+    gh repo view --json visibility,licenseInfo
+    {"licenseInfo":{"key":"mit","name":"MIT License"},"visibility":"PRIVATE"}
+
+MIT-licensed and private are independent settings, and CodeRabbit's plans distinguish them: its
+free tier is generally aimed at **public** repositories, with private repositories on a paid or
+trial plan. The operator said they have signed up, so a plan may already cover this.
+
+**Do not buy anything and do not start a trial that converts to a charge.** If the review does not
+arrive because the plan does not cover a private repository, that is a complete and useful result:
+say so, name what plan would be needed, and leave the decision to the operator.

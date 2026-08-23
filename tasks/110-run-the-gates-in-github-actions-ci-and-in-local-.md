@@ -129,3 +129,31 @@ WHAT EACH OUTCOME MEANS
   deliberately excluded and recorded is fine; one silently absent is not.
 - **The repository is private and minutes are metered** — report that, and propose the reduced set
   that fits. Do not enable billing.
+
+## Measured at dispatch, 2026-08-23 — the repository is PRIVATE, and the ticket above assumed otherwise
+
+    gh repo view --json visibility,licenseInfo
+    {"licenseInfo":{"key":"mit","name":"MIT License"},"visibility":"PRIVATE"}
+
+**The licence is MIT and the repository is private.** Those are independent settings, and the
+free-tier reasoning above rests on the second, not the first. GitHub Actions is unlimited for
+*public* repositories; a private repository on the Free plan draws on a **metered monthly
+minute allowance** shared across the account.
+
+What this changes:
+
+- **Minutes are a budget.** The 21s sweep plus the seven controls is roughly a minute a run, and
+  a workflow on every push to every agent branch multiplies that by the number of agents. Design
+  for it: `paths-ignore` for `eval/runs/**`, `concurrency` with `cancel-in-progress` so
+  superseded pushes stop, and consider whether every gate needs to run on every push or only on
+  the pull request.
+- **macOS and Windows runners cost a multiple of Linux minutes.** Use `ubuntu-latest` unless you
+  can say why not.
+- **Report the actual allowance before designing around it** rather than trusting this paragraph:
+  `gh api /users/teonimesic/settings/billing/actions` if the token permits it, and say plainly if
+  it does not.
+
+**Making the repository public is NOT yours to decide.** It is outward-facing and irreversible in
+the way that matters — the history contains every run, every cost figure and every finding. If the
+metered budget turns out to be the binding constraint, **say so and say what public would buy**;
+the operator decides.
