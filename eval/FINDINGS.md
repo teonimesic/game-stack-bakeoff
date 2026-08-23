@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#91 from building and running this evaluator. **Check whether a
+Findings #19-#93 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -166,6 +166,8 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **89** | `knockback.applied` scored a deliberate design branch as an absent feature | [certifies-nothing](findings/certifies-nothing.md) |
 | **90** | #87's decomposition fixed the number and got the boundary wrong, in the direction that loses evidence | [limits-and-cost](findings/limits-and-cost.md) |
 | **91** | Three of four mutants were inert because the real data never reached the branch they broke | [certifies-nothing](findings/certifies-nothing.md) |
+| **92** | A scored tier that returns the same number for every submission, and the weight in front of it | [certifies-nothing](findings/certifies-nothing.md) |
+| **93** | `suite.json` describes the last thing written into the directory, not the run | [documentation](findings/documentation.md) |
 
 ---
 

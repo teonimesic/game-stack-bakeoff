@@ -658,10 +658,12 @@ existing gates have never touched it.
 
 ---
 
-## Iteration 12: comparing against `game-research-gpt` — PLAN ONLY, not started
+## Iteration 12: comparing against `game-research-gpt` — axis 1 EXECUTED, axes 2-4 open
 
-Task 11. Written before reading anything substantive, so the reading order is fixed in advance
-and cannot be steered by what turns out to be flattering.
+Task 11. The plan below was written before reading anything substantive, so the reading order was
+fixed in advance and could not be steered by what turned out to be flattering. **Axis 1 has now
+been executed and its results are at the end of this section.** The plan is left standing rather
+than rewritten; one thing in it turned out to be wrong and is marked where it appears.
 
 ### What is actually there (measured, not assumed)
 
@@ -723,7 +725,93 @@ that theirs does not, because assuming the other side is ahead is how a regressi
   cannot be verified by re-grading — it is a process change, so it must name a finding here that
   n=1 produced and replication would have caught. #53 and #76 are both candidates.
 
-### Not started
+### Where the plan was wrong
 
-This is the plan only. **Do not begin until it is agreed** — 30G and 194K files is precisely the
-kind of surface where an unplanned start reads a lot and concludes nothing.
+> *"Their `template/` is single-stack Godot ... so they compare two engines deeply."*
+
+**Half right, and the half that is wrong matters.** `docs/RESEARCH_SYNTHESIS.md` records a matched
+four-engine study — Godot 4.7.1, Defold 1.13.0, Bevy 0.19.0 and Unity 6000.0.45f1, 16 fresh agents,
+four task contracts. That is **the same four-way shape as this project** on three of four stacks
+(they run Defold where this project runs TypeScript). So it is a closer comparator than the plan
+assumed, and the "a structure can be better for theirs and wrong for ours" discount applies less
+than expected. Their *template* is single-stack; their *study* is not.
+
+---
+
+## Axis 1 executed — `docs/adr/`, `RESEARCH_SYNTHESIS.md` vs `DECISIONS.md`, `research/AGENTS.md`
+
+Read in full: their `README.md`, four ADRs, `RESEARCH_SYNTHESIS.md` (301 lines), `research/SOURCES.md`.
+Against: this project's `DECISIONS.md`, `research/AGENTS.md`, `eval/judge/RUBRIC.md`, `JUDGING.md`.
+
+### Verdicts
+
+| # | Their practice | What it replaces here | Verdict |
+|---|---|---|---|
+| 1 | **State which reweightings would change the answer.** Their decision matrix says outright *"increasing 2D/console weight can select Defold; making console/testing dominant can select Unity"* | Nothing. `overall = 0.31*tier1 + 0.69*tier2` is quoted in four documents and derived in none | **ADOPT — verified, and it paid immediately.** `judge/weight_sensitivity.py` built and run over 68 stored trials. FLIPS=0: no stored ordering depends on the weight. But 7 of 10 groups are UNIDENTIFIABLE — tier 1 returns ONE value across the whole group. **FINDINGS #92**, task 27 filed |
+| 2 | **An immutable frozen record of what was evaluated** — `template-v3-{tree.json,source.tar.gz}` plus a protocol hash retained pre-outcome | `suite.json`, which a partial re-run overwrites | **ADOPT the property, not their mechanism — verified.** Asking the question found 3 of 18 stored runs whose manifest describes a different run; `wg-audio48`'s names a game with zero reports in its own directory. **FINDINGS #93**, task 28 filed |
+| 3 | **Hard gates applied BEFORE scoring** — an option that fails a gate is not scored low, it is not scored | Tier 1 is inside the weighted score. It behaves as a gate (catches 0.0 and 0.857 outright failures) while being weighted as a discriminator | **OPEN — folded into task 27 as option (b).** Genuinely better *if* tier 1 is a gate, which #92 argues. Not adopted from this task because it is a rubric change needing mutants, not a doc edit |
+| 4 | **Reversal conditions on every decision.** Each ADR ends with what would re-open it | Partial. `DECISIONS.md` states them for tier 3's weight and the code-aspect bar; most table rows have none | **ADOPT, narrow scope — unverifiable as a benefit, and labelled so.** Cannot name a finding it would have prevented, so it is a taste change dressed as rigour if claimed otherwise. Adopted only where a decision rests on a measurement that could move. See below |
+| 5 | **Source-kind taxonomy** — vendor fact / paper result / repository snapshot / project judgment, over a 301-URL manifest with SHA-256 of local copies | `research/AGENTS.md`: date it, source it, label unverified as unverified | **REJECT for the binary rule, ADOPT the taxonomy — OPEN on verification.** "Unverified" is binary; the failure mode is a *sourced* claim whose source is a vendor page treated as a measurement. `research/DECISION.md` got two eliminations wrong on the facts. Whether the taxonomy would have caught those is not established, so filing it would be asserting a benefit — left open |
+| 6 | **Byte-for-byte preservation of the superseded synthesis** as a separate frozen file | `DECISIONS.md` replaces superseded content; git holds the history | **REJECT — mechanism-level reason.** `game-research-gpt` **is not a git repository** (verified: no `.git`). A frozen copy is their only history mechanism. Importing it here would add a second, manually-maintained history beside the one that already works |
+| 7 | **Cohen's κ for inter-reviewer agreement** (κ≈0.643, 19/20) | Wilson-interval pair resolution (`JUDGING.md`), spread and instability figures | **REJECT.** κ answers "do two raters agree beyond chance"; this project's question is "has this pair resolved", which the Wilson protocol answers directly. Worse, κ over 2 raters × 20 binary decisions would here be computed over a ranking of 8 — a different object |
+
+### Both ways — what this project does that they do not
+
+Required by the plan, and not a courtesy. Three of these are load-bearing.
+
+1. **They publish a four-engine ordering from n=1 per cell; this project refuses to.** Their
+   `RESEARCH_SYNTHESIS.md` reports Godot 0.7875 > Defold 0.7500 > Bevy 0.5625 > Unity 0.5125 and
+   says it "strengthens" the Godot default, while itself noting "each cell is only one stochastic
+   run, each task has only one reviewer". `DECISIONS.md` bars the deterministic tiers from ranking
+   stacks **at any gap**, on the measurement that 0 of 380 within-cell verdicts differ. Their
+   caveat is a sentence beside the number; this project's is a prohibition on producing it.
+
+2. **They disclose a one-arm gate defect and leave the affected scores in the headline mean.**
+   Three non-Godot network cells "implemented credible independent loopback peers" but supplied
+   `observations.independent_processes` as a Boolean or under a different key, so the frozen gate
+   failed them. They say plainly this is "evidence about fresh-agent success under this contract,
+   not a claim that those engines lack networking capability" — and the failed cells still sit in
+   the mean that supports Godot. This project's handling of the identical shape (#49, `wg-arena3d`)
+   was to declare the comparison **void** in `eval/RUNS.md`. Disclosure is not correction, and a
+   defect that fires on the non-default arms of a study whose conclusion is the default arm is the
+   one-arm-bias pattern this repo keeps a whole findings file for.
+
+3. **Their weighted matrix scores are self-assigned judgments by the party that chose the weights
+   and had a preferred answer**, on a 1–5 scale, decided by 4.10 vs 4.05 vs 4.05. Fixing weights
+   before the spikes is real discipline and they did it; it does not constrain the scores. A
+   0.05 margin on self-rated integers is the kind of gap this project's instrument is explicitly
+   documented as unable to resolve.
+
+4. **No mutant discipline.** Nothing in their readable surface asks whether a passing check *could*
+   fail. `judge/bot_mutants.py` runs both halves — a mutant that reddens a criterion and a variant
+   that keeps it green — and rule 15 exists because the mutant half alone missed 21 false
+   negatives.
+
+5. **No retraction log.** `eval/FINDINGS.md` keeps published-then-wrong numbers marked because
+   someone may have acted on them. Their equivalent is a "disclosed revisions" directory, which
+   is close, but their synthesis states current numbers without marking which superseded a
+   published one.
+
+Set against that: their **replication discipline** (`-v1`/`-v2` confirmation runs, `-v3`) remains
+the thing this project most conspicuously lacks, exactly as the plan predicted. Every finding here
+is n=1 on its own question. That is axis-3 work and is not settled by axis 1.
+
+### What was adopted, concretely
+
+- `eval/judge/weight_sensitivity.py` — new, offline, free, `--selftest` with 12 checks including a
+  positive control that finds a constructed crossover and a regression guard for a false-alarm bug
+  the tool had on its first run.
+- **A rule, `AGENTS.md` #16:** a weighted result must state what reweighting would change it, and
+  a weight that cannot change anything is reporting that its tier has no variance. Placed in the
+  root rules rather than `research/AGENTS.md` because it protects any published aggregate, not
+  just the briefs — and it is paid for, by #92.
+- **Reversal conditions**, candidate 4, adopted only for decisions resting on a measurement that
+  could move — recorded in `DECISIONS.md` where they apply, and **labelled unverifiable**: no
+  finding here is known to have been caused by their absence.
+
+### Axes 2-4: NOT started
+
+Next agent starts at axis 2 and should read, in order: `~/Documents/heavenstudio/game-research-gpt/template/AGENTS.md`,
+then `template/docs/`, then `scripts/` (4 files), against this project's `template*/AGENTS.md`.
+**Read-only. Never write to that path.** Axis 3 (reporting under uncertainty) is partly pre-empted
+by the both-ways section above. Axis 4 (harness mechanics) now has a concrete lead: task 28.

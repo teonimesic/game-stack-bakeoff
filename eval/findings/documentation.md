@@ -375,3 +375,86 @@ scope, one level down.
 is needed is not whether you can imagine using it, but whether its absence would be recoverable.
 `run` and `files_opened` were each cheap to add and each answered a question nobody had when they
 were added. Neither would have been recoverable from the conclusion alone.
+
+---
+
+## 93. `suite.json` describes the last thing written into the directory, not the run
+
+Found while executing task 11. `game-research-gpt` freezes its evaluated template as
+`evaluation/baselines/template-v3-{tree.json,source.tar.gz}` and retains a protocol hash
+recorded before the earliest completed outcome. Asking the same question here — *what is
+this project's immutable record of what a stored run was configured to be?* — the answer is
+`suite.json`, and it is not immutable.
+
+### The measurement
+
+Comparing each run's `suite.json` against the reports actually on disk, over all 18 stored
+run directories:
+
+| run | manifest says | on disk |
+|---|---|---|
+| `wg-matrix-2026-08-13T14-02-50` | 2 stacks x 1 game x 2 = **4 trials** | 4 stacks x 3 games, **24 reports** |
+| `wg-audio48-2026-08-14T19-55-47` | 4 stacks x 1 game (`g3_arena`) x 2 = **8** | 4 stacks x 2 games (`g1_pong`, `g2_tetris3d`), **16 reports** |
+| `wg-audio-2026-08-14T12-29-42` | 4 stacks x 3 games x 2 = **24** | 4 stacks x 2 games, **11 reports** |
+
+Seven of eighteen diverge. Four of those are runs that produced no reports at all, where a
+manifest describing an intent that never completed is defensible. The three above are not.
+
+### The mechanism, and the tell nobody was looking at
+
+A partial re-run launched into an existing run directory **overwrites `suite.json`**. The
+canonical manifest then describes the re-run, and the run it is named for has no manifest
+at all.
+
+Each of the three carries a self-evident tell that no check reads — **the manifest's own
+`started_at` contradicts the directory name it sits in**:
+
+| run directory | `started_at` inside `suite.json` |
+|---|---|
+| `wg-matrix-2026-08-13T14-02-50` | `2026-08-14T00:43:58` |
+| `wg-audio48-2026-08-14T19-55-47` | `2026-08-15T12:52:52` — **a day later** |
+| `wg-audio-2026-08-14T12-29-42` | `2026-08-14T15:29:43` |
+
+`wg-audio48` is the worst of the three: its `suite.json` names `g3_arena`, a game with
+**zero reports in that directory**. A reader establishing that run's configuration from its
+manifest would get the games wrong, the trial count wrong, and the date wrong.
+
+### What is NOT affected, stated so it is not re-litigated
+
+**#68 stands.** `DECISIONS.md` records it as verified against `wg-audio48` by matching
+stored telemetry values — 7 of 7 `quiet_fraction_of_run` and 4 of 4 `events_per_second`
+figures. That verification read per-trial telemetry, never `suite.json`, so the manifest
+defect cannot touch it. This is the 2026-08-22 fingerprint check paying for itself a second
+time, against a defect it was not built for.
+
+Two of the three directories also retain the real manifest under another name
+(`wg-audio48/suite-full-matrix.json`) or a prose note (`wg-matrix/rerun-note.json`, which
+documents the four re-run trials honestly and completely). **Someone noticed, twice, and
+rescued the content into a file with a non-canonical name** — while leaving the name every
+tool reads pointing at the wrong thing.
+
+### The rule existed and could not fire
+
+#86 added per-round provenance for judge rounds. The pack builder writes
+`files_dropped_for_length` into every manifest. And #77 states the principle outright:
+
+> The stored manifest of the original build is the only record of what the filter decided
+> when it was still correct, which is a reason to keep manifests rather than just scores.
+
+That is exactly this defect, written down before it was found here. It did not fire because
+its trigger names **judge packs** — the artifact whose manifest was being discussed at the
+time. Run manifests are the same object under a different name, and the rule reads as though
+it is about something else.
+
+This is the `AGENTS.md` meta-rule with a third instance: *a rule whose trigger is written in
+the vocabulary of the incident that produced it must be re-derived by every reader who meets
+an item not on the list.* The protected property is **any durable record of what a
+measurement was configured to be**, not the two artifact types that happened to have one.
+
+### What would have caught it
+
+An equality assertion between the manifest and the directory, of the kind #60 argues for:
+the address is an input to the check, and here the manifest and the artifacts are two
+spellings of the same run that nothing asserts equal. Filed as a task rather than fixed
+here, because writing run manifests is harness behaviour and a bad repair to it is worse
+than the defect.
