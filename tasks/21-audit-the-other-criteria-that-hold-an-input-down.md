@@ -1,7 +1,7 @@
 ---
 id: 21
 title: Audit the other criteria that hold an input down while moving
-status: open
+status: in_flight
 priority: 2
 refs: eval/FINDINGS.md #84, eval/judge/bot_arena.py, eval/judge/bot_tetris3d.py
 done_when: for each of the two candidates, either a submission is shown to be penalised by the held input and the bot is fixed, or the input is shown not to restrict movement in any stored submission and the candidate is cleared with that measurement
