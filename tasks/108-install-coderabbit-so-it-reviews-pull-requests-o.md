@@ -1,7 +1,7 @@
 ---
 id: 108
 title: Install CodeRabbit so it reviews pull requests on this repository
-status: open
+status: in_flight
 priority: 1
 refs: .coderabbit.yaml (does not exist yet), .github/ (does not exist yet), https://github.com/teonimesic/game-stack-bakeoff, .claude/skills/work/SKILL.md, .claude/skills/dispatch/SKILL.md
 done_when: a real pull request on this repository has received a CodeRabbit review and the review comment is quoted in the report; .coderabbit.yaml is committed and its settings are justified against what this repository actually is; and the exact steps a human must perform outside the repository are written down in the ticket, distinguished from what was done inside it
