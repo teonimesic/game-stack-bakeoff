@@ -1,7 +1,8 @@
 ---
+established_by: Whitespace-only re-indent of AGENTS.md rules 10-16 from 3-space to 4-space continuation (55 lines). Verified with two independent CommonMark parsers (remark/mdast and markdown-it): before, 5 root-level detached paragraphs at lines 397, 419, 439, 455, 459, and the rules list fragmented into 5 separate ordered lists; after, 0 detached blocks and rules 6-16 form one 11-item list with the 5 paragraphs back inside rules 10, 13, 15 and 16. git diff --ignore-all-space is empty and stripped-line content is identical, so no wording changed. Repo-wide scan of 117 markdown files found no other ordered list reaching double digits with an under-indented continuation; AGENTS.md was the only affected file. Committed on branch task-36-reindent-rules.
 id: 36
 title: Re-indent AGENTS.md rules 10-16 so their paragraphs stay inside the rule
-status: open
+status: done
 priority: 3
 refs: research/11-doc-linting-for-agents.md
 done_when: the list-continuation scan reports 0 detached paragraphs in AGENTS.md, and round-tripping AGENTS.md through remark emits no top-level paragraph between numbered rules; if re-indenting turns out to change nothing a parser can see, record that and close

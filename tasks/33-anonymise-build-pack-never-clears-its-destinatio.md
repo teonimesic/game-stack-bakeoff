@@ -1,7 +1,7 @@
 ---
 id: 33
 title: anonymise.build_pack never clears its destination, so judge packs accumulate earlier passes
-status: open
+status: in_flight
 priority: 2
 refs: eval/judge/anonymise.py build_pack, eval/judge/field.py build_pack, eval/FINDINGS.md #95 #62 #83
 done_when: anonymise.build_pack leaves a destination containing exactly the files its own manifest lists, for every submission of at least two runs, verified by set equality against the manifest and not by an exit code; re-running evaluate twice over one submission with a changed exclusion set leaves no file from the first pass, pinned by a fixture that fails before the fix; the completeness gate reads the pack that is on disk rather than anonymise's input counts, so a stale file is a gate failure and not an invisible one; and the 23 stale files already on disk in wg-g4c are either removed with the run re-packed, or wg-g4c is marked in eval/RUNS.md as carrying them with the per-stack counts stated

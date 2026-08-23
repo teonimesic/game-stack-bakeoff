@@ -1,7 +1,7 @@
 ---
 id: 35
 title: Quote the five SKILL.md frontmatter values so external tools can parse them
-status: open
+status: in_flight
 priority: 2
 refs: research/11-doc-linting-for-agents.md, tasks/27
 done_when: claude plugin validate --strict over a wrapper containing .claude/skills reports 0 frontmatter errors, and python3 -c yaml.safe_load parses all 7 files; if the quoting turns out to change how Claude Code itself discovers a skill, revert and record that instead

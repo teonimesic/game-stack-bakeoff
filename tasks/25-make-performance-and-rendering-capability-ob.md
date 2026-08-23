@@ -1,6 +1,6 @@
 ---
 id: 25
-status: open
+status: in_flight
 priority: 2
 title: Make performance and rendering capability observable at all
 refs: eval/starters/_shared/, eval/judge/, blocks task 26
