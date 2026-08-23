@@ -37,3 +37,36 @@ a comparability note for `eval/RUNS.md`, not just a code fix.
 **Token counts and wall clock are NOT the target of this ticket.** They are real, they are the
 only per-trial resource numbers the harness has, and they are how output gets weighed against
 resource used. Renaming the unit must not become deleting the measurement.
+
+## note 2026-08-23
+
+## Updated 2026-08-23 — a new producer landed that prints dollars, and two documents were already corrected
+
+**`eval/tools/cost_census.py` now exists** (task 123, PR #9) and prints the cost figures with a
+`$`. It is the producer this project asked for and it is **also an instance of what this ticket is
+about**: it reports a list-price valuation of token counts in a unit that reads as money. Include
+it in the sweep. Its `--selftest` states expected values as literals and 21 mutants pin it, so
+changing what it prints means updating both.
+
+**Two documents are already done and must not be re-done:**
+- `README.md` — the result row states token usage, names both #159 and the seven-group scope, and
+  cites the producer.
+- `DECISIONS.md` — the harder-task row no longer cites a spend, and two new sections were added:
+  *"No run is bounded by a money figure"* and *"The cost route is re-opened"*.
+
+**The remaining live documents**, from `grep -c '\$[0-9]'` at the time of filing: `eval/RUNS.md`
+132, `eval/judge/JUDGING.md` 48, `eval/PROTOCOL.md` 28, `eval/AGENTS.md` 9, `AGENTS.md` 3.
+**Re-count before you start** — this tree moves daily and that is the whole lesson of #144.
+
+**`eval/RUNS.md` is the hard one and it is not a find-and-replace.** It is the run ledger: per-run
+figures are what a reader compares runs by. They stay, with the unit named once at the top rather
+than annotated 132 times. A note on every line would be worse than the defect.
+
+**What the unit actually is**, for whatever wording you choose: `sum(modelUsage[*].costUSD)`, which
+the CLI computes from token counts at published API rates regardless of billing. Verified to the
+digit on a stored record. It is a valuation, not a charge, and the token counts underneath it are
+real.
+
+**Do not delete the numbers.** They are the only per-trial resource measure the harness has. #159
+says the unit is wrong, not the measurement — and `DECISIONS.md` now records that tokens and wall
+clock are kept deliberately.
