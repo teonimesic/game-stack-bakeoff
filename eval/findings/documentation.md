@@ -950,3 +950,73 @@ regime ordinals, pack labels (#70) — and **every one of them has collided.** E
 mechanism: a shared queue, a duplicate check, an ordinal check, a ban on joining rounds by label.
 Every one of those catches the collision. **This is the only one that asks what the collision
 broke.**
+
+
+## 119. A withdrawal that was declared in one live document and contradicted in three, all of which resolve
+
+FINDINGS #113 is about a retired FIGURE. This is the same shape one level up: a retired
+CLAIM, withdrawn in the archive on 2026-08-17 and still cited as support in three live
+documents six days later. It is the withdrawal register's first catch, and it was found by
+building the register rather than by anyone reading the documents.
+
+### The measurement
+
+`eval/judge/JUDGING.md` says, under "RESULT after the repairs": **"#54 is withdrawn."** The
+claim was that `architecture` and `ux` — which share no evidence at all, one reading only
+source, the other only frames — ranked the field identically on both presentation orders, so
+their agreement evidenced a shared prior. It rested on tau 1.00 across two orders of one
+round. The repeat gives **0.385** (seed 0, 13 comparable pairs) and **0.667** (seed 1, 12),
+and the redundant pairs the second round finds are different ones that agree with neither.
+
+Every live citation of #54 in the repository on 2026-08-23, before this task:
+
+| site | what it said |
+|---|---|
+| `README.md`, In flight | "`architecture` and `ux` ... rank the field identically on both orders (#54)" — present tense, no marking |
+| `DECISIONS.md`, tier-3 weight | "`architecture` and `ux` are redundant with each other while sharing no evidence (#54)" — listed as a ground for the decision |
+| `eval/judge/JUDGING.md`, RESULT 2026-08-16 | "> They share no input at all (#54)" — 114 lines above the same file's own withdrawal notice |
+
+The ticket for this task named one of the three. The other two were found by the check.
+
+### Why nothing could see it
+
+Every reference check in `docstat.py` asks whether a name RESOLVES. `#54` resolves: it is a
+real finding, with a real body, correctly numbered. `--renumbered` cannot see it either —
+the number never moved. And the cross-document figure-agreement check built under task 11
+could not see its sibling #113 for the reason that generalises here: **the restatements of a
+withdrawn thing agree with each other, and with the original.** Propagation and consistency
+are the same observation.
+
+The one thing that separates a live claim from a retired one is not in the text of either.
+It is whether a withdrawal was ever DECLARED — a fact about the record, which has to be
+written down before any check can use it.
+
+### What the register does, and the one thing it does not
+
+`eval/withdrawn.json` declares a retired figure or claim by id, with the regexes that are its
+signature and an ARCHIVE document that states it in full. `docstat.py --withdrawn` reports any
+block of a LIVE document that matches every signature pattern without citing the id.
+
+**It does not decide whether a sentence is STATING a retired figure or ASSERTING it as
+current. Nothing mechanical can: they are the same characters.** What it does is force the
+author to declare which, in place, for the price of one parenthetical. Three of the six hits
+at HEAD were legitimate historical statements in live documents — including `JUDGING.md`'s own
+withdrawal notice — and the repair for all three was to add the id, which also warns the
+reader who lands on that line rather than the one who reads 114 lines further down.
+
+### The rule
+
+> **A correction has to be DECLARED, not inferred.** A consistency check finds disagreement,
+> and a stale figure does not disagree with anything — it agrees, in every document, to the
+> digit. The only detectable property of a retirement is that somebody recorded it.
+
+Its corollary, which is why the exemption is an id and not a marker word: **`withdrawn`,
+`superseded` and `retracted` are an enumeration**, and this project has already measured an
+enumeration failing on one inflection of one verb — the aspect check exempted `planted` and
+went red on `planting`. An id has no inflections.
+
+Measured red before it was wired in: at `25fe630`, the commit before task 54 ran, the check
+reports the withdrawn 1.70/2.05 pair published in `DECISIONS.md`, `README.md` and
+`eval/judge/JUDGING.md` — the exact three sites #113 names — and reports none of them today.
+`eval/tools/withdrawn_control.py` runs 33 controls and five mutants, each mutant flipping the
+control that names its mechanism.

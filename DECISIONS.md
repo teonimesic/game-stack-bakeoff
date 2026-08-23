@@ -299,6 +299,48 @@ the citation is what is wrong. The renumber map is derived from git on every run
 down anywhere — a hand-kept list of moved numbers would go stale exactly like the citations it
 describes.
 
+### A withdrawal is declared in a register, and the live/archive split is a decision — decided 2026-08-23
+
+A retired figure cannot be found by comparing documents. Its restatements **agree**, with each
+other and with the original, to the digit — a cross-document figure-agreement check over the six
+live documents found 52 labelled figures, 1 disagreement, and that one a false positive, and it
+could not see the withdrawn tier-3 pair it was built to catch (#113). Propagation and consistency
+are the same observation. So a withdrawal is **declared**: `eval/withdrawn.json`, one entry per
+retired figure or claim, append-only, imported from `game-research-gpt`'s `FINAL-CORRECTIONS.json`
+(`eval/IMPROVEMENTS.md`, axis 3). `docstat.py --withdrawn` gates on it.
+
+**The exemption is the entry id and nothing else.** Not a file, not a line — lines move. Not a
+marker word: `withdrawn`/`superseded`/`retracted` is an enumeration, and an enumeration already
+failed here on one inflection of one verb, where the aspect check exempted `planted` and went red
+on `planting`. A live document that needs to state a retired figure cites the id in the same
+block, and that is the only way to be green.
+
+**This does not distinguish stating from asserting as current, and nothing mechanical can** — they
+are the same characters. It makes the author declare which, in place, for one parenthetical. Three
+of the six hits on the day it was installed were legitimate historical prose in a live document,
+including `JUDGING.md`'s own withdrawal notice; all three were repaired by adding the id, which
+also warns the reader who lands on that line instead of the one who reads 114 lines further down.
+
+**LIVE and ARCHIVE, decided here because a gate with an undeclared scope is a gate whose scope
+drifts.** The archive records what was believed when it was written and may state a retired figure
+freely; everything else is live.
+
+| | documents |
+|---|---|
+| **ARCHIVE**, exempt | `eval/findings/`, `eval/FINDINGS.md`, `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`, `eval/runs/` |
+| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `template*/`, `eval/starters/`, `.claude/skills/` |
+
+`tasks/` is archive because a retired figure can be a task's whole subject — task 54's `done_when`
+states the pair three times, correctly. The list lives in `ARCHIVE_PATHS` in `eval/tools/docstat.py`
+and is asserted against this table by `eval/tools/withdrawn_control.py`, so the two spellings cannot
+drift apart silently (rule 12).
+
+**The whole-file archive exemption is the one document-scope exemption in the sweep, and it is
+deliberate.** Document-scope is how the aspect check next door once went vacuous — a single
+legitimate disclaimer silenced every check in its file. Inside a live document nothing is exempt by
+file: the only exemption is an id inside the block, and the block ends at a blank line, at a
+blockquote's own blank line, at a fence, or at the next top-level list item.
+
 ---
 
 ## Open
@@ -321,8 +363,10 @@ describes.
   headroom. That is task 27, and it is a rubric change requiring mutants, not a doc edit.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for $46.79. Three fail the
-  ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53);
-  `architecture` and `ux` are redundant with each other while sharing no evidence (#54). And
+  ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53).
+  The redundancy reading — `architecture` and `ux` ranking the field identically while sharing
+  no evidence — **carries no weight here and is withdrawn**: it did not replicate, and the
+  decision never rested on it (#54, register `WR-arch-ux-redundancy`). And
   **no aspect separates the stacks at a magnitude that could matter**: recomputed by
   `eval/judge/field_ranks.py` over both stored fields of `wg-tetris-judge-2026-08-17`, the
   between-stack range **never exceeds the within-stack gap by more than 23%** across the eight

@@ -522,7 +522,8 @@ a single run lands on either answer.
 presentation basis is held fixed. One pair replicates on both orders:
 
 > `architecture ~ ux`: **tau 1.00** on both. One reads only source, the other only frames.
-> They share no input at all (#54).
+> They share no input at all (#54 — **withdrawn on the repeat**, register
+> `WR-arch-ux-redundancy`; see "RESULT after the repairs" below).
 
 `audio~idiomatic` and `fun~idiomatic` each hit 1.00 on a single order and are noise. Every
 other pair sits between −0.14 and 0.71.
@@ -557,9 +558,10 @@ post-repair field gives **2.100 against 1.925** the same way.
 
 > **The comparison changes direction on a free parameter, so no argument may rest on its
 > direction.** A previous version of this section read a two-row table, 1.70 and 2.05, with no
-> field and no method; it matches none of the four and was **withdrawn** — FINDINGS #113. Do
-> not restore an argument of the form *between is smaller than within*: on this field that
-> inequality is decided by a choice nobody had made deliberately.
+> field and no method; it matches none of the four and was **withdrawn** — FINDINGS #113,
+> register entry `WR-tier3-pair`. Do not restore an argument of the form *between is smaller
+> than within*: on this field that inequality is decided by a choice nobody had made
+> deliberately.
 
 What survives the parameter is the magnitude. **On none of the four readings does the
 between-stack range exceed the within-stack gap by more than 23%**, and on two of the four it
@@ -636,10 +638,10 @@ noise.** It is not reported as a stack signal: its own scores moved 5 of 8 and 3
 identical rounds, and nothing statistical here can say whether it reads the frames or a
 rendering style (#55). It licenses one targeted experiment, not a ranking.
 
-**#54 is withdrawn.** `architecture ~ ux` was tau 1.00 on both orders and read as two judges
-with disjoint inputs agreeing twice; on the repeat it is 0.385 and 0.667, and the redundant
-pairs the new round finds are different ones that agree with neither. Two orders of one round
-are not two observations.
+**#54 is withdrawn** — register entry `WR-arch-ux-redundancy`. `architecture ~ ux` was tau 1.00
+on both orders and read as two judges with disjoint inputs agreeing twice; on the repeat it is
+0.385 and 0.667, and the redundant pairs the new round finds are different ones that agree with
+neither. Two orders of one round are not two observations.
 
 **Tier 3 remains weight 0.00**, now on a repaired instrument rather than a broken one.
 

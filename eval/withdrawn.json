@@ -1,0 +1,61 @@
+{
+  "_README": [
+    "THE WITHDRAWAL REGISTER. A retired figure or claim is DECLARED here, by id, and",
+    "`eval/tools/docstat.py --withdrawn` asserts that no LIVE document states it outside a",
+    "block that cites that id. Read `_check_withdrawal_register` in docstat.py for the rule",
+    "and for what it cannot see.",
+    "",
+    "WHY DECLARED AND NOT INFERRED. The obvious alternative - a cross-document",
+    "figure-agreement check - was built and measured under task 11 and comes out against:",
+    "52 labelled figures over six live docs, 1 disagreement, and that one a false positive.",
+    "It cannot see a stale figure, because the restatements of a stale figure AGREE to the",
+    "digit. Propagation and consistency are the same observation (#113). What separates a",
+    "live figure from a retired one is not in the numbers; it is whether a withdrawal was",
+    "ever declared, which is a fact about the record and has to be written down.",
+    "",
+    "APPEND-ONLY. An entry is never deleted and never edited to say something else. It is a",
+    "record of a decision that was made, and a consumer that applied it must keep being able",
+    "to. Add `reinstated` with a date and a reason if a withdrawal is itself reversed.",
+    "",
+    "FIELDS",
+    "  id           the exemption key. A live document may state the entry freely inside any",
+    "               block that carries this string. Nothing else exempts anything - not a",
+    "               file, not a line number, not a marker word.",
+    "  match        every one of these regexes must occur inside one block for that block to",
+    "               count as stating the entry. ALL, not any: a single loose pattern would",
+    "               fire on unrelated prose.",
+    "  anchor       an ARCHIVE file where the entry is stated in full and correctly. The",
+    "               check proves its own extraction here before trusting it anywhere: an",
+    "               entry that matches nothing in its anchor is reporting its own silence,",
+    "               and is a failure, not a pass (AGENTS.md rule 12).",
+    "  declared_in  where the withdrawal is argued, for a person.",
+    "  replaced_by  what to state instead. A withdrawal with no replacement leaves the next",
+    "               author with the same gap that produced the bad figure."
+  ],
+  "entries": [
+    {
+      "id": "WR-tier3-pair",
+      "withdrawn": "2026-08-22",
+      "kind": "figure",
+      "claim": "tier 3's separation result stated as 'between-stack range of mean ranks 1.70, mean gap 2.05'",
+      "why": "It named no population - no run, no game, no aspect set, no date - and reproduces under no method. The only field tier 3 has judged gives 1.900/2.275 pre-repair and 2.100/1.925 post-repair on rank/pool, and the quantity has two free method parameters, so there are four readings per field and 1.70/2.05 is none of the eight.",
+      "match": ["(?<![0-9.])1\\.70(?![0-9])", "(?<![0-9.])2\\.05(?![0-9])"],
+      "anchor": "eval/findings/certifies-nothing.md",
+      "declared_in": "eval/findings/certifies-nothing.md, finding #113",
+      "replaced_by": "eval/judge/field_ranks.py --rounds eval/runs/wg-tetris-judge-2026-08-17/pre (and /post). Quote value=rank order=pool, and name the field: 1.900 against 2.275 pre-repair, 2.100 against 1.925 post-repair.",
+      "retired_from_live_docs_by": "task 54"
+    },
+    {
+      "id": "WR-arch-ux-redundancy",
+      "withdrawn": "2026-08-17",
+      "kind": "claim",
+      "claim": "finding #54 - `architecture` and `ux` share no evidence and rank the field identically on both presentation orders, so their agreement evidences a shared prior",
+      "why": "The claim rested on tau 1.00 across two presentation orders of ONE round, which is one observation reported twice. The repeat, with ux's evidence provably unchanged, gives tau 0.385 (seed 0, 13 comparable pairs) and 0.667 (seed 1, 12). The redundant pairs the second round does find are different ones and agree with neither.",
+      "match": ["(?<![0-9#])#54(?![0-9])"],
+      "anchor": "eval/findings/certifies-nothing.md",
+      "declared_in": "eval/findings/certifies-nothing.md, finding #54, section 'WITHDRAWN 2026-08-17'; and eval/judge/JUDGING.md, 'RESULT after the repairs'",
+      "replaced_by": "What survives is the method, not the result: giving two judges disjoint evidence and checking they disagree is still the cheapest detector for a shared prior, but a positive reading needs repeats at a FIXED order (#58). Do not cite #54 as evidence of anything.",
+      "retired_from_live_docs_by": "task 55"
+    }
+  ]
+}
