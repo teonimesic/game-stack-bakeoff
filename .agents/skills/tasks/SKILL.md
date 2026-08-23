@@ -155,7 +155,24 @@ python3 eval/tools/tasks.py done 07 "verified against the artifacts and merged a
 
 `testing` and `done` both require evidence, and the evidence must be **what established it** — a
 measurement, a pinned control, a file — never "completed". A task closed without evidence is
-indistinguishable from one abandoned.
+indistinguishable from one abandoned, so an empty or whitespace-only evidence string is
+**refused** rather than written.
+
+**`-` reads the evidence from stdin here too**, exactly as in `note` — one sentinel, one
+meaning, in every subcommand that takes durable text. Use it for the one case argv cannot
+carry: a one-line evidence string containing a backtick (#80).
+
+```bash
+python3 eval/tools/tasks.py done 07 - <<'EV'
+lint identical warm and cold; pinned by `tasks_control.py` in both directions
+EV
+```
+
+**A MULTI-LINE account is refused, naming `note`.** `established_by` is one unbroken line of
+prose inside YAML frontmatter and is not where the next agent looks. Until 2026-08-23 `done`
+took `-` as a *literal*, so `done <id> - < account.md` stored the one character `-` over
+whatever was redirected in, at exit 0, with the ticket closed and the record gone (task 120).
+Put the account in the body with `note`, then pass a one-line summary here.
 
 ### `note` — writing what you learned back into the BODY
 

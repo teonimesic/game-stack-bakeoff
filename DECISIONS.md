@@ -1544,6 +1544,38 @@ expectation from its subject is not a control. Where the two must be kept in ste
 row that compares them — never by making them the same object.
 
 ---
+## `-` means stdin in every `tasks.py` subcommand that takes durable text — decided 2026-08-23
+
+`note` was given `-` because of #80: a backtick in an argv string is command substitution before
+the program runs, so stdin is the only channel that carries one verbatim. `done` and `testing`
+write a durable record from an argv string too and were given no such reading, so the obvious
+call — `done 112 - < account.md` — stored the **literal one character `-`**, at exit 0, with no
+warning, having also flipped the ticket to `done`. Reproduced on a scratch queue against
+`dce1172` over a 2280-character account (task 120), and it is #80's shape with a sentinel where
+the backtick was: a durable record silently emptied by a command that reports success.
+
+**Two sibling commands disagreeing about one sentinel is the enumeration failure the rule audit
+keeps recording** — the safe path was added where the problem had been *seen* rather than where
+the property lives. The property is *an argument that becomes a durable record*, so `-` is read
+once, in `_stdin_arg`, and `note`, `testing` and `done` all go through it.
+
+**`established_by` stays one line, by refusal rather than by convention.** Reading stdin without
+that would have re-opened tasks 105 and 106's workaround with nicer syntax — a whole account
+inside YAML frontmatter, where the next agent does not look. So `cmd_evidence` refuses an empty
+evidence string, refuses a multi-line one **naming `tasks.py note <id> -`**, and in both cases
+writes *neither* the field nor the status: the pre-fix code closed the ticket while destroying
+the record, and "it refused" and "it refused without closing the task" are different claims.
+
+**What is deliberately not guarded: a `-` typed at a terminal still blocks on a read.** That
+failure is loud — the agent sees it — and the one being closed here is the silent one. A guard
+that cannot be pinned in both directions without a pty is dead weight by this project's own
+standard.
+
+`.agents/skills/tasks/SKILL.md` and `.agents/skills/work/SKILL.md` state the sentinel; direction
+8 of `eval/tools/tasks_control.py` pins it, with `dce1172` as the positive control that must
+still store the one-character record on the same harness.
+
+---
 ## A finding cited in a live document is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
 
 A bare `(#68)` is honest and useless: a reader who cannot click it has been told nothing. Making

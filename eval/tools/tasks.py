@@ -16,6 +16,11 @@ tool that prints the minimum.
     python3 eval/tools/tasks.py testing 04 "what established it"  # -> in_testing
     python3 eval/tools/tasks.py done 04 "what established it"     # -> done, at merge
     python3 eval/tools/tasks.py note 04 -    # append a section to the BODY, from stdin
+
+`-` means READ IT FROM STDIN in every subcommand that takes durable text -- `note`, `testing`
+and `done` alike. It used to mean that in `note` alone, so `done 04 - < account.md` stored the
+literal one-character string `-` at exit 0 over 2280 characters of measurement (task 120). See
+`_stdin_arg` for the sentinel and `cmd_evidence` for the two refusals that go with it.
     python3 eval/tools/tasks.py add "title" --why "..." --done-when "..." [--priority 2]
     python3 eval/tools/tasks.py check        # lint; exit 1 if anything is malformed
 
@@ -709,6 +714,27 @@ def _note_block(text: str, heading: str | None = None) -> str:
     return f"\n## {head}\n\n{text.strip()}\n"
 
 
+def _stdin_arg(value: str) -> str:
+    """`-` means READ IT FROM STDIN, in every subcommand that takes a durable text argument.
+
+    THE SENTINEL IS THE PROPERTY, NOT THE SUBCOMMAND. `note` grew `-` because #80 is about a
+    backtick in argv being command substitution before this program ever runs; `done` and
+    `testing` write a durable record from an argv string too and had no such reading, so
+    `done 112 - < account.md` was accepted and stored the LITERAL one-character string `-`
+    over 2100 characters of measurement, exit 0, no warning (task 120). Two sibling commands
+    disagreeing about one sentinel is the enumeration failure `AGENTS.md`'s rule audit keeps
+    recording: the safe path was added where the problem had been SEEN rather than where the
+    property lives.
+
+    Reading it here, once, is what makes `-` mean the same thing everywhere -- and what stops
+    the next command that takes durable text from having to remember.
+
+    It does NOT guard `sys.stdin.isatty()`. A `-` typed at a terminal blocks on a read, which
+    is loud: the agent sees it and hits Ctrl-D. The failure this closes is the silent one.
+    """
+    return sys.stdin.read() if value == "-" else value
+
+
 def cmd_note(tid: str, text: str, heading: str | None) -> int:
     """Append a section to one ticket's BODY in the shared queue. See the module docstring.
 
@@ -725,8 +751,7 @@ def cmd_note(tid: str, text: str, heading: str | None) -> int:
     untested guard against a race nothing has yet run. If it ever does happen, the fix is to
     put `cmd_add`'s existing common-dir lock around `_set` and this, not to make `note` clever.
     """
-    if text == "-":
-        text = sys.stdin.read()
+    text = _stdin_arg(text)
     if not text.strip():
         print(f"{tid}: refusing to append an empty note - a heading with nothing under it "
               f"is a write that looks like a record", file=sys.stderr)
@@ -752,6 +777,55 @@ def cmd_note(tid: str, text: str, heading: str | None) -> int:
         return 0
     print(f"no task {tid}", file=sys.stderr)
     return 1
+
+
+def cmd_evidence(tid: str, status: str, value: str) -> int:
+    """`testing` and `done`: move the status AND write `established_by`, or write neither.
+
+    `established_by` is the line every later reader trusts about what closed a task, and
+    until 2026-08-23 it was whatever argv happened to contain. Three shapes went in silently,
+    all at exit 0 (task 120, measured on a scratch queue before this existed):
+
+      | call                        | stored                | what the caller meant      |
+      |-----------------------------|-----------------------|----------------------------|
+      | `done 112 - < account.md`   | `-`, 1 character      | 2280 characters of account |
+      | `testing 70 - < account.md` | `-`, 1 character      | the same                   |
+      | `done 70 ""`                | the empty string      | nothing legitimate         |
+
+    THE FIRST ROW IS #80'S SHAPE WITH A SENTINEL INSTEAD OF A BACKTICK: a durable record is
+    emptied, the command reports success, and the loss is visible only to whoever re-reads
+    the ticket later. It fails OPEN, which rule 7 says is the expensive direction.
+
+    So `-` now means here exactly what it means in `note` -- read it from stdin -- and the
+    two refusals below are what keep that from being a fresh way to write a wall of prose
+    into YAML frontmatter:
+
+      * EMPTY is refused. `note` already refuses one; the same moment, the same reason.
+      * MULTI-LINE is refused, naming `note`. `established_by` is one unbroken line of prose
+        in frontmatter and is not where the next agent looks -- tasks 105 and 106 each
+        emptied a session's findings into it, which is the whole reason `note` was built
+        (task 113). Accepting a heredoc here would re-open that with a nicer syntax.
+
+    The net effect on the call that lost the record: `done <id> - < account.md` exits 1 and
+    says where the account goes, instead of exiting 0 having stored one character.
+
+    A ONE-LINE stdin string IS accepted, and that is the half `note` cannot cover: an
+    evidence sentence containing a backtick cannot be passed as argv at all (#80), and this
+    is the channel that carries one.
+    """
+    text = _stdin_arg(value).strip()
+    if not text:
+        print(f"{tid}: refusing to record an empty `established_by` - the field is what a "
+              f"later reader trusts about what closed this task, and `{status}` with "
+              f"nothing in it is a write that looks like a record", file=sys.stderr)
+        return 1
+    if "\n" in text:
+        print(f"{tid}: `established_by` is one unbroken line of prose in YAML frontmatter "
+              f"and this is {1 + text.count(chr(10))} lines. Put the account in the ticket "
+              f"BODY with `tasks.py note {tid} -`, then pass a one-line summary here.",
+              file=sys.stderr)
+        return 1
+    return _set(tid, status=status, established_by=text)
 
 
 def cmd_add(a) -> int:
@@ -950,8 +1024,17 @@ def main() -> int:
     # verifies against the artifacts before merging. Storing it at `testing` rather than at
     # `done` puts it in the file at the moment the agent still has the measurement in hand.
     s = sub.add_parser("review"); s.add_argument("id"); s.add_argument("pr")
-    s = sub.add_parser("testing"); s.add_argument("id"); s.add_argument("evidence")
-    s = sub.add_parser("done"); s.add_argument("id"); s.add_argument("evidence")
+    # ONE SENTINEL, SPELLED ONCE. Both evidence arguments take `-` the way `note` does, and
+    # both go through `cmd_evidence`, which is where the empty and multi-line refusals live.
+    # A `-` that means "read stdin" in one sibling and a literal one-character record in
+    # another is how task 120's 2280-character account became 1 character at exit 0.
+    _EV_HELP = ("what established the result, in ONE line; `-` reads it from stdin, which is "
+                "the only safe way to pass a backtick (#80). A multi-line account belongs in "
+                "the ticket body: `tasks.py note <id> -`")
+    s = sub.add_parser("testing"); s.add_argument("id")
+    s.add_argument("evidence", help=_EV_HELP)
+    s = sub.add_parser("done"); s.add_argument("id")
+    s.add_argument("evidence", help=_EV_HELP)
     # `note` is how a dispatched agent obeys `.agents/skills/work/SKILL.md`. `-` is not a
     # convenience: an argv string containing a backtick is command substitution before this
     # program runs (#80), and stdin is the channel that carries one verbatim.
@@ -985,9 +1068,9 @@ def main() -> int:
     if a.cmd == "review":
         return _set(a.id, status="in_review", pr=a.pr)
     if a.cmd == "testing":
-        return _set(a.id, status="in_testing", established_by=a.evidence)
+        return cmd_evidence(a.id, "in_testing", a.evidence)
     if a.cmd == "done":
-        return _set(a.id, status="done", established_by=a.evidence)
+        return cmd_evidence(a.id, "done", a.evidence)
     if a.cmd == "note":
         return cmd_note(a.id, a.text, a.heading)
     if a.cmd == "add":

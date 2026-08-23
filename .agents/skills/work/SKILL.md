@@ -245,13 +245,18 @@ to your own copy would only offer the merge a conflict. `-` reads the section fr
 unexpanded.
 
 Do not put the account in `established_by` instead. That field is one unbroken line of prose in
-YAML frontmatter, it cannot contain a backtick (#80), and it is not where the next agent looks —
-tasks 105 and 106 each emptied a session's findings into it because `note` did not yet exist
-(task 113).
+YAML frontmatter, and it is not where the next agent looks — tasks 105 and 106 each emptied a
+session's findings into it because `note` did not yet exist (task 113). `testing` and `done`
+now **refuse** a multi-line evidence string and name `note` in the message, rather than writing
+a wall of prose into frontmatter.
 
-Evidence means a measurement, a control, a file — never "completed". **No backticks in that
-string**: they execute as command substitution and silently strip text from a durable record
-(#80).
+Evidence means a measurement, a control, a file — never "completed". An empty evidence string is
+refused. **A backtick cannot go in that argument** — it executes as command substitution before
+`tasks.py` runs and silently strips text from a durable record (#80). Pass it on stdin instead:
+`testing <id> -` reads one line from stdin exactly as `note <id> -` reads a section, and the
+sentinel means the same thing in both. It used to mean the same thing in neither: `done <id> -`
+stored the literal one character `-` at exit 0 over 2280 characters of redirected account, and
+closed the ticket while doing it (task 120).
 
 `in_testing` is the signal, and it is the whole reason the state exists: the orchestrator can see
 which branches are its turn without opening a single pull request. **You never set `done`** — that
