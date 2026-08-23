@@ -3063,6 +3063,12 @@ blind at all. **The conclusion is safe and the stated reason is not, and those a
 claims.** A justification that reverses under a method change was never evidence for the thing it
 was cited for.
 
+> ⚠️ **The first of those two grounds is itself wrong and is superseded by #115.** "Within ~10%
+> of each other in both" holds for `post` (9.1%) and not for `pre` (19.7%). The replacement
+> ground, direction-free and reproducible, is that the between-stack range never exceeds the
+> within-stack gap by more than 23% on any of the eight readings. The second ground, #83, is
+> unaffected, and so are the two grounds in `DECISIONS.md` that never depended on this field.
+
 ### Why the figure could drift at all
 
 No script in this repository produced it. `judge/discrimination.py` computes a between-stack
@@ -3079,3 +3085,49 @@ an answer.
 
 Choosing what replaces the pair means choosing which of four methods the project reports, and
 that decision belongs with the document that defines the aspect layer. Task 54.
+
+---
+
+## 115. The replacement for the withdrawn tier-3 pair was correct, and the sentence explaining it was not — and that sentence is what #113 fell back on
+
+Task 54 retired 1.70 / 2.05 from `DECISIONS.md`, `eval/judge/JUDGING.md` and `README.md`'s
+In-flight section, and had to choose what each of them says instead. Checking the replacement
+before propagating it turned up a defect in the replacement.
+
+`README.md` withdrew the pair on 2026-08-22 and published **2.10 against 1.93** (post-repair)
+and **1.90 against 2.27** (pre-repair). Both reproduce exactly under
+`judge/field_ranks.py --rounds runs/wg-tetris-judge-2026-08-17/{post,pre}`, `value=rank`
+`order=pool`. **The figures were right.** The sentence attached to them was not:
+
+> "The two are within ~10% of each other in both, which is no separation."
+
+| field | pair | apart, on the smaller |
+|---|---|---|
+| `post` | 2.100 / 1.925 | **9.1%** — as stated |
+| `pre` | 1.900 / 2.275 | **19.7%** — twice the stated figure |
+
+#113 then cited that sentence as one of two independent grounds on which the tier-3 weight of
+0.00 survives the collapse of the direction argument. **The ground it retreated to was of the
+same kind as the thing being retreated from: quoted rather than computed, and wrong on one of
+the two fields it claimed to cover.**
+
+> **A withdrawal's replacement is not automatically held to a higher standard than what it
+> replaced.** The attention goes to the digits, which get recomputed. The sentence saying what
+> the digits *mean* is written in the same breath, from the same memory, and nothing recomputes
+> it. **Check the prose against the producer, not only the numbers.**
+
+### What replaced it, and why this form cannot flip
+
+Across all **eight** readings — two stored fields x four methods — the between-stack range
+**never exceeds** the within-stack gap by more than **23%** (the maximum is `pre`,
+`score`/`perround`: 0.950 against 0.775, a factor of 1.226), and on four of the eight it is
+smaller. That statement is direction-free, so the method reversal #113 found cannot touch it; it
+is a bound rather than an inequality, so it does not become an argument for separation when the
+sign changes; and every input to it comes out of `field_ranks.py` rather than out of a
+paragraph.
+
+**Nothing about the weight changed.** Of the four supports the 0.00 rested on, three were always
+sound — bounded contribution 0.10 against a tightest adjacent gap of 0.0622, an aggregate
+noisiest exactly where it would matter, and #83 — and the fourth was a paraphrase of a figure
+computed by a method nobody had named. It is now the bound above, and it is stated with its
+producer, its field, its `value` and its `order`.

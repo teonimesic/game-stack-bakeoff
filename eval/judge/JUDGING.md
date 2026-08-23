@@ -529,15 +529,45 @@ other pair sits between −0.14 and 0.71.
 
 ### Does any aspect separate the four stacks?
 
-**No.** Pooled over five aspects and both orders, ranking all 8 submissions 0 (best) to 7:
+**No — and the reason is not the one this section used to give.**
 
-| | |
-|---|---|
-| between-stack range of mean ranks | **1.70** |
-| mean gap between a stack's OWN two trials | **2.05** |
+Everything below is reproduced by the producer, not computed by hand:
 
-**Two submissions from the same stack sit further apart in the ranking than the four stacks'
-means are spread.** Per aspect, mean between-stack range against mean within-stack spread:
+```
+python3 judge/field_ranks.py --rounds runs/wg-tetris-judge-2026-08-17/pre [--per-aspect]
+```
+
+10 usable rounds, 5 aspects x 2 presentation orders, 8 submissions, ranked 0 (best) to 7.
+
+**The quantity has two free parameters and they change the answer.** `value` is what a round
+asserts about a submission — its `score`, or its `rank` in the field. `order` is whether the
+rounds are averaged before the spread is taken (`pool`) or after (`perround`). All four, on
+this field:
+
+| value | order | between-stack range | mean within-stack gap | direction |
+|---|---|---|---|---|
+| `score` | `pool` | 0.350 | 0.725 | between **<** within |
+| `score` | `perround` | 0.950 | 0.775 | between **>** within |
+| **`rank`** | **`pool`** | **1.900** | **2.275** | between **<** within |
+| `rank` | `perround` | 3.300 | 2.825 | between **>** within |
+
+**`rank` + `pool`, in bold, is the pair this project quotes** when it quotes one — decided in
+`DECISIONS.md`, "The tier-3 separation figure is reported under `rank` + `pool`". The
+post-repair field gives **2.100 against 1.925** the same way.
+
+> **The comparison changes direction on a free parameter, so no argument may rest on its
+> direction.** A previous version of this section read a two-row table, 1.70 and 2.05, with no
+> field and no method; it matches none of the four and was **withdrawn** — FINDINGS #113. Do
+> not restore an argument of the form *between is smaller than within*: on this field that
+> inequality is decided by a choice nobody had made deliberately.
+
+What survives the parameter is the magnitude. **On none of the four readings does the
+between-stack range exceed the within-stack gap by more than 23%**, and on two of the four it
+is smaller — against a field the deterministic tiers score identically. A stack effect would
+have to dwarf the within-stack gap. Nothing here does, under any method.
+
+Per aspect, **`value=score` `order=perround`** — the one method that reproduces this table, and
+the reason the method could be identified at all (#113):
 
 | aspect | range | within | reads as |
 |---|---|---|---|
@@ -546,6 +576,12 @@ means are spread.** Per aspect, mean between-stack range against mean within-sta
 | `fun` | 1.25 | **1.50** | no separation |
 | `idiomatic` | 0.75 | 0.38 | nominally separates — but see #53 |
 | `ux` | 1.50 | 0.88 | nominally separates — but is redundant with a judge that never saw a frame |
+
+The unrounded column means are **0.950** and **0.775** — exactly the `score`/`perround` row
+above, because `perround` averages the same per-aspect-per-order statistics. **`pool` does not
+decompose that way**, so the bolded `rank`/`pool` pair is *not* the average of any per-aspect
+table and must never be presented as one. That mismatch — a pooled line sitting three lines
+under a table it does not summarise — is how the withdrawn pair survived unchecked.
 
 And the ordering is not stable to which aspects are included:
 
@@ -575,7 +611,9 @@ moves is close to a coin flip on the harness, not a property of the game.
 ## RESULT after the repairs — 2026-08-17, 10 more calls, $21.05
 
 Re-run on repaired evidence, both orders, all five aspects. Artifacts:
-`runs/wg-tetris-judge-2026-08-17/{pre,post}/`.
+`runs/wg-tetris-judge-2026-08-17/{pre,post}/`. The **separates stacks** column is
+`value=score` `order=perround` on the `post` field — `judge/field_ranks.py --per-aspect`
+reproduces all ten of its numbers.
 
 | aspect | 0. reproducibility | 1. ceiling | 3. order-invariance | separates stacks | usable? |
 |---|---|---|---|---|---|
