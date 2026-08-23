@@ -7,8 +7,8 @@ argument-hint: "<task-id>"
 
 # Dispatch one task
 
-**Authoritative files: `tasks/<id>-*.md` (the ticket), `.Codex/skills/tasks/SKILL.md` (the
-queue), `.Codex/skills/work/SKILL.md` (what the agent will follow).** If this skill and any of
+**Authoritative files: `tasks/<id>-*.md` (the ticket), `.claude/skills/tasks/SKILL.md` (the
+queue), `.claude/skills/work/SKILL.md` (what the agent will follow).** If this skill and any of
 those disagree, they win and this skill is the bug.
 
 > **You may not put task-specific instructions in the agent's prompt.** The prompt is

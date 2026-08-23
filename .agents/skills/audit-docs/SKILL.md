@@ -97,7 +97,7 @@ looked like a real finding:
 | attempt | failure |
 |---|---|
 | fence-blind heading scan | reported a GDScript `##` doc-comment inside a ``` block as a malformed heading |
-| first sweep | 73 hits, ~65 false — `--max-turns` is the Codex CLI's, not our argparse |
+| first sweep | 73 hits, ~65 false — `--max-turns` is the claude CLI's, not our argparse |
 | narrowed sweep | 2 hits, both false; the path check had **0** true positives |
 | aspect check | went silent under a planted phantom — a file-wide exemption let one legitimate "candidate" sentence silence every check in that file |
 
@@ -171,7 +171,7 @@ backticked in the same fence read exit 1.
 **The trigger is the script name, not the `--` token, and that was decided on a count.**
 Scanning any bare flag on any fenced line finds **8 hits on the live corpus and 0 true
 positives** — `git merge --no-ff`, `cargo doc --open`, `Godot --path`, `vale --config`,
-`npx --yes`, the Codex CLI's `--output-format`. Every one another tool's flag. Widening
+`npx --yes`, the claude CLI's `--output-format`. Every one another tool's flag. Widening
 the same trigger to unfenced prose costs **2 false positives and 0 true**. This is the
 closed-class rule in `AGENTS.md`: a `--` token is an open class, a script this repo owns
 is not.
@@ -199,10 +199,10 @@ Do not "fix" these by adding them back. Each was measured and removed:
   deleted; **if you build this, the id set cannot come from string literals in `judge/*.py`
   — that pattern harvests `re.search` and `aspects.py` as criterion ids**, and a check whose
   corpus is junk goes quiet rather than wrong, which is the harder failure to see.
-- **Foreign flags.** `--max-turns`, `--permission-mode` belong to the Codex CLI.
+- **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.
 - **A bare flag in unfenced PROSE, and a bare flag on a fenced line that names no script
   of ours.** Both were built and measured on 2026-08-23 (task 89). Prose: 2 false
-  positives, 0 true — a sentence naming `field.py` and then the Codex CLI's
+  positives, 0 true — a sentence naming `field.py` and then the claude CLI's
   `--output-format`, and one naming a script and then `git diff --stat`. Prose backticks
   its flags, so the other half already has those. Fenced lines owning no script of ours:
   8 false positives, 0 true, all another tool's flags. **A bare flag written BEFORE the

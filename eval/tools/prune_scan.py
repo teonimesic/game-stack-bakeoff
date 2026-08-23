@@ -83,10 +83,13 @@ HISTORY_STRONG = re.compile(
 HISTORY_WEAK = re.compile(r"\b(no longer|legacy)\b", re.I)
 
 # No MIRROR exemption. It existed to stop this scanner reporting the `.agents/skills`
-# duplicate 51 times every six hours while task 27 was open. The duplicate was deleted on
-# 2026-08-23 (#99) and `docstat.py --sweep` now fails on any SKILL.md outside
-# `.claude/skills/<name>/`, so the suppression has nothing left to suppress and would only
-# hide the next copy from the scanner that found this one.
+# duplicate 51 times every six hours while task 27 was open. Those COPIES were deleted on
+# 2026-08-23 (#99); the real skills were then moved to `.agents/skills/<name>/` behind a
+# `.claude/skills` symlink (task 114, `DECISIONS.md`), and `docstat.py --sweep` fails on any
+# real SKILL.md outside that root. So the suppression has nothing left to suppress and would
+# only hide the next copy from the scanner that found this one. A symlinked pointer is not a
+# duplicate and never reaches here: this scanner reads `git ls-files`, which stores the link
+# as one 120000 blob, not as nine files.
 
 # Reference implementations the harness executes by discovering their names, the way
 # pytest does. "Nothing calls this by name" is what they are FOR, so the dead-code

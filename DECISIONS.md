@@ -473,30 +473,56 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 | Criteria, tiers and weights | `eval/judge/RUBRIC.md` |
 | Every run's cost and comparability | `eval/RUNS.md` |
 
-### One authoritative path per skill — decided 2026-08-23
+### One real copy of each skill, at `.agents/skills/`, reached by symlink — decided 2026-08-23
 
-`.claude/skills/<name>/SKILL.md` is the **only** location for a skill. There is no per-CLI copy,
-and `docstat.py --sweep` exits 1 on any `SKILL.md` outside that root.
+`.agents/skills/<name>/SKILL.md` holds the **only real copy** of each skill. `.claude/skills` is
+a **symlink** to that directory. `docstat.py --sweep` exits 1 on any real `SKILL.md` outside the
+authoritative root, and also on a `.claude/skills` that is missing, dangling, or a real directory.
 
-`.agents/skills/` held a Codex-flavoured duplicate of the skills from the first commit until
-2026-08-23, when it was deleted (task 27). The three measurements that decided it, in full in
-#99: the only Codex-adjacent sibling — `game-research-gpt` — has no `.agents/`, no `SKILL.md`
-and no root `AGENTS.md`, so it was never a reader; the mirror was **never once in sync**, with
-`add-game` 39 lines short in the initial commit and `tasks` and `prune` absent entirely; and
-after the initial import it took **0 edits that changed a procedure, against the authoritative
-tree's 6**.
+`.agents/` is the cross-tool convention — the same one that makes a root `AGENTS.md` readable by
+several agent CLIs — so Codex, Claude and anything else read one source rather than a copy each.
+**No `.codex/skills` or `.Codex/skills` exists as a real folder**; a second path to the skills is
+a symlink or it is nothing.
 
-It was deleted rather than synchronised because a copy with no reader has nothing pulling it
-back into line — three of six files were identical on the morning the ticket was read and four
-of six differed by the afternoon.
+**This is not a reversal of #99, it is that finding's own escape clause.** #99's objection was
+never to a location. It was to a **copy**, and its three measurements still stand: the only
+Codex-adjacent sibling — `game-research-gpt` — has no `.agents/`, no `SKILL.md` and no root
+`AGENTS.md`, so it was never a reader; the mirror was **never once in sync**, with `add-game` 39
+lines short in the initial commit and `tasks` and `prune` absent entirely; and after the initial
+import it took **0 edits that changed a procedure, against the authoritative tree's 6**. The
+finding closed by saying *add a pointer, never a copy*. This inverts which end holds the pointer
+and leaves the count of copies at exactly one. A symlink has no second file to get edited.
 
-**Cross-tool support was considered, not overlooked.** The repository is MIT and public and a
-non-Claude agent reading it is not hypothetical. The judgement is that such a reader is better
-served by `AGENTS.md` pointing at one tree than by a second tree that is confidently wrong: the
-deleted `add-game` omitted the `prompt_guard.py` procedure entirely, and the deleted `audit-docs`
-asserted that `--max-turns` and `--permission-mode` belong to the Codex CLI when
-`eval/runner.py:510,519` passes both to `claude`. If cross-tool support is wanted, add a
-**pointer** to `.claude/skills/`; a pointer cannot drift from content it does not hold.
+**Which end holds the real files was decided by measurement, not by preference.** Against
+`claude` 2.1.220, one uniquely-named probe skill per layout, every tool but `Skill` denied so the
+content could not arrive by reading the file:
+
+| layout | skill loads? |
+|---|---|
+| real `.claude/skills/<n>/SKILL.md` (the old layout, positive control) | yes |
+| real `.agents/skills/`, `.claude/skills` a symlink to it — **shipped** | yes |
+| real `.agents/skills/`, `.claude/skills/<n>` each a symlink | yes |
+| real `.agents/skills/` only, no `.claude/skills` (negative control) | **no** |
+| real `.claude/skills/`, `.agents/skills` a symlink to it | yes |
+
+The whole-directory symlink was chosen over the per-entry one because it needs no upkeep: a new
+skill is one new directory, where the per-entry layout would need a matching symlink added by
+hand every time, and a rule you have to remember is a rule that will fail.
+
+**The negative control is why the gate checks the pointer.** Claude Code does not discover
+`.agents/skills` on its own. With the symlink deleted the nine skills are still present, still at
+the authoritative address, and every file-counting check reads clean — while no agent can load
+one. `eval/tools/skill_layout_control.py` pins the gate red on all five ways this breaks: a real
+copy elsewhere, a copy at the wrong nesting depth inside the authoritative root, the pointer
+deleted, the pointer dangling, and the pointer replaced by a real directory of copies.
+
+**The mirror came back by a git merge, not by outside tooling.** After the 2026-08-23 deletion,
+`.agents/skills` reappeared, tracked, as nine pure additions in the commit merging task 101 —
+a branch forked before the deletion, so the merge restored what it had never seen removed. It is
+worth knowing because the diagnosis on sight was "some tool outside the repository regenerates
+this", which would have been unfixable from inside the repo; the true cause is ordinary and the
+layout is now merge-safe, because a branch carrying a real `.claude/skills/` directory conflicts
+with the symlink rather than silently shadowing it.
 ### The documentation is gated on structure and on names, never on prose — decided 2026-08-23
 
 Eleven documentation linters were measured against this repository and produced **over 14,000
@@ -684,7 +710,7 @@ freely; everything else is live.
 | | documents |
 |---|---|
 | **ARCHIVE**, exempt | `eval/findings/`, `eval/FINDINGS.md`, `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`, `eval/runs/` |
-| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `eval/starters/`, `.claude/skills/` |
+| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `eval/starters/`, `.agents/skills/` |
 
 `tasks/` is archive because a retired figure can be a task's whole subject — task 54's `done_when`
 states the pair three times, correctly. The list lives in `ARCHIVE_PATHS` in `eval/tools/docstat.py`

@@ -185,11 +185,21 @@ def _fence_mask(lines: list[str]) -> list[bool]:
 # not as the six names that happen to be there today. AGENTS.md's own audit: a trigger
 # written as an enumeration has to be re-derived by every reader who meets an item not on
 # the list, and the next always-on root doc would silently not be gated.
-# `.agents/skills` was removed here on 2026-08-23 (#99): it was a second copy of every
-# skill, never once in sync, and `--sweep` now FAILS on any SKILL.md outside
-# `.claude/skills/<name>/`. Naming it here would re-admit the path this gate exists to
-# reject.
-GATED_DIRS = (".claude/skills", "tasks")
+# THE SKILLS ADDRESS IS SPELLED ONCE, HERE, AND EVERY CHECK DERIVES FROM IT.
+#
+# AGENTS.md rule 12: when a path is spelled in two places, assert them equal in code. It
+# used to be spelled three times in this file - `GATED_DIRS`, the size-report glob, and the
+# skill-location gate - which is the same defect with a shorter blast radius. Changing the
+# layout on 2026-08-23 meant changing all three, and a reader who changed two would get a
+# gate that reported clean over zero files.
+#
+# The real files live at SKILLS_REAL. Every other path that reaches them is in SKILLS_LINKS
+# and must be a SYMLINK to SKILLS_REAL - never a copy. That is the whole of #99: its
+# objection was to a duplicate that drifts, not to a location, and a symlink cannot drift.
+# `_check_skill_location` asserts both halves, so neither is a promise in a comment.
+SKILLS_REAL = ".agents/skills"
+SKILLS_LINKS = (".claude/skills",)
+GATED_DIRS = (SKILLS_REAL, "tasks")
 
 
 def gated_docs() -> list[str]:
@@ -261,7 +271,7 @@ def cmd_sizes() -> int:
         print(f"... {len(rows) - 20} more")
     print(f"\n{len(rows)} project docs  {total:,} chars  ~{total // 4:,} tokens")
 
-    skills = sorted(glob.glob(os.path.join(ROOT, ".claude/skills/*/SKILL.md")))
+    skills = sorted(glob.glob(os.path.join(ROOT, SKILLS_REAL, "*", "SKILL.md")))
     if skills:
         s = sum(len(open(p).read()) for p in skills)
         print(f"{len(skills)} skills  ~{s // 4:,} tokens if all loaded "
@@ -2823,8 +2833,15 @@ def cmd_sweep() -> int:
     # 6 edits that changed a procedure and it took 0. Deleted 2026-08-23 rather than synced,
     # because syncing buys one day: a mirror with no reader drifts again by the next commit.
     #
-    # THE PROPERTY IS THE ADDRESS, NOT THE DIRECTORY NAME. This does not ban `.agents/`; it
-    # requires that a SKILL.md live at `.claude/skills/<name>/SKILL.md` and nowhere else, so
+    # WHAT CHANGED ON 2026-08-23, AND WHY IT IS NOT A REVERSAL OF #99. The real files now
+    # live at SKILLS_REAL (`.agents/skills`), so Codex, Claude and anything else read ONE
+    # source rather than a copy each, and `.claude/skills` is a SYMLINK to it. #99's
+    # objection was to a COPY that drifts - its own escape clause says "add a pointer, never
+    # a copy" - and a symlink has no second file to get edited. The count of copies is still
+    # exactly one; only which end holds the pointer moved.
+    #
+    # THE PROPERTY IS THE ADDRESS, NOT THE DIRECTORY NAME. This does not bless `.agents/` by
+    # name; it requires that a real SKILL.md resolve under SKILLS_REAL and nowhere else, so
     # it fires on `.codex/`, `.cursor/`, `skills/` or a wrong nesting depth just the same -
     # a trigger written as an enumeration has to be re-derived by the first reader who meets
     # an item not on it.
@@ -2835,22 +2852,61 @@ def cmd_sweep() -> int:
     # pattern returns zero paths here - including the authoritative ones - and the check
     # passes by finding nothing. The planted control is the only reason that was visible;
     # it is also why `project_docs()` above has never seen a file under `.claude/`.
-    SKILLS_ROOT = os.path.join(ROOT, ".claude", "skills")
+    #
+    # `_all_skill_files()` walks with followlinks=False, so a symlinked pointer contributes
+    # no paths and cannot be mistaken for a second copy. REALPATH, not string equality: the
+    # walk reaches the real files by whichever route it took, and a check that compared
+    # spellings would redden the very layout it is meant to accept.
+    SKILLS_ROOT = os.path.join(ROOT, SKILLS_REAL)
+    real_root = os.path.realpath(SKILLS_ROOT)
     skills = sorted(_all_skill_files())
     for sk in skills:
-        if os.path.dirname(os.path.dirname(sk)) == SKILLS_ROOT:
+        if os.path.realpath(os.path.dirname(os.path.dirname(sk))) == real_root:
             continue
         problems.append(
-            f"{os.path.relpath(sk, ROOT)}: a skill outside .claude/skills/<name>/, which "
-            f"AGENTS.md names as the sole authoritative path. A second copy is a second "
-            f"source of truth and only one of them gets edited (#99).")
+            f"{os.path.relpath(sk, ROOT)}: a real skill file outside {SKILLS_REAL}/<name>/, "
+            f"which AGENTS.md names as the sole authoritative path. A second copy is a "
+            f"second source of truth and only one of them gets edited (#99). If you want "
+            f"another path to reach the skills, make it a symlink to {SKILLS_REAL}.")
+
+    # THE POINTER IS PART OF THE LAYOUT, AND IT IS THE HALF THAT FAILS SILENTLY.
+    #
+    # Measured 2026-08-23 against `claude` 2.1.220, one probe skill per layout, unique names
+    # so a same-named skill could not be deduplicated, and every tool but `Skill` denied so
+    # the token could not arrive by the model reading the file:
+    #
+    #   real .claude/skills/<n>/SKILL.md          LOADED   (positive control)
+    #   .claude/skills -> ../.agents/skills       LOADED   (the shipped layout)
+    #   .claude/skills/<n> -> ../../.agents/...   LOADED
+    #   .agents/skills only, no .claude           NOSKILL  (negative control)
+    #   real .claude/skills, .agents/skills link  LOADED
+    #
+    # The negative control is the reason this block exists: Claude Code does NOT read
+    # `.agents/skills` natively. Delete the symlink and the nine skills still sit in the
+    # tree, `--sweep` still finds them at the authoritative address, every check above still
+    # reads clean - and no agent can load a single one. That is the vacuous pass this module
+    # exists to prevent, so the pointer is asserted rather than assumed.
+    for rel in SKILLS_LINKS:
+        p = os.path.join(ROOT, rel)
+        if not os.path.islink(p):
+            what = "a real directory" if os.path.isdir(p) else "missing"
+            problems.append(
+                f"{rel}: must be a symlink to {SKILLS_REAL}, and is {what}. Claude Code does "
+                f"not discover skills under {SKILLS_REAL} on its own (measured: a project "
+                f"with only {SKILLS_REAL} loads no skills), so without this link every skill "
+                f"is unreachable while the tree still looks correct.")
+        elif os.path.realpath(p) != real_root:
+            problems.append(
+                f"{rel}: symlink resolves to {os.path.realpath(p)}, not to {real_root}. "
+                f"A dangling or misaimed pointer loads no skills and reports nothing.")
+
     # THE ADDRESS IS AN INPUT TO THE CHECK (#60). Finding nothing is the one result this
     # check cannot distinguish from being pointed at the wrong place, so say so out loud
     # rather than returning the same silence a clean repository returns.
     if not skills:
         problems.append(
-            f"no SKILL.md found anywhere under {os.path.relpath(SKILLS_ROOT, ROOT)} or "
-            f"outside it. The skills exist; this check is looking at the wrong root.")
+            f"no SKILL.md found anywhere under {SKILLS_REAL} or outside it. The skills "
+            f"exist; this check is looking at the wrong root.")
 
     # A trial id is NOT a key. `g2_tetris3d__unity__t1` names 420x640 frames in
     # wg-matrix-2026-08-13 and 640x400 frames in wg-audio48-2026-08-14 - and in those two
