@@ -106,6 +106,11 @@ def load_rounds(d: str) -> list[dict]:
     AN UNUSABLE ROUND IS STILL COUNTED. `usable: false` means the judge returned something
     the gates reject; the call was made and the money left the account. A cost ledger that
     drops failures reports the bill it wishes it had.
+
+    SO IS A CONTROL ASPECT'S ROUND, for the same reason and it is not an oversight.
+    `field_ranks` excludes `fun_frames` from every pooled SCORE because a control's scores
+    are only meaningful against its treatment's (task 90). A dollar is a dollar whatever the
+    aspect asked, so do not carry that exclusion across to here.
     """
     out = []
     for f in sorted(glob.glob(os.path.join(d, "*.json"))):

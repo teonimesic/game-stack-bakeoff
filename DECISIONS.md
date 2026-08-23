@@ -237,6 +237,18 @@ come out of it and must be quoted with the field, the `value` and the `order`** 
 without its method names one of four quantities, which is how a pair matching none of them came
 to be published in four documents at once (#113).
 
+**There is a third parameter and it is the POPULATION.** A directory of rounds is not one
+population: `fun_frames` is `fun`'s control, its scores mean something only against `fun`'s, and
+pooling it is rule 4. Decided 2026-08-23 (task 90): a control **declares itself to code** —
+`Aspect.control_for` in `eval/judge/aspects.py` — a pooled figure covers the **scored aspects
+only**, and `field_ranks` names the aspects each figure is over in its own output. The guard is
+`field_ranks.assert_poolable`, which raises rather than silently dropping, and an aspect id
+`aspects.py` does not define is treated as **unmeasurable rather than scored**. Before this the
+rule was a prose comment naming a field that was never set and read by nothing;
+`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control. No published figure
+moved — `wg-tetris-judge-2026-08-17/pre` and `/post` hold no control rounds, and both reproduce
+to the digit.
+
 **When one pair is quoted, it is `rank` + `pool`.** Three grounds:
 
 1. The tier's output is an **ordering** — each specialist ranks a whole eight-submission field.

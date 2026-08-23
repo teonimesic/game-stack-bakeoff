@@ -132,6 +132,10 @@ and does not — this table said five for as long as `ASPECTS` held six.
 | `audio` | audio | `audio.json`: per-clip duration, RMS, peak, and which clips are the same sound as which |
 | `fun_frames` | frames | the same 12 frames, **with `telemetry.json` withheld** — `fun`'s control, briefed byte-identically to it. See the pre-registration below |
 
+It says it is a control **in code**, as `control_for="fun"`, and `field_ranks.assert_poolable`
+raises rather than pooling it with the five opinions. Read it against `fun`, never added to it.
+Until 2026-08-23 that was a comment naming a field nothing set and nothing read (task 90).
+
 **The frames are not equivalent across arms, and every aspect that reads them is told so.**
 Measured 2026-08-23 (task 68, FINDINGS #107): one arm's `just film` runs the whole app per tick so
 its renderer observes the entire run, while the other **three** advance the simulation to the
@@ -577,6 +581,9 @@ python3 judge/field_ranks.py --rounds runs/wg-tetris-judge-2026-08-17/pre [--per
 ```
 
 10 usable rounds, 5 aspects x 2 presentation orders, 8 submissions, ranked 0 (best) to 7.
+**All five are scored opinions — this field holds no `fun_frames` rounds**, which the tool now
+states in its own output. On a directory that does hold them the pooled figure covers the scored
+aspects only, so the population is a third parameter (`DECISIONS.md`, task 90).
 
 **The quantity has two free parameters and they change the answer.** `value` is what a round
 asserts about a submission — its `score`, or its `rank` in the field. `order` is whether the
