@@ -1152,6 +1152,36 @@ none. Every `architecture` round stored in this repository read a `CHANGED.txt` 
 authored tree.
 
 ---
+## What the judge is told about the pack is a function of the pack, and both wordings are kept — decided 2026-08-23
+
+**The question (task 104): the brief told every code judge the pack "may not contain every file
+the author wrote" and the size budget that made that true was removed on 2026-08-22 (#69).
+Correct the sentence, or delete it?**
+
+**Neither on its own. The claim is now selected by the pack's state** —
+`field.COMPLETENESS_NOTE[knowingly_truncated]`, read by both judge-facing texts. Deleting it was
+the obvious repair and is wrong in the same way the original was: an unstated completeness leaves
+a judge to decide for itself how much of a submission it is holding, and discounting absences is
+what it does by default. Hard-coding "this pack is complete" is wrong too — `--allow-truncated`
+still exists for the capped-vs-uncapped control, and a field built that way *is* incomplete.
+
+**The general form, and it is why this is a decision rather than a bug fix: a claim with only one
+possible value is not a claim, it is a decoration, and nothing can check it.** The constant
+survived a mechanism's deletion precisely because no input could ever have made it read
+differently. The same property put the opposite error in the pack skill, which asserted
+completeness unconditionally — so a deliberately truncated field would have carried a skill and a
+brief that contradicted each other.
+
+**A pack with no recorded state is refused, not assumed complete.** `run_field` returns
+`usable: false` when `knowingly_truncated` is absent from the mapping. Reading a missing key as
+falsy would state completeness about a pack nothing on disk describes, which is #62's direction
+(rule 7).
+
+**Scope:** this licenses new rounds and repairs none. The 10 stored code rounds that recorded a
+brief hash demonstrably read the stale sentence and cannot be re-run for it; `eval/RUNS.md`
+records that, and the other 26 code rounds stored no hash and are unassessable.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1179,6 +1209,7 @@ settled question is noise that makes the live ones harder to find.
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
+| Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
