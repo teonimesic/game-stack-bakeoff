@@ -70,14 +70,34 @@ Two independent questions, because neither one alone finds all five affected dir
 
 1. **Does the manifest describe the reports beside it?** Derives the declared trial ids
    from `games x stacks x trials` and compares them with `trials/*.json`.
-2. **Does the manifest belong to the directory it sits in?** Schema 2 records `run_dir`,
-   so this is an equality test. Legacy manifests have only `started_at`, so it is compared
-   with the directory-name stamp.
+2. **Does the manifest belong to the directory it sits in?** Three channels, in
+   `_placement_issues`, and every one a manifest's fields support runs.
 
 The census alone clears `wg-arena3d`, whose manifest WAS overwritten by a second wave
 (rust/ts trials on 2026-08-15, unity/godot on 2026-08-16, `started_at` rewritten to the
 second) and happens to declare the same shape both times. The stamp check alone clears
 `wg-audio`, which is content-wrong and stamp-clean.
+
+**The two questions are independent, and until 2026-08-23 the code did not treat them as
+such.** A manifest with no declared matrix cannot be asked question 1, and `audit_run`
+*returned* at that point rather than falling through - so 12 of the 23 stored run
+directories, every spec-change run in the corpus, were told "unmeasurable" about a
+property measurable for all 12. The early return was never a decision; the docstring above
+it said both questions run, and it did not describe the code.
+
+The ticket that found it assumed the legacy shape carried `started_at`. **It does not** -
+all 12 stored spec-change manifests hold exactly `suite`, `template`, `trials`, so both
+of the channels that existed were unavailable and moving the early return alone would have
+bought a `UNPLACEABLE` warning on 12 directories. The channel that works is `suite`:
+`runner.py` builds the run directory as `f"{suite.name}-{stamp}"`, so the field identifies
+the directory by construction. `started_at` was added to that payload later, which is why
+a spec-change run launched today would be schema 2 and fully placed.
+
+Measured over the stored corpus, 2026-08-23: **12 of 12 legacy directories are placed and
+correct on the `suite` channel.** A uniform result is the tell of an instrument reporting
+itself (AGENTS.md rule 9), so it is corroborated by a channel sharing none of its
+assumptions - the earliest `trials/*.json` `started_at` against the directory stamp, which
+lands 0-4s (local basis) for all 12. Both directions are pinned in the selftest.
 
 ## The timezone trap this file exists to not re-create
 
@@ -139,6 +159,14 @@ CANONICAL = "suite.json"
 # travels with the bytes; an mtime does not.
 RECORD_TIME_KEYS = ("started_at", "verified_at", "written_at", "generated_at")
 _STAMP_RE = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})")
+
+# `runner.py` builds its run directory as `f"{suite.name}-{stamp}"` (one expression, one
+# line), so for anything it wrote the directory name CONTAINS the manifest's own `suite`
+# field and placement is an equality test with no timezone in it. Greedy `.+` so the stamp
+# taken is the trailing one: a suite whose own name carried a stamp would otherwise be
+# split at the wrong hyphen.
+_SUITE_STAMP_RE = re.compile(
+    r"^(?P<suite>.+)-(?P<stamp>\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})$")
 
 # Keys that make a manifest a WHOLEGAME manifest. `runner.py` writes a different, smaller
 # shape into a directory it creates fresh every launch, so it cannot collide - it is
@@ -470,6 +498,86 @@ def find_run_directories(runs_dir: Path) -> tuple[list[Path], list[Path]]:
     return runs, pruned
 
 
+def _placement_issues(run_dir: Path, canonical: dict) -> tuple[list[Issue], list[str]]:
+    """Question 2 - does this manifest belong to the directory it sits in?
+
+    Returns `(issues, channels)`. **`channels` is the part that must be reported**: an
+    empty issue list means either "placed, and correct" or "nothing could be asked", and
+    those two are the pair this project keeps confusing (AGENTS.md rule 12). Every caller
+    prints the channel names.
+
+    Three channels, and EVERY available one runs - never one instead of another. Each is
+    keyed on a PROPERTY of the manifest rather than on which harness wrote it, so a shape
+    nobody has met yet gets whatever channels its fields support:
+
+    | channel | needs | exact? |
+    |---|---|---|
+    | `run_dir` | schema 2's self-identification | yes - string equality |
+    | `started_at` | any timestamped manifest + a stamped directory name | no - two timezone bases, `STAMP_TOLERANCE_S` |
+    | `suite` | `runner.py`'s `f"{suite.name}-{stamp}"` construction | yes - string equality |
+
+    A checker that switched to `run_dir` alone would be WEAKER on new data than on old: a
+    schema-2 manifest sitting in the right directory with a `started_at` from another day
+    would sail through. The other two cost nothing and cover the corpus schema 2 does not.
+
+    **The `suite` channel is the whole reason this function exists separately.** The 12
+    stored spec-change manifests carry `suite`, `template` and `trials` and NOTHING ELSE -
+    no `started_at`, no `run_dir` - so the other two channels are both unavailable and the
+    audit used to return before asking anything. `runner.py` derives the directory name
+    from `suite.name` in one expression, which makes the field a self-identification of
+    exactly the kind schema 2 later made explicit.
+
+    Deliberately NOT a channel: the earliest `trials/*.json` `started_at` against the
+    directory stamp. Measured over the stored corpus it exceeds the tolerance on 1 of the
+    22 stamped directories (`wg-g4`, 4747s, already MARKED for the same drift on the
+    manifest channel), and it DISAGREES with the manifest channel on exactly the three
+    directories whose manifest was replaced by a second wave - `wg-arena3d` 79236s vs 7s,
+    `wg-audio48` 50225s vs 0s, `wg-matrix` 27668s vs 1s. That disagreement is the signal
+    separating "the directory is misplaced" from "the manifest was overwritten", which is
+    question 1's territory, not this one's. It is recorded here so the next reader does
+    not re-derive it; it is used below as the independent corroboration of the `suite`
+    channel's uniform result, because a control that shares its subject's assumptions is
+    not a control.
+    """
+    issues: list[Issue] = []
+    channels: list[str] = []
+
+    own = canonical.get("run_dir")
+    if own is not None:
+        channels.append("run_dir")
+        if own != run_dir.name:
+            issues.append(Issue(
+                "MISPLACED", f"manifest.run_dir={own} directory={run_dir.name}", "error"))
+
+    d = stamp_delta_seconds(run_dir.name, canonical.get("started_at"))
+    if d is not None:
+        channels.append("started_at")
+        delta, basis = d
+        if abs(delta) > STAMP_TOLERANCE_S:
+            issues.append(Issue(
+                "STAMP_DRIFT",
+                f"started_at is {int(delta)}s from the directory-name stamp "
+                f"(closest basis {basis}, tolerance {STAMP_TOLERANCE_S}s)", "error"))
+
+    suite = canonical.get("suite")
+    mo = _SUITE_STAMP_RE.match(run_dir.name)
+    if isinstance(suite, str) and mo:
+        channels.append("suite")
+        if mo.group("suite") != suite:
+            issues.append(Issue(
+                "SUITE_MISPLACED",
+                f"manifest.suite={suite!r} but the directory is named for "
+                f"{mo.group('suite')!r} (stamp {mo.group('stamp')})", "error"))
+
+    if not channels:
+        issues.append(Issue(
+            "UNPLACEABLE",
+            f"no placement channel is available: manifest has no run_dir (schema "
+            f"{canonical.get('manifest_schema', 1)}), no usable started_at, and no "
+            f"suite field the directory name is built from - cannot be placed", "warn"))
+    return issues, channels
+
+
 def audit_run(run_dir: Path) -> RunAudit:
     run_dir = Path(run_dir)
     a = RunAudit(run_dir=run_dir)
@@ -484,10 +592,19 @@ def audit_run(run_dir: Path) -> RunAudit:
         return _finish(a)
 
     if not all(k in canonical for k in WHOLEGAME_KEYS):
+        # Question 1 is genuinely unaskable here - there is no declared matrix. Question 2
+        # is a separate question and this used to `return` before reaching it, which is
+        # how 12 of 23 stored directories came to be told "unmeasurable" about a property
+        # that is in fact measurable for every one of them. The detail line now NAMES the
+        # channels that ran, because "not asked" and "asked and clean" printed the same
+        # word - the shape this project keeps paying for.
+        placement, channels = _placement_issues(run_dir, canonical)
         a.issues.append(Issue(
             "LEGACY_SHAPE",
             "keys=" + ",".join(sorted(canonical)) + " (pre-wholegame manifest, "
-            "no declared matrix to compare against)", "skip"))
+            "no declared matrix to compare against; placement asked via "
+            + (",".join(channels) if channels else "no channel") + ")", "skip"))
+        a.issues.extend(placement)
         return _finish(a)
 
     # --- 1. does the manifest describe the reports beside it?
@@ -519,32 +636,7 @@ def audit_run(run_dir: Path) -> RunAudit:
                 f"missing={len(missing)}", "error"))
 
     # --- 2. does the manifest belong to the directory it sits in?
-    #
-    # BOTH tests run, never one instead of the other. `run_dir` is exact and needs no
-    # timezone reasoning, but it is only present from schema 2 onward, and a check that
-    # switched to it would be WEAKER on new data than on old - a schema-2 manifest sitting
-    # in the right directory with a started_at from another day would sail through. The
-    # stamp test costs nothing and covers the whole corpus.
-    own = canonical.get("run_dir")
-    if own is not None and own != run_dir.name:
-        a.issues.append(Issue(
-            "MISPLACED", f"manifest.run_dir={own} directory={run_dir.name}", "error"))
-
-    d = stamp_delta_seconds(run_dir.name, canonical.get("started_at"))
-    if d is None:
-        if own is None:
-            a.issues.append(Issue(
-                "UNSTAMPED",
-                f"directory name carries no timestamp and the manifest has no run_dir "
-                f"field (schema {canonical.get('manifest_schema', 1)}) - cannot be "
-                f"placed", "warn"))
-    else:
-        delta, basis = d
-        if abs(delta) > STAMP_TOLERANCE_S:
-            a.issues.append(Issue(
-                "STAMP_DRIFT",
-                f"started_at is {int(delta)}s from the directory-name stamp "
-                f"(closest basis {basis}, tolerance {STAMP_TOLERANCE_S}s)", "error"))
+    a.issues.extend(_placement_issues(run_dir, canonical)[0])
 
     # --- extra manifests are informational: they are what the repair writes.
     extras = [p.name for p, _ in manifests if p.name != CANONICAL]
