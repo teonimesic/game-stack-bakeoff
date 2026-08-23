@@ -1,10 +1,11 @@
 ---
 id: 71
 title: Nothing reads the disclosures 31 of 75 completed trials already wrote
-status: in_flight
+status: done
 priority: 2
 refs: 'AGENTS.md rule 11, eval/FINDINGS.md #98, tasks/46, eval/AGENTS.md agent_result.json'
 done_when: either a grader or report surfaces each completed trial's self-disclosure to whoever reads its score, verified by a trial known to disclose appearing with it and one known not to appearing without, or the decision not to is recorded in DECISIONS.md with the reason; and whatever reads it reads the whole message, not the truncated field
+established_by: 'eval/tools/disclosure.py reads artifacts/<trial>/agent_result.json .result WHOLE and wholegame.py report prints each trial''s located passages under the score table. Broken state established first: report on wg-g4c from the unmodified main checkout is 82 lines with 0 mentions of agent_result.json; on the branch 110 lines with the six disclosing trials quoting themselves. Both directions on rows the documents already answer - FINDINGS 98''s two wg-g4c godot trials and rule 11 / FINDINGS 49''s four wg-arena3d trials appear with their own words, and archive-arena2d, recorded in eval/RUNS.md at a 0 percent hand-classified rate over n=3, comes back quiet on all three readable messages and NO MESSAGE on the other five. Truncation control on real data: wg-arena3d g3_arena__rust__t1 states FINDINGS 49''s mechanism at character 0 of 3912 and the tail mutant that reads result[-3000:] loses it. It is a locator not a classifier - 26 of 75 against the hand-classified 31, godot 3/15 rust 12/21 ts 3/23 unity 8/16, under-reporting in every arm; three values not two, 15 of 90 stored results are null or the API limit string. eval/tools/disclosure_mutants.py runs six mutants, all six caught, four of them only by real stored data; both selftests added to tools/precampaign_smoke.py. First pass surfaced four Rust agents in three runs reporting the same broken starter recipe, filed as tasks/81. docstat.py --sweep exit 0 after adding --wildcards to FOREIGN_FLAG_PREFIXES, tasks.py check exit 0. Branch task-71-read-the-disclosures, commit c2bc8ce.'
 ---
 
 
