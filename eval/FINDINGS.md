@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#103 from building and running this evaluator. **Check whether a
+Findings #19-#104 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -178,6 +178,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **101** | The TypeScript capture page never ran its own determinism script, and the defect filed instead was the opposite of the truth — radius zero on all 26 stored submissions | [one-arm-bias](findings/one-arm-bias.md) |
 | **102** | A submission the judge never disagreed with gets an error bar of zero, and then out-resolves everything | [certifies-nothing](findings/certifies-nothing.md) |
 | **103** | #100 was repaired in the file it named, and the same merged buffer is still in the runner that stores the agent's own gate | [one-arm-bias](findings/one-arm-bias.md) |
+| **104** | Of 27 unread exit statuses 24 were deliberate, and one of the three that were not was the lint category itself, green on two of the three ways ruff can fail to run | [fail-open](findings/fail-open.md) |
 
 ---
 

@@ -516,3 +516,96 @@ It also has a stated limit, which the `ux` and `audio` retirements needed and di
 answers *"was a device opened"* and **not** *"is this silent"*. Unity's guard leaves the device
 open at zero volume, so on that question it reads 5 either way. Silence is asserted from the
 harness log instead.
+
+
+## 104. Of 27 unread exit statuses, 24 were deliberate — and one of the three that were not was in the lint category itself, which had been reporting a clean bill of health for two of the three ways ruff can fail to run
+
+Task 34 triaged the two rules the pinned lint set exists for: 27 `subprocess.run` calls with no
+`check=` argument (an unread exit status, `AGENTS.md` rule 3) and 30 blind `except Exception`
+(the fail-open shape, #31). The expectation going in was that most of the 27 were real. **They
+were not.** 24 were deliberate best-effort probes whose non-zero exit is either read on the next
+line or *is* the answer — `pkill` exiting 1 because it matched nothing, `just --summary` exiting
+non-zero on an older `just` so the `--list` fallback fires, `cp -Rc` failing off APFS, `find`
+exiting 1 on a permission-denied descent **while still listing everything it could read**, the
+agent CLI exiting non-zero after writing a submission worth grading.
+
+That is the finding, and it is not "the lint count was noise". It is that **an explicit
+`check=False` and an accidental omission were indistinguishable to every reader for the entire
+life of the harness**, so the 3 that mattered were sitting in a pile of 24 that did not, and no
+count over the pile could ever have gone down in a way that meant anything.
+
+### The one in the instrument: three ways for ruff not to run, one of them controlled
+
+`prune_scan.cat_lint` was added on 2026-08-23 with a docstring that names the risk exactly —
+*"a linter that is not installed must not read as a clean bill of health -- that is the
+`-disable-audio` failure (#61)"* — and controls **one** of the three ways ruff can fail to run.
+Measured, on the installed ruff:
+
+| how ruff fails | exit | stdout | what `cat_lint` reported |
+|---|---|---|---|
+| not installed | — | — | `(ruff not installed)` — **controlled** |
+| refuses the invocation (removed or unknown rule selector) | **2** | `''` | `lint (0)` — **green** |
+| pointed at a path that does not exist | **0** | `'[]'` | `lint (0)` — **green** |
+
+`json.loads(r.stdout or "[]")` turns an empty stdout into an empty findings list, and the
+category prints its length. The third row is the worse one: ruff exits **zero** on a missing
+path, printing only a warning to stderr, so a wrong `LINT_ROOT` would report a clean codebase
+forever. That is #60's shape — a correct method pointed at the wrong place — inside the
+instrument built to find that shape.
+
+**The guard named the mechanism it had met (`shutil.which` returning None) rather than the
+property it was protecting (ruff produced a verdict).** That is the rule-audit lesson in
+`AGENTS.md`, one day after it was read: *write the trigger as the resource or the property,
+never as an enumeration of the instances you happened to see.*
+
+`run_ruff()` now checks the address before the command, treats any exit outside `{0, 1}` as a
+refusal, and is the single entry point both `cat_lint` and the new `eval/tools/lint.py` call, so
+the two cannot disagree about what was scanned.
+
+### The one in the evidence capture: a failed `git add -A` is indistinguishable from an agent that changed nothing
+
+`wholegame.build_trial` closes every trial with three commands whose exit codes it discarded:
+`git add -A` (which is what makes untracked files appear in `diff.patch`), `tar -czf` (the
+submission archive, described in the comment directly above it as *"what makes offline
+re-judging actually possible"*), and `find` (for `tree.txt`).
+
+Both failure modes are reachable — measured: `git add -A` outside a repository exits **128**,
+`tar -czf` into a non-existent directory exits **1** and writes no archive. What they leave
+behind is an empty `diff.patch` and a missing `submission.tar.gz`, and **every artifact stored
+afterwards reads that as "the agent changed nothing"**. The comment above those lines exists
+because a submission was once unrecoverable; the mechanism that was supposed to prevent it
+could fail without saying so.
+
+`check=True` would be the wrong repair — it would abandon the record of a build already paid
+for, and `find` legitimately exits 1 on an unreadable subtree while listing the rest. The three
+codes are now recorded in the trial record as `capture_exit_codes` and printed when any is
+non-zero. **An audit trail of what the mechanism did, not the confidence that it worked.**
+
+### And one in the judge pack: a file that could not be read was dropped and counted nowhere
+
+`field.build_pack` wrapped its per-file copy into the judge pack in a blind `except: continue`.
+A file the pack could not read was silently omitted from what a judge is shown, with nothing
+recorded anywhere — an unequal amount of each submission reaching the judge, which is #62's
+shape through a fourth mechanism. It is now `except OSError`, counted as `code_unreadable`, and
+carried in the pack manifest beside `code`. The blind version also covered `neutralise` raising,
+which would drop **every** file and still report a built pack; that now crashes.
+
+### What the remaining blind excepts are, and why an explicit one is not the same object
+
+16 blind `except Exception` sites are in the harness proper (14 more were in `judge/fixtures/`,
+which are stand-in *submissions* and are now out of the lint scope for the same reason
+`eval/starters/*/` always was — one of them is deliberately defective). Of the 16, **9 were
+narrowed** to the exceptions actually expected, and **7 carry a `# noqa: BLE001` naming why the
+exception set is open**: a bot is arbitrary per-game Python, a submission's frames were not
+written by us, a verifier that enumerates the ways a backup can be corrupt only checks the ways
+someone thought of. Every one of the 7 **records** the failure rather than swallowing it.
+
+The nine narrowings are not cosmetic. `adjudicate._sees` caught everything and returned `"code"`,
+so a renamed field on `Aspect` would have silently changed which evidence the adjudicator was
+shown; `docstat`'s frontmatter check caught everything and would have reported a bug in the
+sweep as *"your frontmatter is malformed"*, sending a reader to edit a file that was fine.
+
+> **A blind `except` that is deliberate and one that is an oversight are the same three words.
+> The linter can tell them apart only if you write the difference down.** That is the entire
+> value of this triage, and it is why the count matters more as a *baseline* than as a total: a
+> new PLW1510 or BLE001 hit is now a site nobody has considered.

@@ -480,6 +480,31 @@ project evidence belongs. Every evidence file is under 50 MB, so an external dis
 GitHub repo would each work without LFS; both need the operator's go-ahead.
 
 ---
+## The harness lint baseline is a recipe, not a gate — decided 2026-08-23
+
+**`python3 eval/tools/lint.py` is the recipe.** It runs the pinned rule set over the harness and
+prints every site with its file and line. `prune_scan.py --only lint` still gives the per-rule
+totals; both call the same `run_ruff()` in `prune_scan.py`, and `LINT_SELECT`, `LINT_ROOT` and
+`LINT_EXCLUDE` are spelled once, there.
+
+**It exits 0 with findings.** A gate added while the codebase still violates it is a gate that
+gets switched off, and switching it off is silent. `--gate` exists so whoever wires one later
+need not edit the tool; nothing calls it.
+
+**What the baseline means, and what it does not.** `PLW1510` and `BLE001` are at **0** and are a
+real baseline: every `subprocess.run` under the lint root states its `check=`, and every blind
+`except Exception` that remains carries a `# noqa: BLE001` naming why the exception set is open
+there. A new hit from either rule is therefore a site nobody has considered. The other 44
+findings — `B905`, `F401`, `F541`, `B007`, `B023`, `F841` — were **not** triaged and are a
+standing backlog, not a clean baseline. The reasoning is in #104 and in `eval/tools/lint.py`.
+
+**`eval/judge/fixtures/` is out of scope**, alongside `eval/runs/`. Those are stand-in
+*submissions* — the same class of artifact as `eval/starters/*/`, one of them deliberately
+defective — and linting the object of measurement is measuring the thing being measured. They
+contributed 14 of the 30 `BLE001` and 3 of the 11 `B905`, every one of them an idiom a fixture
+needs.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -499,6 +524,7 @@ settled question is noise that makes the live ones harder to find.
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
+| Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
