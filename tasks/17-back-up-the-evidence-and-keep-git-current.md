@@ -1,6 +1,6 @@
 ---
 id: 17
-status: open
+status: in_flight
 priority: 2
 title: Back up eval/runs (the evidence) and keep the git mirror current
 refs: https://github.com/teonimesic/game-stack-bakeoff, eval/RUNS.md

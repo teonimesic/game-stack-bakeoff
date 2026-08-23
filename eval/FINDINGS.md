@@ -163,6 +163,8 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **86** | What a round cannot say about itself, and why prose is not a substitute for a field | [documentation](findings/documentation.md) |
 | **87** | A directory's size is not the size of the thing you are protecting | [limits-and-cost](findings/limits-and-cost.md) |
 | **88** | #84's two other candidates were measured and both are clean | [certifies-nothing](findings/certifies-nothing.md) |
+| **89** | #87's decomposition fixed the number and got the boundary wrong, in the direction that loses evidence | [limits-and-cost](findings/limits-and-cost.md) |
+| **90** | Three of four mutants were inert because the real data never reached the branch they broke | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

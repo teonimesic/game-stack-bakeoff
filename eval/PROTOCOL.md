@@ -402,6 +402,112 @@ the symptom without the cause is how this run has already lost trials three time
 `pkill -f wholegame.py` stops the driver but **not** the trial agents — they keep building and
 writing results. Kill both, then verify zero of each, then sweep for engine orphans.
 
+## After a run: copy the evidence out, before reclaiming anything
+
+Two things live here and they have opposite needs.
+
+**The product** — templates, harness, docs, findings, tasks, skills — is in git and pushed to
+`github.com/teonimesic/game-stack-bakeoff` (private). Committing is cheap. **Commit and push
+after any batch of work lands**, not at the end of a session that may not have one.
+
+**The evidence** is `eval/runs/`, it is gitignored, and it is the part that cannot be rebuilt: a
+matrix costs ~$420 and several days, and the judge rounds cannot be reproduced at all because the
+model and the harness have both moved since they ran.
+
+### What is evidence and what is build output — the rule
+
+> **A file under `eval/runs/` is evidence until something in the tree itself proves it can be
+> regenerated. The proof must name a producer that declared the file its own output.**
+
+Stated as a rule, deliberately, and not as a list of directories: an enumeration misses the next
+stack, the next cache and the next harness, and it fails in the direction that loses evidence
+silently. This one fails closed — an unproven file gets copied.
+
+Two proofs are discharged, both of them the producer's own declaration, read out of the tree:
+
+| proof | what it covers |
+|---|---|
+| `CACHEDIR.TAG` at a directory root, signature checked | cargo target dirs. The Cache Directory Tagging Spec — the tool that filled the directory saying a backup may skip it |
+| the work tree's own `.gitignore` | `node_modules`, `/Library/`, `/target`, `.godot/`, `.venv/`. Each template ships the file naming what its toolchain regenerates, so a fifth stack updates the classifier for free |
+
+`python3 tools/evidence_set.py` applies it and prints what it dropped and why.
+`tools/evidence_set_control.py` adjudicates its `.gitignore` matcher against **real git** on the
+real trees plus a synthetic fixture, and carries four mutants. Three of the four were **inert
+against real data** — no shipped `.gitignore` uses anchoring, directory-only matching or a
+negation — so the synthetic fixture is what makes the suite mean anything. Run the mutants after
+touching the matcher; a green suite with an inert mutant is the "passes and measures nothing"
+shape.
+
+**Measured 2026-08-22, and re-measured after the concurrent write described below:**
+
+| | files | size |
+|---|---|---|
+| total | 368,571 → 369,332 | 138.146 GB |
+| **evidence** | 13,431 → **14,192** | 1.100 → **1.109 GB** |
+| regenerable | 355,140 | 137.046 GB |
+
+The right-hand figures are the verified copy; `MEASURED.json` at the destination always states
+what the last verified run actually contained.
+
+99.20% of `eval/runs/` is build output — 133.344 GB of it cargo target dirs from old
+`t1_rally`/`t2_net`/`t3_powerup` spec-change trials. **The often-quoted "129 GB" and "138 GB" are
+the same measurement**: 128.66 GiB = 138.15 GB. Neither was ever the size of the evidence.
+
+**Do not infer from that table that `work/` is disposable.** The older `runner.py` wrote its work
+trees *inside* `eval/runs/<run>/work/<tid>/` and stores **no tarball and no `diff.patch`** — only a
+3,000-character `diff_stat` tail in the trial JSON. For every spec-change trial the work tree is
+the only copy of what the agent wrote, and the rule above keeps its source while dropping its
+caches. `wholegame.py` does not have this problem: its work trees live under `--work-root`, outside
+the repo, and each submission is archived as `artifacts/<tid>/submission.tar.gz`.
+
+### Re-sync after any run completes, before the work root is reclaimed
+
+    python3 tools/backup_evidence.py --dest /Users/stefano/game-research-evidence
+
+It classifies, rsyncs, and then **verifies by reading the destination back** in three tiers —
+inventory, SHA-256 of every file on both sides, and opening a sample: `json.load` on the harness's
+own records, and extracting tarballs and decompressing members. It never deletes from the source.
+
+**rsync's exit code is not the check.** A copy that reports success and wrote nothing is the same
+defect class as a gate that passes and measures nothing, and it is discovered on the day the
+original is gone. Pinned both ways 2026-08-22: a clean run verified 14,192 files; with one file
+deleted, one tarball truncated and 100 bytes flipped inside a JSON, tiers 1, 2 and 3 each caught
+their own and the tool exited 1.
+
+That sweep also found a **false positive worth keeping in mind**: `tsconfig.json` is JSONC, so a
+blanket `json.load` over every `.json` reported 26 corrupt files on a byte-perfect copy. The
+semantic tier now checks only JSON the *harness* wrote — derived from the work-tree set, not
+listed. A verifier that cries wolf on a good copy gets ignored on a bad one.
+
+### The current copy is NOT a backup, and must not be reported as one
+
+`/Users/stefano/game-research-evidence/` is on **the same physical disk** as the original — the
+only writable volume on this machine. There is no external disk (the sole `/Volumes` entry is a
+460 MB image with 44 MB free), no `rclone`, `restic` or `borg`, and no configured object-storage
+remote. iCloud Drive exists but is the operator's personal document store; project evidence does
+not belong in it and the quota is not ours to spend.
+
+It protects against `rm -rf`, a bad `git clean`, and the reclamation below. It protects against
+**nothing** a backup is for: disk failure, filesystem corruption, theft, loss of the machine.
+
+**What would make it a backup** — any one of these:
+
+- an external disk, then `backup_evidence.py --dest /Volumes/<disk>/game-research-evidence`. The
+  whole set is 1.109 GB, so any USB stick does it;
+- a private GitHub repo. Every evidence file is **under 50 MB** (largest 44.21 MB, a Unity
+  `submission.tar.gz`), so no LFS — measured, not assumed. This is the one thing the original task
+  forbade, on the strength of the 129 GB figure that turned out to describe the build output;
+- `rclone`/`restic` to object storage, once a remote is configured.
+
+### `eval/runs/` is written concurrently, so a copy is a snapshot of a moving target
+
+While this was being measured the set grew from 13,431 files to 14,192 — another agent's session
+wrote 761 files into `wg-aspect-reliability/packcheck/` at 23:59. Nothing in the harness marks a
+run directory quiescent. `backup_evidence.py` classifies once and verifies against that same list,
+so each run is internally consistent; what it cannot promise is that no *later* write is missing.
+Re-sync after a run completes, and treat `MEASURED.json` at the destination as the statement of
+what the copy actually contains.
+
 ## After a run: reclaiming disk, without deleting evidence
 
 Work trees are large and they accumulate: measured 2026-08-22, three g4 runs held **55G**
@@ -437,6 +543,29 @@ done
 
 Read the whole listing before deleting anything. An unarchived tree is either a stopped trial
 worth archiving or a trial that never produced work — and those look identical from the size.
+
+Re-measured 2026-08-22 across all three work roots, mechanically rather than from the note above:
+
+| run | work trees | tarballs | unarchived |
+|---|---|---|---|
+| `wg-g4-2026-08-17T09-38-32` | 6 | 4 | `g4_platformer__unity__t0`, `__t1` |
+| `wg-g4b-2026-08-17T19-50-43` | 8 | 8 | — |
+| `wg-g4c-2026-08-21T02-26-46` | 8 | 8 | — |
+
+Those two trials died before `build_trial` reached its archiving step: `eval/runs/wg-g4/artifacts/
+g4_platformer__unity__t{0,1}/` holds **`prompt.txt` and nothing else**, and neither has a trial
+record in `trials/`. They contribute to no published number and they are irreplaceable.
+
+Their source is now copied to
+`/Users/stefano/game-research-evidence/work-root/wg-g4-2026-08-17T09-38-32/` — 1,343 files,
+0.020 GB of the 17.843 GB that root holds, SHA-256-verified on both sides. **Tier 3 of the
+verifier checked nothing there**, because a raw work tree contains no harness records and no
+tarballs; only inventory and hashes cover that copy, and the tool now says so instead of printing
+a `0/0` that reads as a pass.
+
+**Run `backup_evidence.py` against a work root before reclaiming it**, not only against
+`eval/runs/`. The assumption that "every submission is archived as `submission.tar.gz`" is false
+for exactly these two trials, and it is false in the direction that loses work.
 
 ### Keep one warm tree while the Unity lint question is open
 

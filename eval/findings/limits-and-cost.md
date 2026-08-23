@@ -374,6 +374,12 @@ rust's cheapest trial ($36.16, 8 `just` invocations) also scored the field's onl
 
 ## 87. A directory's size is not the size of the thing you are protecting
 
+> ### ⚠️ THE SIZE HELD; THE CATEGORIES BELOW DID NOT — see **#89**
+>
+> The "build output" row silently contains 77 trial work trees that are the **only** copy of
+> their agent's source, because the older `runner.py` stores no tarball. A backup scoped by this
+> table would have lost them. The table is kept because it was published and acted on.
+
 `eval/runs/` is **138 GB**, and a task was written to solve the problem of backing that up:
 external disks, object storage, LFS. The figure was never decomposed. Decomposed:
 
@@ -404,3 +410,42 @@ number described**, because nobody had decomposed it.
 around 138 GB reached for infrastructure. The task built around 1.15 GB is a second repository
 and a rule for what belongs in it. One of those is a week and the other is an afternoon, and the
 only thing separating them was six lines of `du`.
+
+## 89. #87's decomposition fixed the number and got the boundary wrong, in the direction that loses evidence
+
+#87 corrected a real error: `eval/runs/` is 138 GB, 99.2% of it build output, and the evidentiary
+core is ~1 GB. Re-measured 2026-08-22 with a classifier rather than by category, the core is
+**13,431 files, 1.100 GB** of **368,571 files, 138.146 GB** — and the two published figures, "129
+GB" and "138 GB", are **the same measurement in different units**: 128.66 GiB = 138.15 GB. Neither
+ever described the evidence.
+
+The size held. The boundary did not.
+
+#87's table put **136.99 GB into one row labelled "build output (`debug/deps`,
+`debug/incremental`)"**. Inside that row sit 77 trial work trees, because the older `runner.py`
+wrote `run_dir/work/<tid>` and `run_dir/targets/<tid>` *inside* `eval/runs/`, and — unlike
+`wholegame.py` — it stores **no `submission.tar.gz` and no `diff.patch`**, only a 3,000-character
+`diff_stat` tail in the trial JSON. For every spec-change trial the work tree is the only copy of
+what the agent wrote. A backup scoped by that row would have copied the scores of those trials and
+none of the code they were scores of.
+
+The same shape, one directory over: `~/game-research-work` was to be excluded because "every
+submission is archived as `submission.tar.gz`". Checked per tree rather than per run, **two of 22
+are not** — `wg-g4`'s `g4_platformer__unity__t0` and `__t1` died before the harness archived them,
+leaving `prompt.txt` and no trial record.
+
+> **A category is a claim about provenance, and it was assigned by looking at the paths.** "Build
+> output" was true of 99.2% of the bytes and false of the files that mattered most, and the two
+> are indistinguishable from a `du` listing — which is what produced both the row and the
+> exclusion.
+
+What replaced it is not a better list. It is a burden of proof: **a file is evidence until
+something in the tree itself proves it regenerable, and the proof must name a producer that
+declared the file its own output** — `CACHEDIR.TAG` with its signature checked, or the work tree's
+own `.gitignore`. Both are the toolchain speaking about its own output rather than an observer
+inferring from a name, both fail closed, and a fifth stack updates the classifier for free.
+`eval/tools/evidence_set.py`, and the rule in `eval/PROTOCOL.md`.
+
+**#87's closing line said the difference was six lines of `du`. It was not** — `du` is what
+produced the mislabelled row. The difference was asking, per file, *who wrote this and can they
+write it again?*
