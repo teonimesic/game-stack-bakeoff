@@ -1,0 +1,290 @@
+[
+ {
+  "path": "AGENTS.md",
+  "cites": 99,
+  "anchor": "the measurement is #99",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror, deleted 2026-08-23; that is #99 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "AGENTS.md",
+  "cites": 119,
+  "anchor": "DECLARED, not inferred (#119)",
+  "verdict": "correct",
+  "note": "a withdrawal declared in one live document and contradicted in three; #119 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "CLEANUP-LOG.md",
+  "cites": 99,
+  "anchor": "**Resolved 2026-08-23: deleted** (#99)",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror; #99 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "DECISIONS.md",
+  "cites": 99,
+  "anchor": "#99: the only Codex-adjacent sibling",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror; #99 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "DECISIONS.md",
+  "cites": 132,
+  "anchor": "`#19-#132` is equally true",
+  "verdict": "range",
+  "note": "the upper bound of a RANGE, not a citation - _CITE_RX cannot tell them apart",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "DECISIONS.md",
+  "cites": 115,
+  "anchor": "on one of the two fields and is #115",
+  "verdict": "correct",
+  "note": "the wrong ~10% replacement reading for the withdrawn tier-3 pair; #115 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "DECISIONS.md",
+  "cites": 90,
+  "anchor": "`#90` says what this replaced",
+  "verdict": "correct",
+  "note": "#87's decomposition got the evidence-set boundary wrong; #90 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "README.md",
+  "cites": 103,
+  "anchor": "keeps the other (#100, #103)",
+  "verdict": "correct",
+  "note": "the merged capture buffer still in the runner; #103 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/FINDINGS.md",
+  "cites": 95,
+  "anchor": "The gate written for #95",
+  "verdict": "correct",
+  "note": "index row for #96, quoting that finding's own heading; #95 is the pack-numbering finding",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/IMPROVEMENTS.md",
+  "cites": 103,
+  "anchor": "(**FINDINGS #103**)",
+  "verdict": "correct",
+  "note": "task 45's split-stream capture repair; #103 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/IMPROVEMENTS.md",
+  "cites": 119,
+  "anchor": "That is **FINDINGS #119**",
+  "verdict": "correct",
+  "note": "the withdrawal register's first live catch; #119 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/IMPROVEMENTS.md",
+  "cites": 95,
+  "anchor": "opened the directory** (#95)",
+  "verdict": "correct",
+  "note": "a judge pack is a numbering, not a set; #95 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/RUNS.md",
+  "cites": 89,
+  "anchor": "`knockback.applied` repair (#89)",
+  "verdict": "correct",
+  "note": "knockback.applied scored a design branch as an absent feature; #89 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/RUNS.md",
+  "cites": 112,
+  "anchor": "the gap FINDINGS #112 is about",
+  "verdict": "correct",
+  "note": "a repaired page with a second live copy no gate compared; #112 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/certifies-nothing.md",
+  "cites": 95,
+  "anchor": "added the same day as #95",
+  "verdict": "correct",
+  "note": "in #96's own body, citing the finding #96 is named after; #95 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/certifies-nothing.md",
+  "cites": 115,
+  "anchor": "superseded by #115",
+  "verdict": "correct",
+  "note": "the wrong ~10% replacement reading; #115 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/certifies-nothing.md",
+  "cites": 132,
+  "anchor": "findings, #19-#132**",
+  "verdict": "range",
+  "note": "the upper bound of a RANGE, not a citation",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/certifies-nothing.md",
+  "cites": 132,
+  "anchor": "`#19-#132` is equally true of 114",
+  "verdict": "range",
+  "note": "the upper bound of a RANGE, not a citation - and the sentence says so",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/certifies-nothing.md",
+  "cites": 132,
+  "anchor": "duplicate pair at `#19-#132`",
+  "verdict": "range",
+  "note": "the upper bound of a RANGE, not a citation",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/fail-open.md",
+  "cites": 137,
+  "anchor": "the finished repair for #137",
+  "verdict": "correct",
+  "note": "the blinding-as-suffix finding, in #138's body; #137 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/fail-open.md",
+  "cites": 137,
+  "anchor": "the construct #137 declines",
+  "verdict": "correct",
+  "note": "the blinding-as-suffix finding; #137 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/findings/limits-and-cost.md",
+  "cites": 90,
+  "anchor": "DID NOT — see **#90**",
+  "verdict": "correct",
+  "note": "in #87's own body, pointing at the decomposition that superseded it; #90 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/judge/AGENTS.md",
+  "cites": 137,
+  "anchor": "none of the ones it READS (**#137**)",
+  "verdict": "correct",
+  "note": "the blinding-as-suffix finding; #137 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/judge/AGENTS.md",
+  "cites": 137,
+  "anchor": "densest leak in it (#137)",
+  "verdict": "correct",
+  "note": "the blinding-as-suffix finding; #137 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/judge/AGENTS.md",
+  "cites": 137,
+  "anchor": "repairs the extension half (#137)",
+  "verdict": "correct",
+  "note": "the blinding-as-suffix finding; #137 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/judge/AGENTS.md",
+  "cites": 95,
+  "anchor": "across nine passes before it did (#95)",
+  "verdict": "correct",
+  "note": "a judge pack is a numbering, not a set; #95 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "research/11-doc-linting-for-agents.md",
+  "cites": 99,
+  "anchor": "(task 27, #99)",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror; #99 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "research/11-doc-linting-for-agents.md",
+  "cites": 99,
+  "anchor": "`.agents/skills/` is deleted** (#99)",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror; #99 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "research/11-doc-linting-for-agents.md",
+  "cites": 99,
+  "anchor": "deleted on 2026-08-23, #99",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror; #99 today",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/54-retire-the-withdrawn-1-70-2-05-tier-3-figure-fro.md",
+  "cites": 115,
+  "anchor": "New FINDINGS 115",
+  "verdict": "correct",
+  "note": "task 54 allocated 115 for the wrong ~10% reading and it still holds that number",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/55-a-withdrawal-register-declare-retired-figures-so.md",
+  "cites": 119,
+  "anchor": "FIRST LIVE CATCH, FINDINGS 119",
+  "verdict": "correct",
+  "note": "task 55 allocated 119 for the register's first live catch and it still holds it",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/88-readme-says-thirty-seven-numbered-findings-the-l.md",
+  "cites": 132,
+  "anchor": "recurred mid-task at `#19-#132`",
+  "verdict": "range",
+  "note": "the upper bound of a RANGE, not a citation",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/96-number-and-land-the-task-87-finding-a-blinding-n.md",
+  "cites": 137,
+  "anchor": "Landed as two findings: #137",
+  "verdict": "correct",
+  "note": "task 96 allocated 137 for the blinding finding and it still holds that number",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/96-number-and-land-the-task-87-finding-a-blinding-n.md",
+  "cites": 137,
+  "anchor": "- **#137**, `eval/findings/one-arm-bias.md`",
+  "verdict": "correct",
+  "note": "task 96's own #137; unmoved",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/96-number-and-land-the-task-87-finding-a-blinding-n.md",
+  "cites": 137,
+  "anchor": "both now in #137",
+  "verdict": "correct",
+  "note": "task 96's own #137; unmoved",
+  "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "tasks/96-number-and-land-the-task-87-finding-a-blinding-n.md",
+  "cites": 137,
+  "anchor": "is published as **#137/#138**",
+  "verdict": "correct",
+  "note": "a statement ABOUT the renumber that produced today's #137/#138; correct as written",
+  "triaged": "2026-08-23, task 102"
+ }
+]

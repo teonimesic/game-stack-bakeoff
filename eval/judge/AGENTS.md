@@ -21,7 +21,7 @@ both carry `--selftest`. Tier 2 currently prints `SATURATED`: 5 of 10 groups ret
 `DECISIONS.md` records why that is accepted rather than repaired. **Before adding or promoting a
 tier-2 criterion, run it** — the promotion column already says that scoring `layer.clears`,
 `score.rewards_clears` or `stage.completes` would move every score in its group by the same amount
-and separate nothing (#126).
+and separate nothing (#128).
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two
@@ -282,6 +282,52 @@ clean**. `judge/pack_selftest.py` pins both halves and must stay green.
 `evaluate.py` returns `usable: false` and excludes a tier with weight renormalisation rather than
 scoring an empty pack.
 
+### What the judge is TOLD about the pack is an instrument, and it needs a gate of its own
+
+**Every gate above reads the pack. None read the brief** — and that is how a sentence describing a
+mechanism deleted on 2026-08-22 went on being handed to every code judge. `EVIDENCE_BLURB["code"]`
+said the pack "may not contain every file the author wrote" while `files_dropped_for_length` was
+0 by construction, so the harness invited each judge to discount an absence it was seeing in full.
+All 10 stored code rounds that recorded a `brief_sha256` rebuild byte-identically to that text
+(`eval/RUNS.md`); the other 26 stored no hash and are unassessable.
+
+Four things to know before touching any of it:
+
+- **The subject is the RESOURCE — judge-facing text that makes a claim about the packer — not the
+  one constant that was wrong.** It is two objects today: `EVIDENCE_BLURB`, rendered into
+  `BRIEF.md`, and the sampling skill written into every pack. A third is covered by being added to
+  `blurb_selftest.judge_facing_texts()`.
+- **A claim about the pack is a FUNCTION of the pack.** `field.COMPLETENESS_NOTE` holds both
+  states and `build_pack`/`run_field` select on `knowingly_truncated`. Keeping one wording is what
+  produced the defect: **a claim with only one possible value is not a claim and nothing can check
+  it.** The skill had the same defect pointing the other way — it asserted completeness
+  unconditionally, so a field built on purpose with `--allow-truncated` got a skill and a brief
+  that contradicted each other.
+- **A pack built before `knowingly_truncated` was recorded is refused, not assumed complete.**
+  `run_field` returns `usable: false` and asks for a re-pack, because a missing key read as falsy
+  would assert completeness about a pack nothing on disk describes — #62's direction (rule 7).
+- **`PACK_PATH_EXAMPLE` is keyed on `blind_language` and must stay suffix-free when it is off.**
+  Only `architecture` blinds extensions; under `idiomatic` the labels keep their real suffixes, and
+  one brief serves eight submissions from four stacks, so any real suffix in an example names an
+  arm. The pre-repair brief showed `` `sim/03.src` `` to both.
+
+```
+python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim has drifted
+python3 judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
+```
+
+It builds real packs in both completeness states and both blinding modes, carries two mutants, a
+variant (a field whose *stored* drop count is non-zero, which no mutant can manufacture) and a
+fail-closed case, and must stay green. `--stored-rounds` is the producer for every figure in
+`eval/RUNS.md`'s section on this.
+
+**Where the caution-vocabulary check is aimed was chosen on the false-positive count, not on
+which address sounded more general** (rule 12, and the census-trigger derivation in
+`DECISIONS.md`). Aimed at the rendered `BRIEF.md`/`SKILL.md` it fires on the skill's closing
+paragraph, which narrates the removed cap in the past tense — 3 hits, 0 of them defects. Aimed at
+the **claims themselves**, which describe the pack in the present tense, it is 0 false positives
+on the live corpus and 2 true positives on the pre-repair one.
+
 **Re-packing a stored run is `repack.py`, and it is not "run the packer again".** The
 starter-identical filter compares against the starter as it is NOW, so a starter that moved since
 the run was packed makes template code look authored (#77) — the opposite failure to the one you
@@ -301,3 +347,47 @@ the run's results are reported; no gate can reconstruct what a stored round was 
 Update `RUBRIC.md` **and** the grading table in `README.md`. Then **re-grade offline** — re-running
 a stochastic judge to apply a weight change silently changes the verdicts too, so you would be
 measuring two things at once.
+
+## Dead code in a judge module is a conclusion waiting to rest on it
+
+`PlatformerBot._approach` was defined in five of the six commits that touched
+`bot_platformer.py` and called from none of them. Two conclusions in the archive rest on repairs
+made to it, and one of them — the re-grade that falsified the pit hypothesis for #82 by returning
+a byte-identical 0.793 — could not have returned anything else, because the gap-crossing code the
+repair touched was reachable only from inside `_approach` (#136).
+
+> **A second copy of a loop and an unreachable copy of a loop are indistinguishable by a score
+> diff.** Before reading an unchanged result as evidence about a hypothesis, establish that the
+> code you changed executed.
+
+`eval/tools/dead_private_control.py` is the offline check, and it is a **gate**: run it before
+interpreting any re-grade, and after touching a bot.
+
+```bash
+python3 eval/tools/dead_private_control.py             # 18 measurements; 0 green · 1 FAILED · 3 NOT CHECKED
+python3 eval/tools/dead_private_control.py --census    # just name what is unreachable in eval/judge/
+```
+
+Three things worth knowing before you act on it, all of them measured rather than assumed and all
+pinned by the control's own directions:
+
+- **It is reachability, not "is this name mentioned".** #136's per-method census could not see a
+  cluster dead as a whole, and there was one: `ArenaBot._corners`, `_far_corner` and
+  `_turn_corner`, where the last was the only caller of the other two. Shallow named one of the
+  three, reachability all three. Direction 3 pins both modes against that cluster as it stood at
+  `03cdb90`.
+- **A string mention counts as a use; a comment does not.** The first keeps a
+  `getattr(self, "_step_once")` dispatch from going dead spuriously. The second is what makes the
+  check fire at all — `_approach` appeared in every tree that defined it as its own `def` line and
+  as two *comments*.
+- **It gets two things wrong and says so.** A name assembled at runtime
+  (`getattr(self, "_han" + suffix)`) reads dead — noise, fail-closed, and there is no such site in
+  `eval/judge/` today. A method named only in another method's docstring reads live — a real miss,
+  and the price of the string rule. Both are variant rows in direction 4, so widening the string
+  handling cannot quietly lose either.
+
+**The tree is at 0 unreachable private methods out of 118 and that is the gate's whole content.**
+If you delete a method to satisfy it, the measurement in its docstring is evidence and has to land
+somewhere first: `_turn_corner`'s went into `_chase`'s docstring, beside the two discarded designs
+already recorded there. **Do not add a name allowlist** — an exemption list is a fail-open channel
+(AGENTS.md rule 7), and the one hit this check has had was resolved by deletion instead.

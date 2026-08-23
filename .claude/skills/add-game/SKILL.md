@@ -117,13 +117,13 @@ promote on reasoning alone — and check what promoting it would DO before doing
 `judge/tier2_census.py --runs-root <main checkout>/eval/runs` prints each diagnostic's
 stored values per group, and one that is single-valued moves every score in its group by
 the same amount and separates nothing. All three current diagnostics are in that state
-(#126).
+(#128).
 
 ## Ask what the criterion could ever separate, before writing it
 
 `judge/tier2_census.py` is also the check on a NEW scored criterion, and it is free.
 Tier 2 currently returns one value in 5 of 10 groups, and four criteria built from real
-requirements the g4 prompt states passed 8 of 8 (#126) — so the default outcome of adding
+requirements the g4 prompt states passed 8 of 8 (#128) — so the default outcome of adding
 one is a longer rubric that ranks exactly as much as before. **A criterion that everything
 passes raises the denominator and lowers nothing.** Say, in advance, which stored
 submission you expect it to fail and why; if you cannot name one, you are adding

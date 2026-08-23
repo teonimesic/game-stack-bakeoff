@@ -3963,3 +3963,257 @@ run them.** `eval/tools/` holds `disclosure_mutants.py` and no `tasks_mutants.py
 session and survive as a sentence in a closed ticket's `established_by` field — so the claim that
 these two rows *can* fail is today exactly as durable as the comment in #132, which is the
 finding about a claim that survived every grep because nothing read it. Filed as `tasks/105`.
+
+---
+
+## 142. The flag gate covered the position a reader ignores and not the one a reader copies, and the obvious widening is 8 false positives against 0 true
+
+`docstat.py --sweep` checks that every flag a document names resolves to a real `argparse`
+somewhere in `eval/`. It is the gate against a phantom flag — a document confidently instructing
+someone to run something that does not exist.
+
+It required **backticks**. So it read this:
+
+> Pass `-⁠-no-such-flag` to `judge/runner.py`.
+
+and never read this:
+
+    python3 judge/runner.py -⁠-no-such-flag
+
+**The second is the usage block, and the usage block is the text a reader copies and pastes.** The
+first is a prose mention a reader skims. The gate covered the low-damage position, missed the
+high-damage one, and read clean throughout — there was no fence exemption to notice, because a
+*backticked* flag inside a fence was caught. Only bare ones were invisible, and bare is how a
+command line is written.
+
+Reproduced at the pre-repair tree before anything changed (rule 14), with the tool and the corpus
+both held at that commit: baseline exit **0**; a bare `python3 judge/runner.py -⁠-no-such-flag-bare1`
+in a fenced block in `eval/judge/JUDGING.md` exit **0**; the same flag backticked in the same
+fence exit **1**. After the repair the middle reading is **1**.
+
+### The widening that looks obvious is the open-class failure again
+
+The repair a reader reaches for first is *trigger on the `--` token*. Measured over the live
+167-document reference corpus:
+
+| trigger | hits | true positives |
+|---|---|---|
+| any bare flag on any fenced line | **8** | **0** |
+| the same, extended to prose as well | 2 | 0 |
+| **shipped**: a flag after the name of a script this repo owns, on a fenced line, cut at the first shell operator | **0** | — |
+
+The 8 are `git merge --no-ff`, `cargo doc --open`, `Godot --path`, `vale --config`, `npx --yes`
+and the `claude` CLI's `--output-format`. Every one is a correct line in a correct document. This
+is the third time this project has measured the same shape — a trigger drawn from an open class
+turning correct input red — after the aspect-census quantifier (#140) and the `LOCK_HINTS`
+phrasing list (#30). **The closed class here is "a script this repository owns", and it is derived
+from the code rather than enumerated**: the same `eval/` glob for files containing `add_argument`
+that the existing half already walked.
+
+> **A trigger's generality is not the thing to optimise. Its false-positive count on the live
+> corpus is.** The general version fires on every tool in the world; the specific one fires on
+> ours, which is the only population the gate can adjudicate.
+
+### The number that keeps the 0 honest
+
+**A 0 with no population behind it is `total=0 passed=0`.** The shipped trigger reads **56 fenced
+lines naming our scripts and 31 in-scope tokens** — 30 resolving to our own argparse, 1
+known-foreign. The sweep's summary line now prints that population beside the result, so
+0-of-31-examined can never again be read the same way as 0-of-0.
+
+### Two things found in the building that the ticket did not ask for
+
+- **A green pin that passed for the wrong reason, found by a mutant and not by reading.** The
+  out-of-scope prose pin was first written as `Pass -⁠-no-such-flag-prose to judge/runner.py` —
+  flag *before* the script name, a position the check never reads in any configuration. The
+  mutant that removes the fence requirement sailed straight through the pin written to catch it.
+  This is rule 15's point sharpened: **a green pin is an assertion about the input as much as
+  about the check**, and only a mutant can tell you the input was never exercising it.
+- **`--output-format` was a latent false positive of the *existing* half**, kept quiet by the
+  shape of a mention rather than by anything being right. It is the `claude` CLI's flag, named
+  in two documents, and both wrote it **bare** — which the backticked half could not see. The
+  first live document to backtick it turned the sweep red. Same shape as the `--wildcards` entry
+  already beside it in `FOREIGN_FLAG_PREFIXES`.
+
+**The examples above are written with a word-joiner between the two dashes**, because this finding's own illustrations turned the sweep red the moment it was written — the new check firing on the document describing it, before the commit. That is the gate working, and it is also a real cost: a document cannot quote a phantom flag as an example without either an escape or an exemption. The escape was chosen; an exemption list is the fail-open channel rule 7 names.
+
+Cost: the sweep goes 10.05s → 10.43s. Pinned by `_bare_flag_pins()`, which runs inside `--sweep`
+every time rather than behind a flag someone must remember: 6 red cases, 9 green, and four mutants
+of the implementation — drop the fence rule, drop the shell-operator cut, delete backticked spans
+instead of blanking them, disable the check — all four caught.
+
+---
+
+## 143. Every stale citation a merge could not adjudicate was a task citing the number it had allocated itself, and none of the live documents was wrong
+
+`docstat.py --renumbered` asks a question no other check here asks: not *does this citation
+resolve* — they all resolve — but *did the number mean something else when it was written*. It
+splits its answers in two. **Decided**: history says the number was reassigned, so the citation is
+stale. **Undecidable**: history cannot say, because the number named nothing at the moment the
+citing line was authored.
+
+The undecidable half looked like an artefact of the tool. It is not. Read by hand, all 51 rows:
+
+| | rows | wrong |
+|---|---|---|
+| decided | 16 | **16** — wrong by construction, which is what "decided" means |
+| undecidable | 51 | **15** |
+| …of those 15, in `tasks/` | 15 | **15** |
+| …in live documents | 36 | **0** |
+
+**Every one of the 15 is a task citing the finding number that task allocated for itself.** That
+is not a coincidence and it is not two facts: the author's numbering existed only in an
+uncommitted worktree, so at the moment the line was written the number named nothing in
+`eval/findings/` — and it was renumbered at the merge that closed the task. **One cause produces
+both conditions.** History cannot decide the citation *because* the citation is wrong.
+
+This is the collision of #139 seen from the other end. There, three branches took one number
+because nothing can gate a number a peer has not committed. Here is what that costs afterwards:
+the losing branch's own ticket keeps pointing at the number it lost, in a file nobody re-reads,
+resolving cleanly to somebody else's finding.
+
+> **A citation written against an uncommitted allocation is unverifiable at the moment it is
+> written and wrong shortly after.** The orchestrator allocating at merge (#139) prevents the
+> collision; it does not repair the citations the collision already produced, and only reading
+> the destination heading does.
+
+### The count cannot grade the repair, and that is not a limitation to work around
+
+`DECIDED STALE - 0` is necessary and not sufficient. A line edited in the working tree blames to
+`UNCOMMITTED` and is skipped; a line committed today has today's findings tree as its authoring
+tree and is never stale. **The number falls to zero whatever you write in its place** — including
+a second wrong number. All 31 replacements here were graded by opening `eval/findings/` and
+reading the heading, and the six destination headings are quoted in the ticket beside the rows
+they settle.
+
+An agreement heuristic — does the heading the author's tree held match today's? — buckets 36 rows
+as "agrees", and **two of them are wrong**. It is a reading order, not a verdict, and it is
+recorded as one.
+
+### What the register is, and the bug that nearly hid four rows
+
+`eval/renumber_triage.json` records a verdict per row, **keyed by the citing text and not by a
+line number** — a line number unpairs every entry below any edit. `--sweep` gates on an entry
+whose sentence no longer exists, so a triaged row that gets rewritten stops being silently
+triaged.
+
+The first matcher compared anchors against `--renumbered`'s *printed excerpt*, truncated at 96
+characters. Four adjudicated rows came back `UNTRIAGED`, indistinguishable from four nobody had
+read — rule 12 against the matcher's own address, and in `tasks/` the common case, because
+`established_by` lines run to thousands of characters. `triage_control.py` runs 14 controls with
+every red demonstrated, including the two variants that decided the design: a citation whose line
+moved 40 lines still pairs, and one sitting past column 96 still pairs, with the negative control
+showing it does *not* pair against the truncated excerpt.
+
+**Five of the rows are not citations at all** — they are range endpoints (`#19-#132`). Recorded as
+a class in the register rather than fixed by tuning `_CITE_RX`, which is shared with the decided
+half and would have been changed to satisfy a display problem.
+
+---
+
+## 144. A count with a producer still goes stale, because the producer bounds the staleness and does not prevent it — and this one drifted while a single session was reading it
+
+`AGENTS.md` has a rule bought with a retracted README figure: **when you write how much of
+anything the project has, find the producer, run it, and write the command beside the number.**
+The reasoning was *a count with a producer goes stale for an hour; a count with none goes stale
+forever.*
+
+Two live documents — `README.md` and `eval/instrfollow/RESULT.md` — stated the always-loaded
+instruction set at **73–113**. `python3 eval/tools/instruction_census.py`, which sits in the
+repository and was cited beside the figure in one of them, reported **108–151**.
+
+**The producer has exactly one commit and has never changed.** The subject moved: the
+always-loaded documents grew by roughly forty instructions, and neither document re-ran the tool
+standing next to its own number.
+
+> **Citing a producer is not running it.** The rule as written makes a number *checkable*, and a
+> checkable number that nobody checks is exactly as wrong as an uncheckable one — with the extra
+> hazard that the citation reads as freshness. `RESULT.md` carried a date and a command beside a
+> figure neither had produced.
+
+### The part that could not have been designed
+
+While this was being repaired, the count moved **again**. The finding was drafted against a
+reading of **108–151**; re-running the same tool one hour later, on a tree whose only change was
+this session's own documentation edits, gives **110–153**.
+
+That is the whole mechanism in miniature: **the quantity is a function of the always-loaded
+documents, and this project edits those constantly.** The pre-registered experiment reached k = 16
+against a ceiling that has now drifted three times in a day. Any statement of the form *"the repo
+loads N instructions"* is stale from the moment it is written, and the honest form is the command,
+not the digits.
+
+**The repair is not a fresher number.** Where a document needs the count in order to make a
+point — the gap between what the experiment tested and what the repository actually loads — it
+states the command and the reading with the date it was taken, and the point survives any
+particular value: **the experiment reached 16 and the repository loads an order of magnitude
+more, whatever today's exact figure is.** A claim that survives its own number going stale is the
+only kind worth writing beside a moving quantity.
+
+This is the fourth finding here about a number nobody re-derived, and the first where the producer
+existed, was named, and was still not run.
+
+---
+
+## 145. A claim with only one possible value is not a claim, and nothing can check it — which is why a sentence about a deleted mechanism outlived the mechanism
+
+Every code-seeing judge was told the pack it was holding *"may not contain every file the author
+wrote"*. That was true while a size budget truncated packs. **The budget was removed on
+2026-08-22 (#69). The sentence stayed.**
+
+It stayed because it was a **constant**. No input could make it read differently, so no test could
+distinguish a correct constant from a stale one, and no reviewer reading the packer could see a
+contradiction — the packer no longer mentioned the subject at all.
+
+> **A constant asserting something about a mechanism does not fail when the mechanism is deleted;
+> it simply stops being about anything.** Verification needs a quantity that can take more than
+> one value. Where a document or a prompt asserts a property of a system, the assertion must be
+> *derived* from that property, or it is a decoration that outlives whatever it described.
+
+### The subject was three objects, and the third was invisible to any checker
+
+The ticket asked for "a check on `EVIDENCE_BLURB`". Written against the **resource** — judge-facing
+text claiming something about the packer — it turned out to be three:
+
+1. `EVIDENCE_BLURB["code"]`, in `field.py`
+2. the pack skill's body
+3. **the `claude -p` prompt itself** — an argv string, saying *"The submissions are complete, so
+   some are large"* as a constant
+
+The third said the **opposite** of the first. **No checker walking the pack directory could ever
+have seen it**, because it is not a file. A field built deliberately with `--allow-truncated`
+would have been described three contradictory ways at once, and this is exactly what `AGENTS.md`'s
+rule-audit warns about: a rule whose trigger is a list must be re-derived by every reader who
+meets an item not on the list.
+
+### Deleting the sentence is the obvious repair and is wrong the same way
+
+An unstated completeness leaves a judge to decide for itself how much of a submission it holds,
+and **discounting absences is what it does by default** — so deletion trades a false statement for
+an unstated one that biases the same direction. Hard-coding "complete" is also wrong, because
+`--allow-truncated` still exists for the capped-versus-uncapped control.
+
+The repair is a **mapping from state to sentence**, and a pack whose state is unrecorded is
+**refused** rather than assumed complete. Reading a missing key as falsy would state completeness
+about a pack nothing on disk describes — #62's direction, and rule 7's fail-open channel.
+
+### What the stored corpus can and cannot say about the damage
+
+The ticket's premise was that every stored round read the stale text. **It is false and cannot be
+made true.** The sentence only reaches an aspect whose `sees` includes `code`: 36 of 93 stored
+rounds. Of those, **10 recorded a brief hash, and all 10 rebuild byte-identically to the
+pre-repair brief** — proof rather than inference. **The other 26 stored no hash and are
+permanently unassessable**, which is the #83 shape again: what a mechanism *did* is recoverable
+only where something recorded it.
+
+### Where to aim the check was decided on the false-positive count
+
+Against the rendered `BRIEF.md`/`SKILL.md`: **3 false positives, 2 true** — the skill's own
+past-tense history of the removed budget reads as a live claim. Against the claim constants
+themselves: **0 false positives, 2 true.** The latter shipped, on the same criterion the aspect
+census (#140) and the flag gate (#142) were decided on.
+
+A second stale claim surfaced in the same constant: both code briefs told the judge to cite a path
+with a real file extension, but only one aspect blinds extensions. It cannot be fixed by printing
+the true suffix — one brief serves eight submissions from four stacks, so **any** real suffix names
+an arm. The example is now suffix-free.

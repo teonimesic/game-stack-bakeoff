@@ -533,17 +533,6 @@ class Bot:
     def run(self, session: ProbeSession) -> list[Criterion]:
         raise NotImplementedError
 
-    # helpers shared by the concrete bots ---------------------------------- #
-
-    @staticmethod
-    def _num(d: dict[str, Any], *path: str, default: Any = None) -> Any:
-        cur: Any = d
-        for key in path:
-            if not isinstance(cur, dict) or key not in cur:
-                return default
-            cur = cur[key]
-        return cur
-
     #: ids that are measured and reported but deliberately NOT scored - see Criterion.
     diagnostic_only: frozenset[str] = frozenset()
 

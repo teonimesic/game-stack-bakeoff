@@ -213,7 +213,7 @@ including a positive control, a variant and three mutants. Over 68 stored trials
   g4 prompt states and no criterion checks, were driven against all 8 `wg-g4c` submissions:
   attack cannot be re-triggered mid-swing, enemies patrol, the `land` event fires, and replay
   determinism under a played 900-tick tape instead of the idle 300. **8/8 pass on every one**, and
-  the reference passes them too, so they can go green and nothing goes red (#126).
+  the reference passes them too, so they can go green and nothing goes red (#128).
 
 > A binary criterion asks whether a mechanic exists. When every submission implements every
 > mechanic, a tier made of them returns one number — and it is right to.
@@ -420,7 +420,7 @@ The platformer stresses machinery the other three games do not: sprite sheets an
 machines, attack hitboxes with active frames, knockback and invulnerability windows, platform
 collision. Pong, Tetris and arena all tied; a game exercising different systems was the most
 plausible remaining route to discrimination. **It has now been run once and it tied too** — all 8
-`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#126). The
+`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#128). The
 hypothesis was worth testing and is answered: different systems do not separate these stacks.
 
 Repeated judging resolves per **pair** with a Wilson interval, not per score, and stops sampling a
@@ -521,7 +521,7 @@ for as long as two documents said five. A census claim is only visible because s
 **declared** it exhaustive, which is the same mechanism the withdrawal register rests on.
 
 **The census trigger is scoped to the PREDICATE, not to the quantifier, and that is a measured
-choice rather than a stylistic one (task 92, #137).** It shipped as three alternations — the three
+choice rather than a stylistic one (task 92, #140).** It shipped as three alternations — the three
 wordings the two defective documents happened to use — and of 14 planted census claims, each
 false in exactly the way the check exists to catch, it fired on **2**. These two passed:
 
@@ -576,7 +576,7 @@ gate that fails on correct input gets disabled*:
   unchanged. The range was spelled in three files with only one of them checked, so the
   index was repaired while `AGENTS.md` went on saying `#19-#110`. And **a range is not a
   count**: `#19-#132` is equally true of 114 findings and of 40, which is how `README.md`
-  carried a count of *thirty-seven* for eleven days past a green range gate (#133,
+  carried a count of *thirty-seven* for eleven days past a green range gate (#134,
   `WR-readme-findings-count`). Each was green on a real defect, so each now carries a red
   control: **`--sweep` runs the pins itself** on every invocation, `docstat.py --selftest`
   prints them, and `eval/tools/findings_control.py` runs the command out of process against a
@@ -629,6 +629,31 @@ someone wanted it to be:
 the citation is what is wrong. The renumber map is derived from git on every run and is not written
 down anywhere — a hand-kept list of moved numbers would go stale exactly like the citations it
 describes.
+
+### The undecidable half's verdicts are recorded, because they cannot be derived — decided 2026-08-23
+
+The list that can never reach zero has a second cost: it gives the reader no way to tell a row
+somebody has already adjudicated from one nobody has ever looked at. Task 102 read all **51** rows
+at that revision — **15 were wrong**, and the other **36** cost a full pass to establish and were
+about to cost the next reader the same pass. `_check_renumbered_citations` already exhausts what
+history can say about them; what decides a row is reading its sentence against the heading in
+`eval/findings/`. So the verdict is **recorded**, in `eval/renumber_triage.json`, on the same
+principle as the withdrawal register above: *the only detectable property of an adjudication is
+that somebody wrote it down.* `--renumbered` prints `UNTRIAGED` first and the recorded verdicts
+after, so what a reader must read is what is new.
+
+**Keyed by the citing text, never by a line number.** A line number is invalidated by any edit
+above it, which would unpair every entry in a document and present 36 adjudicated rows as
+untouched — a wall of false work, indistinguishable from real work. The anchor must itself contain
+the citation, so it cannot drift onto a neighbouring sentence.
+
+**The register gates inside `--sweep`, and only on whether an entry still resolves** — its file
+exists, its anchor matches exactly one line, and that anchor contains the citation it claims. The
+*verdict* is a judgement and is never re-checked. `eval/tools/triage_control.py` runs 14 controls,
+each red demonstrated before the green was believed, plus the two variants that decide the design:
+a citation whose line number moved by 40 lines still pairs, and so does one sitting past column
+96 — the excerpt `--renumbered` prints is truncated there, and matching against it instead of
+against the line put 4 adjudicated rows in the untriaged list on the first run.
 
 ### A withdrawal is declared in a register, and the live/archive split is a decision — decided 2026-08-23
 
@@ -694,7 +719,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92) — and
   became a gate on 2026-08-23. **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials**,
   and it now carries the whole weight. That half is not fixed and will not be fixed inside the
-  rubric: both in-rubric repairs were measured and neither works (#126), so a saturated group is
+  rubric: both in-rubric repairs were measured and neither works (#128), so a saturated group is
   reported as a completion certificate (see "A saturated tier 2 is reported as a completion
   certificate" above). **What stays open is the task**, priced by task 74 — not the criteria and
   not the weights.
@@ -1164,8 +1189,8 @@ drive a sparse checkout, so 1 positive pattern turns the list into an allowlist 
 reviewer to everything not named — including `.coderabbit.yaml` itself. An exclusion-only list
 cannot do that.
 
-What is excluded, and the population each pattern covers (`git ls-files`, 662 tracked files,
-2026-08-23):
+What is excluded, and the population each pattern covers (`git ls-files`, 673 tracked files,
+2026-08-23 — re-run it, this tree moves daily):
 
 | pattern | files | why |
 |---|---|---|
@@ -1204,7 +1229,7 @@ not standards this repository holds itself to. It is an enumeration, which is no
 shape, and it goes stale in exactly 1 way: **a new folder-scoped `AGENTS.md` outside
 `eval/starters/` has to be added to it.**
 
-**`reviews.tools` is deliberately empty.** Disabling `markdownlint` and `languagetool` over 168
+**`reviews.tools` is deliberately empty.** Disabling `markdownlint` and `languagetool` over 173
 markdown files is the obvious edit and it is a guess. The first reviews are the measurement.
 
 **What the first review actually did, on PR #1, 2026-08-23 — because a configuration that has
@@ -1240,6 +1265,64 @@ on 1 PR, and the third round consumed 2. **The cost is per review round, not per
 and it is not 1 per push**; anything that assumes a fixed rate should read the counter instead.
 
 ---
+## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
+
+`eval/tools/dead_private_control.py` is a gate over `eval/judge/`: 0 unreachable private methods
+out of 118. The reason it is a gate rather than a report is #136 — a repair to
+`PlatformerBot._approach`, which no tree that defined it ever called, produced a byte-identical
+re-grade that was then read as evidence against the pit hypothesis for #82. The check goes red on
+`9fc044a`, the commit that published #82.
+
+Three choices inside it, each with the alternative that was measured and rejected:
+
+| Decided | Rejected, and why |
+|---|---|
+| It lives in a `*_control.py`, not in `lint.py` | `lint.py` exits 0 with findings by deliberate decision (the row below), and its `--gate` flag has no caller. A check that must go red does not belong behind one that must not. The control shape also carries the red pin and the green pin in one run, which is what the task asked for |
+| **Reachability** from roots outside any private method's body, not "is this name referenced anywhere" | #136's per-method census names a cluster's tip and calls the rest live. Measured on the real `ArenaBot` corner cluster at `03cdb90`: shallow names 1 of 3, reachability 3 of 3 |
+| The two hits were **deleted**. No allowlist, no marker, no exemption of any kind | An allowlist is a fail-open channel (AGENTS.md rule 7) and it would have been the check's entire content on day one. `Bot._num` was an unused base-class helper with no reference anywhere in the repository. The corner cluster's docstring was the only record of a measured-and-discarded design, so **the measurement moved into `_chase`'s docstring** — which already archives two other discarded designs — before the code went. Evidence lands somewhere first; then the code goes |
+
+The census population **includes `eval/judge/fixtures/`, which `lint.py` excludes.** Deliberate:
+#136's published figure of 121 methods at `9fc044a` counts them, and direction 1b asserts against
+that figure, so a narrower population would make the two numbers incomparable for nothing. The
+fixtures contribute 0 dead methods in all three trees measured (`9fc044a`, `03cdb90`, HEAD), both
+modes.
+
+**What it gets wrong is pinned, not hidden.** A name assembled at runtime reads dead — fail-closed
+noise, and no such site exists in `eval/judge/`. A method named only in another method's docstring
+reads live — a genuine miss, and the price of the rule that keeps `getattr(self, "_step_once")`
+alive. Both are variant rows, so widening the string handling cannot lose either silently.
+
+---
+## What the judge is told about the pack is a function of the pack, and both wordings are kept — decided 2026-08-23
+
+**The question (task 104): the brief told every code judge the pack "may not contain every file
+the author wrote" and the size budget that made that true was removed on 2026-08-22 (#69).
+Correct the sentence, or delete it?**
+
+**Neither on its own. The claim is now selected by the pack's state** —
+`field.COMPLETENESS_NOTE[knowingly_truncated]`, read by both judge-facing texts. Deleting it was
+the obvious repair and is wrong in the same way the original was: an unstated completeness leaves
+a judge to decide for itself how much of a submission it is holding, and discounting absences is
+what it does by default. Hard-coding "this pack is complete" is wrong too — `--allow-truncated`
+still exists for the capped-vs-uncapped control, and a field built that way *is* incomplete.
+
+**The general form, and it is why this is a decision rather than a bug fix: a claim with only one
+possible value is not a claim, it is a decoration, and nothing can check it.** The constant
+survived a mechanism's deletion precisely because no input could ever have made it read
+differently. The same property put the opposite error in the pack skill, which asserted
+completeness unconditionally — so a deliberately truncated field would have carried a skill and a
+brief that contradicted each other.
+
+**A pack with no recorded state is refused, not assumed complete.** `run_field` returns
+`usable: false` when `knowingly_truncated` is absent from the mapping. Reading a missing key as
+falsy would state completeness about a pack nothing on disk describes, which is #62's direction
+(rule 7).
+
+**Scope:** this licenses new rounds and repairs none. The 10 stored code rounds that recorded a
+brief hash demonstrably read the stale sentence and cannot be re-run for it; `eval/RUNS.md`
+records that, and the other 26 code rounds stored no hash and are unassessable.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1263,12 +1346,14 @@ settled question is noise that makes the live ones harder to find.
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
+| An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
 | Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
+| Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
 | `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
-| `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 168 markdown files must be noisy — that argument is available now and is not evidence |
+| `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 173 markdown files must be noisy — that argument is available now and is not evidence |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the

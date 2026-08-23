@@ -682,31 +682,6 @@ class ArenaBot(Bot):
                     d1=_dist(cur, q1), trail=trail, late_n=self._CHASE_LATE, q1=q1,
                     over=s.last.state.get("game_over") is True)
 
-    @staticmethod
-    def _corners(half: Vec) -> list[Vec]:
-        return [(sx * 0.85 * half[0], sy * 0.85 * half[1], sz * 0.85 * half[2])
-                for sx in (-1.0, 1.0) for sy in (-1.0, 1.0) for sz in (-1.0, 1.0)]
-
-    def _far_corner(self, half: Vec, avoid: Vec) -> Vec:
-        return max(self._corners(half), key=lambda c: _dist(c, avoid))
-
-    def _turn_corner(self, half: Vec, enemy: Vec, player: Vec) -> Vec:
-        """The corner that most changes where the enemy has to look to see the player.
-
-        Running to the OPPOSITE corner does not do it, and that is a measurement rather
-        than a guess: on the reference the player outran the enemy to corner A, then
-        crossed back toward the far corner and approached the enemy head-on, so the
-        direction from the enemy to the player never changed. Mean per-tick alignment
-        1.00 on both legs and a heading swing of exactly 0.00 - a second leg that
-        creates no turn cannot distinguish a pursuer from anything, which is the whole
-        job of the second leg.
-        """
-        u = _unit(_sub(player, enemy))
-        if u is None:
-            return self._far_corner(half, enemy)
-        return min(self._corners(half),
-                   key=lambda c: _dot(_unit(_sub(c, enemy)) or (0.0, 0.0, 0.0), u))
-
     def _chase(self, repo, env, half: Vec) -> Criterion:
         """The player CIRCLES one enemy, in a session of its own.
 
@@ -723,8 +698,8 @@ class ArenaBot(Bot):
         while never closing to contact, which matters: a contact the PLAYER caused would
         otherwise read as a chase.
 
-        Two designs were measured and discarded before this one, and both are recorded
-        because each looked correct:
+        Three designs were measured and discarded before this one, and all three are
+        recorded because each looked correct:
 
         * standing still and watching a distance shrink (the version this replaces) -
           standing still is fatal in this game, so on all six real submissions the
@@ -732,7 +707,21 @@ class ArenaBot(Bot):
           0.4 -> 0.4" over what it claimed were 90 ticks (FINDINGS #46);
         * running to one far corner and then another - the player outruns the enemy, the
           gap blows out to 730 units, and the direction from the enemy to the player
-          then swings 0.36 out of a possible 2.00. The turn test had nothing to read.
+          then swings 0.36 out of a possible 2.00. The turn test had nothing to read;
+        * running to the corner that most CHANGES where the enemy has to look, instead
+          of to the opposite one. This was the repair to the bullet above and it is
+          worse, which is why it is written down: on the reference the player outran the
+          enemy to corner A, then crossed back toward the far corner and approached the
+          enemy head-on, so the direction from the enemy to the player never changed at
+          all - mean per-tick alignment 1.00 on BOTH legs and a heading swing of exactly
+          0.00. A second leg that creates no turn cannot distinguish a pursuer from
+          anything, which is the whole job of the second leg.
+
+        The third design shipped as `_corners`/`_far_corner`/`_turn_corner` and was
+        never called from anywhere once the circle replaced it. Task 100 deleted the
+        three methods and moved the measurement here; the code is at `03cdb90` if it is
+        ever wanted, and `eval/tools/dead_private_control.py` uses that commit as its
+        worked example of a cluster that is dead only as a whole.
         """
         cid, q = "enemies.chase", self._q("enemies.chase")
         try:

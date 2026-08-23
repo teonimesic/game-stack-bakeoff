@@ -5,10 +5,10 @@
 # exclusion names what is in the directory it excludes.
 #
 # WHAT THIS REPOSITORY IS, because it decides most of the settings below.
-# It is a research instrument, not an application. 662 tracked files, 168 of them markdown
-# and 113 python (`git ls-files`, 2026-08-23). The prose is not documentation *of* the
-# product — for the always-loaded instruction documents the prose IS the product. Three
-# consequences a default configuration gets wrong:
+# It is a research instrument, not an application. 673 tracked files, 173 of them markdown
+# and 117 python (`git ls-files`, 2026-08-23 — re-run it, this tree moves daily). The prose is
+# not documentation *of* the product — for the always-loaded instruction documents the prose IS
+# the product. Three consequences a default configuration gets wrong:
 #
 #   1. Some directories are ARCHIVES. `AGENTS.md` requires that a figure which was published
 #      and later proven wrong STAYS there, marked. A reviewer "correcting" one is wrong every
@@ -23,7 +23,7 @@ language: en-US
 early_access: false
 
 reviews:
-  # `chill`, not `assertive`. 168 of 662 tracked files are markdown that has been worded
+  # `chill`, not `assertive`. Most of the tracked files are markdown that has been worded
   # deliberately, often to the sentence. An assertive profile over that corpus is the failure
   # mode `AGENTS.md` records as "a check that fires where nothing is wrong spends exactly the
   # attention that a check firing correctly needs".
@@ -198,7 +198,7 @@ reviews:
 
   # ---- tools ------------------------------------------------------------------------------
   # DELIBERATELY EMPTY IN THE FIRST VERSION. The obvious edit here is to disable `markdownlint`
-  # and `languagetool` on the grounds that 168 markdown files of hand-formatted tables and
+  # and `languagetool` on the grounds that 173 markdown files of hand-formatted tables and
   # blockquotes will generate noise. That is a guess, and this project's standard is to
   # measure before acting. The first reviews are the measurement; if they show noise, disable
   # the tool that produced it and record the review that established it.

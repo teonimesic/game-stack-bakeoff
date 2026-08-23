@@ -228,6 +228,89 @@ which makes it easier to miss and no less disqualifying:
 run row gains the date and the flag, because after it the run's numbers no longer match anything
 published about it before. Nothing has been re-scored so far.
 
+## EVERY STORED CODE ROUND WAS TOLD ITS PACK MIGHT BE TRUNCATED, AND IT WAS NOT — 2026-08-23
+
+A grader-side boundary, in the same place as the fifth above and deliberately **not given an
+ordinal**: regime ordinals are one of the four hand-allocated namespaces in this repository and
+every one of them has collided, twice on a single day (see the twelfth break below). It sits
+beside the fifth. It is not in the builds and not in the scores, but in **what the judge was told
+before it read anything**.
+
+`field.EVIDENCE_BLURB["code"]` carried this sentence, verbatim, in every brief handed to a
+code-reading judge:
+
+> NOTE: the pack is filled until a size budget runs out, so it may not contain every file the
+> author wrote - judge what is here and do not infer that an absent concern was neglected.
+
+**The character budget was removed on 2026-08-22 (#69)** and `files_dropped_for_length` has been
+0 by construction ever since, asserted by `field.pack_completeness`. The sentence was a constant,
+not a function of the pack, so nothing made it move when the mechanism it described was deleted.
+
+**The direction is the damaging one.** It does not overstate the evidence — it understates it. A
+judge told the pack may be a subset will discount an absence that is in fact complete, which is
+the opposite of the caution the sentence was written to induce, and absence is most of what a code
+judge has to work with.
+
+**Which rounds read it — measured, not assumed.** The producer, and do not quote these from
+memory:
+
+```
+python3 eval/judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
+```
+
+It rebuilds each round's brief from the aspect, game and geometry the round itself recorded, and
+compares the hash against its stored `provenance.brief_sha256`. It infers nothing from a date.
+
+| | n |
+|---|---|
+| stored judge rounds in `eval/runs/**` | 93 |
+| of those, code-seeing (`idiomatic`, `architecture`) | 36 |
+| code-seeing rounds carrying a `provenance.brief_sha256` | **10** — all in `wg-aspect-reliability`, all `knowingly_truncated: false` |
+| of those 10, whose stored hash rebuilt **byte-identically** to the pre-repair brief | **10 of 10** (measured 2026-08-23 before the change; after it the same producer reports all 10 as `moved`) |
+| the other 26 code-seeing rounds | **no brief hash stored — permanently unassessable**, not "clean" |
+
+The 10 are proof rather than inference: the stored hash and the rebuilt text agreed to the digit,
+so those rounds demonstrably read that sentence. The 26 predate `provenance`, and nothing on disk
+says what brief they were shown. Read them as unmeasurable, the same as the 26 rounds with no
+`files_opened` log in #83.
+
+**What changed, and what it costs.** The claim is now a function of the pack —
+`field.COMPLETENESS_NOTE`, selected by `knowingly_truncated`, used by **both** judge-facing texts
+(`BRIEF.md` and the sampling skill written into every pack). The pack skill had the same defect
+pointing the other way: it asserted *"Every submission here is COMPLETE"* unconditionally, so a
+field built on purpose with `--allow-truncated` would have been handed a skill and a brief that
+contradicted each other.
+
+**This moves the brief, so rounds either side are not strictly comparable** — the same shape as
+the `FRAMES_BLIND_SPOT` paragraph above. **Rule 8 says enumerate what differs from the artifacts
+rather than from what the edit intended**, so the producer rebuilds *every* hashed round, not
+only the code ones. Over the 30 rounds that carry a hash, 5 per aspect:
+
+| aspect | brief chars, stored → this checkout | moved by this change? |
+|---|---|---|
+| `architecture` | 3536 → 3576 | **yes** |
+| `idiomatic` | 3928 → 4000 | **yes** |
+| `audio` | 3459 → 3459, byte-identical | no |
+| `fun` | 3821 → 4759 | **no** — the same 938 characters pre-repair; it is the `FRAMES_BLIND_SPOT` paragraph recorded above |
+| `fun_frames` | 3275 → 4213 | **no** — as `fun` |
+| `ux` | 3321 → 4259 | **no** — as `fun` |
+
+Only the two code-seeing aspects moved for this reason, and the three frames aspects moved by
+byte-identical amounts before and after the change, which is what makes the isolation a
+measurement rather than an assertion. **The judge tier weighs 0.00, so no `overall` moves and
+nothing was re-scored.**
+
+**A second claim was wrong in the same constant and is repaired with it.** The brief told every
+code judge to cite files as `` `sim/03.src` ``. Only `architecture` sets `blind_language`; under
+`idiomatic` the packer keeps each file's **real** suffix, so half the code briefs named a path
+shape no judge had. It cannot be repaired by printing the real suffix — one brief serves a field
+of eight submissions from four stacks, and any real suffix names an arm — so the non-blind example
+is suffix-free (`field.PACK_PATH_EXAMPLE`).
+
+**The gate that now exists**: `python3 eval/judge/blurb_selftest.py`, unpiped. It builds real packs
+in both completeness states and both blinding modes and asserts that every claim the judge-facing
+text makes about the packer is true of the pack it accompanies.
+
 ## "completed" does not mean finished
 
 The calibration trial for the no-cap regime came back at **$72.83 / 369 turns / 118 min**, and
@@ -1804,7 +1887,7 @@ affected.
 
 ## THE GODOT RENDER TESTS AND FOCUS GUARD CHANGED ON 2026-08-23 — a SEVENTEENTH comparability break
 
-Task 80, FINDINGS #132. **No Godot `verify.green` result from before this date is comparable with
+Task 80, FINDINGS #133. **No Godot `verify.green` result from before this date is comparable with
 one after it, and the reason is that before it the result was not a constant.**
 
 `starters/godot/tools/no_raise.gd` is an `[autoload]`, so it ran in every godot process rather
