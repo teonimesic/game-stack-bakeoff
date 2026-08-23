@@ -3234,3 +3234,80 @@ on 24 of 56 matrix trials. With tier 1 out of the sum, `overall` is a **constant
 16 `wg-audio48` trials and all 8 of `wg-g4c`. The saturation was always there; it was being
 disguised by a tier-1 nit or two per field, which is the worse of the two states to be in — but it
 is now the only scored tier, and no weight can help it.
+
+
+## 126. The producer built to stop a count going stale globbed one level deep, and the cross-check that certified it had been produced by the same glob
+
+`census.py` exists because `README.md`'s opening counts had no producer and outlived their scope
+by three runs (`WR-readme-opening-counts`, task 64). It shipped on 2026-08-23 with a selftest of
+13 assertions in three directions, a refusal-not-zero guard, and the resolved absolute path
+printed beside every count. It then reported, for a day, that the stored tree held **137** trial
+records over 19 run directories and **$2,404.21** of agent trials.
+
+The tree holds **161** over 23, and **$2,466.31**.
+
+```
+find eval/runs -path '*/trials/*.json' | wc -l     ->  161
+python3 eval/tools/census.py                       ->  137        (before)
+```
+
+**One directory is not shaped like the others.** `eval/runs/archive-run1-byte-identical-prompts/`
+is a wrapper, not a run: it holds four run directories, each with its own `trials/`, one level
+deeper than every other run in the tree. The glob was `runs_dir.glob("*/trials/*.json")` — exactly
+one level — so all 24 of their records, **15% of the tree**, were dropped with no diagnostic. The
+spec-change population, which is where all 24 sit, was reported as **47 records over 8 run
+directories** against a true **71 over 12**.
+
+| population | one-level glob | any depth | what the difference is |
+|---|---|---|---|
+| whole-game (`game` field) | 90 over 11 | 90 over 11 | nothing — no whole-game run is nested |
+| spec-change (no `game` field) | 47 over 8, $91.72 | **71 over 12, $153.82** | the four archived `bakeoff-*` runs, $62.09 |
+| whole tree | 137 over 19, $2,404.21 | **161 over 23, $2,466.31** | the same 24 |
+
+### The part that generalises: the control had the defect it was controlling for
+
+Task 64 did not take the tool on trust. It cross-checked it against artifacts written *before* the
+tool existed, and recorded the check as passing: *"137 records / 19 run directories / 2404.21
+match `eval/RUNS.md`"*. They did match, to the digit. `eval/RUNS.md`'s own source column said
+`agent.cost_usd` in every `runs/*/trials/*.json` — **the same one-level glob, run by hand, months
+earlier.** Agreement between two readings of one blind spot is not corroboration; it is #37 with
+the mechanism changed from a code path to a glob, and rule 9's shared cause is the address itself.
+
+**What did disagree was sitting in the repository the whole time, unread.** `DECISIONS.md` says
+*"71 trials in 12 run directories"*, `eval/AGENTS.md` says *"its 71 stored trials"*, and #122 says
+*"71 stored trials record `task: "t1_rally"`"* — three independent statements, all correct, all
+reached by someone counting the archive rather than globbing past it. The discrepancy was filed as
+task 69 and read, reasonably, as *the docs are probably wrong* — because the docs had no producer
+and the tool did.
+
+> **A producer does not outrank a document. It outranks a document's PROVENANCE.** When a number
+> with a producer disagrees with a number without one, what has been established is that they
+> disagree — and the producer is the one whose address nobody has checked, because the person who
+> wrote the document had to go and look.
+
+### What was changed
+
+`trial_paths()` searches at any depth (`rglob("trials/*.json")`) and a run is identified by its
+path **relative to `runs/`**, so `archive-run1-byte-identical-prompts/bakeoff-godot-2026-08-11T12-56-42`
+is a distinct run directory and the identifier says where it was read from (rule 12). A `trials/`
+directory under `work/`, `artifacts/` or `targets/` is agent-authored, is excluded, and the number
+excluded is **printed with the counts** — currently 0 — because a skip nobody counts is precisely
+the defect being replaced.
+
+The selftest fixture now contains a run nested inside an archive wrapper and an agent-authored
+`work/*/trials/*.json`, with the answer stated before it is measured. Restoring the one-level glob
+turns 0 failures into **9**, naming the nested run, the relative-path identifier and the unreported
+skip; the fixture's whole-game half is unmoved, which is why the real tree's whole-game counts did
+not change either.
+
+`README.md` and `eval/RUNS.md` are corrected, and 137 / $2,404.21 is registered as
+`WR-tree-census-one-level` in `eval/withdrawn.json`.
+
+### What this does not establish
+
+Only `census.py` walks the whole tree looking for trial records; every other consumer is handed a
+run directory. But two tools were found with the same one-level shape and are **not** repaired
+here, because neither is a published count and neither was in this task's scope:
+`tools/manifest.py --audit` iterates `runs_dir` one level and treats a directory with no `trials/`
+as not-a-run, so the four archived runs are never audited; `judge/tier1_census.py` globs
+`*/artifacts/*/eval/report.json`. Filed as task 75.

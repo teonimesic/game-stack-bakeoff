@@ -32,11 +32,11 @@ the record of the attempt it is retrying** (FINDINGS #36). Both were re-read fro
 
 | | | source |
 |---|---|---|
-| agent trials, **surviving records** | **$2,404.21** over 137 trials in 19 run directories | `agent.cost_usd` in every `runs/*/trials/*.json` |
+| agent trials, **surviving records** | **$2,466.31** over 161 trials in 23 run directories | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth |
 | specialist-judge rounds | **$306.73** over 93 rounds in 11 sweep directories | `judge/judge_ledger.py --tree runs/` |
 
 **Records, not spend, and the gap is real but not totalled here.** A retry overwrites the record
-of the attempt it replaces (#36), so true spend is **at least** $2,404.21. It was measured once,
+of the attempt it replaces (#36), so true spend is **at least** $2,466.31. It was measured once,
 for the runs existing on 2026-08-15, at ~$21.61 of overwritten attempts. It is **not re-derived
 above and must not be inferred from the `[built]` lines**: those sum to $2,262.17, *less* than the
 records, because `wg-arena3d`'s retries ran under a second log this ledger already marks
@@ -57,9 +57,13 @@ smaller than its own lower bound is a reading of the wrong artifact, not a corre
 > a ledger guaranteed to go stale**, and nothing re-derived either of these; `judge_ledger.py` is
 > now the producer for the second row, and the first is one `agent.cost_usd` sweep away.
 
-**The table below lists only the `wg-*` whole-game runs.** The remaining $91.73 is the
-spec-change bake-off and core suites (`bakeoff-*`, `core-*`), which have never been in this
-ledger despite its opening line claiming every run. Recorded rather than silently corrected.
+**The table below lists only the `wg-*` whole-game runs.** The remaining **$153.82 over 71
+trials in 12 run directories** is the spec-change bake-off and core suites, which have never
+been in this ledger despite its opening line claiming every run. Recorded rather than silently
+corrected. It splits **$91.72 over 47 trials** in the eight top-level `bakeoff-*` / `core-*`
+directories and **$62.09 over 24 trials** in the four nested inside
+`archive-run1-byte-identical-prompts/`; this paragraph stated only the first figure, as though
+it were the whole remainder, until 2026-08-23 (`WR-tree-census-one-level`, #126).
 The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 that run cost.
 
 > **The two columns are read from different sources and will differ by pennies.** The archive
@@ -1436,8 +1440,8 @@ the origin fix would otherwise have activated. All three are now repaired the sa
 at `ticks / TICK_HZ * 1000`.
 
 **What it invalidates:** the four stored `bakeoff-*` runs (2026-08-10..12) were built on the
-pre-fix templates. They are already outside this ledger — see its opening note about the $91.73 of
-`bakeoff-*` and `core-*` runs — and no spec-change run has happened since **2026-08-12**. Nothing
+pre-fix templates. They are already outside this ledger — see its opening note about the $153.82 of
+spec-change runs — and no spec-change run has happened since **2026-08-12**. Nothing
 stored is re-read; a future spec-change run on `template-ts` is not comparable with those four on
 what a captured frame could contain.
 
@@ -1472,7 +1476,7 @@ restoring the tree from git, at which point the restorer inherits this boundary 
 repair made after 2026-08-23 that never reached the fork.*
 
 **Nothing in this ledger changes.** The 71 spec-change trials in 12 run directories and their
-$91.73 were already outside it (opening note), they are still on disk, and what they were asked to
+$153.82 were already outside it (opening note), they are still on disk, and what they were asked to
 do is still in `eval/suites/` — which is why those files were kept when the trees went (#119).
 Every whole-game figure in this file is `eval/starters/*`, untouched.
 

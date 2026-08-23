@@ -13,12 +13,12 @@ this line, and the tool exits 2 rather than reporting `0` when it cannot find th
 
 | population — *stated, because an aggregate without its scope is unfalsifiable (#113)* | count |
 |---|---|
-| **whole-game trial records**: a stored `runs/*/trials/*.json` carrying a `game` field | **90**, across **11** run directories |
+| **whole-game trial records**: a stored `runs/**/trials/*.json` carrying a `game` field | **90**, across **11** run directories |
 | …partitioned by `terminal_reason` before anything is computed from it | **completed 75**, api_error 9, field absent 4, max_turns 1, budget_exhausted 1 |
 | the games and stacks those span | **4 games** (pong 27, tetris3d 19, arena 24, platformer 20) × **4 stacks** (ts 26, rust 24, godot 20, unity 20) |
 | **the largest single matrix**, and the only scope in which "two independent trials per cell" is a whole statement | `wg-matrix-2026-08-13`: **24** records = 3 games × 4 stacks × **2 trials per cell**, all 24 `completed` |
-| **spec-change trial records**: no `game` field — the retired `runner.py` suite (`eval/AGENTS.md`) | 47, across 8 run directories. A different instrument on different tasks: **never pooled with the rows above** |
-| **$2,710.94 to date** | $2,404.21 of agent trials over all **137** stored trial records, both populations (`census.py`), plus $306.73 over 93 specialist-judge rounds (`python3 eval/judge/judge_ledger.py --tree eval/runs/`) |
+| **spec-change trial records**: no `game` field — the retired `runner.py` suite (`eval/AGENTS.md`) | **71**, across **12** run directories — four of them nested inside `archive-run1-byte-identical-prompts/`. A different instrument on different tasks: **never pooled with the rows above** |
+| **$2,773.04 to date** | $2,466.31 of agent trials over all **161** stored trial records, both populations (`census.py`), plus $306.73 over 93 specialist-judge rounds (`python3 eval/judge/judge_ledger.py --tree eval/runs/`) |
 
 Every matrix run is 2 trials per cell; the 1-per-cell rows are calibration probes and one partial
 run. **Pooled across the tree a game × stack cell holds 4 to 8 trials** drawn from runs that
@@ -33,6 +33,16 @@ never per tree.
 > grew past them. The cost figure had the identical shape and was 34% low, with three runs worth
 > $698.21 sitting outside it. It is the same defect `eval/RUNS.md`'s own headline had, twice over.
 > A count with a producer can go stale for one hour; a count with none goes stale forever.
+
+> ⚠️ **The producer itself was then wrong for a day: this table read *47* spec-change records
+> over 8 run directories, and *137* records / *$2,404.21* tree-wide, until 2026-08-23.**
+> Registered as `WR-tree-census-one-level` in `eval/withdrawn.json`. `census.py` globbed
+> `*/trials/*.json`, exactly one level deep, and `archive-run1-byte-identical-prompts/` wraps four
+> run directories one level deeper — so 24 records, 15% of the tree, were dropped without a word.
+> **The cross-check that certified the tool shared its defect**: `eval/RUNS.md` agreed to the
+> digit because it had been produced by the same one-level glob (#126). What disagreed was
+> `DECISIONS.md`'s independently-written "71 trials in 12 run directories", and that is now what
+> the tool reproduces.
 
 Last updated **2026-08-23**.
 
@@ -183,7 +193,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#125, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#126, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
