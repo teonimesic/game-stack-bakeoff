@@ -1,7 +1,7 @@
 ---
 name: refine
-description: Close the loop after a run: turn its evidence into the next iteration by improving templates, task prompts, judge rubrics and documentation, with each change stated as a falsifiable hypothesis.
-when_to_use: A matrix has finished AND been evaluated; an improvement iteration is ending; asked what to change next or what the run taught. Run evaluate-run first. Trigger phrases: what did we learn, improve the template, what should change, next iteration, reflect on the run.
+description: "Close the loop after a run: turn its evidence into the next iteration by improving templates, task prompts, judge rubrics and documentation, with each change stated as a falsifiable hypothesis."
+when_to_use: "A matrix has finished AND been evaluated; an improvement iteration is ending; asked what to change next or what the run taught. Run evaluate-run first. Trigger phrases: what did we learn, improve the template, what should change, next iteration, reflect on the run."
 ---
 
 # Refining after a run

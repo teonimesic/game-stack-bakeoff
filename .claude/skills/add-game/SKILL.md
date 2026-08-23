@@ -1,7 +1,7 @@
 ---
 name: add-game
-description: Add a game task or a play-bot criterion to the eval suite: prompt rules that keep the comparison fair, criteria written as experiments rather than observations, and the mandatory mutant per criterion.
-when_to_use: Writing or editing a task prompt; designing probe state and events; writing or changing a bot criterion; a criterion is producing false negatives. Trigger phrases: add a game, new task, write a criterion, the bot is failing good submissions, add a mutant.
+description: "Add a game task or a play-bot criterion to the eval suite: prompt rules that keep the comparison fair, criteria written as experiments rather than observations, and the mandatory mutant per criterion."
+when_to_use: "Writing or editing a task prompt; designing probe state and events; writing or changing a bot criterion; a criterion is producing false negatives. Trigger phrases: add a game, new task, write a criterion, the bot is failing good submissions, add a mutant."
 argument-hint: [game-id]
 ---
 

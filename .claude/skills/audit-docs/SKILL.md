@@ -1,7 +1,7 @@
 ---
 name: audit-docs
-description: Audit this project's documentation against reality and against its own rules: the mechanical sweep for names that do not exist, the rule-firing audit, and pruning.
-when_to_use: After a working session; a rule failed to prevent what it was written for; before trusting a document that names code; the docs feel stale. Trigger phrases: audit the docs, are the docs current, why did that rule not fire, check for phantom names.
+description: "Audit this project's documentation against reality and against its own rules: the mechanical sweep for names that do not exist, the rule-firing audit, and pruning."
+when_to_use: "After a working session; a rule failed to prevent what it was written for; before trusting a document that names code; the docs feel stale. Trigger phrases: audit the docs, are the docs current, why did that rule not fire, check for phantom names."
 ---
 
 # Auditing the documentation

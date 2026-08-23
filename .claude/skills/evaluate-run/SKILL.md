@@ -1,7 +1,7 @@
 ---
 name: evaluate-run
-description: Grade a completed matrix and decide whether its results mean anything: the three tiers, the validation gates in order, adjudicating every failure against source, and the rules for reporting a null.
-when_to_use: A build has finished; re-grading stored trials offline; running the specialist judges; asked whether a stack comparison shows a real difference or whether a result is reportable. Trigger phrases: evaluate the run, grade the submissions, run the judges, does this show a difference, is this a real result.
+description: "Grade a completed matrix and decide whether its results mean anything: the three tiers, the validation gates in order, adjudicating every failure against source, and the rules for reporting a null."
+when_to_use: "A build has finished; re-grading stored trials offline; running the specialist judges; asked whether a stack comparison shows a real difference or whether a result is reportable. Trigger phrases: evaluate the run, grade the submissions, run the judges, does this show a difference, is this a real result."
 argument-hint: [run-dir]
 ---
 
