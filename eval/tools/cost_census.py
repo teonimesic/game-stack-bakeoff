@@ -188,6 +188,12 @@ def group_result(run: str, game: str, cells: dict[str, list[dict]]) -> dict:
         # The floor is the mean of the per-cell gaps. A cell with one trial has no gap and
         # never reaches here — a $0.00 gap would deflate the floor and inflate the ratio.
         "within_cell_floor_usd": floor,
+        # How much the per-cell gaps disagree WITHIN this group. This is the quantity #63
+        # is about — a floor drawn from one cell can be wrong by this factor — and it is
+        # computed inside a group because gap sizes are not comparable across budget-cap
+        # regimes. None when the tightest cell is exactly $0.00: the ratio is then a
+        # division, not a large number.
+        "cell_gap_ratio": (max(gaps) / min(gaps)) if min(gaps) else None,
         "between_stack_range_usd": between,
         "range_pct_of_floor": (100.0 * between / floor) if floor else None,
         "r_cost_turns": r_cost_turns,
@@ -233,6 +239,9 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
 
     ratios = [g["range_pct_of_floor"] for g in groups
               if g["range_pct_of_floor"] is not None]
+    gap_ratios = [g["cell_gap_ratio"] for g in groups if g["cell_gap_ratio"] is not None]
+    spreads = [r["spread"] for g in groups for r in g["per_stack"]
+               if r["spread"] is not None]
     rs = [g["r_cost_turns"] for g in groups if g["r_cost_turns"] is not None]
     spans = [g["widest_turn_span"] for g in groups if g["widest_turn_span"]]
     ranks: dict[str, list[int]] = collections.defaultdict(list)
@@ -263,6 +272,10 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
             "r_cost_turns_min": min(rs) if rs else None,
             "r_cost_turns_max": max(rs) if rs else None,
             "widest_turn_span_anywhere": max((s["span"] for s in spans), default=None),
+            "cells": len(spreads),
+            "cell_spread_min": min(spreads) if spreads else None,
+            "cell_spread_max": max(spreads) if spreads else None,
+            "cell_gap_ratio_max": max(gap_ratios) if gap_ratios else None,
             "mean_cost_rank": {s: sum(v) / len(v) for s, v in sorted(ranks.items())},
         },
     }
@@ -315,6 +328,10 @@ def render(c: dict) -> str:
             + ("" if ratio is None or ratio <= 100 else "   (range EXCEEDS the floor)"),
             f"  r(cost, turns)                                           "
             f"{_fmt_r(g['r_cost_turns']):>9}   (n={g['r_cost_turns_n']})",
+            "  widest cell gap over tightest, inside this group          "
+            + ("undefined ($0.00 tightest cell)" if g["cell_gap_ratio"] is None
+               else f"{g['cell_gap_ratio']:.1f}x   <- how wrong a one-cell floor "
+                    "could be here"),
         ]
         if g["widest_turn_span"]:
             w = g["widest_turn_span"]
@@ -336,6 +353,11 @@ def render(c: dict) -> str:
             f"{_fmt_r(a['r_cost_turns_min'])} - {_fmt_r(a['r_cost_turns_max'])}",
             f"  widest turn span in any one cell     "
             f"{a['widest_turn_span_anywhere']} turns",
+            f"  per-cell spread, over {a['cells']} cells       "
+            f"{a['cell_spread_min']:.2f}x - {a['cell_spread_max']:.2f}x",
+            f"  worst one-cell floor error           "
+            f"{a['cell_gap_ratio_max']:.1f}x, inside a single group "
+            f"(never compared across groups — gap sizes are regime-bound)",
             "  mean cost rank per stack (1 = cheapest in its group)   "
             + ", ".join(f"{s} {v:.2f}" for s, v in a["mean_cost_rank"].items()),
             "",
@@ -387,6 +409,13 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                    "wholegame_records": None, "skipped_agent_authored": None,
                    "across_groups": {"groups_where_range_exceeds_floor": None}}
 
+    # Every per-group field this selftest reads. Written out rather than derived from a
+    # result, so dropping one from the producer is a named failure and not a KeyError.
+    EXPECTED_GROUP_FIELDS = (
+        "run", "game", "trials", "stacks", "per_stack", "within_cell_floor_usd",
+        "cell_gap_ratio", "between_stack_range_usd", "range_pct_of_floor",
+        "r_cost_turns", "r_cost_turns_n", "widest_turn_span", "cheapest_to_dearest")
+
     def measure(label: str, runs_dir: Path, **kw) -> dict:
         try:
             return cost_census(runs_dir, **kw)
@@ -394,16 +423,28 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
             failures.append(f"{label}: raised {type(exc).__name__}: {exc}")
             return EMPTY
 
+    class _Absent(dict):
+        """A group that could not be produced. Every field reads as None, and reading one
+        is not an error — the failure was already recorded where the group went missing.
+        A fixed placeholder dict was tried and drifted the moment a field was added: a
+        mutant then died on a KeyError instead of reddening its row."""
+
+        def __missing__(self, key):
+            return None
+
     def only_group(label: str, result: dict) -> dict:
         groups = result["groups"]
         if len(groups) != 1:
             failures.append(f"{label}: expected exactly 1 group, got {len(groups)}")
-            return {"run": None, "game": None, "trials": None, "stacks": None,
-                    "per_stack": [], "within_cell_floor_usd": None,
-                    "between_stack_range_usd": None, "range_pct_of_floor": None,
-                    "r_cost_turns": None, "r_cost_turns_n": None,
-                    "widest_turn_span": None, "cheapest_to_dearest": None}
-        return groups[0]
+            return _Absent(per_stack=[])
+        group = groups[0]
+        # A field this selftest names and the producer does not emit is a drift between
+        # the two, and it must be a NAMED failure rather than a KeyError.
+        missing = [k for k in EXPECTED_GROUP_FIELDS if k not in group]
+        if missing:
+            failures.append(f"{label}: group is missing field(s) {missing}")
+            return _Absent(group, per_stack=group.get("per_stack", []))
+        return group
 
     with tempfile.TemporaryDirectory() as tmp:
         runs = Path(tmp) / "runs"
@@ -468,6 +509,8 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               {"stack": "rust", "low": 200, "high": 240, "span": 40})
         check("cheapest to dearest", g["cheapest_to_dearest"],
               ["ts", "unity", "godot", "rust"])
+        # gaps are ts 10, unity 4, godot 10, rust 20 -> widest over tightest is 20/4
+        check("cell gap ratio", _round(g["cell_gap_ratio"], 4), 5.0)
         check("max_turns record excluded and reported",
               c["excluded_by_terminal_reason"], {"max_turns": 1})
         check("spec-change record never entered", c["wholegame_records"], 9)
@@ -551,6 +594,8 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("a zero floor is reported as zero", gz["within_cell_floor_usd"], 0.0)
         check("a between-stack range still exists", gz["between_stack_range_usd"], 3.0)
         check("but the ratio is undefined, not a number", gz["range_pct_of_floor"], None)
+        check("and so is the cell-gap ratio, whose divisor is also 0",
+              gz["cell_gap_ratio"], None)
 
         # Direction 9: records with no num_turns give r over the subset, refused below 3.
         noturns = Path(tmp) / "noturns"
@@ -648,7 +693,8 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               [(r["stack"], r["n"]) for r in gu["per_stack"]],
               [("godot", 2), ("rust", 3), ("ts", 2), ("unity", 2)])
         check("its gap spans all 3 trials, not the first 2",
-              next(r["gap"] for r in gu["per_stack"] if r["stack"] == "rust"), 40.0)
+              next((r["gap"] for r in gu["per_stack"] if r["stack"] == "rust"), None),
+              40.0)
         check("the floor is the mean of 4 cell gaps, one of which came from 3 trials",
               _round(gu["within_cell_floor_usd"], 4), _round((10 + 10 + 10 + 40) / 4, 4))
         check("and r used all 9 trials", gu["r_cost_turns_n"], 9)
