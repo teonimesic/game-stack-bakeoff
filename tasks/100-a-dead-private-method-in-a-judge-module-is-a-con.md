@@ -1,7 +1,7 @@
 ---
 id: 100
 title: A dead private method in a judge module is a conclusion waiting to rest on it - make the census a gate
-status: open
+status: in_flight
 priority: 3
 refs: 'eval/findings/certifies-nothing.md #136, eval/judge/bot_arena.py _turn_corner, eval/judge/probe.py Bot._num, eval/tools/lint.py'
 done_when: a check exists that goes RED on a tree containing PlatformerBot._approach as committed at 9fc044a and GREEN on the current tree, both run and both reported - a green with no red establishes nothing. The two current hits are each resolved by deletion or by a mechanism that is not a bare name allowlist, and the docstring measurement inside _turn_corner is preserved wherever it ends up. Whichever way it goes, the census numbers are stated in the evidence string. If the conclusion is that the check is not worth its exemptions, that is a result and closes this - say what the measured cost was.

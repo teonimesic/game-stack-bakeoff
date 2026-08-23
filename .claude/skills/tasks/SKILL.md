@@ -264,6 +264,19 @@ python3 eval/tools/tasks_control.py    # 0 green · 1 a direction FAILED · 3 NO
 
 Never read exit 3 as a pass.
 
+**And ask whether those rows can still go red**, which is a separate command because a
+control that has quietly stopped measuring passes:
+
+```bash
+python3 eval/tools/tasks_mutants.py --selftest   # 5 mutants, each killed by its own row
+```
+
+It writes a mutated **copy** of `tasks.py` into a tempdir and runs `tasks_control.py`
+against it with `--tasks-py`; the repository's own file is never written to, and the run
+asserts it is byte-identical afterwards. `--selftest` adds this runner's own positive
+control: an **inert** mutation that must be reported as `SURVIVED`, since a harness that
+can only print `CAUGHT` proves nothing by printing it five times.
+
 > **It is a smell, not a verdict.** Plenty of universals are perfectly reachable, and a
 > warning here means *go and check whether the data can reach this*, not *this is wrong*.
 > It is a warning rather than a failure because it will have false positives, and a gate
@@ -301,7 +314,9 @@ once. What it compares is **containment**: what fraction of some other task's `t
 git has ever tracked** — 3175 file-versions across 81 snapshots — the margin separates cleanly:
 the defect at **0.3615**, and the highest of the other 3174 at **0.1399** (task 62, whose subject
 genuinely is task 70's). Both sides are pinned in `tasks_control.py`, so raising the threshold
-and lowering it each go red.
+and lowering it each go red — `tasks_mutants.py` is what re-runs that claim rather than
+restating it: `margin_up` (0.50) turns 2 rows red, `margin_down` (0.13) turns 1 red, and the
+one it turns red is the row asking whether the check can still stay **quiet**.
 
 **Because of this, `add` now requires `--why`.** It is what goes into the body, and a tool that
 creates a file its own lint rejects pushes the failure onto whoever runs the gate next.

@@ -1,7 +1,7 @@
 ---
 id: 107
 title: README is verbose, cost-heavy and full of history - cut it to what is true now and useful to read
-status: open
+status: in_flight
 priority: 1
 refs: README.md, eval/RUNS.md, eval/FINDINGS.md, DECISIONS.md, eval/withdrawn.json
 done_when: README.md contains only what is true now and useful to a reader arriving today; the run-by-run history and the total-spend accounting are gone, each verified present in eval/RUNS.md or eval/FINDINGS.md BEFORE it is cut; docstat.py --sweep, --findings and --withdrawn each exit 0 unpiped; and the before/after line count is recorded with a table of what was cut and where it now lives
