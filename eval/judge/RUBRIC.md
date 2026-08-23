@@ -490,12 +490,22 @@ neither equality holds, which is the reason `fun` still has a pacing claim. Its 
 byte-identical to `fun`'s **by design**, and `aspects_selftest.py` goes red if the two drift;
 a control briefed differently from its treatment is not a control.
 
-**It must never be pooled with the other five, and nothing enforces that** —
-`Aspect.diagnostic_only` is never set on it and is read by no code. `field_ranks.py` without
-`--per-aspect` pools every round in the directory it is given, which on
-`runs/wg-aspect-reliability` is 30 rounds of which 5 are the control. No published figure is
-affected: the separation pair `README.md` quotes comes from `wg-tetris-judge-2026-08-17/pre`
-and `/post`, which hold no `fun_frames` rounds. Task 90 carries the repair.
+**It must never be pooled with the other five, and since 2026-08-23 code enforces that.**
+`aspects.py` marks it `control_for="fun"`, `field_ranks.assert_poolable` raises on any
+population mixing a control with another aspect, and `field_ranks.report` prints the aspects
+each pooled figure is over plus every round it excluded. Until then the rule lived in a prose
+comment claiming an `Aspect.diagnostic_only` guard that was never set and read by no code, and
+`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control — `score`/`pool`
+0.3667/0.2417 polluted against 0.4000/0.2400 over the five scored aspects, with the verdict
+unchanged in all four readings. No published figure was affected: the separation pair
+`README.md` quotes comes from `wg-tetris-judge-2026-08-17/pre` and `/post`, which hold no
+`fun_frames` rounds (task 90).
+
+> **A control that does not declare itself to code is a control by convention.** The field
+> that was supposed to say so shared a name — `diagnostic_only` — with an unrelated one on
+> `probe.py` and the play bots holding criterion ids, so a `grep` for the guard returned
+> twenty hits and every one of them belonged to the other mechanism. The field is now
+> `control_for`, and `aspects_selftest.py` goes red if nothing sets it.
 
 **Candidates, not built:** game feel, difficulty and tuning, visual coherence, code quality.
 Do not name them in a command; `--aspects feel` is rejected by `choices=sorted(ASPECTS)`.
