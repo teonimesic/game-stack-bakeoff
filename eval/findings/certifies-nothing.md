@@ -4711,3 +4711,89 @@ file, so its zero attachments are zero for the wrong reason. The next skill diff
 **A misspelled tool key is caught by nothing** — that schema does not forbid unknown properties,
 so a typo would be accepted and silently ignored. Confirming it needs the network, so it is
 documented rather than gated.
+
+---
+
+## 154. The first red control came out green, and green was the reassuring answer — a deliberate break planted at an address the check does not read is indistinguishable from a check that works
+
+Wiring the gates into CI needed a **red** run: a deliberate break, pushed, proving the pipeline
+can fail. The break was a phantom flag planted in a `README.md`, and CI went **green**.
+
+The flag check's inline half only inspects documents whose text names one of a fixed set of
+harness scripts. The plant went into `.github/workflows/README.md`, which names **0** of them; the
+repository's root `README.md` names **8**. Reproduced here, the same probe in the two files:
+
+    root README.md                  -> --sweep exit 1
+    .github/workflows/README.md     -> --sweep exit 0
+
+> **This is rule 12 with the roles swapped, and that is what makes it dangerous.** Rule 12 is
+> usually a *check* aimed at the wrong address, returning a false pass about the subject. Here the
+> check was fine and the **control** was aimed at the wrong address — so the wrong answer was
+> *"the gate did not fire on my deliberate break"*, which is the shape of a broken gate, arriving
+> at the exact moment you are trying to prove the gate works.
+>
+> **A control that fails to break is not evidence of anything until you know the break reached
+> the check.** Green here has two causes and they are opposite: the gate is broken, or your break
+> is not a break.
+
+### It happened again, twice, verifying this finding
+
+Reproducing the claim at merge, the first probe was `` `python3 eval/wholegame.py --zzqflag` `` —
+one backtick span around the whole command, so the flag is not separately backticked and the
+inline half never sees it. **Both files went green**, which would have read as *"the agent's
+finding does not reproduce"*. It was only caught by checking against a probe shape known to fire
+earlier the same day.
+
+That is three instances in one day of the same corollary, each producing a confident wrong answer:
+
+| aimed | at | returned |
+|---|---|---|
+| a phantom flag | a file naming no harness script | green, reading as a broken gate |
+| a phantom flag with no inner backticks | a file that does name one | green, reading as an unreproducible finding |
+| a pre-fix tool | a corpus that had also moved | red, reading as "the gap was never there" |
+
+**Prove the probe on a case whose answer you already know, before you use the probe to establish
+anything** — including before you use it to test a control.
+
+---
+
+## 155. A pull-request run tests the merge, and the first thing it caught existed in neither branch
+
+CI on a pull request builds the **merge commit**, not the branch. That distinction is usually a
+footnote. Its first real catch here was a defect that **no run on either side could have found**:
+
+- `main` had landed a five-value status vocabulary for the task queue.
+- The branch carried the three-value `tasks.py` it had forked with, and was green against itself.
+- **The merge was red.**
+
+Neither tree was broken. The combination was.
+
+> **Every check this project runs locally — every control, every mutant suite, every gate — runs
+> against a tree that exists.** A merge conflict is the case git can see; this is the case it
+> cannot, because both sides apply cleanly and the result is wrong. Nothing runnable before the
+> merge would have said so.
+
+This is the mechanism behind several findings already here, arriving from the other direction: a
+build re-adding deleted artefacts because a merge combined a deletion with the loss of its ignore
+rules (#149), a review rule silently disarmed when a directory it addressed moved (#153), three
+branches independently taking one finding number (#139). **All four are the same class — the
+merged state is a state nobody tested — and a `pull_request` CI trigger is the first mechanism
+here that tests it at all.**
+
+### Three more things the first CI runs established that nothing local had
+
+- **Two control suites need binaries nobody had written down.** One needs a recipe runner, one
+  needs `ffmpeg`. Every machine that had ever run them had both, installed for unrelated reasons.
+  Both exit non-zero rather than reporting an empty population — **which is the only reason this
+  surfaced as red rather than as a green run over nothing.**
+- **A "clean lint baseline" was stale within hours of being recorded.** Two rule sets triaged to
+  0 measured 10 and 1 the same day. So CI gates only the subset that is genuinely at zero and can
+  still go red; gating the full set on day one teaches everyone to skip CI, and a gate people skip
+  is worse than one nobody added.
+- **Shallow clones silently degrade the controls.** At depth 1, four control suites report
+  `NOT CHECKED` rows or non-zero exits, because they read historical blobs by design. Measured
+  against a depth-1 clone of a full clone with byte-identical trees, rather than assumed.
+
+**The hooks are written and deliberately not installed.** `core.hooksPath` is shared configuration
+that would arm every concurrent agent worktree at once — the operator's to run, not a dispatched
+agent's.
