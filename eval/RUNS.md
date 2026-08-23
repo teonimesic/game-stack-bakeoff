@@ -479,51 +479,60 @@ defect into a genuine submission defect — the project's third. See the regime 
 design, for the same reason it was demoted (RUBRIC.md). It is not a failure and must not be
 reported as one.
 
-### ⚠️ THE STORED CODE PACKS CARRY 23 STALE FILES. Do not read a code ordering from this field
+### THE CODE PACKS WERE RE-PACKED ON 2026-08-23. Every judge round stored before then read a field that no longer exists
 
-**This field's judge packs on disk are not what their manifests say** (FINDINGS #95). It was
-evaluated nine times, straddling the #69 cap removal and the #83 leak repair, and
-`anonymise.build_pack` did not clear its destination until 2026-08-23, so each pass was written
-on top of the last. Measured with `python3 judge/field.py packcheck --run runs/wg-g4c-2026-08-21`
-on 2026-08-23, unpiped, exit 1:
+**The packs are clean now.** `python3 judge/field.py packcheck --run runs/wg-g4c-2026-08-21T02-26-46`,
+run unpiped after the re-pack, exit 0 — note the argument is the full directory name, and a
+truncated one exits 2 rather than certifying anything (#96):
 
 ```
-g4_platformer: submissions=8 files_on_disk=222 stale=23 missing=0
-               by_stack={'godot': 8, 'rust': 2, 'ts': 3, 'unity': 10} clean=False
+g4_platformer: submissions=8 files_on_disk=199 stale=0 missing=0
+               by_stack={} unmeasurable=0 clean=True
 ```
 
-| stack | stale files | submissions |
-|---|---|---|
-| unity | 10 | `t0` 6, `t1` 4 |
-| godot | 8 | `t0` 4, `t1` 4 |
-| ts | 3 | `t0` 1, `t1` 2 |
-| rust | 2 | `t0` 1, `t1` 1 |
+They were not clean before. The run was evaluated nine times, straddling the #69 cap removal and
+the #83 leak repair, and `anonymise.build_pack` did not clear its destination until 2026-08-23,
+so each pass was written on top of the last: **222 files on disk, 23 of them under labels no
+manifest listed** — unity 10, godot 8, ts 3, rust 2, uneven within a stack as well as across it
+(#95). Seven of eight submissions held a `.codex` hooks config naming their own trial id, #83's
+answer key, and the 23 files are kept verbatim under
+`repack-2026-08-23-stale-files-removed/` so the removal is auditable rather than merely asserted.
+A fresh grep of the re-packed code for the trial-id and `game-research-work` patterns returns 0
+hits in all eight submissions.
 
-Twelve are byte-identical to a live file; eleven carry content no manifest lists, and seven of
-the eight submissions still hold a `.codex` hooks config naming their own trial id — #83's answer
-key, in the pack on disk. Blinding is not broken: `field.build_pack` neutralises both the trial
-id and the work path as it copies, and a freshly built pack contains neither pattern. For
-`architecture`, which is `blind_language` and rewrites every file to `.src`, 15 of them collide
-with a live file and **7 collisions are won by the stale copy**, so live authored code is
-replaced: the `architecture` pack holds 215 files where `idiomatic`'s holds 230, unity losing 8,
-godot 6, ts 1, rust 0.
+**The exclusion set was computed, not guessed, and it was not empty.** Re-packing an old run
+against today's starter reclassifies template code as authored work (#77), so the drift was
+recovered as *(origins in a pack rebuilt against the recorded starter) minus (origins in the
+stored manifest) minus (files dropped for length, asserted 0 since #69)*, then checked file by
+file against the `starter baseline` commit in each work tree — the starter as the agent actually
+received it. Both methods returned the same three files:
 
-> **`idiomatic` and `architecture` orderings from this field are not readable.** How much of
-> itself each submission was shown is unequal and stack-correlated — #62's shape through a third
-> mechanism. `fun`, `fun_frames`, `ux` and `audio` read frames, telemetry and audio, never
-> `judge_pack/code`, and are unaffected.
->
-> **Reliability measurements ARE readable, including for the two code aspects.** The pack is a
-> deterministic function of a static input, so every repeat of one round reads the identical
-> field — verified by rebuilding each of the six aspects' packs twice and comparing every file
-> (0 differing entries), and against the rounds actually stored, whose provenance gives one
-> distinct input signature across all five repeats.
+| submission | excluded as starter drift |
+|---|---|
+| `ts__t0` | `src/view/capture.ts`, `src/view/harness.ts` |
+| `ts__t1` | `src/view/harness.ts` |
+| the other six | none |
 
-**The files are deliberately left in place** while the `wg-aspect-reliability` sweep (task 23) is
-reading this run: re-packing mid-sweep would change the field underneath its own repeats, which
-is the one thing that would invalidate the measurement it is making. Re-pack after the sweep, and
-note that re-packing against today's starter reclassifies template code as authored work (#77) —
-the exclusion set has to be computed, not guessed.
+All three come from the TS capture-page repair (task 31), landed **3.5 hours before the re-pack
+and after the last pack was written**. The Godot starter also moved that morning, and correctly
+produced no exclusion: both Godot agents had edited `tools/check.gd` themselves, so it was already
+authored work in the stored manifest. Rebuilding with the three exclusions reproduces the stored
+label → origin mapping exactly for all eight submissions, which is the check that the re-pack
+removed the orphans and changed nothing the judge was shown. `judge/repack.py` does all of this
+and refuses rather than guessing when the corroboration is unavailable.
+
+> **The 30 stored `wg-aspect-reliability` rounds read the 222-file field, not this one.** Their
+> reliability result stands — the pack was a deterministic function of a static input, so every
+> repeat of one round read the identical field — but **no `idiomatic` or `architecture` ordering
+> may be read from them**, and re-packing cannot retroactively repair a round. A code ordering
+> from this field requires a *new* round. `fun`, `fun_frames`, `ux` and `audio` never read
+> `judge_pack/code` and are unaffected either way.
+
+**A code-aspect ordering is now available on this field, from a new round.** Before the re-pack
+the `architecture` pack held 215 files against `idiomatic`'s 230, because stale copies collided
+with live ones under `blind_language`'s `.src` rewrite and the stale copy won 7 collisions. Both
+now hold **199, identical per submission** — each submission shown all of its own authored code
+and the same amount in both aspects, which is the property a within-stack comparison needs.
 
 The **#62 character-budget** gate no longer fires here. The packs were rebuilt on 2026-08-22
 after #69 removed the cap, and `pack_completeness` now reads `complete: True, any_dropped: 0 of
@@ -796,9 +805,11 @@ zero-submission pack there). Artifacts and `REPRODUCIBILITY.json` in
 
 **Comparability.** These 30 rounds may be compared *with each other* and with nothing else in
 this ledger: they are the only rounds on this field, and the two code aspects read packs
-carrying #95's stale files. `--per-call-budget` was held at $12 for all 30, unchanged from
-rounds 1 and 2, so that flag is not a variable (#33). **Read as reliability, never as an
-ordering** — see `JUDGING.md`.
+carrying #95's stale files — a field that **no longer exists on disk**, re-packed on 2026-08-23
+(see the `wg-g4c` entry above). A repeat run today reads 199 files where these read 222, so
+these 30 may not be pooled with any round taken after the re-pack either. `--per-call-budget`
+was held at $12 for all 30, unchanged from rounds 1 and 2, so that flag is not a variable (#33).
+**Read as reliability, never as an ordering** — see `JUDGING.md`.
 
 **Priced per aspect before launching, and that mattered.** The projection used the per-aspect
 means already in this ledger ($18.55 a repeat, ~$93 at n=5) against $100.84 measured — 8% out.

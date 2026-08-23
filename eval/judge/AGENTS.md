@@ -141,6 +141,20 @@ clean**. `judge/pack_selftest.py` pins both halves and must stay green.
 `evaluate.py` returns `usable: false` and excludes a tier with weight renormalisation rather than
 scoring an empty pack.
 
+**Re-packing a stored run is `repack.py`, and it is not "run the packer again".** The
+starter-identical filter compares against the starter as it is NOW, so a starter that moved since
+the run was packed makes template code look authored (#77) — the opposite failure to the one you
+are repairing. `repack.py` computes the exclusion set as *(rebuilt origins) minus (stored
+manifest) minus (files dropped for length, asserted 0)*, then requires each excluded file to be
+byte-identical to its blob in the work tree's `starter baseline` commit, and **refuses** when that
+corroboration is unavailable — no manifest, no work tree, a non-zero length-drop count, or a
+disagreement between the two methods. A refused submission is **marked, not re-packed**. It reads
+the starter path out of `report.json` rather than deriving one, because a derived path resolves
+inside whatever checkout the script is running from (rule 12).
+
+**Every judge round stored before a re-pack read a field that no longer exists.** Say so wherever
+the run's results are reported; no gate can reconstruct what a stored round was shown.
+
 ## Changing weights or the rubric
 
 Update `RUBRIC.md` **and** the grading table in `README.md`. Then **re-grade offline** — re-running
