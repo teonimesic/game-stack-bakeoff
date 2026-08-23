@@ -102,6 +102,23 @@ def load(run_dir: str, adjudications_apply: bool):
     return out
 
 
+def _completed(row: dict) -> bool:
+    """Did this trial's AGENT finish? Absent field reads `completed`, deliberately.
+
+    THE HEADER SAYS `completed`, SO THIS FUNCTION HAS TO ENFORCE IT. `main()` already
+    filters non-completed rows out before calling here, so on the shipped path this
+    changes nothing -- but `ranking_test` is a public function that prints a claim about
+    its population, and a guarantee that lives only in the caller is a guarantee the next
+    caller will not have. A verdict must not out-live the filter that earned it.
+
+    A row with no `terminal_reason` key at all is a hand-built one (the selftest's), not
+    a stored trial; those are `completed` by construction. A row that HAS the field must
+    say `completed` - `unknown`, `max_turns` and `budget_exhausted` are all excluded,
+    which is FINDINGS #22's rule about not pooling populations that did not finish.
+    """
+    return str(row.get("terminal_reason", "completed")) == "completed"
+
+
 def ranking_test(rows: list[dict]) -> str:
     """The re-open condition for the deterministic-tier ranking ban (`DECISIONS.md`).
 
@@ -158,7 +175,7 @@ def ranking_test(rows: list[dict]) -> str:
         for r in rs:
             by_stack[r["stack"]].append(r)
         ok = {s: v for s, v in by_stack.items()
-              if len(v) == 2 and all(x["gate_green"] for x in v)}
+              if len(v) == 2 and all(x["gate_green"] and _completed(x) for x in v)}
         gated = sorted(set(by_stack) - set(ok))
         ns = sorted({x["n_scored"] for v in ok.values() for x in v})
         n_scored = ns[0] if len(ns) == 1 else 0
@@ -168,14 +185,22 @@ def ranking_test(rows: list[dict]) -> str:
                 + f"; gate-green stacks {sorted(ok) or '-'}")
         out.append(head)
         if gated:
-            out.append(f"              gated out (tier-1 FAIL, or not a pair): {gated} "
-                       f"- reported as a gate failure, never as a rank")
+            out.append(f"              gated out (tier-1 FAIL, not completed, or not a "
+                       f"pair): {gated} - reported as a gate failure, never as a rank")
         if len(ok) < 2:
             out.append("              -> NOT ASKED: fewer than two gate-green stacks")
             continue
         if len(ns) != 1:
             out.append(f"              -> NOT ASKED: the selected stacks disagree on the "
                        f"criterion count {ns} - there is no single `1/N` to beat")
+            continue
+        # A ZERO DENOMINATOR IS NOT A TIE, IT IS AN ABSENT MEASUREMENT. `load()` records
+        # `n_scored = 0` for a submission with no scored play-bot criteria, and two such
+        # stacks used to reach the arithmetic below and raise ZeroDivisionError -- an
+        # aggregate over a population that does not exist. Reported, never divided by.
+        if n_scored == 0:
+            out.append("              -> NOT ASKED: the selected stacks have 0 scored "
+                       "criteria - there is nothing to take a fraction of")
             continue
         # INTEGER ARITHMETIC. See the docstring: floats round, and the rounding is larger
         # than any tolerance that would still leave the test able to refuse.
@@ -401,6 +426,30 @@ def ranking_test_selftest() -> int:
     check("VARIANT: selected stacks disagreeing on N is NOT ASKED, not a verdict",
           "NOT ASKED" in ranking_test(rows) and "disagree on the criterion count"
           in ranking_test(rows))
+
+    # ZERO SCORED CRITERIA. Two otherwise-eligible stacks with nothing to take a fraction
+    # of used to raise ZeroDivisionError here - an aggregate over an empty population.
+    rows = [dict(_row("g", s, t, 1, True, 1), n_scored=0, n_passed_adj=0)
+            for s in "ab" for t in "01"]
+    out = ranking_test(rows)
+    check("a zero criterion denominator is NOT ASKED, not a crash and not a tie",
+          "NOT ASKED" in out and "0 scored" in out, out.strip().splitlines()[-1].strip())
+
+    # COMPLETION. The header claims `completed`; the function must enforce it rather than
+    # trust its caller. A crossing gap carried by a max_turns trial must not be ranked.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [dict(_row("g", "d", t, 11, True, 13), terminal_reason="max_turns")
+               for t in "01"])
+    out = ranking_test(rows)
+    check("MUTANT: a non-completed pair is gated out, not ranked",
+          "DOES NOT CROSS" in out and "gated out" in out,
+          out.strip().splitlines()[-1].strip())
+    # VARIANT: the same shape, completed, MUST still cross - or the repair is a deletion.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [dict(_row("g", "d", t, 11, True, 13), terminal_reason="completed")
+               for t in "01"])
+    check("VARIANT: the identical gap DOES cross when both trials completed",
+          "-> CROSSES" in ranking_test(rows))
 
     print(f"discrimination ranking_test selftest: {'FAILED' if failed else 'OK'}")
     return 1 if failed else 0

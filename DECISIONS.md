@@ -1721,7 +1721,7 @@ worktree the file does not live in. The control goes 79 rows to 100. Seven mutan
 `tasks_mutants.py` cover it: excusing an orphan, accusing a deleted branch, computing the census
 without printing it, de-duplicating the bases by name, reading a git error as "not an ancestor",
 asking the caller's HEAD only at the file's address, and accepting a base from a foreign
-repository. **One of them survived first time** — the error-branch mutant — because the rows
+repository. **1 of them survived first time** — the error-branch mutant — because the rows
 pinned `landed_status`'s handling of a `None` and never ran `_is_ancestor` itself. A consumer
 pinned without its producer is the `tasks/106` shape, and it is why that row now calls the
 function against a real repository where a missing ref exits 128.
@@ -1978,16 +1978,25 @@ Two things that reading cost, both kept because the next agent would otherwise r
 > `_row` builds every selftest row through `overall_score` so the control travels the subject's
 > path. **No stored verdict changed**: 8 groups asked, 0 cross, before and after.
 >
-> Two rules fired here and neither was mine to claim. **A control that does not travel the
+> 2 rules fired here and neither was mine to claim. **A control that does not travel the
 > subject's path is a control over a different subject** (rule 12), and *a mutant asks whether a
 > check can fail; only a variant asks whether it can still pass on an input it mishandles* (rule
-> 15) — the input being an ordinary rounded score. Both were found by the pull-request reviewer,
-> on PR #8, from this repository's own rules.
+> 15) — the input being an ordinary rounded score. Both were found by the reviewer on **pull
+> request 8**, from this repository's own rules. (Written without a `#`: in a live document
+> `#NN` is a finding citation, findings run #19-#157, and `[#8]` would be a reference-style link
+> to a finding that does not exist.)
 
 - **The denominator was taken from the whole game and the gating happened afterwards**, so `1/N`
   could come from a submission that had been removed from the comparison. It is now established
   over the selected stacks, and a group whose survivors disagree on `N` is `NOT ASKED` with the
   counts printed rather than silently reduced to one of them (rule 4).
+- **Two selected stacks with 0 scored criteria raised `ZeroDivisionError`** — an aggregate over a
+  population that does not exist. `NOT ASKED`, reported, never divided by.
+- **The output header claimed `completed` and the function did not enforce it.** `main()` filters
+  non-completed rows before calling, so nothing shipped was wrong; but a guarantee that lives only
+  in the caller is one the next caller will not have, and `ranking_test` prints a claim about its
+  own population. It filters now, and the variant row proves the identical gap still crosses when
+  both trials completed — otherwise the repair would be a deletion.
 
 ## Keeping this current
 
