@@ -1,7 +1,7 @@
 ---
 id: 85
 title: manifest.py audit never asks its second question of a spec-change run
-status: open
+status: in_flight
 priority: 5
 refs: eval/tools/manifest.py, eval/tools/manifest_selftest.py
 done_when: Either audit_run asks the placement question (MISPLACED / STAMP_DRIFT) of a LEGACY_SHAPE manifest and the result over all 12 spec-change directories is stated, or LEGACY_SHAPE is documented as covering placement too with the reason. State the count before and after; 12 of the 23 run directories currently return early.

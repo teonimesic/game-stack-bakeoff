@@ -1,7 +1,7 @@
 ---
 id: 81
 title: The Rust starter ships two binaries in crates/game with no default-run, so just run is ambiguous on a pristine tree
-status: open
+status: in_flight
 priority: 3
 refs: 'eval/FINDINGS.md #98, eval/tools/disclosure.py, eval/starters/rust/justfile:152, eval/starters/rust/crates/game/Cargo.toml'
 done_when: either cargo run -p game --release has been observed on a pristine copy of eval/starters/rust and the observed behaviour recorded (ambiguous-binary error, or it runs), and if ambiguous the starter repaired with the regime boundary recorded in eval/RUNS.md and verify_blind.py plus starter_parity.py re-run; or the decision to leave it is recorded with the reason
