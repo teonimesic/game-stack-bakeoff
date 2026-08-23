@@ -4398,3 +4398,58 @@ And a first attempt at the isolation metric was wrong in the flattering directio
 field and counting contiguous arm blocks reported *"godot is the lowest pair in 10 of 10 fields"*.
 Three fields have four packs at zero, so that was `sorted`'s tie-breaking presented as a signal.
 **Ties must never count** in a metric about separation.
+
+---
+
+## 149. A deletion did not survive its own merge, because deleting a directory deletes the `.gitignore` that was hiding its build output — and nothing reads a tree for a claim a document makes about it
+
+`AGENTS.md` is always loaded and stated that four `template*/` trees were **deleted**. Five paths
+of them were tracked on `main`: an eslint cache, a 1.2 MB bundle, and a compiled analyzer with its
+`.deps.json` and `.pdb`.
+
+The obvious explanation — *the deletion pass missed files git was already tracking* — is **wrong**,
+and checking it against the artifacts is what found the real mechanism. The retirement commit
+tracks **0** paths under `template*/`. So does its other merge parent. **The merge carries 5, from
+neither parent.**
+
+> **Each tree carried its own `.gitignore`, so deleting the tree deleted the rules hiding its
+> build output.** A `git add -A` at merge time then saw an eslint cache, a bundle and a compiled
+> DLL *for the first time* and staged them.
+
+The removal and the loss of the guard land in **the same commit**. The re-add lands in the next
+one, where it reads as an unrelated new file rather than as a botched deletion — which is why it
+stood, in an always-loaded document, until somebody configuring a code reviewer noticed a binary
+being shipped to it.
+
+**The diagnosis changed the remedy.** For the stated cause, `git rm --cached` plus per-class rules
+would have been right. For the real one it is `git rm` plus a root ignore rule scoped to
+`template*/` — pinned in both directions: with the rule, replanted artefacts plus `git add -A`
+stages nothing; with only that line removed, the identical command **un-deletes all three**,
+reproducing the merge-time mechanism exactly. A general `**/bin/` rule was rejected on
+measurement rather than taste: it also matches two Rust *source* files under `src/bin/`.
+
+### The same defect, committed by the session that was writing this finding
+
+Hours later, an untracked `.agents/skills/` mirror appeared on disk from tooling outside the
+repository. It was inspected, and a deliberate decision was recorded **not** to delete it — the
+commit message says *"Left in place; deleting the operator's files is not this session's call."*
+
+**That same commit tracked all nine files**, because it was made with `git add -A`.
+
+The decision and its violation are the same commit, by the author who had just written the
+decision down. Nothing objected: the working tree was clean afterwards, every gate stayed green,
+and `--sweep`'s complaint about the mirror was identical before and after — because that check
+reads the **working tree**, where the files existed either way. **Tracked and untracked look the
+same to every check here.**
+
+> **`git add -A` stages a decision you did not make.** It is the mechanism in both halves of this
+> finding: once at a merge that re-added deleted build output, once in a commit whose own message
+> declined to touch the files it committed. Where a decision is *not to include* something, the
+> commit has to name what it includes.
+
+### What is not gated
+
+**No check compares a document's claim that a tree is deleted against the tree.** Both halves here
+were found by a person looking — one while configuring a reviewer, one because a dispatched agent
+reported a contradiction the orchestrator had asserted the opposite of an hour earlier. The
+ignore rule closes the recurrence path it names and no other; the general class stands open.
