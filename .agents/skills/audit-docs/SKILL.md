@@ -22,6 +22,7 @@ python3 tools/docstat.py --outline FILE   # fence-aware heading map
 python3 tools/docstat.py --renumbered # citations of a finding number that has moved
 python3 tools/docstat.py --withdrawn  # live docs restating a figure declared retired
 python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them go red
+python3 tools/fragment_control.py     # the integrity check's controls; --mutate NAME, --list-mutants
 python3 tools/linkcheck.py            # every relative link in the live docs: path AND fragment
 python3 tools/linkcheck.py --selftest # its controls, three link shapes, both directions
 ```
@@ -32,14 +33,36 @@ python3 tools/linkcheck.py --selftest # its controls, three link shapes, both di
 |---|---|---|
 | **references** | does a harness flag or an aspect id a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
 | **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
-| **integrity** | is the text itself intact, or did an edit leave debris behind? | an edit rewrote a wrapped sentence in `eval/FINDINGS.md` and left its last line stranded at line 6, where every session is told to read first |
+| **integrity** | is the text itself intact, or did an edit leave debris behind? | an edit rewrote a wrapped sentence in `eval/FINDINGS.md` and left its last line stranded at line 6, where every session is told to read first; a rewrite applied to half of one `DECISIONS.md` bullet left the old text beside the new, eight lines apart |
 
-**The integrity question is the one no consistency check can ask.** A half-sentence left by a
-botched edit states nothing, so it disagrees with nothing — it is damage rather than a wrong
-claim, and it survived precisely because every other gate here looks for disagreement. The
-trigger is *repetition*: a prose line whose text already appears in the paragraph above it. It
-runs over the **archive as well as the live docs**, which the formatting gates do not, because
-the one instance was in the archive and debris is not evidence.
+**The integrity question is the one no consistency check can ask.** Debris left by a botched
+edit states nothing, so it disagrees with nothing — it is damage rather than a wrong claim, and
+it survived precisely because every other gate here looks for disagreement. The trigger is
+*repetition*, which is a closed property of the text rather than a vocabulary. Both halves run
+over the **archive as well as the live docs**, which the formatting gates do not, because one
+of the two instances was in the archive and debris is not evidence.
+
+**There are two halves and they do not substitute for each other — the gap between them is
+measured, not assumed.**
+
+| | asks | its one real instance |
+|---|---|---|
+| stranded tail | does a whole LINE recur in the paragraph above it? | `eval/FINDINGS.md:6` at `1f6fb65` |
+| duplicate fragment | does any 12-word WINDOW recur inside one paragraph, list item or frontmatter key? | `DECISIONS.md:745` at `75dde71` |
+
+The second was added because the first scores **0** on the `DECISIONS.md` defect: the duplicated
+span begins mid-sentence and ends mid-sentence, so no line of it and no sentence of it recurs
+whole. An exact-match rule over repeated sentences scores 0 there *and* 0 on the live corpus —
+the obvious property, and a complete false negative.
+
+**The window is a free parameter and it was chosen on the live false-positive count**, never on
+which size sounds more principled. Over 183 reference docs, live and archive: window 10 gives 1
+corpus hit, 11 and up give 0, and the real defect is invisible from 16. The single hit at 10 is
+an *antithesis* — `DECISIONS.md`'s headroom blockquote repeating a clause to carry an argument —
+which is the shape this check will keep meeting, because correct prose repeats itself. 12 ships
+rather than 11 to keep a word of margin at each end. **If you retune it, re-measure that count
+over the corpus as it stands then**; `tools/fragment_control.py` prints it, and its 8 mutants
+each flip a row that names them.
 
 **`--sweep` deliberately does not check file paths, and `linkcheck.py` is what covers the gap
 for links** — a phantom `eval/RUBRIC.md` passed a green sweep. It resolves the path *and* the

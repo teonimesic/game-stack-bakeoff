@@ -7,10 +7,24 @@ STRUCTURE: does a file parse as the thing it is being read as? The second kind w
 produced over 14,000 alerts and two defects, both structural, both missed by every prose
 linter (research/11-doc-linting-for-agents.md).
 
-INTEGRITY: is the text intact, or did an edit leave debris behind? See `_check_orphaned_tail`.
-This is the kind no consistency check can ask, because debris states nothing and therefore
-disagrees with nothing - the reason a stranded half-sentence sat at line 6 of eval/FINDINGS.md,
-the file every session is told to read first, through every gate in this module.
+INTEGRITY: is the text intact, or did an edit leave debris behind? See `_check_orphaned_tail`
+and `_check_duplicate_fragment`. This is the kind no consistency check can ask, because debris
+states nothing and therefore disagrees with nothing - the reason a stranded half-sentence sat at
+line 6 of eval/FINDINGS.md, the file every session is told to read first, through every gate in
+this module.
+
+The two integrity checks are NOT one check with a parameter, and the gap between them is
+measured in BOTH directions, not assumed. `_check_orphaned_tail` asks whether a whole LINE
+recurs in the paragraph above it; `_check_duplicate_fragment` asks whether any 12-word WINDOW
+recurs inside one block. Run each against the other's real instance:
+
+    1f6fb65:eval/FINDINGS.md:6   orphaned tail 1 hit   duplicate fragment 0
+    75dde71:DECISIONS.md:745     orphaned tail 0 hits  duplicate fragment 4
+
+NEITHER SUBSUMES THE OTHER. The fragment defect's duplicated span begins mid-sentence and ends
+mid-sentence, so no line of it recurs whole; the orphan's repeated run is **6 words**, far below
+any window this side of the false-positive floor. Merging them into one parameterised rule looks
+obvious and would lose an instance, so `_duplicate_fragment_pins` asserts the top-right cell.
 
 WHY THIS EXISTS
 ---------------
@@ -776,6 +790,299 @@ def _orphan_tail_pins(verbose: bool = False) -> list[str]:
     case("green, list items sharing a stem",
          "- the judge reads the pack and scores the field\n"
          "- the judge reads the pack and scores the field\n", False)
+    return out
+
+
+# ------------------------------------------------ the in-block duplicated fragment (task 119)
+#
+# THE DEFECT THIS CATCHES, AND WHY THE CHECK ABOVE CANNOT. A rewrite applied to half of one
+# bullet leaves the old text and the new text side by side inside a single claim. In
+# `DECISIONS.md` at 75dde71 the bullet on the rubric ceiling carried
+# `40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92)` TWICE,
+# eight lines apart, once continuing `. **What to do about it...` and once continuing ` - and
+# became a gate...`. Task 116 removed it by hand. Nothing found it: `--sweep`, `--findings`,
+# `--withdrawn`, `--renumbered`, `linkcheck.py`, `tasks.py check` and `withdrawn_control.py`
+# all exit 0 on the tree that carried it, and so does `_check_orphaned_tail` - re-measured
+# 2026-08-23 at HEAD, 0 hits on the pre-fix blob.
+#
+# The reason is structural, not a tuning gap. The duplicated span is a FRAGMENT: it starts
+# mid-sentence and ends mid-sentence, so no LINE of it recurs whole and no SENTENCE of it
+# recurs whole. Measured before this check was written: an exact-match rule over repeated
+# sentences of 40+ characters scores 0 on the pre-fix blob AND 0 on the live corpus - the
+# obvious property, and a complete false negative.
+#
+# WHY A WORD WINDOW, AND WHY TWELVE. Repetition is a closed property of the text rather than a
+# vocabulary, which is what AGENTS.md's census-trigger rule asks for; the free parameter is the
+# window, and it was chosen on the live false-positive count, never on which size sounds more
+# principled. Measured 2026-08-23 over all 183 reference docs (live AND archive) with fences,
+# table rows and frontmatter keys handled as below, against the pre-fix blob as the red case:
+#
+#     window   corpus hits   pre-fix DECISIONS.md
+#        8        3(*)              --
+#       10        1                  7
+#       11        0                  5
+#       12        0                  4      <- shipped
+#       13        0                  3
+#       14        0                  2
+#       16        0                  0      <- the defect is invisible from here up
+#
+#   (*) all three in the same block as the single 10-word hit.
+#
+# The one corpus hit at 10 is a FALSE POSITIVE and it is worth naming, because it is the shape
+# this check will keep meeting: `DECISIONS.md`'s headroom blockquote runs "a stated mechanic
+# gives an axis with no direction and every submission at the same point; a free parameter
+# gives an axis with no direction and every submission at a different point". That is an
+# antithesis - deliberate parallel construction, the repetition carrying the argument. Correct
+# prose does this, and a gate that reddens it is a gate that gets switched off.
+#
+# 11 also measures 0, and 12 ships instead because 11 sits directly ON the boundary: one more
+# antithesis one word longer turns it red. 12 keeps a word of margin at each end and still
+# clears the real defect by three (14 is red, 16 is not). If this is ever retuned, retune it on
+# a re-measured false-positive count over the corpus as it stands then - the count grows with
+# the corpus, which is what an open-class trigger does, and the table above is the evidence
+# that this one is not.
+#
+# SCOPE IS `reference_docs()`, live AND archive, for `_check_orphaned_tail`'s reason: a
+# half-applied rewrite is damage, not evidence, and the archive is entitled to record retired
+# figures but not to be broken. It costs nothing here - the archive contributes 0 hits at 12.
+_DUP_FRAGMENT_WINDOW = 12
+
+# A GFM table row, after any blockquote markers are stripped. EXCLUDED, and this exclusion is
+# doing most of the work: a table's whole purpose is to repeat a stem down a column, and at
+# window 12 the corpus goes from 6 hits to 0 when rows are dropped. Every one of the 6 was a
+# table - `RESULT.md`'s identical confidence-interval rows, `JUDGING.md`'s repeated tau rows.
+_DUP_TABLE_RX = re.compile(r"^\|")
+
+
+def _frontmatter_span(lines: list[str]) -> int:
+    """Index of the closing `---` of a leading YAML frontmatter block, or -1.
+
+    A task file opens with one and `tasks.py` writes long free-text values into it.
+
+    THE LIMIT, stated rather than left to be discovered: a document opening with a `---`
+    HORIZONTAL RULE and carrying a second one later reads as frontmatter between the two.
+    It can only make the block scope finer over that span - one line per line, so a repeat
+    inside it is missed - and never coarser, so it cannot manufacture a hit. No document in
+    the corpus has that shape; the whole corpus measures 0 either way.
+    """
+    if not lines or lines[0].strip() != "---":
+        return -1
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return i
+    return -1  # unterminated: not frontmatter, just a horizontal rule at the top
+
+
+def _fragment_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """`_claim_blocks`, except every frontmatter KEY is a block of its own.
+
+    ONE KEY IS ONE CLAIM, and that is the whole of the frontmatter rule. `_claim_blocks`
+    sees no blank line in a YAML header and returns the entire thing as one window, which
+    made `tasks/42` the only hit in the archive at window 12: its `done_when` says the
+    stale-files block must state that every judge round stored before the re-pack read a
+    field that no longer exists, and its `established_by` reports that it now does. That is
+    the queue's designed workflow - the goal restated as the result - not damage.
+
+    Masking the header wholesale would also have measured 0, and this is chosen over it
+    because it is strictly more coverage at the same cost: a fragment duplicated INSIDE one
+    value still fires, and `established_by` is routinely a paragraph on one line.
+    """
+    end = _frontmatter_span(lines)
+    head = [(i, i + 1) for i in range(end + 1) if lines[i].strip() not in ("---", "")]
+    body = [("" if i <= end else l) for i, l in enumerate(lines)]
+    return head + _claim_blocks(body)
+
+
+def _fragment_words(line: str) -> list[str]:
+    """Words of one line, with the markup an edit boundary disturbs removed.
+
+    Backticks and emphasis runs only. Terminal punctuation is deliberately KEPT, unlike
+    `_orphan_normalise`: there the two copies differ by the debris of the cut and had to be
+    brought together, here the window is interior to both copies and every character that
+    survives is another way for two merely-similar spans to disagree.
+    """
+    line = line.replace("`", "")
+    line = re.sub(r"[*_]{1,3}", "", line)
+    return [w for w in re.split(r"\s+", line.lower()) if w]
+
+
+def _check_duplicate_fragment(text: str, rel: str) -> list[str]:
+    """A word window that occurs twice inside ONE paragraph, list item or frontmatter key.
+
+    A FUNCTION OF ITS INPUTS, not of the repository, so the pins can hand it the historical
+    blob that carries the real defect rather than a retyped imitation of it.
+
+    THE BLOCK IS THE UNIT AND IT IS LOAD-BEARING. A document may say the same twelve words
+    in two paragraphs, in two bullets, or in a heading and again below it, and all of that is
+    ordinary writing. What is not ordinary is saying them twice inside one claim, because a
+    claim is what an editor rewrites in one motion.
+
+    The words are accumulated ACROSS the lines of a block, so a duplicated span that straddles
+    a line break is seen. That is not a nicety: the real instance happened to sit inside single
+    lines, and a per-line implementation would have passed the pin while being unable to catch
+    the same defect in a bullet wrapped one word earlier.
+    """
+    lines = text.split("\n")
+    fenced = _fence_mask(lines)
+    problems: list[str] = []
+    for a, b in _fragment_blocks(lines):
+        seq: list[tuple[str, int]] = []
+        for i in range(a, b):
+            if fenced[i]:
+                continue
+            stripped = lines[i].strip()
+            while stripped.startswith(">"):
+                stripped = stripped[1:].strip()
+            if _DUP_TABLE_RX.match(stripped):
+                continue
+            seq += [(w, i + 1) for w in _fragment_words(stripped)]
+        first: dict[tuple[str, ...], int] = {}
+        n = _DUP_FRAGMENT_WINDOW
+        for k in range(len(seq) - n + 1):
+            window = tuple(w for w, _ in seq[k:k + n])
+            if window in first:
+                problems.append(
+                    f"{rel}:{seq[k][1]}: these {n} words already occur at line "
+                    f"{first[window]} of the same paragraph or list item, which is what a "
+                    f"rewrite applied to half of one claim leaves behind: "
+                    f"{' '.join(window)[:70]}")
+            else:
+                first[window] = seq[k][1]
+    return problems
+
+
+def _duplicate_fragment_pins(verbose: bool = False) -> list[str]:
+    """Pin the duplicate-fragment check in both directions, red from a real blob.
+
+    THE RED CASE IS A BLOB, NOT A RECONSTRUCTION, for `_orphan_tail_pins`' reason: task 116
+    repaired `DECISIONS.md` by hand, so HEAD cannot supply the defect, and a defect retyped
+    from memory is one whose shape the author has already decided.
+
+    THE EXPECTATION IS STATED HERE - line 745, four windows - rather than computed from the
+    blob by the code under test. A control that imports its expectation from its subject is
+    not a control (AGENTS.md rule 12's corollary, task 113). The count is pinned as well as
+    the line because the count is what moves when `_DUP_FRAGMENT_WINDOW` is retuned: at 16 the
+    defect is invisible, and a pin that asked only "at least one hit" would let a silent
+    retune out of the door.
+
+    THE GREEN CASES ARE THE HALF THAT MATTERS (AGENTS.md rule 15). A mutant only asks whether
+    this can fail; every green below is an input it could plausibly mishandle, and each one is
+    a shape that occurs in correct markdown many times a document.
+    """
+    out: list[str] = []
+
+    def case(name: str, text: str, expect_red: bool, rel: str = "pin.md"):
+        got = _check_duplicate_fragment(text, rel)
+        good = bool(got) == expect_red
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: {len(got)} hit(s), "
+                  f"expected {'>=1' if expect_red else '0'}")
+        if not good:
+            out.append(f"the duplicate-fragment pin '{name}' came out wrong: {len(got)} "
+                       f"hit(s), expected {'>=1' if expect_red else '0'} - {got[:1]}")
+
+    # `_git` returns "" on a non-zero exit and never raises, so the failure to guard against
+    # is an EMPTY STRING. Guarding an exception instead would leave the red pin silently
+    # unrun on a shallow clone, where no hits with nothing to find is indistinguishable from
+    # a check that cannot fire at all.
+    blob = _git("show", "75dde71:DECISIONS.md")
+    if not blob.strip():
+        out.append("the duplicate-fragment red pin could not read 75dde71:DECISIONS.md, so "
+                   "the check is unproven - nothing here shows it can fire")
+    else:
+        hits = _check_duplicate_fragment(blob, "DECISIONS.md")
+        at_745 = [h for h in hits if h.startswith("DECISIONS.md:745:")]
+        if len(at_745) != 4 or len(hits) != 4:
+            out.append(
+                f"the duplicate-fragment red pin expected exactly 4 windows at line 745 of "
+                f"75dde71:DECISIONS.md - the half-applied rewrite task 116 removed by hand - "
+                f"and got {len(hits)} hit(s), {len(at_745)} of them at 745. If "
+                f"_DUP_FRAGMENT_WINDOW moved, re-measure the corpus false-positive count "
+                f"before changing this number: {hits[:1] or 'nothing'}")
+        elif verbose:
+            print(f"PASS  red, real blob 75dde71:DECISIONS.md line 745: 4 windows, "
+                  f"{at_745[0][-58:]}")
+
+    case("red, a fragment duplicated inside one paragraph",
+         "The gate reads the stored manifest and compares it with what the run actually\n"
+         "wrote at the time of the upload, so a truncated one is visible. It then compares\n"
+         "it with what the run actually wrote at the time of the upload, and became a gate\n"
+         "rather than a score.\n", True)
+
+    # THE VARIANT the ticket names, and the reason the words are pooled across a block. The
+    # duplicated span here is broken by a line wrap in BOTH copies and at DIFFERENT words, so
+    # nothing matches line-to-line and only the block-level sequence sees it. Every false
+    # negative adjudicated in this project has been of this kind.
+    case("red, VARIANT: a duplicated fragment split across a list-item line break",
+         "- **The rubric ceiling.** Tier 1 returned 1.0 on all 24 submissions and on all 16\n"
+         "  of the audio run, 40 of 56 matrix trials at the ceiling with zero\n"
+         "  variance, not merely near it. What to do about it was decided later.\n"
+         "  The remedy is harder criteria, not a weight. 40 of 56 matrix trials at\n"
+         "  the ceiling with zero variance, not merely near it, and it became a gate.\n", True)
+
+    case("green, the same window in two different paragraphs",
+         "A control shares the assumptions of the thing it controls unless you make it not,\n"
+         "which is the failure this rule exists to prevent.\n\n"
+         "A control shares the assumptions of the thing it controls unless you make it not,\n"
+         "which is the failure this rule exists to prevent.\n", False)
+    case("green, the same window in two top-level list items",
+         "- the judge reads the pack and scores the field on every criterion it was given\n"
+         "- the judge reads the pack and scores the field on every criterion it was given\n",
+         False)
+    case("green, a duplicated window inside a fence",
+         "Sample output:\n\n```\nrun the harness with the stored manifest and read the exit "
+         "status unpiped\nrun the harness with the stored manifest and read the exit status "
+         "unpiped\n```\n", False)
+    case("green, two table rows repeating a long stem",
+         "| what | why |\n|---|---|\n"
+         "| the manifest of what the run dropped and why it dropped it, per file | kept |\n"
+         "| the manifest of what the run dropped and why it dropped it, per file | kept |\n",
+         False)
+    # The archive's one shape at window 12 before frontmatter keys were separated. This is
+    # what `tasks/42` looks like, and it is the queue working as designed.
+    case("green, a task file restating done_when in established_by",
+         "---\nestablished_by: 'the block now states that every judge round stored before "
+         "the re-pack read a field that no longer exists, and it does'\nid: 42\n"
+         "done_when: the block states that every judge round stored before the re-pack read "
+         "a field that no longer exists\n---\n\nSome prose.\n", False)
+    # ...and the half of that rule which is NOT bought by masking the header outright.
+    case("red, a fragment duplicated inside ONE frontmatter value",
+         "---\nid: 7\nestablished_by: 'the sweep reads the stored manifest and compares it "
+         "with what the run wrote, so a truncated upload is visible; the sweep reads the "
+         "stored manifest and compares it with what the run wrote'\n---\n\nProse.\n", True)
+
+    # The same file at HEAD, repaired. The corpus-wide 0 is not restated here: `cmd_sweep`
+    # runs this check over every reference doc and reports what it finds, so a second pass
+    # would report the same hit twice and cost the I/O again.
+    head = os.path.join(ROOT, "DECISIONS.md")
+    if os.path.exists(head):
+        case("green, the same file at HEAD with the half-applied rewrite removed",
+             open(head, encoding="utf-8", errors="replace").read(), False, "DECISIONS.md")
+
+    # NON-REDUNDANCY, measured on the OTHER check's real instance. Two integrity checks that
+    # a reader describes with the same sentence - "an edit left debris behind" - is exactly
+    # the shape that invites merging them into one parameterised rule, and the merge would
+    # lose an instance: the stranded tail at 1f6fb65:eval/FINDINGS.md:6 repeats a run of only
+    # 6 words, so no window this side of the false-positive floor reaches it, while the
+    # stranded-tail rule scores 0 on the fragment defect. Neither subsumes the other.
+    #
+    # This row is not a claim that catching both would be WRONG. It is a claim that the
+    # decision to run two checks rests on a number, and that the number should be re-derived
+    # rather than assumed if it ever moves.
+    orphan_blob = _git("show", "1f6fb65:eval/FINDINGS.md")
+    if orphan_blob.strip():
+        cross = _check_duplicate_fragment(orphan_blob, "eval/FINDINGS.md")
+        if cross:
+            out.append(
+                f"the duplicate-fragment check now finds {len(cross)} hit(s) in "
+                f"1f6fb65:eval/FINDINGS.md, the stranded-tail check's own instance, which "
+                f"measured 0 at window {_DUP_FRAGMENT_WINDOW} (that orphan repeats 6 words). "
+                f"That is not a defect - it means the two integrity checks are no longer "
+                f"independent, and DECISIONS.md's reason for running both needs re-deriving: "
+                f"{cross[:1]}")
+        elif verbose:
+            print(f"PASS  non-redundant, 1f6fb65:eval/FINDINGS.md (the stranded-tail "
+                  f"instance, a 6-word repeat): 0 hit(s) at window {_DUP_FRAGMENT_WINDOW}")
     return out
 
 
@@ -2851,6 +3158,8 @@ def cmd_selftest() -> int:
     failed += _bare_flag_pins(verbose=True)
     print()
     failed += _orphan_tail_pins(verbose=True)
+    print()
+    failed += _duplicate_fragment_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -3170,7 +3479,13 @@ def cmd_sweep() -> int:
     # checks exempt it, and for the 0-false-positive measurement that let it ship.
     for _rel, _text in sorted(corpus.items()):
         problems += _check_orphaned_tail(_text, _rel)
+        problems += _check_duplicate_fragment(_text, _rel)
     problems += _orphan_tail_pins()
+    # Same corpus, same reasoning, different question - and the gap between the two is the
+    # reason both run. See the module docstring: the one instance of the fragment defect
+    # scores 0 under the orphaned-tail rule, and a single check would have shipped believing
+    # it was covered.
+    problems += _duplicate_fragment_pins()
 
     # THE WITHDRAWAL REGISTER GATES, unlike `--renumbered` next to it, because its verdict
     # has no judgement in it: a declared entry either occurs in a live block that cites its
@@ -3240,6 +3555,9 @@ def cmd_sweep() -> int:
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
           f"{len(refs)} docs for a stranded edit tail "
           f"(pinned red on the real blob 1f6fb65:eval/FINDINGS.md and green; --selftest), "
+          f"the same {len(refs)} for a {_DUP_FRAGMENT_WINDOW}-word fragment repeated inside "
+          f"one claim (pinned red on the real blob 75dde71:DECISIONS.md and green; "
+          f"--selftest), "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
           f"(pinned red and green; --selftest to read the pins); {_findings_summary()}; "
           f"{wsummary}; renumber triage: {len(_load_triage())} adjudicated row(s), each "
