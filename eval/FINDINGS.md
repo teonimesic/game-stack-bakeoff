@@ -1,9 +1,8 @@
 # Eval findings
 
-Findings #19-#140 from building and running this evaluator. **Check whether a
+Findings #19-#141 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
-number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
 because the shapes repeat and the dates do not matter. Citations are by number and
@@ -217,6 +216,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **138** | The one entry point the docstring tells a human to type read half the aspect, so the CLI built a completely unblinded pack and every test called the function underneath it | [fail-open](findings/fail-open.md) |
 | **139** | Repairing the play-bot reordered the field a proposed scalar ranked, so the scalar was measuring the bot | [certifies-nothing](findings/certifies-nothing.md) |
 | **140** | The census gate could catch only the wordings of the two documents it was built from — 4 of 15 planted censuses, 0 of the 11 nobody had in front of them — and the obvious widening turns 27 correct lines red with no true positive among them | [certifies-nothing](findings/certifies-nothing.md) |
+| **141** | The queue lint validated the frontmatter and never read the body, so a wrong filename that MISSED was caught and the same mistake that HIT an existing ticket was certified well-formed | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

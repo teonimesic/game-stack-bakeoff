@@ -21,8 +21,17 @@ not a mechanism:
 
   * `check` gated the frontmatter and never looked at the BODY, which is the only part an
     agent is briefed from. `436bf64` appended task 71's whole brief to `tasks/70-...md` and
-    created `tasks/71-...md` empty; `check` exited 0 on both for a day while task 71's agent
-    worked from a ticket with no body (task 82).
+    created `tasks/71-...md` empty; `check` exited 0 on both, printing `70 task(s), all
+    well-formed`, while task 71's agent worked from a ticket with no body (task 82).
+
+    The exposure was 25m48s on main -- `436bf64` 09:12:56 to `28f6598` 09:38:44 -- and NOT
+    "for a day", which this docstring and `tasks/93` both said until #141 measured it. The
+    duration is the wrong figure anyway: the dispatched agent forked at `23be12c` (09:14:41),
+    after the misfile, and delivered at `c2bc8ce` (09:38:42), so ALL of its working span ran
+    against the empty ticket. The same mistake eight hours earlier -- `709d51a`, an append to
+    a guessed filename that did NOT exist -- was caught by this same `check` at exit 1, and
+    that contrast is the finding: a wrong address that misses makes an artifact the lint can
+    see, and one that hits makes a well-formed one it cannot.
 
 THE FIVE DIRECTIONS
 -------------------

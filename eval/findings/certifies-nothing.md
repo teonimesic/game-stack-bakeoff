@@ -3861,3 +3861,92 @@ text that some draft of this trigger turned red** — six of them from the quant
 mutant would only have asked whether the check can fail; these ask whether it can still pass on
 the inputs that made every previous draft unusable (rule 15), and they are why the second row of
 that table is a measurement rather than an opinion.
+
+---
+
+## 141. The queue lint validated the frontmatter and never read the body, so a wrong filename that MISSED was caught and the same mistake that HIT an existing ticket was certified well-formed
+
+On 2026-08-23 the same mistake was made twice, eight hours apart: a brief appended to a task
+filename that had been guessed from a queue listing rather than read from disk — AGENTS.md
+rule 12's first table row. `tasks.py check` caught one and certified the other, and what
+separated them was not severity. It was whether the guessed path happened to exist.
+
+| | 01:09:16 `709d51a` | 09:12:56 `436bf64` |
+|---|---|---|
+| aimed at | `tasks/37-...-gates-to-do.md` — the real slug truncates to `-to-doc` | `tasks/70-set-a-size-...md` — the brief was task 71's |
+| the path | did **not** exist, so the append created it | **did** exist, so the append landed inside a live ticket |
+| what it produced | a second file with no frontmatter, and id 37 on two files | one ticket carrying another's 59-line brief, and one with frontmatter and no body |
+| that era's own `check` | **exit 1**, naming both: `no frontmatter`, `id 37 used by 2 files` | **exit 0**: `70 task(s), all well-formed` |
+| repaired after | 36 seconds | 25 minutes 48 seconds |
+
+Both rows are re-measured rather than quoted: the queue is rebuilt from git blobs at each commit
+and run under the `tasks.py` that shipped with that same commit, over all 70 files at `436bf64`
+and all 39 at `709d51a`.
+
+> **A wrong address that misses produces a malformed artifact; a wrong address that hits produces
+> a well-formed one.** Validating a record's metadata is exactly enough to catch the miss and
+> exactly nothing against the hit — and the hit is the more dangerous half, because it silently
+> replaces the content of something that already had readers.
+
+### What the lint could see
+
+Every condition `cmd_check` evaluated read one of four frontmatter values — `id`, `title`,
+`status`, `done_when` — plus *did the frontmatter parse at all*. The body was parsed and stored on
+every task record, and read by exactly **one** code path in the whole tool: `show`, which prints
+it to the agent. **Zero checks read it.**
+
+Over the 70 files as they stood at `436bf64` that is **27,156 of 328,692 bytes evaluated, 8.3%**.
+The 91.7% the lint never reached is the half an agent is briefed from. The check was written by
+the tool's author against the tool's own data model, and the data model's centre of mass is not
+where the meaning is.
+
+### The duration is the wrong measure, and the published one was wrong anyway
+
+Not *"for a day"* — which is what `tasks/93` and `tasks_control.py`'s docstring both said, and
+both are corrected. On main's first-parent chain the malformed pair stood **25m48s**: `436bf64`
+09:12:56 → `28f6598` 09:38:44.
+
+What matters is coverage, not wall-clock. The agent dispatched to task 71 forked at `23be12c`
+(09:14:41), **after** the misfile, and delivered at `c2bc8ce` (09:38:42). **Its entire working
+span ran against a ticket with an empty body** — 100% of one task's execution, inside a
+25-minute window.
+
+**The damage was bounded by a duplicate, not by a gate.** The brief also survived in `436bf64`'s
+commit message and in `tasks/70`, so the agent recovered it; its own follow-up `16ecf59` is
+titled *"Task 71 follow-up: the real ticket"*. Nothing guaranteed that second copy would exist.
+
+**And the case the lint could see was still only caught by a person.** `6f96ce3`'s own message
+records that `check` printed both problems and the commit went in regardless, because the check
+was read through `| tail` and its exit status was lost — rule 3 firing inside the repair of
+rule 12.
+
+### The repair, and why it needs two halves that are different in kind
+
+`7990447` (task 82) added two body checks:
+
+- **Empty body — exact, not heuristic.** Re-measured here over every version of every
+  `tasks/*.md` git has ever tracked: **393 distinct file-versions across 143 snapshots, 2 with
+  frontmatter and a blank body, both `tasks/71`, at exactly the three commits of this defect.**
+  The first pass of that census returned a third hit and it was a false positive of the
+  *extraction* — the `01:09` artifact has no frontmatter at all, a different malformation and one
+  the lint already saw. It was caught because the extraction was proved against `tasks/71` at
+  `436bf64`, whose value had been read directly first (rule 12's corollary), and the false
+  positive is what surfaced the `709d51a` instance this finding is built on.
+- **Containment against another ticket's title and `done_when`** — because containment cannot see
+  a body that resembles nothing, and an empty body resembles nothing. `MISFILED_MARGIN = 0.25`,
+  scored by task 82 over 3175 file-versions in 81 queue snapshots, defect at 0.3615 against a
+  worst non-defect of 0.1399. **That sweep is task 82's and was not re-run here.**
+
+Read from the tools rather than from the ticket: `eval/tools/tasks_control.py` exits **0** at
+**28 measurements, 0 FAILED, 0 NOT CHECKED**, and the current `tasks.py check` over the same 70
+rebuilt files exits **1** naming both halves — `body is empty` on 71, and on 70 *"body restates
+task 71's title/done_when (46%) far more than its own (9%)"*.
+
+### What is not established
+
+Task 82 reports five mutants, each killed by the control row naming its mechanism. **Nothing can
+run them.** `eval/tools/` holds `disclosure_mutants.py` and no `tasks_mutants.py`, and
+`tasks_control.py`'s argparse takes only `--skip-prefix`. The five were applied by hand in one
+session and survive as a sentence in a closed ticket's `established_by` field — so the claim that
+these two rows *can* fail is today exactly as durable as the comment in #132, which is the
+finding about a claim that survived every grep because nothing read it. Filed as `tasks/105`.
