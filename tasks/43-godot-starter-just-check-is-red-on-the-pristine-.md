@@ -18,3 +18,40 @@ The defect is newer than most stored evidence: no_raise.gd appears in only 4 sto
 THE FIX THE AGENTS FOUND: script.reload(true) - keep_state - which still returns ERR_PARSE_ERROR on a real parse error. Take it from the wg-g4c diff rather than reinventing it, but do NOT take it on trust: a check that cannot go red is worse than one that is red, so plant a parse error in an autoloaded script and prove the recipe still fails.
 
 NOT FIXED HERE: editing eval/starters is a regime boundary and was not task 25's business. Found while smoke-testing the tier-1 path for task 25.
+
+## Independent verification by the orchestrator, 2026-08-23
+
+Confirmed statically and from the subjects' own accounts, before this was assigned.
+
+**The mechanism is in the pristine starter.** `eval/starters/godot/project.godot:79` declares
+`NoRaise="*res://tools/no_raise.gd"` as an autoload, and `eval/starters/godot/tools/check.gd:51`
+calls `script.reload()` with no argument. Godot refuses to reload a script with a live instance,
+`reload()` returns an error, and the compile loop counts that as a compile failure.
+
+**BOTH Godot agents in `wg-g4c-2026-08-21T02-26-46` hit it and repaired it — by two DIFFERENT
+mechanisms**, which is why a search for one of them under-reports:
+
+| trial | repair | its own account |
+|---|---|---|
+| `godot__t0` | `script.reload(true)` | *"the loop reported it as a COMPILE failure. I changed it to reload(true)"* |
+| `godot__t1` | a **skip list** | *"The baseline was already red. tools/check.gd called reload() on the NoRaise autoload, which has a live instance"* |
+
+A first pass here grepped for `reload(true)`, found it in `t0` only, and nearly recorded the
+claim as overstated. That is this project's most-repeated defect in miniature: **the trigger was
+written as one instance of the repair rather than as the defect.** Search for the cause, not for
+the fix someone happened to apply.
+
+**Why this is priority 1.** Two independent subjects producing the same repair for the same
+baseline is rule 9 — when subjects that share nothing but the instrument agree, what they are
+reporting is the instrument. Any Godot submission that did NOT repair the template pays
+`build.compiles=False` and `verify.green=False` on tier 1 for a defect in the starter, and no
+other arm pays it. That is one-arm bias in the deterministic tier, which is the tier weighted 0.31.
+
+**Rule 11 applies and was load-bearing here.** Both agents wrote down exactly what they had
+changed and why, in `agent.final_text`, and nothing in the grading pipeline reads it. The whole
+diagnosis above came from those two paragraphs plus two greps.
+
+**Before fixing:** `eval/starters/` is a regime boundary — `verify_blind.py`, `starter_parity.py`,
+and a note in `eval/RUNS.md`. Establish first how many stored Godot submissions were scored with
+the defect unrepaired, because that decides whether any published tier-1 Godot number needs
+marking. Do not assume it is only `wg-g4c`.
