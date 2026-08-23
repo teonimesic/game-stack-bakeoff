@@ -339,11 +339,31 @@ ACTIVE_SPANS_WHOLE_SWING = (
 #: always finds a floor. Real submissions put a PIT there - that is what an opening ledge
 #: is for - and five of six `wg-g4c` submissions fell to y=-68..-136 and were failed by a
 #: `platform.lands` that walked off and hoped. This variant is a correct, ordinary level
-#: with the ground removed from under the start, and the criterion must still pass.
+#: with the ground removed from under the start, and EVERY criterion must still pass.
+#:
+#: THE GEOMETRY IS PART OF THE CHECK, and the first version of it got the geometry wrong
+#: in the direction that manufactures a tolerance. It put the far side at x=800, a
+#: 680-unit chasm. The fixture's jump clears about 148 units (JUMP_SPEED 520, GRAVITY
+#: -1500, WALK_SPEED 180, and a ledge 80 units above the floor), so NO input sequence
+#: reaches the far side: an exhaustive sweep over the jump tick, holding right, never
+#: landed below the start ledge at all. Six combat criteria were then listed as
+#: "tolerated" on the reasoning that the bot could not cross a gap, when four of them
+#: were unmeasurable because there was no crossing to make - a level-design error in the
+#: variant wearing the vocabulary of a bot limitation (task 76).
+#:
+#: The pit is now 100 units wide (ground removed for x in 120..220), which is the size
+#: the `wg-g4c` submissions actually shipped: `g4_platformer__unity__t0` has a 78.5-unit
+#: gap and `g4_platformer__ts__t0` has pits at x 520-600, 1080-1180, 1700-1790. It is
+#: still BOTTOMLESS - walking off the ledge falls out of the world and respawns, so a
+#: `platform.lands` that reused the fall still fails here - and it is crossable by the
+#: bot's edge jump, which is what makes the combat cluster measurable and the tolerance
+#: unnecessary. Measured: walking off lands in the pit; jumping at `_EDGE_JUMP_WITHIN`
+#: from the edge lands at x=248.1, clearing the far lip at x=208 (ground x=220 minus the
+#: player's half width) by 40 units.
 PIT_UNDER_LEDGE = (
     '{"id": 1, "x": 1200.0, "y": -8.0, "w": 2400.0, "h": 16.0},    # ground, top y=0',
-    '{"id": 1, "x": 1600.0, "y": -8.0, "w": 1600.0, "h": 16.0},    # VARIANT: ground '
-    'starts at x=800, so the opening ledge overlooks a bottomless pit',
+    '{"id": 1, "x": 1310.0, "y": -8.0, "w": 2180.0, "h": 16.0},    # VARIANT: ground '
+    'starts at x=220, so the opening ledge overlooks a bottomless 100-unit pit',
 )
 
 
@@ -381,21 +401,24 @@ VARIANTS: list[Variant] = [
                   "(0, 0) as a position, scoring -61.7 for a hitbox that was simply not "
                   "there yet"),
     Variant("ref_platformer", "the opening ledge overlooks a bottomless pit",
-            (PIT_UNDER_LEDGE,), ("platform.lands", "player.falls"),
-            tolerates=("attack.damages", "score.on_kill", "enemy.damages_player",
-                       "invuln.window", "knockback.applied", "gameover.triggers"),
+            (PIT_UNDER_LEDGE,),
+            ("platform.lands", "player.falls", "attack.damages", "score.on_kill",
+             "enemy.damages_player", "invuln.window", "knockback.applied",
+             "gameover.triggers"),
             notes="the layout five of six wg-g4c submissions actually had. The old "
                   "criterion walked off the ledge and hoped something was underneath, "
                   "so this correct level failed it; the repaired one jumps and lands on "
-                  "the platform underfoot, which needs no level knowledge. THE "
-                  "TOLERANCES ARE A SECOND FINDING, not a convenience: the reference "
-                  "spawns enemies at x=320..2050 on the ground this variant removes, "
-                  "and the bot reaches every enemy by WALKING RIGHT. Put a gap in the "
-                  "floor and the combat criteria stop being measurable, because the bot "
-                  "cannot cross one. That is the same cluster ts__t0 failed on wg-g4c. "
-                  "The bot's unstated assumption is a continuous walkable floor; until "
-                  "it can jump a gap, a correct level with one cannot be graded on "
-                  "combat"),
+                  "the platform underfoot, which needs no level knowledge. IT CARRIED "
+                  "SIX TOLERANCES UNTIL TASK 76 AND NOW CARRIES NONE. Four of the six "
+                  "really did go red - the contact cluster, which needs the bot to "
+                  "REACH an enemy and be hurt by it - and the reason was two defects at "
+                  "once. The bot had three separate 'walk toward the target' loops and "
+                  "only two of them learned to jump a gap, so `_hurt` walked into the "
+                  "pit on every attempt while `_combat` crossed it; and this variant's "
+                  "own geometry put the far side 680 units away, past any jump, so no "
+                  "bot could have crossed it. Both are fixed: one shared `_walk_toward` "
+                  "builds the inputs for all three loops, and the pit is the 100 units "
+                  "the real submissions shipped"),
 ]
 
 

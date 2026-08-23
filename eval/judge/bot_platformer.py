@@ -721,60 +721,57 @@ class PlatformerBot(Bot):
     #: obstacle began.
     _EDGE_JUMP_WITHIN = 20.0
 
-    def _approach(self, s: ProbeSession, stop_at: float, ticks: int,
-                  attack: bool) -> dict[str, Any] | None:
-        """Walk toward the nearest enemy, JUMPING GAPS and jumping when progress stalls.
+    def _walk_toward(self, t: Tick, gap: float, stop_at: float) -> dict[str, Any]:
+        """One tick of inputs that walks toward a target `gap` units away, JUMPING a
+        gap in the ground ahead.
 
-        THE DEFECT THIS REPAIRS, measured on `wg-g4c-2026-08-21`. The bot reached every
+        WHAT THE JUMP IS FOR, measured on `wg-g4c-2026-08-21`. The bot reached every
         enemy by walking, so a level whose ground has pits stopped it: it walked into the
-        first gap and died, and six combat criteria failed on submissions that worked.
+        first gap and died, and the combat criteria failed on submissions that worked.
         `g4_platformer__ts__t0` has pits at x 520-600, 1080-1180, 1700-1790 and its own
-        evidence reads "reached x=588.8" - inside the first one. It scored the field's
-        lowest. `g4_platformer__unity__t0` is the same, on a level whose source says
-        "Six pits to clear".
+        evidence read "reached x=588.8" - inside the first one, and it scored the field's
+        lowest. `g4_platformer__unity__t0` is the same, on a level whose source says "Six
+        pits to clear". **The penalty was indexed to how good the level was**: a
+        submission that builds real platforming lost criteria that a flat corridor scores
+        full marks on. A gap has to be seen BEFORE it is entered, which is what
+        `_edge_distance` is for (FINDINGS #65: establish the condition, never walk
+        forward and hope).
 
-        **The penalty was indexed to how good the level was**: a submission that builds
-        real platforming lost criteria that a flat corridor scores full marks on. That is
-        not a measurement error, it is a measurement that rewards the wrong thing.
+        THERE IS ONE OF THESE BECAUSE THERE USED TO BE THREE, AND ONE OF THE THREE WAS
+        UNREACHABLE. "Walk toward the target" was written out separately in `_approach`,
+        `_combat` and `_hurt`. `_combat` already carried a comment naming the hazard -
+        "this loop is a SECOND implementation of walk toward the target and the first fix
+        reached only the other one" - and `_hurt`, the loop whose entire experiment is
+        making CONTACT with an enemy, still had no gap handling at all. On any level with
+        a pit between the character and the nearest enemy it walked in, fell out of the
+        world, respawned on the start ledge and did it again for the whole session.
+        Measured on the `PIT_UNDER_LEDGE` variant with a 100-unit pit: `attack.damages`
+        and `score.on_kill` passed, because `_combat` crossed, while
+        `enemy.damages_player`, `invuln.window`, `knockback.applied` and
+        `gameover.triggers` went red with "0 player_hit events over 4097 ticks" (task 76).
 
-        The stall detector already here does not help - falling into a pit is not a stall,
-        because x keeps changing all the way down. The gap has to be seen BEFORE it is
-        entered, which is what `_edge_distance` is for (FINDINGS #65: establish the
-        condition, never walk forward and hope).
+        The third copy, `_approach`, was **never called** - `git log -S"self._approach"`
+        finds no commit in which the string appears, and a spy on the method counts 0
+        calls across a whole session while a spy on this one counts 390. It was deleted
+        with this repair. Its docstring carried the most detailed account of the gap
+        defect in the file, which is why the account is here now, and it is why a repair
+        aimed at it moved nothing: not because a second loop shadowed it, which is what
+        the archive concluded, but because nothing ran it.
+
+        Returns an empty dict when the target is already within `stop_at`, so a caller
+        can add its own keys (an attack, a stall jump) on top.
         """
-        last_x = _px(s.last)
-        stalled = 0
-        for i in range(ticks):
-            e = self._nearest(s.last)
-            if e is None:
-                return None
-            ex = _f(e, "x")
-            px = _px(s.last)
-            if ex is None:
-                return None
-            gap = ex - px
-            inputs: dict[str, Any] = {}
-            if abs(gap) > stop_at:
-                inputs["move_right" if gap > 0 else "move_left"] = True
-            if attack and abs(gap) <= stop_at * 1.6:
-                inputs["attack"] = True
-            moving = "move_right" in inputs or "move_left" in inputs
-            if moving and _player(s.last).get("grounded") is True:
-                d = self._edge_distance(s.last, gap > 0)
-                if d is not None and d <= self._EDGE_JUMP_WITHIN:
-                    inputs["jump"] = True
-            if stalled > 20:
+        inputs: dict[str, Any] = {}
+        if abs(gap) <= stop_at:
+            return inputs
+        inputs["move_right" if gap > 0 else "move_left"] = True
+        # Airborne, the character is committed; `_edge_distance` describes the surface
+        # it is standing on and there is none.
+        if _player(t).get("grounded") is True:
+            d = self._edge_distance(t, gap > 0)
+            if d is not None and d <= self._EDGE_JUMP_WITHIN:
                 inputs["jump"] = True
-                stalled = 0
-            t = s.step_raw(inputs)
-            if abs(_px(t) - last_x) < 0.5 and abs(gap) > stop_at:
-                stalled += 1
-            else:
-                stalled = 0
-            last_x = _px(t)
-            if t.state.get("game_over") is True:
-                return None
-        return self._nearest(s.last)
+        return inputs
 
     def _combat(self, repo, env) -> list[Criterion]:
         ids = ("attack.damages", "score.on_kill")
@@ -808,21 +805,13 @@ class PlatformerBot(Bot):
                     inputs: dict[str, Any] = {}
                     if e is not None:
                         gap = (_f(e, "x") or 0.0) - _px(prev)
+                        # `_walk_toward` carries the edge crossing, so this loop and
+                        # `_hurt` cannot drift apart again. This was one of three inline
+                        # copies of "walk toward the target"; see `_walk_toward` for what
+                        # the duplication cost and which copy turned out to be dead code.
+                        inputs = self._walk_toward(prev, gap, 26.0)
                         if abs(gap) <= 44.0:
                             inputs["attack"] = True
-                        if abs(gap) > 26.0:
-                            inputs["move_right" if gap > 0 else "move_left"] = True
-                            # SAME EDGE-CROSSING LOGIC AS `_approach`, because this loop
-                            # is a SECOND implementation of "walk toward the target" and
-                            # the first fix reached only the other one. `_approach` gained
-                            # gap handling and `attack.damages` did not move at all -
-                            # byte-identical evidence - which is what exposed the
-                            # duplication. Two loops doing the same job is a defect that
-                            # presents as a fix not working.
-                            if _player(prev).get("grounded") is True:
-                                d = self._edge_distance(prev, gap > 0)
-                                if d is not None and d <= self._EDGE_JUMP_WITHIN:
-                                    inputs["jump"] = True
                     t = s.step_raw(inputs)
                     hits += t.events.count("enemy_hit")
                     if "enemy_dead" in t.events:
@@ -873,8 +862,13 @@ class PlatformerBot(Bot):
                     inputs: dict[str, Any] = {}
                     if e is not None:
                         gap = (_f(e, "x") or 0.0) - _px(prev)
-                        if abs(gap) > 2.0:
-                            inputs["move_right" if gap > 0 else "move_left"] = True
+                        # THE COPY THAT MATTERED MOST. Contact is this session's whole
+                        # experiment, so a pit between the character and the nearest
+                        # enemy costs all four criteria below - and this loop had no gap
+                        # crossing at all while `_combat` did, which is why
+                        # `attack.damages` passed on a level where `enemy.damages_player`
+                        # reported "0 player_hit events over 4097 ticks" (task 76).
+                        inputs = self._walk_toward(prev, gap, 2.0)
                         if abs(gap) < 40.0:
                             contact_ticks += 1
                     t = s.step_raw(inputs)

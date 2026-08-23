@@ -746,13 +746,20 @@ off the opening ledge and hoped a floor was underneath, which in a designed plat
 usually is not. Repaired to construct the landing by jumping, re-pinned with both a mutant and a
 new variant, and the field re-graded. **FINDINGS #65.**
 
-A second defect found the same way is **not** fixed and caps this task: the bot reaches enemies
-by walking right, so it cannot cross a gap. `ts__t0`, whose ground is four segments with pits at
+A second defect found the same way capped this task's grades: the bot reached enemies by walking
+right, so it could not cross a gap. `ts__t0`, whose ground is four segments with pits at
 x 520-600, 1080-1180 and 1700-1790, walked into the first pit at x=588.8 and failed six combat
 criteria as a result — **the lowest score in the field, for building the most sophisticated
 level.** `unity__t0` is the same mechanism (its `Level.cs` says "Six pits to clear"; the bot
-reached x=367.5 against a 300-wide start pad). Any combat criterion on a gapped level is
-currently unmeasurable.
+reached x=367.5 against a 300-wide start pad). **Repaired 2026-08-23 (task 76)**: `_hurt` was
+the last of three inline movement loops with no edge jump, and the variant that declared the
+ceiling had put the far side 680 units away — past any jump — so the tolerance was partly a
+defect in the check. The four contact criteria are now measured on a pit level and the variant
+tolerates nothing (`judge/RUBRIC.md`, g4 section). **The grades below are not affected and were
+not re-run**: reading the eight stored `playbot.json` files, all six combat criteria already
+pass on all eight submissions after the earlier repairs, the one exception being
+`unity__t0`'s `knockback.applied`, which is *unscored* for the separate reason in #89. The
+repair matters for the next gapped submission, not for this run.
 
 Two further grader defects were adjudicated and repaired, and one template defect was not:
 
