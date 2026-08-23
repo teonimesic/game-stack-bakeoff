@@ -21,6 +21,7 @@ python3 tools/docstat.py              # size and token cost of every project doc
 python3 tools/docstat.py --outline FILE   # fence-aware heading map
 python3 tools/docstat.py --renumbered # citations of a finding number that has moved
 python3 tools/docstat.py --withdrawn  # live docs restating a figure declared retired
+python3 tools/docstat.py --citations  # a census, never a gate: hashed numbers naming no finding
 python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them go red
 python3 tools/linkcheck.py            # every relative link in the live docs: path AND fragment
 python3 tools/linkcheck.py --selftest # its controls, three link shapes, both directions
@@ -88,6 +89,17 @@ The id, never a marker word. `withdrawn`/`superseded`/`retracted` is an enumerat
 aspect check below already failed on one inflection of one verb. The archive
 (`eval/findings/`, `eval/FINDINGS.md`, both `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`) is
 out of scope entirely — see `DECISIONS.md` for the partition and why it is written down.
+
+**`--citations` asks what all four gates above assume: does a cited number name any finding at
+all? It is a CENSUS that exits 0 — not a fifth gate.** Every check above is about a number that
+*exists*, so a fabricated `(#999)` planted in a live document reads exit 0 from all of them
+(#146). The obvious widening was measured before anyone built it, and it is not built: `#`
+before a number is a rule number, a task id, a table row, a GitHub issue and *"the #1 risk"* as
+well as a finding citation, so the trigger fires on correct prose. Run it when you are auditing
+citations and want the candidates in front of you, and **read the rows rather than counting
+them** — the total is dominated by correct English, and at the last adjudication every row was.
+It prints its population, the range it compared against and the producer of that range, because
+the figure it replaces was published with none of the three and did not reproduce the same day.
 
 **The references half reads the skills too, including this one** — since 2026-08-23 (task
 44). It did not before: the corpus was built with `glob`, `glob` does not descend into

@@ -1324,6 +1324,146 @@ def cmd_findings(as_json: bool = False) -> int:
     return 0
 
 
+#: A `#NN` that could be read as a citation of a numbered finding.
+#:
+#: THE TWO EXCLUSIONS ARE THE WHOLE EXTRACTOR, and each was measured on the live corpus
+#: before it shipped rather than reasoned about:
+#:
+#:   `(?![0-9A-Za-z_])`  `#1a2b3c` is a colour, and a bare `#(\d+)` reads `#1` out of it.
+#:   `(?!-(?!#))`        `#68-the-subjective-layer` is a markdown ANCHOR, not a citation of
+#:                       #68, while `#19-#152` IS two citations spelling a range. A hyphen
+#:                       followed by `#` continues a range; a hyphen followed by anything
+#:                       else begins a slug.
+#:
+#: WHAT THEY ARE WORTH TODAY, measured rather than assumed, and the answer is not what it
+#: looks like. Over the live corpus at `24bc9af` the shipped pair and a bare `#(\d+)` return
+#: the SAME 51 matches on 45 lines: 20 live lines tokenise differently - 19 in README.md, 1
+#: in DECISIONS.md, every one an anchor - but each anchor carries an IN-RANGE number, so the
+#: range test was already discarding them. On today's corpus both exclusions are free.
+#:
+#: THEY ARE ONE UNIT, AND HALF OF THEM IS MUCH WORSE THAN NEITHER. Drop only the word-char
+#: exclusion and the count goes to **71 on 65** - `#(\d+)` is greedy, the anchor lookahead
+#: rejects `#30` in `#30-a-guard-...`, and the engine BACKTRACKS to `#3`, which is out of
+#: range. A regex exclusion is not an independent term you can price on its own, and a
+#: reader deleting one because "it changes nothing" would land on the worst of the three.
+#:
+#: WHAT IT STILL CANNOT SEE, stated here rather than discovered by someone quoting it:
+#: a six-digit hex colour written `#123456` is indistinguishable from a citation of finding
+#: 123456 by anything short of reading the sentence, and would be counted. There is none in
+#: the live corpus today (every hex there carries a letter or sits in a fence).
+_CITATION_RX = re.compile(r"#(\d+)(?![0-9A-Za-z_])(?!-(?!#))")
+
+
+def citation_census(corpus: dict[str, str], lo: int, hi: int) -> dict:
+    """Every `#NN` in a live document that names NO finding, because NN is out of range.
+
+    THIS IS A PRODUCER, NOT A GATE, and the distinction is the finding it was built for.
+    #146 asked whether the obvious dangling-citation check could be built, measured it, and
+    answered no: `#` before a number is a rule number, a task id, a table row, a GitHub
+    issue and *"the #1 risk"* as well as a finding citation, so the trigger fires on correct
+    input. Nothing here exits 1 on a row. What it fixes is the OTHER half of #146 - the
+    census itself was published with no command beside it and does not reproduce.
+
+    A FUNCTION OF ITS INPUTS, like `findings_census` next to it, so the pins can hand it a
+    corpus built in memory and the archive is never written to.
+
+    `corpus` is `{relpath: text}` for the LIVE documents; `lo`/`hi` bound the published
+    findings range. Rows are per LINE and matches are per TOKEN - **they are different
+    numbers** and #146's own correction note conflated them, quoting one run's match count
+    beside another run's line count.
+    """
+    rows, matches = [], 0
+    for rel, text in sorted(corpus.items()):
+        lines = text.split("\n")
+        fenced = _fence_mask(lines)
+        for i, ln in enumerate(lines):
+            # A `#999` inside a ``` block is an example of a citation, not one: this
+            # module's own docstrings quote planted controls, and `--findings` output
+            # gets pasted into documents verbatim.
+            if fenced[i]:
+                continue
+            out = [int(m.group(1)) for m in _CITATION_RX.finditer(ln)
+                   if not lo <= int(m.group(1)) <= hi]
+            if out:
+                matches += len(out)
+                rows.append({"file": rel, "line": i + 1, "numbers": out,
+                             "excerpt": " ".join(ln.split())[:96]})
+    areas: dict[str, int] = collections.Counter(
+        r["file"].split("/")[0] if "/" in r["file"] else r["file"] for r in rows)
+    return {
+        "population": "every unfenced `#NN` in the LIVE markdown corpus - git-tracked "
+                      "*.md, minus vendored, minus docstat.ARCHIVE_PATHS - whose NN falls "
+                      f"outside the published findings range #{lo}-#{hi}",
+        "range": {"lowest": lo, "highest": hi},
+        "files": len(corpus),
+        "matches": matches,
+        "lines": len(rows),
+        "by_area": dict(sorted(areas.items())),
+        "rows": rows,
+    }
+
+
+def read_citation_census() -> dict:
+    """`citation_census` over the real repository. Raises rather than reporting 0 over none.
+
+    THE ADDRESS IS AN INPUT (#60). Two things can be aimed wrong here and both return a
+    plausible number: the corpus, and the range it is compared against. The corpus comes
+    from `_live_corpus`, which reports an empty read instead of returning it as clean; the
+    range comes from `read_findings_census`, the same producer `--findings` prints - never
+    from a number typed into this file, which would go stale the next time a finding lands.
+
+    IT DELIBERATELY TAKES NO `--at REV`, unlike `--withdrawn` beside it. `_live_corpus`
+    would read the corpus at a revision and `read_findings_census` globs a directory on
+    disk, so the two halves would come from different trees and the comparison would be
+    between a document as it stood then and a range as it stands now. A half-correct
+    revision argument is worse than none: its answer is in range and nothing says which
+    tree it describes. Quote the reading with the revision you ran it at instead.
+    """
+    corpus, problems = _live_corpus()
+    if problems:
+        raise FileNotFoundError("; ".join(problems))
+    c = read_findings_census()
+    out = citation_census(corpus, c["bodies"]["lowest"], c["bodies"]["highest"])
+    out["read_on"] = _dt.date.today().isoformat()
+    out["range"]["producer"] = "eval/tools/docstat.py --findings"
+    out["corpus_files"] = sorted(corpus)
+    return out
+
+
+def cmd_citations(as_json: bool = False) -> int:
+    """`--citations`: the producer for any count of out-of-range `#NN` in live documents.
+
+    Exit 0 on any number of rows and 2 when it could not read a corpus, because a row is
+    not a defect: adjudicating one needs a reader, and 43 of 43 rows at dce1172 are
+    correct prose. Quote the number beside this command and beside the date, as AGENTS.md
+    requires of every count - it moves whenever a finding lands or a document is edited.
+    """
+    try:
+        c = read_citation_census()
+    except FileNotFoundError as exc:
+        print(f"docstat --citations: {exc}", file=sys.stderr)
+        return 2
+    if as_json:
+        print(json.dumps(c, indent=2))
+        return 0
+    r = c["range"]
+    print(f"read on {c['read_on']}")
+    print(f"  population  {c['files']} live markdown document(s)")
+    print(f"              {c['population']}")
+    print(f"  range       #{r['lowest']}-#{r['highest']} ({r['producer']})")
+    print()
+    for row in c["rows"]:
+        nums = ", ".join(f"#{n}" for n in row["numbers"])
+        print(f"  {row['file']}:{row['line']}: {nums}")
+        print(f"      {row['excerpt']}")
+    print(f"\n{c['matches']} match(es) on {c['lines']} distinct line(s), "
+          f"by area: {', '.join(f'{k} {v}' for k, v in c['by_area'].items()) or 'none'}")
+    print("These are CANDIDATES, not defects. How many are real dangling citations is a "
+          "question\nfor a reader - see FINDINGS #146, which measured the naive check at "
+          "18 false positives\nto 2 true and is the reason this exits 0.")
+    return 0
+
+
 ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
             "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
             "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth")
@@ -2593,6 +2733,91 @@ def _findings_census_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _citation_census_pins(verbose: bool = False) -> list[str]:
+    """Pin `citation_census` in both directions, on text built in memory (task 118).
+
+    WHY A PRODUCER THAT GATES NOTHING NEEDS PINS AT ALL. Its output is a NUMBER someone
+    will quote, and #146 is the finding about a number quoted with no producer behind it.
+    An extractor that has silently stopped matching reports 0 rows over a full corpus, and
+    0 is also what a clean corpus reports - the ambiguity this project keeps paying for.
+
+    Every case asserts an EXACT count, not merely "some" or "none". Rows and matches are
+    different quantities, and #146's own correction note conflated them; a pin that only
+    asked `bool(rows)` would have been green through exactly that mistake.
+
+    THE RED CASE THAT MATTERS is `eval/RUNS.md`'s `(#17)`, quoted as it stood before task
+    112 repaired it - a row whose true value is known in advance (rule 12's corollary).
+    Today's live corpus contains no true positive at all, so without this pin the extractor
+    would be proven only against text nobody has adjudicated.
+
+    THE GREEN HALF IS THE HALF THAT MATTERS (rule 15), and here it is the half no
+    live-corpus measurement could have produced. A bare `#(\\d+)` reds exactly two of these
+    - the anchor slug and the colour - while returning the same 51 matches on 45 lines as
+    the shipped extractor over the corpus at `24bc9af`, because every anchor there carries
+    an in-range number. **The totals agree and the tokenisation does not**, so the corpus
+    cannot choose between the two extractors and these cases have to. The fence case is not
+    about the regex at all: it pins a decision `citation_census` makes around it.
+    """
+    lo, hi = 19, 152
+    anchor = "See [the subjective layer](eval/FINDINGS.md#3-the-subjective-layer)."
+    cases = [
+        # --- RED: a number that names no finding, in a live document
+        ("the real (#17) in eval/RUNS.md, before task 112 repaired it",
+         {"eval/RUNS.md": "whether 2.15x is a property of rust or of our gate is open "
+                          "(#17)\n"}, 1, 1),
+        ("the fabricated (#999) #146 planted as its control",
+         {"DECISIONS.md": "A fabricated citation planted for a control (#999).\n"}, 1, 1),
+        ("TWO out-of-range numbers on ONE line - matches and rows differ here",
+         {"AGENTS.md": "Tasks #14/#15 were marked complete having guarded the capture.\n"},
+         2, 1),
+        ("a range whose LOW end names no finding - the hyphen continues a range",
+         {"README.md": f"Findings #5-#{hi} are the log.\n"}, 1, 1),
+        # --- GREEN: inputs it must not fire on
+        ("GREEN: in-range citations, including both endpoints",
+         {"AGENTS.md": f"See #{lo}, #{(lo + hi) // 2} and #{hi}.\n"}, 0, 0),
+        ("GREEN: the published range spelled as a range",
+         {"README.md": f"Findings #{lo}-#{hi}, including retractions.\n"}, 0, 0),
+        ("GREEN: a markdown ANCHOR slug, which a bare #(\\d+) reads as a citation",
+         {"README.md": anchor + "\n"}, 0, 0),
+        ("GREEN: a colour, which a bare #(\\d+) reads as a citation of #1",
+         {"eval/PROTOCOL.md": "The overlay is drawn in #1a2b3c on #0f0f0f.\n"}, 0, 0),
+        ("GREEN: a ``` fence - an EXAMPLE of a citation is not one",
+         {"DECISIONS.md": "Planted as:\n\n```\na dangling (#999)\n```\n\nand it went "
+                          "red.\n"}, 0, 0),
+        ("GREEN: an empty document",
+         {"README.md": ""}, 0, 0),
+    ]
+
+    failed = []
+    for name, corpus, want_matches, want_rows in cases:
+        c = citation_census(corpus, lo, hi)
+        good = (c["matches"], c["lines"]) == (want_matches, want_rows)
+        if not good:
+            failed.append(
+                f"citation-census pin came out wrong: `{name}` produced "
+                f"{c['matches']} match(es) on {c['lines']} line(s) where "
+                f"{want_matches} on {want_rows} was expected. The extractor has moved, so "
+                f"any count `--citations` prints is unproven.")
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: {c['matches']} match(es) on "
+                  f"{c['lines']} line(s), expected {want_matches} on {want_rows}")
+
+    # THE ADDRESS, checked rather than promised (#60). The census is defined over LIVE
+    # documents, and every figure it prints is wrong by the size of the archive if the
+    # archive leaks in. `eval/FINDINGS.md` alone would contribute hundreds of rows.
+    for rel, want_archive in (("eval/FINDINGS.md", True), ("eval/findings/x.md", True),
+                              ("tasks/118-x.md", True), ("README.md", False),
+                              ("eval/RUNS.md", False)):
+        got = is_archive(rel)
+        if got != want_archive:
+            failed.append(
+                f"citation-census population is wrong at the address: ARCHIVE_PATHS now "
+                f"classifies `{rel}` as {'archive' if got else 'LIVE'} where "
+                f"{'archive' if want_archive else 'live'} is expected. Every count over "
+                f"this corpus is wrong by whatever that document holds.")
+    return failed
+
+
 def _aspect_census_pins(aspects: set[str], verbose: bool = False) -> list[str]:
     """Pin `_check_aspect_census` in both directions, on planted text, every sweep.
 
@@ -2849,6 +3074,8 @@ def cmd_selftest() -> int:
     failed += _findings_census_pins(verbose=True)
     print()
     failed += _bare_flag_pins(verbose=True)
+    print()
+    failed += _citation_census_pins(verbose=True)
     print()
     failed += _orphan_tail_pins(verbose=True)
     after = _size_mtime(index_path)
@@ -3199,6 +3426,11 @@ def cmd_sweep() -> int:
     # that cannot fire returns too. These pins are what separates the two, and they cost
     # no I/O: every case is a string built in memory.
     problems += _bare_flag_pins()
+    # `--citations` GATES NOTHING - #146 measured that check at 18 false positives to 2 true
+    # and it is not built. Its pins run here anyway, because the producer prints a number
+    # documents quote, and an extractor that has stopped matching returns 0 rows over a full
+    # corpus - the same reading a clean corpus gives. In memory, no I/O.
+    problems += _citation_census_pins()
 
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
@@ -3242,6 +3474,9 @@ def cmd_sweep() -> int:
           f"(pinned red on the real blob 1f6fb65:eval/FINDINGS.md and green; --selftest), "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
           f"(pinned red and green; --selftest to read the pins); {_findings_summary()}; "
+          f"the out-of-range citation census pinned red and green over 10 cases and its "
+          f"population pinned against ARCHIVE_PATHS (--citations is the producer, and "
+          f"gates nothing); "
           f"{wsummary}; renumber triage: {len(_load_triage())} adjudicated row(s), each "
           f"still matching exactly one line of the document it names")
     return 0
@@ -3262,6 +3497,9 @@ def main() -> int:
     ap.add_argument("--findings", action="store_true",
                     help="the producer for any count of the findings log: bodies, index "
                          "rows and every live document's statement of the two")
+    ap.add_argument("--citations", action="store_true",
+                    help="the producer for any count of `#NN` in a live document that "
+                         "names no finding; a census, never a gate (FINDINGS #146)")
     ap.add_argument("--json", action="store_true",
                     help="machine-readable output, where the command supports it")
     ap.add_argument("--selftest", action="store_true",
@@ -3273,6 +3511,8 @@ def main() -> int:
         return cmd_outline(a.outline)
     if a.findings:
         return cmd_findings(a.json)
+    if a.citations:
+        return cmd_citations(a.json)
     if a.selftest:
         return cmd_selftest()
     if a.renumbered:

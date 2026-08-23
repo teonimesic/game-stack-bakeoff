@@ -4264,16 +4264,47 @@ plant, 20 after restore** (rule 12's corollary).
 > about, committed by the author of #144, in the finding immediately after it.
 >
 > The population was stated as *"the 53 live markdown files"* and no command was written beside
-> it. Re-derived over git-tracked `*.md` minus `docstat.ARCHIVE_PATHS` — 54 files — the same rule
-> gives **49 rows on 43 distinct lines**, not 20: `research/` 26, `DECISIONS.md` 8,
-> `.agents/` 7, `eval/` 5, `AGENTS.md` 3. The gap is the **population**, not the range: the range
-> only widened, and widening it can only reduce rows. Whatever 53-file set was counted is not
-> recoverable, because nothing recorded it.
+> it. **Whatever 53-file set that was is not recoverable, because nothing recorded it** — and the
+> gap is the population, not the range: the range only widened after publication, and widening it
+> can only *reduce* rows.
 >
-> **The conclusion is unchanged and if anything strengthened** — 49 rows against 2 true positives
-> is a worse ratio than 20 against 2, so the trigger is a still poorer candidate than published.
-> The *figures* stay here, marked, because they were published and may have been acted on. The
-> producer is `tasks/118`.
+> **There is a producer now, and it is where this number comes from:**
+>
+> ```
+> python3 eval/tools/docstat.py --citations
+> ```
+>
+> It prints its population — git-tracked `*.md`, minus vendored, minus `docstat.ARCHIVE_PATHS` —
+> the range it compared against and the producer of *that* (`--findings`), every row, and the
+> split by area. At `dce1172` (2026-08-23), the commit before it landed, it reads **49 matches on
+> 43 distinct lines over 54 live documents**, range #19–#152: `research/` 22, `DECISIONS.md` 8,
+> `.agents/` 6, `eval/` 5, `AGENTS.md` 2. It exits 0 on every one of them, because a row is a
+> candidate and not a defect.
+>
+> **Expect that figure to have moved, and do not repair it here — run the command.** It counts
+> hashed numbers in prose, so it moves whenever any live document is edited, including by prose
+> *about* this census: the paragraph added to `audit-docs/SKILL.md` in the same commit quotes
+> `(#999)` and *"the #1 risk"* and thereby adds two of its own rows. A number pinned to a
+> revision with its command beside it is what this finding was missing; a number kept up to date
+> by hand is what it must not become.
+>
+> **Two corrections to the first version of this note, both of them the same class of error as
+> the finding.** It said *"49 rows on 43 distinct lines"*: those are **two different quantities**
+> — 49 is the match count and 43 is the line count, and a line can hold two (`Tasks #14/#15`).
+> And its area split was one run's, quoted without the commit it was read at: of its five
+> figures — `research/` 26, `DECISIONS.md` 8, `.agents/` 7, `eval/` 5, `AGENTS.md` 3 — **three
+> had already moved by `dce1172`**. A count that names no command *and* no revision goes stale
+> the same day.
+>
+> **The conclusion is unchanged and strengthened.** 43 candidate lines against **0** true
+> positives at `dce1172` — `eval/RUNS.md`'s two `#17`s, the only true positives this finding
+> ever had, were repaired by `tasks/112` — is a worse ratio than 20 against 2. And the narrower
+> trigger this finding proposed, *proximity to a findings word*, has a live counterexample it
+> did not have when it was written: `research/06-non-rust-stacks.md:47` reads *"see finding #1"*
+> and resolves correctly, to `### 1.` of the same document's own three findings. The closed class
+> would have to be a citation **syntax the documents adopt**, not a word near a hash.
+>
+> The *figures* above stay, marked, because they were published and may have been acted on.
 
 ### The two true positives are unrepairable — and that word was too broad
 
