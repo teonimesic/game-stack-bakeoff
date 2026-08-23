@@ -211,9 +211,15 @@ Rules that fired and were **wrong as written**, now rewritten:
 
 Documentation defects found by the mechanical sweep, not by reading:
 
-- `RUBRIC.md` named **five judges that do not exist** (#38). Fixed, and the sweep now covers
-  aspect ids, criterion ids, `--flags` and file paths across every doc. Everything else
-  resolved.
+- `RUBRIC.md` named **five judges that do not exist** (#38). Fixed, and `docstat.py --sweep`
+  now asks that question across every doc and skill. **The tool defines its own coverage;
+  this file does not.** The sentence that stood here until 2026-08-23 enumerated four
+  categories, two of which — file paths and criterion ids — `--sweep` does not implement, so
+  an always-loaded document promised a gate nothing ran (task 77: a phantom path and two
+  phantom criterion ids planted in `judge/JUDGING.md` both read exit 0, while a phantom
+  aspect and a phantom `--flag` planted in the same place read exit 1). Run `--sweep` for
+  what it covers; `.claude/skills/audit-docs/SKILL.md` lists what it deliberately does not,
+  and why each was removed rather than tuned until quiet.
 - Two files named `IMPROVEMENTS.md` in different directories, referenced from `FINDINGS.md`
   by name alone, and listed in no index. Now indexed above, and citations must use the path.
 
