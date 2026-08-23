@@ -9,3 +9,43 @@ established_by: 'DECISIONS.md''s re-open row now reads: discrimination.py printi
 ---
 
 Task 62 registered the unscoped '0 verdict differences across 380 paired criteria' figure as withdrawn and repaired every live document restating it. One of those documents was the DECISIONS.md row whose re-open condition read: any instrument change producing NON-ZERO within-cell verdict variance - currently 0 of 380. The scoped recount is not zero. It is 5 of 436 paired criteria in wg-matrix (1.1 percent) and 0 of 232 in wg-audio48, and part of that 5 is this project's own criterion repairs re-grading cells. So the condition as written is met in letter by a number that was always going to be non-zero once it was scoped, while the thing it was protecting - that the tiers cannot resolve below the cell - is unchanged. Task 62 restated the row as 'large enough to resolve a between-stack gap' and left the size open, because choosing it is a research call and not derivable from the repair. What is needed is a number, a scope and a producer, so the row stops being a sign test on a quantity that has no reason to be exactly zero.
+
+## note 2026-08-23
+
+Its work landed on `main` through **task 122**, not through this ticket. This ticket was
+marked `done` on 2026-08-23 while `task-70-ranking-ban-threshold` (`bd2014c`) was not an
+ancestor of `main`, so 678 insertions across 5 files -- including
+`eval/judge/paired_verdicts.py` at 458 lines, which existed on no other branch -- were
+absent from the tree the queue said held them. That is what task 122 was filed for, and the
+gate that would now catch it is in `tasks.py check` (`landed_status`), derived in
+`DECISIONS.md`.
+
+**Everything this ticket measured reproduces**, re-run 2026-08-23 against
+`<main>/eval/runs` rather than taken on trust:
+
+  * `paired_verdicts.py --selftest --runs-root ...` -- 20/20 checks, 5 corpus pins
+  * `paired_verdicts.py --runs-root ...` -- the nine-group table in `DECISIONS.md`
+    reproduces to the digit
+  * `discrimination.py --selftest` -- 6/6, positive, boundary, variant, mutant
+  * `discrimination.py <run>` over the stored runs -- 0 CROSSES
+
+**Two things it wrote were wrong and are corrected on main:**
+
+1. *"over all 9 stored groups: 0 cross -- every one sits at range 0.0000"* counted one
+   group too many. `wg-audio` `g2_tetris3d` has ONE gate-green stack and prints
+   **NOT ASKED**. The test is asked of **8** of the 9; 5 of those 8 are four-way and the
+   other 3 compare 2 or 3 stacks. `NOT ASKED` is a third value and is not a pass.
+2. The `wg-arena3d` Rust submission fails on **E0502, a borrow-check error** on
+   `velocity.0 += (target - velocity.0) * PLAYER_ACCEL` in `crates/sim/src/lib.rs` -- not
+   a type error. The rest of that adjudication is exact: 22 of 23 criteria excused on
+   `is_harness_failure`, `audio.triggered` the lone survivor, and it IS the whole 0.0435 gap.
+
+**The `discrimination.py` collision was not one.** `main`'s copy is byte-identical to this
+branch's merge base at 194 lines; the branch adds 137 to it, reaching 331. They were never
+two versions of one file and no adjudication between them was needed -- `tasks/122`'s note
+had the two line counts the wrong way round.
+
+**The README hunk was dropped, deliberately.** Task 107 removed run-particular information
+from the front door, and this branch's evidence table names runs, per-run costs and trial
+counts. Its substance -- that the claim now has a producer -- landed as the re-derive column
+of the row that was already there.

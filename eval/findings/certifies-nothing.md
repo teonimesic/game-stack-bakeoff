@@ -4958,3 +4958,70 @@ extraction was pinned by planting one, which the same census reads as 1.
 
 **That is the useful shape of a null here:** not *"the check found nothing"*, but *"the check
 found nothing, and here is the planted case proving it could have."*
+
+---
+
+## 158. The procedure told the agent to reply to the reviewer, and replying is what made the poll report a review that had not happened
+
+An agent hands back a reviewed pull request, so it has to know when a review has landed. The
+recipe polled one place — the reviews endpoint, for an object stamped with the current head. It
+had a control, taken on the first pull request opened here.
+
+**Three defects, and the shipped control could not see any of them**, because that one pull
+request was the single case whose shape the broken arm handled.
+
+### 1. A clean review creates no review object at all
+
+When the reviewer finds nothing actionable it writes a summary comment and **no review**. The poll
+returned `false` on 2 of the 5 heads that had in fact been reviewed, and would have burned its
+whole 15-minute deadline on each — **on the clean outcome, which is the common one.** A procedure
+whose cost is paid only when everything is fine is one that gets removed for being slow.
+
+### 2. The obvious second arm is fail-open, measured on first use
+
+Reading the summary comment for the head sha fires **while the round is still running**: the
+in-progress notice names the head too. Injecting the in-progress marker into a real stored
+comment gives **0** with the exclusion clause and **1** without; confirmed live, the unguarded arm
+read `LANDED` for 317 seconds of a round that had not finished.
+
+### 3. Replying to the reviewer manufactures a review object — and the procedure says to reply
+
+When the bot **replies to a comment**, GitHub creates a review object to hold the reply and
+**stamps it with the pull request's current head**. Empty body, one reply, no top-level comments —
+indistinguishable, to the arm as written, from a review of that head.
+
+Declining three comments drew three replies, and the poll reported `LANDED` **33 seconds** after
+the next push, on a round that had not started. Reproduced at merge on the pull request that fixed
+it: **7 bot review objects, 3 real (bodies 5,429–6,068 chars), 4 empty containers.** The body
+separates them with no overlap.
+
+> **The instrument was measuring the observer.** Section 6 of the procedure instructs the agent to
+> reply to comments it declines — so following the procedure corrupted the signal the procedure
+> reads. Not a race, not a bug in the API: **the act of participating in the process changed the
+> artifact the process inspects.**
+>
+> A related instance sits one section over — a deadlock check that fired on the agent's own
+> comment *quoting* the phrase it searches for. Both are the same shape: **a check on an
+> unfiltered stream is a check the agent can trip by doing its job.**
+
+**Neither arm alone works.** One PR's summary comment holds no 40-character sha; two others have
+no real review object. The union is the mechanism, and the union was only findable by running the
+procedure on its own pull request.
+
+### What the author got wrong, and how
+
+- **Two counts were published from a printed table instead of a producer** — 22/16/6 against a
+  true 14/8. This project's own quantity rule, failing on the person applying it, for the third
+  time in two days (#144, #146). A producer now sits beside the figure.
+- **The first red control was a false green.** The planted phantom flag was `--zzqphantomflag`,
+  and the checker's own fake-flag allowlist matches the substring `phantom` — so the sweep
+  reported clean about a line it never read. That is #154's corollary again: *a control that fails
+  to break is not evidence until you know the break reached the check.* It is now recorded in the
+  code rather than in a memory.
+
+### Collateral, and why the exemption is by equality
+
+Adding the recipe turned the flag gate red on the CLI flags the recipe legitimately names. The
+exemption matches by **equality**, not by prefix: a prefix entry for a real flag would silently
+exempt every future flag sharing its stem. Four new pins, and a mutant reverting to prefix
+matching turns exactly the two new ones wrong.
