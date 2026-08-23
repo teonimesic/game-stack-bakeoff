@@ -794,6 +794,95 @@ def _check_regime_ordinals() -> list[str]:
     return problems
 
 
+#: A sentence that claims the aspect list is COMPLETE.
+#:
+#: Deliberately a small set of DECLARING forms rather than an attempt to recognise
+#: completeness in general. That is the same trade the withdrawal register makes: a
+#: correction has to be declared, not inferred, because the only detectable property of
+#: an intent is that somebody wrote it down. A doc that enumerates the aspects without
+#: claiming to enumerate ALL of them is invisible here, and that is the accepted cost -
+#: the alternative measured worse. `every aspect that reads them is told so` and `no
+#: aspect may quietly score a blank field` are correct sentences in `JUDGING.md` that a
+#: quantifier-based trigger fires on, and a gate that fails on correct input is a gate
+#: that gets disabled (the path check above was deleted for exactly that).
+#:
+#: PLURAL AND QUANTIFIED, measured rather than assumed. The first draft accepted a
+#: SINGULAR `aspect` within 40 characters of `exist` and went red on three correct lines
+#: in two documents - `does a flag, aspect or criterion a doc names actually exist?` in
+#: `audit-docs/SKILL.md` and `DECISIONS.md`, which are sentences about this very check.
+#: Requiring `<quantifier> aspects exist` drops all three and keeps every true positive.
+#:
+#: A `aspects.py defines` alternative was written and removed before it ever ran: the
+#: docs write it as `` `aspects.py` defines ``, so it matched nothing, and making it
+#: backtick-tolerant would have fired on `JUDGING.md`'s correct "`aspects.py` defines
+#: `FRAMES_BLIND_SPOT`". A dead alternative whose repair is a false positive is worse
+#: than no alternative.
+_ASPECT_CENSUS_RX = re.compile(
+    r"(?:\b\w+\s+aspects\s+(?:that\s+)?(?:exist|are\s+defined)"   # "five aspects that exist"
+    r"|\bthese\s+\w+\s+exist\b"                                   # "These five exist."
+    r"|\bnothing\s+else\s+is\s+runnable\b)",                      # RUBRIC's own words
+    re.I)
+
+#: How far past the claim an id may be named. The claim is a sentence; the ids are in the
+#: table under it. 25 lines covers a six-row table with its header and a paragraph either
+#: side, and is short enough that a second, unrelated table does not satisfy the first
+#: claim's requirement by accident.
+_ASPECT_CENSUS_WINDOW = 25
+
+
+def _check_aspect_census(corpus: dict[str, str], aspects: set[str]) -> list[str]:
+    """A doc that claims to list every aspect must list every aspect.
+
+    THE INVERSE OF THE ASPECT CHECK IN `cmd_sweep`, and the reason this exists. That one
+    asks whether a name a doc uses resolves, which catches #38 - `RUBRIC.md` naming five
+    judges that do not exist. It cannot catch the same defect with the sign reversed: a
+    doc DENYING a judge that does exist. `.claude/skills/evaluate-run/SKILL.md` said "the
+    five aspects that exist are `fun`, `ux`, `audio`, `idiomatic`, `architecture`" and
+    that anything else in prose is a candidate, while `ASPECTS` held six and
+    `field_sweep.py --aspects fun_frames` was accepted. `--sweep` was clean, exit 0,
+    printing `6 aspects known` in the same line - it knew the count and had nothing that
+    compared it with anything. The reader loses on the quiet side: they never run the
+    control, and never learn why.
+
+    Pure - takes the corpus and the id set - so the pins can hand it a planted document
+    rather than editing a real one.
+
+    Archive docs are exempt. `eval/findings/`, `eval/FINDINGS.md`, both `IMPROVEMENTS.md`
+    and `tasks/` record what was believed at the time, and a five-aspect census that was
+    true when it was written is their subject matter, not a defect.
+    """
+    if not aspects:
+        return ["no aspect ids parsed from judge/aspects.py, so the aspect-census check "
+                "is comparing every doc against an empty set and cannot fire"]
+    problems: list[str] = []
+    for rel in sorted(corpus):
+        if is_archive(rel):
+            continue
+        lines = corpus[rel].split("\n")
+        fenced = _fence_mask(lines)
+        for i, ln in enumerate(lines):
+            # A FENCED LINE IS NOT A CLAIM - the same discriminator the aspect check uses.
+            if fenced[i] or not _ASPECT_CENSUS_RX.search(ln):
+                continue
+            # THE CLAIM MUST BE ABOUT ASPECTS, on the line making it. `these five exist`
+            # is a shape, not a subject, and without this it fires on any doc that counts
+            # anything. Scoping it to the line rather than the window is the same lesson
+            # the aspect check paid for: a document-scope test lets one unrelated mention
+            # 25 lines away satisfy the condition.
+            if "aspect" not in ln.lower():
+                continue
+            window = "\n".join(lines[i:i + _ASPECT_CENSUS_WINDOW])
+            named = {t for t in re.findall(r"`([a-z_]+)`", window)} & aspects
+            missing = aspects - named
+            if missing:
+                problems.append(
+                    f"{rel}:{i + 1}: claims to name every aspect and does not name "
+                    f"{', '.join(sorted(missing))}; ASPECTS = {sorted(aspects)}. A doc "
+                    f"that denies a judge which exists is #38 with the sign reversed - "
+                    f"the reader under-runs the layer and never learns why.")
+    return problems
+
+
 # =============================================================================
 # RENUMBERED CITATIONS
 #
@@ -1563,6 +1652,75 @@ def _index_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _aspect_census_pins(aspects: set[str], verbose: bool = False) -> list[str]:
+    """Pin `_check_aspect_census` in both directions, on planted text, every sweep.
+
+    The RED cases are the two real documents this check was written for, quoted as they
+    stood at 7e82b19. The GREEN cases are the half that matters (AGENTS.md rule 15): four
+    of the five are inputs an earlier draft of the trigger got WRONG on real corpus text -
+    the sentence describing the sibling check, the historical `5 aspects x 2 orders` run
+    description, the singular `every aspect`, and an archive doc whose subject is the old
+    census. A mutant asks whether the check can fail; only these ask whether it can still
+    pass on the inputs that made the first draft unusable.
+
+    Returns the pins that came out wrong; empty means the check demonstrably both fires
+    and stays quiet.
+    """
+    if not aspects:
+        return []  # the check itself already reports an empty id set
+    all_six = ", ".join(f"`{a}`" for a in sorted(aspects))
+    five = ", ".join(f"`{a}`" for a in sorted(aspects) if a != "fun_frames")
+    one = sorted(aspects)[0]
+    far = "\n".join(["filler"] * (_ASPECT_CENSUS_WINDOW + 2))
+
+    cases = [
+        # --- RED
+        ("the pre-fix skill sentence: claims exhaustive, names five of six",
+         {"a.md": f"The five aspects that exist are {five}."}, True),
+        ("a claim followed by a table that drops one id",
+         {"a.md": f"Six aspects exist.\n\n| aspect id | sees |\n|---|---|\n"
+                  + "".join(f"| `{a}` | code |\n" for a in sorted(aspects) if a != one)},
+         True),
+        ("all six named, but one of them past the window",
+         {"a.md": f"Six aspects exist: {five}.\n{far}\n`fun_frames`"}, True),
+        ("RUBRIC's own exhaustiveness phrasing, five named",
+         {"a.md": f"These five exist. The ids `--aspects` accepts: {five}."}, True),
+        # --- GREEN
+        (f"GREEN: the same claim naming all {len(aspects)}",
+         {"a.md": f"The aspects that exist are {all_six}."}, False),
+        ("GREEN: a stale census inside a ``` fence is an example, not a claim",
+         {"a.md": f"```\nThe five aspects that exist are {five}.\n```"}, False),
+        ("GREEN: a run description - `5 aspects x 2 orders` counts what RAN",
+         {"a.md": "10 usable rounds, 5 aspects x 2 presentation orders, 8 submissions."},
+         False),
+        ("GREEN: the sibling check described - singular `aspect`, about naming",
+         {"a.md": "| **references** | does a flag, aspect or criterion a doc names "
+                  "actually exist? |"}, False),
+        ("GREEN: singular quantifier over a subset - `every aspect that reads them`",
+         {"a.md": "The frames are not equivalent across arms, and every aspect that "
+                  "reads them is told so."}, False),
+        ("GREEN: an archive doc whose subject IS the superseded census",
+         {"tasks/79-x.md": f"says five aspects exist: {five}"}, False),
+    ]
+
+    failed = []
+    for name, corpus, expect_red in cases:
+        got = _check_aspect_census(corpus, aspects)
+        good = bool(got) == expect_red
+        if not good:
+            failed.append(
+                f"aspect-census pin came out wrong: `{name}` produced {len(got)} "
+                f"problem(s) where {'at least one' if expect_red else 'none'} was "
+                f"expected. The check is no longer proven to "
+                f"{'fire' if expect_red else 'stay quiet'}, so its green is not evidence.")
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: "
+                  f"{len(got)} problem(s), expected {'>=1' if expect_red else '0'}")
+            for g in got:
+                print(f"        {g[:150]}")
+    return failed
+
+
 def _size_mtime(path: str) -> tuple[int, int] | None:
     if not os.path.exists(path):
         return None
@@ -1582,6 +1740,8 @@ def cmd_selftest() -> int:
     index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
     before = _size_mtime(index_path)
     failed = _index_pins(verbose=True)
+    print()
+    failed += _aspect_census_pins(_aspect_ids(), verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -1603,10 +1763,12 @@ def cmd_sweep() -> int:
     refs = reference_docs()  # docs + skills; see why they are two corpora, not one
     flags, aspects = _argparse_flags(), _aspect_ids()
     problems: list[str] = []
+    corpus: dict[str, str] = {}
 
     for p in refs:
         rel = os.path.relpath(p, ROOT)
         text = open(p, encoding="utf-8", errors="replace").read()
+        corpus[rel] = text
 
         # Only flags this repo's own harnesses would own.
         for tok in set(re.findall(r"`(--[a-z0-9-]{2,})`", text)):
@@ -1792,6 +1954,11 @@ def cmd_sweep() -> int:
     problems += _check_list_indent()
     problems += _check_findings_integrity()
     problems += _check_regime_ordinals()
+    # THE OTHER DIRECTION of the aspect check above. That one asks whether a name a doc
+    # USES resolves; this one asks whether a doc that claims to name them all does. The
+    # sweep printed `6 aspects known` and exit 0 for as long as two documents said five.
+    problems += _check_aspect_census(corpus, aspects)
+    problems += _aspect_census_pins(aspects)
 
     # THE WITHDRAWAL REGISTER GATES, unlike `--renumbered` next to it, because its verdict
     # has no judgement in it: a declared entry either occurs in a live block that cites its
@@ -1841,7 +2008,8 @@ def cmd_sweep() -> int:
     _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
           f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
-          f"flags, {len(aspects)} aspects known; structure: {len(skill_files())} SKILL.md "
+          f"flags, {len(aspects)} aspects known and every exhaustive census of them checked "
+          f"against that set (pinned red and green); structure: {len(skill_files())} SKILL.md "
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
           f"(pinned red and green; --selftest to read the pins); {wsummary}")

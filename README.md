@@ -413,8 +413,9 @@ Full per-cell table, per-criterion comparison and the `syspolicyd` straddle: **`
   calibration trial before any full relaunch is committed.
 
 - **The subjective layer's specialist judges.** Six aspects exist and are runnable —
-  `fun`, `ux`, `audio`, `idiomatic`, `architecture`, and `fun_frames` (the `diagnostic_only`
-  control for `fun`). None is scored. They run separately from `wholegame.py evaluate`, via
+  `fun`, `ux`, `audio`, `idiomatic`, `architecture`, and `fun_frames` (`fun`'s control, which
+  must never be pooled with the other five — kept out by discipline, not by code; task 90).
+  None is scored. They run separately from `wholegame.py evaluate`, via
   `judge/field_sweep.py`, under a cost ceiling.
 
   **Reliability is no longer the blocker, for any of them.** Measured 2026-08-23 for $100.84
