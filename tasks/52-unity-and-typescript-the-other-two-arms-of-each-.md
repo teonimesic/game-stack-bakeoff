@@ -1,7 +1,7 @@
 ---
 id: 52
 title: Unity and TypeScript: the other two arms of each-template-at-its-stack's-best
-status: open
+status: in_flight
 priority: 3
 refs: task 26 did rust and godot only; DECISIONS.md each-stack's-best; root IMPROVEMENTS.md task-26 iteration; research/10-stack-capability-matrix.md
 done_when: unity Packages/manifest.json carries com.unity.modules.audio (and a decision recorded on particlesystem), packages-lock.json regenerated, unity-compile.sh green, and the ts arm exposes Points/InstancedMesh scaffolding or records why not; each with the observable field named, verify_blind + starter_parity + starter_gate_control re-run and a RUNS.md regime note

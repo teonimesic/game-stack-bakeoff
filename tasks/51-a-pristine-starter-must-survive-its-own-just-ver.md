@@ -1,7 +1,7 @@
 ---
 id: 51
 title: A pristine starter must survive its own just verify unchanged
-status: open
+status: in_flight
 priority: 2
 refs: 
 done_when: starter_gate_control.py runs just verify twice on a pristine copy of each arm and fails if the first run modified any tracked file; red today on rust and godot before the task-26 repair, green after
