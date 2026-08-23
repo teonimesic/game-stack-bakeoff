@@ -244,6 +244,29 @@ two; four agreed and were all wrong (#37). `LOCK_HINTS` enumerated the phrasings
 *external* lock holder and could never match an internal one (#30). A rule stated as its
 instances is a rule that fails on the first instance you did not have when you wrote it.
 
+**Which property is itself a measurement, and the first one you reach for may be all false
+positives.** Task 92 is the first time this rule fired against **code** — a regex rather than a
+sentence — and the repair showed the rule under-specified, because more than one property fits.
+For `docstat.py`'s aspect-census trigger the obvious one was the QUANTIFIER: a cardinal, or
+`all`/`every`/`each`, governing `aspects`. It turned **26 correct live lines red with no true
+positive among them**, while catching only 10 of 14 planted censuses (task 92). That is not one
+unlucky regex: an independently rebuilt quantifier trigger of the same shape, run 2026-08-23
+over the 53 live documents of a 162-document sweep, lands on **31 red lines, again with no true
+positive**, and gets **12 of the 28 shipped pins wrong** — 6 real censuses missed, 6 correct
+corpus lines reddened. The count grew with the corpus, which is what an open-class trigger does.
+**The three-wording enumeration it was replacing produced 0 false positives** — so the obvious
+property was strictly worse than the list it was meant to fix. The shipped PREDICATE — existence,
+identity or definition, present tense, with the list adjacent — is at **0** false positives and
+**0 of 28** pins wrong, which `python3 eval/tools/docstat.py --sweep` re-runs every time.
+
+> **Prefer a property that is a CLOSED class, and choose between candidates on the live-corpus
+> false-positive count, never on which one sounds more general.** Copula, existential *there
+> are* and `define` are closed classes of English; the verb phrases the original enumerated are
+> open, and so is what a counted plural can be doing in a sentence. **A property drawn from an
+> open class is an enumeration in disguise** — it fails later rather than sooner, and by then it
+> is firing on correct input, which is how a gate gets disabled. The derivation is in
+> `DECISIONS.md`, the census-trigger section.
+
 **When writing the next rule, state what it protects, not what went wrong last time.**
 
 ## Capture what the instrument DID, not only what it concluded
