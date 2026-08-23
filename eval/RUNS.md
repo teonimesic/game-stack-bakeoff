@@ -948,6 +948,63 @@ reddens the clock test, M3 an unawaited preload reddens 2. The golden frame is u
 edit is rendering-neutral.
 
 
+## ALL FOUR STARTER GUIDES GAINED A REPAIR RULE ON 2026-08-23 — an ELEVENTH comparability break
+
+**No trial after this date is comparable with one before it on turns or cost, on any stack.** Each
+`starters/*/AGENTS.md` gained a section, **byte-identical in all four**, headed *"When the gate
+itself is wrong"*. The four `Boundaries` never-lists already forbade weakening the gate; they said
+nothing about the case where the gate is wrong, which is what #98 was. An agent that meets a red
+baseline has to do *something*, and the two things it can do are not equally safe.
+
+What the section adds, in the order it is read: a red gate on an untouched tree is a defect in the
+template, not in the work; say so in the final message, naming the recipe and the file; repairing
+it is allowed; **and a repair must leave the check able to fail** — fix how the check handles the
+input it got wrong, do not take that input out of what the check looks at. It closes with the
+mechanical test: plant a real error in the thing the gate stopped complaining about, confirm it
+goes red, then remove it.
+
+It is stated as a **property of the repair**, not as the Godot incident. A rule whose trigger is
+an enumeration has to be re-derived by every reader who meets an item not on the list, which is
+this project's most-repeated documentation defect; and a rule naming one engine could not be
+byte-identical across four arms without leaking that engine into three of them.
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** No stored submission was written under this text, and the
+  four `Boundaries` lists are unchanged, so nothing re-grades differently. The record is also
+  clean on the behaviour the section governs: over all 90 stored submissions with a `diff.stat`,
+  76 edited at least one file that decides their own tier-1 score and **not one weakened an
+  oracle** (`eval/IMPROVEMENTS.md`, axis 2). This adds to the never-list; it does not license
+  pruning it.
+- **Invalidated going forward, on all four arms at once:** every agent now reads 218 more words,
+  and one that meets a wrong gate takes a different path through it. Turn counts and costs before
+  and after are not comparable. Unlike breaks nine and ten this one is **not one-arm** — the text
+  is the same bytes in all four trees.
+- **Not measurable from re-grading.** The doc half cannot be verified offline. What is verified is
+  that the rule names a distinction the tooling can see.
+
+Gates re-run after the change, all green: `judge/verify_blind.py` on an out-of-repo copy (BLIND,
+81 ids, 5 trees) and `judge/starter_parity.py` ("No drift detected on any measured axis"; guide
+sizes 1619–2036 words, a 1.26x spread inside the 1.35x limit, and narrower than before the edit).
+
+`tools/starter_gate_control.py` now runs **three** directions on godot rather than two, all ok:
+
+| direction | measured |
+|---|---|
+| GREEN on pristine — `just check` must exit 0 | exit 0, `CHECK scripts=18 failures=0` |
+| RED on a parse error planted in the autoloaded `tools/no_raise.gd` | exit 1 |
+| the plant DISCRIMINATES — `tools/check.gd` edited to skip the autoload instead of re-parsing it, **same plant**, must exit 0 | exit 0, engine reports the failed autoload and the gate does not |
+
+Row three is the one that earns the section: it is `wg-g4c` t1's shipped repair reduced to its
+mechanism, and it proves the RED row would have reported FAILED on that submission. Two controls
+on row three itself, both reporting FAILED as required: a **safe** edit at the same anchor (a
+comment, still re-parsing everything) leaves `just check` at exit 1, and an anchor that is not in
+the file is refused rather than silently measuring the unrepaired gate. The other three stacks are
+printed as **NOT PINNED IN THE THIRD DIRECTION**, reported and not failed: their `check` is a
+compiler over a dependency graph and the plant sits in a root everything imports, so there is no
+per-file scope for a bad repair to narrow at that address.
+
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
