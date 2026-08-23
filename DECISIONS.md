@@ -1349,6 +1349,38 @@ brief hash demonstrably read the stale sentence and cannot be re-run for it; `ev
 records that, and the other 26 code rounds stored no hash and are unassessable.
 
 ---
+## A finding cited in a live document is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
+
+A bare `(#68)` is honest and useless: a reader who cannot click it has been told nothing. Making
+it a link is not free, because **`docstat.py --sweep` does not check file paths** — a phantom
+`eval/RUBRIC.md` passed a green sweep — so a link is a stronger claim than a number with no gate
+behind it. **A link that resolves to the wrong place is worse than a bare number, because it looks
+checked.**
+
+Three shapes were available and the choice was made on what each fails at, not on which reads best:
+
+| shape | why not |
+|---|---|
+| bare `(#68)` | unclickable; the objection that opened task 115 |
+| inline `[#68](eval/findings/...#68-the-subjective-layers-first-...)` | a ~150-character URL inside every sentence, in a file whose stated defect was that it was hard to read |
+| link to `eval/FINDINGS.md` with no fragment | always resolves and never lands on the finding. The index is a **table**, and GitHub generates no anchors for table rows, so there is nothing to aim at |
+
+**Shipped: reference-style.** `[#68]` in the prose, and one definition block at the foot of the
+file carrying the group file and the GitHub heading anchor. Prose stays as short as the bare form
+and the machinery is in one place a checker can read.
+
+**The fragment is the risk and `eval/tools/linkcheck.py` is the answer to it.** A reworded heading
+kills an anchor silently. The tool derives the anchors from the target file's own headings rather
+than assuming the rule, so a rewording turns a gate red instead of turning a link into a lie. It
+checks inline links, reference definitions and `[#NN]` shortcuts with no definition, skips fenced
+blocks and external schemes by design, and `--selftest` plants a known-good and a known-bad of
+each of the three shapes — rule 12's corollary, prove the extraction on a case whose answer you
+can state in advance. Both directions were exercised on `README.md` itself before the count over it
+was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#999]` each went red.
+
+**To re-open:** GitHub changing its heading-anchor rule, or a second consumer of these documents
+that does not render Markdown links.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1376,7 +1408,7 @@ settled question is noise that makes the live ones harder to find.
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83, #139) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
-| Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
+| Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and `python3 eval/tools/instruction_census.py` puts the always-loaded set at 112-155 (read 2026-08-23) — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
 | `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
 | `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 173 markdown files must be noisy — that argument is available now and is not evidence |
