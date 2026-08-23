@@ -147,7 +147,8 @@ PR=<n>
 HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid) || exit 1
 [ ${#HEAD} -eq 40 ] || { echo "no head sha - this is an error, not a poll result"; exit 1; }
 gh api "repos/$REPO/pulls/$PR/reviews" \
-  --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .commit_id] | index(\"$HEAD\") != null"
+  --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .commit_id] | index(\"$HEAD\") != null" \
+  || exit 1
 ```
 
 It prints `true` or `false` and exits 0 either way, so read the **word**, not the exit code — and
@@ -155,11 +156,12 @@ never wrap it in `|| true`, which would turn an API failure into a plausible `fa
 forever. Verified against the merged PR #1 on 2026-08-23: `true` for the head it was reviewed at,
 `false` for `941e5f5`, the commit that was pushed and never reviewed.
 
-**Both guards are load-bearing.** If `gh pr view` fails, `$HEAD` is empty — and `jq`'s
+**All three guards are load-bearing.** If `gh pr view` fails, `$HEAD` is empty — and `jq`'s
 `index("")` on an array of shas is `null`, measured, so the query answers `false` about a
 question it never asked, and the loop polls to its deadline reporting a review state inferred
 from a read that failed (rule 2). Check the exit status **and** that 40 characters came back;
-either alone leaves the other hole open.
+either alone leaves the other hole open. The `|| exit 1` on the query itself is the same rule
+one line down: an API that is failing must stop the loop, not quietly contribute a `false` to it.
 
 **How long it takes scales with the diff, so do not size the wait off one number.** Both
 measurements, from the 2 pull requests this repository has had:

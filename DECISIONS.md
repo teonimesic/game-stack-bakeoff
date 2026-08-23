@@ -1318,6 +1318,21 @@ one push per round, detects the pause by its own text, and resumes with `@codera
 | The 15-minute bound on the wait | Two tasks in a row handing back `in_testing` with no review. That is evidence about the reviewer, and the fix is not a longer wait |
 | Merging through `gh pr merge` | A conflict pattern the PR route makes worse than the local one. Conflicts already resolve locally on the branch and then merge through the PR |
 
+**The flow was run end to end on its own ticket: PR #2**, the first pull request opened by the
+procedure it adds. Round 1 posted **8 actionable comments; 7 were acted on and 1 was declined
+with a measurement** — the declined one asserted that new `E702` lines make `ruff check` fail,
+where 4 lines of that shape already stood at the merge base and no ruff configuration or gate
+exists in the tree. Two of the 7 were defects in this project's own terms: an empty `$HEAD` after
+a failed `gh pr view` makes the poll answer `false` about a question it never asked (jq's
+`index("")` is `null`, measured), and `in_testing` was gated for a `pr` in neither the code nor
+the prose while being the state the orchestrator merges from.
+
+**Review time scales with the diff, and one number was not enough to size the wait.** PR #1:
+2 files, acknowledged 31s, reviewed **2m 30s**. PR #2: 17 files and 615 insertions, acknowledged
+49s, reviewed **6m 15s**. The 15-minute bound is 2.4x the slower of the two, not the 6x it was
+first written as; `.claude/skills/work/SKILL.md` carries both points so the next reader can see
+the trend rather than a constant.
+
 ---
 ## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
 

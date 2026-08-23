@@ -188,3 +188,32 @@ Skill enumerates or reads other installed skills`, on skills that point at each 
 condition for `reviews.tools` — *if they show noise, disable the tool that produced it* — is
 arguably met and arguably not. Filed rather than changed here: `.coderabbit.yaml` is
 `tasks/108`'s artifact and changing review behaviour mid-flow is an uncontrolled variable.
+
+### Review round 2 on PR #2 — 1 new comment, and the shape of a re-post
+
+**2m 41s** on an 8-file diff (pushed `ce4a12c` 15:39:47Z, reviewed 15:42:28Z), which is the third
+point on the timing curve and consistent with the first two.
+
+The review header said *"Actionable comments posted: 1"*, and the API returned **4** comments
+attached to that head. The other 3 were round 1's carried forward unchanged — 2 I had acted on
+and 1 I had declined in the thread. **Read the header for the round's count and the comment set
+for the content; a comment attached to the new head is not necessarily a new finding.**
+
+The 1 genuinely new comment was a true positive and a good one: the merge block ran
+`gh pr merge --delete-branch` **above** the paragraph telling the orchestrator to remove the
+worktree first — the skill contradicted itself in six lines, reproducing the exact failure
+`tasks/108` recorded. The block now has worktree removal inside it, in order, with all 3
+orderings and what each one cost.
+
+**The `git commit -m` comment re-fired after being answered, and that is evidence about the
+rule, not about the reviewer.** The rule had been written as a FLAG — *use `-F`, not `-m`* —
+when its subject is the CONTENT: a fixed literal with no backticks cannot be altered by the
+shell, and composed prose containing paths and identifiers can. Restated as the property, which
+is AGENTS.md's own central rule about triggers, the contradiction disappears rather than being
+excused. A reviewer that keeps flagging correct code is spending the attention a real finding
+needs.
+
+**Held, twice, on the same measurement:** the `ruff` E702 comment. 4 lines of that shape stand at
+the merge base and no ruff configuration or gate exists in this tree. Adopting a linter is
+`tasks/110`'s subject; when it lands the file is reformatted whole, not in the 4 lines one diff
+touched.

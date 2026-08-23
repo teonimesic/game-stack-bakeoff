@@ -121,27 +121,31 @@ of what was reviewed and what was declined, and a local merge closes it as *"mer
 inference rather than by fact.
 
 ```bash
-# -m is safe for THIS message and only this one: a fixed literal with no backticks in it.
-# Anything you compose — a merge or resolution message — goes through -F. See below.
 git add tasks/ && git commit -m "Queue: agents' status writes through the shared queue"
 git push                        # the queue commit reaches main BEFORE the merge
-gh pr merge <n> --merge --delete-branch    # --merge, not --squash: --no-ff's semantics
+git worktree remove --force <path>          # BEFORE --delete-branch, not after
+gh pr merge <n> --merge --delete-branch     # --merge, not --squash: --no-ff's semantics
 git pull                        # bring the merge commit back into the local checkout
 python3 eval/tools/tasks.py done <id> "what you verified, and how"
 ```
 
-The queue commit comes first because agents write status into the **main** checkout, and an
-uncommitted `tasks/` blocks everything after it. `git pull` afterwards is not optional: the merge
-happened on GitHub, so until you pull, your local `main` does not contain the work you just
-merged and the next dispatch would be made against a tree that is missing it.
+Three orderings in those six lines, and each one was paid for:
 
-**Remove the worktree BEFORE deleting the branch.** `gh pr merge --delete-branch` deleted the
-remote branch and failed on the local one while an agent worktree still held it (`tasks/108`):
+- **The queue commit first**, because agents write status into the **main** checkout and an
+  uncommitted `tasks/` blocks everything after it.
+- **`git worktree remove` before `--delete-branch`.** `gh pr merge --delete-branch` deletes the
+  remote branch and then fails on the local one while an agent worktree still holds it
+  (`tasks/108`) — so you are left having half-cleaned up, with the remote gone and the local
+  branch pinned by a checkout.
+- **`git pull` afterwards is not optional.** The merge happened on GitHub; until you pull, your
+  local `main` does not contain the work you just merged and the next dispatch is made against a
+  tree that is missing it.
 
-```bash
-git worktree remove --force <path>
-git branch -d task-<id>-<slug>
-```
+`-m` is used above and it is not an exception to anything: **the rule is about the CONTENT of a
+message, not about which flag carries it.** A fixed literal with no backticks in it cannot be
+altered by the shell. Anything you compose — a merge message, a resolution note, an agent's
+evidence — contains paths and identifiers, and goes through `git commit -F` with a file, because
+backticks in a double-quoted argument are command substitution and strip text silently (#80).
 
 **When the PR conflicts with `main`**, `gh` cannot merge it and the resolution is still local:
 `git fetch`, merge `origin/main` into the task branch, resolve with the table below, push, and
@@ -180,8 +184,8 @@ Then, unpiped: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`
 creates stale citations that still *resolve* — `--renumbered` is what finds them.
 
 Whatever you write as a merge or resolution message records **what was established and what it
-cost**, not what was changed — and goes in through `git commit -F` with a file, because backticks
-in `-m` are executed by the shell and silently strip text (#80).
+cost**, not what was changed — and, being composed prose, goes in through `git commit -F` with a
+file for the reason given under *Merging* above.
 
 ## 5. Go back to step 1 before you report
 
