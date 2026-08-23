@@ -371,14 +371,29 @@ in the criterion's own words and needs no level knowledge. Pinned by its existin
 on the `jump.leaves_ground` mutant by construction, declared there, and its evidence
 distinguishes the two failures. FINDINGS #65.
 
-> ⚠️ **A ceiling on this task, not yet fixed: the bot cannot cross a gap.** It reaches
-> every enemy by walking right, so a level whose ground has pits makes
-> `attack.damages`, `score.on_kill`, `enemy.damages_player`, `invuln.window`,
-> `knockback.applied` and `gameover.triggers` unmeasurable — the bot falls in and dies.
-> `g4_platformer__ts__t0` scored the field's lowest on exactly this, having built the
-> field's most sophisticated level. **A submission is currently penalised in proportion
-> to how much real platforming it builds.** Do not read a low g4 combat score as a
-> property of the submission without checking its ground for gaps.
+**The bot crosses a gap. That ceiling is gone, and it was two defects, not one** (task
+76, 2026-08-23). Until then a level whose ground had pits made `attack.damages`,
+`score.on_kill`, `enemy.damages_player`, `invuln.window`, `knockback.applied` and
+`gameover.triggers` unmeasurable — the bot walked in and died — so **a submission was
+penalised in proportion to how much real platforming it built**, and
+`g4_platformer__ts__t0` scored the field's lowest having built the field's most
+sophisticated level.
+
+- The bot held **three** inline copies of "walk toward the target". Edge-jumping reached
+  `_combat`; `_hurt`, whose whole experiment is making contact with an enemy, had none,
+  which is why the two *reach* criteria passed on a pit level while the four *contact*
+  criteria went red. All callers now build their inputs through one `_walk_toward`.
+- The `PIT_UNDER_LEDGE` variant that declared the ceiling put the far side **680 units**
+  away against a jump that clears ~148, so no bot could have crossed it; the six
+  tolerances were partly a level-design error in the check. The pit is now the 100 units
+  the real submissions shipped, still bottomless, and the variant **tolerates nothing**.
+
+Pinned in both directions: reverting `_hurt` alone turns exactly the four contact
+criteria red, and blinding `_edge_distance` turns all six red, while the repaired bot is
+green on all 19 scored criteria of the pit level. **`wg-g4c` does not need re-grading**:
+its eight stored `playbot.json` files already pass all six on all eight submissions after
+the earlier repairs, the one exception being `unity__t0`'s `knockback.applied`, unscored
+for the separate reason in #89. The repair matters for the next gapped submission.
 
 Three are genre-defining and invisible in a still frame:
 
