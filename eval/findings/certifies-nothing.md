@@ -4892,3 +4892,69 @@ A ticket's numbers are a starting hypothesis. **Three of these were carried into
 faith and none survived contact with the corpus** — which is the argument for re-measuring rather
 than implementing to spec, and the same lesson #152 records about a ticket that specified its own
 trigger.
+
+---
+
+## 157. The ticket named the command where the defect was seen, and the same defect sat in the sibling that every dispatched agent runs
+
+`tasks.py done <id> -` accepted `-` as **literal one-character evidence**. A 2,280-character
+account piped into it was stored as `established_by: '-'`, exit **0**, nothing printed. `note`
+reads `-` as *"take this from stdin"*; `done` did not, and the two disagreed in silence.
+
+Reproduced on the live tool before the repair, and again after:
+
+    before:  done 70 -  <2,280 chars   ->  established_by: '-'      exit 0
+    after:   done 70 -  <one line      ->  the account, stored      exit 0
+             done 70 -  <two lines     ->  refused, naming `note`   exit 1
+             done 70 ""                ->  refused                  exit 1
+
+On a refusal **neither the field nor the status is written** — a partial write here would leave a
+task closed with no account of what closed it, which is worse than the defect.
+
+### The half the ticket did not name is the half that matters
+
+The ticket was filed on `done`. **`testing` carried the identical defect** — and `testing` is the
+command the work skill tells *every dispatched agent* to run at hand-back, while `done` is the
+orchestrator's, once, at merge. **The ticket named the sibling that gets used less.**
+
+> This is the rule audit's own lesson arriving at a **ticket** rather than at a rule: *write the
+> trigger as the RESOURCE or the PROPERTY, never as an enumeration of the instances you happened
+> to see.* The instance seen was `done`. The property is **an argument that becomes a durable
+> record**, and three subcommands have one.
+>
+> A ticket is a trigger. It tells the next agent where to look, and a ticket that names one
+> instance gets one instance fixed — by an agent who has no reason to doubt the scope they were
+> handed.
+
+The repair reads `-` in **one** place, so the three commands cannot disagree again.
+
+### What the review caught, and what was declined
+
+Two real defects, both in the *control* rather than the code: a carriage-return case the
+multi-line test could not see, and a control row whose **name** described "the ticket a refused
+`done` left behind" while its fixture was a successful `note` — green for the wrong reason, rule
+12 inside a control, which is #150 a second time.
+
+A style rewrite and 13 of 15 "spell cardinals as digits" comments were **declined with replies**,
+and a second-round comment was **disproved** by reading the generated mutant: its proposal would
+have failed 9 of 21 mutants with no defect behind any of them. That is the review working as
+specified — a second opinion on the code, not a measurement of the claim.
+
+### Three defects in the procedure itself, found by following it
+
+- The review-deadlock check **enumerated one notice phrasing** and missed a second. The first
+  replacement was *measurably worse*. The shipped one then caught a **third** phrasing within the
+  hour — an open class, confirmed by the class widening while the fix was being written.
+- That check then **fired on the agent's own comment quoting it**.
+- `git commit -F` picked up a **previous session's scratchpad file** and shipped a commit titled
+  for the wrong task. A path that still resolves is the failure `AGENTS.md` rule 12 names, and a
+  scratchpad is exactly where a stale one survives.
+
+### The measurement that bounds the damage
+
+A census over all 114 closed tickets found **0** carrying a degenerate record — so the defect
+existed for its whole life and was never triggered by anyone but the agent that found it. The
+extraction was pinned by planting one, which the same census reads as 1.
+
+**That is the useful shape of a null here:** not *"the check found nothing"*, but *"the check
+found nothing, and here is the planted case proving it could have."*
