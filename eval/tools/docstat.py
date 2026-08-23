@@ -810,32 +810,89 @@ def _check_regime_ordinals() -> list[str]:
 
 #: A sentence that claims the aspect list is COMPLETE.
 #:
-#: Deliberately a small set of DECLARING forms rather than an attempt to recognise
-#: completeness in general. That is the same trade the withdrawal register makes: a
-#: correction has to be declared, not inferred, because the only detectable property of
-#: an intent is that somebody wrote it down. A doc that enumerates the aspects without
-#: claiming to enumerate ALL of them is invisible here, and that is the accepted cost -
-#: the alternative measured worse. `every aspect that reads them is told so` and `no
-#: aspect may quietly score a blank field` are correct sentences in `JUDGING.md` that a
-#: quantifier-based trigger fires on, and a gate that fails on correct input is a gate
-#: that gets disabled (the path check above was deleted for exactly that).
+#: WHAT THE TRIGGER IS SCOPED TO, and why it is not the quantifier. Until 2026-08-23 this
+#: was three alternations - the three wordings the two defective documents happened to
+#: use - and task 92 measured what that cost: of 14 planted census claims, each FALSE in
+#: the exact way this check exists to catch, it fired on 2. `The five judge aspects are
+#: X.`, `There are five aspects: X.` and `The full list of aspects is X.` all passed.
+#: That is AGENTS.md's most-repeated defect, a trigger written as an enumeration of the
+#: instances someone had seen, and it fails on the first instance they had not.
 #:
-#: PLURAL AND QUANTIFIED, measured rather than assumed. The first draft accepted a
-#: SINGULAR `aspect` within 40 characters of `exist` and went red on three correct lines
-#: in two documents - `does a flag, aspect or criterion a doc names actually exist?` in
-#: `audit-docs/SKILL.md` and `DECISIONS.md`, which are sentences about this very check.
-#: Requiring `<quantifier> aspects exist` drops all three and keeps every true positive.
+#: The obvious repair is the one that does not work, and it was measured before this one
+#: was written. A trigger built on the QUANTIFIER - a cardinal or `all`/`every`/`each`
+#: governing `aspects` - caught 10 of the 14 and turned **26 correct lines of the live
+#: corpus red**, every single hit a false positive: `All five aspects were run over a
+#: full eight-submission field` (DECISIONS.md), `All five aspects failed their gates`
+#: (G4-PLATFORMER.md), `ALL SIX aspects separate g4_platformer at n=5` (JUDGING.md),
+#: `Six aspects x 5 repeats` (RUNS.md). In this corpus a counted plural `aspects` is
+#: overwhelmingly a description of what RAN, COST or FAILED, not a census. A gate that
+#: fails on correct input is a gate that gets disabled, which is recorded three times in
+#: this file already.
 #:
-#: A `aspects.py defines` alternative was written and removed before it ever ran: the
-#: docs write it as `` `aspects.py` defines ``, so it matched nothing, and making it
-#: backtick-tolerant would have fired on `JUDGING.md`'s correct "`aspects.py` defines
-#: `FRAMES_BLIND_SPOT`". A dead alternative whose repair is a false positive is worse
-#: than no alternative.
+#: SO THE PROPERTY IS THE PREDICATE, not the quantifier. What a census has and a run
+#: description does not is an EXISTENCE, IDENTITY or DEFINITION predicate in the present
+#: tense, with the enumeration adjacent to it. `were run`, `failed`, `separate`, `x 5
+#: repeats` are none of those. That distinction is not a wordlist that grows with each
+#: new document: copula, existential `there are`, and `define`/`list`/`set` are closed
+#: classes of English, which is what makes this statable as a property at all.
+#:
+#: A RESTRICTIVE DETERMINER IS NOT A CENSUS. `which aspects are included:` in JUDGING.md
+#: heads a table of POOLING SUBSETS and was the single false positive the predicate
+#: trigger produced before `NOTREL`; `every aspect that reads them is told so` is the
+#: singular form of the same shape. An interrogative or a relative clause narrows the
+#: set; it never asserts what the set IS.
+#:
+#: MEASURED, 2026-08-23, task 92: 14 of 15 planted false censuses red, and **0 red across
+#: the 152-document swept corpus**. Widened to all 2090 markdown files in the checkout it
+#: is 6 red, all 6 inside `tasks/` or `eval/findings/` and therefore archive-exempt, and
+#: all 6 true statements of a superseded census - which is what the archive is for.
+#:
+#: WHAT IS DELIBERATELY NOT COVERED, with its price. A bare table - an `aspect`-headed
+#: column listing five ids with no sentence above it - stays invisible. A structural
+#: trigger for it was written and measured at **9 false positives** on the live corpus
+#: (JUDGING.md's per-aspect results tables at 361, 467, 547, 612, 662, 799, 1279,
+#: G4-PLATFORMER.md:301, DECISIONS.md:651), every one a legitimate table over the subset
+#: of aspects that a particular round actually ran. 9 false positives to close one gap
+#: that has never occurred is the trade `docstat.py` already refused when it deleted its
+#: path check rather than tuning it quiet.
+_CENSUS_CARD = (r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)")
+#: A list, as it looks where it starts: a backticked id, possibly behind markdown emphasis.
+_CENSUS_LIST = r"[*_\s]*`"
+#: `which aspects are counted` restricts; it does not declare. Each lookbehind is its own
+#: fixed width, which is why they are separate rather than one alternation.
+_CENSUS_NOTREL = r"(?<!which\s)(?<!what\s)(?<!whichever\s)"
+
 _ASPECT_CENSUS_RX = re.compile(
-    r"(?:\b\w+\s+aspects\s+(?:that\s+)?(?:exist|are\s+defined)"   # "five aspects that exist"
-    r"|\bthese\s+\w+\s+exist\b"                                   # "These five exist."
-    r"|\bnothing\s+else\s+is\s+runnable\b)",                      # RUBRIC's own words
-    re.I)
+    r"(?:"
+    # IDENTITY: `... aspects [that exist] ARE <list>`. Present-tense copula with the
+    # enumeration adjacent. `aspects were run`, `aspects failed`, `aspects separate` are
+    # not copulas and are the commonest true sentences about aspects in this corpus.
+    r"\b" + _CENSUS_NOTREL + r"aspects\s+(?:that\s+(?:exist|are\s+defined|are\s+runnable)\s+)?"
+    r"(?:are|is)\b(?:[^.`\n]{0,30}?)"
+    r"(?:" + _CENSUS_LIST + r"|:|\bdefined\b|\blisted\b|\bthe\s+following\b)"
+    # EXISTENCE: `Six aspects exist`, `the aspects are defined`, `There are five aspects`.
+    r"|\b" + _CENSUS_NOTREL + r"aspects\s+(?:exist|are\s+defined)\b"
+    r"|\bthere\s+(?:are|is)\s+(?:only\s+|just\s+)?" + _CENSUS_CARD + r"\s+(?:\w+\s+)?aspects\b"
+    # COMPLETENESS NOUN: `the full list of aspects`, `the complete set of aspects`.
+    r"|\b(?:full|complete|entire|exhaustive|whole)\s+(?:list|set)\s+of\s+(?:\w+\s+)?aspects\b"
+    # EXCLUSION: the claim that the list has no remainder. `nothing else is runnable` is
+    # RUBRIC.md's own wording and is kept because it is still the sentence in the file.
+    r"|\bno\s+other\s+aspects?\b"
+    r"|\bnothing\s+else\s+is\s+runnable\b"
+    r"|\bthese\s+\w+\s+exist\b"
+    # DEFINITION BY THE SOURCE: `aspects.py defines five`. A CARDINAL is required, which is
+    # what the deleted 2026-08-22 draft lacked - it would have fired on the correct
+    # "`aspects.py` defines `FRAMES_BLIND_SPOT`", which has no count in it.
+    r"|\bdefines?\s+" + _CENSUS_CARD + r"\b"
+    # ENUMERATION PUNCTUATION: `aspects:` / `aspects, in full -` immediately before a list.
+    # The 12-character gap admits `Aspects available:` and `The aspects, in full:` without
+    # admitting a new sentence; `[^.\n`]` is what stops it crossing one.
+    r"|\baspects\b[^.\n`]{0,12}[:\-–—]" + _CENSUS_LIST +
+    # UNIVERSAL + SET MEMBERSHIP: `every aspect is one of ...`. The only singular form
+    # here, and it is safe because the copula must be adjacent: `every aspect that reads
+    # them is told so` and `every aspect resolves in 4 rounds` both have a verb in between.
+    r"|\bevery\s+aspects?\s+is\s+(?:one\s+of|either)\b"
+    r")", re.I)
 
 #: How far past the claim an id may be named. The claim is a sentence; the ids are in the
 #: table under it. 25 lines covers a six-row table with its header and a paragraph either
@@ -1685,12 +1742,17 @@ def _aspect_census_pins(aspects: set[str], verbose: bool = False) -> list[str]:
     """Pin `_check_aspect_census` in both directions, on planted text, every sweep.
 
     The RED cases are the two real documents this check was written for, quoted as they
-    stood at 7e82b19. The GREEN cases are the half that matters (AGENTS.md rule 15): four
-    of the five are inputs an earlier draft of the trigger got WRONG on real corpus text -
-    the sentence describing the sibling check, the historical `5 aspects x 2 orders` run
-    description, the singular `every aspect`, and an archive doc whose subject is the old
-    census. A mutant asks whether the check can fail; only these ask whether it can still
-    pass on the inputs that made the first draft unusable.
+    stood at 7e82b19, plus the phrasings task 92 measured the old three-alternation
+    trigger MISSING - it caught 2 of 14 planted false censuses, and every one below was
+    among the 12 that passed.
+
+    The GREEN cases are the half that matters (AGENTS.md rule 15). Every one is REAL
+    CORPUS TEXT that a draft of this trigger turned red: four from the 2026-08-22 draft
+    (the sibling check's own sentence, the `5 aspects x 2 orders` run description, the
+    singular `every aspect`, an archive doc), and five from task 92's quantifier-based
+    draft, which produced 26 false positives and no true ones. A mutant asks whether the
+    check can fail; only these ask whether it can still pass on the inputs that made
+    every previous draft unusable.
 
     Returns the pins that came out wrong; empty means the check demonstrably both fires
     and stays quiet.
@@ -1714,6 +1776,29 @@ def _aspect_census_pins(aspects: set[str], verbose: bool = False) -> list[str]:
          {"a.md": f"Six aspects exist: {five}.\n{far}\n`fun_frames`"}, True),
         ("RUBRIC's own exhaustiveness phrasing, five named",
          {"a.md": f"These five exist. The ids `--aspects` accepts: {five}."}, True),
+        # --- RED: the wordings the three-alternation trigger missed (task 92)
+        ("task 92 #A: plain copula - `The five judge aspects are ...`",
+         {"a.md": f"The five judge aspects are **{five}**."}, True),
+        ("task 92 #B: existential - `There are five aspects: ...`",
+         {"a.md": f"There are five aspects: {five}."}, True),
+        ("task 92 #C: a forward reference - `the six aspects are listed below`",
+         {"a.md": f"the six aspects are listed below\n\n{five}"}, True),
+        ("task 92 #D: completeness noun - `The full list of aspects is ...`",
+         {"a.md": f"The full list of aspects is {five}."}, True),
+        ("task 92 #I: completeness noun - `The complete set of aspects is ...`",
+         {"a.md": f"The complete set of aspects is {five}."}, True),
+        ("task 92 #F: exclusion - `... There are no other aspects.`",
+         {"a.md": f"The judge aspects: {five}. There are no other aspects."}, True),
+        ("task 92 #G: enumeration punctuation - `all five aspects: ...`",
+         {"a.md": f"all five aspects: {five}"}, True),
+        ("task 92 #H: a dash instead of a colon - `the five aspects - ... -`",
+         {"a.md": f"Each of the five aspects - {five} - is judged."}, True),
+        ("task 92 #J: definition by source - `aspects.py defines five aspects: ...`",
+         {"a.md": f"`aspects.py` defines five aspects: {five}"}, True),
+        ("task 92 #L: universal + membership - `every aspect is one of ...`",
+         {"a.md": f"Every aspect is one of these five: {five}."}, True),
+        ("task 92 #M: adverbial - `The aspects, in full: ...`",
+         {"a.md": f"The aspects, in full: {five}."}, True),
         # --- GREEN
         (f"GREEN: the same claim naming all {len(aspects)}",
          {"a.md": f"The aspects that exist are {all_six}."}, False),
@@ -1730,6 +1815,30 @@ def _aspect_census_pins(aspects: set[str], verbose: bool = False) -> list[str]:
                   "reads them is told so."}, False),
         ("GREEN: an archive doc whose subject IS the superseded census",
          {"tasks/79-x.md": f"says five aspects exist: {five}"}, False),
+        # --- GREEN: real live-corpus lines the quantifier-based draft turned red.
+        # These are the whole reason the trigger is scoped to the predicate.
+        ("GREEN: JUDGING.md - `which aspects are included:` restricts, never declares",
+         {"a.md": "And the ordering is not stable to which aspects are included:\n\n"
+                  "| aspects pooled | ordering |\n|---|---|\n| all five | rust, godot |"},
+         False),
+        ("GREEN: DECISIONS.md - `All five aspects were run` counts a ROUND",
+         {"a.md": "All five aspects were run over a full eight-submission field for "
+                  f"**$33.63** - naming `{one}` among them."}, False),
+        ("GREEN: G4-PLATFORMER.md - `All five aspects failed their gates`",
+         {"a.md": "**But do not budget for it.** All five aspects failed their gates "
+                  "on `g2_tetris3d` - three of them at the ceiling."}, False),
+        ("GREEN: JUDGING.md - `ALL SIX aspects separate g4_platformer at n=5`",
+         {"a.md": "## Task 23 result: ALL SIX aspects separate `g4_platformer` at n=5."},
+         False),
+        ("GREEN: RUNS.md - `six aspects x 5 repeats` is a design, not a census",
+         {"a.md": "Task 23: six aspects x 5 repeats of one field, 30 calls, $100.84."},
+         False),
+        ("GREEN: RUNS.md - `a pooled mean over all aspects` prices, never enumerates",
+         {"a.md": "A pooled per-call mean over all aspects would have priced "
+                  f"`{one}` at a third of its cost."}, False),
+        ("GREEN: a per-aspect RESULTS table over the subset one round ran",
+         {"a.md": "| aspect | seed | range | reads as |\n|---|---|---|---|\n"
+                  f"| `{one}` | 0 | 0.25 | flat |"}, False),
     ]
 
     failed = []
