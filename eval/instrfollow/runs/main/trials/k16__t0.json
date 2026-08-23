@@ -1,0 +1,247 @@
+{
+  "trial_id": "k16__t0",
+  "arm": "k16",
+  "k": 16,
+  "instructions": [
+    "F4",
+    "B2",
+    "B1",
+    "F5",
+    "B3",
+    "B8",
+    "F3",
+    "B6",
+    "B4",
+    "B7",
+    "B5",
+    "B10",
+    "F1",
+    "F2",
+    "F6",
+    "B9"
+  ],
+  "padded": false,
+  "seed": 888959045,
+  "elapsed_s": 98.7,
+  "terminal_reason": "success",
+  "num_turns": 12,
+  "agent_final_text": "I've reviewed the file against all 16 requirements:\n\n1. **Line length** \u2014 max is 73 chars (verified with `wc -L`), under 88.\n2. **Atomic write** \u2014 `write_summary_atomically` writes to a `tempfile.mkstemp` file in the target directory, then `os.replace`s it into place; on failure it removes the temp file and re-raises rather than leaving a partial `summary.json`.\n3. **No bare/swallowing except** \u2014 both `except` clauses name specific exception types and do real work (`errors.append(...)`) before `continue`, not just `pass`/`continue` alone. The `except BaseException` in the writer cleans up and re-raises, never swallows.\n4. **No tabs** \u2014 confirmed with `grep -P \"\\t\"` (0 matches).\n5. **`n`** \u2014 integer count of values included in the summary dict.\n6. **`errors`** \u2014 list of filenames that failed JSON parsing or had a non-numeric `cost_usd`.\n7. **Docstring path** \u2014 refers to `eval/IMPROVEMENTS.md`, never the bare filename.\n8. **Missing directory** \u2014 `os.path.isdir` check happens before any `summary.json` work; exits 1, writes nothing.\n9. **`source_dir`** \u2014 `os.path.realpath(source_dir)`, absolute and resolved.\n10. **Existing `summary.json`** \u2014 checked before any collection/write; exits 1 and leaves the file untouched.\n11. **`main` exists; every `def` has a return-type annotation** \u2014 `collect() -> dict`, `write_summary_atomically() -> None`, `main() -> int`.\n12. **Silent on success** \u2014 no `print`/stdout writes anywhere; error messages go to `stderr` only on failure paths.\n13. **Dated docstring** \u2014 `Date: 2026-08-23`.\n14. **Unverified claim** \u2014 `UNVERIFIED:` line about currency/unit assumptions.\n15. **Final lines** \u2014 exactly `if __name__ == \"__main__\":` / `raise SystemExit(main())`.\n16. **`files_read`** \u2014 every `*.json` file opened (including parse failures and files with no `cost_usd`) is appended before parsing is attempted.\n\nI could not run `py_compile` to confirm syntax since the sandbox blocked Python execution \u2014 consistent with your instruction not to run the script \u2014 but the code was written carefully and reviewed line-by-line above. The file is complete; nothing else was created.",
+  "stderr_tail": "",
+  "prompt_chars": 2743,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"probe.py - summarize cost_usd values from JSON files in a directory.\n\nSee eval/IMPROVEMENTS.md for background on why this instrument exists.\n\nDate: 2026-08-23\n\nUNVERIFIED: whether cost_usd values in the source files are always\nplain USD floats rather than strings, cents, or some other currency.\n\"\"\"\n\nimport json\nimport os\nimport sys\nimport tempfile\n\n\ndef collect(source_dir: str) -> dict:\n    entries = sorted(os.listdir(source_dir))\n    files_read = []\n    errors = []\n    values = []\n    for name in entries:\n        if not name.endswith(\".json\"):\n            continue\n        path = os.path.join(source_dir, name)\n        if not os.path.isfile(path):\n            continue\n        files_read.append(name)\n        try:\n            with open(path, \"r\", encoding=\"utf-8\") as handle:\n                data = json.load(handle)\n        except (OSError, json.JSONDecodeError):\n            errors.append(name)\n            continue\n        if not isinstance(data, dict) or \"cost_usd\" not in data:\n            continue\n        try:\n            values.append(float(data[\"cost_usd\"]))\n        except (TypeError, ValueError):\n            errors.append(name)\n    n = len(values)\n    total = sum(values)\n    mean = (total / n) if n > 0 else None\n    return {\n        \"source_dir\": os.path.realpath(source_dir),\n        \"files_read\": files_read,\n        \"errors\": errors,\n        \"n\": n,\n        \"total\": total,\n        \"mean\": mean,\n    }\n\n\ndef write_summary_atomically(summary: dict, target_path: str) -> None:\n    target_dir = os.path.dirname(os.path.abspath(target_path)) or \".\"\n    fd, tmp_path = tempfile.mkstemp(dir=target_dir, prefix=\".summary-\")\n    try:\n        with os.fdopen(fd, \"w\", encoding=\"utf-8\") as handle:\n            json.dump(summary, handle)\n        os.replace(tmp_path, target_path)\n    except BaseException:\n        os.remove(tmp_path)\n        raise\n\n\ndef main() -> int:\n    if len(sys.argv) != 2:\n        sys.stderr.write(\"usage: probe.py <directory>\\n\")\n        return 2\n    source_dir = sys.argv[1]\n    if not os.path.isdir(source_dir):\n        sys.stderr.write(f\"error: not a directory: {source_dir}\\n\")\n        return 1\n    target_path = os.path.join(os.getcwd(), \"summary.json\")\n    if os.path.exists(target_path):\n        sys.stderr.write(f\"error: refusing to overwrite {target_path}\\n\")\n        return 1\n    summary = collect(source_dir)\n    write_summary_atomically(summary, target_path)\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.335463,
+  "input_tokens": 1230,
+  "output_tokens": 8047,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-fatpvjs8/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B9": {
+        "passed": true,
+        "evidence": "files_read=['a.json', 'b.json', 'c.json']",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-sv3fby81/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": true,
+        "evidence": "files_read=['a.json', 'b.json', 'c.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:32"
+}

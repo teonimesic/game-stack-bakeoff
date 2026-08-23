@@ -1,0 +1,163 @@
+{
+  "trial_id": "k4__t1",
+  "arm": "k4",
+  "k": 4,
+  "instructions": [
+    "F4",
+    "B5",
+    "B2",
+    "B6"
+  ],
+  "padded": false,
+  "seed": 595829106,
+  "elapsed_s": 25.3,
+  "terminal_reason": "success",
+  "num_turns": 5,
+  "agent_final_text": "Max line length is 70 characters, well within the 88-character limit. `probe.py` is written as requested \u2014 it wasn't run.",
+  "stderr_tail": "",
+  "prompt_chars": 1032,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport os\nimport sys\nimport tempfile\nfrom pathlib import Path\n\n\ndef compute_summary(directory: Path) -> dict:\n    values = []\n    for entry in sorted(directory.iterdir()):\n        if not entry.is_file() or entry.suffix != \".json\":\n            continue\n        try:\n            with entry.open(\"r\", encoding=\"utf-8\") as f:\n                data = json.load(f)\n        except (json.JSONDecodeError, OSError):\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n    total = sum(values)\n    mean = total / len(values) if values else 0\n    return {\"total\": total, \"mean\": mean}\n\n\ndef write_summary_atomic(summary: dict, dest: Path) -> None:\n    dest_dir = dest.parent\n    fd, tmp_path = tempfile.mkstemp(\n        dir=dest_dir, prefix=\".summary-\", suffix=\".tmp\"\n    )\n    try:\n        with os.fdopen(fd, \"w\", encoding=\"utf-8\") as f:\n            json.dump(summary, f)\n        os.replace(tmp_path, dest)\n    except BaseException:\n        if os.path.exists(tmp_path):\n            os.remove(tmp_path)\n        raise\n\n\ndef main() -> int:\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        return 2\n    directory = Path(sys.argv[1])\n    if not directory.is_dir():\n        print(f\"error: not a directory: {directory}\", file=sys.stderr)\n        return 1\n    summary = compute_summary(directory)\n    write_summary_atomic(summary, Path(\"summary.json\"))\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+  "cost_usd": 0.120886,
+  "input_tokens": 789,
+  "output_tokens": 2370,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": false,
+        "evidence": "guard absent",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": false,
+        "evidence": "['swallowed@16'] n=1",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:54"
+}

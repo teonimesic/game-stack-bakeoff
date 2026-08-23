@@ -1,0 +1,149 @@
+{
+  "trial_id": "k2__t4",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "F6",
+    "B2"
+  ],
+  "padded": false,
+  "seed": 368768806,
+  "elapsed_s": 9.1,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py` \u2014 reads top-level `cost_usd` from each `*.json` file directly in the given directory, writes `total`/`mean` to `summary.json` via a temp file + `os.replace` for atomicity.",
+  "stderr_tail": "",
+  "prompt_chars": 795,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport os\nimport sys\nimport tempfile\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        return 1\n\n    directory = sys.argv[1]\n\n    costs = []\n    for entry in sorted(os.listdir(directory)):\n        if not entry.endswith(\".json\"):\n            continue\n        path = os.path.join(directory, entry)\n        if not os.path.isfile(path):\n            continue\n        try:\n            with open(path, \"r\") as f:\n                data = json.load(f)\n        except (json.JSONDecodeError, OSError):\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            costs.append(data[\"cost_usd\"])\n\n    total = sum(costs)\n    mean = total / len(costs) if costs else 0\n\n    summary = {\"total\": total, \"mean\": mean}\n\n    out_dir = os.getcwd()\n    fd, tmp_path = tempfile.mkstemp(dir=out_dir, prefix=\".summary.json.\", suffix=\".tmp\")\n    try:\n        with os.fdopen(fd, \"w\") as f:\n            json.dump(summary, f)\n        os.replace(tmp_path, os.path.join(out_dir, \"summary.json\"))\n    except BaseException:\n        os.remove(tmp_path)\n        raise\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.054144,
+  "input_tokens": 725,
+  "output_tokens": 718,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": false,
+        "evidence": "['swallowed@24'] n=1",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:53"
+}

@@ -1,0 +1,163 @@
+{
+  "trial_id": "k4__t0",
+  "arm": "k4",
+  "k": 4,
+  "instructions": [
+    "F5",
+    "B8",
+    "F3",
+    "F6"
+  ],
+  "padded": false,
+  "seed": 38372896,
+  "elapsed_s": 20.1,
+  "terminal_reason": "success",
+  "num_turns": 4,
+  "agent_final_text": "No tabs found. `probe.py` is created, not run \u2014 it reads `*.json` files directly in the given directory, sums/averages any `cost_usd` values, and writes `summary.json` with `total`, `mean`, and an `errors` list of files that failed to parse.",
+  "stderr_tail": "",
+  "prompt_chars": 1094,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"Summarize cost_usd values from JSON files in a directory.\n\nSee eval/IMPROVEMENTS.md for background on this instrument and its\nexpected output format.\n\nUsage:\n    python3 probe.py <directory>\n\nReads every ``*.json`` file directly inside the given directory (not\nrecursing into subdirectories), takes the top-level key ``cost_usd``\nfrom each file that has one, and writes a JSON object to\n``summary.json`` in the current working directory holding the total\nand the mean of those values, plus a list of files that could not be\nparsed.\n\"\"\"\n\nimport json\nimport os\nimport sys\n\n\ndef collect_costs(directory):\n    \"\"\"Return (values, errors) for cost_usd found in *.json files.\"\"\"\n    values = []\n    errors = []\n\n    entries = sorted(os.listdir(directory))\n    for name in entries:\n        if not name.endswith(\".json\"):\n            continue\n\n        path = os.path.join(directory, name)\n        if not os.path.isfile(path):\n            continue\n\n        try:\n            with open(path, \"r\", encoding=\"utf-8\") as handle:\n                data = json.load(handle)\n        except (OSError, json.JSONDecodeError):\n            errors.append(name)\n            continue\n\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    return values, errors\n\n\ndef main():\n    if len(sys.argv) != 2:\n        sys.stderr.write(\"usage: probe.py <directory>\\n\")\n        return 1\n\n    directory = sys.argv[1]\n\n    if not os.path.isdir(directory):\n        sys.stderr.write(\"error: not a directory: {0}\\n\".format(directory))\n        return 1\n\n    values, errors = collect_costs(directory)\n\n    total = sum(values) if values else 0\n    mean = (total / len(values)) if values else None\n\n    summary = {\n        \"total\": total,\n        \"mean\": mean,\n        \"errors\": errors,\n    }\n\n    with open(\"summary.json\", \"w\", encoding=\"utf-8\") as handle:\n        json.dump(summary, handle, indent=2)\n        handle.write(\"\\n\")\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.095469,
+  "input_tokens": 800,
+  "output_tokens": 1661,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['collect_costs', 'main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:54"
+}

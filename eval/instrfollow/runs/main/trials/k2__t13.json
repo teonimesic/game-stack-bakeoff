@@ -1,0 +1,149 @@
+{
+  "trial_id": "k2__t13",
+  "arm": "k2",
+  "k": 2,
+  "instructions": [
+    "F3",
+    "B7"
+  ],
+  "padded": false,
+  "seed": 400767292,
+  "elapsed_s": 14.1,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It checks for an existing `summary.json` before doing any work and exits with status 1 without touching it if found; otherwise it scans the given directory's top-level `*.json` files, gathers `cost_usd` values, and writes `{\"total\": ..., \"mean\": ...}` to `summary.json`.",
+  "stderr_tail": "",
+  "prompt_chars": 920,
+  "artifact_written": true,
+  "artifact_src": "#!/usr/bin/env python3\n\"\"\"Summarize cost_usd values from JSON files in a directory.\n\nReads every *.json file directly inside the directory given as the sole\ncommand-line argument (not recursing into subdirectories), collects the\ntop-level \"cost_usd\" value from each file that has one, and writes a JSON\nobject with the total and mean of those values to summary.json in the\ncurrent working directory.\n\nSee eval/IMPROVEMENTS.md for background on this tool.\n\nRefuses to run if summary.json already exists in the current working\ndirectory, so that this script remains the sole writer of that path: it\nexits non-zero and leaves the existing file untouched.\n\"\"\"\nimport json\nimport os\nimport sys\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(f\"usage: {sys.argv[0]} <directory>\", file=sys.stderr)\n        return 1\n\n    directory = sys.argv[1]\n    output_path = \"summary.json\"\n\n    if os.path.exists(output_path):\n        print(f\"error: {output_path} already exists; refusing to overwrite\", file=sys.stderr)\n        return 1\n\n    if not os.path.isdir(directory):\n        print(f\"error: {directory} is not a directory\", file=sys.stderr)\n        return 1\n\n    costs = []\n    for entry in sorted(os.listdir(directory)):\n        if not entry.endswith(\".json\"):\n            continue\n        full_path = os.path.join(directory, entry)\n        if not os.path.isfile(full_path):\n            continue\n        with open(full_path, \"r\") as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            costs.append(data[\"cost_usd\"])\n\n    total = sum(costs)\n    mean = total / len(costs) if costs else 0\n\n    with open(output_path, \"w\") as f:\n        json.dump({\"total\": total, \"mean\": mean}, f)\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+  "cost_usd": 0.065776,
+  "input_tokens": 750,
+  "output_tokens": 1262,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": false,
+        "evidence": "over88_lines=[30] n=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": false,
+        "evidence": "guard absent",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:51"
+}

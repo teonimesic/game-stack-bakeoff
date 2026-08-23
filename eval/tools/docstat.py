@@ -880,7 +880,22 @@ def _check_aspect_census(corpus: dict[str, str], aspects: set[str]) -> list[str]
             if "aspect" not in ln.lower():
                 continue
             window = "\n".join(lines[i:i + _ASPECT_CENSUS_WINDOW])
-            named = {t for t in re.findall(r"`([a-z_]+)`", window)} & aspects
+            # CASE-INSENSITIVE, because an id named in its CONSTANT form is still named.
+            # eval/instrfollow/DESIGN.md quotes the defective sentence in order to REPORT
+            # it, and names all six two lines later as `IDIOMATIC, ARCHITECTURE, FUN,
+            # FUN_FRAMES, AUDIO, UX`. A lowercase-only match read that correct document as
+            # the defect it was describing - the third time a gate here has fired on
+            # correct input, which is how a gate gets disabled.
+            # Identifiers are pulled from INSIDE each backtick span, not required to BE
+            # the whole span, and matched case-insensitively. Both halves were needed by
+            # one real document: eval/instrfollow/DESIGN.md quotes the defective sentence
+            # in order to REPORT it, and names all six two lines later inside a SINGLE
+            # span as `IDIOMATIC, ARCHITECTURE, FUN, FUN_FRAMES, AUDIO, UX`. A pattern
+            # demanding one-identifier-per-span read that correct document as the very
+            # defect it was describing.
+            named = {w.lower()
+                     for span in re.findall(r"`([^`]+)`", window)
+                     for w in re.findall(r"[A-Za-z_]+", span)} & aspects
             missing = aspects - named
             if missing:
                 problems.append(

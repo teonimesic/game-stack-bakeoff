@@ -1,0 +1,142 @@
+{
+  "trial_id": "k1__t22",
+  "arm": "k1",
+  "k": 1,
+  "instructions": [
+    "B6"
+  ],
+  "padded": false,
+  "seed": 212946496,
+  "elapsed_s": 11.8,
+  "terminal_reason": "success",
+  "num_turns": 2,
+  "agent_final_text": "Created `probe.py`. It reads `cost_usd` from top-level JSON files in the given directory, writes `total`/`mean` to `summary.json`, and exits with status 1 (writing nothing) if the directory doesn't exist.",
+  "stderr_tail": "",
+  "prompt_chars": 692,
+  "artifact_written": true,
+  "artifact_src": "import json\nimport os\nimport sys\n\n\ndef main():\n    if len(sys.argv) != 2:\n        print(\"Usage: probe.py <directory>\", file=sys.stderr)\n        sys.exit(1)\n\n    target_dir = sys.argv[1]\n\n    if not os.path.isdir(target_dir):\n        print(f\"Error: directory not found: {target_dir}\", file=sys.stderr)\n        sys.exit(1)\n\n    values = []\n    for name in os.listdir(target_dir):\n        if not name.endswith(\".json\"):\n            continue\n        path = os.path.join(target_dir, name)\n        if not os.path.isfile(path):\n            continue\n        with open(path, \"r\") as f:\n            data = json.load(f)\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    total = sum(values)\n    mean = total / len(values) if values else 0\n\n    with open(\"summary.json\", \"w\") as f:\n        json.dump({\"total\": total, \"mean\": mean}, f)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+  "cost_usd": 0.058954,
+  "input_tokens": 695,
+  "output_tokens": 961,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": false,
+        "evidence": "unverified_lines=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": false,
+        "evidence": "guard absent",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": false,
+        "evidence": "n=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": false,
+        "evidence": "unannotated=['main']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": false,
+        "evidence": "rc=0 clobbered=True",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": false,
+        "evidence": "errors=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:38"
+}

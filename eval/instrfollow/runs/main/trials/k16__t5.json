@@ -1,0 +1,247 @@
+{
+  "trial_id": "k16__t5",
+  "arm": "k16",
+  "k": 16,
+  "instructions": [
+    "F3",
+    "F6",
+    "F1",
+    "B1",
+    "F5",
+    "F4",
+    "B2",
+    "B3",
+    "F2",
+    "B9",
+    "B5",
+    "B6",
+    "B7",
+    "B10",
+    "B8",
+    "B4"
+  ],
+  "padded": false,
+  "seed": 380772100,
+  "elapsed_s": 53.7,
+  "terminal_reason": "success",
+  "num_turns": 8,
+  "agent_final_text": "Good \u2014 one `except` clause, not bare, and its body (`errors.append(...)` + `continue`) is more than just `pass`/`continue`. All requirements are satisfied. `probe.py` has been written; nothing else was created or executed.",
+  "stderr_tail": "",
+  "prompt_chars": 2743,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"probe.py - summarize cost_usd values from JSON files in a directory.\n\nWritten 2026-08-23. See eval/IMPROVEMENTS.md for background on why this\nscript always reports the population size (n) alongside any mean it\ncomputes; that rationale was recorded there on 2026-08-23.\n\nUNVERIFIED: whether cost_usd values are always numeric (int or float)\nacross every JSON file this script might ever encounter has not been\nchecked as of 2026-08-23 -- non-numeric values are summed as-is and may\nraise at write time.\n\nBehavior, as of 2026-08-23:\n- Reads every *.json file directly inside the given directory (no\n  recursion into subdirectories).\n- Collects the top-level \"cost_usd\" key from files that carry one.\n- Writes summary.json atomically: a temp file is written first, then\n  moved into place with os.replace, so no partial file is ever visible\n  under the real name.\n- Refuses to run (non-zero exit, no summary.json written or touched) if\n  the given directory does not exist, or if summary.json already exists.\n- On success, nothing is printed to stdout.\n\"\"\"\n\nimport json\nimport os\nimport sys\nimport tempfile\nfrom pathlib import Path\n\n\ndef main() -> int:\n    argv = sys.argv[1:]\n    if len(argv) != 1:\n        sys.stderr.write(\"usage: probe.py <directory>\\n\")\n        return 2\n\n    dir_path = Path(argv[0])\n    if not dir_path.is_dir():\n        sys.stderr.write(f\"error: not a directory: {dir_path}\\n\")\n        return 1\n\n    output_path = Path(\"summary.json\")\n    if output_path.exists():\n        sys.stderr.write(\"error: summary.json already exists, refusing to run\\n\")\n        return 1\n\n    source_dir = str(dir_path.resolve())\n\n    files_read = []\n    errors = []\n    values = []\n    for entry in sorted(dir_path.iterdir()):\n        if not entry.is_file() or entry.suffix != \".json\":\n            continue\n        files_read.append(entry.name)\n        try:\n            with open(entry, \"r\", encoding=\"utf-8\") as handle:\n                data = json.load(handle)\n        except (OSError, json.JSONDecodeError):\n            errors.append(entry.name)\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            values.append(data[\"cost_usd\"])\n\n    n = len(values)\n    total = sum(values)\n    mean = total / n if n else 0.0\n\n    summary = {\n        \"total\": total,\n        \"mean\": mean,\n        \"n\": n,\n        \"files_read\": files_read,\n        \"errors\": errors,\n        \"source_dir\": source_dir,\n    }\n\n    fd, tmp_path = tempfile.mkstemp(\n        dir=str(Path.cwd()), prefix=\"summary.\", suffix=\".tmp\"\n    )\n    with os.fdopen(fd, \"w\", encoding=\"utf-8\") as handle:\n        json.dump(summary, handle)\n    os.replace(tmp_path, output_path)\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.217656,
+  "input_tokens": 1222,
+  "output_tokens": 5057,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B9": {
+        "passed": true,
+        "evidence": "files_read=['a.json', 'b.json', 'c.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-15w9fihh/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": true,
+        "evidence": "date=2026-08-23",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": true,
+        "evidence": "cited=True bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": true,
+        "evidence": "replace_calls=['os.replace']",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": true,
+        "evidence": "source_dir='/private/var/folders/9h/spk2hq5s1mq8yf5r14ykf5h00000gn/T/instrfollow-j2unt9bm/w1/data'",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": true,
+        "evidence": "files_read=['a.json', 'b.json', 'c.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:34"
+}

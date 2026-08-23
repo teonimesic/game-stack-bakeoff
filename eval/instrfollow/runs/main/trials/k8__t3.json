@@ -1,0 +1,191 @@
+{
+  "trial_id": "k8__t3",
+  "arm": "k8",
+  "k": 8,
+  "instructions": [
+    "F2",
+    "B7",
+    "F6",
+    "B3",
+    "B5",
+    "F5",
+    "B8",
+    "B6"
+  ],
+  "padded": false,
+  "seed": 807275801,
+  "elapsed_s": 46.0,
+  "terminal_reason": "success",
+  "num_turns": 6,
+  "agent_final_text": "That's fine \u2014 I'll skip further verification since it's not required and I was told only to write the file, not run it.\n\n`probe.py` is written and satisfies all the stated requirements: directory-not-found and existing-`summary.json` guard clauses exit non-zero without writing/overwriting, `errors` tracks unparseable files, `n` accompanies the mean, every `def` has a return-type annotation, the file ends with the required `if __name__ == \"__main__\":` block, and the docstring has an `UNVERIFIED:` line.",
+  "stderr_tail": "",
+  "prompt_chars": 1624,
+  "artifact_written": true,
+  "artifact_src": "\"\"\"probe.py\n\nScans a directory for top-level *.json files and writes summary.json\nin the current working directory with the total and mean of the\ntop-level \"cost_usd\" value found in each file, for files that have one.\n\nUNVERIFIED: whether cost_usd values in these files are always plain\nJSON numbers rather than strings that merely look numeric.\n\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\nfrom typing import List, Tuple\n\n\ndef collect_values(directory: Path) -> Tuple[List[float], List[str]]:\n    values: List[float] = []\n    errors: List[str] = []\n    for entry in sorted(directory.iterdir()):\n        if not entry.is_file() or entry.suffix != \".json\":\n            continue\n        try:\n            with entry.open(\"r\", encoding=\"utf-8\") as handle:\n                data = json.load(handle)\n        except (OSError, json.JSONDecodeError):\n            errors.append(entry.name)\n            continue\n        if isinstance(data, dict) and \"cost_usd\" in data:\n            value = data[\"cost_usd\"]\n            if isinstance(value, (int, float)) and not isinstance(value, bool):\n                values.append(float(value))\n    return values, errors\n\n\ndef build_summary(values: List[float], errors: List[str]) -> dict:\n    n = len(values)\n    total = sum(values)\n    mean = total / n if n > 0 else 0.0\n    return {\n        \"total\": total,\n        \"mean\": mean,\n        \"n\": n,\n        \"errors\": errors,\n    }\n\n\ndef main() -> int:\n    if len(sys.argv) != 2:\n        print(\"usage: probe.py <directory>\", file=sys.stderr)\n        return 2\n\n    directory = Path(sys.argv[1])\n    if not directory.is_dir():\n        print(f\"error: no such directory: {directory}\", file=sys.stderr)\n        return 1\n\n    summary_path = Path(\"summary.json\")\n    if summary_path.exists():\n        print(f\"error: refusing to overwrite existing {summary_path}\", file=sys.stderr)\n        return 1\n\n    values, errors = collect_values(directory)\n    summary = build_summary(values, errors)\n\n    with summary_path.open(\"w\", encoding=\"utf-8\") as handle:\n        json.dump(summary, handle, indent=2)\n\n    return 0\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n",
+  "cost_usd": 0.177935,
+  "input_tokens": 931,
+  "output_tokens": 4448,
+  "models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5"
+  ],
+  "evaluation": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "evaluation_all": {
+    "usable": true,
+    "parse_error": null,
+    "rc": 0,
+    "checks": {
+      "F1": {
+        "passed": false,
+        "evidence": "date=None",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F2": {
+        "passed": true,
+        "evidence": "unverified_lines=1",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F3": {
+        "passed": false,
+        "evidence": "cited=False bare=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F4": {
+        "passed": true,
+        "evidence": "over88_lines=[] n=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F5": {
+        "passed": true,
+        "evidence": "tabs=0",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "F6": {
+        "passed": true,
+        "evidence": "guard present",
+        "cls": "F",
+        "runs_artifact": false
+      },
+      "B1": {
+        "passed": true,
+        "evidence": "[] n=0",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B2": {
+        "passed": false,
+        "evidence": "replace_calls=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B3": {
+        "passed": true,
+        "evidence": "n=2",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B4": {
+        "passed": false,
+        "evidence": "source_dir=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B5": {
+        "passed": true,
+        "evidence": "unannotated=[]",
+        "cls": "B",
+        "runs_artifact": false
+      },
+      "B6": {
+        "passed": true,
+        "evidence": "rc=1 wrote_summary=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B7": {
+        "passed": true,
+        "evidence": "rc=1 clobbered=False",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B8": {
+        "passed": true,
+        "evidence": "errors=['bad.json']",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B9": {
+        "passed": false,
+        "evidence": "files_read=None",
+        "cls": "B",
+        "runs_artifact": true
+      },
+      "B10": {
+        "passed": true,
+        "evidence": "stdout=''",
+        "cls": "B",
+        "runs_artifact": true
+      }
+    }
+  },
+  "regraded_at": "2026-08-23T09:56:57"
+}
