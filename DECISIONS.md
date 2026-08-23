@@ -332,6 +332,31 @@ palette-coupled (task 25), or it cannot be shown to have helped.
 
 ---
 
+## What in `eval/runs/` is evidence — decided 2026-08-22
+
+**A file under `eval/runs/` is evidence until something in the tree itself proves it can be
+regenerated, and the proof must name a producer that declared the file its own output.**
+
+Two proofs are accepted, both being the toolchain speaking about its own output: a `CACHEDIR.TAG`
+with a valid signature at a directory root, and the work tree's own `.gitignore`. Anything no
+proof reaches is copied.
+
+Stated as a rule rather than a list of directories because an enumeration misses the next stack
+and fails in the direction that loses evidence. It is applied by `eval/tools/evidence_set.py`;
+`eval/PROTOCOL.md` says when to re-sync and `#89` says what this replaced.
+
+Measured on that rule: 14,192 files, 1.109 GB of 138.146 GB — 99.20% of `eval/runs/` is
+regenerable. **Reclaiming the 137 GB remains task 10's call**, and nothing was deleted here.
+
+**Where the copy goes is still open.** The current copy at `/Users/stefano/game-research-evidence`
+is on the same physical disk as the original and is therefore not a backup — it survives `rm -rf`
+and a bad `git clean`, and nothing else. This machine has no external disk, no `rclone`/`restic`
+remote, and its only cloud target is the operator's personal iCloud Drive, which is not somewhere
+project evidence belongs. Every evidence file is under 50 MB, so an external disk or a private
+GitHub repo would each work without LFS; both need the operator's go-ahead.
+
+---
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
