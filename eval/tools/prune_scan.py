@@ -175,10 +175,22 @@ def cat_fat(include_archive: bool) -> list[dict]:
 
     File size is the wrong unit -- a big file of short sections is fine. What defeats a
     reader is one section that will not end. These are the summarisation candidates.
+
+    THE ARCHIVE EXCLUSION WAS A BANNER, NOT A BEHAVIOUR. This function took
+    `include_archive` and never read it, while the command's header printed "eval/findings,
+    FINDINGS.md and RUNS.md excluded" above a list whose largest entry was
+    `eval/FINDINGS.md`'s own index -- 3,994 tokens, 14% of the reported total, heading a
+    list the prune skill forbids touching. A reader trusting the banner would have been
+    handed the one file it promised to keep out. Found by task 53 while measuring against
+    that very list.
+
+    The exclusion is now performed where it is claimed, and `--include-archive` reaches it.
     """
     out = []
     for p in _tracked((".md",)):
         rel = _rel(p)
+        if not include_archive and _is_archive(rel):
+            continue
         lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
         cur, start, fence = "(preamble)", 0, False
         def flush(end: int) -> None:
