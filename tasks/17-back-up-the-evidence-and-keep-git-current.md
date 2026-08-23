@@ -4,7 +4,7 @@ status: open
 priority: 2
 title: Back up eval/runs (the evidence) and keep the git mirror current
 refs: https://github.com/teonimesic/game-stack-bakeoff, eval/RUNS.md
-done_when: eval/runs/ has a verified copy on a second physical location with a restore that has been tested by reading files back, and eval/PROTOCOL.md names when to commit and when to re-sync the evidence
+done_when: the ~1.2 GB evidentiary core of eval/runs/ has a verified second copy — verified by reading files back, not by a copy's exit code — and eval/PROTOCOL.md names what is evidence, what is build output, and when to re-sync
 ---
 
 This project measures how well coding agents build whole games in four stacks. Two things exist
@@ -44,3 +44,36 @@ CHECK FIRST whether `~/game-research-work` (55 GB, mostly cargo `_targets`) need
 all — it should not, since every submission is archived as `submission.tar.gz` under
 `eval/runs/`. Confirm that holds for every trial before excluding it; task 10 found `wg-g4` has
 6 work trees but only 4 tarballs, so the mapping is not automatic.
+
+MEASURED 2026-08-22 — THE 129 GB FIGURE WAS WRONG, AND THE TASK IS MUCH SMALLER
+
+`eval/runs/` is 138 GB, but **99.2% of it is not evidence**:
+
+    other (cargo build output)  136.99 GB   328,402 files   <- 66 GB in debug/deps alone
+    submission tarballs           0.80 GB        89 files
+    diffs / logs / text           0.16 GB     5,895 files
+    JSON records                  0.11 GB    30,210 files
+    frames (PNG)                  0.08 GB     2,610 files
+    judge packs                   0.01 GB     1,364 files   <- rebuildable from tarballs
+
+The bulk is `debug/deps` and `debug/incremental` from old `t1_rally`/`t2_net`/`t3_powerup`
+spec-change trials — Rust compiler output that was never evidence and regenerates from source.
+
+**The evidentiary core is ~1.15 GB**: every score, every judge round, every diff, every
+submission tarball, every frame. That fits anywhere — including a second git repository, or
+alongside this one, without any of the LFS/object-storage machinery the original task assumed.
+
+THE TASK IS THEREFORE:
+
+1. Establish the boundary precisely — what in `eval/runs/` is evidence and what is build
+   output. Do it by rule, not by listing directories: an enumeration misses the next case,
+   which is this project's most-repeated defect.
+2. Copy the evidentiary core to a second location and **verify by reading files back**: parse
+   several `report.json`, extract several `submission.tar.gz`. Never trust a copy's exit code.
+3. Only then consider reclaiming the 137 GB of build output — but coordinate with task 10,
+   and note that at least one warm work tree was worth keeping while task 07 was open.
+4. Record the boundary in `eval/PROTOCOL.md` so the next run does not re-accumulate it silently.
+
+DO NOT delete anything before step 2 is verified. The reason the core is worth protecting is
+precisely that a matrix costs ~$420 and days to reproduce, and the judge rounds cannot be
+reproduced at all — the model and harness have both moved since they ran.

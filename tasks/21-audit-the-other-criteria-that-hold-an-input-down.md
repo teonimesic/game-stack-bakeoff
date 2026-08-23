@@ -1,7 +1,8 @@
 ---
+established_by: Both candidates MEASURED and CLEARED, offline, no new trials. bot_arena holding fire while closing: same 240-tick drive with fire on/off, distance ratio 1.00 on 3 of 4 submissions (wg-arena3d-2026-08-15); g3_arena__rust__t1 unmeasurable because it does not compile - a known genuine submission defect, not a gap here. bot_tetris3d sending hard_drop with move_pos_x on one tick: filled columns shift by exactly +1 in 4 of 4 (wg-audio48-2026-08-14), so the lateral move IS applied before the lock. TWO SELF-CAUGHT TRAPS, both producing a confident wrong answer agreeing with the hypothesis: (1) the first arena probe showed zero movement everywhere, which would have read as 'firing prevents all movement' - the cause was using g3_arena from wg-matrix, which is the 2D arena (player has x,y and no z) while bot_arena expects the 3D redesign, #70's rule at the level of a task version; (2) the first tetris probe compared piece centroids and reported the move swallowed in 3 of 4 - wrong, because a hard drop locks the piece and spawns a new one, so the 'after' centroid is a different piece. Switching to which column gains height reversed the result. FINDINGS #88.
 id: 21
 title: Audit the other criteria that hold an input down while moving
-status: in_flight
+status: done
 priority: 2
 refs: eval/FINDINGS.md #84, eval/judge/bot_arena.py, eval/judge/bot_tetris3d.py
 done_when: for each of the two candidates, either a submission is shown to be penalised by the held input and the bot is fixed, or the input is shown not to restrict movement in any stored submission and the candidate is cleared with that measurement

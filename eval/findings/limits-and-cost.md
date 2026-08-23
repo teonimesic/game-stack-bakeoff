@@ -371,3 +371,36 @@ What separates rust is how little feedback tooling it ran (48 `just` invocations
 101, 140), with zero `probe`, `test-render` and `check` — all of which its starter defines, so
 the zeros are behaviour and not capability. It does **not** show the gate made rust expensive:
 rust's cheapest trial ($36.16, 8 `just` invocations) also scored the field's only 1.000.
+
+## 87. A directory's size is not the size of the thing you are protecting
+
+`eval/runs/` is **138 GB**, and a task was written to solve the problem of backing that up:
+external disks, object storage, LFS. The figure was never decomposed. Decomposed:
+
+| category | size | files |
+|---|---|---|
+| **build output** (`debug/deps`, `debug/incremental`) | **136.99 GB** | 328,402 |
+| submission tarballs | 0.80 GB | 89 |
+| diffs, logs, text | 0.16 GB | 5,895 |
+| JSON records | 0.11 GB | 30,210 |
+| frames (PNG) | 0.08 GB | 2,610 |
+| judge packs (rebuildable) | 0.01 GB | 1,364 |
+
+**99.2% is Cargo build output** from the old `t1_rally`/`t2_net`/`t3_powerup` spec-change trials.
+The evidentiary core — every score, judge round, diff, tarball and frame — is **~1.15 GB**, which
+fits in a second git repository and needs none of the machinery.
+
+> **A measurement of the container was used as a measurement of the contents.** 138 GB is
+> arithmetically correct and describes something other than the question it was cited for, which
+> was *"how hard is it to preserve the evidence?"*.
+
+This is the same family as the four unscoped statistics withdrawn from `README.md` in this
+session (#78 and its neighbours): a number that is true of one population, quoted about another.
+The difference is only where the mismatch sits — there, between fields; here, between a directory
+and the subset of it that matters. **The tell is identical: nobody could state the population the
+number described**, because nobody had decomposed it.
+
+**The cost of not decomposing is not the wrong number, it is the wrong design.** The task built
+around 138 GB reached for infrastructure. The task built around 1.15 GB is a second repository
+and a rule for what belongs in it. One of those is a week and the other is an afternoon, and the
+only thing separating them was six lines of `du`.

@@ -2307,3 +2307,48 @@ ledges, not to re-decide a target every tick of a jump the bot began.
 moved `g4_platformer__ts__t0` (`wg-g4c-2026-08-21`) from 0.793 to 1.000 — a clean win — while silently introducing this. The score
 went the right way at every step, which is exactly why four rounds of reasoning about outputs
 found nothing and one round of printing the bot's position and target found both.
+
+---
+
+## 88. #84's two other candidates were measured and both are clean
+
+#84 named a class — a criterion can measure the play-bot's input policy rather than the
+submission — and listed two more places a bot holds an input down while relying on movement. They
+were filed as candidates, not defects, on the standing rule that *"we did not check" is a
+different statement from "it is fine"*, and so is *"it looks like the thing that broke
+elsewhere"*.
+
+Both measured, offline, against stored submissions:
+
+| candidate | test | result |
+|---|---|---|
+| `bot_arena` holds `fire` while closing | same 240-tick drive with `fire` on and off; compare distance travelled | **ratio 1.00** on 3 of 4 — firing does not restrict movement |
+| `bot_tetris3d` sends `hard_drop` + `move_pos_x` on one tick | which columns fill, drop-alone vs drop-plus-move | filled columns shift by **+1** in **4 of 4** — the lateral move is applied before the lock |
+
+`g3_arena__rust__t1` (`wg-arena3d-2026-08-15`) could not be measured: it does not compile, which
+is one of the project's three genuine submission defects and not a gap in this audit.
+
+**A named class is not a conviction.** Both candidates looked exactly like the defect that broke
+`attack.damages`, and both are fine. Had they been "fixed" on resemblance, the bot would have
+been changed to avoid a problem it did not have.
+
+### Two measurement traps hit on the way, both self-caught
+
+**The wrong task version.** The first arena probe returned zero movement on every submission and
+would have read as *"firing prevents all movement"*. The cause was the field: `g3_arena` in
+`wg-matrix-2026-08-13` is the **2D** arena — its player has `x, y` and no `z`, and no
+`multiplier` — while `bot_arena` now expects the 3D redesign in `wg-arena3d-2026-08-15`. **A game
+name means different things in different runs**, which is #70's rule at the level of a task
+version rather than a submission.
+
+**Comparing a new object to the old one's position.** The first tetris probe measured the
+piece's centroid before and after, and reported the lateral move *swallowed* in 3 of 4. It is not:
+a hard drop **locks the piece and spawns a new one**, so the "after" centroid belongs to a
+different piece. Switching to the observable that actually answers the question — which column
+gained height — reversed the result completely.
+
+> **Both traps produced a confident, plausible, wrong answer that pointed the same way as the
+> hypothesis being tested.** Neither was caught by reasoning about the output; the first by
+> noticing a state shape that could not be right, the second by asking what the number was a
+> difference *of*. **When a measurement agrees with the hypothesis, that is the moment to check
+> what it is a measurement of.**
