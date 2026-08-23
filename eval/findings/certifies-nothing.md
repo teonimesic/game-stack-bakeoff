@@ -4638,3 +4638,76 @@ The census is **0**, so this gate is currently protecting silently — there is 
 to confirm it against, and a future findings entry *quoting* such a fragment outside a fence would
 be a false positive. Fences are masked; that is the whole of the bound, and it is stated rather
 than assumed.
+
+---
+
+## 153. Moving a directory disarmed a review rule in a different file, and the rule went on being cited by the reviewer that no longer applied it
+
+`.coderabbit.yaml` carried a path instruction scoped to `.claude/skills/**/SKILL.md`, telling the
+external reviewer what a skill file must and must not claim. It worked: a pull request comment
+names `Path instructions` as its source and the finding was a true positive.
+
+Then `.agents/skills/` became the real location and `.claude/skills` became a **symlink**. Git
+tracks that as exactly **one** mode-120000 blob, so the pattern matched:
+
+| pattern | tracked files |
+|---|---|
+| `.claude/skills/**/SKILL.md` | **0** |
+| `.agents/skills/**/SKILL.md` | 10 |
+
+**The rule stopped existing.** Nothing said so. The move was correct, gated, and controlled in
+five directions — including a check that the skill *pointer* resolves — and none of those gates
+reads a configuration file in the repository root belonging to a service outside it.
+
+> **A layout change is a change to every glob that names the layout, wherever those globs live.**
+> The move's own controls all asked *"can a skill still be found?"*, which stayed true. The
+> question nobody asked was *"what else was addressing these files by path?"* — and the answer sat
+> in a file the move did not touch and had no reason to.
+
+This is `AGENTS.md` rule 12 with the second address **outside the repository's own tooling**. The
+rule says assert two spellings equal in code; here the second spelling lived in a config consumed
+by a third party, where no assertion this project can write would run — so the repair is a gate of
+our own that reads the config and counts what each pattern matches, red when a pattern matches
+nothing.
+
+**A pattern matching zero files is the signature**, and it is the same shape as `total=0 passed=0`:
+an instruction addressed to nothing is indistinguishable, from inside, from an instruction nobody
+violated.
+
+### The gate written to enforce rule 12 broke rule 12, and the review caught it
+
+The new checker took a config-path argument and a root argument separately — **two addresses for
+one repository**, inside the tool written to stop exactly that. Repaired by *deleting* the
+config-path argument and deriving it from the root, rather than by asserting the two equal: an
+assertion keeps both addresses and adds a third thing to maintain.
+
+(Named here without its literal spelling, because that argument no longer exists and the
+phantom-flag gate reads this file. The gate fired on this paragraph as written — the third time
+today a finding has tripped the check it describes.)
+
+Its first version also **returned success on a config containing no path instructions at all** —
+`total=0 passed=0`, in a gate whose subject is a rule that matched nothing. Both were found by the
+external reviewer, on the pull request, and both are numbered rules in this repository.
+
+### What the review data actually said, against what the ticket assumed
+
+The ticket claimed the reviewer's skill-analysis tool flagged **every** comment on a skill file.
+It was **2 of 5**: the three comments on a skill that names no other skill carried no attachment,
+so the trigger is a property — one skill referencing another's file — and the two flagged lines
+are the cross-references `AGENTS.md` *requires*.
+
+Across all rounds: **14 findings inside those attachments, 0 true positives, and 0 comments raised
+by the tool.** Attachment-only noise generates no false work, which is a real argument for leaving
+it on. What overrode it: the attachment ships *"Remove all code or instructions that list or read
+other skills' files"* inside a block headed **"Prompt for AI Agents"** — so an agent inside the
+review loop must re-derive, on every skill pull request, that the instruction contradicts an
+always-loaded rule. Disabled, with the count recorded beside the switch.
+
+### Two limits, stated rather than closed
+
+**Disabling it is not yet verified to work**: the pull request that disabled it touches no skill
+file, so its zero attachments are zero for the wrong reason. The next skill diff settles it.
+
+**A misspelled tool key is caught by nothing** — that schema does not forbid unknown properties,
+so a typo would be accepted and silently ignored. Confirming it needs the network, so it is
+documented rather than gated.
