@@ -55,6 +55,16 @@ forgotten copies (task 67). An adjudication records the *sentence* that carries 
 the tool re-reads it out of all four guides every run, so an entry that stops being true goes red
 rather than quiet. Unadjudicated rows stay notes: a heading rename must not turn a gate red.
 
+**A HOOK WIRED IN EVERY STARTER MUST BE NAMED IN EVERY GUIDE, and that is a failure, not a
+note.** The heading axis above cannot reach this shape in either dimension: it needs a *heading*,
+and it needs *n-1 of n*. The Stop hook was a **sentence** in **one guide of four** while
+`.claude/settings.json` wired it in all four, so three arms ran under a gate that refuses to let
+the turn end while `just verify` is red and their guides never said so (task 78).
+`starter_parity.mechanism_findings` keys on the wired event read out of `settings.json`, never on
+the word "Stop", so the next hook is covered by the row that caught this one. Wording stays
+stack-native; silence is what fails. An event wired on some stacks only is a stack choice and is
+reported, never failed.
+
 ## Checking a run
 
 **`python3 tools/runstat.py`** — the only correct status check. Do not hand-roll one at a
