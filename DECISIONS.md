@@ -438,7 +438,15 @@ So no prose linter, no readability gate, no `markdownlint` config. `eval/tools/d
 | | question | bought with |
 |---|---|---|
 | **references** | does a flag, aspect or criterion a doc names exist? | `RUBRIC.md` named five judges that do not (#38) |
+| **census** | does a doc claiming to name every aspect name every aspect? | `RUBRIC.md` and the `evaluate-run` skill said five while `ASPECTS` held six and `--aspects fun_frames` was accepted (task 79) |
 | **structure** | does the file parse as the thing it is read as? | 5 of 7 skills had unparseable frontmatter; `AGENTS.md` rules 10-16 detached from their own list |
+
+**References and census are the two directions of one question, and the second is the one that
+hides.** A doc naming a judge that does not exist is caught the moment anyone looks for the
+name. A doc *denying* a judge that does exist resolves perfectly, reads as authoritative, and
+costs the reader the control they never ran — `--sweep` printed `6 aspects known` and exit 0
+for as long as two documents said five. A census claim is only visible because somebody
+**declared** it exhaustive, which is the same mechanism the withdrawal register rests on.
 
 Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
 gate that fails on correct input gets disabled*:
