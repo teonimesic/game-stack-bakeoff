@@ -40,11 +40,15 @@ STACKS = ("rust", "ts", "unity", "godot")
 
 
 def recipes(repo: Path) -> list[str]:
+    # check=False on both: a non-zero `--summary` is the trigger for the `--list`
+    # fallback (older `just` has no --summary), so raising would remove the fallback.
+    # The second call's status is deliberately NOT read -- an empty recipe list is a
+    # reportable parity result, not a crash -- and that is what the explicit False says.
     out = subprocess.run(["just", "--summary"], cwd=repo, capture_output=True,
-                         text=True)
+                         text=True, check=False)
     if out.returncode != 0:
         out = subprocess.run(["just", "--list"], cwd=repo, capture_output=True,
-                             text=True)
+                             text=True, check=False)
         return sorted({ln.strip().split()[0] for ln in out.stdout.splitlines()[1:]
                        if ln.strip()})
     return sorted(out.stdout.split())
@@ -126,7 +130,11 @@ def _audio_capability(root):
         m = root / "Packages" / "manifest.json"
         try:
             return "com.unity.modules.audio" in _j.loads(m.read_text()).get("dependencies", {})
-        except Exception:
+        # Narrow: absent or unreadable manifest (OSError), not JSON
+        # (JSONDecodeError), or JSON that is not an object so `.get` is absent
+        # (AttributeError). None means "could not tell", which is a distinct parity
+        # answer from False -- and a defect in this function must not masquerade as it.
+        except (OSError, _j.JSONDecodeError, AttributeError):
             return None
     if s == "rust":
         c = root / "Cargo.toml"

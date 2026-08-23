@@ -144,7 +144,10 @@ def clone_target(pristine: Path, dest: Path) -> Path | None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     for argv in (["cp", "-Rc", str(pristine), str(dest)],
                  ["cp", "-R", str(pristine), str(dest)]):
-        if subprocess.run(argv, capture_output=True).returncode == 0:
+        # check=False: a failed CoW clone is the trigger for the plain-copy fallback,
+        # and both failing means None -> cold build, which is slow but correct. The
+        # status is read on this line.
+        if subprocess.run(argv, capture_output=True, check=False).returncode == 0:
             return dest
     return None
 
@@ -216,9 +219,12 @@ def run_agent(work: Path, prompt: str, env: dict[str, str],
     # no-cap regime has to actually OMIT the flag rather than pass a large number.
     if MAX_BUDGET_USD is not None:
         argv += ["--max-budget-usd", str(MAX_BUDGET_USD)]
+    # check=False: an agent that stops on its budget or turn ceiling exits non-zero and
+    # has still produced a submission worth grading. Raising here would throw away the
+    # trial we paid for; the terminal reason comes out of the parsed result instead.
     try:
         p = subprocess.run(argv, cwd=work, capture_output=True, text=True,
-                           timeout=TIMEOUT_S, env=env)
+                           timeout=TIMEOUT_S, env=env, check=False)
         return parse_agent(p.stdout), p.stderr[-4000:]
     except subprocess.TimeoutExpired:
         return {"is_error": True, "result": "HARNESS TIMEOUT",
@@ -323,7 +329,10 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     # Fixed in the HARNESS, not the starter: `just run` leaving a window open is
     # reasonable behaviour for a "run the game" recipe, and editing a starter changes
     # the thing being measured. Cleaning up after the agent is the harness's job.
-    reaped = subprocess.run(["pkill", "-9", "-f", str(work)], capture_output=True)
+    # check=False: `pkill` exits 1 when it matched nothing, which is the GOOD case here.
+    # The status is recorded on the next line rather than dropped.
+    reaped = subprocess.run(["pkill", "-9", "-f", str(work)], capture_output=True,
+                            check=False)
     rec["reaped_leftover_processes"] = reaped.returncode == 0
 
     # A SESSION LIMIT IS NOT AN API ERROR.
@@ -359,25 +368,42 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     # file the agent had created but never staged. The submission was unrecoverable
     # once its work tree was overwritten.
     # Stage everything first so untracked files are included, and ask for binary.
-    subprocess.run(["git", "add", "-A"], cwd=work, capture_output=True)
+    #
+    # check=False on all three, but their EXIT CODES ARE RECORDED. Raising here would
+    # abandon the trial record for a build that is already paid for, which is the wrong
+    # trade -- but dropping the status silently is worse, and is what happened until
+    # 2026-08-23. A failed `git add -A` yields an empty diff.patch and a failed `tar`
+    # yields a truncated or absent submission.tar.gz, and BOTH are indistinguishable from
+    # "the agent changed nothing" in every artifact stored afterwards. That is the exact
+    # unrecoverable-submission failure the comment above this line was written for. The
+    # codes go into the trial record so a re-judge can tell an empty submission from a
+    # capture that broke.
+    _cap: dict[str, int] = {}
+    _cap["git_add"] = subprocess.run(["git", "add", "-A"], cwd=work,
+                                     capture_output=True, check=False).returncode
     (art / "diff.patch").write_text(
         git(work, "diff", "--cached", "--binary", "HEAD")[:32_000_000])
     (art / "diff.stat").write_text(git(work, "diff", "--cached", "HEAD", "--stat"))
     # Belt and braces: a tarball of the tree itself. A patch can fail to apply; an
     # archive cannot. This is what makes offline re-judging actually possible.
-    subprocess.run(
+    _cap["tar"] = subprocess.run(
         ["tar", "--exclude=./.git", "--exclude=./target", "--exclude=./node_modules",
          "--exclude=./Library", "--exclude=./Temp", "--exclude=./.godot",
          "--exclude=./.venv", "-czf", str(art / "submission.tar.gz"), "."],
-        cwd=work, capture_output=True)
+        cwd=work, capture_output=True, check=False).returncode
     (art / "status.txt").write_text(git(work, "status", "--porcelain=v1",
                                         "--untracked-files=all"))
-    tree = subprocess.run(
+    _find = subprocess.run(
         ["find", ".", "-type", "f", "-not", "-path", "./.git/*",
          "-not", "-path", "./target/*", "-not", "-path", "./node_modules/*",
          "-not", "-path", "./Library/*", "-not", "-path", "./.godot/*"],
-        cwd=work, capture_output=True, text=True).stdout
-    (art / "tree.txt").write_text(tree)
+        cwd=work, capture_output=True, text=True, check=False)
+    _cap["find"] = _find.returncode
+    (art / "tree.txt").write_text(_find.stdout)
+    rec["capture_exit_codes"] = _cap
+    if any(v != 0 for v in _cap.values()):
+        print(f"  [capture] {tid} NON-ZERO evidence capture: {_cap} — the stored "
+              f"submission may be incomplete", flush=True)
     rec["files_changed"] = len([ln for ln in
                                 git(work, "status", "--porcelain=v1",
                                     "--untracked-files=all").splitlines() if ln.strip()])
@@ -572,7 +598,12 @@ def cmd_evaluate(a: argparse.Namespace) -> int:
                                 run_judge=a.with_legacy_judge and not a.no_judge,
                                 judge_model=a.judge_model,
                                 audio=not a.no_audio)
-        except Exception as e:
+        # noqa BLE001, deliberately blind: `evaluate` runs graders over a tree an agent
+        # wrote, so the exception set is open. One submission that cannot be graded must
+        # not take the other 23 down with it -- the build is already paid for. The
+        # failure is written to `evaluation_error.txt` beside the artifacts and printed,
+        # so a missing score has a reason on disk rather than being an absent row.
+        except Exception as e:  # noqa: BLE001
             print(f"  [FAIL] {tid}: {type(e).__name__}: {e}", flush=True)
             (out / "evaluation_error.txt").parent.mkdir(parents=True, exist_ok=True)
             (out / "evaluation_error.txt").write_text(f"{type(e).__name__}: {e}\n")

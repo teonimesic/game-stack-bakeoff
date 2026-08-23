@@ -624,7 +624,11 @@ def drive(bot: Bot, repo: Path, seed: int = 7,
     except ProbeError as e:
         crits = bot.unusable(e)
         stderr, ticks = str(e), 0
-    except Exception as e:  # a bot bug must not be scored as a submission pass
+    # noqa BLE001, deliberately blind and FAIL-CLOSED: a bot is arbitrary per-game
+    # Python, so the exception set is open by construction. Everything not a ProbeError
+    # is scored all-false with the exception named in the evidence -- a bot bug costs a
+    # trial, never a false pass, which is the trade AGENTS.md rule 7 asks for.
+    except Exception as e:  # noqa: BLE001
         crits = bot.all_false(f"bot raised {type(e).__name__}: {e}")
         stderr, ticks = str(e), 0
     # A SECOND, DEDICATED SESSION whose only job is to be a representative play. It
@@ -658,7 +662,12 @@ def drive(bot: Bot, repo: Path, seed: int = 7,
             play["source"] = (f"a dedicated play session of {bot.play_ticks} ticks, "
                               f"separate from the criteria drive")
             tele = play
-        except Exception as e:
+        # noqa BLE001, deliberately blind: same open exception set as the criteria
+        # session above, and this one SCORES NOTHING -- it only replaces telemetry. The
+        # failure is recorded (`representative` false, `play_session_error` named) so a
+        # reader can tell a missing representative play from one that was never asked
+        # for. Nothing here can turn into a submission failure.
+        except Exception as e:  # noqa: BLE001
             tele = dict(tele)
             tele["representative"] = False
             tele["play_session_error"] = f"{type(e).__name__}: {e}"

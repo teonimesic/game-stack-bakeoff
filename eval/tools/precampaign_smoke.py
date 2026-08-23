@@ -131,8 +131,14 @@ def check_work_root_agreement() -> tuple[int, str]:
 
 def _run(argv: list[str], cwd: Path) -> tuple[int, str]:
     """NO PIPE. A pipeline's exit status is the last stage's, and this file exists
-    because an exit code was not read (AGENTS.md rule 3)."""
-    p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=900)
+    because an exit code was not read (AGENTS.md rule 3).
+
+    check=False and NOT check=True: the code is the measurement this function returns,
+    and every caller reports it per check. Raising would stop the smoke test at the
+    first failing check and hide the rest.
+    """
+    p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=900,
+                       check=False)
     tail = (p.stdout or p.stderr or "").strip().splitlines()
     return p.returncode, (tail[-1] if tail else "")
 

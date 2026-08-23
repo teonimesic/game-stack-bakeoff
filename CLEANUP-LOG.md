@@ -95,9 +95,13 @@ the harness), `docstat.py`'s sweep, and ruff's output over `eval/` at two rule s
 - **The 491-issue headline is not a code-quality result.** It came from ruff's unpinned defaults:
   132 percent-format warnings and 43 "shebang present but file not executable". The pinned set
   reports 28 distinct rules. Nobody should act on the larger number.
-- The absence branch of the lint category is controlled: with `ruff` unavailable it reports its own
-  absence rather than an empty list, so a missing tool cannot read as a clean bill of health —
-  the `-disable-audio` failure (#61), which this project has already paid for once.
+- ~~The absence branch of the lint category is controlled: with `ruff` unavailable it reports its
+  own absence rather than an empty list, so a missing tool cannot read as a clean bill of health —
+  the `-disable-audio` failure (#61), which this project has already paid for once.~~
+  **WRONG, and corrected by task 34 the same day (#104).** One of the three ways ruff can fail to
+  run was controlled. Ruff refusing an invocation exits **2** with empty stdout, and ruff pointed
+  at a path that does not exist exits **0** with `[]`; both printed `lint (0)`. Left marked rather
+  than replaced because the claim was published and this log is a record of what a pass believed.
 
 **Not done:** still no area of the repository has been *read* properly. Both entries in this log
 so far are instrument-building. The next pass should pick an area from the skill's table and read it.

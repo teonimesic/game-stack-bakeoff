@@ -82,13 +82,24 @@ def judge_design(frames: Path, game: str, telemetry: dict | None = None,
             "--setting-sources", "project", "--strict-mcp-config",
             "--exclude-dynamic-system-prompt-sections", "--no-session-persistence",
             "--permission-mode", "acceptEdits"]
+    # check=False: the CLI exits non-zero for reasons that still produce a usable
+    # verdict (a budget or turn ceiling reached after the answer was written). The
+    # status is recorded on the unreadable-output path instead, where it separates
+    # "the judge said something we could not read" from "the judge never ran".
+    # The two failure modes are caught separately, and narrowly: a blind `except`
+    # here would report a BUG IN THIS FILE as an unusable judge round.
     try:
         p = subprocess.run(argv, cwd=pack, capture_output=True, text=True,
-                           timeout=timeout_s)
-        raw = json.loads(p.stdout)
-    except Exception as e:
+                           timeout=timeout_s, check=False)
+    except (subprocess.SubprocessError, OSError) as e:
         shutil.rmtree(pack, ignore_errors=True)
         return {"usable": False, "error": f"{type(e).__name__}: {e}"}
+    try:
+        raw = json.loads(p.stdout)
+    except json.JSONDecodeError as e:
+        shutil.rmtree(pack, ignore_errors=True)
+        return {"usable": False, "error": f"{type(e).__name__}: {e}",
+                "cli_exit": p.returncode, "cli_stderr": p.stderr[-2000:]}
     if isinstance(raw, list):
         r = [x for x in raw if isinstance(x, dict) and x.get("type") == "result"]
         raw = r[-1] if r else {}
@@ -102,7 +113,12 @@ def judge_design(frames: Path, game: str, telemetry: dict | None = None,
                 v = json.loads(cand[cand.find("{"): cand.rfind("}") + 1])
                 if isinstance(v.get("criteria"), list):
                     items = v["criteria"]; break
-            except Exception:
+            # Narrow: the brace-slice may not be JSON (JSONDecodeError) or may decode
+            # to a list, in which case `.get` is absent (AttributeError). Anything else
+            # is a defect here and must not be swallowed -- the next `cand` would be
+            # tried and an empty `items` would score every criterion 0, which is a
+            # verdict, not an error.
+            except (json.JSONDecodeError, AttributeError):
                 pass
     by = {str(x.get("id")): x for x in items if isinstance(x, dict)}
     out = []

@@ -129,10 +129,15 @@ SCOPE_REPAIRS: dict[str, tuple[str, str, str, str]] = {
 
 
 def _run(argv: list[str], cwd: Path, timeout_s: int) -> tuple[int, str]:
-    """NO PIPE, and no `|| echo`. The exit code is the measurement (AGENTS.md rule 3)."""
+    """NO PIPE, and no `|| echo`. The exit code is the measurement (AGENTS.md rule 3).
+
+    check=False for the same reason: this control exists to observe a NON-ZERO exit
+    from a deliberately broken starter. `check=True` would raise on exactly the outcome
+    the control is looking for.
+    """
     try:
         p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
-                           timeout=timeout_s)
+                           timeout=timeout_s, check=False)
     except subprocess.TimeoutExpired:
         return 124, "TIMEOUT"
     out = ((p.stdout or "") + (p.stderr or "")).strip().splitlines()

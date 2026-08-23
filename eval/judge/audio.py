@@ -145,7 +145,10 @@ def decode(path: Path) -> Clip:
     # wrong number.
     argv = ["ffmpeg", "-v", "error", "-i", str(path), "-t", str(ANALYSIS_SECONDS),
             "-f", "f32le", "-ac", "1", "-ar", str(ANALYSIS_HZ), "-"]
-    p = subprocess.run(argv, capture_output=True, timeout=120)
+    # check=False: the exit status is read on the next line and turned into an
+    # AudioError carrying ffmpeg's own stderr, which is a better message than
+    # CalledProcessError would give.
+    p = subprocess.run(argv, capture_output=True, timeout=120, check=False)
     if p.returncode != 0 or not p.stdout:
         raise AudioError(
             f"ffmpeg could not decode {path.name} (exit {p.returncode}): "
@@ -164,10 +167,14 @@ def decode(path: Path) -> Clip:
 
 def duration(path: Path) -> float | None:
     """True duration from the container, in seconds, or None if it cannot be read."""
+    # check=False: None IS the documented answer for an unreadable container, and the
+    # caller falls back to the analysed length. That fallback can only UNDER-report
+    # (it is capped at ANALYSIS_SECONDS), so a failed ffprobe cannot turn a short clip
+    # into a long one -- it fails closed.
     p = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=nw=1:nk=1", str(path)],
-        capture_output=True, text=True, timeout=60)
+        capture_output=True, text=True, timeout=60, check=False)
     try:
         return float(p.stdout.strip())
     except (ValueError, AttributeError):
@@ -288,8 +295,11 @@ def _read_manifest_once(repo: Path, env: dict[str, str] | None, timeout_s: int
     if env:
         e.update(env)
     try:
+        # check=False: the exit status is returned to the caller below, which needs the
+        # code itself (124/127 vs the recipe's own) to tell a missing tool from a failing
+        # recipe. CalledProcessError would collapse that distinction.
         p = subprocess.run(["just", "audio-manifest"], cwd=repo, capture_output=True,
-                           text=True, timeout=timeout_s, env=e)
+                           text=True, timeout=timeout_s, env=e, check=False)
     except subprocess.TimeoutExpired:
         return None, f"`just audio-manifest` timed out after {timeout_s}s", 124
     except OSError as ex:

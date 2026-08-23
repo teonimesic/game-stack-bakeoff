@@ -55,8 +55,13 @@ WORK_ROOT = os.path.join(os.path.expanduser("~"), "game-research-work")
 
 
 def _ps(fmt: str) -> list[str]:
-    """Raw `ps` lines. Never piped through anything that could swallow a failure."""
-    r = subprocess.run(["ps", "-Ao", fmt], capture_output=True, text=True)
+    """Raw `ps` lines. Never piped through anything that could swallow a failure.
+
+    check=False, then raise: CalledProcessError would not carry ps's stderr into the
+    message, and a `ps` that fails silently is how this tool reports zero agents while
+    four are running.
+    """
+    r = subprocess.run(["ps", "-Ao", fmt], capture_output=True, text=True, check=False)
     if r.returncode != 0:
         raise RuntimeError(f"ps failed rc={r.returncode}: {r.stderr.strip()}")
     return [ln for ln in r.stdout.splitlines() if ln.strip()]
@@ -116,10 +121,16 @@ def engines_by_name() -> list[str]:
 
 
 def files_touched(tree: str, minutes: int) -> int:
-    """-mmin, never -newermt. Returns -1 if the probe itself failed."""
+    """-mmin, never -newermt. Returns -1 if the probe itself failed.
+
+    check=False: `find` exits 1 on a permission-denied descent while still listing
+    everything it could read, so a raise would turn a usable count into no count. The
+    genuine failures (>1) are separated below and reported as -1, never as 0 -- a zero
+    that means "the probe broke" is the false quiet signal of #60.
+    """
     r = subprocess.run(
         ["find", tree, "-type", "f", "-mmin", f"-{minutes}"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if r.returncode not in (0, 1):
         return -1

@@ -312,7 +312,11 @@ def _check_skill_frontmatter() -> list[str]:
             continue
         try:
             meta = yaml.safe_load(m.group(1))
-        except Exception as e:
+        # Narrow: YAMLError is the base of every parse failure PyYAML raises, and it is
+        # the only thing `safe_load` on a string should produce. A blind catch would
+        # have reported a bug in this sweep as "your frontmatter is malformed", i.e.
+        # sent the reader to edit a file that was fine.
+        except yaml.YAMLError as e:
             problems.append(f"{rel}: frontmatter does not parse as YAML "
                             f"({str(e).splitlines()[0]}). A value containing `: ` must be "
                             f"quoted; unparsed frontmatter is DROPPED, not reported")
