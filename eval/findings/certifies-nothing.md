@@ -4041,3 +4041,70 @@ Cost: the sweep goes 10.05s → 10.43s. Pinned by `_bare_flag_pins()`, which run
 every time rather than behind a flag someone must remember: 6 red cases, 9 green, and four mutants
 of the implementation — drop the fence rule, drop the shell-operator cut, delete backticked spans
 instead of blanking them, disable the check — all four caught.
+
+---
+
+## 143. Every stale citation a merge could not adjudicate was a task citing the number it had allocated itself, and none of the live documents was wrong
+
+`docstat.py --renumbered` asks a question no other check here asks: not *does this citation
+resolve* — they all resolve — but *did the number mean something else when it was written*. It
+splits its answers in two. **Decided**: history says the number was reassigned, so the citation is
+stale. **Undecidable**: history cannot say, because the number named nothing at the moment the
+citing line was authored.
+
+The undecidable half looked like an artefact of the tool. It is not. Read by hand, all 51 rows:
+
+| | rows | wrong |
+|---|---|---|
+| decided | 16 | **16** — wrong by construction, which is what "decided" means |
+| undecidable | 51 | **15** |
+| …of those 15, in `tasks/` | 15 | **15** |
+| …in live documents | 36 | **0** |
+
+**Every one of the 15 is a task citing the finding number that task allocated for itself.** That
+is not a coincidence and it is not two facts: the author's numbering existed only in an
+uncommitted worktree, so at the moment the line was written the number named nothing in
+`eval/findings/` — and it was renumbered at the merge that closed the task. **One cause produces
+both conditions.** History cannot decide the citation *because* the citation is wrong.
+
+This is the collision of #139 seen from the other end. There, three branches took one number
+because nothing can gate a number a peer has not committed. Here is what that costs afterwards:
+the losing branch's own ticket keeps pointing at the number it lost, in a file nobody re-reads,
+resolving cleanly to somebody else's finding.
+
+> **A citation written against an uncommitted allocation is unverifiable at the moment it is
+> written and wrong shortly after.** The orchestrator allocating at merge (#139) prevents the
+> collision; it does not repair the citations the collision already produced, and only reading
+> the destination heading does.
+
+### The count cannot grade the repair, and that is not a limitation to work around
+
+`DECIDED STALE - 0` is necessary and not sufficient. A line edited in the working tree blames to
+`UNCOMMITTED` and is skipped; a line committed today has today's findings tree as its authoring
+tree and is never stale. **The number falls to zero whatever you write in its place** — including
+a second wrong number. All 31 replacements here were graded by opening `eval/findings/` and
+reading the heading, and the six destination headings are quoted in the ticket beside the rows
+they settle.
+
+An agreement heuristic — does the heading the author's tree held match today's? — buckets 36 rows
+as "agrees", and **two of them are wrong**. It is a reading order, not a verdict, and it is
+recorded as one.
+
+### What the register is, and the bug that nearly hid four rows
+
+`eval/renumber_triage.json` records a verdict per row, **keyed by the citing text and not by a
+line number** — a line number unpairs every entry below any edit. `--sweep` gates on an entry
+whose sentence no longer exists, so a triaged row that gets rewritten stops being silently
+triaged.
+
+The first matcher compared anchors against `--renumbered`'s *printed excerpt*, truncated at 96
+characters. Four adjudicated rows came back `UNTRIAGED`, indistinguishable from four nobody had
+read — rule 12 against the matcher's own address, and in `tasks/` the common case, because
+`established_by` lines run to thousands of characters. `triage_control.py` runs 14 controls with
+every red demonstrated, including the two variants that decided the design: a citation whose line
+moved 40 lines still pairs, and one sitting past column 96 still pairs, with the negative control
+showing it does *not* pair against the truncated excerpt.
+
+**Five of the rows are not citations at all** — they are range endpoints (`#19-#132`). Recorded as
+a class in the register rather than fixed by tuning `_CITE_RX`, which is shared with the decided
+half and would have been changed to satisfy a display problem.
