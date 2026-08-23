@@ -1691,71 +1691,364 @@ principle.
 > the only reason this defect could be bounded at all rather than left as a class-wide suspicion.
 > **Capture what the instrument did, not only what it concluded.**
 
----
+## 95. A judge pack is a numbering, not a set, so re-evaluating a run left nine passes stacked on disk
 
-## 95. The pack directory is never cleared, so nine evaluation passes left the judge reading ten percent stale files
+`anonymise.build_pack` did `dest.mkdir(parents=True, exist_ok=True)` and never removed what was
+already there. That reads as harmless — the same submission produces the same files, so the
+second pass overwrites the first. It is not, because **a label is a position, not an identity**:
+files are written as `bucket/NN.ext` with `NN` counted within the bucket, so the moment the
+*picked set* changes between two passes the numbering shifts underneath and the earlier pass's
+files survive under labels the new manifest does not list.
 
-Building the six aspect packs for task 23 turned up something nobody was looking for. `idiomatic`
-packs `g4_platformer` at **231** files; `architecture`, the same field with `blind_language=True`,
-packs **216**. Same submissions, same gate, 15 files short.
+The picked set changes for ordinary reasons: a starter edit (#77), a new `exclude_origins`, an
+extension added to `CODE_EXT`, `.codex` moving into `SKIP_DIRS` (#83), the character budget being
+removed (#69).
 
-The proximate cause is a filename collision — `blind_language` rewrites every extension to `.src`,
-so `other/01.py` and `other/01.gd` become the same path and the second overwrites the first. **That
-is a symptom, and chasing it was the mistake to avoid.** Rebuilt from the stored manifests, all
-**68 submissions in six runs collide 0 times**. Rebuilt from what is on disk, 15. Every colliding
-pair turned out to be one live file and one that should not have been there at all.
+Measured 2026-08-23. Six runs hold judge packs on disk, 68 submissions between them. **43 carry a
+manifest and can be checked at all**; the other 25 (`wg-matrix-2026-08-13` 24, `wg-calib` 1)
+predate the manifest and are *unmeasurable, not clean* — they already refuse for a different
+reason. Of the 43, **35 are clean** (`wg-arena3d` 8, `wg-audio` 11, `wg-audio48` 16) and 8 are
+not, all of them `wg-g4c-2026-08-21`, which was evaluated nine times straddling both the #69 cap
+removal and the #83 leak repair and carries **23 stale files in 222 — 10.4%**, stack-correlated:
 
-### The actual defect is one missing line
+| stack | stale files |
+|---|---|
+| unity | 10 |
+| godot | 8 |
+| ts | 3 |
+| rust | 2 |
 
-```python
-dest.mkdir(parents=True, exist_ok=True)   # anonymise.build_pack — and nothing else
+Twelve are byte-identical to a live file, so the judge sees the same code twice under two names.
+Eleven carry content no manifest lists, and **seven of the eight submissions hold a `.codex`
+hooks config naming their own trial id verbatim** — `g4_platformer__rust__t0` and the rest, the
+#83 answer key, sitting in the stored pack six days after #83 was closed. No file the manifest
+lists carries either pattern.
+
+**Blinding survives, by a mechanism that is not the repair.** `field.build_pack` runs
+`neutralise()` on every file as it copies, and both `_TRIAL_ID_RE` and `_WORK_PATH_RE` rewrite
+these to `SUBMISSION` and `/WORKTREE`; grepping a freshly built `architecture` and `idiomatic`
+pack for either pattern returns nothing inside the pack directory. #83's own fix — adding
+`.codex` to `SKIP_DIRS` — did not hold, because it only governs what the *next* pass picks and
+nothing removed what earlier passes had already written.
+
+### The `.src` collisions are the symptom, and they are worse than duplication
+
+`architecture` is `blind_language`, so `field.build_pack` rewrites every pack file to `.src`.
+Across the 43 checkable submissions, rebuilding the labels from the **manifests** collides
+**0 times**; rebuilding them from **disk** collides **15** — all 15 in `wg-g4c` — and every
+colliding pair is one live file and one stale one. Files are copied in
+`sorted(rglob)` order and last write wins, so in **7 of the 15** the stale file overwrites the
+live one — `Assets/Editor/Probe.cs`, `Assets/Editor/Json.cs` and `tools/audio-manifest.mjs`
+among them. The `architecture` pack for that field holds 215 files where `idiomatic`'s holds
+230: unity loses 8, godot 6, ts 1, rust 0.
+
+That is #62's shape through a third mechanism — the amount of itself each submission is shown is
+unequal and stack-correlated — so **no cross-stack `idiomatic` or `architecture` ordering on
+`wg-g4c` is defensible.** Reliability measurements are unaffected and the reason is worth
+stating precisely rather than assuming: the pack is a deterministic function of a static input,
+so every repeat of one round reads the identical field.
+
+### Why every gate the project owns was blind to it
+
+`pack_completeness` reads `files_dropped_for_length`, a number `anonymise` computes about **its
+own input**, and #69 made that 0 by construction. Nothing read the destination. Nine passes
+returned normally; `build_pack` has no failure mode here at all.
+
+> **A gate that reads a component's input cannot see what its output accumulated.** The
+> completeness gate was repurposed in #69 to assert an invariant about the input and was
+> reasonable on its own terms; what was missing is that the pack on disk is a *different object*
+> from the manifest describing it, and only one of them was ever opened.
+
+`field.pack_matches_manifest` now opens the directory and asserts set equality per submission,
+`field.py packcheck --run R` runs it standalone, and `field.build_pack` refuses a field whose
+packs do not match — including a pack with no manifest at all, which is **unmeasurable, not
+clean** (25 stored submissions predate the manifest and already refuse for a different reason).
+`--allow-truncated` does not excuse it: that escape exists for the capped-vs-uncapped control,
+where truncation is the experiment, and a stale file is not an experimental condition.
+
+**The fixture had to be a variant, not a mutant** (rule 15). Deleting the clearing code cannot
+manufacture the input that produces this; only running the real function twice over one
+destination with a *changed exclusion set* can. `judge/pack_selftest.py` does that, and against
+the unfixed function it fails 4 of 7 expectations; the same three-pass check run over the 16 real
+submissions of two runs fails **8 of 8** before the fix and **0 of 16** after.
+
+## 98. The Godot template's own gate was red before any agent touched it, and only that arm paid
+
+`build.compiles` and `verify.green` are two of the fourteen tier-1 criteria and both are nothing
+more than the exit code of a recipe in the submission's own justfile (`judge/static.py:380`). So a
+starter whose gate is red on an untouched tree hands **every submission in that arm** two
+automatic failures in the tier weighted 0.31, and no other arm pays it.
+
+`eval/starters/godot/tools/check.gd:51` called `script.reload()` on every `.gd` file it scanned.
+`tools/no_raise.gd` is declared `NoRaise="*res://tools/no_raise.gd"` under `[autoload]` in
+`project.godot:79`, so the engine has already instantiated it by the time a `SceneTree` script
+runs. Godot refuses to reload a script with a live instance, returns an error, and the loop cannot
+tell that error apart from a parse error. Measured 2026-08-23 on a fresh copy with the harness
+uninvolved, twice:
+
+```
+ERROR: Cannot reload script while instances exist.
+   at: reload (modules/gdscript/gdscript.cpp:754)
+COMPILE res://tools/no_raise.gd — see the SCRIPT ERROR lines above
+CHECK scripts=18 failures=1
 ```
 
-No `rmtree`. Every re-evaluation of a run writes a fresh pack **on top of** the previous one.
-Labels are `{bucket}/{NN}{ext}` with `NN` unique within a bucket, so the numbering is stable only
-while the file *set* is — and the moment an exclusion changes, the new pass renumbers, and the old
-pass's files survive under labels the new manifest never lists.
+`just check` exit 1, `just verify` exit 1, on a file that compiles perfectly. The other three
+starters were measured the same day, two ways — an `rsync` reproducing `wholegame.prepare()`'s
+ignore list, and `tools/starter_gate_control.py` importing that list — and **rust, ts and unity
+are all exit 0 on `just check` and on `just verify` from a pristine copy.** The red baseline is
+one arm.
 
-`wg-g4c-2026-08-21` has `evaluate.log` through `evaluate9.log`. It is the run that straddles both
-the #69 cap removal and the #83 leak repair, so its file set changed twice.
+### How much stored evidence paid for it: none, and the reason is luck
 
-| | |
+20 stored Godot whole-game submissions exist across seven runs. The autoload arrived with the
+2026-08-17 no-raise starter edit — RUNS.md's seventh comparability break — so **only 4 carry the
+defect at all**: `wg-g4b-2026-08-17` t0/t1 and `wg-g4c-2026-08-21` t0/t1. The 16 earlier ones have
+neither `tools/no_raise.gd` nor a `NoRaise=` line in their stored `project.godot`.
+
+Of those 4, **0 were graded with the defect unrepaired**:
+
+| trial | terminal | graded? | what happened |
+|---|---|---|---|
+| `wg-g4b` t0, t1 | `api_error` | **no** — the run holds 0 `report.json` | both aborted with a 71-character final text |
+| `wg-g4c` t0 | completed | yes, 14/14 | repaired it itself: `reload(true)` |
+| `wg-g4c` t1 | completed | yes, 13/14 | repaired it itself: a skip list |
+
+Both graded trials scored `build.compiles` **True** (`just check` exit 0) and `verify.green`
+**True**. `wg-g4c-capgate` re-grades those same two work trees, so it adds no submissions. **No
+published tier-1 Godot figure needs marking.** What the defect cost was turns and money inside
+two trials, not a score — and that is a distinction the stored record cannot make, because
+nothing counts a turn spent repairing the harness.
+
+### The under-report, which is the transferable part
+
+The defect was first written up as *"both godot agents patched `tools/check.gd` to call
+`script.reload(true)`"*. A grep for `reload(true)` across the two diffs finds it in **one**. `t1`
+added a `const INSTANCED` skip list instead. Same defect, same baseline, two mechanisms — and a
+search keyed to either one under-reports by half.
+
+> **Search for the DEFECT, not for the repair somebody happened to apply.** The trigger written as
+> one instance of a fix is AGENTS.md's own most-repeated failure, pointed at evidence instead of
+> at rules. The reliable signals were whether the submission's `check.gd` differs from pristine at
+> all, and what the agent said in `agent.final_text`.
+
+Both agents documented it unprompted, in the paragraph rule 11 exists for and nothing reads:
+
+- `t0`: *"The starter baseline was already red here, before I touched anything … the loop reported
+  it as a COMPILE failure. I changed it to `reload(true)`"*
+- `t1`: *"The baseline was already red. `tools/check.gd` called `reload()` on the `NoRaise`
+  autoload, which has a live instance; that's fixed with a skip list"*
+
+Scanning all 20 stored Godot `agent_result.json` for the vocabulary of the defect returns exactly
+these two and nothing else, which is also how the blast radius was bounded.
+
+### The obvious repair is worse than the defect, and it shipped
+
+`t1`'s skip list makes `just check` green by no longer re-parsing the file the engine loads first.
+Measured as an adversarial variant of the repaired starter: plant an unparseable function in
+`tools/no_raise.gd`, and with the skip list `just check` **exits 0** while the engine prints
+`Failed to instantiate an autoload`. `ResourceLoader.load` returns the cached resource, so the
+`script == null` arm never fires. A gate that stopped failing is indistinguishable from a passing
+submission — this project's rule 7, arriving as a fix.
+
+The repair taken instead is `script.reload(true)` — `keep_state` — which re-parses for real.
+
+### Why nothing caught it, and what now does
+
+The grader runs a starter's gate **only on submissions**, where a red result is the answer it is
+looking for. Nothing had ever run one on a pristine copy, so a template could ship red
+indefinitely; `starter_parity.py` compares the four starters to each other and would have to see
+all four go red to notice, and `verify_blind.py` asks a different question entirely.
+
+`eval/tools/starter_gate_control.py` runs both directions on a pristine copy of all four starters
+and is registered in `tools/precampaign_smoke.py` (~160s, once per campaign). It imports
+`wholegame.IGNORE` rather than restating it, so the copy it measures cannot drift from the copy a
+trial gets. Pinned three ways on 2026-08-23:
+
+| input | GREEN direction | RED direction |
+|---|---|---|
+| repaired starter | exit 0 ✅ | planted parse error in the autoload → exit 1 ✅ |
+| the original defect restored | **exit 1, tool reports FAILED** | exit 1 |
+| `t1`'s skip-list repair | exit 0 | **exit 0, tool reports FAILED** |
+
+The third row is the one that earns the second direction. A mutant — deleting the reload call —
+cannot produce it; only a variant that manufactures the input the gate mishandles can (rule 15).
+
+## 100. The stored evidence for `verify.green` drops the gate's own "passed" line on 15 of 16 Rust submissions, because stdout is truncated before stderr
+
+`verify.green` is decided by an exit code (#98), and the exit code is right. This is about the
+**record of it**. Every command tier 1 runs is stored as a `Cmd` whose `tail` is
+`self.tail[-4000:]` (`judge/static.py:64`) over a buffer assembled as `bufs["out"] + bufs["err"]`
+(`judge/static.py:163`) — **stdout first, stderr second, then the last 4000 characters kept.** So
+when a command is chatty on stderr, its stdout is what gets thrown away, whole.
+
+All four starters end `verify` with the same line — `@echo "✅ verify passed"`
+(`starters/godot/justfile:35`, `rust/justfile:36`, `ts/justfile:38`, `unity/justfile:30`) — and
+`just` sends it to stdout. Measured 2026-08-23 over the 68 stored `programmatic.json` records:
+
+| | godot | rust | ts | unity |
+|---|---|---|---|---|
+| `just verify` exit 0 | 15 | 16 | 16 | 15 |
+| stored tail contains `verify passed` | 13 | **1** | 16 | 15 |
+
+**17 records are missing it, and 17 of 17 are exactly the records whose tail hit the 4000-character
+cap.** Eighteen hit the cap; the eighteenth holds the token at offset 3986, i.e. the boundary is
+the cap and nothing else. `cargo-nextest` writes its per-test progress and its `Summary` line to
+stderr, which is why the Rust arm loses stdout in 15 of 16 and the other three arms almost never do.
+
+The visible consequence is `verify.green`'s own evidence string, `tail[-300:]`
+(`judge/static.py:384`). Read from the stored records:
+
+- godot — `…TESTS total=8 passed=8 failed=0 skipped=0\n✅ verify passed`
+- unity — `…✓ test-render: 17 passed, 0 failed, 0 skipped (of 17, 1.0s)\n✅ verify passed`
+- rust — `…he_captured_frame\n────────────\n     Summary [   2.451s] 12 tests run: 12 passed, 0 skipped`
+- ts — `… eslint . --cache\npnpm exec vitest run --project sim\npnpm exec vitest run --project render`
+
+Two arms justify the criterion with the gate's own verdict; two do not, and one of those cannot,
+by construction of the capture.
+
+### Why it matters, given no score is wrong
+
+Nothing published needs marking. What is lost is the ability to ask the question later, and the
+loss is stack-correlated by a property nobody chose — how loudly a test runner writes to stderr.
+
+The concrete case: `game-research-gpt`'s verify manifest attaches `expected_stdout_contains` to
+each command (`template/config/verify/fast.json` — `ARCHITECTURE_OK`, `E2E_SCENARIO_OK`,
+`REPLAY_SMOKE_OK`), on the stated principle that *"a bare exit code is not sufficient diagnostic
+evidence"* (`template/docs/TESTING.md:26`). That check is the natural strengthening of #98, and
+against this project's stored evidence **it would be unable to fire on the Rust arm** — not
+because the Rust starter fails to print the token, but because the harness throws it away. A
+guard installed on one arm and inert on another is this file's whole subject.
+
+> **A truncation policy is a sampling policy.** `[-4000:]` over a concatenation is not "keep the
+> end of the output"; it is "keep whichever stream was written second", and which stream that is
+> belongs to the tool, not to the harness. Truncate each stream separately, or keep both ends.
+
+### What not to conclude
+
+Not that the 17 Rust and Godot submissions failed `verify`, and not that #98 has recurred: all 62
+of these exited 0 and the exit code is read from the process, never from the text. And not that
+the Godot 2 share the Rust cause — they are the two whose engine printed resource-leak lines at
+exit, a different chatty-stderr instance of the same mechanism.
+---
+
+## 101. The TypeScript capture page never ran its own determinism script, and the defect that was filed instead was the opposite of the truth
+
+Task 31 filed two measured one-arm defects in the TS capture harness. **One is real, one is
+false, and reproducing the false one found a third that is worse than either.**
+
+| filed | verdict, measured on the harness's exact page |
 |---|---|
-| files on disk | 222 |
-| files the manifest lists | 199 |
-| **stale** | **23 (10.4%)** |
-| byte-identical to a live file | 12 |
-| content no manifest lists | 11 |
+| D1 — `page.setContent` leaves origin `null`, so loader-based assets render nothing into any filmed PNG | **TRUE.** `location.origin` is the string `"null"`, `document.baseURI` is `about:blank`, a relative `fetch` **throws at URL parsing** (`Failed to parse URL from ./sprites/hero.png`) before any request, and `TextureLoader` reports a bare `error` with no cause |
+| D2 — `performance.now` is frozen to 0, so a clock-driven `AnimationMixer` shows the bind pose in every frame | **FALSE.** `performance.now()` measured 231.6 then 293.7 ms across a 60 ms sleep. `Clock.getDelta()` returned real deltas. Nothing was frozen |
 
-**Stack-correlated, as every instance of this shape has been:** unity 10, godot 8, ts 3, rust 2.
+D2 is false because **`DETERMINISM_SCRIPT` never ran at all.** `addInitScript` executes on
+document creation, and `harnessPage()` registered it and then called `page.setContent` — which
+does not navigate. The script was registered against an `about:blank` document that was never
+created afresh, so it was dead. A three-arm control settles it:
 
-### It is bounded, and the bound is the mechanism's own prediction
+| page setup | `__determinismApplied` | `Math.random()` | `Date.now()` |
+|---|---|---|---|
+| (a) the harness's own order, `addInitScript` → `setContent` | **false** | 0.2508 (unseeded) | 1787465478119 |
+| (b) `addInitScript` → `goto` → `setContent` | true | 0.0000078 (seeded) | 0 |
+| (c) no init script registered at all | **false** | 0.8130 | 1787465478195 |
 
-Checked across every run with a stored manifest — 68 submissions, 6 runs — **`wg-g4c` is the only
-affected one**. That is what the mechanism predicts: it is the only run re-evaluated after its
-file set changed. A defect whose measured scope matches its mechanism's prediction is one you can
-stop worrying about elsewhere.
+**(a) is indistinguishable from (c).** The harness whose entire purpose is reproducibility was
+running with an unseeded `Math.random` and both clocks on wall time, in every TS trial, since the
+capture path was written.
 
-### Three consequences, and the third is the one worth keeping
+> **A defect report is evidence about the reporter's page, not about yours.** D2 was filed as
+> "measured live through Playwright with the harness's exact page setup". It reproduces only if
+> the probe navigates — and a probe that calls `goto` has, without meaning to, repaired the very
+> defect it is standing on. Rule 14 with the axis rotated: a control that *sets up* differently
+> tests a different machine. Re-establish the state on the real path before trusting the
+> mechanism named in a report, including your own.
 
-1. **The audit trail under-reports by ten percent.** The manifest is the record of what the judge
-   was shown, and on this field it is wrong.
-2. **Any cross-stack `idiomatic` or `architecture` ordering on `wg-g4c` is confounded**, because
-   the amount of each submission the judge saw varies by stack. #62's shape, third mechanism, and
-   `pack_completeness` cannot see it — it reads `files_dropped_for_length`, which is 0.
-3. **A repair was defeated by state the repair could not reach.** The eleven unlisted files include
-   the `.codex` hook scripts of #83. That fix removed them from what `anonymise` *writes*; it could
-   not remove them from what was already written. Blinding survives here only because a *different*
-   mechanism catches it — `neutralise()` reduces the leaking path to `/WORKTREE` at
-   `field.build_pack` time, verified by grep on the built pack — so the repair looks effective and
-   is not the thing working.
+### The radius: zero, on all 26 stored TypeScript submissions
 
-> **A fix that changes what a process WRITES does not change what is already on disk, and a
-> destination that is never cleared makes the difference invisible.** Every guard in this project
-> reads either the process (rule 2) or the manifest; none reads the artifact directory as a set
-> and compares it with what was supposed to be in it. Set equality against the manifest is one
-> line and it would have fired here on the first re-evaluation.
+The part that decides whether anything published needs marking. Established four ways, and every
+one of them says the same thing.
 
-**It does not touch the reliability numbers it was found during.** The pack is byte-identical
-across repeats of one round, so it adds no variance to any SD in `wg-aspect-reliability`. It is
-orderings that are affected, and this task makes none. Filed as task 33.
+| probe | result |
+|---|---|
+| three loaders constructed anywhere in `src/view` (comments and string literals stripped; stripper positive-controlled) | **0 of 26**. The only two `TextureLoader` mentions in the corpus are both inside doc comments explaining why the loader is *avoided* |
+| `AnimationMixer` or a three `Clock` constructed in capture-reachable view code (import graph walked from `capture.ts`) | **0 of 26** |
+| entropy or wall-clock reads in capture-reachable view code — the radius of the *real* defect | **0 of 26** |
+| the filmed frames themselves, measured rather than inferred | **206 of 216 TS frames are distinct**; mean adjacent-frame diff 0.0370 and non-background fraction 0.229, both second-highest of the four arms |
+
+**No published number rests on a TS submission's frames being static or empty, because no TS
+submission's frames are static or empty.** Nothing needs retracting.
+
+The frame measurement is the one that matters, because it is the only one that reads the
+consequence instead of the cause. Its one TS-specific outlier — mean distinct colours 174 against
+rust 713 and godot 616 — is **not** attributable to either defect: Unity is lower still at 50, and
+`research/10-stack-capability-matrix.md` §9 already attributes the colour spread to SwiftShader.
+Filming on a CPU rasteriser is a standing confound on this arm and it must be ruled out before any
+TS rendering difference is read as a harness defect.
+
+### Why the radius is zero is not luck, and is the useful part
+
+`capture()` is **synchronous** — it steps, renders and reads back inside one call — and it builds
+a fresh view each time. Both properties are visible to an agent through its own render tests, and
+the two agents who came nearest an asset pipeline diagnosed the constraint unprompted and designed
+around it, in `agent.final_text` and in source comments that nothing reads:
+
+- `wg-g4/g4_platformer__ts__t1`: *"the art is generated in-process rather than loaded — because
+  `capture()` renders one frame synchronously with no history, so a view-side timer would have
+  nothing to count and an `<img>` would still be decoding"*
+- `wg-g4c/g4_platformer__ts__t0`, in `src/view/hero-sheet.ts`: *"An `<img>` or a `TextureLoader`
+  resolves on a later task, so every captured frame would show an untextured quad"*
+
+That is rule 11 twice more. **A defect whose radius is zero because every subject worked around it
+is still a defect — it is a tax paid in turns, and nothing counts a turn spent designing around
+the harness.**
+
+### The repair, and why the two fixes could not be shipped separately
+
+All three defects are one edit apart, and **fixing the origin ACTIVATES the frozen clock.** Going
+to a real origin makes `addInitScript` fire, at which point `performance.now = () => 0` stops
+being dead code and starts freezing time for real — introducing the filed defect D2 as a genuine
+regression. Sequencing:
+
+1. `page.route` serves a real origin from `public/`; `addInitScript` is registered **before**
+   `page.goto`. One change fixes D1 and the dead script.
+2. The clocks become **virtual, not frozen**: `Date.now`/`performance.now` read `__nowMs`, which
+   `captureFrame` sets to `(ticks / TICK_HZ) * 1000`. A pure function of the request, so still
+   deterministic, but it *advances* from one filmed frame to the next.
+3. `window.__capturePreload` — optional, awaited once per capture — is where an asset-loading view
+   resolves loaders into a cache that the synchronous `createView` can read. A failing preload
+   throws rather than filming a frame with its assets missing (rule 7).
+
+All three are **harness-side**, per task 25: a mechanism in the harness cannot go missing in a
+stack-correlated way, whereas a rule in `AGENTS.md` that the agent must remember can.
+
+### Both directions, pinned
+
+`tests/render/capture-environment.test.ts` — 8 tests asking what the *page* can do, as opposed to
+what the renderer drew. They run inside the real capture page via `evaluateInCapturePage`,
+because **a replica page built "the same way" shares whatever assumption is wrong and agrees with
+the harness** (#37). Three mutants, each restoring one repaired defect:
+
+| mutant | result |
+|---|---|
+| M1 `setContent` instead of `goto` (restores D1 *and* the dead script) | **RED** on 7 tests |
+| M2 `performance.now = () => 0` (restores D2 as filed) | **RED** on the clock test |
+| M3 preload hook not awaited | **RED** on 2 tests |
+
+The regression direction holds too: `just verify` is green at 53 sim + 14 render, **the golden
+frame still matches**, `just film` writes its 12 PNGs, and `starter_gate_control.py --stack ts` is
+green-and-still-red-on-a-plant.
+
+One test in the first draft was **vacuous** and the mutants caught it: "the determinism script
+actually ran" compared the seeded sequence against a fallback that was never set, so it stayed
+green under M1. It now asserts the injected LCG's own recurrence,
+`seed = (seed * 16807) % 2147483647`, which the platform generator cannot satisfy. *The mutant
+sweep's value here was not finding the defect — it was finding the test that could not see it.*
+
+### The accepted limitation, stated rather than fixed
+
+`capture()` remains synchronous, and that is deliberate: a fresh view rendering one frame with no
+history is what makes a captured frame a pure function of `(seed, ticks, inputs)`. So a loader
+still cannot complete *inside* a capture — it must resolve in `__capturePreload` first. Recorded
+in the TS starter's `AGENTS.md` with the reason, because it is now a documented capability with a
+documented shape rather than a silent failure.

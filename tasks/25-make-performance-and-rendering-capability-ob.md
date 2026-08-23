@@ -1,6 +1,7 @@
 ---
+established_by: nine capture and performance fields with the same names and units on all four arms, in judge/capability.py, measured from outside the submission so no arm can fail to fill one - populated on a real capture in all four starters and swept clean over the 68 stored submissions, where four of the nine turned out to have been written since the first matrix with no reader (FINDINGS #95). Seven candidates declined with sources, including frametime and fps because the TS arm films on SwiftShader while the other three film on the M3 Max. No criterion added: RUBRIC.md weighs none of it. Gate no_stack_correlated_gap pinned by a mutant and a variant in capability_selftest.py, and peak RSS and CPU pinned against a child of known size in rusage_selftest.py plus cross-checked against usr bin time on two arms. No starter edits, so no regime boundary.
 id: 25
-status: open
+status: done
 priority: 2
 title: Make performance and rendering capability observable at all
 refs: eval/starters/_shared/, eval/judge/, blocks task 26

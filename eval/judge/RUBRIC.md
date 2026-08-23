@@ -82,8 +82,36 @@ Implemented in `static.py`. Never shown to the judge as a question.
 
 Also collected, **reported but not scored** (they are diagnostics, not verdicts —
 nobody in the open-source world hard-fails CI on wall-clock performance, and neither do
-we): coverage percentages, simulation ticks/second, probe start-up latency, code file
-and line counts by extension, and the full output tail of every command.
+we): coverage percentages, code file and line counts by extension, the full output tail
+of every command, and the nine **capture and performance fields** below.
+
+### The performance fields — captured since 2026-08-23, scored by nothing
+
+`judge/capability.py` is the contract: same names, same units, all four arms, measured
+from **outside** the submission so no arm can fail to report one (#95, DECISIONS.md).
+Read a stored run with `python3 judge/capability.py --runs eval/runs`.
+
+| field | unit | from |
+|---|---|---|
+| `capture.width_px` / `height_px` / `megapixels` | pixels / Mpx | the frames' own PNG headers |
+| `capture.frames` | count | PNGs `just film` wrote |
+| `capture.wall_seconds` | s | `commands[film].seconds` |
+| `capture.cpu_seconds` | s | user+system CPU of the whole `just film` tree |
+| `capture.peak_rss_mb` | MiB | peak RSS of the largest process in that tree |
+| `probe.ticks_per_second` | ticks/s | `just probe` answering over a pipe, headless |
+| `probe.startup_seconds` | s | exec to the tick-0 line |
+
+**None of these may be read across arms as a rendering result, and there is deliberately
+no frametime or fps field.** The TypeScript arm films on SwiftShader, a CPU rasteriser,
+while the other three film on the machine's M3 Max — so any render-timing figure would
+report the backend, not the stack. `capability.DECLINED` records that and six other
+candidates, each with what would move it back in.
+
+`capability.no_stack_correlated_gap()` fails if a declared field is ever absent for a
+reason other than the submission's own capture failing; its mutant and its variant are
+in `capability_selftest.py`. `rusage_selftest.py` pins the two new figures against a
+child of known size — `ru_maxrss` is bytes on macOS and kilobytes on Linux, and the
+1024x error would still look like an answer.
 
 ---
 
@@ -461,3 +489,7 @@ Applying them retroactively would score the task change rather than the work.
    measures nothing" failure this project has hit twelve times.
 
 An evaluator that cannot fail (1) or pass (2) is not evidence.
+
+Alongside them, the module selftests — each exits non-zero on its own mutants:
+`audio_selftest.py`, `sequential_selftest.py`, `bot_mutants.py`, `capability_selftest.py`,
+`rusage_selftest.py`.

@@ -479,57 +479,56 @@ defect into a genuine submission defect — the project's third. See the regime 
 design, for the same reason it was demoted (RUBRIC.md). It is not a failure and must not be
 reported as one.
 
-### The #62 completeness gate REFUSES this field for code aspects
+### ⚠️ THE STORED CODE PACKS CARRY 23 STALE FILES. Do not read a code ordering from this field
 
-Its first real use, and it fires:
-
-```
-complete: False   any_dropped: 8 of 8   max_dropped: 16   spread: 10
-unity__t0 16 | rust__t0 13 | unity__t1 12 | ts__t0 11 | godot__t1 8 | rust__t1 8 | godot__t0 7 | ts__t1 6
-```
-
-Every submission lost files to `anonymise.py`'s `max_chars` budget, unequally, and **unity is
-again the worst affected** — the stack-correlated deficit of #62, reproduced on a new task.
-
-Verified to fire selectively rather than trusted from the numbers: `build_pack(sees="code")`
-raises; `build_pack(sees="frames")` builds.
-
-**LIFTED on 2026-08-22 by #69's removal of the character budget, and re-measured on
-2026-08-23 before any money was spent on this field:**
+**This field's judge packs on disk are not what their manifests say** (FINDINGS #95). It was
+evaluated nine times, straddling the #69 cap removal and the #83 leak repair, and
+`anonymise.build_pack` did not clear its destination until 2026-08-23, so each pass was written
+on top of the last. Measured with `python3 judge/field.py packcheck --run runs/wg-g4c-2026-08-21`
+on 2026-08-23, unpiped, exit 1:
 
 ```
-complete: True    any_dropped: 0 of 8    max_dropped: 0    spread: 0
+g4_platformer: submissions=8 files_on_disk=222 stale=23 missing=0
+               by_stack={'godot': 8, 'rust': 2, 'ts': 3, 'unity': 10} clean=False
 ```
 
-`build_pack(sees="code")` now returns 231 files for `idiomatic` and the gate does not raise, so
-**`idiomatic` and `architecture` may be graded on this field.** The refusal above described the
-cap, not the field; when the cap went, so did the reason. Kept rather than deleted because the
-sentence *"must not be graded on this field"* was load-bearing for two days and a reader who
-remembers it needs to see it retired, not silently vanish.
+| stack | stale files | submissions |
+|---|---|---|
+| unity | 10 | `t0` 6, `t1` 4 |
+| godot | 8 | `t0` 4, `t1` 4 |
+| ts | 3 | `t0` 1, `t1` 2 |
+| rust | 2 | `t0` 1, `t1` 1 |
 
-⚠️ **This field's code packs carry 23 stale files the gate cannot see — 10.4%, stack-correlated.**
-`anonymise.build_pack` never clears its destination, and this run was evaluated **nine times**
-across both the #69 cap removal and the #83 leak repair, so each pass wrote on top of the last:
+Twelve are byte-identical to a live file; eleven carry content no manifest lists, and seven of
+the eight submissions still hold a `.codex` hooks config naming their own trial id — #83's answer
+key, in the pack on disk. Blinding is not broken: `field.build_pack` neutralises both the trial
+id and the work path as it copies, and a freshly built pack contains neither pattern. For
+`architecture`, which is `blind_language` and rewrites every file to `.src`, 15 of them collide
+with a live file and **7 collisions are won by the stale copy**, so live authored code is
+replaced: the `architecture` pack holds 215 files where `idiomatic`'s holds 230, unity losing 8,
+godot 6, ts 1, rust 0.
 
-```
-on disk 222 | manifest 199 | stale 23      unity 10 | godot 8 | ts 3 | rust 2
-```
+> **`idiomatic` and `architecture` orderings from this field are not readable.** How much of
+> itself each submission was shown is unequal and stack-correlated — #62's shape through a third
+> mechanism. `fun`, `fun_frames`, `ux` and `audio` read frames, telemetry and audio, never
+> `judge_pack/code`, and are unaffected.
+>
+> **Reliability measurements ARE readable, including for the two code aspects.** The pack is a
+> deterministic function of a static input, so every repeat of one round reads the identical
+> field — verified by rebuilding each of the six aspects' packs twice and comparing every file
+> (0 differing entries), and against the rounds actually stored, whose provenance gives one
+> distinct input signature across all five repeats.
 
-Twelve of the 23 are byte-identical to a live file, so the judge sees the same code twice under
-two names; eleven carry content no manifest lists. Checked across all six runs with stored
-manifests, **68 submissions — `wg-g4c` is the only affected one**, which is consistent with the
-mechanism (it is the only run re-evaluated after its file set changed).
+**The files are deliberately left in place** while the `wg-aspect-reliability` sweep (task 23) is
+reading this run: re-packing mid-sweep would change the field underneath its own repeats, which
+is the one thing that would invalidate the measurement it is making. Re-pack after the sweep, and
+note that re-packing against today's starter reclassifies template code as authored work (#77) —
+the exclusion set has to be computed, not guessed.
 
-Blinding is **not** compromised: the eleven unlisted files include the `.codex` hooks of #83, but
-`neutralise()` reduces their path to `/WORKTREE` when `field.build_pack` writes the pack, verified
-by grep on the built pack. The `.src` collisions this was first noticed through are a *symptom* —
-rebuilt from the manifests all 68 submissions collide 0 times, rebuilt from disk 15.
-
-**It does not affect the reliability numbers in `wg-aspect-reliability`** — the pack is byte-identical
-across repeats, so it adds no variance. **It does confound any cross-stack `idiomatic` or
-`architecture` ORDERING on this field**, because it changes how much of each submission the judge
-was shown, unequally, by stack. That is #62's shape through a third mechanism. Filed as task 33;
-recorded as FINDINGS #95.
+The **#62 character-budget** gate no longer fires here. The packs were rebuilt on 2026-08-22
+after #69 removed the cap, and `pack_completeness` now reads `complete: True, any_dropped: 0 of
+8`. The earlier reading in this file — `any_dropped: 8 of 8, max_dropped: 16, spread: 10` — was
+correct when written and describes packs that no longer exist.
 
 ## `wg-g4b-2026-08-17` — A NULL. Killed by an external quota limit, 8/8 `api_error`
 
@@ -836,6 +835,83 @@ Gates re-run after the change, both exit 0: `judge/verify_blind.py` (BLIND, 74 i
 `judge/starter_parity.py` ("No drift detected on any measured axis"). Pinned three ways: a warm
 tree with violations flips exit 0 → exit 1 with all five; the clean starter stays exit 0 and does
 **not** become a false failure; `just check` stays warm and green.
+
+## THE GODOT CHECK RECIPE CHANGED ON 2026-08-23 — a NINTH comparability break
+
+**No Godot `build.compiles` or `verify.green` score from before this date is comparable with one
+after it.** `starters/godot/tools/check.gd` called `script.reload()` on every scanned `.gd` file;
+`tools/no_raise.gd` is an `[autoload]` and therefore already instantiated, Godot refuses to
+reload a script with a live instance, and the loop counted that refusal as a compile failure. The
+pristine template's own gate exited 1. The call is now `script.reload(true)` (`keep_state`).
+
+Measured on a fresh copy of the starter, harness uninvolved, before and after:
+
+| tree | `just check` | `just verify` |
+|---|---|---|
+| pristine, before — every Godot trial since 2026-08-17 | **exit 1**, `CHECK scripts=18 failures=1` | **exit 1** |
+| pristine, after | exit 0, `CHECK scripts=18 failures=0` | exit 0, 6/6 render tests pass |
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** The autoload arrived with the seventh comparability
+  break above (2026-08-17), so only 4 of the 20 stored Godot submissions carry the defect at all.
+  `wg-g4b`'s two were never graded — that run holds zero `report.json` and both trials ended
+  `api_error`. `wg-g4c`'s two **repaired the template themselves**, by two different mechanisms,
+  and both scored `build.compiles` and `verify.green` True. `wg-g4c-capgate` re-grades those same
+  work trees. **No published tier-1 Godot figure needs marking** (FINDINGS #98).
+- **Invalidated going forward:** a Godot trial after this date starts from a green gate and no
+  longer spends turns repairing its own harness, so its turn count and cost are not comparable
+  with `wg-g4b`'s or `wg-g4c`'s. That cost is unmeasured — nothing counts a turn spent on the
+  template.
+- **Not affected:** the other three stacks. Measured the same day from pristine copies: rust, ts
+  and unity are all exit 0 on both recipes, so the red baseline was one-arm.
+
+Gates re-run after the change, both exit 0: `judge/verify_blind.py` (BLIND, 81 ids, 5 trees) and
+`judge/starter_parity.py` ("No drift detected on any measured axis"). Pinned three ways by
+`tools/starter_gate_control.py`, now part of `tools/precampaign_smoke.py`: the repaired starter is
+green and still goes red on a parse error planted **in the autoloaded script**; restoring the
+original defect makes the tool report FAILED; and the skip-list repair one `wg-g4c` agent actually
+shipped passes the green direction while **failing the red one — `just check` exits 0 over an
+unparseable autoload.**
+
+
+## THE TS CAPTURE PAGE CHANGED ON 2026-08-23 — a TENTH comparability break
+
+**No TypeScript trial after this date is comparable with one before it on turns or cost**, and
+the capture page's *capabilities* differ. `starters/ts/src/view/harness.ts` built the page with
+`page.setContent`, which has three consequences that were all live in every TS trial to date:
+
+| property | before | after |
+|---|---|---|
+| document origin | `"null"`, `baseURI` `about:blank` | `http://harness.localhost`, served from `public/` by `page.route` |
+| relative asset URL | **`fetch` THROWS at URL parsing**; every three loader fails with a bare `error` | resolves as it does under `just run` |
+| `DETERMINISM_SCRIPT` | **never ran** — `addInitScript` was registered against a page that was never navigated. `Math.random` unseeded, both clocks on wall time | runs; `addInitScript` now precedes `page.goto` |
+| `performance.now()` / `Date.now()` | wall time (because the script was dead) | virtual: `(ticks / TICK_HZ) * 1000`, a pure function of the request |
+| async assets | impossible | `window.__capturePreload`, awaited once per capture |
+
+### What it invalidates, and what it does not
+
+- **Not invalidated: any stored score.** Radius measured across **all 26 stored TS whole-game
+  submissions** and it is **zero on every probe** — no three loader constructed in any
+  capture-reachable view file, no `AnimationMixer` or `Clock`, no entropy or wall-clock read. The
+  filmed frames agree: **206 of 216 TS frames are distinct**, with adjacent-frame diff and
+  non-background fraction both second-highest of the four arms. **No published number rests on a
+  TS submission's frames being static or empty** (FINDINGS #101).
+- **Invalidated going forward:** a TS trial after this date can ship an asset pipeline. Before it,
+  agents that tried had to discover the constraint and design around it — two of them did,
+  explicitly, in `agent.final_text`. That cost is unmeasured, the same way #98's is.
+- **Not affected:** the other three stacks. The change is confined to `starters/ts/`.
+- **Still true, and now documented rather than silent:** `capture()` is synchronous and builds a
+  fresh view per frame, so a loader must resolve in `__capturePreload` and `clock.getDelta()` has
+  no history to measure. Recorded in the TS starter's `AGENTS.md`.
+
+Gates re-run after the change, all green: `judge/verify_blind.py` on an out-of-repo copy (BLIND,
+81 ids), `judge/starter_parity.py` ("No drift detected on any measured axis", ts now 67/67 tests),
+and `tools/starter_gate_control.py --stack ts` green on pristine **and** still red on a planted
+error. Pinned in both directions by `tests/render/capture-environment.test.ts` (8 tests) against
+three mutants, each restoring one repaired defect — M1 `setContent` reddens 7, M2 the frozen clock
+reddens the clock test, M3 an unawaited preload reddens 2. The golden frame is unchanged, so the
+edit is rendering-neutral.
 
 
 ## Rules

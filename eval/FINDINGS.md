@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#94 from building and running this evaluator. **Check whether a
+Findings #19-#101 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -169,7 +169,13 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **92** | A scored tier that returns the same number for every submission, and the weight in front of it | [certifies-nothing](findings/certifies-nothing.md) |
 | **93** | `suite.json` describes the last thing written into the directory, not the run | [documentation](findings/documentation.md) |
 | **94** | A guard that succeeded three times while three agents took the same number | [certifies-nothing](findings/certifies-nothing.md) |
-| **95** | The judge pack directory is never cleared, so nine evaluation passes left ten percent stale files | [one-arm-bias](findings/one-arm-bias.md) |
+| **95** | A judge pack is a numbering, not a set, so re-evaluating a run left nine passes stacked on disk | [one-arm-bias](findings/one-arm-bias.md) |
+| **96** | The gate written for #95 was exit-0 vacuous at every address but the right one | [certifies-nothing](findings/certifies-nothing.md) |
+| **97** | Four of the nine performance fields had been written on every submission since the first matrix, and nothing ever read them | [certifies-nothing](findings/certifies-nothing.md) |
+| **98** | The Godot template's own gate was red before any agent touched it, and only that arm paid | [one-arm-bias](findings/one-arm-bias.md) |
+| **99** | A second copy of the skills for an agent that was never here, never once in sync, invisible to every tool | [documentation](findings/documentation.md) |
+| **100** | The stored evidence for `verify.green` drops the gate's own "passed" line on 15 of 16 Rust submissions, because stdout is truncated before stderr | [one-arm-bias](findings/one-arm-bias.md) |
+| **101** | The TypeScript capture page never ran its own determinism script, and the defect filed instead was the opposite of the truth — radius zero on all 26 stored submissions | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

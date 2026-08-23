@@ -47,6 +47,7 @@ import ast
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -81,9 +82,11 @@ HISTORY_STRONG = re.compile(
 )
 HISTORY_WEAK = re.compile(r"\b(no longer|legacy)\b", re.I)
 
-# The .agents/skills mirror duplicates every skill and is ALREADY FILED as task 27.
-# Reporting it 51 more times every six hours is how a scanner gets ignored.
-MIRROR = ".agents/"
+# No MIRROR exemption. It existed to stop this scanner reporting the `.agents/skills`
+# duplicate 51 times every six hours while task 27 was open. The duplicate was deleted on
+# 2026-08-23 (#99) and `docstat.py --sweep` now fails on any SKILL.md outside
+# `.claude/skills/<name>/`, so the suppression has nothing left to suppress and would only
+# hide the next copy from the scanner that found this one.
 
 # Reference implementations the harness executes by discovering their names, the way
 # pytest does. "Nothing calls this by name" is what they are FOR, so the dead-code
@@ -118,7 +121,7 @@ def cat_history(include_archive: bool) -> list[dict]:
     hits, weak = [], 0
     for p in _tracked((".md",)):
         rel = _rel(p)
-        if MIRROR in rel or (not include_archive and _is_archive(rel)):
+        if not include_archive and _is_archive(rel):
             continue
         for i, ln in enumerate(p.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
             if ln.lstrip().startswith(("|", ">")):
@@ -150,7 +153,7 @@ def cat_dup(include_archive: bool) -> list[dict]:
     seen: dict[str, list[str]] = defaultdict(list)
     for p in _tracked((".md",)):
         rel = _rel(p)
-        if MIRROR in rel or (not include_archive and _is_archive(rel)):
+        if not include_archive and _is_archive(rel):
             continue
         for para in re.split(r"\n\s*\n", p.read_text(encoding="utf-8", errors="replace")):
             norm = re.sub(r"\s+", " ", para).strip()
@@ -241,6 +244,150 @@ def cat_longfn() -> list[dict]:
     return sorted(out, key=lambda d: -d["lines"])
 
 
+def _cyclomatic(node: ast.AST) -> int:
+    """Cyclomatic complexity: one path, plus one per branch point.
+
+    Counted here rather than pulled from `radon` so the scanner has no dependency -- the
+    definition is small and stable, and a tool the next session cannot run because a
+    package is missing is a tool that does not run.
+
+    Boolean operators count `len(values) - 1` because `a and b and c` is two branch points,
+    not one. Each `except` handler is a path; `else`/`finally` are not.
+    """
+    score = 1
+    for n in ast.walk(node):
+        if isinstance(n, (ast.If, ast.For, ast.AsyncFor, ast.While, ast.ExceptHandler,
+                          ast.With, ast.AsyncWith, ast.Assert, ast.IfExp)):
+            score += 1
+        elif isinstance(n, ast.BoolOp):
+            score += len(n.values) - 1
+        elif isinstance(n, ast.comprehension):
+            score += 1 + len(n.ifs)
+    return score
+
+
+def _churn(days: int = 90) -> dict[str, int]:
+    """Commits touching each tracked file in the window. Empty dict if git is unavailable."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "log", f"--since={days}.days", "--pretty=format:",
+             "--name-only"], capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return {}
+    counts: dict[str, int] = defaultdict(int)
+    for line in out.split("\n"):
+        line = line.strip()
+        if line:
+            counts[line] += 1
+    return counts
+
+
+def cat_hotspot() -> list[dict]:
+    """CHURN x COMPLEXITY. The refactor signal neither number gives alone.
+
+    Complexity alone flags code that is hard but settled -- rewriting it buys nothing and
+    risks a working thing. Churn alone flags code that changes often because the work is
+    there, which is not a defect. The product is the classic hotspot: complicated code that
+    people keep having to touch, where the difficulty is being paid for repeatedly.
+
+    Reported per FILE, since churn is only recorded per file. `longfn` and `complexity`
+    stay separate because they point at a specific function; this points at a file to read.
+
+    A hotspot is a QUESTION. High churn on a file under active development is expected and
+    means nothing on its own.
+    """
+    churn = _churn()
+    if not churn:
+        return []
+    out = []
+    for p in _tracked((".py",)):
+        rel = _rel(p)
+        c = churn.get(rel, 0)
+        if not c:
+            continue
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+        cx = sum(_cyclomatic(n) for n in ast.walk(tree)
+                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
+        if cx and c > 1:
+            out.append({"file": rel, "commits": c, "complexity": cx, "score": c * cx})
+    return sorted(out, key=lambda d: -d["score"])
+
+
+def cat_complexity() -> list[dict]:
+    """Individual functions with high cyclomatic complexity.
+
+    >20 is the conventional "hard to test" threshold. It is a prompt to look, not a defect:
+    a dispatch table of 30 branches is simple to read and scores badly.
+    """
+    out = []
+    for p in _tracked((".py",)):
+        rel = _rel(p)
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                cx = _cyclomatic(node)
+                if cx > 20:
+                    out.append({"file": rel, "line": node.lineno,
+                                "name": node.name, "complexity": cx})
+    return sorted(out, key=lambda d: -d["complexity"])
+
+
+def cat_lint() -> list[dict]:
+    """ruff, grouped by rule. Reports its own absence rather than passing silently.
+
+    A linter that is not installed must not read as a clean bill of health -- that is the
+    `-disable-audio` failure (#61), where a flag accepted and ignored was indistinguishable
+    from a working guard.
+
+    Scoped to the harness. `template*/` and `eval/starters/*/` are the PRODUCT and have
+    their own per-stack lint recipes; linting them from here would be measuring the thing
+    being measured.
+
+    RULES ARE PINNED, and to CORRECTNESS rather than style. Two reasons.
+
+    Determinism: with no `--select`, the set of rules is whatever the installed ruff
+    defaults to, so the number moves when the tool updates and the movement looks like work.
+    A measurement whose definition drifts is the `project_lines` failure again.
+
+    Relevance: the default run reported 491 issues here, 132 of them percent-formatting.
+    Mass-fixing those is churn -- tokens and review attention spent moving text -- and it
+    would bury the handful that matter. The selected rules are the ones that map onto
+    failures this project has actually recorded:
+
+        F, E9      real bugs: undefined names, unused variables
+        PLW1510    `subprocess.run` without `check=` -- an ignored exit status, which is
+                   rule 3 in `AGENTS.md` and has cost this project real measurements
+        BLE001     blind `except Exception` -- the fail-open shape (#31)
+        S110,S112  `try/except/pass` and `/continue` -- a swallowed failure that leaves a
+                   plausible in-range value behind
+        B          bugbear: mutable defaults, loop-variable capture in closures
+    """
+    exe = shutil.which("ruff") or shutil.which(str(Path.home() / ".local/bin/ruff"))
+    if not exe:
+        return [{"rule": "(ruff not installed)", "count": 0,
+                 "hint": "uv tool install ruff — absence is not a clean result"}]
+    try:
+        r = subprocess.run([exe, "check", str(ROOT / "eval"),
+                            "--exclude", str(ROOT / "eval/runs"),
+                            "--select", "F,E9,B,BLE001,PLW1510,S110,S112",
+                            "--output-format", "json"],
+                           capture_output=True, text=True)
+        items = json.loads(r.stdout or "[]")
+    except (json.JSONDecodeError, OSError) as e:
+        return [{"rule": f"(ruff failed: {e})", "count": 0, "hint": "investigate"}]
+    by_rule: dict[str, int] = defaultdict(int)
+    for it in items:
+        by_rule[f"{it.get('code')} {it.get('message', '')[:58]}"] += 1
+    return sorted(({"rule": k, "count": v} for k, v in by_rule.items()),
+                  key=lambda d: -d["count"])
+
+
 def cat_todo() -> list[dict]:
     out = []
     for p in _tracked((".py", ".md", ".just", ".ts", ".rs", ".cs", ".gd")):
@@ -258,6 +405,9 @@ CATEGORIES = {
     "dead":    ("functions referenced nowhere else (candidates, not corpses)", cat_deadcode),
     "longfn":  ("functions worth splitting", cat_longfn),
     "todo":    ("TODO/FIXME/HACK markers", cat_todo),
+    "hotspot": ("churn x complexity — the refactor signal neither gives alone", cat_hotspot),
+    "complexity": ("functions above the conventional hard-to-test threshold", cat_complexity),
+    "lint":    ("ruff on the harness (NOT the templates — those are the product)", cat_lint),
 }
 
 
@@ -296,6 +446,14 @@ def main() -> int:
                       f"{'  <->  '.join(d['files'])}")
             elif key == "fat":
                 print(f"     ~{d['tokens']:>5,} tok  {d['file']}:{d['line']}  {d['heading']}")
+            elif key == "hotspot":
+                print(f"     score {d['score']:>5}  {d['commits']:>3} commits x cx "
+                      f"{d['complexity']:<4}  {d['file']}")
+            elif key == "lint":
+                print(f"     {d['count']:>4}  {d['rule']}"
+                      + (f"   [{d['hint']}]" if d.get("hint") else ""))
+            elif key == "complexity":
+                print(f"     cx {d['complexity']:>3}  {d['file']}:{d['line']}  {d['name']}")
             elif key in ("dead", "longfn"):
                 extra = f"  ({d['lines']} lines)" if key == "longfn" else ""
                 print(f"     {d['file']}:{d['line']}  {d['name']}{extra}")

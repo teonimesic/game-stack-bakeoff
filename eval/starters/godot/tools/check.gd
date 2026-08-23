@@ -48,7 +48,19 @@ func _initialize() -> void:
 			continue
 		# `reload()` re-parses and returns OK / ERR_PARSE_ERROR. The parser prints
 		# the specific line and reason above this message.
-		if script.reload() != OK:
+		#
+		# `keep_state` is TRUE because a script that is ALREADY INSTANTIATED — every
+		# entry under `[autoload]` in project.godot, `tools/no_raise.gd` among them —
+		# makes a plain `reload()` refuse with "Cannot reload script while instances
+		# exist" and return an error this loop cannot tell apart from a parse error.
+		# That reported a COMPILE failure for a file that compiles perfectly, on the
+		# pristine template. Re-parsing is still real: a genuine parse error in an
+		# autoloaded script still comes back non-OK — pinned by a control that plants
+		# one in `tools/no_raise.gd` and requires this recipe to exit non-zero.
+		#
+		# Do NOT "fix" this by skipping instantiated scripts instead. That makes the
+		# gate stop checking exactly the files the engine loads first.
+		if script.reload(true) != OK:
 			printerr("COMPILE %s — see the SCRIPT ERROR lines above" % path)
 			failures += 1
 

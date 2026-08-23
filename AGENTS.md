@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | Current status and where things live |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#95, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#101, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -38,7 +38,7 @@ it describes and travels with it.
 
 | Thing | Where |
 |---|---|
-| Skills | `.claude/skills/<name>/SKILL.md` |
+| Skills | `.claude/skills/<name>/SKILL.md` — **the only path. A skill anywhere else fails `docstat.py --sweep`** |
 | Memories | `.claude/memory/` |
 | Permissions and hooks | `.claude/settings.json` |
 | Machine-local settings | `.claude/settings.local.json` |
@@ -54,9 +54,16 @@ skill that lives in a home directory silently applies to unrelated work.
 
 ## Skills — procedures, invoked when you are doing the thing
 
-These live in `.claude/skills/<name>/SKILL.md`. Invoke the one that covers what you are
-about to do rather than reconstructing the procedure — each encodes failures that cost
-trials.
+These live in `.claude/skills/<name>/SKILL.md`, and **that is the sole authoritative path**.
+Invoke the one that covers what you are about to do rather than reconstructing the procedure —
+each encodes failures that cost trials.
+
+There is no second copy for another agent CLI, and adding one fails the sweep. `.agents/skills/`
+held exactly that until 2026-08-23 — a Codex-flavoured duplicate that was never once in sync,
+had no reader, and shipped an `add-game` missing the guard that exists because a shared preamble
+contaminated a single-variable experiment. The reasoning, and what would re-open it, is in
+`DECISIONS.md`; the measurement is #99. If you want cross-tool support, add a **pointer** to
+`.claude/skills/`, never a copy of it.
 
 | Skill | Use when | Authoritative file |
 |---|---|---|
@@ -388,75 +395,75 @@ Two refinements that pattern does not cover:
    but the instrument agree exactly, what they are reporting is the instrument.
 
 10. **Hold the machine, not just the configuration — and check it, per arm, before spending.**
-   Every variable-control rule here is about flags, prompts and starters. The largest confound
-   this project has measured was none of those: a system daemon pegged for ten days gated
-   `execve` of freshly created binaries, so the two arms that link new binaries shipped work
-   their agents had never been able to compile or run, and the two that run pre-existing
-   binaries were fine (#49).
+    Every variable-control rule here is about flags, prompts and starters. The largest confound
+    this project has measured was none of those: a system daemon pegged for ten days gated
+    `execve` of freshly created binaries, so the two arms that link new binaries shipped work
+    their agents had never been able to compile or run, and the two that run pre-existing
+    binaries were fine (#49).
 
-   **A run is not a controlled experiment merely because it is one command.** Partition by
-   terminal reason *and* by anything about the world that changed while it was in flight —
-   including a date, which no aggregate here has ever been partitioned by.
+    **A run is not a controlled experiment merely because it is one command.** Partition by
+    terminal reason *and* by anything about the world that changed while it was in flight —
+    including a date, which no aggregate here has ever been partitioned by.
 
 11. **Read what the subject said about its own work before grading it.** Four agents wrote a
-   paragraph headed *"What I could not verify — and why"* naming the exact mechanism behind a
-   whole run's spread. `agent.final_text` is in every record; nothing reads it and no gate
-   looks at it. A grader that ignores the subject's own account will keep re-deriving what the
-   subject already told it.
+    paragraph headed *"What I could not verify — and why"* naming the exact mechanism behind a
+    whole run's spread. `agent.final_text` is in every record; nothing reads it and no gate
+    looks at it. A grader that ignores the subject's own account will keep re-deriving what the
+    subject already told it.
 
 12. **Every rule here says HOW to check. None says WHERE.** A correct method pointed at the
-   wrong place produces a confident answer: `runstat.py` obeyed `-mmin, never -newermt`
-   faultlessly against a path that no longer existed, and reported "no writes in last 10 min"
-   through a build writing 2555 files in ten minutes (#60). **The address is an input to the
-   check.** When a path, root or endpoint is spelled in two files, assert them equal in code —
-   a comment promising they match is not a defence.
+    wrong place produces a confident answer: `runstat.py` obeyed `-mmin, never -newermt`
+    faultlessly against a path that no longer existed, and reported "no writes in last 10 min"
+    through a build writing 2555 files in ten minutes (#60). **The address is an input to the
+    check.** When a path, root or endpoint is spelled in two files, assert them equal in code —
+    a comment promising they match is not a defence.
 
 13. **Guard the RESOURCE, and verify on the path that actually holds it.** Tasks #14/#15
-   were marked complete having guarded the capture and test recipes — already offscreen,
-   already silent — while `just run` opened a window with audio on the operator's desk. The
-   verification tested the guarded path and reported the defect unreproducible (#61).
+    were marked complete having guarded the capture and test recipes — already offscreen,
+    already silent — while `just run` opened a window with audio on the operator's desk. The
+    verification tested the guarded path and reported the defect unreproducible (#61).
 
-   Its companion: **an accepted-but-ignored flag is worse than an unsupported one.** Unity's
-   standalone player takes `-disable-audio` without error and does nothing with it, so
-   `exit 0` meant "the command ran" and was read as "audio is off". An unsupported flag
-   fails loudly; this one is indistinguishable from a working guard by anything a script
-   can see.
+    Its companion: **an accepted-but-ignored flag is worse than an unsupported one.** Unity's
+    standalone player takes `-disable-audio` without error and does nothing with it, so
+    `exit 0` meant "the command ran" and was read as "audio is off". An unsupported flag
+    fails loudly; this one is indistinguishable from a working guard by anything a script
+    can see.
 
 14. **A control run after the fix tests the fix, not the claim.** Verifying a defect someone
-   else reported means establishing the state first — mtime, `git diff`, or reproducing the
-   broken behaviour — because a repaired binary can only agree with your independent
-   measurement. This is the shared-assumption failure (#37) with a time axis instead of a code
-   path, and it produced a confident "the tool is sound" two minutes after the tool was fixed
-   (#60).
+    else reported means establishing the state first — mtime, `git diff`, or reproducing the
+    broken behaviour — because a repaired binary can only agree with your independent
+    measurement. This is the shared-assumption failure (#37) with a time axis instead of a code
+    path, and it produced a confident "the tool is sound" two minutes after the tool was fixed
+    (#60).
 
 15. **A mutant asks whether a check can fail. Only a variant asks whether it can still pass.**
-   A mutant removes the mechanism a check names; it cannot manufacture an input the check
-   mishandles. Every false negative adjudicated in this project has been of the second kind —
-   sixteen in one sweep, then three more under a harder task, then two more (#46). Both halves
-   now run in `judge/bot_mutants.py`, because a discipline you have to remember is one that
-   will fail.
+    A mutant removes the mechanism a check names; it cannot manufacture an input the check
+    mishandles. Every false negative adjudicated in this project has been of the second kind —
+    sixteen in one sweep, then three more under a harder task, then two more (#46). Both halves
+    now run in `judge/bot_mutants.py`, because a discipline you have to remember is one that
+    will fail.
 
-   Worked example: the no-cap Tetris trial. The $48 run used **232 of its 250 turns**. Holding
-   the limit at 250 "for cleanliness" would truncate an uncapped run that wanted 300, return
-   ~$49, and support the conclusion *"the stated budget was pulling work short"* when the turn
-   limit was — **a confident answer to a question the experiment did not test**, which is the
-   exact failure it exists to avoid. At 1000 turns every outcome is interpretable; at 250 one of
-   them is not.
+    Worked example: the no-cap Tetris trial. The $48 run used **232 of its 250 turns**. Holding
+    the limit at 250 "for cleanliness" would truncate an uncapped run that wanted 300, return
+    ~$49, and support the conclusion *"the stated budget was pulling work short"* when the turn
+    limit was — **a confident answer to a question the experiment did not test**, which is the
+    exact failure it exists to avoid. At 1000 turns every outcome is interpretable; at 250 one of
+    them is not.
 
 16. **A weighted result must state what reweighting would change it — and a weight that cannot
-   change anything is reporting that its tier has no variance, not that the weight is safe.**
-   Every free parameter in an aggregate is a claim until someone varies it. `overall =
-   0.31*tier1 + 0.69*tier2` was quoted in four documents and derived in none; sweeping it over
-   68 stored trials moved **no ordering at any weight**, which sounds like a clean bill of health
-   and is not. In 7 of 10 groups tier 1 returned a **single value across every submission**, so
-   the weight was inert for the reason that matters least: there was nothing for it to weigh
-   (#90).
+    change anything is reporting that its tier has no variance, not that the weight is safe.**
+    Every free parameter in an aggregate is a claim until someone varies it. `overall =
+    0.31*tier1 + 0.69*tier2` was quoted in four documents and derived in none; sweeping it over
+    68 stored trials moved **no ordering at any weight**, which sounds like a clean bill of health
+    and is not. In 7 of 10 groups tier 1 returned a **single value across every submission**, so
+    the weight was inert for the reason that matters least: there was nothing for it to weigh
+    (#90).
 
-   The check is free, it is offline, and it comes out either way — which is what makes it worth
-   running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the
-   rule is about **any parameter chosen by judgement that a published number depends on.**
+    The check is free, it is offline, and it comes out either way — which is what makes it worth
+    running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the
+    rule is about **any parameter chosen by judgement that a published number depends on.**
 
-   Its companion, learned in the same hour: **sweep the OPEN interval.** The first version swept
-   `[0,1]` and reported flips on 3 of 10 groups, every one of them at the endpoint where a tier
-   is discarded outright — not a weight anyone would choose. *A check that fires where nothing is
-   wrong spends exactly the attention that a check firing correctly needs.*
+    Its companion, learned in the same hour: **sweep the OPEN interval.** The first version swept
+    `[0,1]` and reported flips on 3 of 10 groups, every one of them at the endpoint where a tier
+    is discarded outright — not a weight anyone would choose. *A check that fires where nothing is
+    wrong spends exactly the attention that a check firing correctly needs.*

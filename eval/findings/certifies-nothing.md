@@ -2582,3 +2582,105 @@ and green after its removal. The shared-queue resolution was verified by running
 tool from inside an agent worktree — the first attempt tested the worktree's STALE copy of
 the tool and reported the fix absent, which is #60's "a control run after the fix tests the
 fix" with the staleness on the other side.
+
+## 96. The gate written for #95 was exit-0 vacuous at every address but the right one
+
+`field.py packcheck` was added the same day as #95 to answer "does this run's judge pack match
+its manifest". Against the real path it works: `eval/runs/wg-g4c-2026-08-21T02-26-46` returns
+**exit 1** and names all 23 stale files.
+
+Against anything else it returned **exit 0 in silence**. Measured within minutes of the merge:
+
+| `--run` argument | before | after |
+|---|---|---|
+| the real run path | 1 | 1 |
+| `wg-g4c-2026-08-21` (the run NAME, not a path) | **0** | 2 |
+| `eval/runs/THIS-DOES-NOT-EXIST` | **0** | 2 |
+| `/tmp` | **0** | 2 |
+
+`--run` is a `Path`. Given anything without an `artifacts/` child, the glob produced no games,
+the loop never executed, and the function returned 0 — a clean bill of health for a run nobody
+looked at.
+
+**This is rule 12 arriving inside a gate written to fix a rule-12-shaped defect.** #60 is the
+same shape: `runstat.py` obeyed its flags faultlessly against a path that no longer existed. The
+author knew the rule; the rule did not fire, because "the address is an input" reads as advice
+about paths in DOCS, not about a CLI argument that silently means a different thing than the
+reader typed.
+
+> **A check must refuse an address it cannot evaluate.** Returning "clean" for a directory it
+> never opened is indistinguishable from success, and the caller has no way to tell.
+
+Repaired to exit **2** — distinct from both 0 (clean) and 1 (dirty) — for a missing directory, a
+directory with no `artifacts/`, and an `artifacts/` holding no trial directories. Pinned in both
+directions: the dirty run still exits 1, and `wg-audio48` still exits **0**, so the gate can
+still go green.
+
+Found only because the finding was being checked against a published decision — the wrong run
+name was a typo, and the typo passed. **A gate that passes on a typo is a gate that will be
+fed one.**
+**Coda, 2026-08-23: the repair broke `add` for the agents it was written for.** `TASKS` now
+resolves to the main worktree; `ROOT` still resolves to the invoking checkout. The success
+line printed `(TASKS / name).relative_to(ROOT)`, which raises `ValueError` from any agent
+worktree — **after the file had been written**. So `tasks.py add` created the task and then
+exited 1 with a traceback, which is the worst pair of signals a write can produce: the
+caller's evidence says it failed, and retrying would allocate a second id for the same work,
+re-creating the duplicate the whole repair existed to prevent. Fixed by printing relative to
+`TASKS.parent`, controlled by adding and removing a task from inside a worktree.
+
+> **When a value moves to a new root, every OTHER value derived from the old root is now
+> paired with the wrong one.** The repair changed where `tasks/` lives and left one line
+> asking where the *checkout* lives. Grep for the old root, not just for the moved value.
+
+## 97. Four of the nine performance fields had been written on every submission since the first matrix, and nothing ever read them
+
+Task 25 was filed on the premise that *"there is no fps, frametime, memory, draw-call or
+resolution field anywhere in `judge/` or in any starter's justfile."* Measured against the
+stored records on 2026-08-23, half of that is wrong.
+
+`programmatic.json` has carried, on **all 68 stored submissions across four stacks and four
+games**:
+
+| field | where it has always been | populated |
+|---|---|---|
+| capture geometry | `frames.sizes` (`static.analyse_frames`) | 66/68 |
+| capture frame count | `frames.count` | 66/68 |
+| probe throughput | `throughput.ticks_per_second` | 66/68 |
+| probe start-up cost | `throughput.startup_s` | 66/68 |
+| capture wall cost | `commands[name=film].seconds` | 68/68 |
+
+The two absences are the two submissions whose own `film` produced nothing.
+
+**What was missing was not the measurement. It was a reader.** `throughput` reaches the score
+only as the boolean `probe.responds` — the throughput number itself is discarded. `frames.sizes`
+reaches nothing at all: `assert_frame_criteria_geometry_safe()` exists specifically to prove that
+no criterion depends on it. So the evidence pipeline was not blind to capture cost; it recorded
+it faithfully and threw it away, which from outside is indistinguishable from never recording it.
+
+> **"Nothing reads X" and "X is not recorded" are different defects with different repairs, and
+> only one of them is expensive.** Grep the stored records before adding a field. A ticket that
+> names an absence is naming what a reader could not find, which is a claim about consumers.
+
+Three further things the sweep settled, none of which was assumed:
+
+- **The place the ticket named for the fix could not have carried it.** The ticket says to extend
+  the probe contract in `starters/_shared/`. **The probe path renders nothing in any of the four
+  arms** — `cargo run -p sim --bin probe` (the `sim` crate, no renderer), `node scripts/probe.ts`
+  (no browser), Unity `-batchmode -nographics`, Godot `--headless`. A rendering-performance field
+  added there would have been null on all four, uniformly, and the uniformity would have looked
+  like success.
+
+- **62 of 68 submissions captured at exactly the starter default of 640x400.** Three deviated
+  (768x576, 720x540, 420x640) and two produced no frames. "Vary the capture resolution" would
+  therefore move a field with three data points of variance in 68, at the cost of invalidating
+  every stored frame comparison. Recorded, not scored, and not forced to uniformity (#81).
+
+- **The measurement is put outside the submission on purpose.** A field the submission reports is
+  a field the submission can fail to report, and that failure correlates with stack — #62, #72,
+  #77. Every field in `judge/capability.py` is measured by a mechanism byte-identical across the
+  four arms, and `no_stack_correlated_gap()` fails if any declared field is ever absent for a
+  reason other than the submission's own failure. Its mutant (one arm's mechanism removed) and its
+  variant (real absences that must *not* fire it) are both in `capability_selftest.py`.
+
+Nothing here is a criterion, deliberately: capture is cheap and reversible, scoring is a regime
+boundary, and a criterion introduced alongside its own measurement has no baseline.

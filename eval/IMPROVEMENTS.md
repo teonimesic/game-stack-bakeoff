@@ -809,9 +809,131 @@ is n=1 on its own question. That is axis-3 work and is not settled by axis 1.
   could move — recorded in `DECISIONS.md` where they apply, and **labelled unverifiable**: no
   finding here is known to have been caused by their absence.
 
-### Axes 2-4: NOT started
+### Axes 3-4: NOT started
 
-Next agent starts at axis 2 and should read, in order: `~/Documents/heavenstudio/game-research-gpt/template/AGENTS.md`,
-then `template/docs/`, then `scripts/` (4 files), against this project's `template*/AGENTS.md`.
-**Read-only. Never write to that path.** Axis 3 (reporting under uncertainty) is partly pre-empted
-by the both-ways section above. Axis 4 (harness mechanics) now has a concrete lead: task 28.
+Axis 2 is below. Axis 3 (reporting under uncertainty) is partly pre-empted by the both-ways
+section above. Axis 4 (harness mechanics) now has a concrete lead: task 28.
+
+---
+
+## Axis 2 executed — the template layer and what a building agent is told
+
+Read in full, read-only: `game-research-gpt/template/AGENTS.md` (112 lines), `template/Makefile`,
+`template/docs/AGENT_WORKFLOW.md`, `template/docs/TESTING.md`, `template/config/verify/fast.json`,
+`template/config/versions.env`, `template/scripts/doctor.sh`, and the four files in
+`scripts/evaluation/`. Against: `eval/starters/godot/AGENTS.md` and its `justfile` (the deepest of
+the four), the other three `justfile`s, `judge/static.py`, `judge/audio.py`, `eval/PROTOCOL.md`
+§"Before launching", and `research/10-stack-capability-matrix.md` §5, §6.11, §8.
+
+**Their template is one project that has to get good. Ours is four starters that have to stay
+comparable.** That difference decides most of the table below: several of their mechanisms are
+right for a codebase with accumulated state and wrong for four trees the harness proves pristine
+before every trial.
+
+### Verdicts
+
+| # | Their practice | What it replaces here | Verdict |
+|---|---|---|---|
+| 1 | **`expected_stdout_contains` on every gate command** — the manifest asserts a token the command can only print by having finished (`ARCHITECTURE_OK`, `E2E_SCENARIO_OK`, `REPLAY_SMOKE_OK`), on the stated principle that *"a bare exit code is not sufficient diagnostic evidence"* (`docs/TESTING.md:26`) | `build.compiles` and `verify.green` are exit codes and nothing else (#98) | **OPEN — and the measurement designed to test it came out against installing it today.** Over 68 stored records, 17 of 62 green `verify` runs do not contain the recipe's own `✅ verify passed`, **15 of 16 on the Rust arm**, because `tail` keeps `[-4000:]` of `stdout + stderr` and nextest fills stderr. The check would be inert on exactly one arm. **FINDINGS #99**; task 45 filed for the capture, which is the precondition |
+| 2 | **`artifacts: [{path/glob, min_bytes, max_bytes, min_matches, fresh}]` per command** — a command that exits 0 without writing what it was supposed to write fails | Nothing general. Iteration 13 built `field.pack_matches_manifest` for judge packs specifically, after #95 | **REJECT for tier 1, on measurement.** The one criterion where it could bind is `render.frames`, and it already reads the artifact rather than the exit status. Partitioned over 68: `film` exit 0 with frames present, 66; `film` non-zero with no frames, 2; **zero disagreements in either direction.** Freshness is guaranteed by construction — `static.film()` captures into a fresh `mkdtemp` per submission |
+| 3 | **`APPROVE=UPDATE_BASELINE` on golden updates**, plus a metadata sidecar hash that `verify-fast` re-checks, under *"verification never updates its own oracle"* | Prose only: `just bless` warns, and `starters/*/AGENTS.md` says "🚫 Never … weaken a determinism assertion or widen the golden budget", "delete a rule from `tools/boundary.gd`" | **REJECT — measured, 90 submissions, and it comes out against.** 76 of 90 stored submissions edited at least one file that decides their own tier-1 score. Every hunk was read. **Not one weakened an oracle:** the five `tools/boundary.gd` edits changed an error-message string to name a renamed file and removed no rule; the six `project.godot` edits changed name, description, window size and user dir, and **lowered no `gdscript/warnings/*` level**; the one `eslint.config.js` edit added `tmp/**` to *ignores*; and the two `tools/check.gd` edits **strengthened** the checker — they are the #98 repair. A mechanical guard would have prevented zero observed failures and blocked two submissions that fixed the grader |
+| 4 | **`make doctor` — fail-closed toolchain preflight**, pinned versions and a SHA-256 of the test-framework tree, printing `UNAVAILABLE BY DESIGN; never inferred` for what it cannot check | `eval/PROTOCOL.md` §"Before launching" | **REJECT — this project is ahead, and the gap is the important half.** `doctor.sh` asserts *identity* (right binary, right version). PROTOCOL.md's machine row asserts *capability*: "**compile and exec a trivial NEW binary in each toolchain**, and run `just verify` in each of the four starters", plus `precampaign_smoke.py` running eight once-per-campaign commands unpiped. A version check could not have caught #49, which was `execve` gating, not drift |
+| 5 | **A structured finish report** — behaviour delivered, design choices, exact commands and results, artifact paths *personally inspected*, remaining risks, *"do not claim Windows/iOS/PS5/Switch validation unless it actually ran"* | Nothing. `agent.final_text` is free-form; rule 11 records that four agents wrote an unverified-claims paragraph and nothing reads it | **OPEN — the best template-layer candidate here, and it is a regime boundary.** Task 46 filed with the pre-registration, because the honest measurement is over a *fresh* matrix and the null is informative |
+| 6 | **A graduated gate ladder** — `verify-fast` inner loop, `verify-render/-network/-async/-export` conditional on what changed, `verify-all` before completion; plus `keep_going: true` so one pass yields the whole failure set | `just verify` is one gate; `just check` (~0.5s) and `just test-sim` (~1s) are the inner loop | **REJECT the ladder, on the starters' own recorded reasoning.** The one-command contract is deliberate and its cost is measured: `verify` runs `fmt`, not `fmt-check`, because a trial was lost to a red gate over a stray blank line. A ladder whose branches an agent must select is a second thing to get wrong. `keep_going` is already true where it matters — `static.collect()` runs `check`, `verify`, `lint`, `test` as four independent commands and scores all four |
+| 7 | **Audio evidence split four ways** — asset / behaviour / routing / device, with device-level explicitly labelled unverifiable | Five asset-level criteria plus `audio.triggered` | **REJECT — already present, and its limit is already written down.** `judge/audio.py`'s `triggered_criterion` correlates the events a *driven run actually emitted* against the manifest and states in its own docstring that it "cannot hear the speaker". Routing and device are unreachable anyway: `research/10-stack-capability-matrix.md` §6.11 — `audio.py` decodes every clip to **mono** before analysis, and one of four stacks has no audio at its pin |
+| 8 | **`make report --strict-declared-counts --fail-on-duplicate-tests`** — a suite that declares N tests must report N results | `tests.exist` (floor 8) and `tests.green` (requires `total_n > 0`) | **REJECT, one-arm by construction.** The `total=0` hole rule 1 names is already closed. The remaining idea — assert the *compiler* saw units, not just the test runner — has evidence on one arm only: Godot's `just check` prints `CHECK scripts=N failures=0` (n=16, N∈[19,33]) and nothing reads N, while TS prints nothing at all and Rust/Unity print prose. Installing it would grade the arm with the chattiest gate |
+| 9 | **`archive_delta.py` / `reconstruct_submission.py`** — attested added/modified files, hashed, replayable into a submission | Every trial stores `diff.patch`, `diff.stat`, `tree.txt`, `submission.tar.gz` against a committed starter baseline (`wholegame.py:128-131`) | **REJECT — equivalent already, and it is what made the row-3 measurement possible at all.** Their pair exists because `game-research-gpt` is not a git repository (established in axis 1); this project's baseline is a real commit |
+| 10 | **"Translate every acceptance phrase into an implementation state/action and an evidence check before coding"**, with the worked example *"if a task says 'title → play,' an auto-starting game with a decorative title is not equivalent"* | Nothing equivalent in any starter `AGENTS.md` | **OPEN — labelled unverifiable, and not filed.** It is a plausible instruction and there is no offline measurement that would show it helped: no stored artifact records whether an agent decomposed the prompt. Asserting a benefit here would be a change of taste wearing the costume of rigour. Folded into task 46 as a *second* arm only if that experiment runs |
+
+### Both ways — what the template layer here does that theirs does not
+
+1. **Four starters that are provably the same simulation.** `judge/starter_parity.py` drives all
+   four through one input tape and compares per-tick state hashes — "if they diverge, the numbers
+   in the bake-off are comparing four different games". Their template is single-stack, so the
+   question cannot arise for them; but their *study* is four-engine, and nothing in their readable
+   surface measures cross-engine starter parity.
+
+2. **Every constraint states what it costs the agent, in turns.** `starters/godot/AGENTS.md` on
+   headless rendering: *"The consequences, which will otherwise cost you a turn each"*, then the
+   `--headless` trap, the `xvfb-run` workaround, the `frame_post_draw` hang, and "a skip is not a
+   pass". Theirs is imperative throughout. Which produces better work is untested; which produces
+   better *documentation of a known failure* is not in doubt.
+
+3. **A flag is described by what it actually does.** The Godot `justfile` distinguishes
+   `--audio-driver Dummy` ("listed in `godot --help` … what `--headless` itself selects") from
+   Unity's `-disable-audio`, "which the standalone player accepts and ignores" — #61 written into
+   the product. `doctor.sh`'s equivalent line, `PS5 / Switch SDK UNAVAILABLE BY DESIGN`, is the
+   same instinct applied to a platform rather than to a flag.
+
+4. **A machine-readable probe protocol.** `just probe` / `probe-file` / `film` emit one JSON trace
+   line per tick with a fixed key order and finite numbers, which is what tier 2 drives and what
+   `audio.triggered` reads. Their equivalent, `tools/blackbox.py` plus `compare_replay.py`, is a
+   harness-side comparison rather than a contract the submission must satisfy.
+
+5. **The starter's own gate is proved green on a pristine copy before every campaign**
+   (`tools/starter_gate_control.py`, both directions). #98 is the finding that bought it.
+
+### What was adopted, concretely
+
+- **FINDINGS #99** — the `[-4000:]` over `stdout + stderr` truncation, and its one-arm shape.
+  Found by designing the verification for candidate 1 before importing it, which is the only
+  reason it was found at all.
+- **Three tasks: 45** (repair the capture — the precondition for candidate 1), **46** (the finish
+  report, pre-registered with its outcome table), **47** (tell an agent what to do when the
+  starter's own gate is wrong, which is the case the never-list does not cover).
+- **Nothing installed.** Seven of ten candidates are rejected on measurements taken here, and two
+  of those measurements — 76 of 90 submissions editing their own grader with zero weakenings, and
+  66/2/0/0 on `film` exit versus frames — are results this project did not previously have.
+
+### Where axis 2 stopped
+
+Everything above is done. Axis 3 (**how results are reported under uncertainty**) is next; start
+from the both-ways list in the axis-1 section, which already holds three of its entries, and read
+`game-research-gpt/docs/RESEARCH_SYNTHESIS.md` against `eval/RUNS.md` and `README.md`. Axis 4
+(**harness mechanics**) has task 28 as its lead and `evaluation/reports/` as its only sanctioned
+reading — never the raw artifacts.
+
+## Iteration 13: the completeness gate reads the function's INPUT, so add one that reads its output
+
+**Context.** Iteration 11a repurposed `pack_completeness` to assert `files_dropped_for_length == 0`,
+so a reintroduced character budget could not truncate silently. That reasoning was sound and the
+gate still earns its place. What it did not ask is whether the *pack on disk* is the pack the
+manifest describes — and it could not, because every number it reads was computed by `anonymise`
+about the files it picked, before it wrote anything.
+
+**What the gap cost.** `anonymise.build_pack` never cleared its destination, so nine evaluations
+of `wg-g4c` left 23 files in 222 under labels no manifest lists, stack-correlated 10/8/3/2
+(unity/godot/ts/rust), including seven copies of the `.codex` answer key #83 was closed on. Every
+pass returned normally. **No gate the project owns opened the directory** (#95).
+
+> **A gate on a component's input cannot see what its output accumulated.** The manifest and the
+> pack are different objects and only one of them was ever read.
+
+**Change.** `field.pack_matches_manifest` opens each stored pack and asserts set equality against
+its manifest, per submission, frames included. `field.build_pack` refuses a code field that fails
+it. `field.py packcheck --run R` runs it standalone. Three verdicts, and the middle one is not
+collapsed into either neighbour: `clean`, `unmeasurable` (a pack with no manifest — 25 stored
+submissions predate it), stale/missing named per submission and counted per stack.
+
+`--allow-truncated` deliberately does **not** excuse it. That escape exists for the
+capped-vs-uncapped control, where truncation is the experiment; a stale file is not an
+experimental condition, and every reason not to count a failure is a channel a bug can widen.
+
+**Falsification, and why a mutant was not enough.** A mutant that deletes the clearing code cannot
+manufacture the input that produces this defect — the input is a *second pass with a changed file
+set* (rule 15). `judge/pack_selftest.py` runs the real function twice over one destination with a
+changed exclusion set, in both directions, plus frames, plus a planted stale file against a clean
+negative control, plus a hand-rebuilt pre-fix pack that the check must still catch.
+
+| run | result |
+|---|---|
+| `pack_selftest.py` against the unfixed function | **4 of 7 expectations unmet** |
+| `pack_selftest.py` after the fix | 0 unmet, exit 0, mutant still caught |
+| three passes over 8 real `wg-g4c` submissions, unfixed | **8 of 8 fail** |
+| the same over 16 real submissions of two runs, fixed | **0 of 16 fail** |
+
+**What would have caught it earlier.** Not a better gate — a cheaper habit. The `.src` filename
+collisions this surfaced through had been visible in any pack listing; across the 43 checkable
+submissions the labels collide **0 times** rebuilt from the manifests and **15 times** rebuilt
+from disk. **List the artifact, do not only read the code that wrote it** — the same move that
+found the mapping file inside a pack.

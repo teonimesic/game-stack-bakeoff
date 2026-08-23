@@ -198,6 +198,54 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 | Criteria, tiers and weights | `eval/judge/RUBRIC.md` |
 | Every run's cost and comparability | `eval/RUNS.md` |
 
+### One authoritative path per skill — decided 2026-08-23
+
+`.claude/skills/<name>/SKILL.md` is the **only** location for a skill. There is no per-CLI copy,
+and `docstat.py --sweep` exits 1 on any `SKILL.md` outside that root.
+
+`.agents/skills/` held a Codex-flavoured duplicate of the skills from the first commit until
+2026-08-23, when it was deleted (task 27). The three measurements that decided it, in full in
+#99: the only Codex-adjacent sibling — `game-research-gpt` — has no `.agents/`, no `SKILL.md`
+and no root `AGENTS.md`, so it was never a reader; the mirror was **never once in sync**, with
+`add-game` 39 lines short in the initial commit and `tasks` and `prune` absent entirely; and
+after the initial import it took **0 edits that changed a procedure, against the authoritative
+tree's 6**.
+
+It was deleted rather than synchronised because a copy with no reader has nothing pulling it
+back into line — three of six files were identical on the morning the ticket was read and four
+of six differed by the afternoon.
+
+**Cross-tool support was considered, not overlooked.** The repository is MIT and public and a
+non-Claude agent reading it is not hypothetical. The judgement is that such a reader is better
+served by `AGENTS.md` pointing at one tree than by a second tree that is confidently wrong: the
+deleted `add-game` omitted the `prompt_guard.py` procedure entirely, and the deleted `audit-docs`
+asserted that `--max-turns` and `--permission-mode` belong to the Codex CLI when
+`eval/runner.py:510,519` passes both to `claude`. If cross-tool support is wanted, add a
+**pointer** to `.claude/skills/`; a pointer cannot drift from content it does not hold.
+### The documentation is gated on structure and on names, never on prose — decided 2026-08-23
+
+Eleven documentation linters were measured against this repository and produced **over 14,000
+alerts and two defects**. Both defects came from tools that check *structure or schema*; every
+prose rule that fired was house style, a false positive on this project's vocabulary, or a
+readability score. `research/11-doc-linting-for-agents.md` has the per-tool numbers.
+
+So no prose linter, no readability gate, no `markdownlint` config. `eval/tools/docstat.py
+--sweep` is the whole gate, and it asks only two things:
+
+| | question | bought with |
+|---|---|---|
+| **references** | does a flag, aspect or criterion a doc names exist? | `RUBRIC.md` named five judges that do not (#38) |
+| **structure** | does the file parse as the thing it is read as? | 5 of 7 skills had unparseable frontmatter; `AGENTS.md` rules 10-16 detached from their own list |
+
+Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
+gate that fails on correct input gets disabled*:
+
+- It asks about a continuation under a **2+ digit** ordered marker, not about indented blocks in
+  general. The general form fires on `tasks/` files where nothing is wrong.
+- It does not read `eval/findings/`, `eval/FINDINGS.md` or `eval/RUNS.md`. The archive records
+  what was true when it was written, including the broken shapes it is about; reformatting one to
+  satisfy a gate edits evidence.
+
 ---
 
 ## Open
@@ -246,6 +294,17 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 **Decided 2026-08-22, on measurement.** `idiomatic` and `architecture` may be used to compare
 submissions **within one stack**. They may never contribute to a cross-stack claim, and this is
 not a defect awaiting repair.
+
+> **The within-stack permission is conditional on the field's packs matching their manifests,
+> and on `wg-g4c-2026-08-21` they do not (#95).** That run carries 23 stale files in 222, and
+> the loss is uneven *within* a stack as well as across one — `unity__t0` 6 against `unity__t1`
+> 4, `ts__t0` 1 against `ts__t1` 2. Two submissions of the same stack were therefore shown
+> different amounts of their own code, so **neither a cross-stack nor a within-stack code-aspect
+> reading is available on that field.**
+>
+> Check before relying on this permission, at the run you are actually reading:
+> `python3 eval/judge/field.py packcheck --run eval/runs/<run>` — exit 0 clean, 1 dirty, 2 if it
+> could not evaluate the address you gave it (#96). It takes a **path**, not a run name.
 
 ### The measurement
 
@@ -348,12 +407,52 @@ manifest line, Bevy and three.js have none at any effort below writing one.
   Under this decision, divergence is the design; a guard that reads it as drift would be wrong
   and would be switched off, which is worse.
 
-**This decision does not license showcasing what cannot be observed.** The evidence pipeline
-currently captures no performance signal at all, and `ux` — the aspect most sensitive to visual
-richness — was retired for correlating +0.53 to +0.73 with distinct-colour count (#59). Prettier
-output moves that metric in the direction that looks like improvement, for the reason it was
-retired. So capability work is gated on making capability observable by a signal that is not
-palette-coupled (task 25), or it cannot be shown to have helped.
+**This decision does not license showcasing what cannot be observed.** `ux` — the aspect most
+sensitive to visual richness — was retired for correlating +0.53 to +0.73 with distinct-colour
+count (#59), so prettier output moves that metric in the direction that looks like improvement,
+for the reason it was retired. What the pipeline *can* now see about capture cost and capture
+geometry is the next section; what it still cannot see, and why, is the `DECLINED` register in
+`judge/capability.py`. **A capability change must name the field that would move if it worked**,
+and if the only candidate is a palette-coupled one, it cannot be shown to have helped.
+
+---
+
+## Performance is measured from outside the submission, and none of it is scored — decided 2026-08-23
+
+**The harness measures the cost of the evidence it collects. The submission is never asked to
+report a number about itself.**
+
+Task 25 proposed extending the probe contract in `starters/_shared/` so each stack reports its own
+performance fields. Rejected, and the reason generalises past this case:
+
+> **A field the subject reports is a field the subject can fail to report, and that failure
+> correlates with stack** — #62, #72, #77, this project's most repeated defect. A field measured
+> by a mechanism identical for all four arms cannot produce a stack-correlated gap; the gap would
+> have to be in the harness, where one repair covers every arm. **Uniformity by construction beats
+> uniformity by instruction.**
+
+Two consequences that made the choice cheap as well as right: no starter changes, so this is **not
+a regime boundary** and every stored run stays in the comparison; and four of the nine fields turn
+out to have been recorded on all 68 stored submissions already, unread (#95).
+
+`judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
+`no_stack_correlated_gap()`, which fails if a declared field is ever absent for any reason other
+than the submission's own capture failing. `judge/capability_selftest.py` carries its mutant and
+its variant.
+
+**No frametime and no fps field, at any point.** The four arms do not render the judged frames on
+comparable hardware: Rust, Unity and Godot draw on the M3 Max, the TypeScript arm draws on
+**SwiftShader, a CPU rasteriser** (`research/10-stack-capability-matrix.md` §3). A frametime field
+would report the renderer backend wearing the costume of a stack result. `just film` is also not a
+real-time loop in any arm — twelve single frames of a deterministic replay — so there is nothing
+steady to time. `DECLINED` in that module records this and the other six candidates, each with the
+measurement that would move it back in.
+
+**Nothing here is a criterion, and `judge/RUBRIC.md` weighs none of it.** Capture is cheap and
+reversible; scoring changes what agents optimise for and is a regime boundary. A criterion
+introduced alongside its own measurement has no baseline to be calibrated against.
+
+Its reversal condition is in the table at the end of this file.
 
 ---
 
@@ -398,6 +497,9 @@ settled question is noise that makes the live ones harder to find.
 | Tier weights 0.31/0.69 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound**. Currently 0 of 10 groups flip, and the one group with both tiers varying is `wg-arena3d`, which `eval/RUNS.md` declares void (#92) |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
+| Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
+| No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
+| One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
 input and no measurement would overturn them.

@@ -1,7 +1,7 @@
 ---
 name: audit-docs
-description: Audit this project's documentation against reality and against its own rules: the mechanical sweep for names that do not exist, the rule-firing audit, and pruning.
-when_to_use: After a working session; a rule failed to prevent what it was written for; before trusting a document that names code; the docs feel stale. Trigger phrases: audit the docs, are the docs current, why did that rule not fire, check for phantom names.
+description: "Audit this project's documentation against reality and against its own rules: the mechanical sweep for names that do not exist, the rule-firing audit, and pruning."
+when_to_use: "After a working session; a rule failed to prevent what it was written for; before trusting a document that names code; the docs feel stale. Trigger phrases: audit the docs, are the docs current, why did that rule not fire, check for phantom names."
 ---
 
 # Auditing the documentation
@@ -13,14 +13,26 @@ The docs are an instrument, and the same question applies to them as to any grad
 
 ```
 cd eval
-python3 tools/docstat.py --sweep      # names that do not resolve; exit 1 if any
+python3 tools/docstat.py --sweep      # references + structure; exit 1 if anything fails
 python3 tools/docstat.py              # size and token cost of every project doc
 python3 tools/docstat.py --outline FILE   # fence-aware heading map
 ```
 
+`--sweep` asks two kinds of question:
+
+| | asks | bought with |
+|---|---|---|
+| **references** | does a flag, aspect or criterion a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
+| **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
+
 Prose is executed by a person, and **a person does not get an argparse error**. A file
 naming a flag, path, aspect or criterion that does not exist is worse than one that says
 nothing: it is confidently wrong and it will be followed.
+
+The structure half exists because eleven documentation linters were measured against this
+repository and produced **over 14,000 alerts and two defects, both structural**
+(`research/11-doc-linting-for-agents.md`). Do not add a prose linter; that survey already
+came out.
 
 **Do not hand-roll this scan.** Four hand-written versions were wrong before the tool
 existed, each in a way whose output looked like a real finding:
@@ -48,7 +60,13 @@ cp judge/JUDGING.md /tmp/jm.bak
 printf '\nIf `feel` and `tuning` rank alike they are one judge.\n' >> judge/JUDGING.md
 python3 tools/docstat.py --sweep ; echo "expect exit 1"
 cp /tmp/jm.bak judge/JUDGING.md
+
+# positive: unquote a skill description so it contains ": " -> exit 1
+# positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
 ```
+
+Both structure checks arrived on an **already-repaired** repository, which is the state in
+which a gate has never been seen to fail. Plant the defect each names before trusting it.
 
 **What it deliberately does not check**, and why — do not "fix" these by adding them back:
 
@@ -61,6 +79,14 @@ cp /tmp/jm.bak judge/JUDGING.md
 - **`code` and `look` as aspect ids.** Ordinary words that appear as inline code for other
   reasons.
 - **`findings/`.** An archive whose subject matter is naming superseded things.
+- **Root blocks indented 1-3 spaces, in general.** The indent check asks only about a
+  continuation under a **2+ digit** ordered marker, which is the only form with a true
+  positive here. The broad form fires on `tasks/` files where nothing is wrong — 2-space
+  lists and prose introduced by a colon, with no list item above them. A gate that fails
+  on correct input gets disabled.
+- **`eval/findings/`, `eval/FINDINGS.md`, `eval/RUNS.md` for structure.** The archive
+  records what was true when it was written, including broken shapes it is about;
+  reformatting one to satisfy a gate edits evidence.
 
 ## 2. The rule audit
 

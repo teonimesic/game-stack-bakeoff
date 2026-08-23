@@ -110,3 +110,34 @@ task's score.
 **This suite resolves large gaps only.** With 2 trials per cell, stacks landing within ~0.015
 cannot be separated — and the spec-change suite already failed to separate four stacks that all
 scored 6/6. If the results do not separate, say so; do not present an ordering that is noise.
+
+## Reading a stored submission: two traps, both measured
+
+**A `submission.tar.gz` contains AppleDouble sidecars.** Alongside `./project.godot` sits
+`./._project.godot` — a 3-line macOS metadata stub carrying none of the file's content. It
+satisfies `name.endswith("project.godot")`, so a census written as
+
+```python
+next(n for n in tf.getnames() if n.endswith("project.godot"))     # WRONG
+```
+
+reads the stub and reports the file as clean. On 2026-08-23 that returned **"0 of 20 godot
+submissions carry the defect"** against a true answer of 4, and the wrong answer was uniform
+across every row, which is what made it look like a finding rather than a bug — rule 9's shape.
+Filter on the basename:
+
+```python
+[n for n in tf.getnames()
+ if n.endswith("project.godot") and not posixpath.basename(n).startswith("._")]
+```
+
+`anonymise.py` already filters these; nothing else did.
+
+**Do not use `tar --wildcards` on this machine.** macOS ships bsdtar, which does not accept it.
+The same census wrapped the failure as `grep -c ... || true` and every row became `0` — the
+fallback `AGENTS.md` rule 3 forbids by name, producing a plausible in-range number from a
+command that never ran. Let it fail, or use Python's `tarfile`.
+
+> Both errors gave the *same* wrong answer for *every* submission. A census that returns one
+> value across a population it was meant to discriminate is reporting the instrument, not the
+> population — check the extraction before believing the result.
