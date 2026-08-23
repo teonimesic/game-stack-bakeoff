@@ -45,37 +45,209 @@ DROP_NAMES = {"Cargo.toml", "Cargo.lock", "package.json", "pnpm-lock.yaml",
               "justfile", "AGENTS.md", "CLAUDE.md", "manifest.json",
               "packages-lock.json", ".prettierrc.json", "gdlintrc"}
 
-# Only tokens that name the stack. Nothing that would change the meaning of the code.
-_STACK_TOKENS = [
-    # ORGANISATION AND REPOSITORY NAMES FIRST, because they CONTAIN the engine name and
-    # the plain token rules below would only rewrite the tail. An agent cited GitHub issue
-    # `bevyengine/bevy#6183` in a comment; the second token was replaced and the first was
-    # not, leaving `bevyengine/engine#6183` in a supposedly language-blind pack. That is
-    # worse than leaving it alone: a half-substituted string still names the engine AND
-    # advertises that a substitution happened, which is a hint to decode the rest.
-    #
-    # Ordering is load-bearing. `neutralise()` applies these in sequence, so any pattern
-    # whose match contains another pattern's match must come first.
-    (r"\bbevyengine\b", "engineorg"), (r"\bgodotengine\b", "engineorg"),
-    (r"\bUnityTechnologies\b", "EngineOrg"), (r"\bmrdoob\b", "engineorg"),
-    (r"\bbevy(_\w+)?\b", "engine"), (r"\bBevy\b", "Engine"),
-    (r"\bwgpu\b", "gpu"), (r"\bwinit\b", "windowing"),
-    (r"\bthree\b", "engine"), (r"\bTHREE\b", "ENGINE"),
-    (r"\bUnityEngine\b", "EngineCore"), (r"\bUnityEditor\b", "EngineEditor"),
-    (r"\bMonoBehaviour\b", "EngineBehaviour"), (r"\bUnity\b", "Engine"),
-    (r"\bGodot\b", "Engine"), (r"\bgodot(_\w+)?\b", "engine"),
-    (r"\bGDScript\b", "Script"),
+# ---------------------------------------------------------------------------
+# WHAT COUNTS AS A LEAK IS A PROPERTY, NOT A SPELLING
+# ---------------------------------------------------------------------------
+# This used to be a list of REGEXES, one per observed spelling: `\bbevy\b` and `\bBevy\b`
+# but not `BEVY`, `\bwinit\b` but not `Winit`, and no rule at all for `cargo` or `crates`.
+# So `CARGO_MANIFEST_DIR`, `CARGO_TARGET_TMPDIR`, `BEVY_ASSET_ROOT`, `crates/sim` and
+# `WinitPlugin` walked through it untouched and reached 22 of 68 stored code packs, in a
+# pack built for the ONE aspect that is judged with `blind_language=True` (#83, task 73).
+# The module's own comment had already recorded the same class from `UnityCsReference`.
+#
+# A list of spellings has to be re-derived by every reader who meets a case convention
+# that is not on it. So the vocabulary below is a list of NAMES -- one lowercase entry per
+# engine, language, package manager, build tool, workspace directory, linter, formatter
+# and test runner that belongs to exactly one arm -- and the MATCHING is the property:
+#
+#     a name matches wherever it forms a whole IDENTIFIER SEGMENT, in any case
+#     convention, in any position inside an identifier or a path.
+#
+# Segments are what `_segments()` splits on: `_`, digit boundaries, and camel/Pascal
+# boundaries. `CARGO_MANIFEST_DIR` -> CARGO|MANIFEST|DIR, `WinitPlugin` -> Winit|Plugin,
+# `crates/sim` -> crates, sim. A name may also span several consecutive segments, so
+# `TypeScript`, `MonoBehaviour`, `GDScript` and `node_modules` match without an entry for
+# each casing.
+#
+# THE OTHER HALF, AND IT IS WHY THIS IS NOT SIMPLY A CASE-INSENSITIVE SUBSTRING SEARCH.
+# Measured over the same 84 stored packs, a substring search would have rewritten:
+#   * `immunity` -> `imm<engine>`   -- 54 occurrences, in all four arms; "unity" is in it
+#   * `Vec3.UnitY` -> `Vec3.<engine>` -- a math constant, Unit + Y, not the engine
+#   * `main.tscn`, `bestScore`, `addInitScript` -- all contain `tsc`
+#   * `is_three_dimensional`, `Three tests enforce`, `you trust this macro`
+# Segmentation rejects every one of them: `immunity` is a single segment, `UnitY` splits
+# to Unit|Y, `tscn` is not `tsc`. Two names are excluded from the vocabulary outright
+# because no segmentation can save them -- see `_LITERAL_TOKENS`.
+#
+# Ordering is NOT load-bearing any more. The longest run of segments wins, so
+# `bevyengine/bevy#6183` rewrites both halves and can no longer half-substitute into
+# `bevyengine/engine#6183`, which named the engine AND advertised that a substitution had
+# happened.
+_STACK_NAMES: dict[str, str] = {
+    # Organisations and repositories. They CONTAIN an engine name; longest-window-wins
+    # means they are found first without depending on the order of this dict.
+    "bevyengine": "engineorg", "godotengine": "engineorg",
+    "unitytechnologies": "engineorg", "mrdoob": "engineorg",
+    # Engines.
+    "bevy": "engine", "godot": "engine", "unity": "engine", "threejs": "engine",
+    "unityengine": "enginecore", "unityeditor": "engineeditor",
+    "monobehaviour": "enginebehaviour",
+    # Rendering and windowing crates only one arm has.
+    "wgpu": "gpu", "winit": "windowing",
+    # Languages.
+    "rust": "lang", "typescript": "lang", "gdscript": "script",
+    # Build tools, package managers, workspace layout.
+    "cargo": "buildtool", "crates": "pkgs", "rustup": "toolchainmgr",
+    "npm": "pkgtool", "pnpm": "pkgtool", "yarn": "pkgtool",
+    "nodemodules": "pkgdir", "tsconfig": "langconfig", "vite": "bundler",
+    "dotnet": "runtime", "csproj": "projfile",
+    # Compilers, linters, formatters.
+    "rustc": "compiler", "tsc": "compiler", "clippy": "linter", "eslint": "linter",
+    "gdlint": "linter", "rustfmt": "formatter", "prettier": "formatter",
+    # Test runners and frameworks.
+    "nextest": "testrunner", "vitest": "testrunner", "nunit": "testframework",
+    "playwright": "browserdriver",
+}
+
+#: A tool's config file is conventionally `<tool>rc`, with no separator to segment on, so
+#: `gdlintrc` and `prettierrc` are one segment and no window matches them. This is a
+#: naming CONVENTION rather than two more spellings, which is why it is a rule and not two
+#: dictionary entries.
+_CONFIG_SUFFIXES = ("rc",)
+
+#: Forms the segment matcher cannot express, kept as literal patterns.
+#:
+#: `three` and `Node2D`/`Node3D` are here for opposite reasons, and both reasons are
+#: measured:
+#:
+#: * `three` is an English numeral. Segment matching would rewrite `is_three_dimensional`
+#:   and `Three tests enforce` -- 118 occurrences across all four arms in the stored
+#:   packs, of which the three.js ones are a minority. Only the lowercase package
+#:   specifier and the uppercase namespace are unambiguous, so only those two are matched.
+#:   `node` is excluded entirely for the same reason: it is the godot scene-tree noun and
+#:   the linked-list noun in every arm.
+#: * `Node2D` segments to Node|2|D, whose tail is a one-letter segment -- the shape that
+#:   `_match_window` refuses, because refusing it is what stops `UnitY` matching `unity`.
+_LITERAL_TOKENS = [
     (r"\bNode2D\b", "SceneNode2D"), (r"\bNode3D\b", "SceneNode3D"),
-    # Compound identifiers that EMBED an engine name. These must come after the specific
-    # rules above (UnityEngine, UnityEditor, MonoBehaviour), because the first matching
-    # rule wins and a catch-all placed earlier would swallow them and lose the distinction.
-    # `UnityCsReference` is the case that motivated this: `\bUnity\b` does not match
-    # inside it, so it survived a language-blind pack intact.
-    (r"\bUnity\w+\b", "EngineThing"), (r"\bunity[-_]\w+\b", "enginething"),
-    (r"\bNUnit\b", "TestFramework"), (r"\bvitest\b", "testrunner"),
-    (r"\bnextest\b", "testrunner"), (r"\bplaywright\b", "browserdriver"),
+    (r"\bthree\b", "engine"), (r"\bTHREE\b", "ENGINE"),
 ]
-_STACK_RE = [(re.compile(p), r) for p, r in _STACK_TOKENS]
+#: `verify_blind.check_pack_skill` iterates this to scan text the judge is handed that did
+#: NOT come from a submission. It is the literal half only; use `find_stack_names()` for a
+#: complete answer.
+_STACK_RE = [(re.compile(p), r) for p, r in _LITERAL_TOKENS]
+
+#: Runs of identifier characters. Everything else -- `/`, `.`, `-`, quotes, whitespace --
+#: separates one run from the next, so `crates/sim` is two runs and `crates` is a whole
+#: segment of the first.
+_RUN_RE = re.compile(r"[A-Za-z0-9_]+")
+#: Segment boundaries inside one run: an acronym run (`CARGO`, `GD`), a Pascal word
+#: (`Winit`, `Script`), a lowercase word, or a digit group. `_` matches nothing here and
+#: is therefore skipped, which is what makes `CARGO_MANIFEST_DIR` three segments.
+_SEG_RE = re.compile(r"[A-Z]+(?![a-z])|[A-Z][a-z]*|[a-z]+|[0-9]+")
+#: How many consecutive segments one name may span. The longest entry above is two
+#: (`Unity|Technologies`, `Type|Script`, `node|modules`); three leaves headroom.
+_MAX_WINDOW = 3
+
+_CANDIDATE_RE: re.Pattern[str]
+
+
+def _rebuild_matcher() -> None:
+    """Recompute the cheap pre-filter after `_STACK_NAMES` changes.
+
+    Only the mutant half of `anonymise_selftest.py` changes it at runtime; the pre-filter
+    is an optimisation, and one that would silently stop matching a name if it were left
+    stale, so it is rebuilt rather than patched.
+    """
+    global _CANDIDATE_RE
+    alts = sorted((re.escape(k) for k in _STACK_NAMES), key=len, reverse=True)
+    _CANDIDATE_RE = re.compile("|".join(alts) if alts else r"(?!x)x", re.IGNORECASE)
+
+
+_rebuild_matcher()
+
+
+def _segments(run: str) -> list[tuple[int, int, str]]:
+    return [(m.start(), m.end(), m.group(0)) for m in _SEG_RE.finditer(run)]
+
+
+def _match_window(segs: list[tuple[int, int, str]], i: int) -> tuple[int, str] | None:
+    """Longest run of segments at `i` that spells a stack name. Returns (width, repl)."""
+    for k in range(min(_MAX_WINDOW, len(segs) - i), 0, -1):
+        win = segs[i:i + k]
+        # A ONE-LETTER SEGMENT IS AN AXIS OR AN INDEX, NOT A WORD. Without this,
+        # `Vec3.UnitY` (Unit|Y) spells `unity` and a math constant in the Unity arm's
+        # own vector type gets rewritten to the engine placeholder. `TypeScript`
+        # (Type|Script) and `node_modules` are unaffected: every segment is >= 2.
+        if k > 1 and any(len(s[2]) < 2 for s in win):
+            continue
+        joined = "".join(s[2] for s in win).lower()
+        repl = _STACK_NAMES.get(joined)
+        if repl is None and k == 1:
+            for suf in _CONFIG_SUFFIXES:
+                if joined.endswith(suf) and len(joined) > len(suf):
+                    base = _STACK_NAMES.get(joined[:-len(suf)])
+                    if base is not None:
+                        repl = base + suf
+                        break
+        if repl is not None:
+            return k, repl
+    return None
+
+
+def _shape(matched: str, repl: str) -> str:
+    """Give the replacement the case convention the matched text was written in."""
+    if matched.isupper():
+        return repl.upper()
+    if matched[:1].isupper():
+        return repl[:1].upper() + repl[1:]
+    return repl
+
+
+def _scrub_names(text: str, collect: list[str] | None = None) -> str:
+    out: list[str] = []
+    last = 0
+    for run in _RUN_RE.finditer(text):
+        body = run.group(0)
+        # Cheap pre-filter. A window match concatenates its segments, so the name is a
+        # substring of the run with `_` removed -- never of the run as written.
+        if not _CANDIDATE_RE.search(body.replace("_", "")):
+            continue
+        segs = _segments(body)
+        base = run.start()
+        i = 0
+        while i < len(segs):
+            hit = _match_window(segs, i)
+            if hit is None:
+                i += 1
+                continue
+            k, repl = hit
+            s, e = segs[i][0], segs[i + k - 1][1]
+            matched = body[s:e]
+            if collect is not None:
+                collect.append(matched)
+            out.append(text[last:base + s])
+            out.append(_shape(matched, repl))
+            last = base + e
+            i += k
+    out.append(text[last:])
+    return "".join(out)
+
+
+def find_stack_names(text: str) -> list[str]:
+    """Every stack name in `text`, as written. Empty means the text is clean.
+
+    This is the AUDIT half, and it is deliberately the same code path as the rewrite:
+    a detector with its own vocabulary would agree with the rewriter by construction and
+    measure nothing. What makes the sweep in `anonymise_selftest.py` informative is that
+    it runs this over REAL STORED PACK TEXT rather than over the tokens someone thought
+    of -- an unenumerated name shows up as a line that changed, or as one that did not.
+    """
+    found: list[str] = []
+    _scrub_names(text, collect=found)
+    for rx, _ in _STACK_RE:
+        found.extend(m.group(0) for m in rx.finditer(text))
+    return found
 
 
 @dataclass
@@ -129,6 +301,7 @@ def neutralise(text: str) -> str:
     """
     text = _TRIAL_ID_RE.sub("SUBMISSION", text)
     text = _WORK_PATH_RE.sub("/WORKTREE", text)
+    text = _scrub_names(text)
     for rx, rep in _STACK_RE:
         text = rx.sub(rep, text)
     return text

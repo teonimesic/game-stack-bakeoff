@@ -1,0 +1,400 @@
+		# Immunity does not touch the firing rule.
+		# Immunity, as a pulsing halo. The pulse period is in ticks, so it is the
+	# Aim is chosen independently of movement, which is the whole genre. Three
+	# Three enemies in the player's lap must cost one life, not engine. Without
+	## Ticks left of damage immunity.
+	## Ticks of player immunity remaining.
+	t.eq(extra_hits, 0, "the player was hit again during the immunity window")
+	t.eq(player.hp, hp_after_first, "health fell during the immunity window")
+	t.gt(float(window), 10.0, "the immunity window is %d ticks — too short to escape in" % window)
+	t.gt(float(world.invuln), 0.0, "no immunity was granted after a hit")
+	t.run("being hit grants a window of immunity", _immunity_window)
+                        bestScore = score;
+                        if (found && score <= bestScore) continue;
+                        if (locked.LengthSquared <= 0f) locked = Vec3.UnitZ;
+                    "two hits landed closer together than the immunity window allows");
+                    $"{Constants.PLAYER_INVULNERABLE_TICKS}-tick window of immunity");
+                    BlockSize * NextPreviewScale, color);
+                    _ghosts[i].localScale = Vector3.zero;
+                    bestScore = score;
+                    expectedScore += Constants.LAYER_SCORE[1] * state.Level;
+                    if (score >= bestScore) continue;
+                    lastScoringTick = i;
+                    tile.localScale = new Vector3(0.96f, 0.12f, 0.96f);
+                $"the frame; it is at x={onScreen:F0}");
+                $"x={PlayerScreenX(state):F0}");
+                AppendBlock(NextPreviewAt + (local * NextPreviewScale),
+                Assert.Greater(Constants.LayerScore(2, level), 2 * Constants.LayerScore(1, level),
+                Assert.Greater(Constants.LayerScore(3, level), Constants.LayerScore(2, level));
+                Assert.Greater(Constants.LayerScore(4, level), Constants.LayerScore(3, level));
+                Score += Constants.LayerScore(cleared, Level);
+                _body.localScale = scale * Mathf.Max(0.12f, progress * progress);
+                _body.localScale = scale;
+                _flashPoints = state.Score - _lastScore;
+                _ghosts[i].localScale = new Vector3(side, side, 1f);
+                _playerBody.Transform.localScale = new Vector3(
+                _shell.localScale = new Vector3(radius, radius, 1f);
+                _shell.localScale = scale * Mathf.Lerp(3.0f, 1.05f, progress);
+                _trail[i].localScale = Vector3.zero;
+                _trail[i].localScale = new Vector3(size, size, 1f);
+                ball.localScale = new Vector3(side, side, 1f);
+                bar.localScale = alongX
+                bestScore = alignment;
+                body.Transform.localScale = ScaleOf(enemy);
+                case 1: baseScore = 100; break;
+                case 2: baseScore = 300; break;
+                case 3: baseScore = 700; break;
+                case SimStage.Scoring: RunScoring(); break;
+                case SimStage.Scoring: RunScoring(intents); break;
+                default: baseScore = 1500; break;
+                foreach (var quad in _trail) quad.localScale = Vector3.zero;
+                if (alignment < bestScore) continue;
+                if (i >= visible) { _trail[i].localScale = Vector3.zero; continue; }
+                pillar.localScale = new Vector3(0.12f, Constants.WELL_H, 0.12f);
+                quad.localScale = new Vector3(side, side, 1f);
+                sawScore |= state.ScoreLeft > 0;
+                var inputs = ReadScript(StringArg("-script"));
+             With a {INVULN_TICKS}-tick immunity window that is impossible, so \
+            // Abandoned: taking damage, the immunity window, and game over.
+            // The rule that makes aiming possible. Three contacts on the same
+            // Three drivers, because one competent run never idles and never
+            // Three lives that all evaporate in the same second is the same game
+            // Three shared materials, and every per-body colour is a property
+            Assert.AreEqual(0, nilNil.CountColor(RightScoreInk, Tol, leftRegion),
+            Assert.AreEqual(expectedScore, state.Score,
+            Assert.AreEqual(lastScoringTick, gameOverTick,
+            Assert.AreEqual(leftScored ? SimEvents.ScoreLeft : SimEvents.ScoreRight,
+            Assert.AreNotEqual(Baseline(), withScore.StateHash(), "score is not hashed");
+            Assert.Greater(Constants.LayerScore(1, 5), Constants.LayerScore(1, 1),
+            Assert.Greater(nilNil.CountColor(LeftScoreInk, Tol, leftRegion), 100,
+            Assert.Greater(nilNil.CountColor(RightScoreInk, Tol, rightRegion), 100,
+            Assert.Greater(state.Score - scoreBefore, Constants.LayerScore(1, 1) - 1,
+            Assert.Greater(x, PlayerScreenX(state) + 40f,
+            Assert.IsTrue(sawScore, "the match never put a point on the board");
+            Assert.That(onScreen, Is.InRange(late.Frame.Width * 0.2f, late.Frame.Width * 0.8f),
+            DrawScore(canvas, state);
+            Marks.Add(new EventMark { Name = EventNames.GameOver, Value = finalScore });
+            PixelScale = pixelScale;
+            RecordOneScenario(recorded, new SimState(2024), s => bot.Next(s));
+            RecordOneScenario(recorded, new SimState(3), _ => Intents.None);
+            RunUntilScore(state);
+            Screen.SetResolution(WINDOW_WIDTH, WINDOW_HEIGHT, FullScreenMode.Windowed);
+            SetPaddleScale(SimState.LeftPaddleId, flashing && hotId == SimState.LeftPaddleId);
+            SetPaddleScale(SimState.RightPaddleId, flashing && hotId == SimState.RightPaddleId);
+            Transform parent, string name, Color color, int pixelScale,
+            _barFill.localScale = new Vector3(fill, height, 1f);
+            _barHead.localScale = new Vector3(3f * unit, height + (4f * unit), 1f);
+            _barTrack.localScale = new Vector3(width, height, 1f);
+            _beam.localScale = new Vector3(4.5f, 4.5f, Length);
+            _blip.localScale = new Vector3(size, size, 1f);
+            _cellSize = style.PixelScale * UnitsPerViewPixel;
+            _lastScore = state.Score;
+            _pixelScale = pixelScale;
+            _reticle.localScale = new Vector3(15f * pulse, 15f * pulse, 1f);
+            _tether.localScale = new Vector3(1.6f, height, 1.6f);
+            _transform.localScale = new Vector3(unitsPerPixel, -unitsPerPixel, 1f);
+            _transform.localScale = new Vector3(unitsPerPixel, unitsPerPixel, unitsPerPixel);
+            assert!(view.invuln > 0, "no immunity window opened after the hit");
+            bat.localScale = new Vector3(
+            block.Transform.localScale = new Vector3(scale, scale, scale) * ViewConfig.CELL;
+            bool leftScored = state.Score.Left == 1;
+            bool sawScore = false, sawRally = false, sawGameOver = false;
+            box.localScale = size;
+            enemy.Velocity = (forward + (Vec3.UnitY * bob)).WithLength(speed);
+            enemy.Velocity = (heading + (Vec3.UnitY * lift)).WithLength(speed);
+            float bestScore = 0.945f;   // roughly nineteen degrees off the stick
+            float body = PlayerScreenX(facingRight);
+            float leftBody = PlayerScreenX(facingLeft);
+            float onScreen = ColumnCentroid(late.Frame, Tunic);
+            float scale = Constants.WaveSpeedScale(Wave);
+            go.transform.localScale = ball
+            go.transform.localScale = new Vector3(
+            go.transform.localScale = new Vector3(diameter, diameter, 1f);
+            go.transform.localScale = new Vector3(halfX * 2f, halfY * 2f, 1f);
+            go.transform.localScale = new Vector3(side, side, 1f);
+            go.transform.localScale = new Vector3(size.x, size.y, 1f);
+            go.transform.localScale = new Vector3(w, h, 1f);
+            go.transform.localScale = new Vector3(width, height, 1f);
+            if (side.LengthSquared < 1e-6f) side = Vec3.Cross(forward, Vec3.UnitX);
+            importer.npotScale = TextureImporterNPOTScale.None;
+            int baseScore;
+            int bestScore = int.MinValue;
+            int bestX = minX, bestZ = minZ, bestScore = int.MaxValue;
+            int centre = Mathf.RoundToInt(PlayerScreenX(down));
+            int expectedScore = 0;
+            int lastScoringTick = -1;
+            int ticks = RunUntilScore(state);
+            int x = Mathf.RoundToInt(PlayerScreenX(state));
+            return baseScore * level;
+            slab.localScale = new Vector3(Constants.WELL_W + 0.3f, 0.24f, Constants.WELL_D + 0.3f);
+            transform.localScale = new Vector3(w, h, 1f);
+            transform.localScale = size;
+            var a = RunScripted(21, 1400);
+            var b = RunScripted(21, 1400);
+            var ink = scorer < 0 ? LeftScoreInk : RightScoreInk;
+            var side = Vec3.Cross(forward, Vec3.UnitY);
+            var withScore = new SimState(5);
+            view.localScale = new Vector3(size, size, size);
+            withScore.ScoreLeft = 3;
+          bestScore = score;
+          bodyScale,
+          const cageScale = 3.2 - 2.2 * progress;
+          top + textHeight(bannerScale) + unit * 4 + index * (textHeight(bodyScale) + unit * 4),
+          visual.cage.scale.setScalar(cageScale);
+          visual.core.scale.setScalar(wobble);
+          visual.shell.scale.setScalar(scale);
+        "the second hit landed {gap} ticks after the first; the immunity window \
+        '`renderFrame()` renders view.overlayScene after view.scene with ' +
+        'renders view.overlayScene after view.scene with `autoClear = false`, and that ' +
+        'that `renderFrame()` renders view.overlayScene after view.scene with ' +
+        .filter(|kind| kind.is_three_dimensional())
+        // During the immunity window the player passes straight through
+        /// Three behaviours, in order of how a human plays: recover to the
+        /// Three in a row with one cell above the end.
+        /// Three in a row with one cell above the middle.
+        /// Ticks of immunity after taking a hit (0.75s at 64Hz). Long enough to
+        /// how steeply, and where the house player will aim this rally. Three
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        color: color.clone().multiplyScalar(0.75),
+        color: colorOf(world.lastScorer),
+        emissive: color.clone().multiplyScalar(0.45),
+        if (score < bestScore) {
+        if (score > bestScore) {
+        internal static SimState RunScripted(ulong seed, int ticks)
+        let difference = changed(&nil_all, &three_seven, region);
+        multiplierScale,
+        particle.mesh.scale.setScalar((particle.size / 6) * Math.max(life, 0.15));
+        private const float NextPreviewScale = 0.62f;
+        private float CellSize => _pixelScale * ViewConfig.UNITS_PER_PIXEL;
+        private int _lastScore;
+        private readonly int _pixelScale;
+        private static List<Intents> ReadScript(string path)
+        private static float PlayerScreenX(SimState state) =>
+        private static int RunUntilScore(SimState state)
+        private static readonly Color32 LeftScoreInk = ViewConfig.LeftScoreRgb;
+        private static readonly Color32 RightScoreInk = ViewConfig.RightScoreRgb;
+        private static void DrawScore(HudCanvas canvas, SimState state)
+        private static void RecordOneScenario(
+        private void RunScoring()
+        private void RunScoring(Intents intents)
+        private void SetPaddleScale(int simId, bool hot)
+        public HudStyle(int anchorX, int topY, int pixelScale, HudAlign align, Color color)
+        public Vec3 Aim = Vec3.UnitZ;
+        public readonly int PixelScale;
+        public static Color32 LeftScoreRgb => Rgb(LEFT_SCORE_COLOR);
+        public static Color32 RightScoreRgb => Rgb(RIGHT_SCORE_COLOR);
+        public static float WaveSpeedScale(int wave)
+        public static int LayerScore(int layers, int level)
+        public static readonly Vec3 UnitX = new Vec3(1f, 0f, 0f);
+        public static readonly Vec3 UnitY = new Vec3(0f, 1f, 0f);
+        public static readonly Vec3 UnitZ = new Vec3(0f, 0f, 1f);
+        public void ABallBehindAPaddleScoresForTheOtherPlayer()
+        public void ABallBehindAPaddleScoresForTheOtherPlayerAndIsServedAgain()
+        public void ABallBehindAPaddleScoresForTheOtherSide()
+        public void ABulletDestroysAnEnemyAndRaisesTheScore()
+        public void ACompetentPlayerClearsLayersAndScores()
+        public void APassedPaddleScoresForTheOtherPlayer()
+        public void APointIsScoredQuicklyWhenNobodyPlays()
+        public void AimingUpWhileMovingRightSendsTheBulletsUpTheScreen()
+        public void BackdropSceneryIsStableAndSpreadOut()
+        public void BothPaddlesAndTheBallAreOnScreen()
+        public void ClearingLayersOverAWholeRunKeepsScoreAndLevelInStep()
+        public void ClearingLayersTogetherScoresMoreThanClearingThemApart()
+        public void ClearingTheStageIsWorthSomethingAndScoresGrow()
+        public void EnoughDamageDestroysAnEnemyAndRaisesTheScore()
+        public void FiringPutsABulletOnScreen()
+        public void GameOver(int finalScore) =>
+        public void HoldingRightMovesTheCharacterRightOnScreen()
+        public void HoldingUpMovesEachPaddleUpOnScreen()
+        public void JumpingLiftsTheCharacterOnScreen()
+        public void PointsAreScoredAtAPlayableRate()
+        public void TheBallAndBothPaddlesAreOnScreen()
+        public void TheCameraKeepsTheWholeArenaOnScreenAtAnyWindowShape()
+        public void TheControlsAreOnScreenBeforeAnythingHappens()
+        public void TheControlsAreOnScreenFromTheFirstFrame()
+        public void TheEndOfAMatchIsOnScreen()
+        public void TheEndOfARunIsOnScreen()
+        public void TheEndOfMatchScreenIsRendered()
+        public void TheEndOfTheMatchIsOnScreen()
+        public void TheEndOfTheRunIsAnnouncedOnScreen()
+        public void TheFallingPieceDescendsOnScreen()
+        public void TheScoreIsInTheCapturedFrameAndFollowsTheMatch()
+        public void TheScoreIsInTheCapturedFrameAndKeepsUpWithTheMatch()
+        public void TheScoreIsOnScreen()
+        public void TheScoreOnScreenChangesWhenTheScoreDoes()
+        public void TheScoreOnlyEverGoesUp()
+        public void TheScoreboardIsInTheCapturedFrameAndFollowsTheScore()
+        public void TheScoreboardIsInTheFrameAndFollowsTheGame()
+        public void TheServeCountdownAndTheTitleAreOnScreenAtTheStart()
+        public void TheTitleScreenSaysWhatToDo()
+        public void WalkingRightScrollsTheStageLeft()
+        text: `${world.lastScorer} SCORES`,
+        textHeight(bannerScale) + rest.length * (textHeight(bodyScale) + unit * 4);
+        visual.group.scale.setScalar(scale);
+        visual.pool.scale.setScalar(spec.radius * (materialising ? 0.6 + progress : 1.8));
+        width - 12 - textWidth(multiplierText, multiplierScale),
+      .add(cameraUp.clone().multiplyScalar(pad.aimY));
+      .multiplyScalar(pad.aimX)
+      // A steady ring, not a blink: the immunity window is information, and
+      bestScore = score;
+      bodyScale,
+      const multiplierScale = model.multiplier > 1 ? 3 : 2;
+      const want = toScreen(paddle.position.x, paddle.position.y);
+      drawText(context, model.hint, margin, height - margin - textHeight(smallScale), smallScale);
+      drawTextCentred(context, first, width / 2, top, bannerScale);
+      height - margin - textHeight(smallScale),
+      impactRing.scale.setScalar(1 + impactAge * 3.2);
+      layerScore(n, 1),
+      margin + textHeight(bodyScale) + unit * 3,
+      mesh.scale.setScalar(scale);
+      return this.divideScalar(length2 || 1).multiplyScalar(clamp(length2, min, max));
+      return this.divideScalar(this.length() || 1);
+      return this.multiplyScalar(1 / scalar);
+      smallScale,
+      world.score += enemyScore(enemy.kind);
+    ).toBeGreaterThan(layerScore(1, 1) * n);
+    .add(cameraUp.clone().multiplyScalar(dy))
+    .multiplyScalar(dx)
+    // "Three-dimensional" means it cannot be laid flat: it spans more than one
+    // Feed the player to engine enemies, waiting out the immunity window each
+    // The immunity window has just opened, so no second enemy can land a hit
+    // The trace publishes both, and a driver that cannot trust them is flying
+    // Three axes, engine distinct results. Two axes wired to the same matrix, or
+    // Three drop speeds that the player chooses between. If they collapse into
+    // Three lives means engine: the first hit must not end the run, and the
+    // Three parallax bands. Each is four sprites that wrap around the camera,
+    // Three rotation controls that all do the same thing is a 2D game with a
+    // Three states, engine different things on screen. This is the test that a
+    // Two enemies, both already on top of the player. Without an immunity
+    // points, the immunity window is not doing its job and no amount of skill
+    /// Slow armoured block that periodically *lunges*. Three hits to break.
+    /// Three in a row with one stuck to the end.
+    /// Three in a row with one stuck to the middle.
+    /// Ticks left of post-hit immunity. Non-zero means "cannot be hit".
+    /// `SimState.RunStage`, and must declare its writes. Three tests enforce
+    addScalar(s) {
+    addScaledVector(v, s) {
+    await page.addInitScript(DETERMINISM_SCRIPT);
+    await page.addScriptTag({ content: await captureBundle() });
+    clampScalar(minVal, maxVal) {
+    const expected = toScreen(ballOf(world).position.x, ballOf(world).position.y);
+    const pipY = margin + textHeight(bodyScale) + unit * 3;
+    const reward = enemyScore(enemy.kind);
+    const screen = toScreen(enemy.position.x, enemy.position.y, enemy.position.z);
+    divideScalar(scalar) {
+    drawText(context, `SCORE ${padNumber(model.score, 7)}`, margin, margin, bodyScale);
+    drawTextRight(context, `WAVE ${padNumber(model.wave, 2)}`, width - margin, margin, bodyScale);
+    expect(readScript('-')).toEqual([]);
+    expect(readScript(undefined)).toEqual([]);
+    halo.scale.setScalar(specOf(kind).radius * 2.1);
+    if (score > bestScore) {
+    inputs.push(toScriptInput(held));
+    lastScoreTick: -1000,
+    lastScorer: null,
+    left: createScoreboard(-SCORE_X),
+    let three_seven = frame_or_skip!(capture_frame_with(
+    mesh.scale.setScalar(scale);
+    multiplyScalar(scalar) {
+    musicGain.gain.cancelScheduledValues(context.currentTime);
+    overlayScene: hud.scene,
+    overlayScene: overlay.scene,
+    pub fn is_three_dimensional(self) -> bool {
+    right: createScoreboard(SCORE_X),
+    setScalar(scalar) {
+    speed: f32(f32(stats.speed * world.wave.speedScale) * jitter),
+    speed: f32(spec.speed * waveSpeedScale(world.wave)),
+    speedScale: waveSpeedScale(1),
+    speedScale: waveSpeedScale(index),
+    subScalar(s) {
+    world.score += layerScore(cleared.length, world.level);
+    } else if (world.lastScorer !== null) {
+  'score_left.wav': renderScore([N.G3, N.D4], 'square'),
+  'score_right.wav': renderScore([N.B3, N.E4], 'triangle'),
+  /** Three in a line with a bump. */
+  /** Three in a line with a foot. */
+  /** Ticks of remaining immunity. Zero means "can be hit". */
+  // Three arms off one corner. Flat in no orientation.
+  // Three in a row with a stub in the middle.
+  // Three in a row with one turned corner.
+  // Three quarters view from above: all engine axes are visible and distinct,
+  // Three ways down, and they must be strictly ordered: gravity is slowest,
+  await page.addScriptTag({ content: await gameBundle() });
+  ballGlow.scale.setScalar(BALL_HALF_SIZE * 8);
+  const bannerScale = unit * 5;
+  const bodyScale = unit * 2;
+  const centre = worldToScreen(0, 0);
+  const centre = worldToScreen(side === 'left' ? -PADDLE_INSET : PADDLE_INSET, 0).x;
+  const centre = worldToScreen(side === 'left' ? -PADDLE_X : PADDLE_X, 0).x;
+  const error = f32(world.aim[pad.side] * f32(PADDLE_HALF_HEIGHT * errorScale(b.speed)));
+  const finalScore = world.score;
+  const origin = toScreen(player.x, player.y, player.z);
+  const scoring = findScoringRun();
+  const smallScale = unit;
+  const speed = f32(ENEMY_STATS.drifter.speed * world.wave.speedScale);
+  const target = CAMERA_TARGET.clone().addScaledVector(screenRight(), CAMERA_SHIFT);
+  const withScore = stateHash(world);
+  const x = worldToScreen(side === 'left' ? -400 : 400, 0).x;
+  enemyScore,
+  expect(hits, `a second hit landed inside the ${INVULN_TICKS}-tick immunity window`).toBe(0);
+  expect(player(world).hp, 'the immunity window must end').toBe(PLAYER_MAX_HP - 2);
+  expect(playerOf(world).invuln, 'a hit opens the immunity window').toBe(INVULN_TICKS);
+  expect(readScript('-')).toEqual([]);
+  expect(stateHash(world), 'the outcome flags are not hashed').not.toBe(withScore);
+  expect(world.score, 'the score is final').toBe(finalScore);
+  feed(BigInt(bits(wave.speedScale)));
+  feed(BigInt(sideCode(world.lastScorer)));
+  feedInt(world.lastScoreTick);
+  feedInt(world.lastScorer === null ? 0 : sideSign(world.lastScorer) + 2);
+  if (world.lastScorer === null || world.lastScorer === side) {
+  lastScoreTick: number;
+  lastScorer: Side | null;
+  layerScore,
+  let bestScore = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestScore = Number.POSITIVE_INFINITY;
+  playerHalo.scale.setScalar(PLAYER_RADIUS * 2.3);
+  playerPool.scale.setScalar(PLAYER_RADIUS * 2.2);
+  previewGroup.scale.setScalar(PREVIEW_SCALE);
+  readonly overlayScene: ENGINE.Scene;
+  renderer.render(view.overlayScene, view.overlayCamera);
+  renderer.setScissor(0, 0, wellWidth, size.y);
+  renderer.setScissorTest(false);
+  renderer.setScissorTest(true);
+  return flash(world, world.lastScoreTick, SERVE_DELAY_TICKS / 2) * 0.5;
+  speedScale: F32;
+  values.push(world.wave.speedScale);
+  waveSpeedScale,
+  world.lastScoreTick = world.tick;
+  world.lastScorer = scorer;
+  world.lastScorer = side;
+  worldToScreen,
+  { stage: 'scoring', name: 'resolveScore', run: resolveScore },
+ * Brutes are punctuation. Three in a row is not a difficulty curve, it is a
+ * Clear a wave and a larger, faster one follows. Three health, then game over.
+ * Three RNG draws, in this order: a coin flip for the horizontal side, a coin
+ * Three RNG draws, in this order: the horizontal direction, then the two aim
+ * Three devices, one intent:
+ * Three readability rules the shapes here exist to serve:
+ * afterwards. Three hearts, then the run is over until it is reset.
+ * have to take on trust: the waveform of every effect is right here, next to
+ * so a JavaScript driver can pass an `Intents` object straight through.
+ * sustained killing and collapses to 1 when the player is touched. Three health,
+ * the player is vulnerable. During the immunity window a touch does nothing at
+ * up the exact situation it is about is easier to read and to trust than one
+## A CHILD OF [View], not a sibling and not a CanvasLayer under `main.tscn`. The
+## Enemies against the player. At most one hit per tick: the immunity window
+## Health as pips, bottom left. Three of them, so "how much trouble am I in" is a
+## Never use [RandomNumberGenerator], [method @GlobalScope.randi], or
+## The whole scene is built in [method _init] rather than loaded from a `.tscn`,
+## Three kinds that differ only in speed is not engine kinds. Each is measured
+## Three pieces, engine colours, engine places. An invariant rather than a golden:
+## Ticks of immunity after a hit. 1.5s at 64Hz — long enough to fly out of the
+## [method @GlobalScope.randomize] in the simulation: they would make replays and
+## `capture_frame` puts a bare [View] in the root viewport — `main.tscn` and its
+## `capture_world` puts a bare [View] in the root viewport — `main.tscn` and its
+## a wave starts a bigger, faster one. Three touches and the run is over.
+## can read. Three things can drift and nothing else would notice:
+## can trust a zero exit to mean "OUT holds exactly TICKS lines".
+## carries no distance information at all. Three cues do the work here, and all
+## containing only the [View]. A HUD parented under `main.tscn` would show up in
+## four bars of arpeggio played twice. Three parallel arrays: the sixteenth it

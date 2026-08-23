@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#125 from building and running this evaluator. **Check whether a
+Findings #19-#130 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -202,6 +202,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **123** | In 68 trials the 0.31-weighted tier deducted for a property of a playable game five times, and every one was a lint finding, a unit test or an ink-coverage window | [certifies-nothing](findings/certifies-nothing.md) |
 | **124** | The findings index split into two tables and the sweep that checks the log was green on it — every row resolved, and what broke was the thing holding them together | [documentation](findings/documentation.md) |
 | **125** | A guard stated as a resource was implemented as a layout, so reusing it verbatim would have broken two documented readers | [fail-open](findings/fail-open.md) |
+| **130** | The anonymiser's stack vocabulary was a list of SPELLINGS, so the Rust arm shipped `CARGO_MANIFEST_DIR`, `crates/sim` and `clippy.toml` into 22 of 84 blind packs — and 9 of 9 architecture rounds with a file-open log opened one | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

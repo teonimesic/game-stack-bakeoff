@@ -1,0 +1,128 @@
+	# Rust gets this from the type system. Here it is a property of the design:
+	# Rust gets this from the type system; here it is a property of [Vector2],
+	# Rust gets this from the type system; here it is a property of [Vector3] and
+	# Rust gets this from the type system; here it is a property of [Vector3],
+                    // binary, so `just run` and `cargo test` both find them.
+                    // root, from `crates/game`, or from a test binary.
+                    file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned(),
+                // Assets live at the repository root, but `cargo run -p game`
+                // The sounds belong to the repository, not to `crates/game`, so
+                // hands the binary a CARGO_MANIFEST_DIR of `crates/game`, which
+                // line: Engine roots the asset server at `crates/game`, and the
+             `cargo run -p game --bin gen_assets` to (re)generate them.",
+             `cargo run -p game --bin gen_assets`.",
+             the audio with `cargo run -p game --bin gen_assets`.",
+            .disable::<WinitPlugin>()
+            // TypeScript and Engine starters produce byte-identical state hashes on
+            // Winit owns the event loop and would take over `run()`. Without a
+            // driven through an identical 400-tick tape at seed 7, the Rust,
+         Regenerate it with `cargo run -p game --bin gen_assets`."
+        .expect("crates/game has a grandparent")
+        .expect("crates/game has a grandparent");
+        // `cargo run`, a test binary and `just film` all have different working
+        // `crates/sim/clippy.toml` makes reaching for the std versions a build
+        // difficulty needs, and `cargo testrunner run --no-capture` shows them.
+        /// Rust and TypeScript siblings place theirs. That keeps `just bless`
+        env!("CARGO_MANIFEST_DIR"),
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../scripts/demo.json");
+        || PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/audio")),
+    // actually be reached is `crates/sim`'s job, and it proves it.
+    // here diverges a replay within seconds. `crates/sim/clippy.toml` makes
+    /// exact and identical on every platform Rust targets.
+    Command::new(env!("CARGO_BIN_EXE_probe"))
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets").to_owned()
+    if let Some(root) = std::env::var_os("BEVY_ASSET_ROOT") {
+    let dir = env!("CARGO_TARGET_TMPDIR");
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("probe-tests");
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("probe");
+    let from_manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    let golden_path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/frame.png");
+    let out = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/audio"));
+    let out = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let path = concat!(env!("CARGO_TARGET_TMPDIR"), "/render-skips.log");
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+  // frame is still on the canvas. Playwright composites, which is exactly the
+  // node_modules/.pnpm/engine@0.185.1/node_modules/engine/build/engine.core.js
+ * `@typescript-eslint/no-unsafe-unary-minus` does not see through an
+ * `F32` is `f32()`, which rounds. This closes the gap Rust gets for free from
+ * really is an f32. In Rust the type system gives this for free. Here it comes
+ * script that mirrors the TypeScript field names also works.
+## Rust gets this from the crate graph: `sim` cannot call into `engine`
+## The IEEE-754 f32 bit pattern of a value — the equivalent of Rust's
+## `gdlintrc` caps a file at 600 lines — but it is a fair split: this is the one
+#[allow(clippy::type_complexity)]
+/** The IEEE-754 bit pattern of a value as an f32. The equivalent of Rust's
+/** The same interpreter flags the justfile uses to run TypeScript directly. */
+// The Rust/Engine sibling asserts its FixedUpdate schedule has no *ambiguous
+// `clippy.toml` makes reaching for a hash-ordered collection a build error.
+//!    image. See `crates/game/tests/render.rs`.
+//!   hash-ordered collection — `clippy.toml` bans `HashMap`/`HashSet`
+//!   to check either without something that plays. `crates/sim/tests` drives
+//!   — `clippy.toml` bans `HashMap`/`HashSet`
+//!   — `clippy.toml` bans `HashMap`/`HashSet`; replay tests catch the rest
+//!   — `clippy.toml` bans `Instant`/`SystemTime`; `tests/boundary.rs` bans
+//!   — `clippy.toml` bans the hash containers
+//!   — `clippy.toml` bans the std methods, `tests/boundary.rs` asserts the
+//! (`just film`, `crates/game/tests/render.rs`). **That is the whole point.**
+//! (`tests/trace.rs`), not only in a binary nobody runs under `cargo test`.
+//! Deliberately hand-rolled rather than `serde_json`: `crates/sim` earns its
+//! GPU and no window. The view layer (`crates/game`) reads it and never writes
+//! GPU and no window. The view layer (`crates/game`) reads this and never writes
+//! Reachability, checked against the jump in `crates/sim/tests/invariants.rs`
+//! [`sim::trace::trace_line`], which `crates/sim/tests/trace.rs` checks the
+//! `cargo run -p game --bin gen_assets` — draw every sprite sheet and record
+//! `cargo run -p game --bin gen_assets` — write every art and audio asset the
+//! `cargo test -p sim --test pacing_report -- --nocapture` prints one line per
+//! `crates/game/tests/audio.rs` asserts that every declared file exists and that
+//! `crates/game/tests/audio.rs` checks that every event the simulation can emit
+//! `crates/game/tests/audio.rs` fails if a declared file is missing.
+//! `crates/game/tests/render.rs::the_audio_manifest_covers_every_event` checks
+//! `crates/game/tests/render.rs` see the same picture the window does. A readout
+//! `crates/sim`'s guarantees come from having almost no dependency graph, and
+//! binary that `cargo test` never runs.
+//! find yourself deciding something here, it belongs in `crates/sim`.
+//! noise. That split is what keeps `crates/sim` headless and what lets the
+//! prints it, `crates/game/tests/render.rs` checks every event has an entry and
+//! rule in this file, it belongs in `crates/sim` — a rule here cannot be tested
+//! the determinism rules that bind `crates/sim` do not apply to a build tool.
+//! to [`WIN_SCORE`] points. The view layer in `crates/game` reads this and draws
+/// **world +z as screen left**, which is what `crates/game/tests/render.rs`
+/// *outcome*: that the score reaches eleven by itself is `crates/sim`'s job to
+/// Append one line to `$CARGO_TARGET_DIR/tmp/render-skips.log`. `just
+/// Engine resolves its default asset root from `CARGO_MANIFEST_DIR`, which for
+/// Path to the built `probe` binary, injected by cargo for integration tests.
+/// The *simulation* may not read a clock — that is what `crates/sim/clippy.toml`
+/// `AssetPlugin` is pointed here by [`asset_root`] so both `cargo run` and a
+/// `BEVY_ASSET_ROOT` or `CARGO_MANIFEST_DIR` is set". Under `cargo run -p game`
+/// `CARGO_MANIFEST_DIR` if that happens to be set at runtime". Neither is this
+/// `CARGO_MANIFEST_DIR`, which under `cargo run -p game` is `crates/game`. The
+/// `cargo run -p game` work from anywhere in the tree.
+/// `crates/game/assets/audio/music.wav`, finds nothing, and logs
+/// `crates/game/tests/audio.rs` asserts that the committed
+/// `crates/game/tests/audio.rs` checks that it covers every event the
+/// `crates/game/tests/render.rs::the_hud_is_in_the_captured_frame`.
+/// `crates/game/tests/render.rs::the_scoreboard_is_in_the_captured_frame`. It
+/// `crates/game` may use it to write to the simulation at run time.
+/// `crates/sim/tests/invariants.rs`.
+/// ever emitted, and `crates/game/tests/audio.rs` checks the manifest covers it.
+/// in captured frame coordinates. `crates/game/tests/render.rs` counts
+/// in captured-frame coordinates. `crates/game/tests/render.rs` counts HUD ink
+/// its art whatever directory it is launched from — `cargo run`, a test binary
+/// per name and `crates/game` asserts that.
+/// repository's `assets/` when a test binary runs from `crates/game`, and a
+/// see `crates/sim/tests/trace.rs`. Asserting on substrings of a serialised line
+/// start in `crates/game`; an absolute path is the only thing both agree on.
+/// the latter is `crates/game`, so the default finds nothing and the game starts
+/// the same whether the process was started by `cargo run`, by a test binary or
+/// this binary is `crates/game` — but the assets belong to the repository, not
+const PROBE: &str = env!("CARGO_BIN_EXE_probe");
+pub const ASSETS_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
+pub const ASSET_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
+pub const ASSET_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
+use engine::windowing::WinitPlugin;
