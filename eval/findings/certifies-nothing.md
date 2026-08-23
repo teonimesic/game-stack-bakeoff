@@ -3297,7 +3297,7 @@ none of them goes red on anything.
 
 **The first of the four is also a near-miss worth recording.** Held every tick for 240 ticks,
 `g4_platformer__unity__t0` keeps `attack.active` true for all 240 with its frame counter restarting
-13 times, while the other seven show 11–14 separate swings of 5–6 active ticks. Read as a
+13 times, while the other seven show 12–14 separate swings of 5–6 active ticks. Read as a
 *re-trigger during a swing* that is a clean 1-of-8 failure and the variance this task was looking
 for. Driven properly — one press to start the swing, one more at its midpoint — it is identical to
 its own clean swing, 18 ticks either way. It chains swings with no idle tick between them, which is
