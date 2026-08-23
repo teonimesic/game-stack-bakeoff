@@ -906,14 +906,20 @@ def _rec(game: str, stack: str, cost: float, turns: int | None = None,
     return {"game": game, "stack": stack, "agent": agent}
 
 
-# Refusing before enumerating costs a few MB. Enumerating 9! vectors over 2 clusters first
-# costs hundreds. Anywhere between is the same verdict, so the ceiling is set well clear of
-# the passing case rather than tuned to the failing one.
-CHILD_RSS_CEILING_MB = 60
+# The GROWTH a child may show across one `_permutation_test`, in MB. Streaming the walk
+# grows ~0; materialising the assignments grows ~90-200 depending on the design. The
+# ceiling sits well clear of the passing case rather than close to the failing one — the
+# first version was 60 MB against a child's TOTAL peak, which caught its mutant on macOS
+# and let it SURVIVE on Linux, where the interpreter's baseline is smaller.
+CHILD_RSS_GROWTH_CEILING_MB = 25
 
 
-def _refusal_in_child(cols: list[list[float]], k: int) -> tuple[str, float | None]:
-    """Call `_permutation_test` in a FRESH interpreter; return (exception name, peak MB).
+def _permutation_in_child(cols: list[list[float]], k: int) -> tuple[str, float | None]:
+    """Call `_permutation_test` in a FRESH interpreter; return (outcome, MB it GREW by).
+
+    `outcome` is the exception's type name, or `"no exception"` when the design was
+    accepted and ran — both are pinned, because the refusal path and the accepted path
+    fail in different places and only the second reaches the enumeration.
 
     A child, not this process, because `ru_maxrss` is a process-lifetime high-water mark:
     measured in-process, the delta reads zero as soon as anything earlier allocated more,
@@ -921,6 +927,12 @@ def _refusal_in_child(cols: list[list[float]], k: int) -> tuple[str, float | Non
 
     The child imports the module under test **by path**, so a mutated copy measures itself
     rather than whatever `cost_census` resolves to on `sys.path`.
+
+    It returns the GROWTH across the call, not the child's total peak. A total carries the
+    interpreter's own baseline, which differs by platform — and a ceiling set against one
+    machine's baseline is a ceiling that passes on that machine and nowhere else. Measured:
+    the first version of this pin compared a total against 60 MB, caught its mutant on
+    macOS, and let it SURVIVE on the Linux CI runner.
     """
     import subprocess
 
@@ -929,14 +941,16 @@ import importlib.util, resource, sys, json
 spec = importlib.util.spec_from_file_location("m", {str(Path(__file__).resolve())!r})
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
+# ru_maxrss is BYTES on macOS and KILOBYTES on Linux. One unit for both is a 1024x error.
+unit = (1 << 20) if sys.platform == "darwin" else 1024
+before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / unit
 name = "no exception"
 try:
     m._permutation_test({cols!r}, 0.0, {k!r})
 except Exception as exc:
     name = type(exc).__name__
-raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-mb = raw / (1 << 20) if sys.platform == "darwin" else raw / 1024
-print(json.dumps([name, mb]))
+after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / unit
+print(json.dumps([name, after - before]))
 """
     proc = subprocess.run([sys.executable, "-c", source],
                           capture_output=True, text=True, check=False)
@@ -1688,13 +1702,13 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # this process would sit at zero the moment anything earlier allocated more —
         # a pin that stops working without ever going red.
         big_cols = [[float(j) for j in range(9)], [float(j) for j in range(9)]]
-        refused, peak_mb = _refusal_in_child(big_cols, 9)
+        refused, peak_mb = _permutation_in_child(big_cols, 9)
         check("a design past the enumeration limit refuses", refused, "CostCensusError")
-        if peak_mb is not None and peak_mb > CHILD_RSS_CEILING_MB:
+        if peak_mb is not None and peak_mb > CHILD_RSS_GROWTH_CEILING_MB:
             failures.append(
                 f"refusing a {9}-stack, {len(big_cols)}-cluster design cost "
                 f"{peak_mb:.0f} MB in a fresh process: it enumerated before checking the "
-                f"limit (refusing first measures well under {CHILD_RSS_CEILING_MB} MB)")
+                f"limit (refusing first measures well under {CHILD_RSS_GROWTH_CEILING_MB} MB)")
 
         # ---- AND THE ACCEPTED DESIGN NEXT TO IT, which is the case the refusal does NOT
         # cover. The limit budgets `(k!)**m` — assignments, a TIME cost — while a table of
@@ -1702,14 +1716,14 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # high k with low m. 9 stacks over ONE cluster is 362,880 assignments, comfortably
         # ACCEPTED, and materialising it measures 199 MB against 0 for the streaming walk.
         # No limit catches that, because the limit is not the quantity that grew.
-        accepted, accepted_mb = _refusal_in_child([[float(j) for j in range(9)]], 9)
+        accepted, accepted_mb = _permutation_in_child([[float(j) for j in range(9)]], 9)
         check("a 9-stack, 1-cluster design is accepted, not refused",
               accepted, "no exception")
-        if accepted_mb is not None and accepted_mb > CHILD_RSS_CEILING_MB:
+        if accepted_mb is not None and accepted_mb > CHILD_RSS_GROWTH_CEILING_MB:
             failures.append(
                 f"enumerating an accepted 9-stack, 1-cluster design cost {accepted_mb:.0f} "
                 f"MB in a fresh process: it materialised the assignments instead of "
-                f"walking them (streaming measures well under {CHILD_RSS_CEILING_MB} MB)")
+                f"walking them (streaming measures well under {CHILD_RSS_GROWTH_CEILING_MB} MB)")
 
         # A p of exactly 0 is a value this test cannot produce: the unpermuted assignment
         # is one of the `total` and always satisfies its own condition. A 0 would mean the

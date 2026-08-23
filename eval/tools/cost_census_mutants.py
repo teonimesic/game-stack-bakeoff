@@ -234,8 +234,9 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "    if False:\n        raise CostCensusError("),
     "materialise_the_assignments": (
         "    def walk(depth: int, running: list[float]) -> None:",
-        "    _table = [[tuple(col[q[j]] for j in range(k)) for q in\n"
-        "               itertools.permutations(range(k))] for col in cols]\n\n"
+        "    _perms = list(itertools.permutations(range(k)))\n"
+        "    _table = [[tuple(col[q[j]] for j in range(k)) for q in _perms]\n"
+        "              for col in cols]\n\n"
         "    def walk(depth: int, running: list[float]) -> None:"),
     "limit_checked_after_allocation": (
         "    total = math.factorial(k) ** len(cols)\n"
