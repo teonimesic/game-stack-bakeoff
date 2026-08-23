@@ -16,13 +16,13 @@ tool that prints the minimum.
     python3 eval/tools/tasks.py testing 04 "what established it"  # -> in_testing
     python3 eval/tools/tasks.py done 04 "what established it"     # -> done, at merge
     python3 eval/tools/tasks.py note 04 -    # append a section to the BODY, from stdin
+    python3 eval/tools/tasks.py add "title" --why "..." --done-when "..." [--priority 2]
+    python3 eval/tools/tasks.py check        # lint; exit 1 if anything is malformed
 
 `-` means READ IT FROM STDIN in every subcommand that takes durable text -- `note`, `testing`
 and `done` alike. It used to mean that in `note` alone, so `done 04 - < account.md` stored the
-literal one-character string `-` at exit 0 over 2280 characters of measurement (task 120). See
-`_stdin_arg` for the sentinel and `cmd_evidence` for the two refusals that go with it.
-    python3 eval/tools/tasks.py add "title" --why "..." --done-when "..." [--priority 2]
-    python3 eval/tools/tasks.py check        # lint; exit 1 if anything is malformed
+literal one-character string `-` at exit 0, discarding whatever was redirected in (task 120).
+See `_stdin_arg` for the sentinel and `cmd_evidence` for the two refusals that go with it.
 
 The five statuses and what each one means are on `STATUSES` below. `.agents/skills/work/SKILL.md`
 and `.agents/skills/dispatch/SKILL.md` are the two procedures that drive the transitions.
@@ -720,11 +720,11 @@ def _stdin_arg(value: str) -> str:
     THE SENTINEL IS THE PROPERTY, NOT THE SUBCOMMAND. `note` grew `-` because #80 is about a
     backtick in argv being command substitution before this program ever runs; `done` and
     `testing` write a durable record from an argv string too and had no such reading, so
-    `done 112 - < account.md` was accepted and stored the LITERAL one-character string `-`
-    over 2100 characters of measurement, exit 0, no warning (task 120). Two sibling commands
-    disagreeing about one sentinel is the enumeration failure `AGENTS.md`'s rule audit keeps
-    recording: the safe path was added where the problem had been SEEN rather than where the
-    property lives.
+    `done 112 - < account.md` was accepted and stored the LITERAL one-character string `-`,
+    exit 0, no warning, discarding the whole redirected account (task 120). Two sibling
+    commands disagreeing about one sentinel is the enumeration failure `AGENTS.md`'s rule
+    audit keeps recording: the safe path was added where the problem had been SEEN rather
+    than where the property lives.
 
     Reading it here, once, is what makes `-` mean the same thing everywhere -- and what stops
     the next command that takes durable text from having to remember.
@@ -784,13 +784,16 @@ def cmd_evidence(tid: str, status: str, value: str) -> int:
 
     `established_by` is the line every later reader trusts about what closed a task, and
     until 2026-08-23 it was whatever argv happened to contain. Three shapes went in silently,
-    all at exit 0 (task 120, measured on a scratch queue before this existed):
+    all at exit 0 with the status flipped (task 120, measured on a scratch queue against the
+    pre-fix copy before this existed; the account redirected in was 2280 characters):
 
-      | call                        | stored                | what the caller meant      |
-      |-----------------------------|-----------------------|----------------------------|
-      | `done 112 - < account.md`   | `-`, 1 character      | 2280 characters of account |
-      | `testing 70 - < account.md` | `-`, 1 character      | the same                   |
-      | `done 70 ""`                | the empty string      | nothing legitimate         |
+      | call                       | stored           | what the caller meant   |
+      |----------------------------|------------------|-------------------------|
+      | `done 70 - < account.md`   | `-`, 1 character | the whole account       |
+      | `testing 70 - < the same`  | `-`, 1 character | the same                |
+      | `done 70 ""`               | the empty string | nothing legitimate      |
+
+    The real instance was `done 112 - < file`, which is what filed the ticket.
 
     THE FIRST ROW IS #80'S SHAPE WITH A SENTINEL INSTEAD OF A BACKTICK: a durable record is
     emptied, the command reports success, and the loss is visible only to whoever re-reads
