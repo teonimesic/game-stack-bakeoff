@@ -99,6 +99,19 @@ DIFFSTAT = {
     "godot": " sim/world.gd | 42 ++--\n main.tscn | 12 +-\n",
 }
 
+#: THE MANIFEST'S ORIGINS MUST BE REAL PATHS, and this fixture said `real/1` until
+#: 2026-08-23 because nothing read the field. Task 95 made `build_pack` rebuild a
+#: blind `CHANGED.txt` from origin -> label, so a placeholder origin now maps nothing
+#: and the packer refuses - correctly. The first pack file of each stack is a path the
+#: diff lists (it maps); the second is not (it is dropped), so both branches run here
+#: as they do in a real submission, where 196 of 424 rows mapped.
+ORIGINS = {
+    "rust": ["crates/sim/src/world.rs", "crates/sim/src/tuning.rs"],
+    "ts": ["src/sim/world.ts", "src/sim/tuning.ts"],
+    "unity": ["Assets/Sim/Grid.cs", "Assets/Sim/Tuning.cs"],
+    "godot": ["sim/world.gd", "sim/tuning.gd"],
+}
+
 
 #: A stored `judge_pack/code` label keeps the file's REAL suffix - `sim/01.ts`. The
 #: `.src` rename happens when `field.build_pack` copies it into a blind field, which
@@ -118,7 +131,7 @@ def stored_run(root: Path, game: str = "g9_probe") -> Path:
             for i, body in enumerate((LEAKY[stack], "// plain\n"), start=1):
                 label = f"sim/{i:02d}{STACK_EXT[stack]}"
                 (code / label).write_text(body)
-                manifest.append({"label": label, "origin": f"real/{i}",
+                manifest.append({"label": label, "origin": ORIGINS[stack][i - 1],
                                  "chars": str(len(body))})
             (sub / "diff.stat").write_text(DIFFSTAT[stack])
             (sub / "eval" / "report.json").write_text(json.dumps({
@@ -159,6 +172,15 @@ with tempfile.TemporaryDirectory() as td:
     expect("blind-pack-has-changed-txt", len(changed) == 8,
            f"{len(changed)} CHANGED.txt files, expected 8 - the check below is "
            f"vacuous without them")
+    # THIS CHECK NO LONGER MEASURES THE EXTENSION REWRITE, and saying so is the point.
+    # Task 95 made a blind `CHANGED.txt` a rebuild from the pack's origin -> label
+    # manifest, so its rows are already `sim/01.src` before `blind_extensions` ever
+    # sees them and this assertion would now pass with the rewrite deleted. It is kept
+    # because it still pins the property a reader comes here for - a blind CHANGED.txt
+    # names no true suffix - but the mechanism it exercises is the mapping, and
+    # `blind_dir_selftest.py` is where that has its own mutant. A check that quietly
+    # changed what it tests is this project's central failure mode; the alternative to
+    # this comment is a green nobody can interpret.
     expect("blind-changed-txt-neutral",
            not any(ARM_EXT_RE.search(blind_texts[k]) for k in changed),
            "CHANGED.txt still lists true suffixes")

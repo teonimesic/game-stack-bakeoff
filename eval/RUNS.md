@@ -901,9 +901,18 @@ and refuses rather than guessing when the corroboration is unavailable.
 > **2,083 arm-naming extension tokens across all 84 stored packs**, 0 after
 > `field.blind_extensions` (2026-08-23). This one has no one-armed skew and no exception: **every
 > `architecture` round stored in this repository read a field carrying its arms' file
-> extensions**, whatever `neutralise` did or did not catch. The directory half of the leak —
-> `public`, `Assets`, `res://` — is still open at 1,561 segments (task 95), so a new round is
-> *more* blind than a stored one and is not yet fully blind.
+> extensions**, whatever `neutralise` did or did not catch.
+>
+> **The same sentence is now true of the DIRECTORY names, for the same reason and with the same
+> scope (task 95).** Every stored `architecture` round read a `CHANGED.txt` that was a verbatim
+> `git diff --stat` of the real authored tree — `Assets/Sim/Grid.cs`, `crates/sim/src/world.rs`,
+> `public/render/view.ts` — beside a directory whose every file had been renamed to
+> `bucket/NN.src`. Rebuilding this run's field with the repaired packer takes it from **330
+> arm-naming directory segments to 0**, with the other 199 files of the pack byte-identical, so
+> the leak was entirely in the file the harness wrote. A round run from now on is blind on this
+> channel; **no round already stored is.** The code-content half — 106 segments in the same
+> rebuilt field — is open and its repair was declined with a measurement (`tasks/103`), so a new
+> round is *more* blind than a stored one and is still not fully blind.
 
 **A code-aspect ordering is now available on this field, from a new round.** Before the re-pack
 the `architecture` pack held 215 files against `idiomatic`'s 230, because stale copies collided

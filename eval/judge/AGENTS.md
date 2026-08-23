@@ -200,9 +200,13 @@ before touching it:
   can also be a *member name* comes only from the corpus. `.lock` is 108 `Mutex::lock()` calls
   and 0 filenames, `.anim` is 128 member accesses and 0 filenames — both are excluded by name in
   `field._NOT_AN_EXTENSION` with the count that decided it.
-- **Directory names are the same defect through the sibling property and are NOT repaired** —
-  1,561 arm-naming path segments survive in the stored blind packs (`public`, `Assets`,
-  `res://`, `src/sim`). Task 95.
+- **Directory names are the same defect through the sibling property, and the total that
+  states it is the wrong shape.** 1,561 arm-naming tokens survived `blind_extensions` in the 8
+  stored `architecture` packs, and partitioning them is what decided the repair: **182 in
+  `CHANGED.txt`, every one a real path segment; 1,379 in code content, of which only 149 are
+  paths.** 1,129 of the 1,148 `public` hits are the C# access modifier and `Assets` is a Bevy
+  type in Rust packs. **A single total over two channels with a 0% and an 89% collision rate
+  describes neither** (rule 4, one level below where it usually fires).
 - **`field.py pack` read the aspect's `sees` and not its `blind_language`**, so a pack built
   the way the module docstring tells you to build one was not blinded at all: 199 of 207 files
   in a real `wg-g4c` `architecture` field kept a language-naming filename. `field_sweep.py`
@@ -211,6 +215,37 @@ before touching it:
   by the selftest as a subprocess. **When an aspect gains a property, grep for every reader of
   its siblings**; one call site reading half an object is invisible to every test that calls
   the function directly.
+
+### `CHANGED.txt` under `blind_language` is REBUILT, not rewritten
+
+`field.blind_changed_txt` maps every `git diff --stat` row through the pack's own
+origin → label manifest, so a blind `CHANGED.txt` reads ` sim/01.src | 42 ++--`. There is **no
+directory vocabulary anywhere in the repair**, which is the point: a vocabulary can fire on a
+word that is not a path and can miss a directory nobody listed, and the manifest can do neither.
+`judge/blind_dir_selftest.py` pins it with a mutant, a variant, seven `git diff --stat` shapes and a
+fail-closed case, and takes `--runs-root <main checkout>/eval/runs` for the per-segment re-sweep.
+Three properties to preserve if you touch it:
+
+- **A row must name a file that is on disk in that pack.** The mapping checks each candidate
+  label against what the copy loop actually wrote rather than re-deriving the `.src` rename — a
+  second copy of that rule is how #100 recurred. The judge's brief already tells it to cite pack
+  labels; before this, the one file that named the real paths was the one the harness added.
+- **Unmapped rows are omitted and NOT counted to the judge.** 228 of 424 rows in `wg-g4c` name
+  files outside the pack. The count of them runs 53 and 43 for the two Unity submissions against
+  15 and 15 for the two TypeScript ones, so printing it — or printing the `git diff --stat` summary tail
+  — hands over a partition of the field (#62). The counts go in `evidence_counts` as
+  `changed_rows` / `changed_rows_dropped`, beside the pack, never in it.
+- **Zero mapped rows is a REFUSAL.** A manifest whose origins stop spelling the diff's paths
+  still parses and still maps — it just maps nothing, and an empty `CHANGED.txt` reads as a
+  submission that changed nothing (rule 7, rule 12).
+
+**The code-content half is deliberately not repaired**, and the measurement that declined it is
+worth knowing before anyone reaches for the obvious fix: a whole-segment, path-adjacent
+vocabulary derived from `git ls-files` over the four starters is *feasible* — 536 whole-segment
+path hits across all 84 stored packs, exactly **1** of them in an arm the segment does not name —
+but its redaction density is stack-correlated by construction, **Godot 0, Rust 43, Unity 228,
+TypeScript 265**, because only some starters have arm-exclusive directories. It would trade a leak
+the judge must read for one it cannot help seeing. See `tasks/103`.
 
 Three more things it has got wrong before:
 

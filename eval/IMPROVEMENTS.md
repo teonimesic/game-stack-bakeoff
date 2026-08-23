@@ -1287,3 +1287,68 @@ real run.** Two defects, neither reachable from the test data:
 `Assets` 128, `res://` 34 — is untouched at 1,561 segments (task 95). And **no stored
 `architecture` round is language-blind**: this repair licenses new rounds and repairs none, which
 is now written into `eval/RUNS.md` beside the `neutralise` caveat that has the same shape.
+
+## Iteration 15: a total over two channels, and the one that was 100% signal
+
+**Hypothesis.** Iteration 14 handed on a single number — 1,561 arm-naming directory segments
+surviving `blind_extensions` in the 8 stored `architecture` packs — and a guess to go with it:
+that an extension vocabulary can be audited against the starters mechanically and *a directory
+vocabulary probably cannot*. If the guess is right, the repair is a hand-maintained list of
+directory names with a collision census behind each entry, the way `_NOT_AN_EXTENSION` was built.
+
+**Measurement, and it did not survive the partition.** The 1,561 is a mean over a heterogeneous
+population, one level below where rule 4 usually fires — not over submissions, over *channels*:
+
+| channel | a real path segment | the same word doing something else |
+|---|---|---|
+| `CHANGED.txt` | **182** | **0** |
+| code content | 149 | **1,230** |
+
+1,129 of the 1,148 `public` hits are the C# access modifier; 16 of the 17 `ProjectSettings` are
+`ProjectSettings.globalize_path()`; `Assets` is `ResMut<Assets<Image>>` in Rust packs. **A total
+that pools a 0% collision rate with an 89% one describes neither channel, and it is the number
+that would have chosen the wrong repair** — a vocabulary, aimed mostly at words that are not
+paths.
+
+> **When a leak census returns one figure, partition it by WHO WROTE THE TEXT before choosing a
+> repair.** The channel the harness authored and the channel the agent authored are different
+> populations with different remedies available, and only one of them has ground truth on hand.
+
+**Change.** `field.blind_changed_txt()`: under `blind_language`, `CHANGED.txt` is **rebuilt**
+from the pack's own origin → label manifest rather than rewritten, so it reads
+` sim/01.src | 42 ++--`. There is no directory vocabulary in the repair at all — the two failure
+modes a vocabulary has (firing on a non-path, missing an unlisted directory) are both unavailable
+to a table the packer itself wrote. Rows that map to no label are omitted; their count is not
+shown to the judge and is recorded beside the pack as `changed_rows_dropped`.
+
+| run | result |
+|---|---|
+| `blind_dir_selftest.py` with only `field.py` reverted | **28 segments survive, 32 rows cite a file not in the pack** |
+| after the change | 0 unmet expectations |
+| mutant (`blind_changed_txt` neutered) | check 1 goes red — 28 segments |
+| variant (`blind_language=False`) | `CHANGED.txt` byte-identical to `neutralise` alone; 28 directory segments still there |
+| fail-closed (one character broken in every manifest origin) | refuses, rather than writing an empty `CHANGED.txt` |
+| re-sweep, 43 stored submissions with a diff and a manifest | **1,275 → 0**, per segment, 535 rows mapped and 1,186 omitted |
+| real run, `wg-g4c/g4_platformer`, both packers | 207 files each, **8 files differ and all 8 are `CHANGED.txt`**; 330 → 0 segments; code channel 106 → 106 |
+
+**The guess this iteration was handed turned out to be wrong, and the right answer was still no.**
+A directory vocabulary read from `git ls-files` over the four starters *is* auditable: whole-segment
+and path-adjacent, it finds 536 hits across all 84 stored packs with exactly **1** in an arm the
+segment does not name. It was declined anyway, for a reason the feasibility question does not
+reach — **the redaction it produces is stack-correlated by construction**: Godot 0, Rust 43,
+Unity 228, TypeScript 265, because only some starters have arm-exclusive directories. A judge
+seeing three packs with redacted paths and one without has been handed the partition by the
+instrument (#62). `tasks/103` carries the measurement.
+
+> **"Can this check be built?" and "should it run?" are different questions, and a feasibility
+> answer looks like a decision.** The vocabulary was buildable and precise; what disqualified it
+> was the shape of its output, which no amount of precision improves.
+
+**Two things the fixture could not have said.** `blind_ext_selftest.py`'s fixture had carried
+`"origin": "real/1"` since it was written, because nothing read the field — and a placeholder
+origin maps nothing, so the new fail-closed guard fired on the project's own test data the first
+time it ran. That is the guard working. The second: its `blind-changed-txt-neutral` check now
+passes for a different reason than it was written for, since a manifest-built `CHANGED.txt` never
+contained an extension for `blind_extensions` to remove. It is kept and **labelled in place** —
+a check that quietly changed what it tests is this repository's central failure mode, and the
+alternative to the comment is a green nobody can interpret.
