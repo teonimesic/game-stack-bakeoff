@@ -697,6 +697,26 @@ Applying them retroactively would score the task change rather than the work.
 
 An evaluator that cannot fail (1) or pass (2) is not evidence.
 
+### The last end-to-end reading of those three, and what it is not
+
+Measured 2026-08-14 with audio in the tiers. **These are stored `overall` values under the
+weighted scheme `0.31*tier1 + 0.69*tier2`, which was retired on 2026-08-23 when tier 1 became a
+gate** (#123, `eval/RUNS.md`, the fifth comparability break). They are kept because what they
+establish is monotonicity, not a level, and no re-measurement has been made under the current
+scheme:
+
+| fixture | overall, pre-2026-08-23 scheme |
+|---|---|
+| `ref_pong` (correct reference game) | **0.956** — tier 2 14/14, all six audio criteria pass |
+| `ref_pong_detuned` | 0.796 |
+| `ref_adversarial_pong` (reports state, does not simulate) | 0.401 |
+| `broken` (the starter, no game in it) | **0.089** |
+
+Monotone across the full range: the evaluator can pass a good game and fail a broken one.
+**There is no producer that reprints this table** — it was assembled by hand from four
+evaluations. Under `overall = tier2` the four would compress toward tier 2's own range, and any
+new reading must be taken under the current scheme rather than compared with these.
+
 Alongside them, the module selftests — each exits non-zero on its own mutants:
 `audio_selftest.py`, `sequential_selftest.py`, `bot_mutants.py`, `capability_selftest.py`,
 `rusage_selftest.py`, `gate_selftest.py`, `tier1_census.py --selftest`, and
