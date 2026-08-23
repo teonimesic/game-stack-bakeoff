@@ -1258,7 +1258,7 @@ truth. What is decided:
 
 **Three tiers, split on a budget rather than on coverage.** `.githooks/pre-commit` is 1.2s and
 `.githooks/pre-push` is 12.0s, both measured; `gates.yml` is 42s of gates and `controls.yml` is
-281s. A hook nobody bypasses is worth more than a hook that covers everything, and `--no-verify`
+521s. A hook nobody bypasses is worth more than a hook that covers everything, and `--no-verify`
 is one flag. **A hook checks the CONTENT; CI additionally checks the CHECKERS** — a control over
 a tool changes only when the tool changes.
 
@@ -1292,8 +1292,31 @@ need `eval/runs/` and correctly exit 2 without it.
 setting and buys nothing here. The allowance could not be read (`gh api
 /users/teonimesic/settings/billing/actions` is 404 without the `user` token scope), so the design
 is lean rather than sized: `ubuntu-latest`, push narrowed to `main`, `cancel-in-progress`, and
-the 281s tier behind a path filter plus a nightly cron. **Whether to make the repository public
+the 521s tier behind a path filter plus a nightly cron. **Whether to make the repository public
 is the operator's call and nobody else's**; it would remove the constraint entirely.
+
+**What CI has consumed has a producer: `python3 eval/tools/ci_minutes.py`.** The allowance is
+still unreadable, but consumption is not — it is read from the Actions API per job, rounded up
+to the whole minute, and printed with the window it counted over. The projection that used to
+stand in the register was arithmetic over two guessed run-rates and is replaced by a measured
+total, not by a better estimate. Two traps are encoded in the tool rather than in prose because
+both return plausible numbers: `run_duration_ms` is the run including its queue wait, and
+`billable.UBUNTU.total_ms` — the field named for exactly this quantity — read **0 for 58 of 58
+runs**, so anything summing it reports "0 minutes consumed" and is indistinguishable from a
+repository that has never built.
+
+**`controls.yml`'s path filter is evaluated over the whole pull-request diff, and that is kept
+deliberately — decided 2026-08-23, task 124.** A `pull_request` run is evaluated against the
+MERGE of head into base, so the question a filter must answer is "has anything the slow tier
+reads changed since it last ran", not "did this push touch `eval/`". Measured: of 19 `controls`
+runs on pull requests, 2 of the 13 with a predecessor push were bought by the accumulated diff —
+and in **2 of those 2**, `main` had moved in a filtered path inside the window, including
+`eval/tools/tasks.py`, which `tasks_mutants.py` mutates. Narrowing the filter to the latest push
+would therefore have been fail-open on every measured opportunity, for at most 16 of 220 minutes.
+The two-job implementation is also arithmetically worse — GitHub bills a minimum of one minute
+per job, so gating costs +25 minutes to save 16. **The lever if minutes ever bind is the slow
+tier's `pull_request` trigger, which is 141 of 220 minutes**, not the path filter, which is 7%.
+The derivation and the run ids are in `.github/workflows/README.md`.
 
 ---
 ## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]

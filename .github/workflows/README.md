@@ -77,6 +77,7 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `.githooks/pre-push`, whole hook | 0 | 12.0s | — |
 | `lint.py --gate --rule invalid-syntax` | 0 | 0.1s | CI fast |
 | `lint_coverage.py --selftest` | 0 | 0.1s | CI fast |
+| `ci_minutes.py --selftest` | 0 | 0.04s | CI fast |
 | `prompt_guard.py` | 0 | 0.1s | CI fast |
 | `manifest_selftest.py` | 0 | 0.3s | CI fast |
 | `findings_control.py` | 0 | 0.7s | CI fast |
@@ -106,6 +107,7 @@ a measurement with a date on it, not a property of the tier.
 | `tools/evidence_set_control.py`, `tools/disclosure_mutants.py` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored (129G) and can never be in a checkout |
 | `judge/audit_criteria.py` | **runs, exits 0, and measures nothing without a corpus**: it printed `0 / 0 / 0` for every line of its verdict in a tree with no `eval/runs/`. That is the shape this repository exists to catch, not a gate |
 | `docstat.py --renumbered` | never gates, by design — its second half is explicitly undecidable. The half that does gate (the triage register) runs inside `--sweep` |
+| `ci_minutes.py` without `--selftest` | it reads the Actions API — one call per run, and the count grows with every push, so gating it would make CI cost grow quadratically in its own history. Its `--selftest` half is offline and IS gated |
 | `lint.py --gate` (the whole pinned set) | 64 findings with a standing untriaged backlog. See below |
 | anything that spends money or drives the `claude` CLI | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py`. The operator's call, every time |
 
@@ -260,22 +262,105 @@ So the design is lean rather than sized to a known budget:
 - `ubuntu-latest` everywhere — Linux bills at 1x, Windows 2x, macOS 10x.
 - the push trigger is narrowed to `main`, so agent branches cost nothing until a PR opens.
 - `concurrency` with `cancel-in-progress`, so a superseded push stops its own run.
-- the 281s tier is behind a path filter and a nightly cron rather than on every event.
+- the 521s tier is behind a path filter and a nightly cron rather than on every event.
 
-Rough arithmetic, with assumptions stated so they can be corrected: at ~30 fast runs/day
-(~1 min each including setup, from four observed runs of 44-50s) and ~5 slow runs/day
-(~10 min after task 109 tripled `tasks_mutants` and task 114 added the skill-layout control;
-6m32s was measured before either), that is **~2400 minutes a month** — the same order as a
-Free-plan private allowance, and not inside it with any margin. The first lever if it binds is
-the slow tier's `pull_request` trigger, leaving the nightly.
+### What it has actually cost — read from the API, not estimated
 
-**A `pull_request` path filter is evaluated over the WHOLE PR diff, not over the latest
-push.** Observed here: a push touching only this file still ran `controls`, because
-`.github/workflows/controls.yml` was somewhere in the PR's diff. So a PR that touches `eval/`
-once pays for the slow tier on every subsequent push to it.
+**The producer is `python3 eval/tools/ci_minutes.py`.** Run it rather than quoting the table;
+the numbers below are one reading, and its window is part of the number.
+
+| | measured 2026-08-23 |
+|---|---|
+| **billable minutes to date** | **220** |
+| population | 59 completed jobs |
+| window | `15:29:33Z .. 18:47:27Z` — 3h18m, the day CI was built |
+| raw wall clock | 204.6 min; per-job rounding-up costs the other 15.4 |
+
+| workflow × event | minutes | jobs |
+|---|---|---|
+| `controls` / `pull_request` | **141** (64%) | 18 |
+| `controls` / `push` | 46 | 8 |
+| `gates` / `pull_request` | 19 | 19 |
+| `gates` / `push` | 14 | 14 |
+
+**This table went from 207 to 220 in the three hours it took to write this section**, because
+four agents were pushing throughout. That is not a caveat on the number — it is the reason the
+number needs a command rather than a paragraph, and the reason every figure here carries the
+window it was read over.
+
+**Do not turn 220 into a monthly rate, and do not restore the one this section used to
+carry.** The window is three hours on the day CI was built, and it includes the CI's own
+bring-up — seven `controls` runs on `task-110-ci-and-hooks` alone. The projection that stood
+here was arithmetic over two guessed run-rates; nothing produced either, and the copy of it
+in `tasks/110`'s body disagreed with the copy in this file, which is what an unproduced
+number does. **No monthly rate is derivable from three hours**, so the honest statement is a
+measured total with its window and the command that re-derives it. If a rate is ever needed,
+run the producer across a window that contains ordinary work rather than the CI's own
+construction.
+
+**The billing unit is the JOB, and the field named `billable` is not it.**
+`/actions/runs/{id}/timing` exposes `billable.UBUNTU.total_ms`, which read **0 for 58 of 58
+runs**. A census that returns one value across the population it exists to discriminate is
+reporting the instrument, so `ci_minutes.py` refuses that field, reads job `started_at` /
+`completed_at` instead, and rounds each job up to the whole minute. It still reads the field
+and prints what it saw. `run_duration_ms` is the other trap: it is the *run*, including the
+queue wait — 607000 against its one job's 588s on run `32657248359`.
+
+`cancelled` runs cost **43 minutes over 10 jobs**. That is `cancel-in-progress` working, not
+waste: those runs were superseded and stopped early. It is recorded because 21% of the bill
+sitting under a conclusion nobody adds up is exactly the sort of figure that gets rediscovered.
+
+### The path filter is evaluated over the whole PR diff, and that is correct
+
+**A `pull_request` path filter matches the accumulated diff of the whole PR, not the latest
+push.** Measured with `python3 eval/tools/ci_minutes.py --path-filter`: of 19 `controls` runs
+on pull requests, 6 were the first on their branch (no predecessor push, so they match by
+construction) and **2 of the remaining 13** were bought by the accumulated diff — both on
+`task-110-ci-and-hooks`, both from a push touching only `.github/workflows/README.md`. And
+`gates` — which has no path filter — ran exactly as many times as `controls` on all five
+branches, so once a PR's diff matches, the slow tier does run on every subsequent push.
+
+So the mechanism in the ticket is real. **The change was still rejected, on two measurements.**
+
+**It would be fail-open, on 2 of 2 measured opportunities.** A `pull_request` run is evaluated
+against the **merge** of head into base, so the question a filter must answer is not "did this
+push touch `eval/`" but "has anything the slow tier reads changed since it last ran" — and the
+base moves. In both windows a latest-push filter would have skipped:
+
+| run it would have skipped | `main` commits in the window | touching a filtered path |
+|---|---|---|
+| `32649830894` | 4 | **3** — incl. `.agents/skills/work/SKILL.md`, `.claude/skills/dispatch/SKILL.md` |
+| `32652152099` | 7 | **3** — incl. `eval/tools/tasks.py`, `eval/tools/docstat.py` |
+
+Both would have skipped a run whose merge inputs had genuinely moved. `tasks_mutants.py`
+mutates a copy of `eval/tools/tasks.py` and `skill_layout_control.py` reads exactly those
+skill paths, so neither is a near-miss. Across the day, **264 of 429 `main` commits touch a
+filtered path**, so this exposure is continuous rather than a coincidence of two windows. It
+is also the defect class this repository has already been bitten by once: run `32649830893`
+went red on the merge alone, and the section above calls that the strongest argument in this
+file for CI existing.
+
+**And the cheaper of the two implementations costs more than it saves.** GitHub bills a
+minimum of one minute per job, so:
+
+| design | saves | costs | net |
+|---|---|---|---|
+| a separate gating job, then `controls` | the 2 skipped runs, 16 min | +1 min × 25 `controls` jobs = **+25 min** | **+9 min — worse than doing nothing** |
+| one job, `if:` on the five gate steps | ~14 min (a skipped run still pays the 36s setup floor) | a **green `controls` run that executed no gate** | 6.4% of 220, for a run that reports success and measures nothing |
+
+The setup floor is measured on run `32657248359`: 36s of checkout, `setup-python`, pip, `just`
+and ffmpeg against 549s of actual gates. A skipped run cannot cost less than a minute.
+
+**What it would cost to change, if the constraint ever binds.** The `before`/`after` shas are
+present in the `pull_request` payload only for `action: synchronize` — `opened` and `reopened`
+would have to fall back to running everything — so the implementation is a step computing the
+range plus a fallback, in a workflow whose current filter is four lines of YAML. The lever to
+reach for first is not this one: **`controls` / `pull_request` is 141 of 220 minutes**, and
+dropping that trigger for the nightly alone is a two-line change that saves 64% rather than
+7.2%. It also trades away per-PR feedback, which is why it is a lever and not a decision.
 
 **Making the repository public would remove the constraint entirely** — Actions is unlimited
-for public repositories, and the whole 281s tier could run on every pull request. That is the
+for public repositories, and the whole 521s tier could run on every pull request. That is the
 operator's call and nobody else's: the history contains every run, every cost figure and
 every finding.
 
