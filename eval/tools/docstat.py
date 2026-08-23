@@ -596,9 +596,17 @@ _CITE_RX = re.compile(r"(?:#|FINDINGS?\s+#?|[Ff]inding\s+#?)(\d{2,3})\b")
 
 
 def _git(*args: str) -> str:
-    """git in the repository this file lives in. Empty string on failure, never a raise."""
+    """git in the repository this file lives in. Empty string on failure, never a raise.
+
+    `check=False` is the point, not an oversight: several calls here ASK a question whose
+    negative answer is a non-zero exit - `cat-file -t` on a path a parent does not have, or
+    `blame` on a file that revision never contained. Raising on those would turn a normal
+    reading into a crash. The exit code is read (#105); it is just read here, once, instead
+    of at every call site.
+    """
     try:
-        r = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True)
+        r = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True,
+                           check=False)
     except (OSError, ValueError):
         return ""
     return r.stdout if r.returncode == 0 else ""
@@ -767,7 +775,7 @@ def _renumber_events(hist: _History) -> list[tuple[int, int, int, str]]:
                 prev.append((num, h, hist.ctime(c)))
     events = []
     for runs in seq.values():
-        for a, b in zip(runs, runs[1:]):
+        for a, b in zip(runs, runs[1:], strict=False):
             events.append((a[0], b[0], b[2], b[1]))
     return sorted(events)
 
