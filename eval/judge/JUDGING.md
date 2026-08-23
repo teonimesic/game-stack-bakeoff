@@ -514,8 +514,8 @@ numbers mean anything.
 ## RESULT — the five specialist judges, `g2_tetris3d`, 2026-08-16
 
 10 field calls, **$33.63**, 8 submissions the deterministic tiers score identically (all
-1.000, 0 of 380 criteria differing within a cell). Two presentation orders per aspect,
-sequential sampling capped at `--max-runs 2`. Summed from the ten stored rounds in
+1.000, and with no resolution below the cell to separate them — #50). Two presentation
+orders per aspect, sequential sampling capped at `--max-runs 2`. Summed from the ten stored rounds in
 `runs/wg-tetris-judge-2026-08-17/pre/` by `judge/judge_ledger.py`. This read *13 calls,
 $46.79* until 2026-08-23: that figure is the whole day, and three of its calls, $13.16, are
 `g1_pong` — a different game and a different field (FINDINGS #119).
@@ -1244,11 +1244,12 @@ variation that is *not* a stack difference.
 
     range <= noise  ->  NO SEPARATION, whatever the ordering looks like
 
-This is the deterministic tiers' own lesson applied one layer up: 0 of 380 criteria differed
-within a cell, so those tiers had no resolution below the cell and could not report a
-difference above it. An aspect whose between-stack range sits inside its own within-stack
-spread is in the same position, and reporting its ranking would be reporting noise with an
-order imposed on it.
+This is the deterministic tiers' own lesson applied one layer up: within a cell they differ on
+almost no criterion — **5 of 436** paired criteria in `wg-matrix`, **0 of 232** in `wg-audio48`,
+reported per run and never pooled — so those tiers have no usable resolution below the cell and
+cannot report a difference above it. An aspect whose between-stack range sits inside its own
+within-stack spread is in the same position, and reporting its ranking would be reporting
+noise with an order imposed on it.
 
 Registered before the numbers, so the threshold cannot be chosen to fit them. First reading,
 on the two `g1_pong` calls already paid for, showing exactly why it is needed:

@@ -56,6 +56,42 @@
       "declared_in": "eval/findings/certifies-nothing.md, finding #54, section 'WITHDRAWN 2026-08-17'; and eval/judge/JUDGING.md, 'RESULT after the repairs'",
       "replaced_by": "What survives is the method, not the result: giving two judges disjoint evidence and checking they disagree is still the cheapest detector for a shared prior, but a positive reading needs repeats at a FIXED order (#58). Do not cite #54 as evidence of anything.",
       "retired_from_live_docs_by": "task 55"
+    },
+    {
+      "id": "WR-20-of-24",
+      "withdrawn": "2026-08-22",
+      "kind": "figure",
+      "claim": "the deterministic tiers stated as '20 of 24 cells score exactly 1.000'",
+      "why": "It never said which 24 cells it counted. Eight different combinations of three 8-cell groups give exactly 20/24, and they disagree about which games and which runs are included - some spanning regime boundaries the docs elsewhere declare void. Summing across games is separately barred: the play-bot scores 13 criteria on pong and 22 on arena, so a 1.000 is a different achievement per column (#72).",
+      "match": ["(?:(?<![0-9.])20(?![0-9])\\s*(?:of|/)\\s*(?:the\\s+)?24(?![0-9])|[Tt]wenty of the twenty-four)", "(?<![0-9.])1\\.000(?![0-9])"],
+      "anchor": "eval/findings/certifies-nothing.md",
+      "declared_in": "README.md corrections table; tasks/05-state-the-criterion-count-disparity-as-its-o.md `established_by`; eval/IMPROVEMENTS.md, 'the test has fired five times'",
+      "replaced_by": "Per game, never summed. wg-matrix-2026-08-13: pong 5/8, tetris 5/8, arena 5/8. wg-audio48: pong 8/8, tetris 8/8. wg-g4c platformer: 6/8. Those counts are of stored `overall` under the pre-2026-08-23 weighted scheme and do not cross the tier-1-becomes-a-gate boundary recorded in eval/RUNS.md - state the scheme with the count.",
+      "retired_from_live_docs_by": "task 62"
+    },
+    {
+      "id": "WR-paired-verdict-tie",
+      "withdrawn": "2026-08-22",
+      "kind": "figure",
+      "claim": "the within-cell agreement stated as '0 verdict differences across 380 paired criteria'",
+      "why": "Both halves fail. The 2026-08-22 recount searched every coherent scope - all runs 1098 paired, wg-matrix alone 436, wg-matrix+wg-arena3d 584, wg-audio48 232, everything-except-g4 958, and by tier playbot 540 and programmatic 402 - and NONE gives 380. Six arbitrary subsets do, each mixing runs and games incoherently. And '0 verdict differences' is false in every scope with a plausible count: 5 for wg-matrix, 13 across all runs. Part of that drift is this project's own criterion repairs re-grading cells, so it may have been true when written - which is the argument for recording an aggregate's scope AND its date.",
+      "match": ["(?<![0-9.])380(?![0-9])", "(?<![0-9.])0(?![0-9])\\s*(?:of\\s*380(?![0-9])|verdict differences)"],
+      "anchor": "eval/findings/certifies-nothing.md",
+      "declared_in": "README.md corrections table; tasks/13-pin-or-withdraw-the-380-paired-criteria-figure.md `established_by`; eval/findings/certifies-nothing.md, finding #50",
+      "replaced_by": "Per scope, never pooled: wg-matrix (3 games) 436 paired criteria, 5 verdict differences, 332 differing evidence strings; wg-audio48 232 paired, 0 verdict differences, 120 differing evidence strings.",
+      "retired_from_live_docs_by": "task 62"
+    },
+    {
+      "id": "WR-paired-evidence-diff",
+      "withdrawn": "2026-08-22",
+      "kind": "figure",
+      "claim": "the within-cell evidence control stated as '219 of 380 evidence strings differ (58%)'",
+      "why": "It is the denominator of WR-paired-verdict-tie and dies with it: no coherent scope over the stored reports yields 380 paired criteria, so no scope yields 219 of them. The control it performs - showing the two trials in a cell are genuinely different artifacts - survives, but only per scope.",
+      "match": ["(?<![0-9.])219(?![0-9])", "(?<![0-9.])380(?![0-9])"],
+      "anchor": "eval/findings/certifies-nothing.md",
+      "declared_in": "README.md corrections table; tasks/13-pin-or-withdraw-the-380-paired-criteria-figure.md `established_by`; eval/findings/certifies-nothing.md, finding #50",
+      "replaced_by": "Per scope: wg-matrix 332 of 436 differing evidence strings; wg-audio48 120 of 232. Quote the run with the ratio.",
+      "retired_from_live_docs_by": "task 62"
     }
   ]
 }

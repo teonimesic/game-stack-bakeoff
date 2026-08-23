@@ -61,7 +61,8 @@ restatement of how many turns an agent chose to take, and turns vary 205–370 *
 > cannot be checked, so it survives indefinitely and gets quoted as established.
 >
 > ⚠️ **A previous version of this table read "0 verdict differences across 380 paired criteria"
-> and "219 of 380 evidence strings differ". Both are withdrawn: neither reproduces.** A
+> and "219 of 380 evidence strings differ". Both are withdrawn: neither reproduces.** Registered
+> as `WR-paired-verdict-tie` and `WR-paired-evidence-diff` in `eval/withdrawn.json`. A
 > 2026-08-22 recount searched every coherent scope — all runs (1098 paired), `wg-matrix` alone
 > (436), `wg-matrix`+`wg-arena3d` (584), `wg-audio48` (232), everything except g4 (958) — and by
 > tier (playbot 540, programmatic 402). **None gives 380.** Six *arbitrary* subsets do, but each
@@ -75,7 +76,8 @@ restatement of how many turns an agent chose to take, and turns vary 205–370 *
 >
 > ⚠️ **A previous version of this table read "20 of 24 cells score exactly 1.000". That number is
 > withdrawn: it cannot be reproduced from the record, because it never said which 24 cells it
-> counted.** Searching the stored reports, **eight different combinations** of three 8-cell groups
+> counted.** Registered as `WR-20-of-24` in `eval/withdrawn.json`.
+> Searching the stored reports, **eight different combinations** of three 8-cell groups
 > give exactly 20/24 — and they disagree about which games and which runs are included, with some
 > spanning regime boundaries this file elsewhere declares void. It is replaced by per-game figures
 > above rather than corrected, because summing across games is itself barred: the play-bot scores

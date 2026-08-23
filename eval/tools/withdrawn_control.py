@@ -36,9 +36,16 @@ WHAT IS CONTROLLED, and why each one exists rather than being obvious:
   FENCE         a plant inside ``` is invisible. That is a documented LIMIT, and it is
                 asserted so it stays measured: if fence handling changes, this control
                 fails and the docstring gets corrected instead of quietly becoming false.
-  HISTORICAL    the real repository at `25fe630`, the commit before task 54 ran, where the
-                withdrawn pair really was published in three live documents. Real corpus,
-                real enumeration, known answer.
+  HISTORICAL    the real repository at a revision BEFORE each withdrawal landed, where the
+                retired figure really was published in named live documents. Real corpus,
+                real enumeration, known answer. See `HISTORICAL` for the one entry whose
+                withdrawal predates the first commit and what its row does and does not prove.
+  VARIANT       the REPLACEMENT wording - what every repaired document now says - must stay
+                green. A mutant asks whether the check can fail; only a variant asks whether
+                it can still pass on an input it might mishandle (AGENTS.md rule 15), and
+                here that input is the sentence the repair produced. If `436 paired criteria,
+                5 verdict differences` tripped the register, no document could be repaired at
+                all and the only way to green would be to cite an id over a live figure.
 """
 
 from __future__ import annotations
@@ -53,11 +60,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import docstat as DS  # noqa: E402
 
-#: The revision before task 54 retired the pair, and the three live documents #113 names
-#: as publishing it there. This is the one control running over a real corpus with a real
-#: answer stated in advance.
-PRE_TASK_54 = "25fe630"
-PRE_TASK_54_SITES = ("DECISIONS.md", "README.md", "eval/judge/JUDGING.md")
+#: (revision, entry id, live documents that published it there). The controls running over a
+#: real corpus with the answer stated in advance. Each revision is the commit BEFORE that
+#: entry's withdrawal landed, so the hit is a figure the project was really asserting:
+#: `25fe630` precedes task 54 and `727759d` precedes the 380-paired-criteria withdrawal
+#: (`307c957`), whose README headline row stated both halves of it as current evidence.
+#:
+#: `WR-20-of-24` IS THE EXCEPTION AND THE LIMIT IS STATED RATHER THAN SMOOTHED OVER. Its
+#: withdrawal predates this repository's first commit, so no revision here states it as a
+#: current claim and none ever will. `a3d0fd1` is the earliest tree that exists, and what
+#: its row proves is narrower: the patterns fire on the real README wording, in a block that
+#: at the time carried no marking a machine could read. The claim-as-current case for that
+#: entry is covered by the planted POSITIVE controls instead, which is weaker evidence and
+#: is named here so nobody reads the green as more than it is.
+HISTORICAL = (
+    ("25fe630", "WR-tier3-pair", ("DECISIONS.md", "README.md", "eval/judge/JUDGING.md")),
+    ("727759d", "WR-paired-verdict-tie",
+     ("README.md", "DECISIONS.md", "eval/judge/JUDGING.md")),
+    ("727759d", "WR-paired-evidence-diff", ("README.md", "DECISIONS.md")),
+    ("a3d0fd1", "WR-20-of-24", ("README.md",)),
+)
 
 MUTANTS = {
     "any_of": "a block states an entry if ANY match pattern occurs, not all of them",
@@ -77,6 +99,29 @@ HEAD = "# A live document\n\nSome prose that states nothing retired.\n\n"
 
 CLAIM = ("| between-stack range of mean ranks (0-7) | **1.70** |\n"
          "| mean gap between a stack's OWN two trials | **2.05** |\n")
+
+#: The three forms the retired ceiling count is written in. The numeric two are how README
+#: stated it; the third is how the findings log states it, and it is the only one the anchor
+#: proof exercises - so both branches of that entry's first pattern are proved, not one.
+CLAIM_2024 = {
+    "numeric": "The deterministic tiers: 20 of 24 cells score exactly 1.000.\n",
+    "slash": "Eight combinations of three 8-cell groups give exactly 20/24 at 1.000.\n",
+    "words": "Twenty of the twenty-four cells now sit at exactly 1.000.\n",
+}
+
+#: The 380 pair as README's headline row stated it at 727759d, on one line, since the
+#: conjunction is what makes each entry a signature rather than a loose number.
+CLAIM_380 = ("| **0 verdict differences across 380 paired criteria** | while **219 of 380 "
+             "evidence strings do** differ |\n")
+
+#: WHAT THE REPAIR PRODUCED. Every document repaired under task 62 now reads like this, and
+#: the register must be green on it. Copied in wording, not in spirit, from README.md's
+#: evidence table, DECISIONS.md's deterministic-tier section and JUDGING.md.
+REPLACEMENT = (
+    "`wg-matrix` (3 games, 436 paired criteria): **5** verdict differences against **332**\n"
+    "differing evidence strings. `wg-audio48` (232 paired): **0** verdict differences,\n"
+    "**120** differing evidence strings.\n"
+    "Per game, never summed: pong **5/8**, tetris **5/8**, arena **5/8** at exactly 1.000.\n")
 
 
 def doc(*parts: str) -> str:
@@ -137,6 +182,53 @@ def controls() -> int:
     r.check(not hits, "CONJUNCTION: the other pattern alone is not one either",
             f"{len(hits)} hit(s)")
 
+    # POSITIVE, per form, for the entries added under task 62. `WR-20-of-24`'s first pattern
+    # is an alternation because README wrote the figure in digits and the findings log writes
+    # it in words; the anchor proof only ever exercises the words branch, so each branch is
+    # planted here separately. An alternation with an unproved branch is a pattern that has
+    # been read, not measured.
+    for form, text in CLAIM_2024.items():
+        hits = run({"README.md": doc(text)})
+        r.check(len(hits) == 1 and "WR-20-of-24" in hits[0],
+                f"POSITIVE: the retired ceiling count is found in its {form} form",
+                f"{len(hits)} hit(s)")
+
+    hits = run({"README.md": doc(CLAIM_380)})
+    found = {h.split("states `")[1].split("`")[0] for h in hits}
+    r.check(found == {"WR-paired-verdict-tie", "WR-paired-evidence-diff"},
+            "POSITIVE: the 380 row trips BOTH of its entries, separately",
+            f"{sorted(found)}")
+
+    # ...and each of those two is independently detectable, which is why they are two entries
+    # and not one. A single entry over all three patterns would go quiet on a document that
+    # restated only one half.
+    hits = run({"README.md": doc("0 verdict differences across 380 paired criteria.\n")})
+    found = {h.split("states `")[1].split("`")[0] for h in hits}
+    r.check(found == {"WR-paired-verdict-tie"},
+            "POSITIVE: the verdict half alone still fires, without the evidence half",
+            f"{sorted(found)}")
+    hits = run({"README.md": doc("219 of 380 evidence strings differ (58%).\n")})
+    found = {h.split("states `")[1].split("`")[0] for h in hits}
+    r.check(found == {"WR-paired-evidence-diff"},
+            "POSITIVE: the evidence half alone still fires, without the verdict half",
+            f"{sorted(found)}")
+
+    # CONJUNCTION for the same three. A bare count is a number, not a claim.
+    for label, text in (("20 of 24 with no score", "20 of 24 trials completed.\n"),
+                        ("a lone 1.000", "godot scored 1.000 on tier 2.\n"),
+                        ("a lone 380", "judge/static.py:380 raises on a missing recipe.\n"),
+                        ("a lone 219", "the pack is 219 files.\n"),
+                        ("380 without the verdict claim", "380 paired criteria were read.\n")):
+        hits = run({"README.md": doc(text)})
+        r.check(not hits, f"CONJUNCTION: {label} is not a statement", f"{len(hits)} hit(s)")
+
+    # VARIANT (rule 15). The repaired wording - what the live documents say now - must stay
+    # green. A check that fired on the replacement would make repair impossible: the only
+    # route to green would be citing a withdrawal id over a figure that is current and true.
+    hits = run({"README.md": doc(REPLACEMENT)})
+    r.check(not hits, "VARIANT: the per-scope replacement wording stays green",
+            f"{len(hits)} hit(s)" + (f": {hits[0][:70]}" if hits else ""))
+
     # FENCE. A documented limit, asserted so it cannot stop being true unnoticed.
     hits = run({"README.md": doc("```\n" + CLAIM + "```\n")})
     r.check(not hits, "FENCE (a known LIMIT, not a feature): a plant inside ``` is invisible",
@@ -191,22 +283,28 @@ def controls() -> int:
                 "EMPTY: a missing register is reported, not green")
 
     # HISTORICAL. Real corpus, real enumeration, answer known in advance: at the commit
-    # before task 54 ran, the withdrawn pair was published in exactly the three live
-    # documents #113 names.
-    hist, hist_problems = DS._live_corpus(PRE_TASK_54)
-    if hist_problems or not hist:
-        r.check(False, f"HISTORICAL: could not read the tree at {PRE_TASK_54}",
-                "; ".join(hist_problems)[:120])
-    else:
-        hits = run(hist)
-        pair = {h.split(":")[0] for h in hits if "WR-tier3-pair" in h}
-        for site in PRE_TASK_54_SITES:
-            r.check(site in pair,
-                    f"HISTORICAL: {site} published the pair at {PRE_TASK_54}")
-        now, _ = DS._live_corpus()
-        pair_now = {h.split(":")[0] for h in run(now) if "WR-tier3-pair" in h}
-        r.check(not pair_now,
-                "HISTORICAL: and no live document publishes it today", f"{sorted(pair_now)}")
+    # before each withdrawal landed, the retired figure was published in exactly these live
+    # documents. Corpora are read once per revision - `git show` per file is the expensive
+    # part and three of these rows share a tree.
+    corpora: dict[str, dict[str, str]] = {}
+    now, _ = DS._live_corpus()
+    for rev, eid, sites in HISTORICAL:
+        if rev not in corpora:
+            hist, hist_problems = DS._live_corpus(rev)
+            if hist_problems or not hist:
+                r.check(False, f"HISTORICAL: could not read the tree at {rev}",
+                        "; ".join(hist_problems)[:120])
+                hist = {}
+            corpora[rev] = hist
+        hist = corpora[rev]
+        if not hist:
+            continue
+        published = {h.split(":")[0] for h in run(hist) if f"`{eid}`" in h}
+        for site in sites:
+            r.check(site in published, f"HISTORICAL: {site} published {eid} at {rev}",
+                    "" if site in published else f"found in {sorted(published)}")
+        r.check(not {h.split(":")[0] for h in run(now) if f"`{eid}`" in h},
+                f"HISTORICAL: and no live document publishes {eid} today")
 
     return r.report()
 

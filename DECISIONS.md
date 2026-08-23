@@ -222,9 +222,11 @@ is the outcome this project is most likely to reach.
 
 **Decided [agent], on measurement, and it constrains every claim this project can make.**
 
-Comparing the two independent trials in each of the twelve cells criterion by criterion:
-**0 of 380 verdicts differ, while 219 of the 380 evidence strings do.** The two submissions in
-a cell are different artifacts; the instrument returns the same grade on both.
+Comparing the two independent trials in each cell criterion by criterion, **per run and never
+pooled**: `wg-matrix` (3 games, 436 paired criteria) differs on **5** verdicts against **332**
+differing evidence strings; `wg-audio48` (232 paired) on **0** verdicts against **120**. The two
+submissions in a cell are different artifacts and the instrument mostly returns the same grade on
+both — "mostly", not "never".
 
 | may be used for | may not be used for |
 |---|---|
@@ -800,7 +802,7 @@ settled question is noise that makes the live ones harder to find.
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
-| Deterministic tiers may not rank stacks | Any instrument change producing **non-zero within-cell verdict variance** — currently 0 of 380 |
+| Deterministic tiers may not rank stacks | Within-cell verdict variance **large enough to resolve a between-stack gap** — currently **5 of 436** paired criteria in `wg-matrix` and **0 of 232** in `wg-audio48`, i.e. 1.1% and 0%, against a between-stack gap of zero. This row read *non-zero* until 2026-08-23, when the unscoped figure it rested on was withdrawn and the scoped recount came back **not zero**; a sign is not a threshold, and what size counts is unsettled (task 70) |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
