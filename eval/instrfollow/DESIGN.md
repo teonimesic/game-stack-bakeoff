@@ -252,7 +252,8 @@ a shell would only add a variable and a denial stream.
 
 ## The pilot, and what it changed
 
-An 8-trial pilot ran first, at **$0.83 measured**. It was not a smoke test: it changed the
+An 8-trial pilot ran first, at **$0.83 measured** — a token valuation in `tokval`, not money,
+like every `$` figure this project generates (#159). It was not a smoke test: it changed the
 apparatus twice, and both changes were invisible to the offline control suite.
 
 **1. One fixture made the behavioural checkers dependent on each other.** The fixture tree
@@ -279,7 +280,7 @@ and not about the count, and this design cannot tell those apart. The wording wa
 **the checker was not loosened**, because loosening it would have hidden the ambiguity instead
 of removing it.
 
-## Cost
+## Token valuation
 
 Measured, not projected — `eval/AGENTS.md` forbids extrapolating across a boundary that has not
 been measured across. Pilot: **$0.83 / 8 trials**, ranging $0.054 (k1) to $0.322 (k16); cost

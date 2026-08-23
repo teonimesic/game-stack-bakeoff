@@ -18,7 +18,7 @@ The traps it avoids, each of which produced a confident wrong diagnosis:
                               engines. Match on the process NAME for "is X running".
   find -newermt '-30 minutes' silently matches nothing on macOS. Use -mmin.
   cmd || echo 0               converts an error into a plausible in-range number.
-  a.get("total_cost_usd")     is absent; the key is cost_usd. Reads as $0.00 silently.
+  a.get("total_cost_usd")     is absent; the key is cost_usd. Reads as 0.00 silently.
   %cpu ~0 / frozen CPU        normal for an agent waiting on an API call OR on a running
                               tool. Only "frozen CPU *and* zero descendants" is a wedge.
 
@@ -38,6 +38,10 @@ import os
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import tokenvalue  # noqa: E402
 
 # Where trial work trees live. This MUST track wholegame.py's `default_work`; it was
 # hardcoded to the old $TMPDIR location and kept printing "no writes in last 10 min"
@@ -175,8 +179,9 @@ def report(run_dir: str) -> None:
 
     rows = read_trials(run_dir)
     if rows:
+        print(f"  {'trial':<26} {tokenvalue.UNIT:>7} turns    wall  terminal_reason")
         for r in rows:
-            cost = f"${r['cost']:>6.2f}" if r["cost"] is not None else "   n/a"
+            cost = tokenvalue.fmt(r["cost"], width=7)
             turns = f"{r['turns']:>4}t" if r["turns"] is not None else "  ?t"
             print(f"  {r['id']:<26} {cost} {turns} {r['wall_min']:>6.1f}min  {r['term']}")
         # Partition before aggregating. A mean over mixed terminal reasons is meaningless.
@@ -184,32 +189,66 @@ def report(run_dir: str) -> None:
         # AND PARTITIONING BY TERMINAL REASON IS NOT ENOUGH, because one reason can hold
         # two populations. `wg-g4b` was killed by an external quota limit and printed
         #
-        #     api_error n=8 total $65.57 mean $8.20
+        #     api_error n=8 total 65.57 mean 8.20 tokval
         #
         # over two trials that had worked for 53 minutes and six that never got a turn.
-        # $8.20 describes no trial that has ever run - rule 4 firing INSIDE the partition
+        # 8.20 describes no trial that has ever run - rule 4 firing INSIDE the partition
         # the tool already makes. So the mean is suppressed unless the group is
         # homogeneous in the only way that is cheap to check: did the trial do anything.
+        #
+        # AND A MISSING FIGURE IS NOT A ZERO. `r["cost"] or 0.0` printed `n/a` in the row
+        # above and then summed the same record as 0.00 into the total and the mean below -
+        # the `|| echo 0` shape AGENTS.md rule 3 forbids by name, turning an unread value
+        # into a plausible in-range one. `None` is carried through grouping; every line
+        # states how many records it could not read, and a group with nothing readable gets
+        # no total at all rather than 0.00.
         by_term = collections.defaultdict(list)
         for r in rows:
-            by_term[r["term"]].append((r["cost"] or 0.0, r["turns"] or 0))
+            by_term[r["term"]].append((r["cost"], r["turns"] or 0))
         print()
+        def line(label: str, group: list[tuple]) -> str:
+            """`n`, total and mean over one population, saying what it could not read.
+
+            `n` COUNTS THE POPULATION, not the readable subset: a group of 2 where one
+            figure is missing is n=2 with 1 excluded, never n=1. And the mean is over the
+            readable subset only - a missing figure summed as 0.00 is the `|| echo 0`
+            shape (rule 3), which is what this printed until 2026-08-23.
+            """
+            readable = [c for c, _ in group if c is not None]
+            miss = f"  ({len(group) - len(readable)} unmeasured, excluded)" \
+                if len(readable) != len(group) else ""
+            if not readable:
+                return (f"  {label:<18} n={len(group):<3} "
+                        f"total {tokenvalue.fmt(None, width=8)}  "
+                        f"NO READABLE FIGURE in {len(group)} record(s)")
+            return (f"  {label:<18} n={len(group):<3} "
+                    f"total {tokenvalue.fmt(sum(readable), width=8)}  "
+                    f"mean {tokenvalue.fmt(sum(readable)/len(readable), width=7)}{miss}")
+
         for term, cs in sorted(by_term.items(), key=lambda kv: str(kv[0])):
-            costs = [c for c, _ in cs]
-            started = [c for c, n in cs if n > 1]
-            never = [c for c, n in cs if n <= 1]
-            head = f"  {str(term):<18} n={len(cs):<3} total ${sum(costs):>8.2f}"
+            # PARTITION FIRST, THEN EXCLUDE. Splitting on `turns` over ALL records, before
+            # dropping the unreadable ones, is what keeps the two populations visible: a
+            # never-started trial usually has no figure at all, so filtering on `c is not
+            # None` first emptied `never` and the group printed a pooled mean over the one
+            # population left - rule 4, reintroduced by the repair for rule 3.
+            started = [(c, n) for c, n in cs if n > 1]
+            never = [(c, n) for c, n in cs if n <= 1]
             if started and never:
                 # Two populations under one label. Report both; refuse the pooled mean.
-                print(f"{head}  MEAN SUPPRESSED - {len(started)} trial(s) ran, "
+                readable = [c for c, _ in cs if c is not None]
+                print(f"  {str(term):<18} n={len(cs):<3} "
+                      f"total {tokenvalue.fmt(sum(readable) if readable else None, width=8)}"
+                      f"  MEAN SUPPRESSED - {len(started)} trial(s) ran, "
                       f"{len(never)} never got a turn")
-                print(f"  {'':<18} ran:   n={len(started)} total ${sum(started):>8.2f}  "
-                      f"mean ${sum(started)/len(started):>7.2f}")
-                print(f"  {'':<18} never: n={len(never)} total ${sum(never):>8.2f}")
+                print(line("ran:", started))
+                print(line("never:", never))
             else:
-                print(f"{head}  mean ${sum(costs)/len(costs):>7.2f}")
+                print(line(str(term), cs))
     else:
         print("  no trial records yet")
+
+    print()
+    print(f"  {tokenvalue.DEFINITION}")
 
     print()
     drivers = find_drivers()
@@ -257,11 +296,108 @@ def report(run_dir: str) -> None:
         print(f"    {e}   (check ancestry before assuming it is ours)")
 
 
+def selftest() -> int:
+    """Can an unmeasured token value still reach a total? Both directions, in a temp tree.
+
+    A record whose `agent.cost_usd` is missing printed `n/a` in the per-trial row and was
+    summed as `0.00` into the group total and the mean below it - the `|| echo 0` shape
+    AGENTS.md rule 3 forbids by name, and the one that turns an unread value into a
+    plausible in-range one. The MUTANT here is the old expression itself: it is evaluated
+    beside the real aggregation on the same records, and the two must disagree.
+    """
+    import contextlib
+    import io as _io
+    import json as _json
+    import tempfile
+
+    rows_out: list[tuple[str, bool, str]] = []
+
+    def check(name: str, ok: bool, detail: str = "") -> None:
+        rows_out.append((name, ok, detail))
+
+    def run(records: list[dict]) -> str:
+        with tempfile.TemporaryDirectory() as td:
+            trials = os.path.join(td, "trials")
+            os.makedirs(trials)
+            for i, rec in enumerate(records):
+                # Temp file plus os.replace, the same policy every artifact here is
+                # written under: a reader must never meet a half-written record, and a
+                # fixture is not a reason to keep a second policy.
+                final = os.path.join(trials, f"t{i}.json")
+                tmp = f"{final}.tmp"
+                with open(tmp, "w") as fh:
+                    _json.dump(rec, fh)
+                os.replace(tmp, final)
+            buf = _io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                report(td)
+            return buf.getvalue()
+
+    def rec(cost, turns, term="completed", tid="x"):
+        agent = {"num_turns": turns, "terminal_reason": term}
+        if cost is not None:
+            agent["cost_usd"] = cost
+        return {"trial_id": tid, "stack": "rust", "wall_s": 600, "agent": agent}
+
+    # --- one readable record and one that is not ---------------------------
+    out = run([rec(10.0, 100, tid="a"), rec(None, 50, tid="b")])
+    check("the unreadable row prints n/a, not 0.00", "n/a" in out, out)
+    check("the group total is the readable record alone", "total    10.00" in out, out)
+    check("the group says how many it could not read", "1 unmeasured, excluded" in out, out)
+    # THE MUTANT, evaluated on the same records: `c or 0.0` averages 10 and 0 to 5.00.
+    check("MUTANT: the old expression would have printed a 5.00 mean",
+          f"{(10.0 + 0.0) / 2:.2f}" == "5.00")
+    check("and 5.00 is not in the real output", "5.00" not in out, out)
+
+    # --- THE MIXED CASE: one ran, one never started, and the one that never
+    #     started has no figure. Partitioning after excluding empties `never`, and the
+    #     group prints a mean over the single population left. n must stay 2.
+    out = run([rec(10.0, 100, tid="a"), rec(None, 1, tid="b")])
+    check("a mixed group suppresses the pooled mean", "MEAN SUPPRESSED" in out, out)
+    check("... and keeps n=2 for the group", "n=2" in out, out)
+    check("... reports the trial that ran",
+          "ran:               n=1" in out and "mean   10.00" in out, out)
+    check("... and the one that never got a turn as unreadable",
+          "NO READABLE FIGURE in 1 record(s)" in out, out)
+    check("... without inventing a mean for it", "mean     0.00" not in out, out)
+
+    # --- nothing readable at all -------------------------------------------
+    out = run([rec(None, 100, tid="a"), rec(None, 90, tid="b")])
+    check("a group with no readable figure gets no total",
+          "NO READABLE FIGURE in 2 record(s)" in out, out)
+    check("... and prints n/a where the total would be",
+          "total      n/a" in out, out)
+    check("... rather than 0.00", "total      0.00" not in out, out)
+
+    # --- the green direction: nothing missing, nothing suppressed ----------
+    out = run([rec(10.0, 100, tid="a"), rec(20.0, 90, tid="b")])
+    check("a fully measured group totals and means normally",
+          "total    30.00" in out and "mean   15.00" in out, out)
+    check("... and says nothing about unmeasured records",
+          "unmeasured" not in out, out)
+
+    bad = [r for r in rows_out if not r[1]]
+    for name, ok, detail in rows_out:
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+        if not ok and detail:
+            print("      ---- output ----")
+            for ln in detail.strip().split("\n")[:14]:
+                print(f"      {ln}")
+    print(f"\n{len(rows_out) - len(bad)}/{len(rows_out)} pins green")
+    return 1 if bad else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir")
     ap.add_argument("--watch", type=int, metavar="SECONDS")
+    ap.add_argument("--selftest", action="store_true",
+                    help="pin the aggregation against a missing token value, in a temp "
+                         "tree, in both directions")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     while True:
         run_dir = args.run_dir or newest_run()

@@ -1,9 +1,10 @@
 # Result: compliance did not fall between 1 and 16 instructions
 
-**Task 39. Run `eval/instrfollow/runs/main`, 2026-08-23, 104 trials, $9.06 measured.**
+**Task 39. Run `eval/instrfollow/runs/main`, 2026-08-23, 104 trials, $9.06 measured** — a token
+valuation in `tokval`, not money, like every `$` figure in this project (#159).
 `DESIGN.md` was written and committed before any trial ran. Reproduce with
 `python3 eval/instrfollow/run.py analyse --run-dir eval/instrfollow/runs/main` — it reads
-stored trials and spends nothing.
+stored trials and makes no calls.
 
 ## The answer
 
@@ -125,7 +126,7 @@ costed from what this run measured:
   instructions, and this pool was built conflict-free on purpose. Two contradictions already
   exist in the always-loaded set (tasks 77 and 79) and are a cheaper subject than count.
 
-## Cost
+## Token valuation
 
 $9.06 over 104 trials. **Per arm, never pooled** — the spread is 5×, so a single mean would
 misprice every arm:

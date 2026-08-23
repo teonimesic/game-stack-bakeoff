@@ -53,6 +53,8 @@ Usage, from eval/:
     python3 tools/docstat.py --renumbered --at REV   # ... as of any revision
     python3 tools/docstat.py --withdrawn        # live docs restating a retired figure
     python3 tools/docstat.py --withdrawn --at REV    # ... as of any revision
+    python3 tools/docstat.py --money            # live docs calling a token valuation money
+    python3 tools/docstat.py --money --at REV        # ... as of any revision
     python3 tools/docstat.py --all
 
 A THIRD KIND OF QUESTION, added 2026-08-23. WITHDRAWAL: is a figure or a claim that was
@@ -2879,6 +2881,138 @@ def cmd_withdrawn(rev: str | None = None) -> int:
     print("\nA retired figure resolves, agrees with every copy of itself, and reads as")
     print("established. That is why no consistency check can see it (#113).")
     return 1
+# --------------------------------------------------------------------------- money unit
+#
+# EVERY DOLLAR FIGURE IN THIS PROJECT IS A LIST-PRICE VALUATION OF TOKENS on a
+# subscription account, so no `$` here is an expenditure (#159). The token counts are
+# real; the unit and the noun were not, and a research decision was declined on one.
+#
+# WHY THE TRIGGER IS THE PREDICATE AND NOT THE SIGIL. Requiring every `$` figure to be
+# respelled would be a find-and-replace over `eval/RUNS.md`'s 132 per-run rows, which are
+# the ledger a reader compares runs by; the unit belongs at the top of that file once, not
+# beside each row. And a `$` is not always ours: `research/03-rust-engines.md` quotes W4
+# Games' published console pricing, which is real money and must not be reddened.
+#
+# So the defect this gates is the NOUN: a live block that states one of these figures AND
+# asserts money moved. That is a CLOSED class of English - the verbs and nouns of paying -
+# and the choice between candidates was made on live-corpus counts, not on which sounded
+# more general (AGENTS.md, the census-trigger rule):
+#
+#   | candidate trigger      | blocks hit | false positives |
+#   |------------------------|-----------:|----------------:|
+#   | `cost`/`costs`         |         39 |    many; `cost` is open class and mostly not about money |
+#   | `price`/`priced`       |         15 |    hits W4 Games' real console pricing |
+#   | `pay`/`pays`/`paid`    |          3 |    2 - "it paid for itself", "the numbers it paid for" |
+#   | SHIPPED, without `pay` |         22 |    0 |
+#
+# `pay` was dropped for the two idioms, and it cost no true positive: the one real hit it
+# had (`eval/RUNS.md`'s "money is spent") also carries `spent`. Measured 2026-08-23 over
+# 55 live documents, before the repairs.
+#
+#: The closed class. Only what asserts an expenditure - `cost` and `price` are deliberately
+#: absent, and the table above is why.
+MONEY_PREDICATE = re.compile(
+    r"\b(spend|spends|spent|spending|charged|charges|charging|"
+    r"bill|billed|billing|expenditure|expenditures)\b", re.I)
+
+#: A figure in the unit the project reports: `$` immediately followed by a digit.
+MONEY_FIGURE = re.compile(r"\$[\d]")
+
+#: The declaration that exempts a block. AN ID, NEVER A MARKER WORD, for the reason the
+#: withdrawal register gives one screen up: a vocabulary is an enumeration, and one has
+#: already failed here on a single inflection of one verb. A block that means to discuss
+#: what the unit IS cites the finding that settled it.
+MONEY_EXEMPTION = "#159"
+
+
+def scan_money(corpus: dict[str, str]) -> list[str]:
+    """Live blocks that state a token valuation and call it money."""
+    problems = []
+    for rel in sorted(corpus):
+        lines = corpus[rel].split("\n")
+        for a, b in _claim_blocks(lines):
+            block = "\n".join(lines[a:b])
+            if not (MONEY_FIGURE.search(block) and MONEY_PREDICATE.search(block)):
+                continue
+            if MONEY_EXEMPTION in block:
+                continue
+            words = sorted({w.lower() for w in MONEY_PREDICATE.findall(block)})
+            problems.append(
+                f"{rel}:{a + 1}: states a `$` figure and calls it {', '.join(words)}. "
+                f"Every dollar figure here is a list-price valuation of tokens on a "
+                f"subscription account (#159) - name the unit, or cite {MONEY_EXEMPTION} "
+                f"in this block if the block is about the unit itself.")
+    return problems
+
+
+def _check_money_unit(rev: str | None = None) -> tuple[list[str], str]:
+    """(problems, summary). Does a live document call a token valuation an expenditure?"""
+    corpus, problems = _live_corpus(rev)
+    problems = list(problems) + scan_money(corpus)
+    return problems, (f"money-unit check: {len(corpus)} live document(s)"
+                      f"{' at ' + rev if rev else ''}")
+
+
+def _money_pins() -> list[str]:
+    """Both directions, in memory, on strings whose answer is stated before it is measured.
+
+    A trigger that returns 0 on a clean corpus is indistinguishable from one that cannot
+    fire, which is the shape this file exists to catch. These run inside `--sweep`.
+    """
+    cases = [
+        # (name, document text, should_be_red)
+        ("a live doc calling a valuation spend",
+         "The run spent $421.00 over eight trials.", True),
+        ("... charged", "Ten judge calls were charged $31.66.", True),
+        ("... billed", "The sweep was billed $60.00 against its ceiling.", True),
+        ("... expenditure", "Total expenditure: $2,466.31.", True),
+        ("a figure with no money noun",
+         "The run used 421.00 tokval over eight trials.", False),
+        ("a `$` figure with no money noun",
+         "The eight trials come to $421.00 of token valuation.", False),
+        ("a money noun with no figure",
+         "Nothing here is spend, because nothing is charged per token.", False),
+        (f"a block citing {MONEY_EXEMPTION} may say either",
+         f"No $421.00 figure here was ever spend ({MONEY_EXEMPTION}).", False),
+        ("an external vendor's real price is not ours to redden",
+         "Console via W4 Games: Starter (<$300k rev) $800/yr single platform.", False),
+        ("the exemption is scoped to the BLOCK, not the file",
+         f"A paragraph about the unit ({MONEY_EXEMPTION}).\n\n"
+         f"A separate paragraph that spent $421.00.", True),
+    ]
+    problems = []
+    for name, text, want_red in cases:
+        got_red = bool(scan_money({"pin.md": text}))
+        if got_red != want_red:
+            problems.append(
+                f"money-unit pin `{name}`: expected {'RED' if want_red else 'green'}, "
+                f"got {'RED' if got_red else 'green'}. The trigger no longer separates a "
+                f"valuation named for what it is from one called an expenditure.")
+    return problems
+
+
+def cmd_money(rev: str | None = None) -> int:
+    """`--money`: live documents that call a list-price token valuation an expenditure."""
+    pins = _money_pins()
+    problems, summary = _check_money_unit(rev)
+    print(summary)
+    print(f"trigger: {MONEY_PREDICATE.pattern}")
+    print(f"exemption: a block citing {MONEY_EXEMPTION}\n")
+    if pins:
+        for q in pins:
+            print(f"  PIN {q}")
+        return 1
+    if not problems:
+        print("no live document states a `$` figure and calls it an expenditure.")
+        return 0
+    print(f"{len(problems)} live block(s):\n")
+    for q in problems:
+        print(f"  {q}")
+    print("\nThe token counts are real and every comparison built on them stands. What is")
+    print("wrong is the unit and the noun (#159).")
+    return 1
+
+
 def _index_pins(verbose: bool = False) -> list[str]:
     """Pin the FINDINGS-index checks in BOTH directions, against the real index.
 
@@ -3785,6 +3919,13 @@ def cmd_sweep() -> int:
     # names or it does not. The VERDICT it records is a judgement and is never checked here;
     # only whether the thing it was recorded against still exists.
     problems += _check_triage_register()
+    # THE MONEY-UNIT GATE, wired in for the same reason and on the same shape of question:
+    # a live block either states a `$` figure beside an expenditure noun or it does not.
+    # `_money_pins` runs first and in memory, because a trigger returning 0 on a clean
+    # corpus reads exactly like one that cannot fire.
+    problems += _money_pins()
+    money_problems, _ = _check_money_unit()
+    problems += money_problems
     # The findings-index checks carry their own red control, and it runs HERE rather than
     # in a command someone has to remember. `--sweep` was green on a real two-table split
     # for as long as that split stood; a check whose ability to fail is never exercised is
@@ -3866,6 +4007,12 @@ def main() -> int:
     ap.add_argument("--withdrawn", action="store_true",
                     help="live documents restating a figure declared retired in "
                          "eval/withdrawn.json; --at REV reads the corpus at a revision")
+    ap.add_argument("--money", action="store_true",
+                    help="live documents that state a `$` figure and call it an "
+                         "expenditure; every one here is a list-price valuation of "
+                         "tokens on a subscription account (#159). --at REV reads the "
+                         "corpus at a revision, which is where the red control lives: "
+                         "--money --at f598726 reports 21 blocks")
     ap.add_argument("--at", default="HEAD", metavar="REV",
                     help="revision --renumbered reads (default HEAD); the positive control "
                          "is a revision where a known-stale citation still stands")
@@ -3894,6 +4041,8 @@ def main() -> int:
         return cmd_renumbered(a.at)
     if a.withdrawn:
         return cmd_withdrawn(None if a.at == "HEAD" else a.at)
+    if a.money:
+        return cmd_money(None if a.at == "HEAD" else a.at)
     if a.sweep:
         return cmd_sweep()
     rc = cmd_sizes()

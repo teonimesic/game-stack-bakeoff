@@ -47,7 +47,7 @@ WHAT WOULD MAKE THIS TOOL LIE
 -----------------------------
 Every guard below exists because its absence is a plausible in-range answer, not a crash:
 
-- **A cell with one trial has no gap, and must not contribute a gap of $0.00.** That would
+- **A cell with one trial has no gap, and must not contribute a gap of 0.** That would
   drag the floor down and inflate the ratio — fail-open, in the direction that manufactures
   a difference. Such a group does not qualify, and the reason is printed.
 - **A mixed `terminal_reason` population is not one population.** Only the requested reason
@@ -102,6 +102,10 @@ import json
 import math
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import tokenvalue  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
@@ -220,18 +224,18 @@ def group_result(run: str, game: str, cells: dict[str, list[dict]]) -> dict:
         "stacks": len(cells),
         "per_stack": rows,
         # The floor is the mean of the per-cell gaps. A cell with one trial has no gap and
-        # never reaches here — a $0.00 gap would deflate the floor and inflate the ratio.
+        # never reaches here — a zero gap would deflate the floor and inflate the ratio.
         "within_cell_floor_usd": floor,
         # How much the per-cell gaps disagree WITHIN this group. This is the quantity #63
         # is about — a floor drawn from one cell can be wrong by this factor — and it is
         # computed inside a group because gap sizes are not comparable across budget-cap
-        # regimes. None when the tightest cell is exactly $0.00: the ratio is then a
+        # regimes. None when the tightest cell gap is exactly 0: the ratio is then a
         # division, not a large number.
         "cell_gap_ratio": (max(gaps) / min(gaps)) if min(gaps) else None,
         "between_stack_range_usd": between,
         "range_pct_of_floor": (100.0 * between / floor) if floor else None,
         # The RATIO is undefined at a zero floor; the COMPARISON is not. A group with a
-        # $0.00 floor and a positive range exceeds its floor as completely as a group can,
+        # zero floor and a positive range exceeds its floor as completely as a group can,
         # and counting exceedance off the percentage silently dropped exactly those groups
         # — fail-open, in the direction that understates how much the stacks disagree.
         "range_exceeds_floor": between > floor,
@@ -251,7 +255,7 @@ def _is_number(value) -> bool:
 
     Two traps, both of which pass `isinstance(v, (int, float))`:
 
-    - **`True` is an `int`.** `cost_usd: true` would average as $1.00.
+    - **`True` is an `int`.** `cost_usd: true` would average as 1.00.
     - **`json.loads` accepts the bare literals `NaN`, `Infinity` and `-Infinity`**, and both
       are `float`. This is the dangerous one, because NaN does not raise and does not stop:
       it propagates through every mean, floor and ratio, and **every comparison against it
@@ -304,17 +308,17 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
                 min_stacks: int = 4, min_trials_per_cell: int = 2) -> dict:
     # A threshold below 2 cannot define the measure this tool exists to compute, and both
     # are reachable from the CLI. `--min-trials-per-cell 1` admits a cell with no gap and
-    # scores it $0.00 — the exact fail-open the thin-cell guard exists to prevent, reachable
+    # scores it 0 — the exact fail-open the thin-cell guard exists to prevent, reachable
     # by a flag; `--min-stacks 1` reports a "between-stack range" over one stack, which is
     # 0.00 by construction and reads as agreement. Refuse before measuring, not after.
     if min_stacks < 2:
         raise CostCensusError(
             f"--min-stacks {min_stacks}: a between-stack range needs at least 2 stacks; "
-            f"over 1 it is $0.00 by construction and reads as the stacks agreeing")
+            f"over 1 it is 0 by construction and reads as the stacks agreeing")
     if min_trials_per_cell < 2:
         raise CostCensusError(
             f"--min-trials-per-cell {min_trials_per_cell}: a within-cell gap needs at "
-            f"least 2 trials; a 1-trial cell has NO gap, and admitting it as $0.00 "
+            f"least 2 trials; a 1-trial cell has NO gap, and admitting it as 0 "
             f"deflates the floor and inflates the ratio")
 
     records, skipped = load_records(runs_dir)
@@ -700,7 +704,7 @@ def _fmt(value: float | None, spec: str, suffix: str = "") -> str:
     """Format a value that may legitimately be undefined.
 
     Every aggregate here can be `None` on a real population — a zero floor gives no ratio
-    and no cell-gap ratio, and a population where every cell's cheapest trial cost $0.00
+    and no cell-gap ratio, and a population where every cell's cheapest trial is 0
     gives no spread. Formatting `None` with `:.0f` is a TypeError, so the DATA path would
     be correct and the tool would still die on the way to the terminal.
     """
@@ -733,6 +737,7 @@ def render(c: dict) -> str:
             f"GROUP  {g['run']} / {g['game']}   "
             f"{g['trials']} trials, {g['stacks']} stacks, "
             f"terminal_reason={c['terminal_reason']}",
+            f"  every figure below is in {tokenvalue.UNIT} except spread, turns and r",
             "  stack   n      low     high   spread      gap     mean    turns",
         ]
         for row in g["per_stack"]:
@@ -746,9 +751,9 @@ def render(c: dict) -> str:
         ratio = g["range_pct_of_floor"]
         lines += [
             f"  within-cell noise floor (mean of {g['stacks']} per-cell gaps)"
-            f"   ${g['within_cell_floor_usd']:8.2f}   <- read this first",
+            f"   {g['within_cell_floor_usd']:8.2f}   <- read this first",
             f"  between-stack range (max stack mean - min stack mean)"
-            f"   ${g['between_stack_range_usd']:8.2f}",
+            f"   {g['between_stack_range_usd']:8.2f}",
             f"  range as a percentage of the floor"
             f"                       {_fmt(ratio, '8.0f', '%'):>9}"
             # The MARKER comes off the comparison, not the percentage, so a zero-floor
@@ -757,7 +762,7 @@ def render(c: dict) -> str:
             f"  r(cost, turns)                                           "
             f"{_fmt_r(g['r_cost_turns']):>9}   (n={g['r_cost_turns_n']})",
             "  widest cell gap over tightest, inside this group          "
-            + ("undefined ($0.00 tightest cell)" if g["cell_gap_ratio"] is None
+            + ("undefined (a tightest cell with no gap)" if g["cell_gap_ratio"] is None
                else f"{_fmt(g['cell_gap_ratio'], '.1f', 'x')}   <- how wrong a one-cell "
                     "floor could be here"),
         ]
@@ -801,6 +806,7 @@ def render(c: dict) -> str:
             "number here",
             "  that could be re-quoted as a result. Every cell is n=2.",
         ]
+    lines += ["", tokenvalue.DEFINITION]
     return "\n".join(lines)
 
 
@@ -1124,7 +1130,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
 
         # ---- THE THRESHOLDS. Both are CLI-reachable and both can be set to a value that
         # cannot define the measure. `--min-trials-per-cell 1` admits a cell with no gap and
-        # scores it $0.00 — the thin-cell fail-open, reached by a flag instead of by data.
+        # scores it 0 — the thin-cell fail-open, reached by a flag instead of by data.
         for kwargs, want in (({"min_trials_per_cell": 1}, "min-trials-per-cell"),
                              ({"min_trials_per_cell": 0}, "min-trials-per-cell"),
                              ({"min_stacks": 1}, "min-stacks"),
@@ -1154,7 +1160,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("that population has no qualifying group", len(c_mixed["groups"]), 0)
 
         # ---- Direction 6, THE FAIL-OPEN ONE: a cell with a single trial has no gap.
-        # Counting it as a gap of $0.00 would drag the floor from 11.00 to 8.25 and take
+        # Counting it as a gap of 0 would drag the floor from 11.00 to 8.25 and take
         # the ratio from 500% to 667% — a plausible in-range number, in the direction that
         # manufactures a difference. The group must be rejected instead, with the reason.
         _write(runs / "run-b" / "trials" / "gY__ts__t0.json", _rec("gY", "ts", 10.0, 100))
@@ -1179,7 +1185,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # And that a 1-trial cell would indeed have moved the answer, had it been counted.
         # Both sides written out as literals: gY's real gaps are ts 10, unity 4, godot 10,
         # and rust — the thin cell — would contribute 0.
-        check("a $0.00 gap would have deflated gY's floor from 8.00 to 6.00",
+        check("a zero gap would have deflated gY's floor from 8.00 to 6.00",
               [(10.0 + 4.0 + 10.0) / 3, (10.0 + 4.0 + 10.0 + 0.0) / 4], [8.0, 6.0])
 
         # Direction 7: a group short of the stack count is rejected, not computed.
@@ -1210,7 +1216,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("and therefore a ratio of 0%, not a division error",
               gf["range_pct_of_floor"], 0.0)
 
-        # Direction 8b: a floor of exactly $0.00 — every cell internally identical — must
+        # Direction 8b: a floor of exactly 0 — every cell internally identical — must
         # give NO ratio. Any number here is a division by zero dressed up as a result.
         zero = Path(tmp) / "zerofloor"
         for i, stack in enumerate(("ts", "unity", "godot", "rust")):
@@ -1224,7 +1230,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("but the ratio is undefined, not a number", gz["range_pct_of_floor"], None)
         check("and so is the cell-gap ratio, whose divisor is also 0",
               gz["cell_gap_ratio"], None)
-        # THE RATIO IS UNDEFINED; THE COMPARISON IS NOT. $3.00 of range over a $0.00 floor
+        # THE RATIO IS UNDEFINED; THE COMPARISON IS NOT. 3.00 of range over a zero floor
         # exceeds it as completely as a group can. Counting exceedance off the percentage
         # dropped exactly these groups — fail-open, understating how much the stacks
         # disagree — so both the per-group flag and the across-groups count are pinned here.
@@ -1370,7 +1376,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # false negative adjudicated in this project has been of the second kind.
         var = Path(tmp) / "variants"
 
-        # Variant A: a $0.00 trial. `high / low` is a ZeroDivisionError, and a spread of
+        # Variant A: a zero-valued trial. `high / low` is a ZeroDivisionError, and a spread of
         # 0.0 or inf would both be plausible-looking. It must be reported as absent, and
         # the gap and the floor must still be computed — they do not need the ratio.
         for stack in ("ts", "unity", "godot"):
@@ -1382,9 +1388,10 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         _write(var / "run-v" / "trials" / "gV__rust__t1.json", _rec("gV", "rust", 12.0, 150))
         gv = only_group("zero-cost variant", measure("zero-cost variant", var))
         rust_row = next((r for r in gv["per_stack"] if r["stack"] == "rust"), {})
-        check("a $0.00 low gives no spread rather than a division",
+        check("a zero low gives no spread rather than a division",
               rust_row.get("spread", "missing row"), None)
-        check("the gap is still measured across a $0.00 trial", rust_row.get("gap"), 12.0)
+        check("the gap is still measured across a zero-valued trial",
+          rust_row.get("gap"), 12.0)
         check("and the floor still lands, over 4 cells",
               _round(gv["within_cell_floor_usd"], 4), _round((10 + 10 + 10 + 12) / 4, 4))
 

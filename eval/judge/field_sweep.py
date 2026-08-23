@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Run the specialist judges over a matrix, with a hard cost ceiling and gates first.
+"""Run the specialist judges over a matrix, bounded by what is finite, gates first.
 
     python3 judge/field_sweep.py --run runs/wg-audio-... --games g1_pong \
-        --aspects idiomatic fun --orders 2 --max-cost 60 --out judge-sweep/
+        --aspects idiomatic fun --orders 2 --max-wall-min 90 --out judge-sweep/
 
 Why this exists rather than a loop in a shell: three separate protections, each of
 which this project has paid for the absence of.
 
-1. **A COST CEILING THAT IS CHECKED BEFORE EACH CALL.** Field calls are the only part
-   of the evaluation that spends money. `--max-cost` is enforced against measured
-   spend so far, not against an estimate, and the sweep stops rather than overrunning.
+1. **BOUNDS DENOMINATED IN WHAT IS ACTUALLY FINITE, RECORDED IN THE SUMMARY.** This
+   used to be `--max-cost 60`, refusing a call when `spent + --per-call-budget > 60`
+   — a sweep truncated at about 48 of *valuation* on an account where no money moves
+   per token, so the threshold could not protect anything and could only cut evidence
+   short (#159). The bounds are now `--max-rounds` and `--max-wall-min`, both optional
+   because every mode is already finite by construction, and both written into the
+   summary along with `stopped_by`, so "did this sweep stop short?" is read off the
+   artifact instead of inferred from it.
 
 2. **ONE WRITER PER ARTIFACT PATH.** Every result goes to its own file through a temp
    file and `os.replace`. Two judge processes once shared one path and produced a file
@@ -39,7 +44,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+
 import field  # noqa: E402
+import tokenvalue  # noqa: E402
 from aspects import ASPECTS  # noqa: E402
 from judge_ledger import SUMMARY_STEMS, field_cost_usd, is_summary  # noqa: E402
 from sequential import MAX_RUNS, Sampler  # noqa: E402
@@ -53,6 +61,67 @@ SUMMARIES = {"orders": "GATES.json", "sequential": "SEQUENTIAL.json",
 assert set(SUMMARIES.values()) == {f"{s}.json" for s in SUMMARY_STEMS}, (
     f"field_sweep writes {sorted(SUMMARIES.values())} but judge_ledger recognises "
     f"{sorted(f'{s}.json' for s in SUMMARY_STEMS)}")
+
+
+class Bounds:
+    """What may stop a sweep, and the record of whether anything did.
+
+    NOTHING HERE IS DENOMINATED IN MONEY. The ceiling this replaces was
+    `spent + per_call > max_cost` on a list-price valuation of tokens: it could not
+    protect the resource that is actually scarce, and where it fired it truncated real
+    evidence (#159, `DECISIONS.md`). Rounds and wall clock are finite; the valuation is
+    not a bill.
+
+    BOTH BOUNDS ARE OPTIONAL, and that is not a loosening. Every mode is already finite
+    by construction — `--orders` plans `games x aspects x orders` calls, `--repeats`
+    plans `repeats` per pair, `--sequential` is capped by `--max-runs` — so the money
+    ceiling was a second bound on an already-bounded plan. These exist for the case the
+    plan itself is larger than the session in front of you.
+
+    `stopped_by` is written into the summary. No stored sweep records the ceiling it
+    ran under, so answering "was this one truncated?" over the 12 summaries on disk
+    meant reconstructing it from round counts. That gap closes here.
+    """
+
+    def __init__(self, max_rounds: int | None, max_wall_min: float | None) -> None:
+        self.max_rounds = max_rounds
+        self.max_wall_min = max_wall_min
+        self.rounds = 0
+        self.t0 = time.monotonic()
+        self.stopped_by: str | None = None
+
+    def wall_min(self) -> float:
+        return (time.monotonic() - self.t0) / 60.0
+
+    def may_start(self, what: str) -> bool:
+        """Ask BEFORE a call. Records and prints the reason the first time it refuses."""
+        if self.max_rounds is not None and self.rounds >= self.max_rounds:
+            self.stopped_by = self.stopped_by or "max_rounds"
+            print(f"  STOPPING before {what}: {self.rounds} rounds already run, "
+                  f"--max-rounds is {self.max_rounds}", flush=True)
+            return False
+        if self.max_wall_min is not None and self.wall_min() >= self.max_wall_min:
+            self.stopped_by = self.stopped_by or "max_wall_min"
+            print(f"  STOPPING before {what}: {self.wall_min():.1f} min elapsed, "
+                  f"--max-wall-min is {self.max_wall_min}", flush=True)
+            return False
+        return True
+
+    def started(self) -> None:
+        self.rounds += 1
+
+    def record(self, summary: dict[str, Any], planned: int | None = None) -> None:
+        summary["bounds"] = {"max_rounds": self.max_rounds,
+                             "max_wall_min": self.max_wall_min,
+                             "planned_rounds": planned,
+                             "rounds_started": self.rounds,
+                             "wall_min": round(self.wall_min(), 1)}
+        summary["stopped_by"] = self.stopped_by
+
+    def banner(self, planned: int | None) -> str:
+        return (f"{planned if planned is not None else '?'} field calls planned; "
+                f"--max-rounds {self.max_rounds}, --max-wall-min {self.max_wall_min}. "
+                f"No bound here is denominated in money (#159).")
 
 
 def _load_manifest() -> Any:
@@ -90,26 +159,41 @@ def _write_summary(out: Path, name: str, summary: dict[str, Any]) -> None:
 
 
 def _record_cost(summary: dict[str, Any], spent: float, out: Path) -> None:
-    """Two cost numbers, named for the two different questions they answer.
+    """Two token-valuation numbers, named for the two different questions they answer.
 
-    `spent` is what THIS INVOCATION was charged, and it is what `--max-cost` is enforced
-    against. A round already on disk is charged $0.00 to it on purpose (see
-    `_judge_round`), so on a resumed sweep it is not the cost of the field and never was.
+    Both are `tokval` - the list price the tokens would carry at published API rates, on
+    an account where no money moves per token (#159, `tools/tokenvalue.py`). They are kept
+    because they are the only per-round resource figure the harness has, not because
+    anything is owed.
+
+    `spent` is what THIS INVOCATION generated. A round already on disk contributes 0 to it
+    on purpose (see `_judge_round`), so on a resumed sweep it is not the valuation of the
+    field and never was.
 
     It used to be stored alone, under the name `measured_cost_usd`. Three live documents
-    read that name as spend: `$21.05` was published as the cost of ten judge calls that
-    cost $31.66, and the same field's four earlier rounds - $10.61 of architecture and
+    read that name as spend: 21.05 tokval was published as the cost of ten judge calls
+    worth 31.66, and the same field's four earlier rounds - 10.61 of architecture and
     audio, written eight minutes before the sweep resumed - were invisible. Five of the
-    eleven stored sweep directories carry the same shape, $69.93 in total. FINDINGS #119.
+    eleven stored sweep directories carry the same shape, 69.93 tokval in total.
+    FINDINGS #119.
 
-    THE FIX IS NOT A BIGGER NUMBER, IT IS TWO NAMED ONES. Re-charging carried rounds to
-    today's ceiling would break the ceiling, which is the one thing here that has never
-    failed. What was wrong was publishing a ceiling counter under a name that reads as a
-    bill. `judge_ledger.py` audits the pair over stored sweeps and computes the second one
-    here, so the ledger and the harness cannot drift into two accountings again.
+    THE FIX IS NOT A BIGGER NUMBER, IT IS TWO NAMED ONES. Re-attributing carried rounds to
+    today's invocation would break the one counter here that has never been wrong. What
+    was wrong was publishing an invocation counter under a name that reads as a bill.
+    `judge_ledger.py` audits the pair over stored sweeps and computes the second one here,
+    so the ledger and the harness cannot drift into two accountings again.
     """
     summary["charged_to_ceiling_usd"] = round(spent, 2)
     summary["field_cost_usd"] = round(field_cost_usd(str(out))[1], 2)
+
+
+def _print_totals(spent: float, summary: dict[str, Any], bounds: "Bounds") -> None:
+    """The closing line of every mode. Token counts stay; the money vocabulary does not."""
+    print(f"\nthis invocation generated {tokenvalue.tag(spent)}; "
+          f"rounds stored here are worth "
+          f"{tokenvalue.tag(summary['field_cost_usd'])}")
+    print(f"bounds: {summary['bounds']}, stopped_by={summary['stopped_by']}")
+    print(tokenvalue.DEFINITION)
 
 
 #: Paths whose contents do not outlive the thing that wrote them. Kept in sync with
@@ -155,7 +239,8 @@ def assert_out_root_durable(out: Path) -> None:
     submissions' toolchains between building and grading (#45). It names TRIAL WORK TREES.
 
     A judge sweep writes somewhere else, so the guard did not apply - and on 2026-08-17 a
-    $44 sweep was writing into a session-scoped scratch directory under `/private/tmp`,
+    sweep worth 44 tokval was writing into a session-scoped scratch directory under
+    `/private/tmp`,
     including the only copy of the evidence for the finding that gate verdicts are not
     reproducible. The session directory does not survive the session.
 
@@ -191,11 +276,11 @@ def _judge_round(run: Path, game: str, aspect_id: str, seed: int, model: str,
     would accumulate win rates between positions rather than between submissions and
     would converge on nothing.
 
-    THE COST IS RETURNED, not looked up by the caller. The first version left the
-    caller to re-read the stored file, and the caller only did that for the sampled
-    rounds - so the probe round of every aspect was spent and never counted, which on a
-    five-aspect run is about $22 missing from a figure whose entire job is to stop the
-    ceiling being passed. A spend counter that under-reports is worse than none.
+    THE TOKEN VALUATION IS RETURNED, not looked up by the caller. The first version left
+    the caller to re-read the stored file, and the caller only did that for the sampled
+    rounds - so the probe round of every aspect was run and never counted, which on a
+    five-aspect run is about 22 tokval missing from the running total. A counter that
+    under-reports is worse than none.
     """
     out_path = out_dir / f"{game}__{aspect_id}__seed{seed}.json"
     fresh = not out_path.exists()
@@ -215,8 +300,8 @@ def _judge_round(run: Path, game: str, aspect_id: str, seed: int, model: str,
             res = field.run_field(pack, aspect_id, model, budget=budget)
         res["wall_s"] = round(time.monotonic() - t0, 1)
         _atomic(out_path, res)
-    # A round already on disk was paid for by an earlier invocation, so it must not be
-    # charged again to this one's ceiling.
+    # A round already on disk was generated by an earlier invocation, so its tokens must
+    # not be counted again into this one's total.
     cost = float(res.get("cost_usd") or 0.0) if fresh else 0.0
     if not res.get("usable"):
         print(f"  [FAIL] {game}/{aspect_id}/round{seed}: {res.get('error')}", flush=True)
@@ -249,6 +334,9 @@ def repeats_main(a: Any) -> int:
     assert_out_root_durable(a.out)
     a.out.mkdir(parents=True, exist_ok=True)
     spent = 0.0
+    bounds = Bounds(a.max_rounds, a.max_wall_min)
+    planned = len(a.games) * len(a.aspects) * a.repeats
+    print(bounds.banner(planned) + "\n")
     summary: dict[str, Any] = {"mode": "repeats", "repeats": a.repeats,
                                "order_seed": a.repeat_seed,
                                "started_at": dt.datetime.now(dt.timezone.utc).isoformat()}
@@ -256,9 +344,7 @@ def repeats_main(a: Any) -> int:
         for aspect_id in a.aspects:
             runs: list[dict[str, Any]] = []
             for i in range(a.repeats):
-                if spent + a.per_call_budget > a.max_cost:
-                    print(f"  STOPPING {game}/{aspect_id}: ${spent:.2f} + "
-                          f"${a.per_call_budget:.2f} exceeds ${a.max_cost:.2f}", flush=True)
+                if not bounds.may_start(f"{game}/{aspect_id} rep{i}"):
                     break
                 out_path = (a.out / f"{game}__{aspect_id}__seed{a.repeat_seed}"
                                     f"__rep{i}.json")
@@ -275,6 +361,7 @@ def repeats_main(a: Any) -> int:
                         except RuntimeError as e:
                             print(f"  [SKIP] {game}/{aspect_id}: {e}"); break
                         t0 = time.monotonic()
+                        bounds.started()
                         res = field.run_field(pack, aspect_id, a.model,
                                               budget=a.per_call_budget)
                     res["wall_s"] = round(time.monotonic() - t0, 1)
@@ -284,7 +371,8 @@ def repeats_main(a: Any) -> int:
                     runs.append(res)
                     c = field.ceiling(res)
                     print(f"  [rep {i}] {game}/{aspect_id} scores={c['scores']} "
-                          f"modal={c['modal_fraction']} cumulative ${spent:.2f}", flush=True)
+                          f"modal={c['modal_fraction']} cumulative "
+                          f"{tokenvalue.tag(spent)}", flush=True)
             key = f"{game}:{aspect_id}"
             pairs = [field.reproducibility(runs[i], runs[j])
                      for i in range(len(runs)) for j in range(i + 1, len(runs))]
@@ -305,11 +393,11 @@ def repeats_main(a: Any) -> int:
             # read different evidence and an SD across them would be rule 4's own example.
             print(f"  [sep]   {key}: {sep['verdict']}", flush=True)
     _record_cost(summary, spent, a.out)
+    bounds.record(summary, planned)
     _write_summary(a.out, SUMMARIES["repeats"], summary)
     print("\n=== gate 0: reproducibility ===")
     print(json.dumps(summary, indent=2)[:3000])
-    print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
-          f"rounds stored here cost ${summary['field_cost_usd']:.2f}")
+    _print_totals(spent, summary, bounds)
     return 0
 
 
@@ -323,15 +411,16 @@ def sequential_main(a: Any) -> int:
     no code path is a protocol that gets approximated by whoever reads the document next.
     """
     spent = 0.0
+    bounds = Bounds(a.max_rounds, a.max_wall_min)
+    planned = len(a.games) * len(a.aspects) * a.max_runs
+    print(bounds.banner(planned) + "\n")
     summary: dict[str, Any] = {"mode": "sequential", "max_runs": a.max_runs,
                                "started_at": dt.datetime.now(dt.timezone.utc).isoformat()}
     for game in a.games:
         for aspect_id in a.aspects:
-            if spent + a.per_call_budget > a.max_cost:
-                print(f"  STOPPING before {game}/{aspect_id}: measured ${spent:.2f} + "
-                      f"${a.per_call_budget:.2f} exceeds the ${a.max_cost:.2f} ceiling",
-                      flush=True)
+            if not bounds.may_start(f"{game}/{aspect_id}"):
                 break
+            bounds.started()
             probe, cost = _judge_round(a.run, game, aspect_id, 0, a.model,
                                        a.per_call_budget, a.out)
             spent += cost
@@ -343,11 +432,9 @@ def sequential_main(a: Any) -> int:
 
             def judge_once(i: int, game=game, aspect_id=aspect_id) -> dict | None:
                 nonlocal spent
-                if spent + a.per_call_budget > a.max_cost:
-                    print(f"  STOPPING {game}/{aspect_id}: measured ${spent:.2f} + "
-                          f"${a.per_call_budget:.2f} exceeds the ${a.max_cost:.2f} "
-                          f"ceiling", flush=True)
+                if not bounds.may_start(f"{game}/{aspect_id} round{i}"):
                     return None
+                bounds.started()
                 scores, cost = _judge_round(a.run, game, aspect_id, i, a.model,
                                             a.per_call_budget, a.out)
                 spent += cost
@@ -356,13 +443,14 @@ def sequential_main(a: Any) -> int:
             rep = sampler.run(judge_once)
             summary[f"{game}:{aspect_id}"] = rep
             print(f"  [seq] {game}/{aspect_id}: {rep.get('headline')} "
-                  f"(rounds={rep.get('runs')}, cumulative ${spent:.2f})", flush=True)
+                  f"(rounds={rep.get('runs')}, cumulative {tokenvalue.tag(spent)})",
+                  flush=True)
     _record_cost(summary, spent, a.out)
+    bounds.record(summary, planned)
     _write_summary(a.out, SUMMARIES["sequential"], summary)
     print("\n=== sequential sampling ===")
     print(json.dumps(summary, indent=2)[:4000])
-    print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
-          f"rounds stored here cost ${summary['field_cost_usd']:.2f}")
+    _print_totals(spent, summary, bounds)
     return 0
 
 
@@ -376,10 +464,30 @@ def main() -> int:
                          "that can measure order-invariance at all.")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--model", default=field.DEFAULT_MODEL)
-    ap.add_argument("--max-cost", type=float, default=60.0,
-                    help="hard ceiling in USD, checked against MEASURED spend before "
-                         "every call")
-    ap.add_argument("--per-call-budget", type=float, default=12.0)
+    # RETIRED, AND KEPT AS A REFUSAL RATHER THAN DELETED. An operator with the old
+    # recipe in muscle memory, or a stored command line, would otherwise get argparse's
+    # generic "unrecognized arguments" and reach for a workaround. It also keeps the flag
+    # NAMED where a reader can find out what replaced it: `eval/findings/` records it, and
+    # a document naming a flag that resolves to nothing is confidently wrong (AGENTS.md).
+    # It participates in no decision - `sweep_bounds_control.py` asserts that against the
+    # tokenised source.
+    ap.add_argument("--max-cost", type=float, default=None,
+                    help="RETIRED 2026-08-23 and refused if passed. It was a ceiling on a "
+                         "list-price valuation of tokens, which nobody is charged, so it "
+                         "could only truncate evidence (#159). Use --max-rounds or "
+                         "--max-wall-min.")
+    ap.add_argument("--max-rounds", type=int, default=None,
+                    help="stop before starting round N+1. Optional: every mode is "
+                         "already finite by construction, so this is for the case the "
+                         "plan is larger than the session in front of you.")
+    ap.add_argument("--max-wall-min", type=float, default=None,
+                    help="stop starting rounds after this many minutes. Wall clock is "
+                         "finite; the token valuation is not a bill (#159).")
+    ap.add_argument("--per-call-budget", type=float, default=12.0,
+                    help="passed to each judge as --max-budget-usd. NOT a bound on this "
+                         "sweep and not checked here - it is held at its stored value so "
+                         "new rounds stay comparable with the 97 already on disk, which "
+                         "all ran under 12.0. See DECISIONS.md.")
     ap.add_argument("--sequential", action="store_true",
                     help="sample each (game, aspect) until every PAIR resolves or "
                          "--max-runs is reached, instead of a fixed --orders. This is "
@@ -401,6 +509,13 @@ def main() -> int:
     ap.add_argument("--repeat-seed", type=int, default=0,
                     help="which presentation order --repeats re-judges")
     a = ap.parse_args()
+    if a.max_cost is not None:
+        print("--max-cost is retired. It bounded a sweep by a list-price valuation of "
+              "tokens on an account where no money moves per token, so it could not "
+              "protect what is scarce and could only cut evidence short (FINDINGS #159). "
+              "Bound the sweep with --max-rounds or --max-wall-min instead.",
+              file=sys.stderr)
+        return 2
     if a.repeats:
         return repeats_main(a)
     if a.sequential:
@@ -411,17 +526,14 @@ def main() -> int:
     a.out.mkdir(parents=True, exist_ok=True)
     started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     spent = 0.0
+    bounds = Bounds(a.max_rounds, a.max_wall_min)
     results: list[dict[str, Any]] = []
     planned = [(g, asp, seed)
                for g in a.games for asp in a.aspects for seed in range(a.orders)]
-    print(f"{len(planned)} field calls planned; ceiling ${a.max_cost:.2f}, "
-          f"${a.per_call_budget:.2f} per call, model {a.model}\n")
+    print(bounds.banner(len(planned)) + f" model {a.model}\n")
 
     for game, aspect_id, seed in planned:
-        if spent + a.per_call_budget > a.max_cost:
-            print(f"STOPPING before {game}/{aspect_id}/seed{seed}: measured spend "
-                  f"${spent:.2f} + ${a.per_call_budget:.2f} would exceed the "
-                  f"${a.max_cost:.2f} ceiling.")
+        if not bounds.may_start(f"{game}/{aspect_id}/seed{seed}"):
             break
         out_path = a.out / f"{game}__{aspect_id}__seed{seed}.json"
         if out_path.exists():
@@ -440,6 +552,7 @@ def main() -> int:
                 print(f"  [SKIP] {game}/{aspect_id}/seed{seed}: {e}")
                 continue
             t0 = time.monotonic()
+            bounds.started()
             res = field.run_field(pack, aspect_id, a.model,
                                   budget=a.per_call_budget)
         res["wall_s"] = round(time.monotonic() - t0, 1)
@@ -448,11 +561,12 @@ def main() -> int:
         spent += cost
         if not res.get("usable"):
             print(f"  [FAIL] {game}/{aspect_id}/seed{seed}: {res.get('error')} "
-                  f"(${cost:.2f}, cumulative ${spent:.2f})")
+                  f"({tokenvalue.fmt(cost)}, cumulative {tokenvalue.tag(spent)})")
             continue
         c = field.ceiling(res)
         print(f"  [done] {game}/{aspect_id}/seed{seed}  scores={c['scores']}  "
-              f"distinct={c['distinct']}  ${cost:.2f}  cumulative ${spent:.2f}")
+              f"distinct={c['distinct']}  {tokenvalue.fmt(cost)}  "
+              f"cumulative {tokenvalue.tag(spent)}")
         results.append(res)
 
     usable = [r for r in results if r.get("usable")]
@@ -479,12 +593,12 @@ def main() -> int:
                 gates[f"order_invariance:{x['game']}:{x['aspect']}"] = \
                     field.order_invariance(x, y)
     gates["independence"] = field.independence(usable)
+    bounds.record(gates, len(planned))
     _write_summary(a.out, SUMMARIES["orders"], gates)
 
     print("\n=== gates (read these before any ranking) ===")
     print(json.dumps(gates, indent=2))
-    print(f"\ncharged to this run's ceiling: ${spent:.2f}; "
-          f"rounds stored here cost ${gates['field_cost_usd']:.2f}")
+    _print_totals(spent, gates, bounds)
     return 0
 
 

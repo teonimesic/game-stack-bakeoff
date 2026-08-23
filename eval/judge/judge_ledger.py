@@ -6,11 +6,12 @@ WHY THIS EXISTS
 `field_sweep.py` writes one number, `measured_cost_usd`, into `SEQUENTIAL.json`,
 `GATES.json` and `REPRODUCIBILITY.json`. That number is a **ceiling counter for one
 invocation**, not the cost of the field: a round already on disk was paid for by an
-earlier invocation and is deliberately charged $0.00 so it cannot be double-charged
+earlier invocation and deliberately contributes 0 so it cannot be counted twice
 against today's `--max-cost`. The behaviour is correct. The name is not, and three live
 documents read it as spend.
 
-Measured over the 11 stored sweep directories: 5 under-report, by $69.94 in total. The
+Measured over the 11 stored sweep directories: 5 under-report, by 69.94 tokval in
+total. The
 `wg-tetris-judge-2026-08-17` field is the worst case and the one that reached print - see
 FINDINGS #119.
 
@@ -31,7 +32,7 @@ THE GAP IS THE INTERESTING PART, AND IT HAS A SIGN
 
   gap < 0   the counter saw money that no stored round accounts for. That is not an
             accounting quirk, it is a MISSING ARTIFACT: a round was paid for and its file
-            is gone. It has happened - $13.16 of `g1_pong` round-1 calls are recorded in
+            is gone. It has happened - 13.16 tokval of `g1_pong` round-1 calls are recorded in
             `eval/RUNS.md` and exist nowhere on disk (task 04, closed by re-running them).
 
 Usage, from eval/:
@@ -52,6 +53,11 @@ import json
 import os
 import sys
 import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+
+import tokenvalue  # noqa: E402
 
 #: Summary files a sweep writes beside its rounds. These are NOT rounds and must never be
 #: counted as ones - each mode writes a different name, which is why this is a set rather
@@ -250,8 +256,8 @@ BAD = ("MISSING ARTIFACT", "UNEXPLAINED")
 
 
 def report(recs: list[dict], root: str | None = None) -> int:
-    print(f"{'directory':46} {'n':>3} {'field $':>9} {'ceiling $':>10} "
-          f"{'gap $':>8}  verdict")
+    print(f"{'directory':46} {'n':>3} {'field':>9} {'ceiling':>10} "
+          f"{'gap':>8}  verdict          (all three in {tokenvalue.UNIT})")
     total = 0.0
     for r in recs:
         d = os.path.relpath(r["dir"], root) if root else r["dir"]
@@ -263,18 +269,20 @@ def report(recs: list[dict], root: str | None = None) -> int:
             print(f"{'':46} carried over: {', '.join(r['carried'])}")
         total += r["field_cost_usd"]
     print(f"\n{len(recs)} sweep director(ies), {sum(r['n_rounds'] for r in recs)} stored "
-          f"rounds, field cost ${total:.2f}")
+          f"rounds, field {tokenvalue.tag(total)}")
     under = [r for r in recs if r["verdict"] in ("RESUMED", "AMBIGUOUS")]
     if under:
         print(f"{len(under)} summary counter(s) under-report by "
-              f"${sum(r['gap_usd'] for r in under):.2f} in total - resumed sweeps. "
-              f"Read field $, never ceiling $, as the cost of a field.")
+              f"{tokenvalue.tag(sum(r['gap_usd'] for r in under))} in total - resumed "
+              f"sweeps. Read the FIELD column, never the CEILING column, as the token "
+              f"valuation of a field.")
     bad = [r for r in recs if r["verdict"] in BAD]
     for r in bad:
         print(f"  ** {r['dir']}: {r['verdict']}")
     print("\nNO PER-CALL MEAN IS PRINTED. These directories judge different games with "
           "different aspects\nover packs from 10 KB to 3.3 MB; a mean across them is "
           "rule 4's own example (JUDGING.md).")
+    print(f"\n{tokenvalue.DEFINITION}")
     return 1 if bad else 0
 
 
@@ -341,7 +349,7 @@ def selftest() -> int:
         _write(e, "SEQUENTIAL.json", {"measured_cost_usd": 0.50})
         check("unexplained.verdict", audit(e)["verdict"], "UNEXPLAINED")
 
-        # 5. NO SUMMARY IS NOT $0.00. The counter must come back None, so nothing can
+        # 5. NO SUMMARY IS NOT ZERO. The counter must come back None, so nothing can
         #    read an absent file as a sweep that agreed.
         f = os.path.join(td, "nosummary"); os.makedirs(f)
         _write(f, "r0.json", _round(7.00), 1000)

@@ -109,15 +109,17 @@ a real defect on its first run, in the reference fixture's own probe.
 | Engine-heavy selections (godot/unity) build at **`--parallel 2`**, not 4 | [agent] |
 | **`--max-turns 1000`, and NO budget cap** | [user] |
 
-`--max-budget-usd` is **visible to the agent and instructs it** — spend rose 1.54× on Tetris when
-the stated ceiling went from $25 to $48. `--max-turns` is invisible and merely truncates. Any
-stated budget is an instruction, so only an absent one is neutral; 1000 turns bounds a trial near
-$130, which is a runaway backstop rather than a ceiling.
+`--max-budget-usd` is **visible to the agent and instructs it** — token usage rose 1.54× on
+Tetris when the stated ceiling went from $25 to $48. `--max-turns` is invisible and merely
+truncates. Any stated budget is an instruction, so only an absent one is neutral; 1000 turns
+bounds a trial near $130 of token valuation, which is a runaway backstop rather than a ceiling.
+And on a subscription account the figure names nothing scarce, so a capped agent was conserving
+a resource that does not exist — see *"No run is bounded by a money figure"* below.
 
-Cost under this configuration is **unmeasured** — every prior figure was taken with a budget
-instruction in force. Calibrate before committing a matrix. See `eval/PROTOCOL.md`.
+Resource use under this configuration is **lightly measured** — every prior figure was taken with
+a budget instruction in force. Calibrate before committing a matrix. See `eval/PROTOCOL.md`.
 
-**Runs under different caps are not comparable** on cost, turns, or anything downstream of how
+**Runs under different caps are not comparable** on token usage, turns, or anything downstream of how
 much work the agent chose to do, and every cost figure this project has published is partly a
 measurement of its own cap. Treat any change to the pair as a task change. The regimes so far are
 $25, $48, and (from now) none.
@@ -389,8 +391,10 @@ Two things the repair does establish, and both are worth keeping:
 bot that does not terminate on health exhaustion in 8 of 8. Until then the criterion measures how
 long the instrument survives, not how much stage there is.
 
-**The price of the alternative, read from `eval/RUNS.md` on 2026-08-23.** Judge spend is **$0** —
-tier 2 is deterministic and tier 3 carries no weight — so this is agent trials only:
+**What the alternative would consume, read from `eval/RUNS.md` on 2026-08-23.** The judge side
+is **0** — tier 2 is deterministic and tier 3 carries no weight — so this is agent trials only.
+The figures are token valuations, not money (#159); what a fresh matrix really commits is days of
+wall clock and a share of rate-limit capacity:
 
 | | |
 |---|---|
@@ -398,14 +402,14 @@ tier 2 is deterministic and tier 3 carries no weight — so this is agent trials
 | the last game actually added, all in | **$698.21** — `wg-g4` $211.64 (stopped at 4 of 8) + `wg-g4b` $65.57 (8/8 `api_error`, a null) + `wg-g4c` $421.00. **Two of the three runs produced nothing gradeable** |
 | raising the bar on an existing game instead | the same order. The arena rewrite's field, `wg-arena3d`, was $374.05 for 8 `completed` — but that run straddled the #49 machine repair, so its *cost* is contaminated as well as its grades and it is not a clean price |
 
-**So a fifth game, or a raised bar, is $421 if the first field lands clean and $698 at the only
-precedent we have, n=1.** Engineering cost — prompt, play-bot, mutants and variants — is on top
-and is unmeasured; nothing in this project counts it.
+**So a fifth game, or a raised bar, is one matrix if the first field lands clean and three at the
+only precedent we have, n=1.** Engineering effort — prompt, play-bot, mutants and variants — is on
+top and is unmeasured; nothing in this project counts it.
 
-**The ordering was the decision, and it paid for itself.** The pre-test ran first because a matrix
-bought before it would have been bought on the assumption that a graded criterion discriminates —
-and that is precisely the assumption the pre-test refuted, for $0 and one afternoon, against a
-$421-to-$698 alternative.
+**The ordering was the decision, and it was the right way round.** The pre-test ran first because
+a matrix committed before it would have been committed on the assumption that a graded criterion
+discriminates — and that is precisely the assumption the pre-test refuted, in one afternoon and
+with no trials at all, against an alternative of one to three matrices.
 
 ## Task set and judging protocol
 
@@ -2051,8 +2055,39 @@ agent was told to conserve something that is not scarce and produced less for no
 | | |
 |---|---|
 | builds | `MAX_BUDGET_USD = None`, `--max-turns 1000`. Turns are invisible to the agent and truncate rather than instruct |
-| judge sweeps | `--max-cost` and `--per-call-budget` are money limits and must stop being the bound. Until they are replaced, pass a value high enough not to bind and say so |
+| judge sweeps | `--max-rounds` and `--max-wall-min`, both optional because every mode is finite by construction, and both written into the summary beside `stopped_by`. `--max-cost` is **retained as a named refusal** — it exits 2 naming its replacement rather than being deleted into argparse's generic "unrecognized arguments" — and it never fired: 0 of 12 stored summaries are short of their configuration. `--per-call-budget` still reaches each judge as `--max-budget-usd 12.0` and bounds nothing here: it is held at its stored value so new rounds stay comparable with the 97 on disk, and changing what the judge is told needs a pre-registration of its own |
 | what may bound a run | turns, wall clock, rate-limit capacity — the things that are actually finite |
+
+**The unit has a name and a producer.** Every `$n` in this project is **`tokval`** —
+`sum(modelUsage[*].costUSD)`, the list price the tokens would carry at published API rates.
+This covers the figures **this project generates**; a price quoted from outside — W4 Games'
+console licence fees in `research/03-rust-engines.md` — is real money and is not `tokval`.
+`eval/tools/tokenvalue.py` is the single definition; every producer formats through it, prints
+the definition beside its output, and `--selftest` reads all 11 producer sources to assert none
+of them prints a money sigil in any of the 3 forms Python can interpolate one. `python3 eval/tools/docstat.py --money` asks the same question of
+the live documents, and runs inside `--sweep`. **Its red control is history rather than a
+fixture:** `--money --at f598726`, the commit before the repair, reports **21** blocks; at `HEAD`
+it reports **0**. Ten in-memory pins run alongside it, because a trigger returning 0 on a clean
+corpus reads exactly like one that cannot fire.
+
+**The gate's trigger is the NOUN, not the sigil, and the candidates were chosen on live-corpus
+counts.** Requiring every `$` figure to be respelled would be a find-and-replace over
+`eval/RUNS.md`'s 132 per-run rows — the ledger a reader compares runs by — and a `$` is not
+always ours: `research/03-rust-engines.md` quotes W4 Games' published console pricing, which is
+real money. So `--money` fires on a live block that states one of these figures **and** asserts
+money moved, exempt when the block cites `#159`. Measured over 55 live documents on 2026-08-23,
+before any repair:
+
+| candidate | blocks hit | false positives |
+|---|---|---|
+| `cost`/`costs` | 39 | many — `cost` is an open class and mostly not about money |
+| `price`/`priced` | 15 | reddens W4 Games' real console pricing |
+| adding `pay`/`pays`/`paid` | +3 | **2** — *"it paid for itself"*, *"the numbers it paid for"* |
+| **shipped**: `spend`/`charged`/`billed`/`expenditure`, no `pay` | **21** | **0** |
+
+Dropping `pay` cost no true positive: its one real hit also carries `spent`. The exemption is an
+**id**, never a marker word, for the reason the withdrawal register gives — a vocabulary is an
+enumeration, and one has already failed here on a single inflection of one verb.
 
 **What re-opens this:** moving to per-token billing, at which point the figures become real and a
 ceiling becomes a real protection. Then the build-side reasoning still applies — a cap the agent

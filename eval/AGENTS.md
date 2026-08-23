@@ -15,7 +15,7 @@ spec-change suite's design — history now, but the history 71 stored trials are
 Stored results live in `runs/<name>/`, one directory per run — that is data, not guidance.
 
 **The producer for that 71, and for every count of the tree, is `python3 tools/census.py`.**
-It is `71 over 12 run directories, $153.82`. Do not reach for a glob instead:
+It is `71 over 12 run directories, 153.82 tokval`. Do not reach for a glob instead:
 `runs/archive-run1-byte-identical-prompts/` is a **wrapper holding four run directories**, so a
 `runs/*/trials/*.json` pattern misses 24 records and reports 47 — which is what the tool itself
 did until 2026-08-23, agreeing to the digit with a `RUNS.md` figure produced the same wrong way
@@ -88,7 +88,7 @@ Three things about reading it:
 `tools/hook_audit_control.py` pins all of it offline in both directions — green, blocked and cold
 arms with distinct logs, a mutant with the logging deleted, and variants for append-not-truncate
 and for the unset-variable fallback. `--live` adds the one row a shim cannot fake: that the CLI
-really hands `$STARTER_HOOK_LOG` to a hook it spawns (~$0.05).
+really hands `$STARTER_HOOK_LOG` to a hook it spawns (~0.05 tokval).
 
 ## Checking a run
 
@@ -102,10 +102,24 @@ than reimplementing it, reporting the tool's own non-zero exit loudly, and emitt
 tick so silence means "checked, nothing moved" instead of "monitor is dead". Re-arm it
 when the run directory changes. Full recipe and rationale in `PROTOCOL.md`.
 
-## Cost
+## Resource use per call
 
-**Anything that spends money per call**, whatever runs it — an agent trial, a judge field
-call, a calibration probe. Trials are ~$11-73 each; judge field calls are $2.82-$8.08.
+> **THE UNIT, and it is not money.** Every `$n` and every `*_usd` field in this directory is
+> **`tokval`**: the list price the tokens a call used would carry at published API rates, which
+> the CLI computes as `sum(modelUsage[*].costUSD)` from the token counts whatever the billing
+> arrangement. This account is a subscription, so **nothing here is an expenditure** (FINDINGS
+> #159). The token counts are real and every comparison built on them stands; the unit and the
+> noun were what was wrong, and a research decision was once declined on one.
+> `python3 tools/tokenvalue.py --definition` prints this, and every producer prints it beside
+> its own output.
+
+**Anything that consumes account capacity per call**, whatever runs it — an agent trial, a judge
+field call, a calibration probe. Trials are ~$11-73 each; judge field calls are $2.82-$8.08.
+
+**Nothing is bounded by a token valuation.** Builds are bounded by `--max-turns 1000`, which the
+agent cannot see; judge sweeps by `--max-rounds` and `--max-wall-min`. A ceiling denominated in a
+unit that does not bind cannot protect what is scarce, and it truncates real evidence when it
+fires (`DECISIONS.md`, #159).
 
 **Whether cost SEPARATES the stacks is a different question from what anything cost, and its
 producer is `python3 tools/cost_census.py`.** It groups the stored trials by `(run directory,
@@ -129,7 +143,7 @@ connected component of run *and* game, because the games recur — the stored tr
 **0.25**, so the question is unasked there rather than answered. `DECISIONS.md` holds the
 adjudication.
 
-- **Report measured cost and get authorisation before launching anything that spends at
+- **Report the measured token valuation and get authorisation before launching anything at
   scale.**
 - **Prefer offline re-grading to any re-run.** `judge/regrade_wholegame.py` and `regrade.py`
   recompute scores from stored tier files.
@@ -140,26 +154,29 @@ adjudication.
   This rule existed, was read, and did not fire on 2026-08-16. It was written under a heading
   about *agent trials* and in their vocabulary, so a **judge field call** — same resource,
   different mechanism — was projected from three `g1_pong` calls (mean $4.39) onto
-  `g2_tetris3d`, where the first call measured **$8.08, 1.84x**. A `--max-runs 6` sweep priced
-  at $131 was really $256, over the ceiling.
+  `g2_tetris3d`, where the first call measured **$8.08, 1.84x**. A `--max-runs 6` sweep projected
+  at $131 was really $256, past the ceiling it was authorised under.
 
   That is this file's own meta-lesson biting: **a rule whose trigger is written as the
   instance that produced it must be re-derived by every reader who meets a different
-  instance.** The trigger is now the RESOURCE — money per call — not the mechanism.
+  instance.** The trigger is now the RESOURCE — account capacity consumed per call — not the
+  mechanism.
 
-- **What a sweep was CHARGED and what its rounds COST are two questions, and only one of them
-  is a bill.** A round already on disk is charged $0.00 to the invocation that reuses it, so
-  that `--max-cost` cannot refuse work that costs nothing. That counter is
-  `charged_to_ceiling_usd`; the cost of a field is `field_cost_usd`, summed from the rounds
+- **What ONE INVOCATION generated and what a FIELD is worth are 2 questions, and neither is
+  an amount owed.** A round already on disk contributes 0 to the invocation that reuses it, so the
+  invocation counter cannot double-count work already done. That counter is
+  `charged_to_ceiling_usd`; the field's own figure is `field_cost_usd`, summed from the rounds
   themselves. `python3 judge/judge_ledger.py --tree runs/` reports both per directory and is
   the producer for every judge figure in `RUNS.md`. **Never quote a summary file's counter as
-  a cost** — stored under one name, it put $21.05 into three live documents for ten calls that
-  cost $31.66, and five of eleven stored sweeps carry the same shape (#121).
+  the field's figure** — stored under one name, it put $21.05 into 3 live documents for 10
+  calls worth $31.66, and **5 of 11** stored sweeps carry the same shape (#121).
 
 - **A budget flag is visible to the callee, so it is an instruction, not just a ceiling**
-  (#33). `--per-call-budget` is passed to the judge as `--max-budget-usd`. Changing it between
-  rounds makes those rounds non-comparable, so hold it fixed across a sweep even when the
-  measured cost is far below it.
+  (#33). `--per-call-budget` is still passed to the judge as `--max-budget-usd 12.0`, and it is
+  held there **only** so new rounds stay comparable with the 97 on disk. It bounds nothing in
+  `field_sweep.py` any more — `--max-rounds` and `--max-wall-min` do, and both are written into
+  the sweep summary beside `stopped_by`. Changing what the judge is told is a regime boundary
+  and needs a pre-registration, not a relabelling.
 
 ## Running trials
 

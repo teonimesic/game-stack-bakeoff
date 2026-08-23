@@ -1,15 +1,28 @@
 # Run ledger
 
-Every agent run, what it cost, and what it may be compared with. Read before pooling any two
-runs — most of these are **not** comparable, and the reasons are specific.
+Every agent run, what resource it used, and what it may be compared with. Read before pooling
+any two runs — most of these are **not** comparable, and the reasons are specific.
 
-**Two numbers, not one.** `records` is the spend represented by the run's surviving trial JSONs
-(`agent.cost_usd`); `spent` is the money the run actually cost, summed from the `[built]` lines of
-every build log it produced. They differ whenever a cell was retried, because a retry **overwrites
-the record of the attempt it is retrying** (FINDINGS #36). Both were re-read from disk on
-2026-08-15; neither is carried forward from a previous version of this file.
+> **THE UNIT, once, for every `$` figure in this file: `$n` is `tokval`** — the list price the
+> tokens would carry at published API rates, on a subscription account where no money moves per
+> token. It is `sum(modelUsage[*].costUSD)`, which the CLI computes from the token counts
+> whatever the billing arrangement, and it is the only per-trial resource number the harness has.
+> The token counts are real and every comparison below stands; the unit is a valuation, not a
+> bill, and **no decision may rest on one as money** (FINDINGS #159).
+>
+> The figures stay in `$n` form rather than being annotated on each of the **130** lines that
+> carries one (`grep -c '\$[0-9]' eval/RUNS.md`): per-run rows are what a reader compares runs
+> by, and a note on every line would be worse than the defect.
+> `python3 eval/tools/tokenvalue.py --definition` prints this, and every producer prints it
+> beside its own output.
 
-| run | n | records | spent | terminal | games | task | limits |
+**Two columns, not one.** `records` is the valuation represented by the run's surviving trial
+JSONs (`agent.cost_usd`); `built log` is the same quantity summed from the `[built]` lines of
+every build log the run produced. They differ whenever a cell was retried, because a retry
+**overwrites the record of the attempt it is retrying** (FINDINGS #36). Both were re-read from
+disk on 2026-08-15; neither is carried forward from a previous version of this file.
+
+| run | n | records | built log | terminal | games | task | limits |
 |---|---|---|---|---|---|---|---|
 | `wg-calib-2026-08-12T12-18-14` | 1 | $10.14 | $10.14 | 1 completed | pong | pre-audio | $25 / 250t |
 | `wg-matrix-2026-08-13T14-02-50` | 24 | $355.28 | **$365.13** | 24 completed | all 3 | pre-audio | $25 / 250t |
@@ -33,13 +46,13 @@ the record of the attempt it is retrying** (FINDINGS #36). Both were re-read fro
 | | | source |
 |---|---|---|
 | agent trials, **surviving records** | **$2,466.31** over 161 trials in 23 run directories | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth |
-| specialist-judge rounds | **$306.73** over 93 rounds in 11 sweep directories | `judge/judge_ledger.py --tree runs/` |
+| specialist-judge rounds | **$334.41** over 97 rounds in 12 sweep directories | `judge/judge_ledger.py --tree runs/` |
 
-**Records, not spend, and the gap is real but not totalled here.** A retry overwrites the record
-of the attempt it replaces (#36), so true spend is **at least** $2,466.31. It was measured once,
-for the runs existing on 2026-08-15, at ~$21.61 of overwritten attempts. It is **not re-derived
-above and must not be inferred from the `[built]` lines**: those sum to $2,262.17, *less* than the
-records, because `wg-arena3d`'s retries ran under a second log this ledger already marks
+**Records, not totals, and the gap is real but not summed here.** A retry overwrites the record
+of the attempt it replaces (#36), so the true figure is **at least** $2,466.31. It was measured
+once, for the runs existing on 2026-08-15, at ~$21.61 of overwritten attempts. It is **not
+re-derived above and must not be inferred from the `[built]` lines**: those sum to $2,262.17,
+*less* than the records, because `wg-arena3d`'s retries ran under a second log this ledger already marks
 `+ retries` and `wg-audio48`'s log carries `archive-arena2d`'s trials too. A number that is
 smaller than its own lower bound is a reading of the wrong artifact, not a correction.
 
@@ -48,7 +61,7 @@ smaller than its own lower bound is a reading of the wrong artifact, not a corre
 >
 > | | |
 > |---|---|
-> | three runs that did not yet exist | `wg-g4`, `wg-g4b`, `wg-g4c` — **$698.21**, 29% of the project's agent spend |
+> | 3 runs that did not yet exist | `wg-g4`, `wg-g4b`, `wg-g4c` — **$698.21**, 29% of the project's agent-trial total |
 > | one run that was still building | the `wg-*` rows summed to $1,433.84 that day and sum to **$1,614.27** now. `wg-audio48` was in flight and `archive-arena2d` was later split out of it — the moving-row hazard this file warns about a few paragraphs below, realised in this file's own headline |
 >
 > `README.md`'s "~$1,794" is the same figure at a later moment and is corrected there too. The
@@ -70,11 +83,11 @@ The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 tha
 > row's records sum to $118.62 while its build log's `[built]` lines sum to $118.63: the log
 > prints each trial rounded to the cent and the records carry full precision. Stated rather than
 > reconciled — a figure quietly adjusted to match another figure is no longer a reading.
-
+>
 > **A row for a live run is a moving number.** `wg-audio48` was still building its last four arena
 > trials when this warning was written. An earlier version of this file recorded *$571.15, 19
 > completed, 5 api_error* — read from disk correctly, describing a state that lasted minutes. Mark
-> in-flight rows provisional; a run's spend is final only when its terminal reasons are.
+> in-flight rows provisional; a run's total is final only when its terminal reasons are.
 >
 > **It then happened to the headline, twice, and the second time nobody noticed for eight days.**
 > The row settled; the total above it did not, because the total had no producer and no read date.
@@ -91,15 +104,16 @@ Four things break comparability, and all four have bitten:
    and on-screen requirements for bursts, boundary reaction and depth. Tier 2 for `g3_arena` went
    from 15 criteria to 22.
 2. **The permission allowlist changed.** Without it agents lose ~30% of turns to denials.
-3. **The budget cap changed, and the cap is visible to the agent.** See FINDINGS #33. Spend
-   responds to the stated ceiling: Tetris ran **$23.20 at $25 and $35.66 at $48, 1.54×**. Every
-   cost figure here is partly a measurement of the cap we set, so cost comparisons are valid only
-   *within* a cap regime.
+3. **The budget cap changed, and the cap is visible to the agent.** See FINDINGS #33. Token
+   usage responds to the stated ceiling: Tetris ran **$23.20 at $25 and $35.66 at $48, 1.54×**.
+   Every figure here is partly a measurement of the cap we set, so comparisons are valid only
+   *within* a cap regime — and the capped arms were pacing themselves against a constraint that
+   does not exist on this account (#159), so their records are short for nothing.
 4. **The turn limit changed, and at $48 it had already become the binding one.**
-   `g3_arena__rust__t1` stopped at 251 turns and $35.75 with $12 of its stated budget unspent
+   `g3_arena__rust__t1` stopped at 251 turns and $35.75 with $12 of its stated budget unused
    (FINDINGS #35). From 2026-08-15 the standing configuration is `--max-turns 1000` and **no
    budget cap** — a fourth regime, and the first in which nothing communicates a budget to the
-   agent. **Its cost is unmeasured**; calibrate before committing a matrix.
+   agent. **Its resource use is unmeasured**; calibrate before committing a matrix.
 
 Practically: `wg-matrix` (pre-audio, $25) and `wg-audio48` (audio, $48) are each internally
 consistent and mutually incomparable. `wg-audio` at $25 is a partial third regime. Anything built
@@ -491,12 +505,14 @@ about audio nobody could hear rather than a window nobody could see.
 > disclose.** Dropping `wg-arena3d` entirely, to control for the #49 machine defect, barely moves
 > it — godot 23.1%, rust 57.9%, ts 9.5%, unity 64.3%.
 
-**Why it is declined, in cost.** A starter edit is a regime boundary; this would be the
-**fifteenth**, and it must land in all four arms in the same words with `starter_parity.py` and
-`verify_blind.py` re-run. Because it breaks comparability, the before-side cannot be an existing
-run: the most recent clean 8-cell field, `wg-g4c-2026-08-21`, is **$421.00** of agent trials and
-sits behind four subsequent starter boundaries. So the experiment is **two fresh matrices, ≥$842
-of agent spend** plus judge sweeps, to move a number that `tasks/46` itself forbids reporting
+**Why it is declined, and the reason is not a price.** A starter edit is a regime boundary;
+this would be the **fifteenth**, and it must land in all four arms in the same words with
+`starter_parity.py` and `verify_blind.py` re-run. Because it breaks comparability, the
+before-side cannot be an existing run: the most recent clean 8-cell field, `wg-g4c-2026-08-21`,
+is **$421.00** of agent trials and sits behind four subsequent starter boundaries. So the
+experiment is **2 fresh matrices** — days of wall clock and 2 matrices' worth of rate-limit
+capacity, which is what is actually scarce (#159) — plus judge sweeps, to move a number that
+`tasks/46` itself forbids reporting
 beside any tier-1 or tier-2 figure — because a higher disclosure rate is evidence the reporting
 changed, not that the work did.
 
@@ -968,7 +984,7 @@ and refuses rather than guessing when the corroboration is unavailable.
 > may be read from them**, and re-packing cannot retroactively repair a round. A code ordering
 > from this field requires a *new* round. `fun`, `fun_frames`, `ux` and `audio` never read
 > `judge_pack/code` and are unaffected either way.
-
+>
 > **⚠️ AN `architecture` ORDERING FROM THIS FIELD IS NOT LANGUAGE-BLIND (#131).** All 8 packs
 > carried their stack's toolchain names, one-armed: 13 and 10 leaking files in the two Rust
 > submissions against 2-3 in the other six. Every one of the 9 stored `architecture` rounds that
@@ -1256,7 +1272,7 @@ stored result files on 2026-08-16.
 > each quoted $46.79 as the cost of *the* eight-submission tetris field; the cost of that field
 > is $33.63. Corrected 2026-08-23, FINDINGS #121.
 >
-> The three `g1_pong` calls are also the only judge spend in this project with **no surviving
+> The 3 `g1_pong` calls are also the only judge rounds in this project with **no surviving
 > artifact** — no `g1_pong__*__seed*.json` from 2026-08-16 exists anywhere (task 04, closed by
 > re-running them into `wg-funframes-crossgame/pong/` for $17.66). So $13.16 is in this ledger
 > and in no round file, and every other figure below is read from round files.
@@ -1285,19 +1301,22 @@ see the note after the table.
 | `wg-g4c-capgate/out/capped` | 2 | $12.06 | 12.06 |
 | `wg-g4c-capgate/out/uncapped` | 2 | $15.24 | 15.24 |
 | `wg-aspect-reliability` (round 3) | 30 | $100.84 | 80.37 |
-| **all judge rounds on disk** | **93** | **$306.73** | |
+| `wg-g4c-2026-08-21T02-26-46/judge-blind-2026-08-23` | 4 | $27.68 | 27.68 |
+| **all judge rounds on disk** | **97** | **$334.41** | |
 
-> **These 93 rounds are eleven populations, not one.** They judge four different games with
+> **These 97 rounds are 12 populations, not one.** They judge 4 different games with
 > different aspect sets over packs from 10 KB to 3.3 MB, across the #95 re-pack boundary. The
-> total is a **bill**, which is additive and safe; a per-call mean over it is rule 4 and
+> total is additive and safe because token counts add; a per-call mean over it is rule 4 and
 > `judge_ledger.py` refuses to print one.
-
-> **The right-hand column is not a cost and must never be read as one.** It is
-> `charged_to_ceiling_usd` — what the last invocation spent, which is what `--max-cost` is
-> enforced against. A round already on disk is charged $0.00 on purpose so it cannot be
-> double-charged, so on a **resumed** sweep the counter is smaller than the field cost by
-> exactly the carried rounds. Five directories here are resumes, $69.93 in total. It was stored
-> under the name `measured_cost_usd`, and that name is why $21.05 reached print. FINDINGS #121.
+>
+> **The right-hand column is not the field's figure and must never be read as one.** It is
+> `charged_to_ceiling_usd` — what the last invocation generated, which is what the retired
+> `--max-cost` ceiling was enforced against. A round already on disk contributes 0 on purpose so
+> it cannot be counted twice, so on a **resumed** sweep the counter is smaller than the field
+> figure by exactly the carried rounds. 5 directories here are resumes, $69.93 in total. It
+> was stored under the name `measured_cost_usd`, and that name is why $21.05 reached print
+> (FINDINGS #121). The ceiling it was enforced against no longer exists: `field_sweep.py` is
+> bounded by `--max-rounds` and `--max-wall-min`, and writes both into the summary (#159).
 
 **Round 3 — `wg-aspect-reliability`, 2026-08-23. 30 calls, $100.84.** Task 23: six aspects x 5
 repeats of ONE field in ONE presentation order, `--repeat-seed 0`, on
@@ -1334,27 +1353,31 @@ A pooled per-call mean over all aspects would have priced `idiomatic` at a third
 > same command cost **$0.00** for those 10 (every round is keyed by file and reused) and
 > continued from round 11. Launch a sweep detached from a foreground call, not as a background
 > task; `nohup` alone is enough, and `setsid` does not exist on macOS.
-
+>
 > **Judge artifacts live in `runs/`, never in scratch.** Round 1 was written to a
 > session-scoped directory under `/private/tmp` and moved out once it became the evidence for
 > a finding. `field_sweep.assert_out_root_durable()` now refuses any ephemeral `--out`, pinned
 > both directions — the trial-work-tree guard named a mechanism and did not cover the resource,
 > which is any artifact a finding will cite (#45's shape, rule 6's form).
 
-**Cost is per (game, aspect) and spans 13x** — $0.60 for an `audio` call, $8.08 for an
-`architecture` call on the same game. It tracks pack size, not game difficulty, because what
-the judge pays for is what it has to read. `build_pack` reports `evidence_counts` before any
-money is spent; price from that.
+**The figure is per (game, aspect) and spans 13x** — $0.60 for an `audio` call, $8.08 for an
+`architecture` call on the same game. It tracks pack size, not game difficulty, because what the
+judge consumes is what it has to read. `build_pack` reports `evidence_counts` before a single
+round runs; project from that.
 
-Two projections made from the wrong basis, both recorded because both were acted on:
+2 projections made from the wrong basis, both recorded because both were acted on:
 
-- three `g1_pong` calls (mean $4.39) priced a five-aspect `--max-runs 6` sweep at ~$131; the
-  first `g2_tetris3d` call measured **$8.08** and repriced it at **~$256**, over its ceiling;
+- 3 `g1_pong` calls (mean $4.39) projected a 5-aspect `--max-runs 6` sweep at ~$131; the
+  first `g2_tetris3d` call measured **$8.08** and re-projected it at **~$256**, past the ceiling
+  it was authorised under — a ceiling since retired, because it was denominated in a unit
+  nobody is charged (#159);
 - the same per-game mean averages a $0.60 aspect with an $8 one.
 
-`--per-call-budget` was held at $12 throughout even though measured cost never approached it:
-it reaches the judge as `--max-budget-usd`, which is **visible to the callee and instructs it**
-(FINDINGS #33), so changing it mid-sweep would make the rounds non-comparable.
+`--per-call-budget` was held at $12 throughout even though the measured figure never approached
+it: it reaches the judge as `--max-budget-usd`, which is **visible to the callee and instructs
+it** (FINDINGS #33), so changing it mid-sweep would make the rounds non-comparable. It is held at
+12 for that reason alone and **no longer bounds the sweep** — see the comparability note on the
+sweep bounds below.
 
 ## THE UNITY LINT RECIPE CHANGED ON 2026-08-22 — an EIGHTH comparability break
 
@@ -2005,6 +2028,42 @@ JSON was parsed; ~$0.09 for both. `CLAUDE_PROJECT_DIR` came through **resolved**
 to an unresolved path.
 
 
+## THE JUDGE SWEEP'S BOUND CHANGED ON 2026-08-23 — a NINETEENTH comparability break, and it changes no stored round
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+**What was wrong.** `field_sweep.py` refused a call when `spent + --per-call-budget > --max-cost`,
+defaults 12 and 60 — so a sweep truncated at about 48 of a **list-price valuation of tokens** on
+an account where no money moves per token. A limit denominated in a unit that does not bind cannot
+protect what is scarce, and when it fires it cuts real evidence short (FINDINGS #159).
+
+**Did it ever fire? No — measured, not assumed.** No stored summary records the ceiling it ran
+under, so the question was answered from what each sweep actually did: a truncated sweep is one
+that did fewer rounds than it was configured for. Over all **12** stored summaries — `repeats`
+against `--repeats`, `orders` against `games x aspects x orders`, `sequential` against its
+configured pairs — **0 are short**. The extraction was pinned on two synthetic summaries whose
+answer was stated in advance (2 runs of 5; 3 attempted of 4) and reports both as short, so the
+zero is a reading and not a blind spot.
+
+**The change.** `--max-cost` is deleted. `--max-rounds` and `--max-wall-min` replace it, both
+optional because every mode is already finite by construction, and **both written into the summary
+alongside `stopped_by`** — so the question above becomes a field to read rather than a
+reconstruction. `eval/judge/sweep_bounds_control.py` pins it in both directions: the bounds stop a
+sweep, a mutant that neuters `may_start` runs past them, and a variant reads the tokenised source
+to assert no money quantity participates in any stop decision.
+
+**What is deliberately NOT changed, and it is the reason this break is narrow.**
+`--per-call-budget` still reaches each judge as `--max-budget-usd 12.0`. That flag is visible to
+the callee and instructs it (FINDINGS #33), so removing it would change what every future judge
+round is told and make it non-comparable with all **97** rounds on disk, which ran under 12.0.
+That is a regime boundary worth a pre-registration and a paired control, not a side effect of a
+relabelling. It no longer participates in any decision this sweep makes.
+
+**So every stored round remains comparable with every round taken after this change**, on the
+axes that were already comparable. What changed is what could stop a sweep, and nothing was ever
+stopped.
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
@@ -2023,11 +2082,11 @@ to an unresolved path.
   so its denominator really is constant across the suite.
 - **Partition by `terminal_reason` before computing anything.** `completed`, `max_turns`,
   `budget_exhausted`, `session_limit` and `api_error` are different populations.
-- A run's spend is the sum of `agent.cost_usd`. The key is `cost_usd`, **not** `total_cost_usd` —
-  the latter is absent and reads as zero, which silently produces a $0.00 total.
+- A run's token valuation is the sum of `agent.cost_usd`. The key is `cost_usd`, **not**
+  `total_cost_usd` — the latter is absent and reads as zero, which silently produces a 0.00 total.
 - **Cross-check the record sum against the build logs.** If the log has more `[built]` lines than
   there are records, the difference is retried cells whose first attempt was overwritten, and the
-  record sum understates what the run cost.
+  record sum understates what the run used.
 - **Scope every retry to the failed cells.** `cmd_build` never consults existing records and
   `prepare()` begins with `rmtree`, so re-running a selection that includes completed trials
   destroys them.

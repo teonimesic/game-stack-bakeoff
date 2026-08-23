@@ -118,7 +118,8 @@ trial is scheduled.** `python3 eval/tools/tasks.py list` holds no item that woul
 measurement, and the offline re-adjudication of the cost route in the row above has been done and
 came back unresolved — and [`eval/IMPROVEMENTS.md`](eval/IMPROVEMENTS.md)'s latest
 iterations are repairs to the blinding. The work in flight is on the instrument and on these
-documents. Buying an answer is the operator's call, and the price is in the table above.
+documents. Committing to an answer is the operator's call, and what it would take is in the table
+above — agent time and rate-limit capacity, not money ([#159]).
 
 ## What this does and does not license
 
@@ -171,7 +172,7 @@ survives any particular value ([#144]). Design, result and controls:
 |---|---|
 | What was decided, and why? | [`DECISIONS.md`](DECISIONS.md) |
 | What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 142 entries. Findings #19-#160, count and range from `python3 eval/tools/docstat.py --findings` |
-| What did a run cost, and what may I compare it with? | [`eval/RUNS.md`](eval/RUNS.md) |
+| What resource did a run use, and what may I compare it with? | [`eval/RUNS.md`](eval/RUNS.md) |
 | How big is the stored corpus right now? | `python3 eval/tools/census.py` |
 | Why these four stacks? | [`research/DECISION.md`](research/DECISION.md) — the *prior*. The bake-off is the evidence, and it opens with a retraction |
 | What can each stack actually do, at its pinned version? | [`research/10-stack-capability-matrix.md`](research/10-stack-capability-matrix.md) |
@@ -249,9 +250,9 @@ python3 wholegame.py report   --run-dir runs/<name>
 python3 runner.py report --run-dir runs/<name>
 python3 regrade.py --run-dir runs/<name> --suite suites/bakeoff-ts.toml
 
-# the subjective layer runs SEPARATELY, after the deterministic tiers, under a ceiling
+# the subjective layer runs SEPARATELY, after the deterministic tiers
 python3 judge/field_sweep.py --run runs/<name> --games g1_pong \
-    --aspects idiomatic fun --orders 2 --max-cost 60 --out runs/<name>/judge-sweep
+    --aspects idiomatic fun --orders 2 --max-wall-min 90 --out runs/<name>/judge-sweep
 
 # controls - run these before believing any score
 python3 judge/audio_selftest.py       # 6 audio criteria vs 9 mutants
