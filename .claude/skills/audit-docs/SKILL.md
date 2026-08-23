@@ -28,7 +28,7 @@ python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them 
 
 | | asks | bought with |
 |---|---|---|
-| **references** | does a flag, aspect or criterion a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
+| **references** | does a harness flag or an aspect id a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
 | **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
 
 **`--renumbered` asks the third kind, and it is the one the other two cannot ask: does a
@@ -111,19 +111,35 @@ printf '\nIf `feel` and `tuning` rank alike they are one judge.\n' >> judge/JUDG
 python3 tools/docstat.py --sweep ; echo "expect exit 1"
 cp /tmp/jm.bak judge/JUDGING.md
 
+# positive: plant a fake FLAG -> exit 1, and its exemption -> exit 0.
+# Both halves, or you have shown only that the check can fail, not that it can still pass.
+# The trailing `# phantom` exempts THIS line; the sentence it plants carries no exemption
+# word, which is the whole point - a control that plants a self-exempting line tests nothing.
+printf '\nPass `--no-such-flag-x` to judge/runner.py.\n' >> judge/JUDGING.md  # phantom
+python3 tools/docstat.py --sweep ; echo "expect exit 1"
+cp /tmp/jm.bak judge/JUDGING.md
+printf '\nWe planted `--no-such-flag-x` next to judge/runner.py.\n' >> judge/JUDGING.md  # phantom
+python3 tools/docstat.py --sweep ; echo "expect exit 0 - the planted line exempts itself"
+cp /tmp/jm.bak judge/JUDGING.md
+
 # positive: unquote a skill description so it contains ": " -> exit 1
 # positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
 
 # the withdrawal register's own controls, including a planted retired figure and the
 # real tree at 25fe630 where it really was published in three live documents
-python3 tools/withdrawn_control.py                  # 33 controls, expect exit 0
+python3 tools/withdrawn_control.py                  # 54 controls, expect exit 0
 python3 tools/withdrawn_control.py --mutate any_of  # expect the named control to FAIL
 python3 tools/withdrawn_control.py --list-mutants
 ```
 
-**Plant the phantom in prose, never inside a ``` fence** — a fenced line is not read as a
-claim (see below), so a control planted in a code block goes green and tests nothing. The
-`printf` above appends an unfenced sentence for exactly that reason. This is the same shape
+**Plant the phantom in prose, never inside a ``` fence** — for the **aspect** check a fenced
+line is not read as a claim (see below), so a control planted in a code block goes green and
+tests nothing. The `printf` above appends an unfenced sentence for exactly that reason.
+
+**The flag check does not share that rule, and knowing which you are controlling matters.**
+It has no fence exemption — a backticked flag inside ``` still fires — but it is
+backtick-gated, so a *bare* flag on a fenced command line is invisible to it whether fenced
+or not. Measured 2026-08-23 against a prediction that said otherwise; the gap is task 89. This is the same shape
 as the file-wide exemption in the table above: the control agrees with you because it never
 ran, not because the tool is sound.
 
@@ -140,6 +156,12 @@ Do not "fix" these by adding them back. Each was measured and removed:
   Measured 0 true positives, 2 false. A check that cannot be made reliable is
   removed, not tuned until it is quiet — tuning until quiet is how a check comes to pass
   vacuously.
+- **Criterion ids.** Never implemented, though `AGENTS.md` and this file both claimed it
+  until 2026-08-23 (task 77) and a `_criterion_ids()` helper sat unused in `docstat.py`
+  making the claim look backed. Two phantom ids planted in prose read exit 0. The helper is
+  deleted; **if you build this, the id set cannot come from string literals in `judge/*.py`
+  — that pattern harvests `re.search` and `aspects.py` as criterion ids**, and a check whose
+  corpus is junk goes quiet rather than wrong, which is the harder failure to see.
 - **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.
 - **`code` and `look` as aspect ids.** Ordinary words that appear as inline code for other
   reasons.

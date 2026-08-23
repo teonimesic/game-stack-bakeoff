@@ -280,12 +280,12 @@ def _aspect_ids() -> set[str]:
     return {t.strip().lower() for t in m.group(1).split(",") if t.strip()}
 
 
-def _criterion_ids() -> set[str]:
-    ids = set()
-    for p in glob.glob(os.path.join(REPO, "judge", "*.py")):
-        for m in re.finditer(r'["\']([a-z]+\.[a-z_]+)["\']', open(p, errors="replace").read()):
-            ids.add(m.group(1))
-    return ids
+# NO CRITERION-ID CHECK, and no `_criterion_ids()` helper. One sat here unused from the
+# start while AGENTS.md and audit-docs/SKILL.md both told readers criterion ids were swept;
+# planted phantom ids read exit 0 (task 77). A function named for a check that does not run
+# is the same defect as a document naming one, one layer down, so it is deleted rather than
+# left as documentation of intent. Its extraction was also unusable: every `"a.b_c"` string
+# literal in judge/*.py, which harvests `re.search` and `aspects.py`.
 
 
 def _project_root_for(doc: str) -> list[str]:
@@ -1600,6 +1600,13 @@ def cmd_selftest() -> int:
     return 0 if not failed and untouched else 1
 
 
+# A line saying a name is DELIBERATELY fake is not a claim that it exists. This lives at one
+# address because two checks need it and an exemption vocabulary kept in two places drifts:
+# the aspect check already failed once because its list held ONE inflection of `plant`, so
+# "PLANTING the control" was red and the past tense was green (2026-08-23).
+_DELIBERATELY_FAKE = r"does not exist|phantom|plant\w*|do not name them"
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -1616,12 +1623,44 @@ def cmd_sweep() -> int:
         rel = os.path.relpath(p, ROOT)
         text = open(p, encoding="utf-8", errors="replace").read()
 
+        lines = text.split("\n")
+
         # Only flags this repo's own harnesses would own.
-        for tok in set(re.findall(r"`(--[a-z0-9-]{2,})`", text)):
-            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in flags:
-                continue
-            if not re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", text):
-                continue  # doc never mentions our harness; the flag is someone else's
+        #
+        # LINE-SCOPED, so a line can exempt itself the way the aspect check below allows.
+        # It could not before, and on 2026-08-23 that turned the sweep red for a correct
+        # document: task 77's own write-up names the phantom flag it PLANTED as a control,
+        # in a file that also mentions `judge/runner.py`. A gate that fails on correct input
+        # is a gate that gets disabled -- the reason recorded twice already in this file.
+        #
+        # NOT FENCE-EXEMPT, and the asymmetry with the aspect check is deliberate. The
+        # aspect rule reasons that a fenced line is a command and asserts nothing about its
+        # own arguments; that does not transfer here, because a fenced command line is
+        # exactly where someone COPIES a flag.
+        #
+        # BUT THE REACH IS SMALLER THAN THAT SOUNDS, measured 2026-08-23 rather than
+        # assumed, and the prediction was wrong before the controls corrected it: the
+        # pattern requires BACKTICKS, so what the check really sees is inline code. A
+        # backticked flag inside ``` is caught (no fence exemption); a BARE one on a fenced
+        # command line -- the ordinary way a usage block is written, and the highest-damage
+        # place a phantom flag can sit -- is invisible. Widening to bare tokens is not a
+        # one-line change: `--` runs of prose and other tools' flags would flood it, so it
+        # needs its own false-positive measurement. Filed as a task, not done here.
+        #
+        # Dedup is per DOCUMENT and the output sorted, preserving the old `set(...)` count
+        # of one problem per token however often it occurs -- and fixing that set's
+        # iteration order, which varied between runs under hash randomisation.
+        harness = re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", text)
+        bad_flags: set[str] = set()
+        if harness:  # a doc that never mentions our harness names someone else's flags
+            for ln in lines:
+                if re.search(_DELIBERATELY_FAKE, ln, re.I):
+                    continue
+                for tok in re.findall(r"`(--[a-z0-9-]{2,})`", ln):
+                    if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in flags:
+                        continue
+                    bad_flags.add(tok)
+        for tok in sorted(bad_flags):
             problems.append(f"{rel}: flag {tok} matches no argparse in eval/")
 
         # NO PATH CHECK. Docs legitimately write paths relative to a context stated in
@@ -1637,7 +1676,6 @@ def cmd_sweep() -> int:
         # went green. Document-scope exemptions make a check vacuous.
         # findings/ is an archive: naming a superseded aspect is its subject matter.
         if aspects and "findings/" not in rel:
-            lines = text.split("\n")
             fenced = _fence_mask(lines)
             for i, ln in enumerate(lines):
                 # A FENCED LINE IS NOT A CLAIM. Inside ``` a line is a command to run or an
@@ -1674,8 +1712,8 @@ def cmd_sweep() -> int:
                 # spelled as an enumeration has to be re-derived by the first reader who
                 # meets an item not on it (AGENTS.md, the 2026-08-15 rule audit) - and the
                 # enumeration does not have to be a list to be one.
-                if re.search(r"(no `\w+` judge|not built|candidate|does not exist|retired|"
-                             r"superseded|do not name them|phantom|plant\w*)", ln, re.I):
+                if re.search(_DELIBERATELY_FAKE + r"|no `\w+` judge|not built|candidate|"
+                             r"retired|superseded", ln, re.I):
                     continue
                 for tok in set(re.findall(r"`(feel|tuning|design|polish|gameplay)`", ln)):
                     problems.append(
