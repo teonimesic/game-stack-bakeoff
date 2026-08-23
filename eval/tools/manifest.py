@@ -410,15 +410,64 @@ class RunAudit:
     issues: list[Issue] = field(default_factory=list)
     marker: dict | None = None
     severity: str = "ok"
+    rel: str | None = None
 
     @property
     def name(self) -> str:
-        return self.run_dir.name
+        """How the audit report names this directory.
+
+        The path RELATIVE to the swept root when it is known, so a nested run is
+        distinguishable from a top-level one of the same name and the line says where it
+        was read from (rule 12). The bare name is still what `run_dir` in a manifest is
+        compared against - a manifest records its own directory's basename, not a path.
+        """
+        return self.rel or self.run_dir.name
 
 
 def is_run_directory(d: Path) -> bool:
     return d.is_dir() and (
         (d / "trials").is_dir() or any(d.glob("suite*.json")))
+
+
+#: Directories written by a building agent or a toolchain rather than by a harness. Not
+#: descended into. Same list as `tools/census.py::NOT_A_RUN` and
+#: `judge/tier1_census.py::NOT_A_RUN`, for the same reason and against the same tree.
+NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
+
+
+def find_run_directories(runs_dir: Path) -> tuple[list[Path], list[Path]]:
+    """(runs, pruned): every run directory under `runs_dir`, at ANY depth.
+
+    `runs_dir` is not a flat list of runs. `archive-run1-byte-identical-prompts/` wraps
+    four of them one level deeper, and an `iterdir()` sweep examined none of the four
+    while printing the same word for the 19 it did examine (#126, task 75). A run that
+    was never looked at and a run that measures clean are indistinguishable in the
+    output, which is the shape this project keeps paying for.
+
+    The walk stops descending as soon as it identifies a run: a run's own `work/`,
+    `artifacts/` and `targets/` trees are agent-authored, can be enormous (one stored
+    Unity tree alone holds tens of thousands of directories) and hold nothing this audit
+    is asking about. `pruned` is returned rather than discarded, because a skip nobody
+    counts is the defect being replaced.
+    """
+    runs: list[Path] = []
+    pruned: list[Path] = []
+    stack = [Path(runs_dir)]
+    while stack:
+        d = stack.pop()
+        try:
+            children = sorted(p for p in d.iterdir() if p.is_dir())
+        except OSError:
+            continue
+        for c in children:
+            if c.name in NOT_A_RUN or c.name.startswith("."):
+                pruned.append(c)
+            elif is_run_directory(c):
+                runs.append(c)          # a run's own subtree is not searched further
+            else:
+                stack.append(c)
+    runs.sort()
+    return runs, pruned
 
 
 def audit_run(run_dir: Path) -> RunAudit:
@@ -531,8 +580,19 @@ def _finish(a: RunAudit) -> RunAudit:
 
 
 def audit_tree(runs_dir: Path) -> list[RunAudit]:
-    return [audit_run(d) for d in sorted(Path(runs_dir).iterdir())
-            if is_run_directory(d)]
+    audits, _ = audit_tree_with_skips(runs_dir)
+    return audits
+
+
+def audit_tree_with_skips(runs_dir: Path) -> tuple[list[RunAudit], list[Path]]:
+    runs_dir = Path(runs_dir)
+    found, pruned = find_run_directories(runs_dir)
+    out = []
+    for d in found:
+        a = audit_run(d)
+        a.rel = str(d.relative_to(runs_dir))
+        out.append(a)
+    return out, pruned
 
 
 # --------------------------------------------------------------------------- marking
@@ -627,7 +687,7 @@ def cmd_audit(a: argparse.Namespace) -> int:
         print("REFUSING TO REPORT: that path is not a directory. Examined 0 run "
               "directories - this is not a pass.")
         return 2
-    audits = audit_tree(runs)
+    audits, pruned = audit_tree_with_skips(runs)
     if not audits:
         print("REFUSING TO REPORT: 0 run directories under that path. A sweep over "
               "nothing is not a pass.")
@@ -645,8 +705,10 @@ def cmd_audit(a: argparse.Namespace) -> int:
     counts: dict[str, int] = {}
     for x in audits:
         counts[x.severity] = counts.get(x.severity, 0) + 1
-    print(f"\nexamined {len(audits)} run directories: " +
-          ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    nested = sum(1 for x in audits if "/" in x.name)
+    print(f"\nexamined {len(audits)} run directories ({nested} of them nested below "
+          f"the top level; {len(pruned)} agent-authored directories not descended "
+          f"into): " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
     bad = [x.name for x in audits if x.severity == "error"]
     if bad:
         print(f"manifests that do not describe their directory: {', '.join(bad)}")

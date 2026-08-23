@@ -135,7 +135,7 @@ come out the other way, and both re-runnable:
   groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
   for the reason that matters least (#92). It sweeps the *open* interval, and the gate regime is
   w1=0, so this tool cannot settle what the change does — see the next one.
-- `eval/judge/tier1_census.py` — 68 stored trials, **7 with any tier-1 failure**, and in **0 of 10
+- `eval/judge/tier1_census.py` — 68 stored submissions, **7 with any tier-1 failure**, and in **0 of 10
   groups do both tiers vary among the trials tier 2 could measure**. Comparing the two schemes
   pairwise at w1=0: **0 orderings reversed, 3 coarsened, 7 identical** (#123).
 
@@ -996,7 +996,7 @@ settled question is noise that makes the live ones harder to find.
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
 | Deterministic tiers may not rank stacks | Within-cell verdict variance **large enough to resolve a between-stack gap** — currently **5 of 436** paired criteria in `wg-matrix` and **0 of 232** in `wg-audio48`, i.e. 1.1% and 0%, against a between-stack gap of zero. This row read *non-zero* until 2026-08-23, when the unscoped figure it rested on was withdrawn and the scoped recount came back **not zero**; a sign is not a threshold, and what size counts is unsettled (task 70) |
-| Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
+| Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 10 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |

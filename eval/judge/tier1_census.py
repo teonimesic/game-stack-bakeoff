@@ -45,10 +45,49 @@ Usage:
 `--runs-root` is not optional and is not guessed: `eval/runs/` is gitignored, so a
 worktree's copy of that path is empty and a census run there would report zero
 failures - a confident, wrong, uniform answer of exactly the shape rule 12 names.
+
+## A run directory is not always a child of `runs/`
+
+This tool shipped globbing `*/artifacts/*/eval/report.json` - exactly one level - and
+`census.py` shipped with the same shape and lost 24 records to it (#126). The address is
+an input to the check (rule 12), so the search is depth-independent and a run is
+identified by its path RELATIVE to `runs_root`. Two wrappers exist in the stored tree and
+they are not the same kind of thing:
+
+  archive-run1-byte-identical-prompts/  four spec-change runs. They hold no `artifacts/`
+                                        at all, so they were never in this tool's
+                                        population and reaching them adds nothing.
+  wg-g4c-capgate/{capped,uncapped}/     16 reports this tool could not see. They are
+                                        RE-GRADES of the 8 `wg-g4c` work trees under two
+                                        capture-gate arms (`eval/RUNS.md`), so they are
+                                        not 16 more submissions.
+
+Reports found under `work/`, `artifacts/` or `targets/` are agent-authored or
+toolchain-authored - a Unity `Library/Bee/artifacts` is not a run's artifacts - and are
+excluded. The number excluded is PRINTED with the counts, because a skip nobody counts is
+the defect being replaced.
+
+## A report is a GRADING. A submission can have several, and they are not several trials
+
+Every report names the work tree it graded, in `submission`. Keying on that rather than on
+the report path is what makes the depth fix safe: the 16 nested reports are three gradings
+each of 8 work trees `wg-g4c` already contributes, so pooling them would enter the same
+submission into the per-criterion denominator three times (rule 4) and count a repeated
+non-independent measurement as corroboration (rule 9).
+
+So the census reports **one row per submission, the most recently graded**, and prints the
+superseded gradings as their own block rather than dropping them - a grading that exists
+and is not counted has to be visible, or the next reader re-derives it.
+
+**Both verdicts are printed, always.** The headline over distinct submissions is
+FLOOR-ONLY; pooling all gradings makes it DISCRIMINATES, entirely on the two superseded
+`wg-g4c-capgate` rows whose play-bot has since been repaired (#46). A verdict that depends
+on which population you take must be shown as depending on it, not chosen quietly.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import sys
 import tempfile
@@ -57,30 +96,74 @@ from pathlib import Path
 #: Tier-1 criteria that tier 2 depends on. See the module docstring for the mechanism.
 BLOCKING = ("build.compiles", "probe.responds")
 
+#: Directories whose contents were written by a building agent or a toolchain, not by the
+#: harness. A Unity work tree carries `Library/Bee/artifacts`, which matches the report
+#: pattern's directory name and is not a run's artifacts. Same list as
+#: `tools/census.py::NOT_A_RUN`, for the same reason and against the same tree.
+NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
+
 
 # --------------------------------------------------------------------------- #
 # loading
 # --------------------------------------------------------------------------- #
 
-def load(runs_root: Path) -> list[dict]:
-    """Every stored trial that recorded tier-1 criteria.
+def report_paths(runs_root: Path) -> tuple[list[Path], list[Path]]:
+    """(counted, skipped) stored report paths, found at ANY depth under runs_root.
+
+    Depth-independent because a run directory is not always a child of `runs/` - see the
+    module docstring. `skipped` is returned rather than discarded so the count of what
+    was not looked at can be printed beside the count of what was.
+    """
+    counted, skipped = [], []
+    for rep in sorted(runs_root.rglob("artifacts/*/eval/report.json")):
+        # the parts above the `artifacts` component: <run path relative to runs_root>
+        stem = rep.relative_to(runs_root).parts[:-4]
+        (skipped if NOT_A_RUN.intersection(stem) else counted).append(rep)
+    return counted, skipped
+
+
+def _graded_at(rec: dict) -> dt.datetime:
+    """When this GRADING was made. Falls back to the epoch, never raises.
+
+    A report with no usable `started_at` must still be orderable, and it must lose to any
+    report that has one: an undatable grading cannot be shown to be the newest.
+    """
+    raw = rec.get("started_at")
+    try:
+        t = dt.datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+    return t if t.tzinfo is not None else t.replace(tzinfo=dt.timezone.utc)
+
+
+def load_gradings(runs_root: Path) -> tuple[list[dict], list[Path]]:
+    """Every stored GRADING that recorded tier-1 criteria, plus the skipped paths.
 
     A trial with no tier-1 criteria is skipped rather than counted as all-passing:
     `total=0 passed=0` is indistinguishable from correct failure (rule 1), and the
     early single-stack runs predate the tier entirely.
     """
+    counted, skipped = report_paths(runs_root)
     rows = []
-    for rep in sorted(runs_root.glob("*/artifacts/*/eval/report.json")):
+    for rep in counted:
         rec = json.loads(rep.read_text())
         crits = ((rec.get("programmatic") or {}).get("criteria")) or []
         if not crits:
             continue
         tiers = rec.get("tier_scores") or {}
         rows.append({
-            "run": rep.parents[3].name,
+            # relative to runs_root, so a nested run is distinguishable from a top-level
+            # one of the same name and the identifier says where it was read (rule 12).
+            "run": str(rep.parents[3].relative_to(runs_root)),
             "trial": rep.parents[1].name,
             "game": rec.get("game"),
             "stack": Path(str(rec.get("starter") or "")).name or "?",
+            # The work tree this report graded. Falls back to the report's own path,
+            # which cannot collide - never to a constant, which would merge every
+            # report that lacks the field into one submission.
+            "submission": rec.get("submission") or f"::report::{rep}",
+            "graded_at": _graded_at(rec),
+            "report": str(rep),
             "t1": tiers.get("programmatic"),
             "t2": tiers.get("playbot"),
             "playbot_usable": bool(rec.get("playbot_usable", True)),
@@ -90,7 +173,34 @@ def load(runs_root: Path) -> list[dict]:
                           "evidence": (c.get("evidence") or "")}
                          for c in crits],
         })
-    return rows
+    return rows, skipped
+
+
+def latest_per_submission(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(kept, superseded): one row per work tree, the most recently graded.
+
+    Ties break on the run path so the choice is deterministic rather than
+    filesystem-ordered - a census whose answer depends on directory iteration order is
+    not a census.
+    """
+    by_sub: dict[str, list[dict]] = {}
+    for r in rows:
+        by_sub.setdefault(r["submission"], []).append(r)
+    kept, superseded = [], []
+    for sub in sorted(by_sub):
+        ordered = sorted(by_sub[sub], key=lambda r: (r["graded_at"], r["run"]))
+        kept.append(ordered[-1])
+        superseded.extend(ordered[:-1])
+    kept.sort(key=lambda r: (r["run"], r["trial"]))
+    superseded.sort(key=lambda r: (r["run"], r["trial"]))
+    return kept, superseded
+
+
+def load(runs_root: Path) -> list[dict]:
+    """The census population: one row per submission, most recent grading."""
+    rows, _ = load_gradings(runs_root)
+    kept, _ = latest_per_submission(rows)
+    return kept
 
 
 # --------------------------------------------------------------------------- #
@@ -255,9 +365,15 @@ def ordering_change(rows: list[dict]) -> list[dict]:
 # rendering
 # --------------------------------------------------------------------------- #
 
-def render(rows: list[dict]) -> str:
+def render(rows: list[dict], superseded: list[dict] | None = None,
+           skipped: list[Path] | None = None) -> str:
+    superseded = superseded or []
+    skipped = skipped or []
     pc, fl, gs, b22 = per_criterion(rows), failures(rows), groups(rows), blocking_2x2(rows)
-    L = [f"{len(rows)} stored trials carry tier-1 criteria", ""]
+    L = [f"{len(rows)} stored submissions carry tier-1 criteria "
+         f"({len(rows) + len(superseded)} gradings on disk, "
+         f"{len(superseded)} superseded and held out, "
+         f"{len(skipped)} report paths skipped as agent-authored)", ""]
 
     L.append("--- per criterion ---")
     L.append(f"{'criterion':<24}{'scored on':>11}{'failed':>8}{'unscored on':>13}"
@@ -275,6 +391,23 @@ def render(rows: list[dict]) -> str:
         L.append(f"  {f['run']}/{f['trial']}  t1={f['t1']}  t2={f['t2']}  [{tag}]")
         for cid in f["failed"]:
             L.append(f"      {cid:<20} {f['evidence'][cid][:110]}")
+
+    L.append(f"\n--- gradings held out as superseded (n={len(superseded)}) ---")
+    if not superseded:
+        L.append("  none: every stored submission carries exactly one grading")
+    else:
+        L.append("  Same work tree, graded more than once. The most recent is counted "
+                 "above;")
+        L.append("  these are listed so a grading that exists is never silently absent.")
+        kept_by_sub = {r["submission"]: r for r in rows}
+        for r in superseded:
+            k = kept_by_sub.get(r["submission"])
+            agrees = (k is not None and k["t1"] == r["t1"] and k["t2"] == r["t2"])
+            L.append(f"  {r['run']}/{r['trial']}  graded {r['graded_at'].date()}  "
+                     f"t1={r['t1']} t2={r['t2']}  "
+                     f"[{'agrees with' if agrees else 'DISAGREES with'} "
+                     f"{k['run'] if k else '?'} "
+                     f"t1={k['t1'] if k else '?'} t2={k['t2'] if k else '?'}]")
 
     L.append("\n--- does a blocking failure coincide with an unmeasurable tier 2? ---")
     L.append(f"  blocked          : t2=0.00 on {b22['blocked_t2_zero']}, "
@@ -315,6 +448,20 @@ def render(rows: list[dict]) -> str:
     else:
         L.append("  Tier 1 IS separating submissions tier 2 also separates. RUBRIC.md's")
         L.append("  gate decision rests on this being FLOOR-ONLY - re-make it.")
+
+    # The verdict under the OTHER population, always printed. A headline that depends on
+    # which rows you keep has to be shown depending on it, not chosen quietly.
+    if superseded:
+        pooled = verdict(groups(rows + superseded))
+        L.append(f"\nverdict if every grading were pooled instead: {pooled}")
+        if pooled != verdict(gs):
+            L.append("  The two disagree. Pooling enters the same work tree more than "
+                     "once (rule 4)")
+            L.append("  and reads a repeated non-independent measurement as "
+                     "corroboration (rule 9),")
+            L.append("  so the headline is the deduplicated one - but the disagreement "
+                     "is the reason")
+            L.append("  the held-out gradings are printed rather than dropped.")
     return "\n".join(L)
 
 
@@ -336,12 +483,16 @@ def expect(name: str, cond: bool, detail: str = "") -> None:
 
 def _write_trial(root: Path, run: str, trial: str, game: str, stack: str,
                  crits: list[tuple[str, bool, bool]], t2: float,
-                 playbot_usable: bool = True) -> None:
-    d = root / run / "artifacts" / trial / "eval"
+                 playbot_usable: bool = True, submission: str | None = None,
+                 started_at: str = "2026-08-01T00:00:00+00:00") -> None:
+    """`run` may be a nested path (`archive/inner`), which is how a wrapper is built."""
+    d = root.joinpath(*Path(run).parts) / "artifacts" / trial / "eval"
     d.mkdir(parents=True, exist_ok=True)
     t1 = (sum(1 for _, p, s in crits if s and p) / max(1, sum(1 for _, _, s in crits if s)))
     (d / "report.json").write_text(json.dumps({
         "game": game, "starter": f"/somewhere/starters/{stack}",
+        "submission": submission or f"/work/{run}/{trial}",
+        "started_at": started_at,
         "tier_scores": {"programmatic": t1, "playbot": t2},
         "playbot_usable": playbot_usable,
         "programmatic": {"criteria": [
@@ -445,9 +596,86 @@ def selftest() -> int:
                ordering_change(rowsD)[0]["kind"] == "REVERSED",
                str(ordering_change(rowsD)[0]))
 
+        # --- THE ADDRESS. A run directory is not always a child of runs/.
+        #
+        # The answers are stated here before the tool is asked: runE sits one level
+        # deeper inside a wrapper and MUST be found; the report under runA's `work/`
+        # tree is agent-authored and MUST NOT be; runF re-grades runE's work tree on a
+        # later date and MUST replace it rather than joining it.
+        print("\n[the address: a nested run is found, an agent-authored tree is not]")
+        _write_trial(root, "archive/runE", "g1__a__t0", "g1", "a", ok, 1.0,
+                     submission="/work/E/a", started_at="2026-08-02T00:00:00+00:00")
+        _write_trial(root, "runA/work/g1__a__t0/Library/Bee", "g1__z__t0", "g1", "z",
+                     ok, 1.0, submission="/work/NOT-A-RUN")
+        counted, skipped = report_paths(root)
+        nested = [p for p in counted if "runE" in str(p)]
+        expect("the nested run's report is reached at depth 2", len(nested) == 1,
+               str([str(p) for p in nested]))
+        expect("the agent-authored Library/Bee/artifacts report is skipped, and counted",
+               len(skipped) == 1 and "Library/Bee" in str(skipped[0]),
+               str([str(p) for p in skipped]))
+        rowsE = [r for r in load(root) if r["run"].endswith("runE")]
+        expect("the nested run is identified by its path relative to runs_root",
+               len(rowsE) == 1 and rowsE[0]["run"] == "archive/runE",
+               str([r["run"] for r in rowsE]))
+
+        print("\n[a re-grade is one submission with two gradings, not two trials]")
+        _write_trial(root, "regrade/runF", "g1__a__t0", "g1", "a",
+                     [("build.compiles", True, True), ("lint.clean", False, True),
+                      ("probe.responds", True, True)], 0.25,
+                     submission="/work/E/a", started_at="2026-08-09T00:00:00+00:00")
+        allrows, _ = load_gradings(root)
+        kept, sup = latest_per_submission(allrows)
+        expect("both gradings are loaded from disk",
+               sum(1 for r in allrows if r["submission"] == "/work/E/a") == 2)
+        expect("exactly one of them is kept, and it is the later one",
+               sum(1 for r in kept if r["submission"] == "/work/E/a") == 1
+               and next(r for r in kept
+                        if r["submission"] == "/work/E/a")["run"] == "regrade/runF",
+               str([r["run"] for r in kept if r["submission"] == "/work/E/a"]))
+        expect("the earlier grading is reported as superseded, not dropped",
+               [r["run"] for r in sup] == ["archive/runE"], str([r["run"] for r in sup]))
+        expect("the superseded grading leaves no group of its own",
+               not any(g["run"] == "archive/runE" for g in groups(kept)),
+               str([g["run"] for g in groups(kept)]))
+
         # MUTANTS. Each removes one mechanism; the expectation above must go red.
         print("\n[mutants: can these checks fail?]")
         g = globals()
+
+        # The defect this section repairs: one level deep, and the whole nested run
+        # vanishes with no diagnostic.
+        original_rp = g["report_paths"]
+        g["report_paths"] = lambda rr: (
+            sorted(rr.glob("*/artifacts/*/eval/report.json")), [])
+        m_all, _ = load_gradings(root)
+        g["report_paths"] = original_rp
+        caught = not any(r["run"].endswith("runE") for r in m_all) and len(m_all) < len(allrows)
+        expect("mutant 'restore the one-level glob' loses the nested run, and is caught",
+               caught, f"{len(m_all)} of {len(allrows)} gradings")
+
+        # The fail-open direction: without the exclusion, a Unity toolchain directory
+        # becomes a submission.
+        base_counted, base_skipped = report_paths(root)
+        original_nar = g["NOT_A_RUN"]
+        g["NOT_A_RUN"] = frozenset()
+        m_counted, m_skipped = report_paths(root)
+        g["NOT_A_RUN"] = original_nar
+        expect("mutant 'exclude nothing' counts the agent-authored tree, and is caught",
+               len(base_skipped) == 1 and m_skipped == []
+               and len(m_counted) == len(base_counted) + 1,
+               f"counted {len(m_counted)} vs {len(base_counted)}")
+
+        # Keying on the report path instead of the work tree turns one submission with
+        # two gradings into two submissions - the pooling this module refuses.
+        original_lps = g["latest_per_submission"]
+        g["latest_per_submission"] = lambda rs: (rs, [])
+        m_kept, m_sup = latest_per_submission(allrows)
+        g["latest_per_submission"] = original_lps
+        expect("mutant 'keep every grading' double-counts the re-graded work tree, "
+               "and is caught",
+               sum(1 for r in m_kept if r["submission"] == "/work/E/a") == 2
+               and m_sup == [])
 
         original_blocking = g["BLOCKING"]
         g["BLOCKING"] = ()
@@ -509,20 +737,32 @@ def main() -> int:
     if not a.runs_root.is_dir():
         print(f"no run store at {a.runs_root}", file=sys.stderr)
         return 2
-    rows = load(a.runs_root)
+    # The address is an input to the check (rule 12), so it is printed with the counts.
+    print(f"runs-root: {a.runs_root.resolve()}", file=sys.stderr)
+    all_rows, skipped = load_gradings(a.runs_root)
+    rows, superseded = latest_per_submission(all_rows)
     if not rows:
         print(f"no stored trials with tier-1 criteria under {a.runs_root}",
               file=sys.stderr)
         return 1
     if a.json:
-        print(json.dumps({"n_trials": len(rows),
+        print(json.dumps({"runs_root": str(a.runs_root.resolve()),
+                          "n_submissions": len(rows),
+                          "n_gradings_on_disk": len(all_rows),
+                          "n_superseded_gradings": len(superseded),
+                          "n_report_paths_skipped_agent_authored": len(skipped),
+                          "superseded": [{"run": r["run"], "trial": r["trial"],
+                                          "graded_at": r["graded_at"].isoformat(),
+                                          "t1": r["t1"], "t2": r["t2"]}
+                                         for r in superseded],
                           "per_criterion": per_criterion(rows),
                           "failures": failures(rows),
                           "blocking_2x2": blocking_2x2(rows),
                           "groups": groups(rows),
-                          "verdict": verdict(groups(rows))}, indent=2))
+                          "verdict": verdict(groups(rows)),
+                          "verdict_if_pooled": verdict(groups(all_rows))}, indent=2))
     else:
-        print(render(rows))
+        print(render(rows, superseded, skipped))
     return 0
 
 
