@@ -1333,8 +1333,19 @@ def cmd_findings(as_json: bool = False) -> int:
 #:   `(?!-(?!#))`        `#68-the-subjective-layer` is a markdown ANCHOR, not a citation of
 #:                       #68, while `#19-#152` IS two citations spelling a range. A hyphen
 #:                       followed by `#` continues a range; a hyphen followed by anything
-#:                       else begins a slug. 24 lines of the live corpus differ between the
-#:                       naive spelling and this one, 23 of them anchors in README.md.
+#:                       else begins a slug.
+#:
+#: WHAT THEY ARE WORTH TODAY, measured rather than assumed, and the answer is not what it
+#: looks like. Over the live corpus at `24bc9af` the shipped pair and a bare `#(\d+)` return
+#: the SAME 51 matches on 45 lines: 20 live lines tokenise differently - 19 in README.md, 1
+#: in DECISIONS.md, every one an anchor - but each anchor carries an IN-RANGE number, so the
+#: range test was already discarding them. On today's corpus both exclusions are free.
+#:
+#: THEY ARE ONE UNIT, AND HALF OF THEM IS MUCH WORSE THAN NEITHER. Drop only the word-char
+#: exclusion and the count goes to **71 on 65** - `#(\d+)` is greedy, the anchor lookahead
+#: rejects `#30` in `#30-a-guard-...`, and the engine BACKTRACKS to `#3`, which is out of
+#: range. A regex exclusion is not an independent term you can price on its own, and a
+#: reader deleting one because "it changes nothing" would land on the worst of the three.
 #:
 #: WHAT IT STILL CANNOT SEE, stated here rather than discovered by someone quoting it:
 #: a six-digit hex colour written `#123456` is indistinguishable from a citation of finding
@@ -1400,6 +1411,13 @@ def read_citation_census() -> dict:
     from `_live_corpus`, which reports an empty read instead of returning it as clean; the
     range comes from `read_findings_census`, the same producer `--findings` prints - never
     from a number typed into this file, which would go stale the next time a finding lands.
+
+    IT DELIBERATELY TAKES NO `--at REV`, unlike `--withdrawn` beside it. `_live_corpus`
+    would read the corpus at a revision and `read_findings_census` globs a directory on
+    disk, so the two halves would come from different trees and the comparison would be
+    between a document as it stood then and a range as it stands now. A half-correct
+    revision argument is worse than none: its answer is in range and nothing says which
+    tree it describes. Quote the reading with the revision you ran it at instead.
     """
     corpus, problems = _live_corpus()
     if problems:
@@ -2732,9 +2750,13 @@ def _citation_census_pins(verbose: bool = False) -> list[str]:
     Today's live corpus contains no true positive at all, so without this pin the extractor
     would be proven only against text nobody has adjudicated.
 
-    THE GREEN HALF IS THE HALF THAT MATTERS (rule 15). Four of these are inputs a bare
-    `#(\\d+)` gets WRONG, and each was found by running it over the live corpus rather than
-    by reading: an anchor slug, a colour, a fenced example, and the low end of a range.
+    THE GREEN HALF IS THE HALF THAT MATTERS (rule 15), and here it is the half no
+    live-corpus measurement could have produced. A bare `#(\\d+)` reds exactly two of these
+    - the anchor slug and the colour - while returning the same 51 matches on 45 lines as
+    the shipped extractor over the corpus at `24bc9af`, because every anchor there carries
+    an in-range number. **The totals agree and the tokenisation does not**, so the corpus
+    cannot choose between the two extractors and these cases have to. The fence case is not
+    about the regex at all: it pins a decision `citation_census` makes around it.
     """
     lo, hi = 19, 152
     anchor = "See [the subjective layer](eval/FINDINGS.md#3-the-subjective-layer)."
