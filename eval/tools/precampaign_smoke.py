@@ -168,6 +168,15 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
                  str(tmp / "prompts-liveness-check-not-the-launch-artifact")], EVAL))
     out.append(("starter_parity",
                 ["python3", "judge/starter_parity.py"], EVAL))
+    # ~30s, and it is the control for the row above. `starter_parity`'s test axis printed
+    # `0/0` for a stack whose toolchain was not installed and the tool still ended on "No
+    # drift detected on any measured axis", exit 0 (#108). This runs the axis against a real
+    # starter tree with its dependencies present AND with them absent, because only the
+    # second direction can ask whether an unmeasured axis still reads as agreement. It needs
+    # `starters/ts/node_modules`, and FAILS rather than skips without it - which is also why
+    # both rows want a checkout, not an agent worktree.
+    out.append(("parity_selftest (test axis: measured, unmeasurable, and opted out)",
+                ["python3", "judge/parity_selftest.py"], EVAL))
     # ~160s, and it belongs to this file's class exactly: nothing ever ran a starter's
     # OWN gate on a PRISTINE copy, because the grader only ever runs it on submissions,
     # where red is the answer you are looking for. The godot template shipped `just check`
