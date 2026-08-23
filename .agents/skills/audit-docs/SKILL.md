@@ -22,6 +22,8 @@ python3 tools/docstat.py --outline FILE   # fence-aware heading map
 python3 tools/docstat.py --renumbered # citations of a finding number that has moved
 python3 tools/docstat.py --withdrawn  # live docs restating a figure declared retired
 python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them go red
+python3 tools/linkcheck.py            # every relative link in the live docs: path AND fragment
+python3 tools/linkcheck.py --selftest # its controls, three link shapes, both directions
 ```
 
 `--sweep` asks two kinds of question:
@@ -30,6 +32,11 @@ python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them 
 |---|---|---|
 | **references** | does a harness flag or an aspect id a doc names actually exist? | `RUBRIC.md` named five judges that do not exist (#38) |
 | **structure** | does a file parse as the thing it is read as? | 5 of 7 skills had frontmatter no YAML parser could read; `AGENTS.md` rules 10-16 detached from their own list |
+
+**`--sweep` deliberately does not check file paths, and `linkcheck.py` is what covers the gap
+for links** — a phantom `eval/RUBRIC.md` passed a green sweep. It resolves the path *and* the
+GitHub heading fragment, so a reworded heading turns a citation red instead of leaving a link
+that still resolves and points at nothing. It does not check bare paths in prose; only links.
 
 **`--renumbered` asks the third kind, and it is the one the other two cannot ask: does a
 name still mean what its author meant?** When two worktrees allocate the same finding number

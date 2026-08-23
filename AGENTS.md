@@ -84,6 +84,7 @@ so `docstat.py --sweep` asserts the symlink exists and resolves, rather than onl
 | `prune` | a cleanup exploration pass — text or code that no longer earns its space | `CLEANUP-LOG.md`, this file |
 | `dispatch` | sending a queued task to an agent, and verifying and merging what comes back | `tasks/<id>`, `.agents/skills/work/SKILL.md` |
 | `work` | **you were dispatched to do one task.** Read the ticket, do it, hand back a branch | the ticket at `tasks/<id>-*.md` |
+| `update-readme` | editing `README.md` — the result moved, a count went stale, a reference is bare, a reader could not follow it | `README.md`, this file |
 
 The usual order across one cycle is **`run-matrix` → `evaluate-run` → `refine`**, with
 `add-game` when the task set changes and `audit-docs` folded into `refine` or run alone.
