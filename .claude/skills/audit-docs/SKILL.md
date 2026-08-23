@@ -44,6 +44,14 @@ corpora on first run, plus two more that landed while it was being written (#118
 Never renumber a finding to satisfy it. The number in `eval/findings/` is the published one;
 the citation is what is wrong.
 
+**The undecidable half is a standing list, so read only what it prints as `UNTRIAGED`.** The
+verdicts already reached are in `eval/renumber_triage.json`, keyed by the citing text — task 102
+read all 51 rows, repaired 15 and recorded 36. When you adjudicate a fresh row, add the entry;
+`--sweep` gates on an entry whose sentence no longer exists, and `tools/triage_control.py` is
+its 14 controls. **Every one of the 15 that were wrong was a task citing the number it had
+allocated itself** — the author's own worktree numbering was never committed, so history has no
+answer, and the row you should suspect first is a `tasks/` file talking about its own finding.
+
 **`--withdrawn` asks the fourth kind: is a figure that was RETIRED still stated as current?**
 No consistency check can ask this. When a stale figure propagates, the copies **agree** — with
 each other and with the original, to the digit — so propagation and consistency are the same

@@ -55,6 +55,13 @@ Exit code is 1 if --sweep finds anything unresolved, so it can gate a commit.
 undecidable. See `_check_renumbered_citations` for which half is which. `--withdrawn` DOES
 gate: its verdict is mechanical - a declared entry either sits in a live block that cites
 its id or it does not.
+
+The undecidable half is a STANDING list that never reaches zero, so what a reader needs
+from it is not the list but which rows are NEW. `eval/renumber_triage.json` records the
+verdict a person reached on a row, keyed by the citing text rather than by a line number;
+`_triage_for` prints it beside the row and `_check_triage_register` gates - inside --sweep -
+on an entry that no longer matches anything. See `_check_renumbered_citations` for why the
+verdict has to be recorded by hand and cannot be re-derived.
 """
 
 from __future__ import annotations
@@ -1587,6 +1594,146 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
     return stale, undecided, summary
 
 
+# =============================================================================
+# THE TRIAGE REGISTER, added 2026-08-23 under task 102.
+#
+# The undecidable half of `--renumbered` is a STANDING list. It contains correct
+# citations by construction, so it never reaches zero, and the reader who runs the
+# command gets no way to tell a row somebody has already adjudicated from one nobody
+# has ever looked at. Task 102 read all 51 rows at that revision: 15 were wrong and
+# were repaired, 36 were right. Without somewhere to put those 36 verdicts, the next
+# reader re-derives every one of them - which is the cost this file exists to remove.
+#
+# THE VERDICT CANNOT BE DERIVED, which is the whole reason the register is by hand:
+# `_check_renumbered_citations` already exhausts what history can say about these rows.
+# What decides them is reading the citing sentence against the heading in eval/findings/.
+# So this stores a judgement, exactly as `withdrawn.json` does, and for the same reason:
+# the only detectable property of an adjudication is that somebody wrote it down.
+#
+# KEYED BY THE CITING TEXT, NEVER BY A LINE NUMBER. A line number is invalidated by any
+# edit anywhere above it in the file, which would silently unpair every entry in a
+# document and report 36 fresh rows as if nobody had read them. The anchor is a substring
+# of the citing line that must itself contain the citation, so it cannot drift onto a
+# neighbouring sentence.
+# =============================================================================
+
+TRIAGE_PATH = os.path.join(REPO, "renumber_triage.json")
+
+
+def _load_triage() -> list[dict]:
+    """The register, or [] if it is absent. Malformed is an ERROR, not an absence.
+
+    A register that fails to parse must not read as "nothing has been triaged": that is
+    the vacuous pass this module exists to prevent, and it would present 36 adjudicated
+    rows as untouched. `_check_triage_register` turns the raise into a reported problem.
+    """
+    if not os.path.exists(TRIAGE_PATH):
+        return []
+    with open(TRIAGE_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError(f"{TRIAGE_PATH}: expected a list of entries")
+    return data
+
+
+def _triage_index(entries: list[dict]) -> dict[tuple[str, int], list[dict]]:
+    idx: dict[tuple[str, int], list[dict]] = {}
+    for e in entries:
+        idx.setdefault((e.get("path", ""), int(e.get("cites", 0))), []).append(e)
+    return idx
+
+
+def _row_line(hist: _History, where: str) -> str:
+    """The WHOLE citing line named by a `path:lineno` row.
+
+    THE ADDRESS IS AN INPUT TO THE CHECK (#60), and the first draft of this got it wrong
+    in the way that looks like a result. It matched anchors against the row's printed
+    excerpt, which `_check_renumbered_citations` truncates to 96 characters - so four
+    entries whose anchor sits past column 96 reported as UNTRIAGED, indistinguishable
+    from four rows nobody had read. `established_by` lines run to several thousand
+    characters, so the truncation is the common case there, not the corner.
+    """
+    path, _, lineno = where.rpartition(":")
+    if not lineno.isdigit():
+        return ""
+    if hist.worktree:
+        disk = os.path.join(ROOT, path)
+        if not os.path.exists(disk):
+            return ""
+        lines = open(disk, encoding="utf-8", errors="replace").read().split("\n")
+    else:
+        lines = _git("show", f"{hist.rev}:{path}").split("\n")
+    i = int(lineno) - 1
+    return lines[i] if 0 <= i < len(lines) else ""
+
+
+def _triage_for(idx: dict, where: str, num: int, line_text: str) -> dict | None:
+    """The recorded verdict for one undecidable row, matched on the citing text."""
+    path = where.rsplit(":", 1)[0]
+    for e in idx.get((path, num), []):
+        if e.get("anchor", "\0") in line_text:
+            return e
+    return None
+
+
+def _check_triage_register() -> list[str]:
+    """An entry that matches nothing is a reference that does not resolve - so it GATES.
+
+    This is the same question `--sweep` asks of every other name in the corpus, pointed
+    at the register itself. Three ways an entry can stop meaning anything, all mechanical
+    and none of them a judgement:
+
+      absent    the file it names is gone
+      unmatched its anchor occurs nowhere in that file - the sentence was rewritten, and
+                the verdict recorded against it no longer describes anything
+      ambiguous its anchor occurs more than once, so which line it adjudicated is unknown
+
+    A fourth is self-consistency: an anchor that does not contain the citation it claims
+    to adjudicate cannot have come from that row. That one caught a bad key while the
+    register was being written, which is the only reason it is here rather than assumed.
+
+    NOT an error, and deliberately: an entry whose row is no longer REPORTED. A repair or
+    a later renumber can retire a row without touching the sentence, and gating on that
+    would fire on correct input every time the decidability of a row changes. Those are
+    printed by `--renumbered` as recorded-but-unreported instead.
+    """
+    problems: list[str] = []
+    try:
+        entries = _load_triage()
+    except (ValueError, json.JSONDecodeError, OSError) as exc:
+        return [f"eval/renumber_triage.json does not parse ({exc}). An unreadable "
+                f"register is not an empty one - every recorded verdict is invisible "
+                f"until it parses."]
+    for e in entries:
+        path, anchor = e.get("path", ""), e.get("anchor", "")
+        num = int(e.get("cites", 0))
+        disk = os.path.join(ROOT, path)
+        if not anchor or not path:
+            problems.append("renumber_triage.json: an entry has no path or no anchor")
+            continue
+        if num not in {int(m.group(1)) for m in _CITE_RX.finditer(anchor)}:
+            problems.append(
+                f"renumber_triage.json: the entry for {path} claims to adjudicate "
+                f"#{num}, but its anchor `{anchor[:50]}` does not contain that citation.")
+            continue
+        if not os.path.exists(disk):
+            problems.append(f"renumber_triage.json: {path} does not exist, but an entry "
+                            f"records a verdict on #{num} in it.")
+            continue
+        text = open(disk, encoding="utf-8", errors="replace").read()
+        n = text.count(anchor)
+        if n == 0:
+            problems.append(
+                f"renumber_triage.json: no line of {path} contains "
+                f"`{anchor[:50]}`. The verdict recorded for #{num} there adjudicates a "
+                f"sentence that no longer exists - re-read the row and re-record it.")
+        elif n > 1:
+            problems.append(
+                f"renumber_triage.json: `{anchor[:50]}` occurs {n} times in {path}, so "
+                f"the entry for #{num} does not say which row it adjudicated.")
+    return problems
+
+
 def cmd_renumbered(rev: str = "HEAD") -> int:
     stale, undecided, summary = _check_renumbered_citations(rev)
     hist = _History(rev)
@@ -1599,9 +1746,43 @@ def cmd_renumbered(rev: str = "HEAD") -> int:
     print(f"DECIDED STALE - {len(stale)}. The citing commit's own tree says so:\n")
     for s in stale:
         print(f"  {s}")
-    print(f"\nUNDECIDABLE - {len(undecided)}. History cannot say; a person must read these:\n")
+
+    try:
+        entries = _load_triage()
+    except (ValueError, json.JSONDecodeError, OSError):
+        entries = []
+        print("\n!! eval/renumber_triage.json does not parse; every recorded verdict is "
+              "invisible below. `--sweep` names the defect.")
+    idx = _triage_index(entries)
+    seen: list[int] = []
+    triaged, fresh = [], []
     for s in undecided:
+        where, rest = s.split(": ", 1)
+        num = int(rest.split("#", 1)[1].split(" ", 1)[0])
+        e = _triage_for(idx, where, num, _row_line(hist, where))
+        (triaged if e else fresh).append((s, e))
+        if e:
+            seen.append(id(e))
+
+    print(f"\nUNTRIAGED - {len(fresh)} of {len(undecided)}. History cannot say; "
+          f"READ THESE and record the verdict in eval/renumber_triage.json:\n")
+    for s, _ in fresh:
         print(f"  {s}")
+    print(f"\nALREADY TRIAGED - {len(triaged)}. A person read the citing sentence "
+          f"against the heading in eval/findings/ and recorded this:\n")
+    for s, e in triaged:
+        where = s.split(": ", 1)[0]
+        print(f"  {where}: #{e['cites']} {e['verdict'].upper()} - {e['note']} "
+              f"[{e['triaged']}]")
+
+    orphan = [e for e in entries if id(e) not in seen]
+    if orphan:
+        print(f"\nRECORDED BUT NOT REPORTED - {len(orphan)}. The sentence is still there; "
+              f"the row is no longer\nreported undecidable. Harmless, and the entry can "
+              f"go when someone is in here anyway:\n")
+        for e in orphan:
+            print(f"  {e['path']}: #{e['cites']} `{e['anchor'][:48]}`")
+
     print("\nNever renumber a finding to satisfy this. The number in eval/findings/ is")
     print("the published one; the citation is what is wrong.")
     return 0
@@ -2534,6 +2715,11 @@ def cmd_sweep() -> int:
     # to prevent.
     withdrawn_problems, _ = _check_withdrawal_register()
     problems += withdrawn_problems
+    # THE TRIAGE REGISTER GATES for the same reason the withdrawal register does, and on
+    # the narrower question: an entry either still matches exactly one line of the file it
+    # names or it does not. The VERDICT it records is a judgement and is never checked here;
+    # only whether the thing it was recorded against still exists.
+    problems += _check_triage_register()
     # The findings-index checks carry their own red control, and it runs HERE rather than
     # in a command someone has to remember. `--sweep` was green on a real two-table split
     # for as long as that split stood; a check whose ability to fail is never exercised is
@@ -2582,7 +2768,8 @@ def cmd_sweep() -> int:
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
           f"(pinned red and green; --selftest to read the pins); {_findings_summary()}; "
-          f"{wsummary}")
+          f"{wsummary}; renumber triage: {len(_load_triage())} adjudicated row(s), each "
+          f"still matching exactly one line of the document it names")
     return 0
 
 

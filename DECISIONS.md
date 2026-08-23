@@ -630,6 +630,31 @@ the citation is what is wrong. The renumber map is derived from git on every run
 down anywhere — a hand-kept list of moved numbers would go stale exactly like the citations it
 describes.
 
+### The undecidable half's verdicts are recorded, because they cannot be derived — decided 2026-08-23
+
+The list that can never reach zero has a second cost: it gives the reader no way to tell a row
+somebody has already adjudicated from one nobody has ever looked at. Task 102 read all **51** rows
+at that revision — **15 were wrong**, and the other **36** cost a full pass to establish and were
+about to cost the next reader the same pass. `_check_renumbered_citations` already exhausts what
+history can say about them; what decides a row is reading its sentence against the heading in
+`eval/findings/`. So the verdict is **recorded**, in `eval/renumber_triage.json`, on the same
+principle as the withdrawal register above: *the only detectable property of an adjudication is
+that somebody wrote it down.* `--renumbered` prints `UNTRIAGED` first and the recorded verdicts
+after, so what a reader must read is what is new.
+
+**Keyed by the citing text, never by a line number.** A line number is invalidated by any edit
+above it, which would unpair every entry in a document and present 36 adjudicated rows as
+untouched — a wall of false work, indistinguishable from real work. The anchor must itself contain
+the citation, so it cannot drift onto a neighbouring sentence.
+
+**The register gates inside `--sweep`, and only on whether an entry still resolves** — its file
+exists, its anchor matches exactly one line, and that anchor contains the citation it claims. The
+*verdict* is a judgement and is never re-checked. `eval/tools/triage_control.py` runs 14 controls,
+each red demonstrated before the green was believed, plus the two variants that decide the design:
+a citation whose line number moved by 40 lines still pairs, and so does one sitting past column
+96 — the excerpt `--renumbered` prints is truncated there, and matching against it instead of
+against the line put 4 adjudicated rows in the untriaged list on the first run.
+
 ### A withdrawal is declared in a register, and the live/archive split is a decision — decided 2026-08-23
 
 A retired figure cannot be found by comparing documents. Its restatements **agree**, with each
