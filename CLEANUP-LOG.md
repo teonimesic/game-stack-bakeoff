@@ -64,3 +64,64 @@ pruning and archive rules, `eval/FINDINGS.md` structure.
 
 **Not done:** no area was read properly. Every entry above is mechanical output plus judgement
 about what it means. The first real pass should pick one area from the skill's table.
+
+---
+
+## 2026-08-23 — can an external linter tell us what earns its space? (task 32)
+
+**Looked for:** whether any existing prose or markdown linter measures something that predicts
+whether an agent follows a rule — i.e. whether the cleanup pass can be given a second instrument
+beyond `prune_scan.py`. The answer decides whether future passes should run a tool or keep reading.
+
+**Read:** `AGENTS.md`, `research/AGENTS.md`, `.claude/skills/prune/SKILL.md`,
+`.claude/skills/tasks/SKILL.md`, all seven `.claude/skills/*/SKILL.md` frontmatter blocks,
+`eval/tools/docstat.py` (`cmd_sweep`, `_project_root_for`, the FOREIGN_FLAG_PREFIXES rationale),
+`eval/tools/tasks.py:228-320`, `README.md` heading structure, `DECISIONS.md`,
+`eval/PROTOCOL.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/IMPROVEMENTS.md`,
+`code.claude.com/docs/en/memory` and `/hooks`. Ran eleven tools against real files here.
+
+**Found** — full write-up and every number in `research/11-doc-linting-for-agents.md`:
+
+- **Eleven linters, 14,000+ alerts, two defects.** Both found by structure/schema checks, none by
+  a prose rule. Filed as **tasks 35** (five SKILL.md frontmatter blocks are invalid YAML — Vale
+  aborts on them, `claude plugin validate --strict` errors, Claude Code itself tolerates it) and
+  **36** (`AGENTS.md` rules 10–16 use two-digit list markers with 3-space continuations, so five
+  load-bearing paragraphs are structurally outside their rule under CommonMark).
+- **Task 37** — put those two checks in `docstat.py`, where mechanical doc checks already live,
+  rather than adopting a linter.
+- **Task 38** — two defects in `tasks.py` hit while filing the above: `add` from a worktree
+  creates the file then crashes on `Path.relative_to`, and `check`'s reachability `ESCAPE`
+  keyword list false-positives on two of the tasks filed today.
+- **Task 39** — the untested question underneath all of it: nothing published relates readability
+  metrics to agent instruction-following, and the one adjacent measured result
+  (arXiv:2509.21051) is testable with this project's own harness.
+
+**Cleared** — do not re-explore these:
+
+- **No prose linter is worth adopting here, and the measurement is recorded.** `alex` 35/35 false
+  (this repo's vocabulary is "failure", "fire", "dead"); `write-good` 137 alerts, markdown-blind;
+  `proselint` 16 of 18 alerts want curly quotes, which would break grep; `vale` + Microsoft/Google
+  4,234 alerts on six files including 50× "prefer 'personal digital assistant' over 'agent'";
+  `typos` 161/161 false; `cspell` 17/17 false (British spellings and tool names);
+  `remark-preset-lint-recommended` **zero** issues; `textlint` refuses to run without config.
+- **`markdownlint` is 95.6% line-width and table padding**, and of what remains `MD018` is 19/19
+  false on `#NN` citations and `MD041` 8/10 false on the `@AGENTS.md` import files.
+- **The path-resolution check stays removed.** `docstat.py:195-199` records it measured
+  "0 true positives, 2 false"; independent re-measurement today across the main checkout found
+  265 cited paths, 68 unresolved, **0 true positives**. `agnix` implements this check and produces
+  ~60 false positives here. That decision is correct and should not be revisited.
+- **`docstat.py --sweep` is clean** — 95 docs, 77 flags, 6 aspects.
+- **Relative markdown links: 82 checked, 0 broken.** `remark-validate-links` would find nothing.
+- **No Claude Code skill or plugin is worth installing** for doc quality. A GitHub code search for
+  `vale` in `**/SKILL.md` returns 0. Anthropic's own `claude-md-management` plugin has one `find`
+  command and otherwise prompts the model to emit `Score: XX/100` with no mechanism behind any
+  digit — the exact shape this project exists to distrust.
+- **Nothing was pruned and nothing was rewritten.** The task forbade a doc rewrite, and the two
+  real defects are whitespace and quoting, filed rather than done here so they can be reverted
+  separately.
+
+**Method note worth carrying forward:** the path-resolution re-measurement was first run *inside
+an agent worktree*, where `eval/runs/` is not checked out, and produced a confidently wrong
+picture. `AGENTS.md` rule 12 — the address is an input to the check — arriving unprompted during a
+pass about checking things. **A cleanup pass that measures anything about run artifacts must run
+against the main checkout.**
