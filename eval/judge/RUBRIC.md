@@ -216,7 +216,7 @@ reports.
 them from `wg-matrix-2026-08-13`**. Tier 2 has not separated two submissions in any later run.
 
 **Do not respond to that by promoting a diagnostic or adding another criterion of the same kind.**
-Both were measured (#126):
+Both were measured (#128):
 
 - The three withheld diagnostics take a single value, `False`, on all 7 group-criterion pairs
   where they are recorded. Scoring one lowers every submission in its group by the same amount;
@@ -283,7 +283,7 @@ a scripted bot demonstrably can. Do not promote them on reasoning alone.
 
 **And promoting them would not de-saturate anything.** Both are `False` on all 8 stored
 `wg-audio48` and all 8 `wg-matrix` Tetris submissions, so scoring them lowers every score
-in the group by the same amount and the ordering stays flat (#126). That is a reason to
+in the group by the same amount and the ordering stays flat (#128). That is a reason to
 fix the bot, not a reason to promote the criterion.
 
 ### g3_arena (22) — rewritten 2026-08-15 for the 3D/analog spec
