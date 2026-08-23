@@ -155,7 +155,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#101, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#103, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -451,6 +451,7 @@ python3 judge/audio_selftest.py       # 6 audio criteria vs 9 mutants
 python3 judge/bot_mutants.py          # 9 play-bot criteria pinned in both directions
 python3 judge/capability_selftest.py  # the no-stack-gap gate, its mutant and its variant
 python3 judge/rusage_selftest.py      # peak RSS / CPU against a child of known size
+python3 judge/capture_selftest.py     # a flood on either stream keeps the other (#100, #103)
 
 # what the pipeline can see about capture cost - reported, scored by nothing
 python3 judge/capability.py --runs runs

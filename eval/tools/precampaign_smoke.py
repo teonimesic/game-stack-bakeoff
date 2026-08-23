@@ -182,6 +182,11 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
                 ["python3", "judge/verify_blind.py",
                  *[str(p) for p in sorted(blind.iterdir())]], EVAL))
     out.append(("audio_selftest", ["python3", "judge/audio_selftest.py"], EVAL))
+    # ~10s, and it guards the RECORD rather than a score: the stored capture keeps each
+    # stream on its own budget, so a chatty test runner cannot discard the other stream
+    # the way nextest discarded every Rust gate's completion line for four matrices
+    # (#100). Cheap enough to run before every campaign, and it carries its own mutant.
+    out.append(("capture_selftest", ["python3", "judge/capture_selftest.py"], EVAL))
     out.append(("sequential_selftest",
                 ["python3", "judge/sequential_selftest.py"], EVAL))
     out.append(("docstat --sweep", ["python3", "tools/docstat.py", "--sweep"], EVAL))

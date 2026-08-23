@@ -45,13 +45,58 @@ parse_test_counts = _runner.parse_test_counts
 parse_skipped = _runner.parse_skipped
 
 
+#: WHAT THE STORED CAPTURE SAMPLES, AND WHAT IT DROPS.
+#:
+#: A truncation policy is a sampling policy, so this one states what it takes. Per stream,
+#: independently: the FIRST `STREAM_HEAD_CHARS` characters and the LAST `STREAM_TAIL_CHARS`.
+#: What is dropped is the MIDDLE of a stream that exceeds the two together, replaced by a
+#: marker naming exactly how many characters and lines went. The full length of each stream
+#: is stored beside the sample, so "what was dropped" is a recorded number rather than an
+#: inference from a string that happens to be 4000 long.
+#:
+#: The head, because a compiler's first diagnostic and a runner's banner are there. The tail,
+#: weighted heavier, because verdicts are: `Summary [...] 41 tests run`, the last failing
+#: assertion, and every starter's `✅ verify passed`.
+#:
+#: The budget is PER STREAM and that is the point of #100. Before this, `to_dict` kept the
+#: last 4000 characters of `stdout + stderr` as ONE buffer, so a command that floods one
+#: stream discarded the whole of the other: 15 of 16 green Rust `just verify` records held no
+#: trace of the recipe's own completion line, because `cargo-nextest` writes progress to
+#: stderr. Raising the cap would only move that boundary - the rule that stdout is sacrificed
+#: first would survive it. With independent budgets, neither stream can starve the other
+#: however lopsided they are.
+#:
+#: `judge/capture_selftest.py` pins both directions, and holds the mutant that proves the
+#: checks can fail.
+STREAM_HEAD_CHARS = 1000
+STREAM_TAIL_CHARS = 3000
+
+
+def _sample_stream(text: str, head: int = STREAM_HEAD_CHARS,
+                   tail: int = STREAM_TAIL_CHARS) -> str:
+    if len(text) <= head + tail:
+        return text
+    middle = text[head:len(text) - tail]
+    return (f"{text[:head]}\n"
+            f"... [{len(middle)} characters, {middle.count(chr(10))} lines elided from the "
+            f"middle of this stream] ...\n"
+            f"{text[len(text) - tail:]}")
+
+
 @dataclass
 class Cmd:
     name: str
     argv: list[str]
     code: int
     seconds: float
-    tail: str
+    #: EXACTLY what the child wrote, per stream. Which stream a line came from is a
+    #: recorded fact here, not something a reader has to infer from a merged buffer.
+    out: str = ""
+    err: str = ""
+    #: The HARNESS's own words - a timeout, or a binary that could not be spawned. Kept
+    #: apart from the two streams so nothing the harness says is ever attributed to the
+    #: command, and so a timeout no longer erases what the command had already printed.
+    note: str = ""
     #: Peak resident set of the largest process in the command's tree, in MiB, and the
     #: user+system CPU the whole tree consumed, in seconds. `None` when the command
     #: could not be spawned at all - never 0.0, because a zero here is indistinguishable
@@ -59,10 +104,44 @@ class Cmd:
     peak_rss_mb: float | None = None
     cpu_seconds: float | None = None
 
+    @property
+    def tail(self) -> str:
+        """The pre-#100 in-memory view: stdout then stderr, or the harness's note alone.
+
+        The test-count and coverage parsers read this, and `verify.green`'s evidence is cut
+        from it. It is preserved BYTE FOR BYTE - including a timeout replacing the output
+        rather than appending to it - so that repairing the stored record cannot move a
+        single criterion. The separated streams are what gets STORED; this is what gets
+        PARSED.
+        """
+        return self.note if self.note else self.out + self.err
+
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "argv": self.argv, "exit": self.code,
-                "seconds": round(self.seconds, 1), "tail": self.tail[-4000:],
+                "seconds": round(self.seconds, 1),
+                "stdout": _sample_stream(self.out), "stderr": _sample_stream(self.err),
+                "stdout_chars": len(self.out), "stderr_chars": len(self.err),
+                "note": self.note or None,
                 "peak_rss_mb": self.peak_rss_mb, "cpu_seconds": self.cpu_seconds}
+
+
+def stored_stdout(cmd: dict[str, Any]) -> str | None:
+    """The stdout sample of a stored command record, or None if it cannot be known.
+
+    None for a record written before #100 was repaired: those merged the two streams before
+    truncating, so a missing line there is not evidence the command did not print it. Any
+    check over the stored corpus has to treat those as UNMEASURABLE rather than as empty -
+    the same distinction `pack_completeness` draws, and for the same reason.
+    """
+    return cmd.get("stdout") if "stdout_chars" in cmd else None
+
+
+def stored_output(cmd: dict[str, Any]) -> str:
+    """Everything textual in a stored command record, either shape, for a human or a grep."""
+    if "stdout_chars" in cmd:
+        return "".join(p for p in (cmd.get("stdout") or "", cmd.get("stderr") or "",
+                                   cmd.get("note") or "") if p)
+    return cmd.get("tail") or ""
 
 
 #: `ru_maxrss` is BYTES on macOS/BSD and KILOBYTES on Linux. There is no portable
@@ -86,7 +165,9 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
     the grandchild case rather than asserting it.
 
     Everything the previous implementation guaranteed is preserved: the child's exit
-    code, stdout followed by stderr, 124 on timeout, 127 when the binary is not there.
+    code, `Cmd.tail` reading stdout followed by stderr, 124 on timeout, 127 when the
+    binary is not there. What changed with #100 is that the two streams are kept APART
+    in the record instead of being concatenated and truncated as one buffer.
     """
     import os
     import queue as _queue
@@ -102,7 +183,7 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
                              stderr=subprocess.PIPE, text=True, env=e,
                              start_new_session=True)   # its own group, so it can be killed whole
     except OSError as ex:
-        return Cmd(name, argv, 127, time.monotonic() - t0, f"could not run: {ex}")
+        return Cmd(name, argv, 127, time.monotonic() - t0, note=f"could not run: {ex}")
 
     bufs: dict[str, str] = {"out": "", "err": ""}
 
@@ -157,16 +238,19 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
         except OSError:
             pass
 
-    if timed_out:
-        code, out = 124, f"TIMEOUT after {timeout_s}s"
-    else:
-        code, out = p.returncode, (bufs["out"] + bufs["err"])
+    # A timeout is the HARNESS speaking, so it goes in `note`. Whatever the child managed
+    # to print before it hung stays in the streams: it is the only account of where the
+    # command got to, and the old capture threw it away in favour of one sentence. The
+    # parsers are unaffected - `Cmd.tail` still returns the note alone in this case.
+    code = 124 if timed_out else p.returncode
+    note = f"TIMEOUT after {timeout_s}s" if timed_out else ""
 
     peak = cpu = None
     if ru is not None:
         peak = round(ru.ru_maxrss * _MAXRSS_TO_MIB, 1)
         cpu = round(ru.ru_utime + ru.ru_stime, 2)
-    return Cmd(name, argv, code, time.monotonic() - t0, out,
+    return Cmd(name, argv, code, time.monotonic() - t0,
+               out=bufs["out"], err=bufs["err"], note=note,
                peak_rss_mb=peak, cpu_seconds=cpu)
 
 
@@ -379,9 +463,14 @@ def collect(repo: Path, seed: int = 7, film_ticks: int = 900,
 
     add("build.compiles", c_check.code == 0,
         f"`just check` exit {c_check.code} in {c_check.seconds:.0f}s")
+    # Both stream ends, labelled. One merged tail meant this criterion's justification
+    # ended with the gate's own verdict on the arms whose gates are quiet and mid-listing
+    # on the one whose test runner is loud - a difference in KIND of evidence, by stack,
+    # that nobody chose (#100).
     add("verify.green", c_verify.code == 0,
         f"`just verify` exit {c_verify.code} in {c_verify.seconds:.0f}s; "
-        f"tail: {c_verify.tail[-300:].strip()}")
+        f"stdout tail: {c_verify.out[-200:].strip()!r}; "
+        f"stderr tail: {c_verify.err[-200:].strip()!r}")
     add("lint.clean", c_lint.code == 0,
         f"`just lint` exit {c_lint.code}")
     add("tests.exist", total_n >= MIN_OWN_TESTS,
