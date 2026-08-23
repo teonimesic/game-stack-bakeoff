@@ -1,10 +1,33 @@
 ---
 id: 30
 title: A partial re-run overwrites suite.json, so 3 stored runs have a manifest describing a different run
-status: open
+status: in_flight
 priority: 4
 refs: 'eval/findings/documentation.md #93, eval/runs/wg-matrix-2026-08-13T14-02-50/suite.json, eval/runs/wg-audio48-2026-08-14T19-55-47/suite.json, eval/PROTOCOL.md'
 done_when: 'Two things, and the first is not optional. (1) A repair to the run harness so a re-run never destroys an existing manifest - append a new record, or write suite-<timestamp>.json, or refuse to start when suite.json exists and disagrees. Whichever, it must be the WRITE path that changes, not a doc telling operators to be careful. (2) A check, runnable offline over eval/runs/, that asserts each manifest describes the reports present beside it and that started_at is consistent with the directory name. The check must be demonstrated to FAIL on the three known-bad runs above before any repair to their records, and PASS on wg-arena3d, wg-g4c and wg-calib which are currently consistent - a negative control alone is not sufficient here, per rule 1. Do NOT retro-edit the three broken suite.json files into looking correct: reconstruct them under a new name if useful, and leave a record of what was found, since eval/runs is evidence.'
 ---
 
 FINDINGS #93. Launching a partial re-run into an existing run directory overwrites that directory's suite.json, so the canonical manifest ends up describing the re-run and the run it is named for has no manifest at all. Measured over all 18 stored run directories: wg-matrix-2026-08-13 says 2 stacks x 1 game x 2 = 4 trials while holding 24 reports across 4 stacks and 3 games; wg-audio48-2026-08-14 says 4 stacks x 1 game g3_arena x 2 = 8 while holding 16 reports across g1_pong and g2_tetris3d, i.e. it names a game with ZERO reports in that directory; wg-audio-2026-08-14 says 24 and holds 11. Each carries a tell that nothing reads - the started_at inside suite.json contradicts the directory name it sits in, by a full day for wg-audio48. Someone noticed twice and rescued the real content into suite-full-matrix.json and rerun-note.json, while leaving the canonical name pointing at the wrong thing. FINDINGS #68 is NOT affected: DECISIONS.md records it as verified by matching stored per-trial telemetry values, which never read suite.json. The principle was already written down as #77 - keep manifests rather than just scores - but its trigger names judge packs, so it never reached run manifests. Guard the RESOURCE, which is any durable record of what a measurement was configured to be.
+
+## Dispatch knowledge, 2026-08-23 — written back from a launch message
+
+**#68 is not affected.** `DECISIONS.md` records it as verified against stored per-trial
+telemetry, which never reads `suite.json`. Do not re-open it.
+
+**Someone already noticed twice** and rescued the real content into `suite-full-matrix.json` and
+`rerun-note.json`, leaving the canonical name pointing at the wrong thing. So a repair path
+partly exists.
+
+**The principle was already written down as #77 — keep manifests, not just scores — and its
+trigger names JUDGE PACKS, so it never reached run manifests.** State the guard as the RESOURCE:
+*any durable record of what a measurement was configured to be.* A fix that only handles
+`suite.json` repeats the mistake in a smaller way.
+
+**A detector already exists in the data:** each wrong manifest's `started_at` contradicts the
+directory name it sits in — by a full day for `wg-audio48`. Nothing reads it.
+
+**The second direction is the one that matters.** Beyond preventing a re-run from destroying the
+original, decide what to do about the three already-wrong stored manifests: repair from the
+rescued files, or mark them. Repairing evidence is not automatically right — a manifest
+reconstructed today is not the record written then — so whichever you choose, a reader must be
+able to tell reconstructed from original.

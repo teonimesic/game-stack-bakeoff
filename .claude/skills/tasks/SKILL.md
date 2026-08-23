@@ -77,6 +77,36 @@ that is independent and makes a bad result hard to isolate. Spawn one subagent p
 verifying the result against the artifacts — not against the agent's report of them. Respect the
 dependency order stated in each ticket's `refs`; run everything else concurrently.
 
+### The dispatch is one line, and the ticket carries everything
+
+```
+/work 56
+```
+
+That is the whole brief. `.claude/skills/work/SKILL.md` holds the procedure — where to
+read, what the standard is, what may not be touched, how to finish and report — so none of it
+has to be restated per task.
+
+> **Anything task-specific goes in the TICKET, before dispatch. Never in the message.**
+> On 2026-08-23 every agent was launched with a paragraph of constraints in its prompt:
+> established measurements, hazards, a dependency created hours earlier. All of it correct, all
+> of it invisible to the next reader, and all of it re-derivable only by someone who happened to
+> read that message. That is the failure `AGENTS.md` names in its own words — *a protocol
+> delivered in a chat message dies with the session.*
+
+So the orchestrator's job before dispatch is **updating the ticket**:
+
+| When | Put it in the ticket |
+|---|---|
+| Something the ticket assumes has since changed | The correction, dated, and what it now implies |
+| A dependency has appeared since it was filed | Which file, and what it forbids |
+| A peer's result bears on it | The measurement, not a pointer to a conversation |
+| The ticket's `done_when` is now unreachable or wrong | Rewrite it — and say why it moved |
+| An agent hands back knowledge the next one would re-derive | Append it under a dated heading |
+
+**A ticket that needed a message to be workable was not ready to dispatch.** If you find
+yourself typing the constraint, stop and write it in the file instead — then dispatch.
+
 **Task subagents run on Opus.** The queue is the project's own reasoning about its instrument,
 and a cheaper model here buys nothing worth the risk of a wrong number.
 

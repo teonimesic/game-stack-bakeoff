@@ -74,3 +74,26 @@ AXIS 4 — harness mechanics: work roots, artifact durability, run ledgers, cost
   fields, while their `SEQUENTIAL.json` records `measured_cost_usd` 25.55 and 21.05, and
   `README.md` quotes 21.05 and $46.79. Three accountings of one spend, and they disagree. Start
   there — it is a real defect with stored evidence, and it is exactly axis 4's subject.
+
+## Dispatch knowledge, 2026-08-23 — written back from a launch message
+
+**Axis 4 is cost accounting.** `game-research-gpt/evaluation/reports/` is the only sanctioned
+reading there; never the raw artifacts, and never write to that tree.
+
+**The lead axis 3 left, and it is the strongest one:** the two judge fields have **three
+disagreeing accountings of one spend** — $33.63/$31.66 from round `cost_usd`, 25.55/21.05 from
+`SEQUENTIAL.json`, and 21.05/$46.79 in `README.md`. Three numbers for one thing means at most
+one is right, and this project publishes cost figures.
+
+**Calibration, so axis 4 does not re-derive it:** their delivered evidence is n=1 per cell; no
+confirmation run of theirs ever produced a comparative result; their margin is self-assigned
+integers scored by the party that chose the weights. They are not a source of truth — they are a
+source of *questions*, and the two candidates that paid so far both paid by finding a defect
+*here* when the verification was designed.
+
+**Rule 4 applies hard to cost:** never a mean over a population not established as homogeneous.
+Every cost figure this project has published is partly a measurement of its own budget cap, and
+the regimes are recorded in `eval/RUNS.md`.
+
+Five axes were planned and four exist. When axis 4 lands **task 11 can close** — or, if a fifth
+is warranted, say so and leave it `in_flight` with the reason.

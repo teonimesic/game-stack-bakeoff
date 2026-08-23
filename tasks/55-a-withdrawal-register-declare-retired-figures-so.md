@@ -1,7 +1,7 @@
 ---
 id: 55
 title: 'A withdrawal register: declare retired figures so a gate can find them restated'
-status: open
+status: in_flight
 priority: 4
 refs: 'eval/findings/certifies-nothing.md #113, eval/tools/docstat.py, README.md, game-research-gpt evaluation/cross-engine/results/FINAL-CORRECTIONS.json'
 done_when: 'a machine-readable register of withdrawn figures exists; a check asserts that no live document restates one outside a block citing that entry''s id; the check is red on the three sites #113 names before task 54 and green after; it carries a positive control planting a withdrawn pair in a temp copy and a negative control proving a declared withdrawal notice does not trip it; and it is wired into docstat.py --sweep only once it is green'
@@ -50,3 +50,25 @@ and must be exempt. That live/archive partition currently exists only inside `do
 lists and in prose in `AGENTS.md`, and it does not classify `JUDGING.md`, `RUBRIC.md` or
 `RUNS.md`. Deciding it explicitly is part of this task, because a gate whose scope is undeclared
 is a gate whose scope will drift.
+
+## Dispatch knowledge, 2026-08-23 — written back from a launch message
+
+**Why the obvious design does not work, measured under task 11:** a cross-document
+*figure-agreement* check was built and run — 52 labelled figures across six live docs, **1
+disagreement, and that one a false positive.** It cannot work, because when a stale figure
+propagates the restatements agree to the digit. **Propagation and consistency are the same
+observation.** So the register inverts it: a figure is declared retired *by id*, and the check
+asks whether anything still states it as current.
+
+**Two live customers, so this is not hypothetical:**
+
+1. **1.70 / 2.05** — retired under task 54, now correct in the live documents and marked in the
+   archive. That is the green case.
+2. **#54's claim** — `README.md`'s In-flight section still cites it as current (*"architecture
+   and ux rank the field identically on both orders"*) while `JUDGING.md` says it is withdrawn on
+   the repeat (tau 0.385 / 0.667). Confirm before building: if `README.md` turns out right, the
+   register's first customer differs from what this ticket assumed, and that should be said.
+
+**The archive must be able to state a retired figure freely** — `eval/findings/` exists to keep
+it — so the register has to distinguish *stating* from *asserting as current*. If that
+distinction cannot be made mechanical, report rather than gate, and say so.

@@ -1,7 +1,7 @@
 ---
 id: 38
 title: Fix two defects in tasks.py found while surveying doc tooling
-status: open
+status: in_flight
 priority: 4
 refs: research/11-doc-linting-for-agents.md, eval/tools/tasks.py
 done_when: tasks.py add run from inside an agent worktree exits 0 and prints the created path, and tasks.py check no longer warns on a done_when whose escape branch is phrased outside the ESCAPE keyword list, pinned in both directions against task 32's wording and against a done_when with no escape branch at all
@@ -62,3 +62,23 @@ the two repairs already pinned (tasks 08 and 01), and must still warn on 08-orig
 
 Do not remove the reachability warning. It caught two genuinely unreachable `done_when` conditions
 (#75) and the comment recording why is worth more than the false positive costs.
+
+## Dispatch knowledge, 2026-08-23 — written back from a launch message
+
+**`tasks.py` changed twice since this ticket was filed** — it now parses and emits real YAML
+(task 40, #117) and resolves the queue to the main worktree (#94). **Re-establish that each
+reported defect still exists before fixing it.** One or both may already be gone, and *"it was
+already fixed"* is a legitimate closure with evidence.
+
+**You are editing the tool every other agent uses to claim and close work.** Verify from inside a
+worktree, where the queue path and `ROOT` deliberately disagree — that asymmetry already produced
+a defect where `add` wrote the file and then exited 1.
+
+**The `id` is deliberately bare digits rather than quoted.** That was measured, not an oversight:
+a peer running an older reader takes `'07'` literally and its `done NN` would answer "no task NN".
+
+**One thing the migration left open, worth reporting on even if you do not change it:** `_set`
+rewrites a *whole* queue file when it writes one field, which is why a closed task's evidence is
+blamed to the last queue write and why `docstat.py --renumbered` loses recall on `tasks/`. A
+targeted write would restore that recall — but the whole-file rewrite is what makes the YAML
+round-trip safe. Say which it is.
