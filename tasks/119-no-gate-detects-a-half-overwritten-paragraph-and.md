@@ -1,7 +1,7 @@
 ---
 id: 119
 title: No gate detects a half-overwritten paragraph, and a 12-word in-block n-gram trigger measures red 4 green 0
-status: todo
+status: in_progress
 priority: 3
 refs: eval/tools/docstat.py, DECISIONS.md, tasks/99, tasks/116
 done_when: 'docstat.py grows an in-block duplicate-fragment check, pinned in both directions: red on the pre-fix DECISIONS.md at commit 75dde71 (4 windows of the ''40 of 56 matrix trials at the ceiling with zero variance, not merely near it'' fragment) and green on the live corpus, plus a mutant that deletes the check and a variant that feeds it a duplicated fragment split across a list-item line break. OR a measurement showing the false-positive count does not hold up, which retires it.'

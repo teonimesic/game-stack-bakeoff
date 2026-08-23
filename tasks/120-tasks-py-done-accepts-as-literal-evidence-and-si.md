@@ -1,7 +1,7 @@
 ---
 id: 120
 title: tasks.py done accepts - as literal evidence and silently writes a one-character durable record
-status: todo
+status: in_progress
 priority: 4
 refs: 'eval/tools/tasks.py cmd_done and cmd_note, tasks/112, FINDINGS #80'
 done_when: 'Either tasks.py done reads evidence from stdin on - the way note does, or it rejects a bare - with a non-zero exit and a message naming the alternative. Pinned both directions: a control shows the old behaviour writing the 1-character record and the new behaviour either storing the full text or exiting non-zero, and a normal inline evidence string still stores unchanged. Whichever is chosen, note and done agree on what - means. tasks.py check and docstat.py --sweep exit 0 unpiped.'

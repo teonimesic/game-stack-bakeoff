@@ -1,7 +1,7 @@
 ---
 id: 118
 title: 'FINDINGS #146 publishes a census with no producer, and it does not reproduce'
-status: todo
+status: in_progress
 priority: 4
 refs: eval/findings/certifies-nothing.md lines 4223-4272, tasks/112, eval/tools/docstat.py ARCHIVE_PATHS
 done_when: 'Either a producer exists that re-derives #146''s census - a script or a documented command with its population stated - and #146 cites it, or #146''s figures are marked in place as unreproducible with the population that was actually counted. #146 is archive so its published figures stay, marked, per AGENTS.md. The ''unrepairable'' subsection is narrowed to say the citation was unrecoverable rather than the claim, citing tasks/112. docstat.py --sweep and tasks.py check exit 0 unpiped.'
