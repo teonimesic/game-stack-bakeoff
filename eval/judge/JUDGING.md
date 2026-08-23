@@ -518,7 +518,7 @@ numbers mean anything.
 orders per aspect, sequential sampling capped at `--max-runs 2`. Summed from the ten stored rounds in
 `runs/wg-tetris-judge-2026-08-17/pre/` by `judge/judge_ledger.py`. This read *13 calls,
 $46.79* until 2026-08-23: that figure is the whole day, and three of its calls, $13.16, are
-`g1_pong` — a different game and a different field (FINDINGS #119).
+`g1_pong` — a different game and a different field (FINDINGS #121).
 
 ### Gates, in order
 
@@ -633,7 +633,7 @@ Re-run on repaired evidence, both orders, all five aspects. Artifacts:
 which is the `charged_to_ceiling_usd` counter in `post/SEQUENTIAL.json` and not a cost: the
 sweep was resumed, so its first four rounds — $10.61 of `architecture` and `audio` — were
 correctly charged $0.00 to that invocation's ceiling and wrongly absent from the published
-figure. FINDINGS #119. The **separates stacks** column is
+figure. FINDINGS #121. The **separates stacks** column is
 `value=score` `order=perround` on the `post` field — `judge/field_ranks.py --per-aspect`
 reproduces all ten of its numbers.
 
@@ -1266,7 +1266,7 @@ failure showing up in the thing gate 3 exists to protect.
 
 **All subjective layers are weight 0.00 until they pass the gates above.** There is now exactly
 one scored tier: **play-bot 1.00**. Tier 1 became a PASS/FAIL gate on 2026-08-23 and carries no
-weight — `RUBRIC.md` has the measurement, FINDINGS #92 and #119.
+weight — `RUBRIC.md` has the measurement, FINDINGS #92 and #123.
 
 That matters here for one reason beyond bookkeeping: the standing argument for keeping tier 3 at
 0.00 is that its bounded contribution — 0.0154 at the 0.10 weight it briefly held — could not

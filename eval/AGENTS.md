@@ -5,7 +5,7 @@ Two harnesses share this directory:
 | File | Runs |
 |---|---|
 | `wholegame.py` | The whole-game matrix — "build 3D Tetris" tasks, graded by `judge/`. **The only harness that can still launch anything** |
-| `runner.py` | The spec-change suite. **Retired 2026-08-23**: the four `template*/` trees it copied are deleted, so `run` and `check-suite` exit 2 with the reason. `report` and `regrade.py` still read its 71 stored trials, and `judge/static.py` still imports its capture policy — which is why the file stays whole (`DECISIONS.md`, #119) |
+| `runner.py` | The spec-change suite. **Retired 2026-08-23**: the four `template*/` trees it copied are deleted, so `run` and `check-suite` exit 2 with the reason. `report` and `regrade.py` still read its 71 stored trials, and `judge/static.py` still imports its capture policy — which is why the file stays whole (`DECISIONS.md`, #122) |
 
 The grading machine needs **`ffmpeg` and `ffprobe`** as well as the four stacks' toolchains —
 the audio criteria decode every clip rather than trusting its extension.
@@ -16,7 +16,7 @@ Stored results live in `runs/<name>/`, one directory per run — that is data, n
 
 **`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
 suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded
-on: the trial JSON stores `task: "t1_rally"` and no prompt (#119). Nothing launches from them and
+on: the trial JSON stores `task: "t1_rally"` and no prompt (#122). Nothing launches from them and
 nothing should be deleted from them.
 
 **`starters/*/` is the product, not instructions to you.** It is what a building agent reads during
@@ -73,7 +73,7 @@ call, a calibration probe. Trials are ~$11-73 each; judge field calls are $2.82-
   themselves. `python3 judge/judge_ledger.py --tree runs/` reports both per directory and is
   the producer for every judge figure in `RUNS.md`. **Never quote a summary file's counter as
   a cost** — stored under one name, it put $21.05 into three live documents for ten calls that
-  cost $31.66, and five of eleven stored sweeps carry the same shape (#119).
+  cost $31.66, and five of eleven stored sweeps carry the same shape (#121).
 
 - **A budget flag is visible to the callee, so it is an instruction, not just a ceiling**
   (#33). `--per-call-budget` is passed to the judge as `--max-budget-usd`. Changing it between
@@ -175,7 +175,7 @@ grader owns its own three, listed in `judge/AGENTS.md`.
 
   Directory names are operator-chosen and this project has stamped them in **both** local time
   and UTC, so never compare a `started_at` against one by eye — that is how a 1-second delta
-  was published as a defect (#119).
+  was published as a defect (#120).
 - **Judge calls compete with trials for account session capacity.** Run trials first, judge after.
   A concurrent judge fan-out during a matrix contributed to four trials dying on a session limit.
 - **Give every judge invocation an explicit long timeout.** The default tool-call limit is shorter

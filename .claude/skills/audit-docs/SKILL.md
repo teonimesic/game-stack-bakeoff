@@ -136,7 +136,7 @@ Do not "fix" these by adding them back. Each was measured and removed:
 
 - **Paths.** Docs legitimately write them relative to a context stated in prose or a table
   cell: `README.md` named `tools/boundary.gd` in a row about `template-godot/`, where it
-  existed (that row is gone with the tree, #119; the example stands as the reason).
+  existed (that row is gone with the tree, #122; the example stands as the reason).
   Measured 0 true positives, 2 false. A check that cannot be made reliable is
   removed, not tuned until it is quiet — tuning until quiet is how a check comes to pass
   vacuously.

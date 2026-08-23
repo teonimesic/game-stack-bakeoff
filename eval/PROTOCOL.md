@@ -218,7 +218,7 @@ A re-run scoped to the failed cells declares a *different* matrix from the one t
 named for. Until 2026-08-23 it overwrote `suite.json` with that narrower configuration, and the
 run the directory is named for was left with no manifest at all — five stored directories are in
 that state, including `wg-arena3d`, whose census is clean and whose manifest silently records only
-the second of two build waves (#93, #119).
+the second of two build waves (#93, #120).
 
 `cmd_build` no longer overwrites: a re-launch writes `suite-<stamp>.json` carrying `supersedes`,
 and prints that it did. **`suite.json` therefore stays the record of the FIRST launch, not of the

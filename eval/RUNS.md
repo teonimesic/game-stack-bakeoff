@@ -53,7 +53,7 @@ smaller than its own lower bound is a reading of the wrong artifact, not a corre
 >
 > `README.md`'s "~$1,794" is the same figure at a later moment and is corrected there too. The
 > judge half of the line said **$46.79**, which is one day's calls quoted as all of them and is
-> separately wrong about *which* calls (FINDINGS #119). **A cumulative total is the one number in
+> separately wrong about *which* calls (FINDINGS #121). **A cumulative total is the one number in
 > a ledger guaranteed to go stale**, and nothing re-derived either of these; `judge_ledger.py` is
 > now the producer for the second row, and the first is one `agent.cost_usd` sweep away.
 
@@ -109,7 +109,7 @@ builder already refuses them. See the section on their stored packs, below.
 ## A fifth boundary, and this one is in the GRADER, not the run
 
 **On 2026-08-23 tier 1 stopped being 0.31 of `overall` and became a pass/fail gate** (task 29,
-`eval/judge/RUBRIC.md`, FINDINGS #92 and #119). `overall` is now the play-bot tier alone.
+`eval/judge/RUBRIC.md`, FINDINGS #92 and #123). `overall` is now the play-bot tier alone.
 
 Unlike the four above, this boundary does not run through the builds — the submissions and every
 stored tier score are untouched. It runs through the **arithmetic that turns them into a number**,
@@ -188,7 +188,7 @@ which is `g3_arena__unity__t0`'s start to 2 ms and 22 hours after the directory 
 16-August re-launch overwrote the manifest, so the directory's own record of what it was
 configured to be omits the four trials the warning above is about. The trial count matches, so
 nothing but that timestamp says so. `python3 tools/manifest.py audit` reports it; the directory
-carries a `MANIFEST-DEFECT.json` and the manifest itself was left as found (#119).
+carries a `MANIFEST-DEFECT.json` and the manifest itself was left as found (#120).
 
 > **Partition by `terminal_reason`, and also by anything about the world that changed while the
 > run was in flight.** A run is not a controlled experiment merely because it is one command.
@@ -1015,7 +1015,7 @@ stored result files on 2026-08-16.
 > **$33.63 over 10 calls** — the field stored in `pre/`. The remaining $13.16 is three `g1_pong`
 > calls, a different game and a different field. `README.md`, `DECISIONS.md` and `JUDGING.md`
 > each quoted $46.79 as the cost of *the* eight-submission tetris field; the cost of that field
-> is $33.63. Corrected 2026-08-23, FINDINGS #119.
+> is $33.63. Corrected 2026-08-23, FINDINGS #121.
 >
 > The three `g1_pong` calls are also the only judge spend in this project with **no surviving
 > artifact** — no `g1_pong__*__seed*.json` from 2026-08-16 exists anywhere (task 04, closed by
@@ -1058,7 +1058,7 @@ see the note after the table.
 > enforced against. A round already on disk is charged $0.00 on purpose so it cannot be
 > double-charged, so on a **resumed** sweep the counter is smaller than the field cost by
 > exactly the carried rounds. Five directories here are resumes, $69.93 in total. It was stored
-> under the name `measured_cost_usd`, and that name is why $21.05 reached print. FINDINGS #119.
+> under the name `measured_cost_usd`, and that name is why $21.05 reached print. FINDINGS #121.
 
 **Round 3 — `wg-aspect-reliability`, 2026-08-23. 30 calls, $100.84.** Task 23: six aspects x 5
 repeats of ONE field in ONE presentation order, `--repeat-seed 0`, on
@@ -1462,7 +1462,7 @@ tree, which is the gap FINDINGS #112 is about.
 
 ### Superseded the same day: the tree this bounds no longer exists — 2026-08-23
 
-`template*/` was deleted (`DECISIONS.md`, task 56, #119). **This is NOT a fifteenth comparability
+`template*/` was deleted (`DECISIONS.md`, task 56, #122). **This is NOT a fifteenth comparability
 boundary, and the reason is worth stating rather than leaving to inference: a boundary bounds
 future comparisons, and there is no future spec-change run to bound.** The ordinal above stands as
 written — it is the record of a change that really happened to a tree that really existed — and
@@ -1473,7 +1473,7 @@ repair made after 2026-08-23 that never reached the fork.*
 
 **Nothing in this ledger changes.** The 71 spec-change trials in 12 run directories and their
 $91.73 were already outside it (opening note), they are still on disk, and what they were asked to
-do is still in `eval/suites/` — which is why those files were kept when the trees went (#119).
+do is still in `eval/suites/` — which is why those files were kept when the trees went (#122).
 Every whole-game figure in this file is `eval/starters/*`, untouched.
 
 
