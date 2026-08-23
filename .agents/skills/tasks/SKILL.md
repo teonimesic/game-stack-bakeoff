@@ -294,6 +294,31 @@ before concluding the hour was idle.
 
 Raise a priority when evidence arrives, not when it has been sitting a while.
 
+## `done` is a claim about the tree, and `check` now tests it
+
+A ticket reading `done` says the work is merged. Nothing compared that against the tree until
+2026-08-23, and **task 70 sat closed for a day over 678 insertions `main` had never seen** —
+including a 458-line tool that existed on no other branch. It was found by a person clearing
+stale worktrees, which is not a mechanism.
+
+`check` now asks, for every `done` ticket, whether any `task-<id>-*` ref — local or on a remote
+— is an ancestor of `main`, `origin/main` or `HEAD`. **Three values, and the third is the one
+that matters:**
+
+| | |
+|---|---|
+| `LANDED` | counted |
+| `ORPHANED` | **exit 1**, naming the ref. Read the branch diff before believing either side |
+| `NOT_CHECKED` | no such ref survives — counted and printed, **never a pass** |
+
+Most closed tickets have had their branch deleted, so `NOT_CHECKED` is the normal answer: **112
+of 119** when this shipped, against 6 `LANDED` and 1 `ORPHANED`, with **0 false positives**. A
+two-valued version would have reported those 112 as verified while verifying nothing.
+
+**It asks reachability, not content.** A branch merged `-s ours`, or one a later commit reverted,
+reads `LANDED` with its work absent; a squash merge would read `ORPHANED` with its work present.
+The derivation and what would re-open it are in `DECISIONS.md`.
+
 ## Reachability: `check` warns, it cannot decide
 
 `tasks.py check` catches a **missing** `done_when`. It cannot in general catch an

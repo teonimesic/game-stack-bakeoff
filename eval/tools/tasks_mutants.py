@@ -243,6 +243,40 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         ("`done 70 -` on a 2280-character multi-line account",
          "`testing 70 -` on the same account",
          "(empty inline)", "(whitespace inline)", "with a closed/empty stdin")),
+    # THE ORPHANED-BRANCH GATE, and the failure it is against is a two-valued version of it:
+    # a `done` ticket whose branch is gone would read as verified. Under this mutant the one
+    # ORPHANED ticket in direction 11's fixture reads NOT_CHECKED and `check` exits 0.
+    "orphan_reads_as_not_checked": (
+        '    if any(is_ancestor(r) for r in cand):\n'
+        '        return "LANDED", cand\n'
+        '    return "ORPHANED", cand',
+        '    if any(is_ancestor(r) for r in cand):\n'
+        '        return "LANDED", cand\n'
+        '    return "NOT_CHECKED", cand  # MUTANT: an orphan is excused, not reported',
+        ("a surviving branch that is NOT an ancestor is ORPHANED",
+         "a remote-only branch that is not an ancestor is ORPHANED",
+         "end to end: exit 1, naming 71 and NOT 70")),
+    # THE VARIANT HALF. Reporting every closed ticket with no surviving branch as a failure
+    # would fire on 112 of this repository's 119 and be turned off the same day -- so the
+    # rows that must stay QUIET have to be able to go red as well (AGENTS.md rule 15).
+    "missing_branch_fails": (
+        '    if not cand:\n'
+        '        return "NOT_CHECKED", []',
+        '    if not cand:\n'
+        '        return "ORPHANED", []  # MUTANT: a deleted branch is now an accusation',
+        ("no branch at all is NOT_CHECKED",
+         "VARIANT: id 7 does NOT claim task-70-*'s branch",
+         "VARIANT: id 70 does NOT claim task-7-*'s branch",
+         "VARIANT: with the branch deleted the same queue is NOT CHECKED, exit 0")),
+    # THE REPORTING, as distinct from the predicate -- the `if False:` lesson of `tasks/106`
+    # applied before it can be paid for a second time. `check` still computes every verdict
+    # and appends every failure; it just stops printing the census, so a reader can no longer
+    # tell 112 NOT CHECKED from 112 verified.
+    "landed_census_never_printed": (
+        '    print(f"branches of `done` tickets: {landed} reachable from',
+        '    _unused = (f"branches of `done` tickets: {landed} reachable from',
+        ("PRINTS the three-valued census",
+         "VARIANT: with the branch deleted the same queue is NOT CHECKED, exit 0")),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it

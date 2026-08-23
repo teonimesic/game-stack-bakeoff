@@ -1271,6 +1271,109 @@ def evidence_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]
     return rows, unchecked
 
 
+#: A ref that is an ancestor, one that is not, and one belonging to another ticket. The
+#: expected verdicts are stated HERE and never derived from `landed_status` -- a control that
+#: builds its expectation by calling its subject has edited the check, not tested it
+#: (AGENTS.md rule 12's companion, and the mutant that survived in task 113).
+_ANCESTORS = {"refs/heads/task-70-merged", "refs/remotes/origin/task-1-merged",
+              "refs/heads/task-70-also-merged"}
+
+LANDED_CASES = (
+    # (name, id, refs, want)
+    ("a surviving branch that is NOT an ancestor is ORPHANED - THE task 70 defect",
+     "70", ["refs/heads/task-70-ranking-ban-threshold"], "ORPHANED"),
+    ("VARIANT: a branch that IS an ancestor still reads LANDED",
+     "70", ["refs/heads/task-70-merged"], "LANDED"),
+    ("VARIANT: one ancestor among several branches is enough - LANDED, not ORPHANED",
+     "70", ["refs/heads/task-70-merged", "refs/heads/task-70-stray"], "LANDED"),
+    ("a REMOTE-only branch is found, not missed",
+     "1", ["refs/remotes/origin/task-1-merged"], "LANDED"),
+    ("a remote-only branch that is not an ancestor is ORPHANED",
+     "1", ["refs/remotes/origin/task-1-stray"], "ORPHANED"),
+    ("no branch at all is NOT_CHECKED - the third value, never a pass",
+     "70", ["refs/heads/task-99-x", "refs/heads/main"], "NOT_CHECKED"),
+    ("git unavailable (refs=None) is NOT_CHECKED, not LANDED",
+     "70", None, "NOT_CHECKED"),
+    # THE PREFIX VARIANT. `task-7-` and `task-70-` share four characters, and a matcher that
+    # forgot the trailing `-` would read one ticket's orphan as another ticket's evidence --
+    # a wrong answer that looks like a right one, in both directions at once.
+    ("VARIANT: id 7 does NOT claim task-70-*'s branch",
+     "7", ["refs/heads/task-70-ranking-ban-threshold"], "NOT_CHECKED"),
+    ("VARIANT: id 70 does NOT claim task-7-*'s branch",
+     "70", ["refs/heads/task-7-something"], "NOT_CHECKED"),
+    # The queue writes `id: 01`; the branch is named from the integer.
+    ("a zero-padded id matches the integer-named branch",
+     "01", ["refs/remotes/origin/task-1-merged"], "LANDED"),
+    ("a non-numeric id is NOT_CHECKED rather than crashing the whole gate",
+     "abc", ["refs/heads/task-70-merged"], "NOT_CHECKED"),
+)
+
+
+# --------------------------------------------------------------------------- direction 11
+def landed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """11: can `check` see a `done` ticket whose branch never reached `main`?
+
+    11a pins the PREDICATE in process, with a stated `_ANCESTORS` set standing in for git, so
+    every row is deterministic and the id-boundary variants can be asked at all. 11b runs
+    `check` end to end in a real scratch repository, because 4c measured what happens when a
+    predicate is correct and nothing reports it: `if False:` left 34 green rows and a gate
+    that printed nothing (`tasks/106`).
+
+    WHAT 11b DOES NOT DO is assert the live queue's numbers. The population moves whenever a
+    branch is deleted, so the figure that mattered -- 119 `done`, 6 LANDED, 1 ORPHANED, 112
+    NOT_CHECKED, **0 false positives**, measured 2026-08-23 before this shipped -- is in
+    `tasks.py`'s own comment beside the loop and is re-derived by running `check`, not pinned
+    here where it would go stale and be repaired by widening.
+    """
+    rows = []
+    for name, tid, refs, want in LANDED_CASES:
+        got, cand = T.landed_status(tid, refs, lambda r: r in _ANCESTORS)
+        rows.append((f"landed_status: {name}", 0, got == want,
+                     f"want {want}, got {got} on {cand or '(no ref)'}"))
+
+    # 11b. A real repository: `merged` is on main, `orphan` is not, and the queue names both
+    # as `done`. Two tickets in one queue, so the same run shows the gate firing on one and
+    # staying quiet on the other -- a fixture with only the failing case cannot tell a
+    # working gate from one that fails everything.
+    main, _ = _scratch_pair(tmp / "landed")
+    shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+    git = ["git", "-C", str(main)]
+
+    def g(*a, **kw):
+        return subprocess.run([*git, *a], check=True, capture_output=True, text=True, **kw)
+
+    g("checkout", "-q", "-b", "task-70-merged")
+    (main / "merged.txt").write_text("landed\n")
+    g("add", "-A"); g("commit", "-qm", "work that landed")
+    g("checkout", "-q", "main")
+    g("merge", "-q", "--no-ff", "-m", "merge 70", "task-70-merged")
+    g("checkout", "-q", "-b", "task-71-orphan")
+    (main / "orphan.txt").write_text("never landed\n")
+    g("add", "-A"); g("commit", "-qm", "work that did not land")
+    g("checkout", "-q", "main")
+
+    (main / "tasks" / "70-a.md").write_text(_task_file("70", status="done"))
+    (main / "tasks" / "71-a.md").write_text(_task_file("71", status="done"))
+    rc, out = _run_tool(main / "eval/tools/tasks.py", "check")
+    rows.append(("`check` end to end: exit 1, naming 71 and NOT 70", rc,
+                 rc == 1 and "71: status done" in out and "70: status done" not in out,
+                 f"exit {rc}: {[ln for ln in out.splitlines() if 'status done' in ln]}"))
+    rows.append(("...and it PRINTS the three-valued census, LANDED count included", rc,
+                 "1 reachable from" in out and "NOT CHECKED" in out,
+                 next((ln for ln in out.splitlines() if "done` tickets" in ln), "(absent)")))
+
+    # THE VARIANT: delete the orphan branch and the same queue must go quiet -- NOT_CHECKED,
+    # reported, exit 0. A gate that failed on every closed ticket whose branch is gone would
+    # fire on 112 of this repository's 119 and be turned off within the day.
+    g("branch", "-qD", "task-71-orphan")
+    rc2, out2 = _run_tool(main / "eval/tools/tasks.py", "check")
+    rows.append(("VARIANT: with the branch deleted the same queue is NOT CHECKED, exit 0",
+                 rc2, rc2 == 0 and "1 NOT CHECKED" in out2,
+                 f"exit {rc2}: "
+                 f"{next((ln for ln in out2.splitlines() if 'done` tickets' in ln), out2[:80])}"))
+    return rows, []
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1310,7 +1413,8 @@ def main(argv: list[str]) -> int:
                    lambda: misfiled_rows(tmp),
                    lambda: coverage_rows(),
                    lambda: status_rows(tmp),
-                   lambda: evidence_rows(tmp, a.skip_prefix)):
+                   lambda: evidence_rows(tmp, a.skip_prefix),
+                   lambda: landed_rows(tmp)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)
