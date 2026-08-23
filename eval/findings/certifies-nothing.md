@@ -3663,8 +3663,6 @@ to survive review.
 
 ---
 
----
-
 ## 136. The method the archive says was repaired had no caller in any commit that ever contained it, so two nulls read as evidence about a hypothesis were the only outcome available
 
 `PlatformerBot._approach` existed for five of the six commits that have touched
@@ -3793,3 +3791,73 @@ And the reference fixture could never have found any of it: `stage.completes` re
 `ref_platformer` under the broken bot **and** the repaired one. `eval/G4-PLATFORMER.md` predicted
 that in writing when the criterion was designed — *a reference cannot exhibit behaviour the task
 did not ask for* (#34). The prediction was correct and nothing acted on it for ten days.
+## 140. The census gate could catch only the wordings of the two documents it was built from, and the obvious widening was strictly worse than the enumeration it replaced
+
+Task 79 added `_check_aspect_census` to `docstat.py --sweep` for a defect the sibling reference
+check is structurally blind to: a live document **denying** an aspect that exists. Two documents
+said there were five while `aspects.py` held six, and `--sweep` printed `6 aspects known` and
+exit 0 the whole time.
+
+The check worked. **Its trigger was three alternations, and all three were phrasings lifted from
+the two defective documents** — `\w+ aspects (that )?(exist|are defined)`, `these \w+ exist`,
+`nothing else is runnable`. It was green on every sweep it ever ran, and it was green because the
+two documents it could see had already been repaired. Nothing made it go red; an audit of the
+trigger's *shape* is what re-opened it, and `15a7129` to `0db6ac9` is 20 minutes of committed
+history — this defect was caught by reading the rule, not by anything failing.
+
+**Re-measured 2026-08-23 against source, not memory.** The pre-fix trigger is recoverable at
+`0db6ac9^`; the planted census claims are stored as pins in `_aspect_census_pins`. Substituting
+each trigger into the real `_check_aspect_census`:
+
+| trigger | of 15 planted false censuses | of 13 correct corpus lines | over the 53 live docs |
+|---|---|---|---|
+| old, three alternations (`0db6ac9^`) | **4** red | 0 wrongly red | 0 |
+| the obvious widening, on the quantifier | 8 red | **6 wrongly red** | **27 red, 0 of them true** |
+| shipped, on the predicate | **15** red | 0 wrongly red | 0 |
+
+**The 4 the old trigger caught are the 4 quoted from the two documents it was written against.
+Of the 11 wordings nobody had in front of them that day, it caught 0.** `The five judge aspects
+are X`, `There are five aspects: X`, `The full list of aspects is X`, `Each of the five aspects
+- X - is judged`, `aspects.py defines five: X` — every one asserts exactly the thing the check
+exists to refute, and every one passes. Task 92 planted its own set of 14 and measured 2.
+
+**What earns a number is the second row, because it is what anybody would reach for.** Widen from
+the wordlist to the quantifier — a cardinal, or `all`, governing `aspects` — and the check reports
+27 problems over a corpus in which the shipped check reports none and every census is correct. All
+27 are false. In this corpus a counted plural `aspects` overwhelmingly describes what **ran, cost
+or failed**: `All five aspects were run over a full eight-submission field`, `six aspects x 5
+repeats`, `Five aspects on one game is therefore`. A gate that fires on correct input gets
+disabled, which is recorded three times in `docstat.py` already — so **the obvious repair is worse
+than the enumeration it was repairing**, which had 0 false positives, and it is worse in the
+direction that ends with the gate switched off.
+
+**Three independent reconstructions of "the obvious repair" give three different false-positive
+counts — 26 (task 92), 31 (`AGENTS.md`), 27 (here, `(cardinal|all)\s+aspects` adjacent) — and all
+three have zero true positives.** The count is not a property of the corpus; it is a property of
+whichever draft you happened to write, and it grows with the corpus. That instability is the
+diagnosis: a trigger drawn from an **open** class has no stable false-positive rate to tune
+against.
+
+What separates a census from a run description is not the count, it is the **predicate**:
+existence, identity or definition, present tense, with the enumeration adjacent. `were run`,
+`failed`, `separate`, `x 5 repeats` are none of those. Copula, existential *there are*, and
+`define`/`list`/`set` are **closed classes of English** — which is what makes the predicate
+statable as a property at all rather than as a wordlist that grows with each new document.
+
+> **A trigger built from the instances in front of you catches the instances in front of you, and
+> a gate that only recognises the defect it was written for reports success forever.** Before
+> widening one, measure the widening's false positives on the live corpus — the first property you
+> reach for may be 100% false positives and still feel more general than the list.
+
+**Deliberately still uncovered, with its price.** A bare `aspect`-headed table listing five ids
+with no claim in prose above it. The structural trigger for that was written and measured at **9
+false positives** on live documents, every one a legitimate per-aspect *results* table over the
+subset one round actually ran. The instruction that follows is in `DECISIONS.md` and in
+`audit-docs/SKILL.md`: **write the claim above the table, or the table is unguarded.**
+
+**The pins are the finding's durable half.** 28 of them, 15 red and 13 green, re-run by
+`docstat.py --sweep` and printed by `--selftest`. Every one of the 13 greens is **real corpus
+text that some draft of this trigger turned red** — six of them from the quantifier draft. A
+mutant would only have asked whether the check can fail; these ask whether it can still pass on
+the inputs that made every previous draft unusable (rule 15), and they are why the second row of
+that table is a measurement rather than an opinion.
