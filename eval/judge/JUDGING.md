@@ -126,6 +126,22 @@ Implemented in `aspects.py` (the questions), `field.py` (packing, running, gates
 | `ux` | frames | the 12 filmed frames |
 | `audio` | audio | `audio.json`: per-clip duration, RMS, peak, and which clips are the same sound as which |
 
+**The frames are not equivalent across arms, and every aspect that reads them is told so.**
+Measured 2026-08-23 (task 68, FINDINGS #107): one arm's `just film` runs the whole app per tick so
+its renderer observes the entire run, while the other **three** advance the simulation to the
+sampled tick with no renderer attached and draw once. A probe painting one cell per observed tick
+read `1, 1, 1` at ticks 8/60/240 in three arms and `9, 32, 32` in the fourth, with a positive
+control reaching 32 in all four. So presentation state that accumulates across ticks — a trail, a
+burst, a shake, a decay — is structurally absent from three arms' PNGs, and its absence is
+indistinguishable from a submission that never wrote one.
+
+`aspects.py` defines `FRAMES_BLIND_SPOT` and every frames-reading aspect carries it. It states the
+blind spot **without naming or counting the arms**: a brief saying "three of the four" would leak
+the partition to a judge that is supposed to be blind (#32), which is why
+`aspects_selftest.py` carries a variant that counts without naming. This is the second measured way
+the frames channel reports the arm rather than the work — see #59, palette depth, a 60× split by
+renderer. Full record and the decision not to equalise the harnesses: `eval/RUNS.md`.
+
 Four properties of the packing are load-bearing:
 
 **The identity mapping is written BESIDE the pack, never inside it.** The judge's working

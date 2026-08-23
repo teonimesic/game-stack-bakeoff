@@ -110,6 +110,98 @@ arena trial before them.
 regime boundaries above and applies within each of them: their packs cannot be re-packed and the
 builder already refuses them. See the section on their stored packs, below.
 
+## THE FRAMES CHANNEL IS NOT EQUIVALENT ACROSS ARMS, and it never has been — measured 2026-08-23
+
+**This is not a boundary in time.** Nothing changed on this date; the asymmetry has been present
+in every run this project has filmed, and it is recorded here because no document said so. It
+constrains what a *cross-arm* comparison of frames evidence can mean, in every regime above and
+below.
+
+`just film` produces the 12 PNGs that `ux`, `fun` and `fun_frames` judge, and each arm implements
+it in its own harness. **The four harnesses differ in what a filmed frame is able to contain.**
+
+A probe was added to each arm's own view — one 8×8 cell painted per simulation tick the *renderer*
+was actually shown — and each arm's own capture path was then run at five tick counts (task 68;
+scratch trees, not the starters). `observed_run` is the count of consecutive ticks ending at the
+captured tick that the renderer saw, capped at 32:
+
+| capture at tick | godot | rust | ts | unity |
+|---|---|---|---|---|
+| 0 | 1 | 1 | 1 | 1 |
+| 1 | 2 † | 2 | 1 | 1 |
+| 8 | 1 | **9** | 1 | 1 |
+| 60 | 1 | **32** (cap) | 1 | 1 |
+| 240 | 1 | **32** (cap) | 1 | 1 |
+| **positive control** — view handed ticks 0..60 by hand | **32** | n/a ‡ | **32** | **32** |
+
+† Cross-capture leakage inside one process, not the capture path observing an intermediate tick: an
+earlier capture in the same run had shown the view tick 0, and the consecutive-tick window happened
+to reach back to it. It does not occur at any larger tick count.
+‡ Uninformative **by construction**, and reported rather than omitted. Rust already observes every
+tick, so pre-seeding its history changes nothing — the control cannot distinguish a working probe
+from a broken one *in that arm*. The three arms where it can, it does.
+
+**So the partition is 1 versus 3, not godot versus rust.** Rust/Bevy runs the whole `App` once per
+tick with the view systems attached. Godot, TypeScript and Unity each advance the simulation to the
+sampled tick with **no view attached** and draw once. Presentation state that accumulates over the
+ticks in between — a trail, a particle burst, a shake, a decay, a tween — is structurally absent
+from every filmed frame in three arms and present in the fourth.
+
+The positive control is what makes the three 1s a measurement rather than a broken probe: the same
+instrument, in the same arm, reaches 32 the moment the view is handed the history the capture path
+withheld.
+
+### A second axis: render frames, which partitions differently again
+
+How many times the view gets to draw after the last state sync, and what clock those frames carry:
+
+| arm | render frames per capture | the clock they carry | how established |
+|---|---|---|---|
+| **godot** | **3** | **24.7 / 27.7 / 28.5 ms of WALL CLOCK across three identical captures** — it varies run to run | measured |
+| **rust** | ~9 normally; **238–239 when a frame-accumulating effect is present** | virtual: `TimeUpdateStrategy::FixedTimesteps(0)` during settle, so time does not advance | measured |
+| **ts** | 1 — `capture()` steps, renders and reads back in one synchronous call | virtual: `__nowMs` set to `(ticks/TICK_HZ)*1000`, deterministic and advancing per filmed frame | read from `eval/starters/ts/src/view/capture.ts` and `harness.ts` |
+| **unity** | 1 — one `camera.Render()`, no player loop | none: `Time` does not advance | read from `eval/starters/unity/Assets/View/RenderHarness.cs` |
+
+Two consequences that are not obvious from the tick table:
+
+- **Godot's three render frames carry real wall-clock time.** A `_process(delta)` tween there is
+  *partly* visible — about 25–29 ms of it — and **non-reproducible**, because the delta is whatever
+  the machine gave it. The starter's own `rendering is reproducible across runs` test would only
+  catch that if the effect moved enough pixels in ~4 ms.
+- **Rust's advantage costs it the settle criterion.** `capture_frame` settles on "two consecutive
+  readbacks are byte-identical", which an effect that is still changing can never satisfy. With one
+  present, the loop ran its full `MAX_SETTLE_FRAMES` budget (238–239 frames observed) and returned
+  the `previous`-frame fallback — a deliberately *unsettled* frame. Bevy can show accumulating
+  state; it cannot show it and settle at the same time.
+
+### What was decided, and what was not
+
+**Recorded, not equalised.** Changing any capture path is a regime boundary that invalidates frame
+comparisons across it, and this project has eight stored runs of frames. Equalising downward would
+also delete a real capability from one arm and interact with the settle criterion above. The
+asymmetry is therefore documented and the graders are told about it:
+
+- `eval/judge/aspects.py` defines `FRAMES_BLIND_SPOT`, carried by **all three** frames-reading
+  aspects (`ux`, `fun`, `fun_frames`). It states the blind spot **without naming or counting the
+  arms** — the judge is blinded to which submission is which (#32), and "three of the four" leaks
+  the partition as surely as "Bevy" does.
+- `eval/judge/aspects_selftest.py` pins that in both directions, including a **variant** that
+  counts the arms without naming one.
+
+**This changes the judge's prompt.** Every stored `ux`, `fun` and `fun_frames` round was produced
+under a brief that did not carry the paragraph, so those rounds and any future ones are not
+strictly comparable. The judge tier weighs **0.00**, so no `overall` moves and nothing was
+re-scored.
+
+**What this does NOT say:** that any arm's frames are worse. All four are internally valid, and
+three are *more* deterministic for it — that determinism is exactly why they sync once. The defect
+was that two arms differ in what a frame can contain and no document said so.
+
+**Standing constraint:** do not read a cross-arm difference in `ux`, `fun` or `fun_frames` as a
+statement about the submissions until you have asked whether it could be this. It sits alongside
+#59 — palette depth, a 60× split by renderer — as the second measured way the frames channel
+reports the arm rather than the work.
+
 ## A fifth boundary, and this one is in the GRADER, not the run
 
 **On 2026-08-23 tier 1 stopped being 0.31 of `overall` and became a pass/fail gate** (task 29,

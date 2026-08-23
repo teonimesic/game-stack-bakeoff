@@ -112,6 +112,42 @@ ARCHITECTURE = Aspect(
 
 
 
+#: THE FRAMES CHANNEL'S BLIND SPOT, stated to every aspect that reads frames.
+#:
+#: Measured 2026-08-23 (task 68, FINDINGS #107): the four arms' `just film` harnesses
+#: are not equivalent in WHAT A FRAME CAN CONTAIN. One steps the whole app per tick, so
+#: its renderer observes every tick of the run; the other three advance the simulation
+#: to the sampled tick with no renderer attached and draw once, so their renderer is
+#: shown exactly ONE tick per PNG. A probe painting one cell per observed tick read
+#: 1, 1, 1 at ticks 8/60/240 in three arms and 9, 32, 32 in the fourth, with a positive
+#: control reaching 32 in every arm.
+#:
+#: Two rules govern the wording, and both are load-bearing:
+#:
+#: 1. **It must not name or count the arms.** The judge is blinded to which submission
+#:    is which stack (`verify_blind.py`, FINDINGS #32). "In some of them" leaks nothing;
+#:    "in three of the four" hands over the size of the partition.
+#: 2. **It must be BYTE-IDENTICAL in `fun` and `fun_frames`.** `fun_frames` is `fun`'s
+#:    control with the telemetry withheld, and a control whose briefing differs from its
+#:    treatment's is not a control. It is defined once here for that reason -- do not
+#:    inline a copy into either.
+FRAMES_BLIND_SPOT = (
+    "THE FRAMES HAVE A KNOWN BLIND SPOT, AND IT BELONGS TO THE CAPTURE HARNESS RATHER "
+    "THAN TO THE SUBMISSION. The harnesses that produce these strips are not all "
+    "equivalent: in some of them the simulation is advanced to the sampled moment with "
+    "no renderer attached and the picture is then drawn once, so presentation state "
+    "that BUILDS UP over the moments in between -- a motion trail, a particle burst, a "
+    "screen shake, a hit flash that fades, a tween still in flight -- cannot reach the "
+    "PNG at all. It is structurally absent, and it looks exactly like a submission that "
+    "never wrote one.\n"
+    "So the ABSENCE of an accumulating effect is not evidence that the submission lacks "
+    "one, and its PRESENCE is partly a property of the harness. Neither credit nor "
+    "penalise it, and do not build a ranking on it. Judge what the frames DO show -- "
+    "layout, legibility, what is on screen, and what visibly changes between the first "
+    "frame of the strip and the last."
+)
+
+
 # The scale for aspects about the RESULT rather than the code. Same shape, same
 # reason: "it works and is unremarkable" sits at 2, so a field where everything
 # works spreads instead of piling at the top.
@@ -157,7 +193,8 @@ FUN = Aspect(
         "or a round that ends in three seconds are all real defects that correctness "
         "checks cannot see.\n"
         "Do not reward mechanical richness for its own sake. A game with six systems "
-        "and no rhythm is worse than one with two and a good one."
+        "and no rhythm is worse than one with two and a good one.\n"
+        + FRAMES_BLIND_SPOT
     ),
 )
 
@@ -221,7 +258,8 @@ UX = Aspect(
         "Do not reward decoration. A plain frame that says exactly what is going on "
         "beats an elaborate one that does not. And do not infer from an absent frame: "
         "if the run never reached an end state, say the evidence is missing rather than "
-        "scoring the submission down for it."
+        "scoring the submission down for it.\n"
+        + FRAMES_BLIND_SPOT
     ),
 )
 
@@ -274,7 +312,9 @@ FUN_FRAMES = replace(
         "Every submission here passes its correctness checks, so 'the mechanics work' "
         "separates nothing and must not earn a point.\n"
         "Where a frame strip cannot answer a pacing question, SAY SO and score on what "
-        "you can see. An invented interval is worse than an absent one."
+        "you can see. An invented interval is worse than an absent one.\n"
+        # BYTE-IDENTICAL to `fun`'s copy, by construction. See FRAMES_BLIND_SPOT.
+        + FRAMES_BLIND_SPOT
     ),
 )
 

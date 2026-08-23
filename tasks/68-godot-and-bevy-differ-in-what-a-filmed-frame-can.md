@@ -58,3 +58,61 @@ across it.
 Do not read this as "Godot's frames are worse". They are internally valid and deterministic —
 that determinism is *why* the harness syncs once. The defect is that two arms differ in what a
 frame can contain, and that no document says so.
+
+## What the work established, 2026-08-23 — do not re-derive
+
+**The radius is 1 versus 3, not godot versus rust, and the title of this ticket is wrong.**
+Godot, TypeScript **and Unity** all show the renderer exactly one simulation tick per filmed
+frame. Rust/Bevy is the single arm that behaves differently. The majority behaviour was the one
+being treated as the exception.
+
+`observed_run` = consecutive ticks ending at the captured tick that the *renderer* was shown,
+cap 32. Each arm's own capture path, run in a scratch clone (the starters were not touched):
+
+| capture at tick | godot | rust | ts | unity |
+|---|---|---|---|---|
+| 0 | 1 | 1 | 1 | 1 |
+| 8 | 1 | **9** | 1 | 1 |
+| 60 | 1 | **32** (cap) | 1 | 1 |
+| 240 | 1 | **32** (cap) | 1 | 1 |
+| positive control — view handed ticks 0..60 | **32** | n/a | **32** | **32** |
+
+Four things that cost time and should not be paid for twice:
+
+1. **The probe must be a CONSECUTIVE-RUN counter, not a call counter.** Godot's `RenderTests`
+   builds the view once in `setup()` and reuses it across every capture, so a naive "times
+   `sync` was called" counter accumulates across *captures* and grows to look like success.
+   Counting the longest run of consecutive ticks ending at the captured tick is immune. The one
+   anomaly in the table — godot reading 2 at ticks=1 — is exactly this leaking through at the
+   only tick count where the window can reach a neighbouring capture's tick.
+2. **The positive control is what makes three 1s a measurement.** Hand the view the tick history
+   the capture path withheld and every arm paints 32. Without it, "1" is indistinguishable from a
+   probe that never worked. Rust's control is uninformative *by construction* — it already sees
+   every tick — and that is reported, not omitted.
+3. **A cap is a ceiling, not a measurement (AGENTS.md rule 8).** The render-frame axis was first
+   measured with the same cap of 32 and returned 32 for *every* input including tick 0. Raising it
+   to one screen pixel per frame turned the same reading into 238–239, which is `MAX_SETTLE_FRAMES`
+   exhausted. The first number was not wrong so much as uninterpretable, and it looked fine.
+4. **Two axes, partitioning differently.** Ticks (above) splits rust from the rest. *Render
+   frames* splits again: godot pumps **3** per capture carrying **24.7 / 27.7 / 28.5 ms of wall
+   clock** across three identical captures — so a `_process(delta)` tween there is partly visible
+   and non-reproducible — while ts and unity pump exactly one and rust's settle loop pumps until
+   two readbacks match, which an effect still in motion never satisfies. Bevy can show
+   accumulating state; it cannot show it *and* settle.
+
+**Decided: recorded, not equalised**, on the ticket's own grounds. `eval/RUNS.md` carries the
+tables and the reasoning; `eval/findings/one-arm-bias.md` #107 carries a `RADIUS MEASURED`
+section correcting its published two-arm framing; `eval/judge/JUDGING.md` states it beside the
+evidence table.
+
+**The graders are told, and the wording is constrained.** `FRAMES_BLIND_SPOT` in
+`eval/judge/aspects.py` is carried by all three frames-reading aspects. It must **not name or
+count the arms** — "three of the four" leaks the partition to a judge that is blinded to which
+submission is which (#32) — and it must be **byte-identical in `fun` and `fun_frames`**, because
+`fun_frames` is `fun`'s control and a control briefed differently from its treatment is not a
+control. `eval/judge/aspects_selftest.py` pins all three properties with a mutant each plus a
+variant that counts the arms without naming one.
+
+**Not done, and deliberately:** no capture path was changed, nothing was re-scored (the judge
+tier weighs 0.00), and no new finding number was taken — this is a correction to #107's radius,
+and eight peer tasks were in flight against a shared numbering.
