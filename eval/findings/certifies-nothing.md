@@ -4291,9 +4291,10 @@ plant, 20 after restore** (rule 12's corollary).
 > **Two corrections to the first version of this note, both of them the same class of error as
 > the finding.** It said *"49 rows on 43 distinct lines"*: those are **two different quantities**
 > — 49 is the match count and 43 is the line count, and a line can hold two (`Tasks #14/#15`).
-> And its area split was one run's, quoted without the commit it was read at; four of the five
-> figures had already moved by `dce1172`. A count that names no command *and* no revision goes
-> stale the same day.
+> And its area split was one run's, quoted without the commit it was read at: of its five
+> figures — `research/` 26, `DECISIONS.md` 8, `.agents/` 7, `eval/` 5, `AGENTS.md` 3 — **three
+> had already moved by `dce1172`**. A count that names no command *and* no revision goes stale
+> the same day.
 >
 > **The conclusion is unchanged and strengthened.** 43 candidate lines against **0** true
 > positives at `dce1172` — `eval/RUNS.md`'s two `#17`s, the only true positives this finding
