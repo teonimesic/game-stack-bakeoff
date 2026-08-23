@@ -301,3 +301,47 @@ the run's results are reported; no gate can reconstruct what a stored round was 
 Update `RUBRIC.md` **and** the grading table in `README.md`. Then **re-grade offline** — re-running
 a stochastic judge to apply a weight change silently changes the verdicts too, so you would be
 measuring two things at once.
+
+## Dead code in a judge module is a conclusion waiting to rest on it
+
+`PlatformerBot._approach` was defined in five of the six commits that touched
+`bot_platformer.py` and called from none of them. Two conclusions in the archive rest on repairs
+made to it, and one of them — the re-grade that falsified the pit hypothesis for #82 by returning
+a byte-identical 0.793 — could not have returned anything else, because the gap-crossing code the
+repair touched was reachable only from inside `_approach` (#136).
+
+> **A second copy of a loop and an unreachable copy of a loop are indistinguishable by a score
+> diff.** Before reading an unchanged result as evidence about a hypothesis, establish that the
+> code you changed executed.
+
+`eval/tools/dead_private_control.py` is the offline check, and it is a **gate**: run it before
+interpreting any re-grade, and after touching a bot.
+
+```bash
+python3 eval/tools/dead_private_control.py             # 18 measurements; 0 green · 1 FAILED · 3 NOT CHECKED
+python3 eval/tools/dead_private_control.py --census    # just name what is unreachable in eval/judge/
+```
+
+Three things worth knowing before you act on it, all of them measured rather than assumed and all
+pinned by the control's own directions:
+
+- **It is reachability, not "is this name mentioned".** #136's per-method census could not see a
+  cluster dead as a whole, and there was one: `ArenaBot._corners`, `_far_corner` and
+  `_turn_corner`, where the last was the only caller of the other two. Shallow named one of the
+  three, reachability all three. Direction 3 pins both modes against that cluster as it stood at
+  `03cdb90`.
+- **A string mention counts as a use; a comment does not.** The first keeps a
+  `getattr(self, "_step_once")` dispatch from going dead spuriously. The second is what makes the
+  check fire at all — `_approach` appeared in every tree that defined it as its own `def` line and
+  as two *comments*.
+- **It gets two things wrong and says so.** A name assembled at runtime
+  (`getattr(self, "_han" + suffix)`) reads dead — noise, fail-closed, and there is no such site in
+  `eval/judge/` today. A method named only in another method's docstring reads live — a real miss,
+  and the price of the string rule. Both are variant rows in direction 4, so widening the string
+  handling cannot quietly lose either.
+
+**The tree is at 0 unreachable private methods out of 118 and that is the gate's whole content.**
+If you delete a method to satisfy it, the measurement in its docstring is evidence and has to land
+somewhere first: `_turn_corner`'s went into `_chase`'s docstring, beside the two discarded designs
+already recorded there. **Do not add a name allowlist** — an exemption list is a fail-open channel
+(AGENTS.md rule 7), and the one hit this check has had was resolved by deletion instead.

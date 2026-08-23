@@ -1152,6 +1152,34 @@ none. Every `architecture` round stored in this repository read a `CHANGED.txt` 
 authored tree.
 
 ---
+## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
+
+`eval/tools/dead_private_control.py` is a gate over `eval/judge/`: 0 unreachable private methods
+out of 118. The reason it is a gate rather than a report is #136 — a repair to
+`PlatformerBot._approach`, which no tree that defined it ever called, produced a byte-identical
+re-grade that was then read as evidence against the pit hypothesis for #82. The check goes red on
+`9fc044a`, the commit that published #82.
+
+Three choices inside it, each with the alternative that was measured and rejected:
+
+| Decided | Rejected, and why |
+|---|---|
+| It lives in a `*_control.py`, not in `lint.py` | `lint.py` exits 0 with findings by deliberate decision (the row below), and its `--gate` flag has no caller. A check that must go red does not belong behind one that must not. The control shape also carries the red pin and the green pin in one run, which is what the task asked for |
+| **Reachability** from roots outside any private method's body, not "is this name referenced anywhere" | #136's per-method census names a cluster's tip and calls the rest live. Measured on the real `ArenaBot` corner cluster at `03cdb90`: shallow names 1 of 3, reachability 3 of 3 |
+| The two hits were **deleted**. No allowlist, no marker, no exemption of any kind | An allowlist is a fail-open channel (AGENTS.md rule 7) and it would have been the check's entire content on day one. `Bot._num` was an unused base-class helper with no reference anywhere in the repository. The corner cluster's docstring was the only record of a measured-and-discarded design, so **the measurement moved into `_chase`'s docstring** — which already archives two other discarded designs — before the code went. Evidence lands somewhere first; then the code goes |
+
+The census population **includes `eval/judge/fixtures/`, which `lint.py` excludes.** Deliberate:
+#136's published figure of 121 methods at `9fc044a` counts them, and direction 1b asserts against
+that figure, so a narrower population would make the two numbers incomparable for nothing. The
+fixtures contribute 0 dead methods in all three trees measured (`9fc044a`, `03cdb90`, HEAD), both
+modes.
+
+**What it gets wrong is pinned, not hidden.** A name assembled at runtime reads dead — fail-closed
+noise, and no such site exists in `eval/judge/`. A method named only in another method's docstring
+reads live — a genuine miss, and the price of the rule that keeps `getattr(self, "_step_once")`
+alive. Both are variant rows, so widening the string handling cannot lose either silently.
+
+---
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1175,6 +1203,7 @@ settled question is noise that makes the live ones harder to find.
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
+| An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
