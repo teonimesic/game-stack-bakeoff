@@ -528,7 +528,7 @@ rebuilt from the manifests all 68 submissions collide 0 times, rebuilt from disk
 **It does not affect the reliability numbers in `wg-aspect-reliability`** — the pack is byte-identical
 across repeats, so it adds no variance. **It does confound any cross-stack `idiomatic` or
 `architecture` ORDERING on this field**, because it changes how much of each submission the judge
-was shown, unequally, by stack. That is #62's shape through a third mechanism. Filed as task 27;
+was shown, unequally, by stack. That is #62's shape through a third mechanism. Filed as task 33;
 recorded as FINDINGS #95.
 
 ## `wg-g4b-2026-08-17` — A NULL. Killed by an external quota limit, 8/8 `api_error`
