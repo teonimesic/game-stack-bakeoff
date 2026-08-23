@@ -4259,7 +4259,23 @@ the documents adopt.
 The extraction was pinned in both directions before the count was believed: **20 clean, 21 with a
 plant, 20 after restore** (rule 12's corollary).
 
-### The two true positives are unrepairable, which is the cost
+> ⚠️ **CORRECTED 2026-08-23, hours after publication: the figures above do not reproduce, and
+> the reason is that this finding published a census with no producer** — the defect #144 is
+> about, committed by the author of #144, in the finding immediately after it.
+>
+> The population was stated as *"the 53 live markdown files"* and no command was written beside
+> it. Re-derived over git-tracked `*.md` minus `docstat.ARCHIVE_PATHS` — 54 files — the same rule
+> gives **49 rows on 43 distinct lines**, not 20: `research/` 26, `DECISIONS.md` 8,
+> `.agents/` 7, `eval/` 5, `AGENTS.md` 3. The gap is the **population**, not the range: the range
+> only widened, and widening it can only reduce rows. Whatever 53-file set was counted is not
+> recoverable, because nothing recorded it.
+>
+> **The conclusion is unchanged and if anything strengthened** — 49 rows against 2 true positives
+> is a worse ratio than 20 against 2, so the trigger is a still poorer candidate than published.
+> The *figures* stay here, marked, because they were published and may have been acted on. The
+> producer is `tasks/118`.
+
+### The two true positives are unrepairable — and that word was too broad
 
 `eval/RUNS.md` cites `#17` twice, below the published range of #19–#145, and **no finding #17
 exists**. It is not task 17 either — that ticket is about backing up `eval/runs`. Both lines were
@@ -4271,6 +4287,18 @@ And they cannot be fixed by reading, because the intended target is unknown. **A
 found two months late is a permanent hole** — which is the argument for the check that the
 false-positive count says cannot yet be built, and the reason this finding records the tension
 rather than resolving it.
+
+> ⚠️ **NARROWED 2026-08-23 by `tasks/112`: the CITATION was unrepairable, not the SENTENCE.**
+> Both lines were repaired without recovering the original intent — by naming the mechanism each
+> sentence is actually about instead of pointing at a number. One now cites the **seventh
+> comparability break** by its ordinal, which is strictly better than any `#NN` because that
+> namespace is *gated*: `--sweep` parses those headings and fails on a duplicate or a gap, so
+> renaming the heading turns the sweep red. The other names `FINDINGS #64`, whose body is the
+> correction block that line heads.
+>
+> **A dangling pointer can be repaired by rewriting the sentence to need no pointer.** That is a
+> third option this finding did not consider, and it is available whenever the surrounding text
+> knows what it means.
 
 ---
 
