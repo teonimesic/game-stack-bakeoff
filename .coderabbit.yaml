@@ -249,6 +249,17 @@ reviews:
         `AGENTS.md`.
 
   # ---- tools ------------------------------------------------------------------------------
+  # A MISSPELLED KEY IN THIS BLOCK IS ACCEPTED AND SILENTLY IGNORED, confirmed against the
+  # schema on 2026-08-23 rather than assumed: `(root).additionalProperties` is `false`, but
+  # neither `reviews` nor `reviews.tools` sets it, and draft 2020-12 permits unknown properties
+  # wherever the keyword is absent. So `reviws:` is rejected and `skillspecter:` is not — the
+  # closure is exactly one level deep. That is the accepted-but-ignored-flag shape: a setting
+  # that does nothing is indistinguishable, from here, from one being honoured.
+  #
+  # THE GATE FOR IT IS `python3 eval/tools/coderabbit_config.py --schema` — it reads the
+  # published schema and reddens any key, or per-tool sub-key, the schema does not declare.
+  # `--schema --control` pins it, green on this file and red on `skillspector` misspelled. It
+  # needs the network so it is not in CI; run it when you edit this block.
   # DELIBERATELY EMPTY IN THE FIRST VERSION. The obvious edit here was to disable `markdownlint`
   # and `languagetool` on the grounds that 173 markdown files of hand-formatted tables and
   # blockquotes will generate noise. That is a guess, and this project's standard is to

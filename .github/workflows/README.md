@@ -46,13 +46,14 @@ contain — a peer's in-flight status change would block a commit that has nothi
 
 | left out | why |
 |---|---|
-| trials, judge rounds, `field_sweep.py` | they spend money, and that is the operator's call every time |
-| anything needing the `claude` CLI or an API key | not available to a runner |
-| `starter_parity`, `parity_selftest`, `starter_gate_control` | need real Unity/Godot/Rust/Node toolchains; 325s |
-| `evidence_set_control`, `disclosure_mutants` | need `eval/runs/`, which is gitignored |
-| `docstat --renumbered` | reports, never gates |
-| `judge/audit_criteria.py` | exits 0 printing `0/0/0` without a corpus, so a green run would mean nothing |
-| the full `lint.py` rule set | 64 findings stand untriaged. CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
+| trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py` | they drive the `claude` CLI. The operator's call, every time |
+| `starter_parity`, `parity_selftest`, `starter_gate_control` | need the four real toolchains. `starter_gate_control` is 325s; `parity_selftest` exits 1 without `eval/starters/ts/node_modules`, which is untracked |
+| `evidence_set_control`, `disclosure_mutants` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored and never in a checkout |
+| `judge/audit_criteria.py` | without a corpus it exits 0 printing `0 / 0 / 0` for every verdict line — a green run that means nothing |
+| `docstat --renumbered` | never gates by design; its second half is undecidable. The half that does gate runs inside `--sweep` |
+| `coderabbit_config.py --schema` | needs the network — it reads the published CodeRabbit schema. Run it by hand when `reviews.tools` changes; it is the only thing that catches a misspelled tool key, because the schema does not close that object and the key is accepted silently |
+| `integrity_census.py` | a census, not a gate: it exits 0 on a historical hit by construction. Its control calls the two integrity pins `--sweep` already runs |
+| the full `lint.py` rule set | 72 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 
 ## Minutes
 

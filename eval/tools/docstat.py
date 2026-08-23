@@ -685,9 +685,16 @@ def _check_list_indent() -> list[str]:
 # rule asks for a closed class chosen on its live-corpus false-positive count, and this is the
 # first trigger tried here that opens at 0 rather than at 8, 18 or 26 (#140, #142, #146).
 #
-# MEASURED 2026-08-23 over all 180 reference docs (live AND archive) at HEAD: 0 hits. The
-# tighter variant that also requires the line to END its paragraph is likewise 0, so the
-# looser one ships - same measured cost, strictly more coverage.
+# MEASURED over the whole reference corpus (live AND archive) at HEAD: 0 hits, 188 documents
+# when last re-derived - `cmd_sweep` runs this on every invocation, so the count is the
+# sweep's own. The tighter variant that also requires the line to END its paragraph is
+# likewise 0, so the looser one ships - same measured cost, strictly more coverage.
+#
+# 0 AT HEAD IS NOT A BASE RATE, because the tree at any commit holds only the defects nobody
+# has repaired yet, and this one was repaired. Over every version of every reference document -
+# 1,551 (version, path) pairs across all 451 commits when last run - this check finds exactly 1
+# incident, the same stranded line carried in 34 versions of `eval/FINDINGS.md`. The producer
+# is `python3 eval/tools/integrity_census.py`; DECISIONS.md holds the decision that rests on it.
 #
 # SCOPE IS `reference_docs()`, WHICH INCLUDES THE ARCHIVE, and that is deliberate against the
 # usual rule two hundred lines up. The structure checks exempt `eval/findings/` because
@@ -843,33 +850,43 @@ def _orphan_tail_pins(verbose: bool = False) -> list[str]:
 # WHY A WORD WINDOW, AND WHY TWELVE. Repetition is a closed property of the text rather than a
 # vocabulary, which is what AGENTS.md's census-trigger rule asks for; the free parameter is the
 # window, and it was chosen on the live false-positive count, never on which size sounds more
-# principled. Measured 2026-08-23 over all 183 reference docs (live AND archive) with fences,
-# table rows and frontmatter keys handled as below, against the pre-fix blob as the red case:
+# principled. THE PRODUCER IS `python3 eval/tools/integrity_census.py --windows`, and these are
+# its figures over the 188 reference docs (live AND archive) the corpus held when it last ran,
+# with fences, table rows and frontmatter keys handled as below:
 #
-#     window   corpus hits   pre-fix DECISIONS.md
-#        8        3(*)              --
-#       10        1                  7
-#       11        0                  5
-#       12        0                  4      <- shipped
-#       13        0                  3
-#       14        0                  2
-#       16        0                  0      <- the defect is invisible from here up
+#     window   corpus hits   distinct phrases   pre-fix DECISIONS.md
+#        8        11                5                  11
+#        9         6                2                   9
+#       10         3                1                   7
+#       11         0                0                   5
+#       12         0                0                   4      <- shipped
+#       13         0                0                   3
+#       14         0                0                   2
+#       16         0                0                   0      <- invisible from here up
 #
-#   (*) all three in the same block as the single 10-word hit.
+# The hits at 10 are FALSE POSITIVES and worth naming, because they are the shape this check
+# will keep meeting: `DECISIONS.md`'s headroom blockquote runs "a stated mechanic gives an axis
+# with no direction and every submission at the same point; a free parameter gives an axis with
+# no direction and every submission at a different point". That is an antithesis - deliberate
+# parallel construction, the repetition carrying the argument. Correct prose does this, and a
+# gate that reddens it is a gate that gets switched off.
 #
-# The one corpus hit at 10 is a FALSE POSITIVE and it is worth naming, because it is the shape
-# this check will keep meeting: `DECISIONS.md`'s headroom blockquote runs "a stated mechanic
-# gives an axis with no direction and every submission at the same point; a free parameter
-# gives an axis with no direction and every submission at a different point". That is an
-# antithesis - deliberate parallel construction, the repetition carrying the argument. Correct
-# prose does this, and a gate that reddens it is a gate that gets switched off.
+# READ THE DISTINCT-PHRASE COLUMN, NOT THE HIT COUNT. At 183 documents window 10 gave 1 hit; at
+# 188 it gives 3, and all three are that one antithesis - quoted twice in DECISIONS.md and once
+# in tasks/119 BECAUSE it was named as the false positive that set the boundary. The corpus
+# acquired copies of the hit already counted, not a new kind of hit, so the growth is not
+# evidence of an open class and must not be read as an argument for widening the window.
 #
 # 11 also measures 0, and 12 ships instead because 11 sits directly ON the boundary: one more
 # antithesis one word longer turns it red. 12 keeps a word of margin at each end and still
 # clears the real defect by three (14 is red, 16 is not). If this is ever retuned, retune it on
-# a re-measured false-positive count over the corpus as it stands then - the count grows with
-# the corpus, which is what an open-class trigger does, and the table above is the evidence
-# that this one is not.
+# a re-measured count over the corpus as it stands then - run the producer, do not re-derive
+# the sweep by hand.
+#
+# AND 0 AT HEAD IS NOT A BASE RATE. Over every version of every reference document - 1,551
+# (version, path) pairs across all 451 commits when last run - this check finds exactly 1
+# incident, the `DECISIONS.md` bullet below, seen as 4 overlapping windows carried in 55
+# versions. `integrity_census.py` is that census; DECISIONS.md holds what rests on it.
 #
 # SCOPE IS `reference_docs()`, live AND archive, for `_check_orphaned_tail`'s reason: a
 # half-applied rewrite is damage, not evidence, and the archive is entitled to record retired
