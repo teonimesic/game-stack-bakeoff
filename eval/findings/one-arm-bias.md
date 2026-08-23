@@ -2458,3 +2458,41 @@ are pre-repair, and `stored_stdout()` returns **None** for every one of them, be
 missing from a merged buffer is not evidence the command never printed it. Any future check
 that asks whether an agent ran its own gate to completion can only be asked of trials run after
 today.
+
+## 129. Rule 11's first implementation found, in its first pass, a one-arm starter defect that a hand pass over the same corpus had missed
+
+`AGENTS.md` rule 11 — *read what the subject said about its own work before grading it* — stood
+for weeks with no implementation. Task 46 read all 90 stored closing messages **by hand** and
+classified them. Task 71 then built the tool.
+
+**The tool's first pass surfaced something the hand pass had not: four Rust agents, in three
+different runs, reporting that `just run` was broken in the starter they were given.**
+
+The cause is in the pristine tree and was verified without running anything:
+`eval/starters/rust/crates/game/` ships **two** binaries — `src/main.rs` and `src/bin/film.rs` —
+and its `Cargo.toml` declares **no `default-run`**. `cargo run` cannot choose.
+
+This is #98's class exactly: a defect in what one arm is handed, reported by the subjects
+themselves, invisible to every grader. Four independent agents said it out loud and the sentence
+sat in `agent_result.json` where nothing looked.
+
+> **A hand pass over a corpus is a sample whether or not anyone calls it one.** The hand pass and
+> the tool disagree in both directions — the tool locates 26 of 75 against the hand pass's 31,
+> under-reporting in every arm, and it found four disclosures the hand pass did not. Neither is
+> the ground truth; what changed is that one of them runs on every report from now on.
+
+The tool's own agreement figure is caveated in its output rather than published as a rate,
+because the six the hand pass called disclosures and the tool leaves quiet were **not adjudicated
+one by one**. An unadjudicated agreement rate is a number about two instruments, not about the
+corpus.
+
+Two subsidiary results worth keeping:
+
+- **The truncation control is real data, not a fixture.** `wg-arena3d/g3_arena__rust__t1` states
+  #49's mechanism at **character 0 of 3912** — so a one-line `tail` mutant loses it entirely, and
+  the selftest goes red naming that trial.
+- **A suppression hid a defect until an unrelated edit revealed it.** `docstat --sweep`'s flag
+  check is suppressed unless a document names one of our harnesses. Adding the words
+  `wholegame.py` to the root `AGENTS.md` for an unrelated reason made a latent `--wildcards`
+  false positive fire for the first time since the check was written. **A suppression does not
+  remove a defect; it defers the moment you meet it.**

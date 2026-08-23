@@ -739,12 +739,23 @@ price. Keep at least one warm tree per stack when reclaiming any run.
   safe, raw counts are not, and a judge shown the PNGs is shown the difference. Pinned both
   ways: `wg-audio48` exit 1 naming the divergent trial, `wg-arena3d` exit 0.
 
-- **Read `agent.final_text` for every trial before grading anything.** Agents write a paragraph
-  headed *"What I could not verify — and why"*, and on `wg-arena3d` four of them named the exact
-  mechanism that produced the whole run's spread. **Nothing in the harness reads that field and
-  no gate looks at it** — it sat unread for a day while the numbers were treated as stack
-  results (#49). A grader that never reads what the subject said about its own work will keep
-  re-deriving what the subject already told it.
+- **Read what each agent said about its own work before grading anything.** Agents write a
+  paragraph headed *"What I could not verify — and why"*, and on `wg-arena3d` four of them named
+  the exact mechanism that produced the whole run's spread; it sat unread for a day while the
+  numbers were treated as stack results (#49). `wholegame.py report` now prints those passages
+  beside each score, and `python3 tools/disclosure.py --run-dir runs/<run>` gives them on their
+  own, before evaluation has run.
+
+  Read the **whole** message — `artifacts/<trial>/agent_result.json` → `.result`, which is what
+  both of those open. `trials/*.json` → `agent.final_text` is its **last 3000 characters** and
+  43 of the 90 stored messages are longer. `wg-arena3d`'s `g3_arena__rust__t1` opens with the
+  #49 mechanism at character 0 of 3912, so the truncated field is exactly where this rule's
+  own founding example is invisible.
+
+  `python3 tools/disclosure.py --run-dir runs/<run> --trial <id>` prints one message whole.
+  The tool is a **locator, not a classifier**: `quiet` means no cue matched, not that a trial
+  disclosed nothing, and `NO MESSAGE` is unmeasurable — 15 of 90 stored `.result`s are `null`
+  or hold the API's own limit string.
 - **Record what changed about the MACHINE while the run was in flight, not only what changed
   about the configuration.** `wg-arena3d` straddles a system-daemon repair; its records say
   `8 completed` with one terminal reason and nothing marks the boundary. The population split

@@ -213,9 +213,18 @@ grader owns its own three, listed in `judge/AGENTS.md`.
 - Score per task first, then take the SE across tasks. Pooling across trials is inconsistent.
 - Use paired per-task differences for arm comparisons, and Wilson intervals for pass rates.
 
-**Reading the agent's own closing message — the address, and what is not one.** Four documents
-tell you to read it before grading (`PROTOCOL.md`, `DECISIONS.md`, root `AGENTS.md` rule 11,
-`G4-PLATFORMER.md`) and none says where it is. It is in **two** places, in two shapes:
+**Reading the agent's own closing message — there is now a reader.** `wholegame.py report`
+prints each trial's located passages beside its score, and
+`python3 tools/disclosure.py --run-dir runs/<run>` gives them without waiting for evaluation;
+`--trial <id>` prints one message whole. It is a **locator, not a classifier** — `quiet` means
+no cue matched, not that a trial disclosed nothing (26 located against a hand-classified 31 of
+75, `RUNS.md`) — and it has three values, because a message that was never written is not a
+message that said nothing. `tools/disclosure_mutants.py` carries six mutants and must stay
+green; four of them are caught only by a real stored message, so run it in the main checkout.
+
+**The address, and what is not one.** Four documents tell you to read this field before grading
+(`PROTOCOL.md`, `DECISIONS.md`, root `AGENTS.md` rule 11, `G4-PLATFORMER.md`) and none said
+where it is. It is in **two** places, in two shapes:
 
 | where | what |
 |---|---|
@@ -224,8 +233,10 @@ tell you to read it before grading (`PROTOCOL.md`, `DECISIONS.md`, root `AGENTS.
 
 A truncation policy is a sampling policy: **43 of the 90 stored whole-game messages exceed 3000
 characters**, so `final_text` is a partial read of nearly half the corpus. It samples the tail,
-which happens to be where a closing caveat usually sits — that is luck, not design. Read
-`.result` for any census; use `final_text` only when the tail is what you want.
+which happens to be where a closing caveat usually sits — that is luck, not design, and the
+luck has already run out once: `wg-arena3d`'s `g3_arena__rust__t1` states #49's whole mechanism
+at character 0 of 3912, where `final_text` cannot see it. Read `.result` for any census; use
+`final_text` only when the tail is what you want.
 
 **`.result` is not always something the agent wrote.** On a session- or quota-limited trial it
 holds the API's own error string — `"You've hit your weekly limit · resets …"`, 71 characters —

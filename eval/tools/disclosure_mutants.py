@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Six mutants of `disclosure.py`, each removing one mechanism its selftest names.
+
+`disclosure.py --selftest` mutates its own cue LIST in process, which cannot reach the
+helper patterns the cues are built from, nor the line that chooses which field to read.
+Those are exactly the mechanisms whose loss is invisible: a wider `_GAP` still locates
+every documented discloser, and reading the truncated field still locates most of them.
+So each mutant here rewrites one span of the source and runs the real selftest against
+the real corpus. **Every mutant must be caught.**
+
+Two of the six reproduce defects that existed in drafts of this tool and were found only
+because a documented row disagreed:
+
+| mutant | what it removes | what caught it |
+|---|---|---|
+| `gap` | the closed word set between a negation and its verb | 3 false positives, all from linking "aren't" to a later "run" |
+| `perf` | the past-tense restriction on `never <verb>` | `archive-arena2d` `ts__t1`, a documented non-discloser, went loud on "verify never executes `main.ts`" |
+| `limit` | recognising the API's own limit string | 2 aborted trials scored as having written a quiet closing report |
+| `tail` | reading `.result` whole instead of its last 3000 characters | `wg-arena3d` `rust__t1`, whose disclosure is at character 0 of 3912 |
+| `nobody` | the verb list after "nobody has" | 2 game descriptions read as disclosures |
+| `starter` | the whole starter-arrived-broken family | #98's own two Godot rows |
+
+    python3 eval/tools/disclosure_mutants.py                   # against eval/runs/
+    python3 eval/tools/disclosure_mutants.py --runs-dir PATH   # against another corpus
+
+A missing corpus exits 2. These mutants are not meaningful against fixtures alone: four of
+the six are caught only by a real stored message.
+"""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SOURCE = HERE / "disclosure.py"
+
+# The corpus address is IMPORTED, not re-derived. Spelling a path in two files and
+# promising in a comment that they agree is the defect rule 12 names; two `parents[n]`
+# expressions that differ by one are exactly how it happens.
+sys.path.insert(0, str(HERE))
+import disclosure as _d  # noqa: E402
+
+DEFAULT_RUNS = _d.DEFAULT_RUNS
+
+# (name, exact span to replace, replacement). The span must be present verbatim: a mutant
+# whose search text has drifted is a no-op that reports a pass for a check that never
+# changed, which is the shape this whole file exists to catch.
+MUTANTS: dict[str, tuple[str, str]] = {
+    "gap": (
+        '_GAP = (r"(?:(?:been|be|yet|ever|even|able\\s+to|myself|it|them|that|this|\\w+ly"\n'
+        '        r"|(?:get|take|make|send)(?:\\s+(?:a|an|the))?|the\\s+\\w+)\\s+){0,3}")',
+        '_GAP = r"[^.;]{0,70}?"'),
+    "perf": (
+        '_PERF = r"(?:run|ran|executed|verified|tested|exercised|validated|launched'
+        '|played)"',
+        '_PERF = r"(?:execut\\w+|run|ran|verif\\w+|test\\w+)"'),
+    "limit": (
+        'LIMIT_RE = re.compile(r"you\'?ve hit your \\w+ limit", re.I)',
+        'LIMIT_RE = re.compile(r"MATCHES NOTHING AT ALL EVER")'),
+    "tail": (
+        "    found = passages(result)",
+        "    found = passages(result[-TRUNCATED_FIELD_TAIL_CHARS:])"),
+    "nobody": (
+        'r"\\b(?:nobody|no one|no-one)\\s+has\\s+(?:ever\\s+)?"\n'
+        '        r"(?:heard|listened|seen|watched|played|run|verified|tested|checked'
+        '|driven)\\b",',
+        'r"\\b(?:nobody|no one|no-one)\\s+has\\b",'),
+    "starter": (
+        '    ("starter", re.compile(',
+        '    ("starter_removed", re.compile(\n'
+        '        r"MATCHES NOTHING AT ALL EVER")),\n'
+        '    ("starter_unreachable", re.compile('),
+}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--runs-dir", default=str(DEFAULT_RUNS))
+    args = ap.parse_args()
+    runs = Path(args.runs_dir).expanduser().resolve()
+    if not runs.is_dir():
+        print(f"UNMEASURABLE: no corpus at {runs}. Four of these six mutants are caught "
+              f"only by a real stored message; an agent worktree has no eval/runs/, so "
+              f"run this in the main checkout.", file=sys.stderr)
+        return 2
+
+    base = SOURCE.read_text()
+    survivors: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, (old, new) in MUTANTS.items():
+            if old not in base:
+                print(f"--- mutant {name}: NOT APPLIED — its search text is no longer in "
+                      f"{SOURCE.name}. A no-op mutant reports a pass for a check that "
+                      f"never changed.")
+                survivors.append(f"{name} (not applied)")
+                continue
+            path = Path(tmp) / f"{name}.py"
+            path.write_text(base.replace(old, new, 1))
+            proc = subprocess.run(
+                [sys.executable, str(path), "--selftest", "--runs-dir", str(runs)],
+                capture_output=True, text=True)
+            caught = proc.returncode != 0
+            print(f"--- mutant {name}: "
+                  f"{'CAUGHT (exit %d)' % proc.returncode if caught else 'SURVIVED'}")
+            for line in proc.stdout.splitlines():
+                print(f"    {line}")
+            if not caught:
+                survivors.append(name)
+
+    if survivors:
+        print(f"\nSURVIVED: {', '.join(survivors)} — the selftest cannot see the loss of "
+              f"that mechanism.")
+        return 1
+    print(f"\nall {len(MUTANTS)} mutants caught against {runs}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

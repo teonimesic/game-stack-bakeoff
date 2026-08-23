@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#128 from building and running this evaluator. **Check whether a
+Findings #19-#129 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 number has been retracted before trusting it.**
@@ -205,6 +205,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **126** | A near-miss heading check could not tell a rename from a forgotten copy, produced two rows, and both were false — in opposite directions | [certifies-nothing](findings/certifies-nothing.md) |
 | **127** | The producer built to stop a count going stale globbed one level deep and lost 15% of the tree — 137 records against a true 161 — and the cross-check that certified it had been produced by the same glob | [certifies-nothing](findings/certifies-nothing.md) |
 | **128** | Tier 2 saturates because the task is finished, not because the criteria are too few: 5 of 10 groups return one value, every selective failure in the corpus is from the first matrix, and four harder criteria built from the task's own unchecked requirements passed 8 of 8 | [certifies-nothing](findings/certifies-nothing.md) |
+| **129** | Rule 11's first implementation found a one-arm starter defect in its first pass that a hand pass over the same corpus had missed | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 id: 82
 title: Task 70s ticket file carries task 71s entire brief, and task 71s file is a stub
-status: open
+status: in_flight
 priority: 1
 refs: tasks/70-set-a-size-for-the-within-cell-verdict-variance-.md, tasks/71-nothing-reads-the-disclosures-31-of-75-completed.md, commit 436bf64, AGENTS.md rule 12
 done_when: tasks/70 holds only its own body, tasks/71 holds the 59-line brief commit 436bf64 wrote into the wrong file, and tasks.py check fails on a task file whose body describes another task id
