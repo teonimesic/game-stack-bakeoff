@@ -193,7 +193,8 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#127, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#128, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#128, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -480,6 +481,15 @@ findings on games that scored 1.000 on tier 2. It is a floor test, and it is now
 Re-derive both figures with `eval/judge/weight_sensitivity.py` and `eval/judge/tier1_census.py`.
 **Scores stored before that date are in the old weighted regime and are marked as such** —
 they were not rewritten (`eval/RUNS.md`).
+
+**Tier 2 is itself at its ceiling on half the corpus, and that is accepted rather than repaired.**
+`eval/judge/tier2_census.py` over the same 68 trials: **5 of 10 (run, game) groups return a single
+value** — 35 of 68 trials — and of 11 trials that failed anything, 9 were selective failures and
+**all 9 are from `wg-matrix-2026-08-13`**. Promoting the three withheld diagnostics cannot help
+(single-valued on all 7 pairs where recorded), and four harder criteria built from requirements the
+g4 prompt states and no criterion checks passed **8/8** on the `wg-g4c` submissions. A binary
+criterion asks whether a mechanic exists; every submission implements every mechanic, so on a
+saturated group `overall` certifies completion and ranks nothing (#126, `DECISIONS.md`).
 
 **Why the judge is unweighted** (see `DECISIONS.md` and FINDINGS #21) — two independent arguments,
 which fail differently:

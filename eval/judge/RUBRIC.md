@@ -183,12 +183,35 @@ child of known size — `ru_maxrss` is bytes on macOS and kilobytes on Linux, an
 
 ---
 
-## Tier 2 — Scripted play-bot (11–15 criteria per game)
+## Tier 2 — Scripted play-bot (13–22 scored criteria per game, 14–23 with audio)
 
-Implemented in `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py`, driven through
+Implemented in `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py`, `bot_platformer.py`, driven
+through
 `just probe SEED` — a live stdin/stdout session, so the bot can *read the game's state
 and react*, not merely replay a tape. Every criterion asserts on state the game itself
 reports.
+
+### Tier 2 is at its ceiling on half the corpus, and that is a task result
+
+`tier2_census.py --runs-root <main checkout>/eval/runs` is the producer. Over 68 stored trials:
+**5 of 10 (run, game) groups return a single tier-2 value** across every measurable trial — 35 of
+68 trials — and of 11 trials that failed anything, 2 were whole-trial and **9 selective, all of
+them from `wg-matrix-2026-08-13`**. Tier 2 has not separated two submissions in any later run.
+
+**Do not respond to that by promoting a diagnostic or adding another criterion of the same kind.**
+Both were measured (#126):
+
+- The three withheld diagnostics take a single value, `False`, on all 7 group-criterion pairs
+  where they are recorded. Scoring one lowers every submission in its group by the same amount;
+  `tier2_census.py` prints that as a `spread?` column so it is a number, not a judgement.
+- Four candidates built from requirements the g4 prompt states and no criterion checks — no
+  re-trigger mid-swing, enemies patrol, the `land` event fires, replay determinism under a played
+  900-tick tape instead of the idle 300 — were driven against all 8 `wg-g4c` submissions and
+  **passed 8/8**. The reference passes them too, so they can go green and nothing goes red.
+
+The reading is in `DECISIONS.md`: a binary criterion asks whether a mechanic exists, every
+submission implements every mechanic, so the tier is right to return one number and the remedy is
+a harder task. The census prints `SEPARATES` the day no group is flat.
 
 Two criteria are common to all three games (`checks.py`):
 
@@ -240,6 +263,11 @@ mirror image of removing an assertion that could not fail (FINDINGS.md, the
 **To promote them back to scored:** strengthen the placement policy until it clears on
 at least 3 seeds against the reference, or change the task's well geometry to one where
 a scripted bot demonstrably can. Do not promote them on reasoning alone.
+
+**And promoting them would not de-saturate anything.** Both are `False` on all 8 stored
+`wg-audio48` and all 8 `wg-matrix` Tetris submissions, so scoring them lowers every score
+in the group by the same amount and the ordering stays flat (#126). That is a reason to
+fix the bot, not a reason to promote the criterion.
 
 ### g3_arena (22) — rewritten 2026-08-15 for the 3D/analog spec
 `state.shape`, `player.moves`, `move.analog`, `player.bounded`, `wall.graze`,
@@ -311,6 +339,10 @@ cannot satisfy on correct work manufactures a false negative for every honest
 submission. It passes against the reference; that says the bot can walk one stage, not
 eight. **To promote it:** show it passing against at least three deliberately awkward
 reference levels (a pit, a staircase, a ceiling gap). Not by argument.
+
+Its stored value is `False` on all 8 `wg-g4c` submissions, so promoting it would lower
+every score in the group by the same amount and separate nothing (#126) — the case for
+fixing the bot stands on its own, and none of it is a case for scoring the criterion now.
 
 **`platform.lands` was repaired after `wg-g4c`, for the same reason one level down.** It
 walked off the opening ledge and asserted a landing, which requires a floor to be under
@@ -518,7 +550,7 @@ The task prompts now state that everything the player sees must appear in the fr
 tier1 = GATE: PASS iff every scored criterion passed  -- NOT WEIGHTED
         (9 criteria + 5 audio criteria where audio is in the task)
         an empty tier is `usable: false`, which is NOT a pass
-tier2 = passed/total  (13-15 SCORED criteria, per game, + audio.triggered;
+tier2 = passed/total  (13-22 SCORED criteria, per game, + audio.triggered;
                        diagnostic-only criteria are reported but excluded)
 tier3 = per-aspect rankings and grades   -- DIAGNOSTIC ONLY, weight 0.00
 
@@ -566,4 +598,5 @@ An evaluator that cannot fail (1) or pass (2) is not evidence.
 
 Alongside them, the module selftests — each exits non-zero on its own mutants:
 `audio_selftest.py`, `sequential_selftest.py`, `bot_mutants.py`, `capability_selftest.py`,
-`rusage_selftest.py`, `gate_selftest.py`, and `tier1_census.py --selftest`.
+`rusage_selftest.py`, `gate_selftest.py`, `tier1_census.py --selftest`, and
+`tier2_census.py --selftest`.
