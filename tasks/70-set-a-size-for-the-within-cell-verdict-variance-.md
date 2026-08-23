@@ -1,7 +1,7 @@
 ---
 id: 70
 title: Set a size for the within-cell verdict variance that re-opens the deterministic-tier ranking ban
-status: open
+status: in_flight
 priority: 5
 refs: DECISIONS.md 'Deterministic tiers may not rank stacks' row, eval/withdrawn.json WR-paired-verdict-tie, tasks/13
 done_when: DECISIONS.md's re-open condition for the deterministic-tier ranking ban names a threshold with a size and a scope, and states what measurement would cross it; and the current 5-of-436 reading is adjudicated against it either way

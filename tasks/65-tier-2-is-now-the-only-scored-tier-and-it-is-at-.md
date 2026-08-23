@@ -27,7 +27,7 @@ ticket mechanically. Three things it took a day to establish and which the tool 
 
 **A near-miss worth knowing about before anyone re-runs it.** Held every tick for 240 ticks,
 `g4_platformer__unity__t0` keeps `attack.active` true for all 240 with its frame counter
-restarting 13 times, while the other seven show 11-14 swings of 5-6 ticks. That looks like a
+restarting 13 times, while the other seven show 12-14 swings of 5-6 ticks. That looks like a
 clean 1-of-8 failure of "attacking again before the swing finishes does nothing". Driven with one
 press to start the swing and one at its midpoint, it is identical to its own clean swing. It
 chains swings with no idle tick, which is what "a control held across consecutive ticks takes
