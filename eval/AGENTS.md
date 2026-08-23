@@ -129,6 +129,23 @@ task's score.
 - **One writer per artifact path, always.** Concurrent writers once produced a file that parsed
   cleanly while holding two spliced documents, and its in-range values were published as fact.
   Write atomically — temp file plus `os.replace`.
+
+- **Any durable record of what a measurement was CONFIGURED to be is append-only.** A second
+  launch adds a record; it never replaces one. The resource, not a list of files: suite
+  manifests, prompt snapshots, blinding mappings, control floors, regime notes. `cmd_build`
+  guarded the prompt snapshot (#57) and overwrote `suite.json` eleven lines below it, so five
+  stored run directories describe a launch that is not the one they are named for, and
+  `wg-arena3d`'s manifest hides a two-wave build that #49 had to reconstruct by hand (#93,
+  #119). Write these through `tools/manifest.py write_manifest()`, which reserves the name
+  with `O_EXCL` and puts a re-launch in `suite-<stamp>.json` carrying `supersedes`.
+
+  **`python3 tools/manifest.py audit` sweeps `runs/` offline** and asks two things of every
+  manifest: does it describe the reports beside it, and does it belong to the directory it
+  sits in. Neither question alone finds all five. Run it after any partial re-run.
+
+  Directory names are operator-chosen and this project has stamped them in **both** local time
+  and UTC, so never compare a `started_at` against one by eye — that is how a 1-second delta
+  was published as a defect (#119).
 - **Judge calls compete with trials for account session capacity.** Run trials first, judge after.
   A concurrent judge fan-out during a matrix contributed to four trials dying on a session limit.
 - **Give every judge invocation an explicit long timeout.** The default tool-call limit is shorter

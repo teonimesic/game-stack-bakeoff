@@ -212,6 +212,29 @@ Specifically check, in this order:
 4. Is it a session limit that blocked *before* a record was written? The `session_limit` split only
    fires when a record is written.
 
+### After any partial re-run, audit the manifest
+
+A re-run scoped to the failed cells declares a *different* matrix from the one the directory is
+named for. Until 2026-08-23 it overwrote `suite.json` with that narrower configuration, and the
+run the directory is named for was left with no manifest at all — five stored directories are in
+that state, including `wg-arena3d`, whose census is clean and whose manifest silently records only
+the second of two build waves (#93, #119).
+
+`cmd_build` no longer overwrites: a re-launch writes `suite-<stamp>.json` carrying `supersedes`,
+and prints that it did. **`suite.json` therefore stays the record of the FIRST launch, not of the
+reports now beside it** — which is the point, and is why the directory must be audited rather than
+read:
+
+```
+cd eval && python3 tools/manifest.py audit            # every stored run
+             python3 tools/manifest.py audit --json   # for a script
+```
+
+It exits 1 on a manifest that does not describe its directory, 2 if it examined nothing. A known
+and understood defect is recorded in place with `manifest.py mark <run-dir> --why "..."`, which
+never edits `suite.json`: stored runs are evidence, and a manifest reconstructed later is not the
+record written then.
+
 ## Checking a run: use the script, not a shell prompt
 
 ```
