@@ -2299,6 +2299,56 @@ ts and unity were not audited on this axis. The TS capture builds a **fresh view
 (established in #101's wake), which is the same constraint arrived at by a third route; Unity's
 `RenderHarness` was not read.
 
+### RADIUS MEASURED 2026-08-23 (task 68) — the partition is 1 vs 3, and the heading above is wrong
+
+The unaudited half is now measured. A probe was added to each arm's own view — one 8×8 cell
+painted per simulation tick the *renderer* was shown — and each arm's own capture path was run at
+five tick counts, in scratch copies rather than the starters. `observed_run` is the count of
+consecutive ticks ending at the captured tick that the renderer saw, capped at 32:
+
+| capture at tick | godot | rust | ts | unity |
+|---|---|---|---|---|
+| 0 | 1 | 1 | 1 | 1 |
+| 8 | 1 | **9** | 1 | 1 |
+| 60 | 1 | **32** (cap) | 1 | 1 |
+| 240 | 1 | **32** (cap) | 1 | 1 |
+| positive control — view handed ticks 0..60 by hand | **32** | n/a † | **32** | **32** |
+
+† Uninformative by construction: rust already observes every tick, so pre-seeding its history
+changes nothing. Reported rather than omitted.
+
+**So this finding named the wrong contrast.** It is not "godot cannot and bevy can". Godot,
+TypeScript **and Unity** all show the renderer exactly one tick per PNG; **rust is the single arm
+that behaves differently.** The heading and the index line stand as published — the mechanism they
+describe is correct and the numbers above are consistent with them — but the *radius* they imply
+is wrong, and anyone reading them for "which arms are affected" should read this section instead.
+
+The positive control is what makes the three 1s a measurement rather than a broken probe: the same
+instrument, in the same arm, reaches 32 as soon as the view is handed the history the capture path
+withheld from it.
+
+Two things the tick table does not show, both measured on the same run:
+
+- **Godot's capture pumps 3 render frames, and they carry WALL-CLOCK time** — 24.7, 27.7 and
+  28.5 ms across three identical captures. A `_process(delta)` tween there is partly visible and
+  **non-reproducible**, which the starter's own reproducibility test would catch only if the effect
+  moved enough pixels in ~4 ms.
+- **Rust's advantage costs it its settle criterion.** `capture_frame` settles on "two consecutive
+  readbacks are byte-identical", which an effect still in motion can never satisfy. With one
+  present the loop exhausted its full `MAX_SETTLE_FRAMES` budget (238–239 frames) and returned the
+  `previous`-frame fallback — a deliberately unsettled frame. Bevy can show accumulating state; it
+  cannot show it *and* settle.
+
+> **A finding that names two instances has named a radius, whether or not it meant to.** This one
+> said "two harnesses differ" and was read as a two-arm problem for two weeks. The correction cost
+> one probe per arm — the same probe — and the answer was that the majority behaviour was the one
+> being treated as the exception.
+
+**Recorded, not equalised** (task 68). Changing a capture path is a regime boundary over eight
+stored runs of frames. The three frames-reading aspects now carry `FRAMES_BLIND_SPOT`
+(`eval/judge/aspects.py`), stated without naming or counting the arms so the judge stays blind, and
+`eval/judge/aspects_selftest.py` pins it in both directions. Full record in `eval/RUNS.md`.
+
 
 ---
 

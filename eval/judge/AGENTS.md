@@ -135,6 +135,12 @@ directory, and every criterion id the rubric defines.
   tool's, and this tool takes bare paths.
 - Never fix a leak mid-run. Changing a starter partway through gives later trials a different
   starter than earlier ones — a real within-run inconsistency traded for a usually-minor leak.
+- **`verify_blind.py` scans the trial tree, not the judge's brief.** An aspect's own `question`,
+  `evidence_rule` and `notes` are handed straight to the judge and nothing above reads them.
+  `aspects_selftest.py` is that check: no stack name, **no arm count** — "three of the four" hands
+  over the partition as surely as "Bevy" does — and `fun`/`fun_frames` briefed byte-identically,
+  because a control whose briefing differs from its treatment's is not a control. It must stay
+  green, and it carries a mutant per check plus a variant that counts the arms without naming one.
 
 ## Anonymisation
 
