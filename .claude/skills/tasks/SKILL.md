@@ -32,27 +32,28 @@ grep -l "^priority: 1" tasks/*.md                           # the urgent ones
 grep -rl "FINDINGS.md #66" tasks/                           # what refers to a finding
 ```
 
-### The five statuses
+### The statuses, and where they are defined
 
-| status | means | set by |
-|---|---|---|
-| `todo` | nobody has it | `add` |
-| `in_progress` | an agent is working it | `tasks.py start <id>` |
-| `in_review` | a pull request is open and the review loop is running | `tasks.py review <id> "<pr url>"` |
-| `in_testing` | the agent has finished; the orchestrator has to verify and merge | `tasks.py testing <id> "<evidence>"` |
-| `done` | merged | `tasks.py done <id> "<evidence>"` |
+**`STATUSES` in `eval/tools/tasks.py` is the definition, and it wins.** If this skill and that
+constant disagree, the constant is right and this skill is the bug — the same rule every skill
+here carries about its authoritative file. `python3 eval/tools/tasks.py check` is what enforces
+it. The table below is the procedure, not the definition:
 
-It was 3 values until 2026-08-23 — `open`, `in_flight`, `done` — and 3 cannot say whose turn it
-is. Everything from *an agent just picked this up* to *this is reviewed and waiting on you* was
-one `in_flight`, so the orchestrator had to open every pull request to find out. The procedures
-that drive the transitions are `.claude/skills/work/SKILL.md` and
-`.claude/skills/dispatch/SKILL.md`.
+| status | which command moves a task into it |
+|---|---|
+| `todo` | `tasks.py add` |
+| `in_progress` | `tasks.py start <id>` |
+| `in_review` | `tasks.py review <id> "<pr url>"` |
+| `in_testing` | `tasks.py testing <id> "<evidence>"` |
+| `done` | `tasks.py done <id> "<evidence>"` |
 
-**`open` and `in_flight` are still accepted, permanently, and map on read.** The queue is shared
-while each agent worktree carries its own possibly-older copy of `tasks.py`: an agent forked
-before the rename runs `start`, writes `in_flight`, and without the alias every peer's `check`
-goes red at once on a file none of them touched. Pinned by `tasks_control.py`, and the
-`legacy_dropped` mutant in `tasks_mutants.py` is what asks whether that row can still fail.
+Why each state exists, why the legacy names are accepted forever, and what would re-open any of
+it: `DECISIONS.md`, *"An agent hands back a pull request, and the queue has 5 statuses"*. The
+procedures that drive the transitions are `.claude/skills/work/SKILL.md` (the agent's half) and
+`.claude/skills/dispatch/SKILL.md` (the orchestrator's).
+
+**Do not hand-write `status:` in a task file.** `open` and `in_flight` still parse, but the
+commands above are what keep the field and the tool in agreement.
 
 **Read one task, not the queue.** `show ID` or the file itself. Reading all of them to pick one
 is the cost this layout exists to remove.

@@ -411,7 +411,8 @@ CHECK_CASES: list[tuple[str, dict[str, str], bool, str]] = [
       "71-b.md": _task_file("71", status="in_progress"),
       "72-c.md": _task_file("72", status="in_review",
                             extra="pr: https://github.com/o/r/pull/1\n"),
-      "73-d.md": _task_file("73", status="in_testing"),
+      "73-d.md": _task_file("73", status="in_testing",
+                            extra="pr: https://github.com/o/r/pull/2\n"),
       "74-e.md": _task_file("74", status="done")}, False, "well-formed"),
     # The legacy names an agent forked before 2026-08-23 still writes into the SHARED queue.
     # If this ever goes red, every peer's `check` is red on a file none of them touched.
@@ -420,6 +421,16 @@ CHECK_CASES: list[tuple[str, dict[str, str], bool, str]] = [
       "71-b.md": _task_file("71", status="in_flight")}, False, "well-formed"),
     ("`in_review` with no `pr` (the state stops being a locator)",
      {"70-a.md": _task_file("70", status="in_review")}, True, "no `pr`"),
+    # The state the orchestrator MERGES FROM, which is the one that matters more. Its own row,
+    # not a parametrisation of the one above, so narrowing PR_REQUIRED back to `in_review`
+    # alone -- the shipped-but-half-gated shape, not a deleted branch -- goes red.
+    ("`in_testing` with no `pr` (the orchestrator is told to merge nothing)",
+     {"70-a.md": _task_file("70", status="in_testing")}, True, "no `pr`"),
+    ("both PR states WITH a `pr` still lint clean (the requirement can be satisfied)",
+     {"70-a.md": _task_file("70", status="in_review",
+                            extra="pr: https://github.com/o/r/pull/1\n"),
+      "71-b.md": _task_file("71", status="in_testing",
+                            extra="pr: https://github.com/o/r/pull/2\n")}, False, "well-formed"),
     # Direction 5's degenerate half, exercised synthetically as well as on the real blob,
     # because it must hold for a task nobody ever wrote a body for -- not only for the one
     # 436bf64 produced. `_task_file`'s brief is four words, below MISFILED_MIN_BRIEF, so the

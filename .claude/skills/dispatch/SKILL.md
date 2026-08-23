@@ -83,17 +83,19 @@ filed.
 
 | status | what it means for you |
 |---|---|
+| `todo` | not dispatched. Step 1 |
 | `in_progress` | the agent is working. Nothing to do |
 | `in_review` | its pull request is open and the review loop is running. Nothing to do — the `pr` field in the ticket is the link, and `check` fails a ticket in this state that has none |
-| `in_testing` | **yours.** The agent has finished and addressed its review |
+| `in_testing` | **yours.** The agent has finished. Its evidence says whether a review arrived and what it did with it — a 15-minute wait that expired ends here too |
 | `done` | merged. You set this |
 
 ```bash
 python3 eval/tools/tasks.py list --status in_testing
 ```
 
-That is the whole reason the vocabulary grew from 3 values to 5 on 2026-08-23: under `in_flight`
-you could not tell an agent still working from one waiting on you without opening its PR.
+That is the whole reason the vocabulary grew from 3 values to 5 on 2026-08-23: `in_flight` said
+an agent had picked the task up and nothing else, so the only way to find out whether it was
+still working was to ask it.
 
 **Then verify against the artifacts, not against the report.** Run its controls yourself; a
 result you have not reproduced is a claim.
@@ -119,14 +121,19 @@ of what was reviewed and what was declined, and a local merge closes it as *"mer
 inference rather than by fact.
 
 ```bash
+# -m is safe for THIS message and only this one: a fixed literal with no backticks in it.
+# Anything you compose — a merge or resolution message — goes through -F. See below.
 git add tasks/ && git commit -m "Queue: agents' status writes through the shared queue"
-git push                                   # the queue commit must reach main before the merge
-gh pr merge <n> --merge --delete-branch
+git push                        # the queue commit reaches main BEFORE the merge
+gh pr merge <n> --merge --delete-branch    # --merge, not --squash: --no-ff's semantics
+git pull                        # bring the merge commit back into the local checkout
 python3 eval/tools/tasks.py done <id> "what you verified, and how"
 ```
 
 The queue commit comes first because agents write status into the **main** checkout, and an
-uncommitted `tasks/` blocks everything after it.
+uncommitted `tasks/` blocks everything after it. `git pull` afterwards is not optional: the merge
+happened on GitHub, so until you pull, your local `main` does not contain the work you just
+merged and the next dispatch would be made against a tree that is missing it.
 
 **Remove the worktree BEFORE deleting the branch.** `gh pr merge --delete-branch` deleted the
 remote branch and failed on the local one while an agent worktree still held it (`tasks/108`):

@@ -144,12 +144,19 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         '        return _set(a.id, status="in_progress")',
         '        return _set(a.id, status="todo")  # MUTANT: `start` claims nobody has it',
         ("`start` writes status in_progress",)),
-    # The `in_review`-without-a-pull-request branch. Without it the state stops being a
-    # locator and the orchestrator is back to opening every PR to find which is its turn.
+    # The pull-request locator. Without it a ticket can reach the state the orchestrator
+    # merges from while naming nothing to merge.
     "review_needs_no_pr": (
-        '        if t.get("status") == "in_review" and not (t.get("pr") or "").strip():',
-        "        if False:  # MUTANT: in_review no longer has to name its pull request",
-        ("`in_review` with no `pr`",)),
+        '        if t.get("status") in PR_REQUIRED and not (t.get("pr") or "").strip():',
+        "        if False:  # MUTANT: neither PR state has to name its pull request",
+        ("`in_review` with no `pr`", "`in_testing` with no `pr`")),
+    # NARROWING the requirement back to `in_review` alone. A mutant that deletes the branch is
+    # not the interesting failure here -- shipping the branch and gating only the state that
+    # REPORTS, not the state that ACTS, is, and it is what the first version of this did.
+    "pr_required_review_only": (
+        'PR_REQUIRED = ("in_review", "in_testing")',
+        'PR_REQUIRED = ("in_review",)  # MUTANT: the state merged FROM is no longer gated',
+        ("`in_testing` with no `pr`",)),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it

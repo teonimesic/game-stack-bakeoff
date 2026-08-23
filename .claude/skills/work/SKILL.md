@@ -35,7 +35,7 @@ move it through four of them; the orchestrator sets the fifth:
 | `todo` | nobody has it | `add` |
 | `in_progress` | you are working it | **you**, `tasks.py start <id>` |
 | `in_review` | a pull request is open and the review loop is running | **you**, `tasks.py review <id> "<pr url>"` (§6) |
-| `in_testing` | you are finished; it is waiting on the orchestrator | **you**, `tasks.py testing <id> "<evidence>"` (§7) |
+| `in_testing` | you are finished with it; it is waiting on the orchestrator | **you**, `tasks.py testing <id> "<evidence>"` (§7) |
 | `done` | merged | the orchestrator, at merge |
 
 `check` fails an `in_review` ticket that names no pull request — the state exists so the PR is
@@ -136,7 +136,7 @@ which ticket it is.
 
 ### Waiting for the review
 
-**Bounded, and pinned on a case whose answer you already know.** The address is the full 40-byte
+**Bounded, and pinned on a case whose answer you already know.** The address is the full 40-character
 `commit_id` the reviews API returns, compared against the sha GitHub thinks is the head — not the
 5-character abbreviation in the walkthrough text, which is what made a poll loop report *"not yet
 reviewed"* through 8 polls after the review had landed (`tasks/108`, AGENTS.md rule 12).
@@ -144,7 +144,8 @@ reviewed"* through 8 polls after the review had landed (`tasks/108`, AGENTS.md r
 ```bash
 REPO=teonimesic/game-stack-bakeoff
 PR=<n>
-HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
+HEAD=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid) || exit 1
+[ ${#HEAD} -eq 40 ] || { echo "no head sha - this is an error, not a poll result"; exit 1; }
 gh api "repos/$REPO/pulls/$PR/reviews" \
   --jq "[.[] | select(.user.login==\"coderabbitai[bot]\") | .commit_id] | index(\"$HEAD\") != null"
 ```
@@ -154,11 +155,24 @@ never wrap it in `|| true`, which would turn an API failure into a plausible `fa
 forever. Verified against the merged PR #1 on 2026-08-23: `true` for the head it was reviewed at,
 `false` for `941e5f5`, the commit that was pushed and never reviewed.
 
+**Both guards are load-bearing.** If `gh pr view` fails, `$HEAD` is empty — and `jq`'s
+`index("")` on an array of shas is `null`, measured, so the query answers `false` about a
+question it never asked, and the loop polls to its deadline reporting a review state inferred
+from a read that failed (rule 2). Check the exit status **and** that 40 characters came back;
+either alone leaves the other hole open.
+
+**How long it takes scales with the diff, so do not size the wait off one number.** Both
+measurements, from the 2 pull requests this repository has had:
+
+| PR | diff | acknowledged | review posted |
+|---|---|---|---|
+| #1 | 2 files | 31s | **2m 30s** |
+| #2 | 17 files, 615 insertions | 49s | **6m 15s** |
+
 | | |
 |---|---|
-| how long it takes | **~150s** end to end on a 2-file diff: acknowledged at 31s, review at 119s after that (`tasks/108`) |
 | poll | every 30s |
-| give up after | **15 minutes** per round. That is 6x the measured time; longer buys nothing and idles the queue |
+| give up after | **15 minutes** per round — 2.4x the slower of the two. If a diff much larger than 17 files takes longer than that, the bound is wrong and the evidence is in the PR: say so rather than extending it in place |
 
 ### The two ways this deadlocks, and what you do
 
@@ -168,11 +182,14 @@ the most likely way the flow hangs, and it is triggered by being productive.** T
 the PR's issue comments, not in the reviews:
 
 ```bash
-gh api "repos/$REPO/issues/$PR/comments" --jq '.[].body' > /tmp/pr-comments.txt
-grep -c "review paused by coderabbit.ai" /tmp/pr-comments.txt
+gh api "repos/$REPO/issues/$PR/comments" \
+  --jq '[.[] | select(.body | contains("review paused by coderabbit.ai"))] | length'
 ```
 
-Written to a file first and grepped unpiped, because a pipeline's exit status is the last stage's.
+It prints a count, in one process — no pipe whose exit status would be the last stage's, and no
+`grep` that exits 1 on zero matches and reads as a failure. Verified 2026-08-23 in both
+directions: `1` on PR #1, which carries the notice, and `0` on PR #2, which does not.
+
 If it is paused, post `@coderabbitai review` as a PR comment and resume polling. **Push once per
 round, not once per fix** — batching the fixes is what keeps the pause from firing at all.
 

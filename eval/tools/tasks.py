@@ -112,6 +112,11 @@ ROOT = Path(__file__).resolve().parents[2]
 STATUSES = ("todo", "in_progress", "in_review", "in_testing", "done")
 LEGACY_STATUSES = {"open": "todo", "in_flight": "in_progress"}
 
+#: The statuses that MUST name a pull request. Both of them do: `in_review` because the state
+#: is a report on one, `in_testing` because the orchestrator merges from one. Written once, so
+#: `check`'s message and the states it gates cannot disagree.
+PR_REQUIRED = ("in_review", "in_testing")
+
 
 def _status(v) -> str:
     """The canonical status for a value read off disk.
@@ -532,7 +537,10 @@ MARKS = {"todo": "[ ]", "in_progress": "[~]", "in_review": "[r]",
 
 
 def _line(t: dict) -> str:
-    mark = MARKS.get(t.get("status", "todo"), "[?]")
+    # NO DEFAULT. A file with no `status:` at all is rejected by `check` and skipped by `next`,
+    # so rendering it as `todo` in the listing made the one view a person reads disagree with
+    # both of the views a tool reads -- a fail-open display of a file nothing will pick up.
+    mark = MARKS.get(t.get("status"), "[?]")
     return f"  {mark} {t.get('id','??')}  p{t.get('priority','?')}  {t.get('title','(no title)')}"
 
 
@@ -559,7 +567,8 @@ def cmd_list(status: str | None) -> int:
 def cmd_show(tid: str) -> int:
     for t in _load():
         if t.get("id") == tid:
-            print(f"{t.get('id')}  [{t.get('status','todo')}]  priority {t.get('priority','?')}")
+            print(f"{t.get('id')}  [{t.get('status') or 'MISSING'}]  "
+                  f"priority {t.get('priority','?')}")
             print(f"{t.get('title','')}\n")
             if t.get("refs"):
                 print(f"refs: {t['refs']}")
@@ -763,12 +772,19 @@ def cmd_check() -> int:
         if t.get("status") not in STATUSES:
             bad.append(f"{t.get('id')}: status {t.get('status')!r} not in {STATUSES} "
                        f"(legacy {sorted(LEGACY_STATUSES)} are accepted and map on read)")
-        # A ticket in `in_review` with no `pr:` is the one state that cannot be acted on: the
-        # orchestrator's whole reason for the state is to find the pull request from the
-        # ticket. It is not merely untidy -- it is a status that has stopped being a locator.
-        if t.get("status") == "in_review" and not (t.get("pr") or "").strip():
-            bad.append(f"{t.get('id')}: status in_review with no `pr` - the state exists so "
-                       f"the pull request is reachable from the ticket; set it with `review`")
+        # A ticket in either PR state with no `pr:` cannot be acted on. BOTH states exist so
+        # the orchestrator can find the pull request from the ticket, and `in_testing` is the
+        # one it actually merges from -- so leaving it out would gate the state that only
+        # reports and not the state that acts. It is not untidiness: it is a status that has
+        # stopped being a locator.
+        #
+        # `in_testing` is included even though an agent normally arrives through `review`,
+        # because nothing enforces that order: `start` then `testing` is two commands, and it
+        # produces a ticket the orchestrator is told to merge with nothing to merge from.
+        if t.get("status") in PR_REQUIRED and not (t.get("pr") or "").strip():
+            bad.append(f"{t.get('id')}: status {t.get('status')} with no `pr` - the state "
+                       f"exists so the pull request is reachable from the ticket; set it "
+                       f"with `review`")
         if not t.get("title"):
             bad.append(f"{t.get('id')}: no title")
     # THE BODY IS ITS OWN TICKET. Both halves of commit 436bf64, which `check` read as clean.

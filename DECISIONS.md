@@ -1297,7 +1297,7 @@ to the artifacts. *"It passed review"* is exactly the shape this project calls a
 runs and reports success.
 
 **How an agent knows a review has finished**, and this is the part that was measured rather than
-designed: the reviews API returns a full 40-byte `commit_id` per review, and `gh pr view --json
+designed: the reviews API returns a full 40-character `commit_id` per review, and `gh pr view --json
 headRefOid` returns the full sha GitHub thinks is the head. Comparing those two is the check.
 `tasks/108`'s poll loop compared a **7-character** sha against the **5-character** abbreviation in
 the walkthrough prose and reported *"not reviewed"* through 8 polls after the review had landed —
