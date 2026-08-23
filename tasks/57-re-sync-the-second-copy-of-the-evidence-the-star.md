@@ -1,7 +1,7 @@
 ---
 id: 57
 title: Re-sync the second copy of the evidence: the starter baselines are not in it
-status: open
+status: in_flight
 priority: 2
 refs: eval/PROTOCOL.md re-sync section, eval/FINDINGS.md #104, tasks/17-back-up-the-evidence-and-keep-git-current.md
 done_when: the verified second copy at /Users/stefano/game-research-evidence contains every file the classifier calls evidence as of the re-sync date, including eval/runs/*/starter-baselines, re-verified by reading the destination back rather than by a copy exit code; if any class is deliberately excluded, the exclusion is named in the destination README

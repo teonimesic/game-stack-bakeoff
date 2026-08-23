@@ -1,7 +1,7 @@
 ---
 id: 40
 title: tasks/*.md frontmatter is not valid YAML, and tasks.py rewrites it that way
-status: open
+status: in_flight
 priority: 3
 refs: eval/tools/tasks.py, tasks/35, tasks/37, research/11-doc-linting-for-agents.md
 done_when: python3 with yaml.safe_load parses the frontmatter of every tasks/*.md file, and still parses after a start and a done cycle have written to one; or, if moving tasks.py to a real YAML reader and writer is shown to change what tasks.py show prints or what cmd_check accepts, that measurement is recorded as the reason not to and closes the task

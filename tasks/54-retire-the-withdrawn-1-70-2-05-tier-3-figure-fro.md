@@ -1,7 +1,8 @@
 ---
+established_by: 1.70/2.05 appears in no live document as a measurement: DECISIONS.md, eval/judge/JUDGING.md and README.md In-flight now state figures produced by judge/field_ranks.py with field, value and order named. Method decided: value=rank order=pool for single-pair quotations, recorded in DECISIONS.md under Grading with three grounds and a reversal condition. JUDGING.md per-aspect tables labelled score/perround, the only method that reproduces them. DECISIONS.md tier-3 bullet no longer rests on the between-smaller-than-within direction, which reverses in four of eight readings; it now states a bound that no method flips - between never exceeds within by more than 23 percent. New FINDINGS 115: the ~10 percent replacement reading published 2026-08-22 is wrong on the pre field (19.7 percent, not 10) and was the ground 113 fell back on. docstat.py --sweep clean exit 0; field_ranks.py --selftest exit 0. eval/IMPROVEMENTS.md left alone as a log.
 id: 54
 title: Retire the withdrawn 1.70/2.05 tier-3 figure from the three live documents that still publish it
-status: open
+status: done
 priority: 2
 refs: eval/judge/field_ranks.py, eval/findings/certifies-nothing.md #112, DECISIONS.md, eval/judge/JUDGING.md, README.md
 done_when: the pair 1.70/2.05 appears in no live document as a current measurement; each of the three sites states instead a figure reproduced by judge/field_ranks.py together with the field, the value (score or rank) and the order (pool or perround) it was computed under; DECISIONS.md's tier-3 bullet no longer rests on an inequality that reverses under a method change; and eval/IMPROVEMENTS.md is left alone because it is a log
