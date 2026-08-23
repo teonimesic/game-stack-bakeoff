@@ -113,7 +113,21 @@ false negative for every honest submission, and once averaged that is indistingu
 from a real failure.
 
 To promote it back, strengthen the bot until it passes against the reference. Never
-promote on reasoning alone.
+promote on reasoning alone — and check what promoting it would DO before doing the work:
+`judge/tier2_census.py --runs-root <main checkout>/eval/runs` prints each diagnostic's
+stored values per group, and one that is single-valued moves every score in its group by
+the same amount and separates nothing. All three current diagnostics are in that state
+(#125).
+
+## Ask what the criterion could ever separate, before writing it
+
+`judge/tier2_census.py` is also the check on a NEW scored criterion, and it is free.
+Tier 2 currently returns one value in 5 of 10 groups, and four criteria built from real
+requirements the g4 prompt states passed 8 of 8 (#125) — so the default outcome of adding
+one is a longer rubric that ranks exactly as much as before. **A criterion that everything
+passes raises the denominator and lowers nothing.** Say, in advance, which stored
+submission you expect it to fail and why; if you cannot name one, you are adding
+denominator.
 
 ## Before it ships
 
