@@ -407,6 +407,78 @@ def _check_list_indent() -> list[str]:
     return problems
 
 
+def _check_findings_integrity() -> list[str]:
+    """A finding number must identify exactly one finding, and be reachable from the index.
+
+    WHY THIS IS MECHANICAL AND NOT A CONVENTION
+    -------------------------------------------
+    Findings are numbered by hand in markdown. Under one-agent-per-task, agents work in
+    isolated worktrees and each reads the highest number from ITS OWN branch, which was
+    forked before the previous merge landed. On 2026-08-23 that produced SIX collisions in
+    one day: #89, #90, #91, #95 and #99 were each allocated twice, by agents that had no way
+    to see each other.
+
+    Every one was caught by a person reading a merge diff. That is not a mechanism, and it
+    is the same lesson as #94: renumbering at merge time treats a structural problem as a
+    clerical one, so it recurs on the next parallel run.
+
+    A duplicate is worse than a missing finding. Both numbers look valid, every citation to
+    them resolves to two different pieces of work, and nothing downstream can tell which one
+    an author meant.
+
+    Three questions, all cheap:
+      1. does any number appear twice in the bodies?
+      2. is every body finding present in the FINDINGS.md index, and vice versa?
+      3. does the range stated in the FINDINGS.md header match the highest number?
+
+    (3) matters because the header is what a reader trusts to know where the log ends, and
+    it is edited by hand in three files. It has been wrong before.
+    """
+    import collections
+    problems: list[str] = []
+    fdir = os.path.join(ROOT, "eval", "findings")
+    if not os.path.isdir(fdir):
+        return [f"findings directory not found at {fdir} - this check ran over nothing"]
+
+    seen: dict[int, list[str]] = collections.defaultdict(list)
+    for p in sorted(glob.glob(os.path.join(fdir, "*.md"))):
+        text = open(p, encoding="utf-8", errors="replace").read()
+        lines = text.split("\n")
+        fenced = _fence_mask(lines)
+        for i, ln in enumerate(lines):
+            if fenced[i]:
+                continue
+            m = re.match(r"^##\s+#?(\d+)[.\s]", ln)
+            if m:
+                seen[int(m.group(1))].append(os.path.basename(p))
+    if not seen:
+        return ["no findings parsed from eval/findings/ - the heading pattern has changed "
+                "and this check is reading nothing (two styles exist: '## #19 -' and '## 26.')"]
+
+    for num, files in sorted(seen.items()):
+        if len(files) > 1:
+            problems.append(
+                f"finding #{num} is defined {len(files)} times ({', '.join(files)}) - a "
+                f"citation to it resolves to more than one piece of work. Renumber the "
+                f"later one; see #94 for why this keeps happening.")
+
+    index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
+    if os.path.exists(index_path):
+        itext = open(index_path, encoding="utf-8", errors="replace").read()
+        indexed = {int(m) for m in re.findall(r"^\| \*\*(\d+)\*\*", itext, re.M)}
+        body = set(seen)
+        for n in sorted(body - indexed):
+            problems.append(f"finding #{n} has a body but no row in eval/FINDINGS.md - it "
+                            f"is uncitable, which is how a finding becomes invisible")
+        for n in sorted(indexed - body):
+            problems.append(f"eval/FINDINGS.md indexes #{n} but no body defines it")
+        m = re.search(r"Findings #(\d+)-#(\d+)", itext)
+        if m and body and int(m.group(2)) != max(body):
+            problems.append(f"eval/FINDINGS.md says the log ends at #{m.group(2)}, but the "
+                            f"highest finding is #{max(body)}")
+    return problems
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -574,6 +646,7 @@ def cmd_sweep() -> int:
     # docstrings for the defect each was bought with and its measured false-positive count.
     problems += _check_skill_frontmatter()
     problems += _check_list_indent()
+    problems += _check_findings_integrity()
 
     if problems:
         print(f"{len(problems)} unresolved reference(s) or structure defect(s):\n")

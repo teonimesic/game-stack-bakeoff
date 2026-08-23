@@ -4,7 +4,7 @@ title: Repair the tier-1 command capture so a gate's own completion line survive
 status: open
 priority: 3
 refs: eval/FINDINGS.md #99, eval/judge/static.py, eval/IMPROVEMENTS.md axis 2 candidate 1
-done_when: a stored programmatic.json written after the change contains the verify recipe's completion line for all four stacks on a run where stderr exceeds 4000 characters, and a selftest pins both directions
+done_when: a selftest pins both directions - a command that floods stderr keeps its one stdout line, and the reverse - and a fresh collect over one submission per stack records which of the four stored tails hold the verify recipe's completion line; if any arm still loses it, report that arm and the reason rather than closing
 ---
 
 ## What this thing is

@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#98 from building and running this evaluator. **Check whether a
+Findings #19-#100 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -174,6 +174,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **97** | Four of the nine performance fields had been written on every submission since the first matrix, and nothing ever read them | [certifies-nothing](findings/certifies-nothing.md) |
 | **98** | The Godot template's own gate was red before any agent touched it, and only that arm paid | [one-arm-bias](findings/one-arm-bias.md) |
 | **99** | A second copy of the skills for an agent that was never here, never once in sync, invisible to every tool | [documentation](findings/documentation.md) |
+| **100** | The stored evidence for `verify.green` drops the gate's own "passed" line on 15 of 16 Rust submissions, because stdout is truncated before stderr | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

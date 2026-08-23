@@ -4,7 +4,7 @@ title: Tell a building agent what to do when the starter's own gate is wrong, no
 status: open
 priority: 3
 refs: eval/FINDINGS.md #98, eval/IMPROVEMENTS.md axis 2 candidate 3, eval/tools/starter_gate_control.py
-done_when: each of the four starter AGENTS.md files states the repair rule, and starter_gate_control.py demonstrates on a planted defect that the rule's preferred repair still fails while the repair it warns against goes green
+done_when: the repair rule is present in each of the four starter AGENTS.md files in identical wording, the regime boundary is recorded in eval/RUNS.md, and starter_gate_control.py reports on a planted defect that the preferred repair still goes red while the repair the rule warns against goes green; or, if the planted defect cannot be made to distinguish the two repairs, that is reported as the result and the rule is left unwritten rather than closed
 ---
 
 ## What this thing is
