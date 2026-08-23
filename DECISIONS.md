@@ -305,10 +305,25 @@ restricted to what the weakest can do* — and the headline it produces ("these 
 indistinguishable") is then partly an artifact of the restriction.
 
 **What is now being measured: what a competent agent can build in each stack when the template
-does not hold it back.** Native physics where the engine ships it (Unity PhysX, Godot Jolt) and
-a pinned crate or library where it does not (Bevy, three.js). Native particle systems where they
-exist. Ray tracing where the platform supports it. That asymmetry is the subject, not a confound
-to be designed away.
+does not hold it back.** That asymmetry is the subject, not a confound to be designed away.
+
+**The survey it was decided ahead of has now run** (`research/10-stack-capability-matrix.md`,
+2026-08-23), and it corrects two of the examples this decision was originally stated with:
+
+- **Ray tracing is not reachable in any arm on the measurement machine.** Bevy has the Metal
+  ray-query feature and `bevy_solari` still cannot initialise (it needs `BUFFER_BINDING_ARRAY`,
+  which wgpu 29 sets only on Vulkan) — and it fails open with a `warn!`. Unity measures
+  `supportsRayTracing = False` and ships no Metal acceleration-structure path. three.js has no
+  WebGPU under the capture harness. Godot has the API but no scene-renderer integration. The
+  clause "ray tracing where the platform supports it" therefore selects nothing.
+- **Native physics is the inverse of how it reads.** Godot ships Jolt in-tree but Godot Physics
+  is the default; Unity ships PhysX. Both are one pin change away — and **neither can be used
+  where game rules must live**, because `Sim.asmdef`'s `noEngineReferences` and
+  `tools/boundary.gd` forbid it. Bevy and three.js, which ship no physics, are the two that
+  *could* pin a deterministic solver inside `sim`.
+
+Native particle systems remain a real and large asymmetry: Godot ships them, Unity's is one
+manifest line, Bevy and three.js have none at any effort below writing one.
 
 **What this costs, stated plainly so it is not discovered later:**
 
@@ -316,9 +331,11 @@ to be designed away.
   *the stack as exercised by this template* — and the template author's judgement about what
   "best" means becomes a variable. This was always partly true; deliberately diverging templates
   make it matter more.
-- The defence is that "best" must be **sourced, not asserted** — see the capability survey
-  (`research/`, task 24) and `research/AGENTS.md`'s sourcing rules. A capability included because
-  it is documented and reachable is defensible; one included because it seemed impressive is not.
+- The defence is that "best" must be **sourced, not asserted** — see
+  `research/10-stack-capability-matrix.md` and `research/AGENTS.md`'s sourcing rules. A capability
+  included because it is documented and reachable is defensible; one included because it seemed
+  impressive is not. The survey also lists ten cells it could **not** establish; those are not
+  available for "best" until someone settles them.
 - `judge/starter_parity.py` must continue to REPORT capability divergence rather than fail on it.
   Under this decision, divergence is the design; a guard that reads it as drift would be wrong
   and would be switched off, which is worse.
