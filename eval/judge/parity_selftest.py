@@ -125,6 +125,90 @@ def test_status_classification(root: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# HEADING ADJUDICATION. Pure inputs, so this half always runs - including under
+# `--no-e2e`, where no toolchain is needed.
+#
+# The near-miss heading note keys on heading TEXT, and heading text is the one thing
+# `starter_parity`'s own comment says equality may NOT be demanded of. Both rows it
+# reported on 2026-08-23 were wording divergences whose substance is present in all four
+# guides, so the note asked "is this a section one guide never got?" twice and the answer
+# was no twice - a question the tool re-asks every run and cannot answer.
+#
+# The direction that matters is the VARIANT (rule 15): a real forgotten copy, where the
+# heading is absent AND so is the guidance. The pre-2026-08-23 code cannot produce that
+# reading at all - it prints the same note either way - so a mutant of it proves nothing.
+# --------------------------------------------------------------------------- #
+
+def _real_guides() -> tuple[dict[str, set[str]], dict[str, str]]:
+    """Heading sets and lowercased bodies of the four guides actually shipped."""
+    hsets, texts = {}, {}
+    for s in sp.STACKS:
+        hsets[s] = set(sp.agents_md(STARTERS / s)["headings"])
+        texts[s] = sp.guide_text(STARTERS / s).lower()
+    return hsets, texts
+
+
+def test_heading_adjudication() -> None:
+    print("\n[a near-miss heading must be adjudicated against the GUIDE, not left as a "
+          "question]")
+    hsets, texts = _real_guides()
+    expect("all four guides were read", len(hsets) == 4 and all(texts.values()))
+
+    # -- POSITIVE: the two rows on the real starters are both wording, and say so ------ #
+    problems, notes = sp.heading_findings(hsets, texts)
+    expect("the shipped starters raise NO heading problem", problems == [], str(problems))
+    for h, without in (("The one command", "ts"), ("Gameplay is not correctness", "unity")):
+        line = next((n for n in notes if h in n), "")
+        expect(f"{h!r} is reported as adjudicated", "ADJUDICATED" in line
+               and "NOT ADJUDICATED" not in line, line)
+        expect(f"...naming {without}, and the evidence that the guidance reached it",
+               without in line and sp.ADJUDICATED_HEADINGS[(h, without)]["substance"]
+               in line, line)
+
+    # -- VARIANT: the same shape, but the guidance really is absent -------------------- #
+    # This is a forgotten copy: ts has neither the heading nor the contract sentence.
+    phrase = sp.ADJUDICATED_HEADINGS[("The one command", "ts")]["substance"]
+    gutted = dict(texts)
+    gutted["ts"] = texts["ts"].replace(phrase, "")
+    expect("the variant really removed the sentence", phrase not in gutted["ts"])
+    problems, notes = sp.heading_findings(hsets, gutted)
+    expect("a heading AND its guidance both absent is a PROBLEM, not a note",
+           any(phrase in p and "ts" in p for p in problems), str(problems))
+
+    # -- MIS-SPECIFIED: the phrase is not the substance of the section it claims ------- #
+    wrong = dict(texts)
+    wrong["rust"] = texts["rust"].replace(phrase, "")
+    problems, _ = sp.heading_findings(hsets, wrong)
+    expect("a register entry whose phrase is absent from a guide that HAS the heading "
+           "is a problem", any("rust" in p for p in problems), str(problems))
+
+    # -- UNADJUDICATED: a new near-miss stays a note, so a rename cannot go red -------- #
+    h2 = {s: set(v) for s, v in hsets.items()}
+    for s in ("rust", "unity", "godot"):
+        h2[s].add("Some New Section")
+    problems, notes = sp.heading_findings(h2, texts)
+    expect("a near-miss heading nobody has adjudicated is still only a note",
+           problems == [], str(problems))
+    expect("...and it is labelled NOT ADJUDICATED so it is distinguishable",
+           any("Some New Section" in n and "NOT ADJUDICATED" in n for n in notes),
+           str([n for n in notes if "Some New Section" in n]))
+
+    # -- DEAD ENTRY: an adjudication that no longer fires must not rot silently -------- #
+    h3 = {s: set(v) for s, v in hsets.items()}
+    h3["ts"].add("The one command")
+    _, notes = sp.heading_findings(h3, texts)
+    expect("a register entry whose row no longer fires is reported as removable",
+           any("no longer fires" in n and "The one command" in n for n in notes),
+           str([n for n in notes if "The one command" in n]))
+
+    # -- and a heading everybody shares says nothing at all ---------------------------- #
+    h4 = {s: {"Layout", "Testing"} for s in sp.STACKS}
+    problems, notes = sp.heading_findings(h4, texts)
+    expect("a heading present in every guide raises nothing",
+           problems == [] and not any("Layout" in n for n in notes), str(notes))
+
+
+# --------------------------------------------------------------------------- #
 # The real variant: the ts starter with and without its dependency tree.
 # --------------------------------------------------------------------------- #
 
@@ -239,6 +323,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="parity-selftest-") as td:
         root = Path(td)
         test_status_classification(root)
+        test_heading_adjudication()
         if not a.no_e2e:
             test_variant_toolchain_absent(root)
             test_skip_tests_opt_out(root)

@@ -125,6 +125,14 @@ directory, and every criterion id the rubric defines.
   starter through a comment written while documenting an unrelated floating-point finding — not
   through the prompt, template or `AGENTS.md`, which are the three places the design watched.
 - Run it **unpiped**. A `verify_blind.py | tail` "pass" is `tail`'s exit status.
+- **Point it at a copy of the starter OUTSIDE this repository**, laid out the way a trial tree is.
+  Check 2 asks whether the rubric is reachable from an ancestor, and `eval/starters/<stack>` has
+  `eval/judge/RUBRIC.md` up its own path — so run in place it is red for all four stacks, on a
+  condition that says nothing about the edit (measured 2026-08-23, task 67). That verdict is
+  *correct about the path it was given* and useless about the question, which is rule 12: the
+  address is an input to the check. Copy the four starters to a directory outside the repo and
+  pass those. The error text says "see `--work-root`" — that flag is `wholegame.py`'s, not this
+  tool's, and this tool takes bare paths.
 - Never fix a leak mid-run. Changing a starter partway through gives later trials a different
   starter than earlier ones — a real within-run inconsistency traded for a usually-minor leak.
 
