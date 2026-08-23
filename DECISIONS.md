@@ -171,6 +171,49 @@ reliability, and the reliability you measure is highest exactly where you need t
 Rewriting the three unstable criteria did not fix it; the rewrite made a contested submission
 *less* stable.
 
+### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23
+
+Tier 1 becoming a gate left `overall = tier2`, and tier 2 is itself at the ceiling. **This is
+accepted as a property of the current task set rather than treated as a rubric defect**, because
+both repairs available inside the rubric were measured and neither works.
+
+`eval/judge/tier2_census.py` is the producer — the analogue of `tier1_census.py`, 17 expectations
+including a positive control, a variant and three mutants. Over 68 stored trials:
+
+- **5 of 10 (run, game) groups return a single tier-2 value** across every measurable trial:
+  `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 — **35 of 68 trials**.
+- 11 trials failed anything; **2** were whole-trial (the #49 build failure, one fact recorded N
+  times) and **9** were selective. **All 9 selective failures are from `wg-matrix-2026-08-13`.**
+  Tier 2 has not separated two submissions in any run since.
+- **Promoting a withheld diagnostic cannot help.** `layer.clears`, `score.rewards_clears` and
+  `stage.completes` take a single value — `False` — on all 7 group-criterion pairs where they are
+  recorded, so scoring one lowers every submission in its group by the same amount and leaves the
+  ordering as flat as it was.
+- **Nor can more criteria of the same kind.** Four candidates, each drawn from a requirement the
+  g4 prompt states and no criterion checks, were driven against all 8 `wg-g4c` submissions:
+  attack cannot be re-triggered mid-swing, enemies patrol, the `land` event fires, and replay
+  determinism under a played 900-tick tape instead of the idle 300. **8/8 pass on every one**, and
+  the reference passes them too, so they can go green and nothing goes red (#125).
+
+> A binary criterion asks whether a mechanic exists. When every submission implements every
+> mechanic, a tier made of them returns one number — and it is right to.
+
+**So on a saturated group `overall` certifies completion; it does not rank.** No stack ordering may
+be drawn from one at any gap, which is the same bar the within-cell result already sets below —
+this is a second, independent reason for it, arrived at from the tier rather than from cell
+agreement. Trials in a saturated group are still reported, still gated, and still judged.
+
+**What it costs, named.** 35 of 68 stored trials — including all 16 of `wg-audio48` and all 8 of
+`wg-g4c` — bought a certificate rather than a ranking, at trial prices in `eval/RUNS.md`. The
+fourth game is the sharpest instance: `g4_platformer` was added because *"Pong, Tetris and arena
+all tied; a game exercising different systems is the most plausible remaining route to
+discrimination"* (below), and **20 of its 20 scored criteria have never failed**. The route was
+plausible and it is now measured closed.
+
+**What re-opens this**, in the tool rather than in prose: `tier2_census.py` prints `SEPARATES` the
+day no group is flat. The remedy it points at is a **harder task**, not a longer rubric, and that
+is a separate decision with its own spend — filed, not taken here.
+
 ### The tier-3 separation figure is reported under `rank` + `pool` — decided 2026-08-23
 
 *"Does an aspect separate the stacks?"* is answered by a between-stack range against a
@@ -210,8 +253,10 @@ any per-aspect table, so the two must never be presented as summarising one anot
 
 The platformer stresses machinery the other three games do not: sprite sheets and animation state
 machines, attack hitboxes with active frames, knockback and invulnerability windows, platform
-collision. Pong, Tetris and arena all tied; a game exercising different systems is the most
-plausible remaining route to discrimination.
+collision. Pong, Tetris and arena all tied; a game exercising different systems was the most
+plausible remaining route to discrimination. **It has now been run once and it tied too** — all 8
+`wg-g4c` submissions score 1.000, and 20 of its 20 scored criteria have never failed (#125). The
+hypothesis was worth testing and is answered: different systems do not separate these stacks.
 
 Repeated judging resolves per **pair** with a Wilson interval, not per score, and stops sampling a
 pair once it resolves. Protocol and its limits are in `eval/judge/JUDGING.md` — including that at
@@ -395,16 +440,15 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
 - **Statistical power.** With 2 trials per cell, if two stacks land within ~0.015 this design
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
-- **The rubric ceiling — MEASURED, and for tier 1 it is now RESOLVED; for tier 2 it is not.**
+- **The rubric ceiling — MEASURED and now DECIDED on both tiers, but only one of them is fixed.**
   Tier 1 returned **1.0 on all 24 submissions of `wg-matrix`** and on all 16 of `wg-audio48` —
-  40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92). **What to
-  do about it was decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not
-  score" above, and #119). The ceiling did not go away; it stopped being reported as a score.
-  **Tier 2 is still at the ceiling on 24 of 56** — `wg-audio48` and `wg-g4c` entire — and tier 2
-  now carries the whole weight, so **`overall` is a constant 1.000 for all 16 `wg-audio48` trials
-  and all 8 of `wg-g4c`.** That is the open half, and it is the more serious one: an instrument
-  whose only scored tier saturates on a whole run cannot rank anything in it. The remedy is harder
-  play-bot criteria or harder tasks, not a weight.
+  40 of 56 matrix trials at the ceiling with *zero* variance, not merely near it (#92) — and
+  became a gate on 2026-08-23. **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials**,
+  and it now carries the whole weight. That half is not fixed and will not be fixed inside the
+  rubric: both in-rubric repairs were measured and neither works (#125), so a saturated group is
+  reported as a completion certificate (see "A saturated tier 2 is reported as a completion
+  certificate" above). **What stays open is the task**, priced by task 74 — not the criteria and
+  not the weights.
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for **$33.63** — the sum of that field's own stored rounds. The $46.79 previously here was the whole of 2026-08-16 across two games (#121). Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53).
@@ -802,6 +846,7 @@ settled question is noise that makes the live ones harder to find.
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
 | Deterministic tiers may not rank stacks | Any instrument change producing **non-zero within-cell verdict variance** — currently 0 of 380 |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
+| A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 10 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |

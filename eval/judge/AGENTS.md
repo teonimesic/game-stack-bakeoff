@@ -14,6 +14,15 @@ Three tiers. The building agent must see none of them.
 
 `evaluate.py` runs all three. `regrade_wholegame.py` recomputes scores from stored tier files.
 
+**What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
+both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a
+worktree's copy is empty and either would report a confident, uniform "nothing ever failed"), and
+both carry `--selftest`. Tier 2 currently prints `SATURATED`: 5 of 10 groups return one value, and
+`DECISIONS.md` records why that is accepted rather than repaired. **Before adding or promoting a
+tier-2 criterion, run it** — the promotion column already says that scoring `layer.clears`,
+`score.rewards_clears` or `stage.completes` would move every score in its group by the same amount
+and separate nothing (#125).
+
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two
 sweeps behind it and what would re-open it are in `RUBRIC.md`. Two consequences you will meet

@@ -3234,3 +3234,96 @@ on 24 of 56 matrix trials. With tier 1 out of the sum, `overall` is a **constant
 16 `wg-audio48` trials and all 8 of `wg-g4c`. The saturation was always there; it was being
 disguised by a tier-1 nit or two per field, which is the worse of the two states to be in — but it
 is now the only scored tier, and no weight can help it.
+
+## 125. Tier 2 saturates because the task is finished, not because the criteria are too few — four harder criteria built from the task's own unchecked requirements passed 8 of 8
+
+#123 left one exposure and named it: with tier 1 out of the sum, `overall = tier2`, and tier 2
+is at its ceiling on 24 of 56 matrix trials. The obvious readings are *the rubric is too easy* and
+*promote the two criteria already measured and withheld*. **Both are testable offline and both are
+wrong.**
+
+`judge/tier2_census.py` is the producer, built as the analogue of `tier1_census.py` and carrying
+17 expectations including a positive control, a variant and three mutants. Over the same 68 stored
+trials:
+
+| | |
+|---|---|
+| (run, game) groups | **10** |
+| groups where tier 2 returns ONE value across every measurable trial | **5** — `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 |
+| trials in those five groups | **35 of 68** |
+| trials with any tier-2 failure | 11 |
+| of those, **whole-trial** (every criterion failed, one fact recorded N times) | 2 — both the #49 `syspolicyd` build failure |
+| of those, **selective** (a criterion disagreeing with its siblings) | **9** |
+| of the 9 selective failures, how many are from a run later than `wg-matrix-2026-08-13` | **0** |
+
+That last row is the finding in one number. **Every time tier 2 has ever ranked one submission
+above another, it was in the first matrix.** Four runs and 44 trials later it has detected two
+build failures and separated nothing.
+
+### The withheld criteria cannot help, and that is a measurement, not an argument
+
+`layer.clears`, `score.rewards_clears` and `stage.completes` are measured every run and excluded
+from the score. Promoting one changes each submission from `p/n` to `(p+v)/(n+1)`, so it creates
+spread only if `v` differs across the group. The stored values:
+
+| run | game | criterion | n | distinct values |
+|---|---|---|---|---|
+| `wg-audio48` | g2_tetris3d | `layer.clears` | 8 | **{False}** |
+| `wg-audio48` | g2_tetris3d | `score.rewards_clears` | 8 | **{False}** |
+| `wg-matrix` | g2_tetris3d | both | 8 | **{False}** |
+| `wg-g4c` | g4_platformer | `stage.completes` | 8 | **{False}** |
+
+Seven group-criterion pairs, **zero** with more than one value. Promoting any of them lowers every
+score in its group by the same amount and leaves the ordering exactly as flat as it was — a repair
+that looks like one and changes nothing measurable. `tier2_census.py` reports this as a column, so
+the next reader gets the number rather than the reasoning.
+
+### And neither can more criteria of the same kind
+
+`wg-g4c`'s work trees are the only ones that survive, so the eight `g4_platformer` submissions
+were re-driven directly. Four candidate criteria were built, each from a requirement the task
+prompt **states** and no scored criterion checks, and each establishing its own condition without
+level knowledge:
+
+| candidate | the prompt's words | measured on 8 submissions |
+|---|---|---|
+| a second press during a swing does nothing | *"Attacking again before the swing finishes does nothing"* | **8/8 pass** |
+| enemies move under their own power | *"Enemies patrol the stage"* | **8/8 pass** (10–19 enemies each, all moving, all turning) |
+| the `land` event fires on landing | the declared event list | **8/8 pass** |
+| replay determinism under a **played** 900-tick tape rather than the idle 300 | *"the same seed and the same sequence of inputs reproduce the same run exactly"* | **8/8 pass** |
+
+The reference fixture passes all four, which is the positive control that says they can go green;
+none of them goes red on anything.
+
+**The first of the four is also a near-miss worth recording.** Held every tick for 240 ticks,
+`g4_platformer__unity__t0` keeps `attack.active` true for all 240 with its frame counter restarting
+13 times, while the other seven show 11–14 separate swings of 5–6 active ticks. Read as a
+*re-trigger during a swing* that is a clean 1-of-8 failure and the variance this task was looking
+for. Driven properly — one press to start the swing, one more at its midpoint — it is identical to
+its own clean swing, 18 ticks either way. It chains swings with no idle tick between them, which is
+what *"a control held across consecutive ticks takes effect on every one of those ticks"* asks for.
+That is #89 again: a deliberate design branch one measurement away from being scored as an absent
+feature, and the measurement that separated them was pressing the button once instead of holding it.
+
+### What this says about the instrument
+
+> **A binary criterion asks whether a mechanic exists. When every submission implements every
+> mechanic, a tier made of them returns one number — and it is right to.** The saturation is a
+> property of a task all four stacks finish, not of a rubric that is too lenient.
+
+The consequence is that adding criteria of this kind cannot fix it: each new one raises the
+denominator and passes everywhere, which lowers nothing, separates nothing and makes the tier
+longer. `audit_criteria.py` has said since it was written that a never-fired criterion is not
+thereby good; this is the first time that has been the whole story about a tier.
+
+It also lands on the fourth game specifically. `DECISIONS.md` added `g4_platformer` because *"Pong,
+Tetris and arena all tied; a game exercising different systems is the most plausible remaining
+route to discrimination."* It exercises different systems and it tied: 20 of 20 scored criteria
+have never failed on it, across the only run that has used it.
+
+### What was NOT established
+
+Only one of the five saturated groups was re-driven. `wg-audio48` and `wg-audio` work trees are
+gone, so the pong and Tetris groups were read from stored records and not probed with new
+criteria. The claim *"harder criteria of the same kind do not separate"* is measured on
+`g4_platformer` with n=8 and inferred elsewhere.
