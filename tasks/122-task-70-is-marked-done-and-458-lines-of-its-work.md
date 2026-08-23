@@ -169,3 +169,56 @@ property now; `tasks_mutants.py --list` is the producer. Its header budget is re
 **Note for whoever waits on `controls`**: the workflow's concurrency group **cancels the
 in-flight run when a new commit is pushed**, measured here -- run `32656195639` went to
 `cancelled`. Waiting for a run whose head you are about to supersede buys nothing.
+
+## note 2026-08-23
+
+Review round 1 on PR #8 found **three real defects in the code this ticket added**, and two of
+them were the rules being cited while writing it. Recorded here because the next agent should
+not re-derive them.
+
+**1. A control that does not travel the subject's path is a control over a different subject.**
+`evaluate.overall_score` rounds to 4 decimals. `ranking_test` compared floats against `1/N`, so
+a one-criterion gap at `N=13` arrived as `1.0000 - 0.9231 = 0.0769` against `0.076923...`:
+
+    RUNTIME PATH  -> DOES NOT CROSS
+    SELFTEST PATH -> CROSSES      (built 12/13 unrounded, never went through load())
+
+The `BOUNDARY` row was green against a value `load()` cannot produce. **A tolerance cannot fix
+this class** -- the shipped `1e-9` is four orders of magnitude below the rounding error, and one
+wide enough to absorb it would swallow real gaps. Tier 2 IS a pass count, so the test now works
+in integers: `k*(max_s - min_s) - 2*sum(d) >= 2k`. **No stored verdict changed** -- 8 asked, 0
+cross, before and after.
+
+**2. `N` was `max(n_scored)` over the whole game while the comparison ran on the gate-green
+subset** -- rule 4, a denominator from a population that had been filtered afterwards. It is
+established over the selected stacks now, and survivors that disagree give `NOT ASKED`.
+
+**3. `_caller_head()` asked at `ROOT`, which comes from `__file__`.** The work skill tells an
+agent to run the MAIN copy of the tool by absolute path, under which its own branch is never
+consulted and the orphan it has just landed cannot be cleared -- the repair path this base exists
+to keep open, dead. Both addresses are asked now.
+
+> **And the fix for 3 contained something worse, which its own new control row caught within a
+> minute.** A SHA from `Path.cwd()`'s repository is not an object in the queue's repository, so
+> every `merge-base` exited 128, the three-valued reader turned that into `NOT_CHECKED`, and
+> **the entire gate went silent while printing what reads as a clean queue.** Each caller HEAD
+> is now required to exist in the repository the ancestry query runs against.
+
+**4. `merge-base` errors were collapsed into "not an ancestor".** Verified: `0` ancestor, `1`
+not, `128` missing ref. `_is_ancestor` is three-valued now. **Its first mutant SURVIVED**,
+because the rows handed `landed_status` a lambda returning `None` and never ran `_is_ancestor` --
+a consumer pinned without its producer, the `tasks/106` shape. That row calls it against a real
+repository now.
+
+**Declined, with the reason in the thread**: atomic writes for the `paired_verdicts` fixture.
+It is a `tempfile.TemporaryDirectory` written and read in one single-threaded process.
+
+**Found while re-running, not raised in review**: `paired_verdicts.py`'s docstring said
+`wg-g4c-capgate` reads *"six times the floor anything else shows"*. Re-derived, 12/140 is
+**8.57%** against a highest real rate of **2.86%** -- three times. Six only appears by comparing
+raw counts across different denominators, which is the refusal listed two paragraphs above it in
+the same docstring.
+
+Final: `tasks_control` **79 -> 100 rows**, `tasks_mutants` **21 -> 28**, all caught, inert control
+still SURVIVED. One mutant anchor drifted during the repair and the runner **refused to apply it**
+rather than reporting a pass for a check that never changed -- that guard is worth its space.
