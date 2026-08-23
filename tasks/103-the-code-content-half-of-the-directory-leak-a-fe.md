@@ -1,7 +1,7 @@
 ---
 id: 103
 title: 'The code-content half of the directory leak: a feasible rewrite was declined because its redaction density is stack-correlated 0/43/228/265'
-status: open
+status: in_flight
 priority: 3
 refs: eval/judge/blind_dir_selftest.py arm_exclusive_dirs, eval/judge/field.py blind_changed_txt, DECISIONS.md 2026-08-23, tasks/95
 done_when: either a rewrite whose per-arm rewrite count is measured and comparable across all four arms lands, blind-only and pinned by a mutant AND a variant proving a non-blind pack is byte-unchanged; or the channel is closed as unrepairable with the per-arm density table and the reason recorded in DECISIONS.md. A per-arm count is mandatory either way - a single total is what made task 95 nearly choose the wrong repair

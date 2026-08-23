@@ -1,7 +1,7 @@
 ---
 id: 110
 title: Run the gates in GitHub Actions CI and in local pre-commit / pre-push hooks
-status: open
+status: in_flight
 priority: 2
 refs: .github/workflows/ (does not exist), .git/hooks/, eval/tools/docstat.py, eval/tools/tasks.py check, eval/tools/lint.py, the seven *_control.py files, tasks/108
 done_when: a GitHub Actions workflow runs on push and on pull request, goes GREEN on a clean tree and RED on a deliberately broken one with both runs linked in the report; local hooks exist with a documented install step and a documented bypass; the wall-clock cost of each hook is measured and stated; and any gate deliberately left out of CI is named with the reason

@@ -1,7 +1,7 @@
 ---
 id: 106
 title: tasks_control.py never runs check end to end on an unreachable done_when
-status: open
+status: in_flight
 priority: 4
 refs: eval/tools/tasks_control.py, eval/tools/tasks_mutants.py, tasks/105
 done_when: tasks_control.py gains a row that runs tasks.py check as a subprocess on a scratch queue holding an unreachable done_when and asserts the warning text is PRINTED, plus its negative control on a reachable one; tasks_mutants.py SELFTEST_MUTANT is then replaced with a mutation that is still inert and the reason it is inert is recorded, or --selftest is replaced by whatever else proves the runner can report SURVIVED
