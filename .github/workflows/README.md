@@ -125,6 +125,8 @@ a correctly-passing suite. These are the runs, on
 | `32649208330` | `pull_request` | gates | **success**, 44s | unchanged by the slow tier's repairs |
 | `32649591491` | **push** (`ci-control-green`) | gates | **success** | the push trigger fires and is green |
 | `32649595405` | **push** (`ci-control-red`) | gates | **success — the control FAILED** | see below |
+| `32651150690` / `32651150781` | `pull_request` | gates / controls | **success**, 46s / 7m02s | green again once `main` was merged in |
+| `32651635991` / `32651635966` | `pull_request` | gates / controls | **success**, 52s / 8m40s | green after the CodeRabbit review was addressed |
 | `32649678840` | **push** (`ci-control-red`) | gates | **failure** | `README.md: flag --zzqflag matches no argparse in eval/`, at the `docstat --sweep` step, with every other step still reported |
 
 | `32649830893` | `pull_request` | gates | **failure** | `tasks.py check`: `109: status 'in_testing'`, `117: status 'todo'` — see below |
