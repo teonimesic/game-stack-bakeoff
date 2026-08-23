@@ -1164,13 +1164,39 @@ the two TypeScript ones, so reporting it — like reporting the `git diff --stat
 judge a partition of the field nobody chose to measure (#62). It is recorded beside the pack as
 `changed_rows_dropped`, and zero mapped rows is a refusal rather than an empty file.
 
-**The code-content half is NOT repaired, and feasibility was not the reason.** A whole-segment,
-path-adjacent vocabulary read from `git ls-files` over the four starters works: 536 hits across
-all 84 stored packs, exactly 1 in an arm the segment does not name. It is declined because the
-**redaction density it produces is stack-correlated by construction** — Godot 0, Rust 43, Unity
-228, TypeScript 265 — since only some starters have arm-exclusive directories. A judge that sees
-three packs with redacted paths and one without has been handed the partition by the instrument.
-`tasks/103` holds the measurement and what would re-open it.
+**The code-content half is NOT repaired. Feasibility was not the reason, and neither — it turns
+out — is the per-arm density the decision was first written against (task 103).** Four candidates
+were measured over the 9 independent stored fields:
+
+| candidate | godot | rust | ts | unity | per-arm density | isolates an arm |
+|---|---|---|---|---|---|---|
+| arm-exclusive vocabulary from `git ls-files` | 0 | 43 | 265 | 228 | infinite | 6 of 9 fields |
+| every starter directory, shared included | 271 | 102 | 830 | 273 | 8.9x | 9 of 9 |
+| vocabulary-free: every path component | 831 | 927 | 1701 | 668 | 2.8x | 9 of 9 |
+| the same, minus the four bucket labels | 428 | 690 | 1021 | 668 | 2.1x | 9 of 9 |
+
+*Isolates* means a **strict** threshold on one pack's redaction count separates a whole arm from
+the other six, measured per field, against **7.1%** by chance. Nothing measured comes near it.
+
+> **The statistic the first version of this decision named was one no judge can see.** Per-arm
+> density is an aggregate over the whole corpus; a judge is shown eight packs and how redacted
+> each one looks. A vocabulary-free rewrite drives the aggregate from infinite to **2.1x** and
+> leaves no arm at zero — satisfying the reversal condition exactly as it was written — while
+> making the per-field figure **worse**, 9 of 9 against 6 of 9. It does not close the channel; it
+> moves the leak from Godot's zero to TypeScript's extreme, where it is just as readable and
+> costs 2,807 redactions instead of 536. **Optimising a proxy that the protected party never
+> observes is the shape of a fix that measures nothing.**
+
+The census is part 6 of `judge/blind_dir_selftest.py`, run with `--runs-root`, so the decision has
+a producer; it pins the published table and refuses a `--runs-root` that is not the corpus. The
+table **excludes `bin`**, the one arm-exclusive segment that fires in all four arms, because 19 of
+its 26 hits are `#!/usr/bin/env` shebangs rather than the Rust starter's `src/bin/`; with it the
+table reads 9/50/265/238. `tasks/103` holds the working.
+
+**What is left unblinded is smaller than it looks.** Code aspects are already barred from every
+cross-stack claim (below), and the judge names the engine correctly in 20% of `architecture`
+evidence strings from **syntax alone**, with the tokens verifiably absent. The residue this would
+have removed sits underneath a signal that is unremovable and already conceded.
 
 **Scope, stated because it is easy to assume otherwise:** this licenses new rounds and repairs
 none. Every `architecture` round stored in this repository read a `CHANGED.txt` listing the real
@@ -1249,7 +1275,7 @@ settled question is noise that makes the live ones harder to find.
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
-| The code half of the directory leak stays unrepaired | A rewrite whose **redaction density is uniform across the four arms**, measured per arm rather than argued. The current candidate is 0/43/228/265; anything that fires on all four arms comparably is a different proposal and should be measured, not assumed |
+| The code half of the directory leak stays unrepaired | A rewrite that **stops isolating an arm per field** — a strict threshold on one pack's redaction count naming a whole arm in fewer than a third of the stored fields. Currently 6 of 9 for the arm-exclusive vocabulary and 9 of 9 for all three alternatives, against 7.1% by chance. **This row asked for a uniform per-arm density until 2026-08-23, and that was the wrong quantity**: a vocabulary-free rewrite satisfies it at 2.1x with no arm at zero and is *worse* on the per-field figure, because per-arm density is an aggregate the judge never sees. `judge/blind_dir_selftest.py --runs-root` reports both and fails if any candidate stops partitioning |
 | Deterministic tiers may not rank stacks | Within-cell verdict variance **large enough to resolve a between-stack gap** — currently **5 of 436** paired criteria in `wg-matrix` and **0 of 232** in `wg-audio48`, i.e. 1.1% and 0%, against a between-stack gap of zero. This row read *non-zero* until 2026-08-23, when the unscoped figure it rested on was withdrawn and the scoped recount came back **not zero**; a sign is not a threshold, and what size counts is unsettled (task 70) |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 10 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
