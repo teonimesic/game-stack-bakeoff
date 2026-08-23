@@ -13,8 +13,8 @@ either disagree, they win and this skill is the bug.
 > **The ticket is the brief. There is no second brief.** Everything you need is in the ticket
 > or in the documents it names. If you were dispatched with extra instructions in a message,
 > that is a defect in the ticket — **write what you learned back into the ticket before you
-> finish**, so the next agent gets it from the file. A brief delivered in a message dies with
-> the session.
+> finish**, with `tasks.py note <id> -` (§5). A brief delivered in a message dies with the
+> session.
 
 ## 1. Read, in this order
 
@@ -33,7 +33,7 @@ You run in an **isolated git worktree**. Three consequences bite every time:
 
 | | |
 |---|---|
-| **The queue is shared** | `tasks.py` resolves `tasks/` to the **main checkout**, so your `start`/`done`/`add` land in the one real queue and appear as uncommitted changes *there*, not on your branch. That is deliberate (#94). |
+| **The queue is shared** | `tasks.py` resolves `tasks/` to the **main checkout**, so your `start`/`done`/`add`/`note` land in the one real queue and appear as uncommitted changes *there*, not on your branch. That is deliberate (#94). **`Edit` and `Write` cannot reach the shared checkout at all** — worktree isolation refuses them — so `tasks.py` is the only way to touch a ticket, and it is enough. |
 | **Your copy of a tool may be stale** | Your worktree was forked at some commit. If `main` has moved, your `eval/tools/*.py` is older. A pre-migration `tasks.py` once wrote an unparseable task file. When in doubt run the tool from the main checkout by absolute path. |
 | **`eval/runs/` does not exist here** | It is gitignored. Read stored evidence by absolute path from the main checkout. |
 
@@ -83,18 +83,29 @@ The steps are the ticket's. These are the properties every result here is held t
 
 ## 5. Finish
 
+**Write what you learned into the ticket BODY first, then close it.**
+
 ```bash
+python3 eval/tools/tasks.py note <id> - <<'NOTE'
+What the next agent would otherwise re-derive. Prose, lists, `backticks`, several
+paragraphs — whatever it takes.
+NOTE
 python3 eval/tools/tasks.py done <id> "what established it"
 ```
 
-Evidence means a measurement, a control, a file — never "completed". **No backticks in that
-string**: they execute as command substitution and silently strip text from a durable record
-(#80).
+`note` appends a dated section to the ticket in the **main checkout's** queue and rewrites no
+other byte of it, so it works from your worktree where `Edit` cannot reach and a committed edit
+to your own copy would only offer the merge a conflict. `-` reads the section from stdin, and a
+**quoted** heredoc (`<<'NOTE'`, not `<<NOTE`) is what carries backticks and newlines in
+unexpanded.
+
+Do not put the account in `established_by` instead. That field is one unbroken line of prose in
+YAML frontmatter, it cannot contain a backtick (#80), and it is not where the next agent looks —
+tasks 105 and 106 each emptied a session's findings into it because `note` did not yet exist
+(task 113). Evidence there means a measurement, a control, a file — never "completed".
 
 Then, in the same session as the work:
 
-- **Update the ticket with what you learned** — see the box at the top. Anything the next agent
-  would otherwise re-derive belongs in the file.
 - Update the docs the change makes stale. `README.md` and `DECISIONS.md` state what is true now;
   replace superseded content rather than annotating it.
 - Something that ran and measured nothing is a numbered finding.

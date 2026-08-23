@@ -13,6 +13,7 @@ tool that prints the minimum.
     python3 eval/tools/tasks.py show 04      # one task, in full
     python3 eval/tools/tasks.py start 04
     python3 eval/tools/tasks.py done 04 "what established it"
+    python3 eval/tools/tasks.py note 04 -    # append a section to the BODY, from stdin
     python3 eval/tools/tasks.py add "title" --why "..." --done-when "..." [--priority 2]
     python3 eval/tools/tasks.py check        # lint; exit 1 if anything is malformed
 
@@ -37,6 +38,43 @@ So two failures, and they are the two halves of that one commit:
   * `body reads as task N's brief` -- `misfiled_body` below.
 
 See `misfiled_body` for the measurement behind the threshold and for what it cannot catch.
+
+`note` EXISTS BECAUSE THE BODY WAS WRITE-ONLY FROM AN AGENT WORKTREE
+-------------------------------------------------------------------
+`.claude/skills/work/SKILL.md` tells every dispatched agent to *"update the ticket with what
+you learned - anything the next agent would otherwise re-derive belongs in the file"*, and
+until this subcommand there was no way to obey it. Measured from a real agent worktree on
+2026-08-23 (task 113): `Write`/`Edit` aimed at the shared checkout is refused by worktree
+isolation; the worktree's own copy of `tasks/NNN-*.md` is a git-tracked file whose
+main-checkout twin `start`/`done` rewrite concurrently, so committing an edit to it on a task
+branch offers the merge a conflict in a file the merge is already rewriting; and `tasks.py`
+had `next`, `show`, `start`, `done`, `list`, `add`, `check` and nothing that touched a body.
+
+So tasks 105 and 106 both did the same thing: emptied their findings into the `established_by`
+string. That is one unbroken line of prose inside YAML frontmatter, it cannot carry a backtick
+(#80), and it is not where the next agent looks. A rule in an always-invoked skill that cannot
+be obeyed is the rule being unusable as written, not the agents being careless.
+
+WHAT IT DOES NOT DO, and both are deliberate:
+
+  * It does NOT relax the isolation guard, and it does not need to. `TASKS` already resolves
+    to the main checkout (`_main_worktree`), which is #94's decision; `note` writes there by
+    the same mechanism `add`, `start` and `done` already use.
+  * It does NOT rewrite the file. The bytes go out through `open(p, "a")` and nothing else, so
+    "the rest of the file is unchanged" is true by construction rather than by a round-trip
+    that happened to hold. `_set` rewrites the whole file to change one field and relies on
+    `_render` reproducing every other byte; `note` does not have to rely on anything, and
+    `tasks_control.py` asserts the file afterwards is the file before it plus `_note_block`
+    and nothing else.
+
+The address is resolved BY ID, never by a filename you typed. That is the whole difference
+between this and the `>>` an agent would otherwise reach for: AGENTS.md rule 12's worked
+example is an append aimed at a filename guessed from a queue listing title, which created a
+second, malformed task. A shell append is not blocked by anything -- it is just aimed by hand.
+
+`-` reads the note from stdin, which is the backtick-safe channel #80 is about: a quoted
+heredoc carries backticks, newlines and shell metacharacters into the file verbatim, and an
+argv string carrying a backtick is command substitution before this program ever runs.
 
 THE FRONTMATTER IS YAML, AND IS READ AND WRITTEN AS YAML
 -------------------------------------------------------
@@ -584,6 +622,67 @@ def _set(tid: str, **kw) -> int:
     return 1
 
 
+def _note_block(text: str, heading: str | None = None) -> str:
+    """The EXACT bytes `note` appends, and the only place they are spelled.
+
+    A module-level function so `tasks_control.py` can assert that the file afterwards is the
+    file before it plus this and nothing else -- rule 12, one value at one address. Building
+    the expected suffix a second time in the control would pin the control against itself.
+
+    The leading newline is what separates the section from whatever the body ended with, and
+    it is correct whether or not that body ended in one: a file ending `...text` gets the
+    heading on its own line, a file ending `...text\\n` gets a blank line before it. The
+    trailing newline is what makes the NEXT append idempotent in the same way.
+    """
+    head = (heading or f"note {time.strftime('%Y-%m-%d')}").strip()
+    return f"\n## {head}\n\n{text.strip()}\n"
+
+
+def cmd_note(tid: str, text: str, heading: str | None) -> int:
+    """Append a section to one ticket's BODY in the shared queue. See the module docstring.
+
+    An empty note is REFUSED rather than written. A heading with nothing under it is a write
+    that looks like a record and is not one, and `note` is reached at exactly the moment an
+    agent is trying to leave a durable statement -- the same moment `done ""` would be wrong.
+    It is also the only way `-` can silently produce nothing, when stdin is a closed pipe.
+
+    THE ONE RACE IT DOES NOT CLOSE, stated rather than guarded. `open(p, "a")` cannot lose a
+    concurrent `note`, but `_set` is a read-modify-write of the whole file, so a `start` or
+    `done` on the SAME ticket whose read happened before this append and whose write happens
+    after it would drop the section. That needs two processes writing one task file at once,
+    which the one-agent-per-task dispatch does not produce, and a lock here would be an
+    untested guard against a race nothing has yet run. If it ever does happen, the fix is to
+    put `cmd_add`'s existing common-dir lock around `_set` and this, not to make `note` clever.
+    """
+    if text == "-":
+        text = sys.stdin.read()
+    if not text.strip():
+        print(f"{tid}: refusing to append an empty note - a heading with nothing under it "
+              f"is a write that looks like a record", file=sys.stderr)
+        return 1
+    for t in _load():
+        if t.get("id") != tid:
+            continue
+        p: Path = t["path"]
+        if t.get("malformed"):
+            print(f"{tid}: {p.name} is malformed ({t['malformed']}); refusing to write",
+                  file=sys.stderr)
+            return 1
+        block = _note_block(text, heading)
+        with open(p, "a", encoding="utf-8") as fh:
+            fh.write(block)
+        # The ABSOLUTE path from a worktree, for `add`'s reason: it is the only output that
+        # makes visible that the section went somewhere other than here.
+        try:
+            shown = p.relative_to(ROOT)
+        except ValueError:
+            shown = p
+        print(f"appended {len(block)} bytes to {shown}: {block.splitlines()[1]}")
+        return 0
+    print(f"no task {tid}", file=sys.stderr)
+    return 1
+
+
 def cmd_add(a) -> int:
     """Create a task file, refusing to overwrite one that appeared while we looked.
 
@@ -761,6 +860,13 @@ def main() -> int:
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("start"); s.add_argument("id")
     s = sub.add_parser("done"); s.add_argument("id"); s.add_argument("evidence")
+    # `note` is how a dispatched agent obeys `.claude/skills/work/SKILL.md`. `-` is not a
+    # convenience: an argv string containing a backtick is command substitution before this
+    # program runs (#80), and stdin is the channel that carries one verbatim.
+    s = sub.add_parser("note"); s.add_argument("id")
+    s.add_argument("text", help="the section text; `-` reads it from stdin, which is the "
+                                "only safe way to pass backticks or newlines (#80)")
+    s.add_argument("--heading", help="the section heading; default `note <today>`")
     s = sub.add_parser("list"); s.add_argument("--status", choices=STATUSES)
     s = sub.add_parser("add")
     # `--why` is REQUIRED because it is what `add` writes into the body, and `check` now fails
@@ -783,6 +889,8 @@ def main() -> int:
         return _set(a.id, status="in_flight")
     if a.cmd == "done":
         return _set(a.id, status="done", established_by=a.evidence)
+    if a.cmd == "note":
+        return cmd_note(a.id, a.text, a.heading)
     if a.cmd == "add":
         return cmd_add(a)
     if a.cmd == "check":

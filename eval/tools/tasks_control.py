@@ -33,18 +33,29 @@ not a mechanism:
     that contrast is the finding: a wrong address that misses makes an artifact the lint can
     see, and one that hits makes a well-formed one it cannot.
 
-THE FIVE DIRECTIONS
--------------------
+THE DIRECTIONS
+--------------
 1. ROUND TRIP, byte for byte, over every file in the live shared queue. Not "the values
    survive" -- the BYTES. The value round-trip was green while `_render` was rewriting
    `id: 01` as `id: 1`, because the value was never wrong (see `_id_text`). An
    `established_by` string is a durable record of what established a result, and this is
    the only direction that proves a status change cannot quietly edit one.
 
-2. `add` FROM AN AGENT WORKTREE exits 0 and prints the created path. Run in a scratch
-   git repo with its own worktree, because the defect only exists where `TASKS` and `ROOT`
-   disagree -- and with the PRE-FIX copy of `tasks.py` as the positive control, since a
-   green row from a harness that cannot observe the failure is rule 1's `total=0 passed=0`.
+2. THE TWO WRITES A DISPATCHED AGENT MAKES FROM ITS OWN WORKTREE, `add` and `note`. Run in
+   a scratch git repo with its own worktree, because both defects only exist where `TASKS`
+   and `ROOT` disagree -- and each with the copy of `tasks.py` that PREDATES its repair as
+   the positive control, since a green row from a harness that cannot observe the failure
+   is rule 1's `total=0 passed=0`.
+
+   `add` exits 0 and prints the created path (#94, task 41). `note` appends a section to a
+   ticket BODY, and its central row is not "the values survived" but that the file
+   afterwards is the file before it PLUS the expected section and NOTHING else -- the ticket
+   an agent was briefed from is a durable record, and an append that quietly reflowed it
+   would be indistinguishable from one that did not. The expected bytes are stated HERE, in
+   `_expected_block`, and deliberately not imported from the subject: see that function for
+   the mutant that survived with 0 red rows when they were. Both refusals (unknown id, empty
+   note) assert the file is untouched, because a write that reports failure and a failure
+   that reports success are the two shapes rule 7 is about.
 
 3. `check` STILL FAILS on the three things it is there to catch: a duplicate id, a missing
    `done_when`, a bad status. Each is exercised on its own scratch queue, with a
@@ -369,6 +380,220 @@ def add_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
 def _run_tool_git(*argv: str) -> tuple[int, str]:
     p = subprocess.run(["git", "-C", str(TOOLS), *argv], capture_output=True, text=True)
     return p.returncode, (p.stdout if p.returncode == 0 else (p.stderr or "")).strip()
+
+
+# ------------------------------------------------------------------- direction 2, `note`
+#: The last commit before `note` existed, and direction 2's positive control for the rows
+#: below. That copy of `tasks.py` has no `note` subcommand at all -- `argparse` rejects the
+#: word and exits 2 -- so it MUST fail the same probe the current copy passes. Without it a
+#: green row here is rule 1's `total=0 passed=0`: a harness that cannot observe the absence
+#: of the capability proves nothing by reporting the capability.
+PRE_NOTE_COMMIT = "ea9f853"
+
+#: The ticket the note rows are appended to. A real body, because the property under test is
+#: that the body AS DISPATCHED survives an append byte for byte -- an empty stub would make
+#: "unchanged" vacuously true. Short enough that `misfiled_body` cannot reach it (its brief
+#: is four words, below `MISFILED_MIN_BRIEF`), so nothing else in `check` can colour a row.
+_NOTE_BODY = "\nthe brief exactly as it was dispatched, ending without a newline of its own"
+
+#: A note that cannot be passed as argv. Backticks are command substitution before `tasks.py`
+#: ever runs (#80) and a newline cannot survive a `done` evidence string at all -- which is
+#: precisely what tasks 105 and 106 had to work around. `-` is the channel that carries both.
+_NOTE_STDIN = (
+    "The starter recipe is wrong: `just build` calls `cargo build --offline`.\n"
+    "\n"
+    "- measured on 4 of 12 trials\n"
+    "- the next agent must not re-derive this\n")
+
+
+def _expected_block(text: str, heading: str) -> str:
+    """The bytes `note` is SUPPOSED to append. STATED HERE, deliberately not imported.
+
+    IMPORTING `tasks.py`'s OWN `_note_block` MADE THESE ROWS INCAPABLE OF FAILING, and that
+    was measured, not foreseen. The first version of this direction built its expected suffix
+    with `T._note_block`, which reads correctly -- one value at one address, AGENTS.md rule 12
+    -- and is wrong here for the opposite reason: the subject and the expectation moved
+    together. `tasks_mutants.py`'s `note_no_separator`, which deletes the leading newline that
+    separates the section from the body, came back SURVIVED with **0 red rows of 48**. The
+    check agreed with the mutant because the mutant had edited the check.
+
+    Rule 12 is about one FACT at one address. An expectation is not the fact; it is the
+    second, independent statement of it, and a control that imports its expectation from its
+    subject is not a control. Where the two must be kept in step, do it with a row that
+    compares them -- never by making them the same object.
+
+    `heading` is required rather than defaulting to today's date for a smaller reason with the
+    same shape: two `strftime` calls straddling midnight would make this disagree with the
+    subject over nothing. The DEFAULT heading is pinned separately, by a row that matches its
+    shape with a regex rather than by recomputing the date.
+    """
+    return f"\n## {heading}\n\n{text.strip()}\n"
+
+
+#: The default heading's shape -- `## note <ISO date>` -- and the blank line under it, with
+#: the leading newline that separates the section from whatever the body ended with. Written
+#: as a pattern here for `_expected_block`'s reason: it is the independent statement of the
+#: format, and it is what goes red if the separator or the date is dropped.
+_DEFAULT_BLOCK_RE = re.compile(r"^\n## note \d{4}-\d\d-\d\d\n\n(.*)\n$", re.S)
+
+
+def note_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
+    """Can a dispatched agent append what it learned to a ticket BODY, from its worktree,
+    without disturbing a byte of the ticket it was briefed from?
+
+    Every row runs the tool from the WORKTREE and reads the file in the MAIN checkout. That
+    asymmetry is the defect's address: `TASKS` and `ROOT` disagree only there, and a probe
+    run in the main checkout would pass on a `note` that wrote to the wrong queue entirely.
+    """
+    rows, unchecked = [], []
+    main, wt = _scratch_pair(tmp / "note")
+    target = main / "tasks" / "70-a.md"
+    original = _task_file("70", body=_NOTE_BODY)
+
+    def probe(src: Path, *argv: str, stdin: str | None = None,
+              reset: bool = True) -> tuple[int, str, str]:
+        shutil.copy(src, main / "eval/tools/tasks.py")
+        shutil.copy(src, wt / "eval/tools/tasks.py")
+        if reset:
+            target.write_text(original, encoding="utf-8")
+        p = subprocess.run([sys.executable, str(wt / "eval/tools/tasks.py"), *argv],
+                           capture_output=True, text=True, input=stdin)
+        return p.returncode, ((p.stdout or "") + (p.stderr or "")).strip(), target.read_text()
+
+    # THE POSITIVE CONTROL FIRST, for the same reason `add_rows` runs one: if the copy that
+    # predates the subcommand passes this harness, the harness is not exercising it.
+    if skip_prefix:
+        unchecked.append("`note` positive control NOT CHECKED - --skip-prefix was given. "
+                         "Nothing in the note rows shows this harness can observe the "
+                         "absence of the subcommand.")
+    else:
+        rc_g, blob = _run_tool_git("show", f"{PRE_NOTE_COMMIT}:eval/tools/tasks.py")
+        if rc_g != 0:
+            unchecked.append(f"`note` positive control NOT CHECKED - could not read "
+                             f"{PRE_NOTE_COMMIT}:eval/tools/tasks.py ({blob[:90]}). The "
+                             f"note rows below are unproven, not passing.")
+        else:
+            pre_py = tmp / "pre_note_tasks.py"
+            pre_py.write_text(blob if blob.endswith("\n") else blob + "\n")
+            rc, out, after = probe(pre_py, "note", "70", "anything at all")
+            rows.append((f"`note` CAN be reported missing ({PRE_NOTE_COMMIT} must exit "
+                         f"non-zero and write nothing)", rc,
+                         rc != 0 and after == original,
+                         f"exit {rc}, file unchanged: {after == original}; "
+                         f"{out.splitlines()[-1][:90] if out else ''}"))
+
+    # --- the capability itself, run from the worktree.
+    text = "what working this task established, in one line"
+    head = "note 2026-08-23, first pass"
+    expected = _expected_block(text, head)
+    rc, out, after = probe(TASKS_PY, "note", "70", text, "--heading", head)
+    printed = out.splitlines()[-1] if out else ""
+    rows.append(("`note` from a worktree exits 0 and prints the MAIN checkout's file", rc,
+                 rc == 0 and printed.startswith("appended ") and str(target) in printed,
+                 printed[:150]))
+    rows.append(("`note` wrote into the MAIN checkout's queue, not the worktree's", 0,
+                 after != original and not (wt / "tasks").exists(),
+                 f"main file grew by {len(after) - len(original)} bytes; worktree tasks/ "
+                 f"exists: {(wt / 'tasks').exists()}"))
+
+    # THE ROW THE TICKET ASKED FOR. Not "the values survived" and not "it still parses": the
+    # file afterwards is the file before it PLUS the expected section and NOTHING else.
+    rows.append(("the noted ticket is byte-identical plus exactly the section appended",
+                 len(expected), after == original + expected,
+                 "identical + block" if after == original + expected
+                 else f"DIFFERS: prefix intact={after.startswith(original)}; "
+                      f"suffix={after[len(original):][:70]!r}"))
+    # The weaker claim beside the stronger one, as direction 1 does, because they fail
+    # differently: a `note` that rewrote the frontmatter through `_render` would keep every
+    # value and break the row above, which is the whole reason the row above is the byte one.
+    rows.append(("`note` leaves every frontmatter value alone (the weaker claim, for "
+                 "contrast)", 0, _fm_values(after) == _fm_values(original),
+                 f"{_fm_values(original)} -> {_fm_values(after)}"))
+
+    # Stacking. A second note must not replace the first, and the first must still be there
+    # byte for byte -- otherwise "append" is a rewrite that happens to look like one.
+    first = after
+    expected2 = _expected_block("a second, later note", "note 2026-08-23, second pass")
+    rc2, _out2, after2 = probe(TASKS_PY, "note", "70", "a second, later note",
+                               "--heading", "note 2026-08-23, second pass", reset=False)
+    rows.append(("a second `note` stacks and the first section is untouched", rc2,
+                 rc2 == 0 and after2 == first + expected2,
+                 "stacked" if after2 == first + expected2
+                 else f"DIFFERS: {after2[len(first):][:70]!r}"))
+
+    # THE DEFAULT HEADING, which every real invocation will use. Matched by SHAPE rather than
+    # by recomputing today's date, so it cannot disagree with the subject over a clock -- and
+    # the pattern carries the leading newline, which is what separates the section from the
+    # body and what a mutant deleting it must go red on.
+    rc_d, _out_d, after_d = probe(TASKS_PY, "note", "70", text)
+    m_d = _DEFAULT_BLOCK_RE.match(after_d[len(original):])
+    rows.append(("the default heading is `## note <ISO date>`, separated from the body", rc_d,
+                 rc_d == 0 and after_d.startswith(original) and bool(m_d)
+                 and m_d.group(1) == text,
+                 f"suffix: {after_d[len(original):][:70]!r}"))
+
+    # THE SAME CLAIM ON A BODY THAT ENDS IN A NEWLINE, which is what every real queue file
+    # does. `_NOTE_BODY` deliberately does NOT, because that is the harder case for a leading
+    # separator -- and a separator right for one shape and wrong for the other would pass a
+    # probe that only ever fed it one. This is the variant half of rule 15: it asks whether
+    # the check can still PASS on an input a mutant cannot manufacture. It writes its own
+    # `original` rather than going through `probe`, which resets to the other shape.
+    original_nl = _task_file("70", body=_NOTE_BODY + "\n")
+    target.write_text(original_nl, encoding="utf-8")
+    p_nl = subprocess.run([sys.executable, str(wt / "eval/tools/tasks.py"),
+                           "note", "70", text, "--heading", head],
+                          capture_output=True, text=True)
+    after_nl = target.read_text()
+    rows.append(("the same, on a body that DOES end in a newline", p_nl.returncode,
+                 p_nl.returncode == 0 and after_nl == original_nl + expected,
+                 "identical + block" if after_nl == original_nl + expected
+                 else f"DIFFERS: {after_nl[len(original_nl):][:70]!r}"))
+
+    # `-`: the channel that carries what `established_by` cannot. This is the row that
+    # closes #80's half of the ticket, so it asserts the backtick and the newlines arrive.
+    rc3, _out3, after3 = probe(TASKS_PY, "note", "70", "-", "--heading", head,
+                               stdin=_NOTE_STDIN)
+    rows.append(("`note 70 -` carries backticks and newlines from stdin verbatim", rc3,
+                 rc3 == 0 and after3 == original + _expected_block(_NOTE_STDIN, head)
+                 and "`just build`" in after3,
+                 f"backtick present: {'`just build`' in after3}; "
+                 f"lines added: {after3.count(chr(10)) - original.count(chr(10))}"))
+
+    # The appended ticket must still pass the lint it is briefed through -- `check` reads
+    # bodies now, and an append that broke `_FM_RE` or the misfiled-body comparison would be
+    # a repair that costs the gate. Run in the MAIN checkout, where `check` reads the queue.
+    rc4, out4 = _run_tool(main / "eval/tools/tasks.py", "check")
+    rows.append(("`check` is still clean on a ticket that has been noted", rc4,
+                 rc4 == 0 and "well-formed" in out4,
+                 f"exit {rc4}: {out4.splitlines()[-1][:100] if out4 else '(none)'}"))
+
+    # --- both refusals. A write that reports failure and a failure that reports success are
+    # the two shapes rule 7 is about; these assert the file is untouched in each case.
+    rc5, out5, after5 = probe(TASKS_PY, "note", "99", "a note for a task that is not there")
+    rows.append(("`note` on an unknown id exits 1 and writes nothing", rc5,
+                 rc5 == 1 and after5 == original
+                 and len(list((main / "tasks").glob("*.md"))) == 1,
+                 f"exit {rc5}, file unchanged: {after5 == original}; "
+                 f"{out5.splitlines()[-1][:70] if out5 else ''}"))
+    rc6, out6, after6 = probe(TASKS_PY, "note", "70", "-", stdin="   \n\n  \n")
+    rows.append(("`note` refuses an empty note rather than writing a bare heading", rc6,
+                 rc6 == 1 and after6 == original,
+                 f"exit {rc6}, file unchanged: {after6 == original}; "
+                 f"{out6.splitlines()[-1][:70] if out6 else ''}"))
+    return rows, unchecked
+
+
+def _fm_values(text: str) -> dict:
+    """Every frontmatter value of a task file held as TEXT, for the contrast row above."""
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return {"(no frontmatter)": text[:40]}
+    import yaml
+    try:
+        fm = yaml.safe_load(m.group(1))
+    except Exception:                                           # noqa: BLE001
+        return {"(unparseable)": m.group(1)[:40]}
+    return {str(k): T._scalar(v) for k, v in (fm or {}).items()}
 
 
 # --------------------------------------------------------------------------- direction 3
@@ -758,6 +983,7 @@ def main(argv: list[str]) -> int:
         tmp = Path(td)
         for fn in (lambda: roundtrip_rows(),
                    lambda: add_rows(tmp, a.skip_prefix),
+                   lambda: note_rows(tmp, a.skip_prefix),
                    lambda: check_rows(tmp),
                    lambda: reachability_rows(),
                    lambda: reachability_printed_rows(tmp),
