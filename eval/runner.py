@@ -170,8 +170,126 @@ def clone_pristine_target(dest: Path) -> Path | None:
     return dest if r.returncode == 0 else None
 
 
+#: WHAT A STORED COMMAND CAPTURE SAMPLES, AND WHAT IT DROPS.
+#:
+#: A truncation policy is a sampling policy, so this one states what it takes. Per stream,
+#: independently: the FIRST `STREAM_HEAD_CHARS` characters and the LAST `STREAM_TAIL_CHARS`.
+#: What is dropped is the MIDDLE of a stream that exceeds the two together, replaced by a
+#: marker naming exactly how many characters and lines went. The full length of each stream
+#: is stored beside the sample, so "what was dropped" is a recorded number rather than an
+#: inference from a string that happens to be 4000 long.
+#:
+#: The head, because a compiler's first diagnostic and a runner's banner are there. The tail,
+#: weighted heavier, because verdicts are: `Summary [...] 41 tests run`, the last failing
+#: assertion, and every template's `✅ verify passed`.
+#:
+#: The budget is PER STREAM and that is the point of #100/#114. Before this, `sh` merged
+#: `stdout + stderr` into ONE buffer and `run_trial` kept its last 4000 (`self_verify`) or
+#: 5000 (`holdout`) characters, so a command that floods one stream discarded the whole of
+#: the other. Of 26 stored spec-change records with `self_verify` exit 0, the 2 missing the
+#: recipe's own completion line are exactly the 2 that hit the 4000 cap, both on the Rust
+#: template, because `cargo-nextest` writes its progress to stderr. Raising a cap would only
+#: move that boundary - the rule that stdout is sacrificed first would survive it, still
+#: correlated with a stack by a property nobody chose.
+#:
+#: THIS IS THE ONE COPY. `judge/static.py` imports these three names rather than defining its
+#: own, so the grader's records and this harness's records cannot drift apart; two truncation
+#: policies in one repository is the defect that produced #100 in the first place.
+#: `runner_capture_selftest.py` and `judge/capture_selftest.py` pin the two entry points, and
+#: the former asserts they are the SAME function object.
+STREAM_HEAD_CHARS = 1000
+STREAM_TAIL_CHARS = 3000
+
+#: The keys a capture contributes to a stored record. Named so a reader can separate the
+#: capture from whatever else the record carries (`passed`, `score`, test counts).
+CAPTURE_FIELDS = ("stdout", "stderr", "stdout_chars", "stderr_chars", "note")
+
+
+def _sample_stream(text: str, head: int = STREAM_HEAD_CHARS,
+                   tail: int = STREAM_TAIL_CHARS) -> str:
+    if len(text) <= head + tail:
+        return text
+    middle = text[head:len(text) - tail]
+    return (f"{text[:head]}\n"
+            f"... [{len(middle)} characters, {middle.count(chr(10))} lines elided from the "
+            f"middle of this stream] ...\n"
+            f"{text[len(text) - tail:]}")
+
+
+def capture_fields(out: str, err: str, note: str = "",
+                   sample: Any = None) -> dict[str, Any]:
+    """The five capture keys, for either harness.
+
+    `sample` exists as a seam: `judge/static.py` passes its own module-level alias so a
+    mutant can replace the sampler there and still be caught. Nothing else should pass it.
+    """
+    s = sample or _sample_stream
+    return {"stdout": s(out), "stderr": s(err),
+            "stdout_chars": len(out), "stderr_chars": len(err),
+            "note": note or None}
+
+
+def stored_stdout(rec: dict[str, Any]) -> str | None:
+    """The stdout sample of a stored command record, or None if it cannot be known.
+
+    None for a record written before the repair: those merged the two streams before
+    truncating, so a missing line there is not evidence the command did not print it. Any
+    check over the stored corpus has to treat those as UNMEASURABLE rather than as empty -
+    the same distinction `pack_completeness` draws, and for the same reason. Stored records
+    cannot be repaired, because the discarded stdout was never written down.
+    """
+    return rec.get("stdout") if "stdout_chars" in rec else None
+
+
+def stored_output(rec: dict[str, Any]) -> str:
+    """Everything textual in a stored command record, either shape, for a human or a grep."""
+    if "stdout_chars" in rec:
+        return "".join(p for p in (rec.get("stdout") or "", rec.get("stderr") or "",
+                                   rec.get("note") or "") if p)
+    return rec.get("tail") or ""
+
+
+@dataclasses.dataclass
+class Sh:
+    """One command run by the spec-change harness: its status, and both its streams.
+
+    Which stream a line came from is a recorded fact here, not something a reader has to
+    infer from a merged buffer.
+    """
+    code: int
+    #: EXACTLY what the child wrote, per stream.
+    out: str = ""
+    err: str = ""
+    #: The HARNESS's own words - so far only a timeout. Kept apart from the two streams so
+    #: nothing the harness says is ever attributed to the command, and so a timeout no
+    #: longer erases what the command had already printed.
+    note: str = ""
+
+    @property
+    def text(self) -> str:
+        """The pre-#114 view: stdout then stderr, or the harness's note alone.
+
+        `parse_test_counts`, `parse_skipped` and every diagnostic print read this, and it is
+        preserved BYTE FOR BYTE - including a timeout replacing the output rather than
+        appending to it - so that repairing the stored record cannot move a single score.
+        The separated streams are what gets STORED; this is what gets PARSED.
+        """
+        return self.note if self.note else self.out + self.err
+
+    def record(self, **extra: Any) -> dict[str, Any]:
+        """What `run_trial` stores: the exit code, the capture, and the caller's own fields."""
+        return {"exit": self.code, **capture_fields(self.out, self.err, self.note), **extra}
+
+
+def _as_text(x: Any) -> str:
+    """`TimeoutExpired.stdout` is bytes on POSIX even in text mode, and None on Windows."""
+    if x is None:
+        return ""
+    return x.decode("utf-8", "replace") if isinstance(x, bytes) else str(x)
+
+
 def sh(cmd: str, cwd: Path, timeout_s: int = 1800,
-       target_dir: Path | None = None) -> tuple[int, str]:
+       target_dir: Path | None = None) -> Sh:
     # check=False: this function's whole contract is to HAND BACK the exit code. A
     # non-zero build or test is the measurement, not an error.
     try:
@@ -179,9 +297,11 @@ def sh(cmd: str, cwd: Path, timeout_s: int = 1800,
             cmd, cwd=cwd, shell=True, capture_output=True, text=True,
             timeout=timeout_s, env=trial_env(target_dir), check=False,
         )
-        return p.returncode, (p.stdout + p.stderr)
-    except subprocess.TimeoutExpired:
-        return 124, f"TIMEOUT after {timeout_s}s"
+        return Sh(p.returncode, p.stdout, p.stderr)
+    except subprocess.TimeoutExpired as ex:
+        # Whatever the child had already printed is kept; `text` is still the note alone.
+        return Sh(124, _as_text(ex.stdout), _as_text(ex.stderr),
+                  note=f"TIMEOUT after {timeout_s}s")
 
 
 def git(repo: Path, *args: str) -> str:
@@ -560,9 +680,9 @@ def run_trial(template: Path, task: Task, arm_name: str, arm: dict[str, Any],
     prepare_repo(template, work, arm)
     target_dir = clone_pristine_target(run_dir / "targets" / trial_id)
     if task.setup_cmd:
-        scode, sout = sh(task.setup_cmd, work, timeout_s=1200, target_dir=target_dir)
-        if scode != 0:
-            print(f"  [SETUP FAILED] {trial_id}: {task.setup_cmd}\n{sout[-800:]}")
+        setup = sh(task.setup_cmd, work, timeout_s=1200, target_dir=target_dir)
+        if setup.code != 0:
+            print(f"  [SETUP FAILED] {trial_id}: {task.setup_cmd}\n{setup.text[-800:]}")
 
     rec: dict[str, Any] = {
         "trial_id": trial_id, "task": task.id, "arm": arm_name, "trial": trial,
@@ -599,8 +719,11 @@ def run_trial(template: Path, task: Task, arm_name: str, arm: dict[str, Any],
     ]
 
     # The agent's own advertised check, run on the repo as the agent left it.
-    vcode, vout = sh(task.verify_cmd, work, timeout_s=1800, target_dir=target_dir)
-    rec["self_verify"] = {"exit": vcode, "passed": vcode == 0, "tail": vout[-4000:]}
+    verify = sh(task.verify_cmd, work, timeout_s=1800, target_dir=target_dir)
+    # Both streams, each on its own budget. This record is the only place a later check can
+    # ask whether the agent ran its own gate to completion, and a merged buffer answered
+    # that question with whichever stream the toolchain happened to write second (#100/#114).
+    rec["self_verify"] = verify.record(passed=verify.code == 0)
 
     # Now revert protected paths and layer in held-out tests.
     rec["reverted"] = revert_protected(work, task)
@@ -612,26 +735,26 @@ def run_trial(template: Path, task: Task, arm_name: str, arm: dict[str, Any],
         _persist(run_dir, rec)
         return rec
 
-    hcode, hout = sh(task.holdout_cmd, work, timeout_s=1800, target_dir=target_dir)
-    passed_n, total_n = parse_test_counts(hout)
-    skipped_n = parse_skipped(hout)
-    rec["holdout"] = {
-        "exit": hcode,
+    holdout = sh(task.holdout_cmd, work, timeout_s=1800, target_dir=target_dir)
+    # `.text` is stdout-then-stderr, byte for byte what these parsers were handed before
+    # the capture was split, so no score can move with the record's shape.
+    passed_n, total_n = parse_test_counts(holdout.text)
+    skipped_n = parse_skipped(holdout.text)
+    rec["holdout"] = holdout.record(
         # A skipped held-out test verified nothing, so it cannot count toward a
         # pass. This invalidates the TRIAL (an environment problem), rather than
         # scoring the agent as having failed.
         # Exit 0 having run ZERO tests is not a pass — it is a broken command.
         # Godot exited 0 with 0/0 when newly-added class_name files had not been
         # re-imported, which check-suite reported as "the task is already done".
-        "passed": hcode == 0 and skipped_n == 0 and total_n > 0,
-        "skipped": skipped_n,
-        "tests_passed": passed_n,
-        "tests_total": total_n,
+        passed=holdout.code == 0 and skipped_n == 0 and total_n > 0,
+        skipped=skipped_n,
+        tests_passed=passed_n,
+        tests_total=total_n,
         # Continuous score. Falls back to the binary outcome when the runner
         # produced no parseable counts (e.g. a compile failure).
-        "score": (passed_n / total_n) if total_n else (1.0 if hcode == 0 else 0.0),
-        "tail": hout[-5000:],
-    }
+        score=(passed_n / total_n) if total_n else (1.0 if holdout.code == 0 else 0.0),
+    )
 
     rec["passed"] = bool(rec["holdout"]["passed"]) and not rec["tampering"]
     rec["score"] = 0.0 if rec["tampering"] else rec["holdout"]["score"]
@@ -673,9 +796,9 @@ def check_suite(suite: Suite, template: Path, scratch: Path) -> int:
         work = scratch / f"control__{task.id}"
         prepare_repo(template, work, {})
         if task.setup_cmd:
-            scode, sout = sh(task.setup_cmd, work, timeout_s=1200)
-            if scode != 0:
-                print(f"  [BROKEN] {task.id}: setup_cmd failed: {sout[-400:]}")
+            setup = sh(task.setup_cmd, work, timeout_s=1200)
+            if setup.code != 0:
+                print(f"  [BROKEN] {task.id}: setup_cmd failed: {setup.text[-400:]}")
                 bad += 1
                 continue
         try:
@@ -685,8 +808,9 @@ def check_suite(suite: Suite, template: Path, scratch: Path) -> int:
             bad += 1
             continue
         td = clone_pristine_target(scratch / f"target__{task.id}")
-        code, out = sh(task.holdout_cmd, work, timeout_s=1800, target_dir=td)
-        passed_n, total_n = parse_test_counts(out)
+        control = sh(task.holdout_cmd, work, timeout_s=1800, target_dir=td)
+        code = control.code
+        passed_n, total_n = parse_test_counts(control.text)
         # Record the floor: some held-out tests (e.g. "the paddles still render")
         # pass trivially before the fix. Without subtracting this, doing nothing
         # scores 0.67 on a 3-test task and every arm looks better than it is.

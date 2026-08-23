@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#110 from building and running this evaluator. **Check whether a
+Findings #19-#114 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -186,6 +186,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **108** | The pre-campaign parity gate collected `just test`'s exit code and read only `passed/total`, so a stack whose toolchain was absent printed `0/0` and the tool still reported no drift | [certifies-nothing](findings/certifies-nothing.md) |
 | **109** | Unity's batchmode editor runs an FMOD CoreAudio output whatever the manifest says and whatever `-disable-audio` says, so the flag's stated reason is not something it achieves | [fail-open](findings/fail-open.md) |
 | **110** | The three.js capability called the largest measured effect in the matrix was measured at 167x this task set's geometry, against a baseline nobody would write, for a field that cannot resolve it | [certifies-nothing](findings/certifies-nothing.md) |
+| **114** | The runner's merged capture is repaired and the reader audit found the field had no readers at all, which is why a stack-correlated loss survived four matrices | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

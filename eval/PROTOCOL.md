@@ -11,7 +11,8 @@ relaxes one on the grounds that it looks paranoid.
 **Run `python3 tools/precampaign_smoke.py` first.** It exercises every command that is run
 once per campaign — `plan` for each game, `prompt_guard --snapshot`, `starter_parity`,
 `starter_gate_control`, `verify_blind`, `audio_selftest`, `capture_selftest`,
-`parity_selftest`, `sequential_selftest`, `docstat --sweep` — **unpiped, reading each exit
+`runner_capture_selftest`, `parity_selftest`, `sequential_selftest`, `docstat --sweep` —
+**unpiped, reading each exit
 code**, and it exists because two of them were
 silently broken:
 

@@ -2298,3 +2298,113 @@ happened" — and it would look exactly like a stack property.
 ts and unity were not audited on this axis. The TS capture builds a **fresh view per frame**
 (established in #101's wake), which is the same constraint arrived at by a third route; Unity's
 `RenderHarness` was not read.
+
+
+---
+
+## 114. The runner's merged capture is repaired, and the reader audit found the shape had no readers at all — which is why it survived four matrices
+
+`#103` filed the second instance of `#100`: `eval/runner.py`'s `sh()` returned
+`(p.stdout + p.stderr)` as one string, and `run_trial` stored that buffer as
+`self_verify.tail[-4000:]` and `holdout.tail[-5000:]`. Repaired here, on the pattern task 45
+set, and re-measured first so the defect was established before the fix rather than after it
+(rule 14).
+
+### The defect, re-measured on two addresses
+
+`#103` swept `runs/*/trials/*.json`. That address reproduces exactly:
+
+| address | trial files | `self_verify` records | exit 0 | contain `verify passed` | at the 4000 cap |
+|---|---|---|---|---|---|
+| `runs/*/trials/*.json` (live runs) | 137 | 47 | 26 | 24 | **2** |
+| `runs/**/trials/*.json` (+ the archived byte-identical-prompts run) | 161 | 71 | 46 | 44 | **2** |
+
+The wider address adds 24 records from `archive-run1-byte-identical-prompts/`, a superseded
+regime. **Both addresses find the same two misses, and they are the same two records at the
+cap**: `t3_powerup__rust_bevy__t1` and `t1_rally__baseline__t1` — the `bakeoff-rust` template
+and the `core` suite's baseline arm, which is the same Rust template. 0 of the 30 green
+non-Rust records lost their line. The conclusion is address-invariant; the denominator is not,
+which is worth saying out loud, because a census quoted without its address is the shape of
+rule 12.
+
+### The variant, before and after
+
+`runner_capture_selftest.py` was written against the **unfixed** `sh()` and run there first:
+**18 of 33 expectations held.** The one that matters is the pair — *"a stderr flood keeps the
+single stdout line"* failed while *"...and this is the case the OLD policy got wrong"* passed,
+so the variant was reproducing #100 rather than testing a path that had already been repaired.
+Seven of the fifteen failures were `AttributeError` on names the fix introduces; those are
+recorded as failed expectations, never skipped. After the repair: **50 of 50**, including
+three mutants — remove the truncation, re-merge the streams, pour the harness's note into
+stdout — each of which turns one of these checks red.
+
+### The positive control, per stack, one execution rendered twice
+
+The real `just verify` run through `runner.sh` in each template, then rendered under both the
+pre-#114 policy and the current one, so no rebuild can sit between the two readings:
+
+| stack | exit | stdout chars | stderr chars | pre-#114 | now |
+|---|---|---|---|---|---|
+| rust | 0 | **16** | **12726** | **NO** | yes |
+| godot | 0 | 1613 | 0 | yes | yes |
+| ts | 0 | 611 | 213 | yes | yes |
+| unity | 0 | 197 | 0 | yes | yes |
+
+Sixteen characters of stdout against 12.7 KB of stderr. That is the whole mechanism in one
+row, on the live gate rather than on a fixture, and it is a property of what `cargo-nextest`
+writes — not of what the Rust agents did.
+
+### What the reader audit found, and why it is the interesting part
+
+The task was filed separately from task 45 because `sh()`'s two-tuple needed its own audit
+before the return type could change. The audit:
+
+| call site | reads | now |
+|---|---|---|
+| `run_trial` setup | `sout[-800:]` in a diagnostic print | `setup.text[-800:]` |
+| `run_trial` verify | stored whole as `self_verify.tail` | `verify.record(passed=...)` |
+| `run_trial` holdout | `parse_test_counts`, `parse_skipped`, stored as `holdout.tail` | `holdout.text` for both parsers, `holdout.record(...)` for the store |
+| `check_suite` setup | `sout[-400:]` in a diagnostic print | `setup.text[-400:]` |
+| `check_suite` holdout | `parse_test_counts` | `control.text` |
+
+**Five call sites, not the ten the task estimated** — and outside them, across every `.py` and
+`.md` in the repository, **`self_verify.tail` and `holdout.tail` have no readers at all.** The
+only stored field either dict is read for is `self_verify.passed`, in `runner.py`'s own report.
+Nothing in `judge/`, no tool, no document quotes the text.
+
+That is the finding, not a footnote to it. **A capture nobody reads is a capture nobody can
+notice is broken.** The field was written for four matrices, was stack-correlated the whole
+time, and the loss surfaced only when someone went looking for the *shape* of a defect found
+somewhere else. The audit that was expected to be the risky part — a reader depending on the
+old shape — turned up nothing, and the reason it turned up nothing is the same reason the
+defect lasted.
+
+> **Ask what reads a field before trusting that a defect in it would have been noticed.** An
+> unread record is not evidence; it is a place evidence is written down and never checked.
+
+### One policy, not two similar ones
+
+`STREAM_HEAD_CHARS`, `STREAM_TAIL_CHARS`, `_sample_stream`, `capture_fields`, `stored_stdout`
+and `stored_output` now live **once**, in `runner.py`, and `judge/static.py` imports them.
+That direction was forced: `static.py` already loads `runner.py` for the test-count parsers, so
+the reverse would be a cycle. `runner_capture_selftest.py` asserts each of those names resolves
+to a function defined in `runner.py` — the two modules are separate objects, since `static.py`
+loads the file under its own module name, so *identity* is not available and *definition site*
+is what is checked. A grader record and a spec-change record are asserted byte-equal on all
+five capture keys.
+
+The two policies are **identical, with one deliberate difference that is not the capture**:
+`static.Cmd` also stores `name`, `argv`, `seconds`, `peak_rss_mb` and `cpu_seconds`, because it
+measures what a command COST; `Sh` stores none of those, because the spec-change harness never
+measured them. `static.run` also records a 127 with a `note` when a binary cannot be spawned —
+`sh()` runs under `shell=True`, so a missing binary is the shell's own 127 on stderr and the
+`note` field there carries only timeouts. Both are differences in what is recorded beside the
+capture, not in how either stream is sampled.
+
+### What this does not settle
+
+The stored corpus stays mixed and cannot be backfilled — 71 of 71 stored `self_verify` records
+are pre-repair, and `stored_stdout()` returns **None** for every one of them, because a line
+missing from a merged buffer is not evidence the command never printed it. Any future check
+that asks whether an agent ran its own gate to completion can only be asked of trials run after
+today.

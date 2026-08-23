@@ -217,6 +217,12 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
     # the way nextest discarded every Rust gate's completion line for four matrices
     # (#100). Cheap enough to run before every campaign, and it carries its own mutant.
     out.append(("capture_selftest", ["python3", "judge/capture_selftest.py"], EVAL))
+    # The same policy through the other harness's entry point, plus the check that there is
+    # only ONE policy: `judge/static.py` imports the sampler from `runner.py` rather than
+    # keeping a second copy, and this asserts that every one of those names is still defined
+    # in runner.py. Two truncation policies in one repository is how #100 recurred as #114.
+    out.append(("runner_capture_selftest",
+                ["python3", "runner_capture_selftest.py"], EVAL))
     out.append(("sequential_selftest",
                 ["python3", "judge/sequential_selftest.py"], EVAL))
     out.append(("docstat --sweep", ["python3", "tools/docstat.py", "--sweep"], EVAL))
