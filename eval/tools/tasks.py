@@ -244,6 +244,207 @@ def _taken_ids() -> set[int]:
     return taken
 
 
+#: A ticket's branch is `task-<id>-<slug>`, local or on any remote. Leading zeros are
+#: tolerated because the queue writes `id: 01` and a branch is named from the integer.
+def _branch_pattern(tid: str) -> "re.Pattern[str] | None":
+    try:
+        n = int(str(tid).strip())
+    except (TypeError, ValueError):
+        return None
+    return re.compile(rf"^refs/(?:heads|remotes/[^/]+)/task-0*{n}-")
+
+
+def _all_refs() -> list[str] | None:
+    """Every local and remote branch ref, or None if git could not be asked.
+
+    THE ADDRESS IS THE QUEUE'S OWN. `TASKS` is derived from `_main_worktree()`, and refs are
+    shared by every worktree of that repository, so asking git at `TASKS.parent` cannot end
+    up describing a different checkout from the one the tickets were read out of (rule 12).
+    None is returned rather than an empty list: `[]` would say "no branch exists for any
+    ticket", which is a confident, uniform answer of exactly the shape rule 12 names.
+    """
+    try:
+        out = subprocess.run(["git", "-C", str(TASKS.parent), "for-each-ref",
+                              "--format=%(refname)", "refs/heads/", "refs/remotes/"],
+                             capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return None
+    return [ln.strip() for ln in out.split("\n") if ln.strip()]
+
+
+#: WHAT "LANDED" IS MEASURED AGAINST, in order, and every one that resolves is used.
+#
+# `main` is the condition as written: the queue says merged, so `main` should hold it.
+# `origin/main` covers a CI checkout with no local `main`.
+#
+# THE THIRD BASE IS THE CALLER'S OWN HEAD, AND IT IS RESOLVED AT THE CALLER'S ADDRESS, NOT THE
+# QUEUE'S. `TASKS` is the MAIN checkout, so a bare `HEAD` asked there is `main` under another
+# name -- which is what the first version of this list held, a second opinion that was a
+# restatement of the first (AGENTS.md rule 12: the address is an input to the check). Every
+# worktree of a repository shares one object database, so resolving the invoking worktree's
+# HEAD to a SHA and comparing against that is unambiguous and needs no second git dir.
+#
+# It earns its place because `main` alone makes the gate unfixable from the branch that fixes
+# it: the agent landing an orphaned branch cannot turn its own `check` green before the
+# orchestrator merges, and a gate that stays red through correct work is a gate that gets
+# bypassed. In the main checkout and in CI it resolves to the same commit as `main`, so the
+# condition is unchanged exactly where it is enforced.
+_LAND_BASES = ("main", "origin/main")
+
+
+def _head_at(where) -> str | None:
+    """The SHA of HEAD in the checkout at `where`, or None if there isn't one."""
+    try:
+        r = subprocess.run(["git", "-C", str(where), "rev-parse", "--verify", "-q",
+                            "HEAD^{commit}"], capture_output=True, text=True)
+    except (FileNotFoundError, OSError):
+        return None
+    return r.stdout.strip() or None
+
+
+def _caller_heads() -> list[tuple[str, str | None]]:
+    """The HEADs of the checkout the PROCESS is in and of the one holding this FILE.
+
+    TWO ADDRESSES, BOTH ASKED, BECAUSE THEY ARE ROUTINELY DIFFERENT HERE. `ROOT` comes
+    from `__file__`, and `.agents/skills/work/SKILL.md` tells an agent to run the tool
+    **from the main checkout by absolute path** when its own copy might be stale -- so
+    `ROOT` is then the main checkout and the agent's branch HEAD is not consulted at all,
+    which silently defeats the repair path this base exists to keep open. `Path.cwd()` is
+    the branch the caller is actually working on.
+
+    Neither is redundant: a git hook runs with cwd inside the repository whose commit is
+    being checked, and an agent invoking the shared copy has its work at cwd and nothing
+    at `ROOT`. They are de-duplicated by SHA downstream, so when they coincide -- the
+    main checkout, and CI -- exactly one is named. AGENTS.md rule 12: the address is an
+    input to the check, and this check has two.
+    """
+    return [("this checkout's HEAD", _head_at(Path.cwd())),
+            (f"HEAD of {ROOT.name}", _head_at(ROOT))]
+
+
+def _resolved_bases() -> list[tuple[str, str]]:
+    """`(label, sha)` for every base that resolves, DE-DUPLICATED BY SHA.
+
+    Every base is carried as a SHA, not as the name it was written with, so a name that is
+    another name's commit is dropped instead of being printed as a second opinion -- which is
+    what a bare `HEAD` in `_LAND_BASES` was: asked at the queue's address it IS `main`, and the
+    census line named two bases where there was one.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(label: str, sha: str | None) -> None:
+        if sha and sha not in seen:
+            seen.add(sha)
+            out.append((label, sha))
+
+    for b in _LAND_BASES:
+        try:
+            r = subprocess.run(["git", "-C", str(TASKS.parent), "rev-parse", "--verify",
+                                "-q", f"{b}^{{commit}}"], capture_output=True, text=True)
+        except (FileNotFoundError, OSError):
+            return []
+        if r.returncode == 0:
+            add(b, r.stdout.strip())
+    # A CALLER HEAD IS ONLY A BASE IF IT EXISTS WHERE THE ANCESTRY QUERY RUNS. The query
+    # runs at `TASKS.parent`; `Path.cwd()` may be a DIFFERENT repository entirely, and a
+    # SHA from one repository is not an object in another -- `merge-base` then exits 128
+    # for every ticket, which the three-valued `_is_ancestor` reads as "could not answer"
+    # and turns the whole gate into NOT_CHECKED. Silent, total, and it looks like a clean
+    # queue. Caught by `tasks_control`'s own caller-HEAD row, which runs the tool with
+    # cwd in an unrelated checkout (AGENTS.md rule 12: two addresses, and only one of
+    # them was being checked).
+    for label, head in _caller_heads():
+        if head and _head_exists_here(head):
+            add(f"{label} {head[:9]}", head)
+    return out
+
+
+def _head_exists_here(sha: str) -> bool:
+    """Is `sha` an object in the repository the ancestry query runs against?"""
+    try:
+        return subprocess.run(["git", "-C", str(TASKS.parent), "rev-parse", "--verify",
+                               "-q", f"{sha}^{{commit}}"],
+                              capture_output=True, text=True).returncode == 0
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def _is_ancestor(ref: str, bases: "list[tuple[str, str]] | None" = None) -> bool | None:
+    """True / False / **None, meaning git could not answer**.
+
+    `merge-base --is-ancestor` uses exit 0 for yes and exit 1 for no, and reserves
+    anything else -- 128 for a ref that vanished between `_all_refs()` and here, or a
+    corrupt object -- for an ERROR. Reading 128 as "not an ancestor" turns a git failure
+    into a confident accusation: `check` would exit 1 and name a ticket whose ancestry it
+    never established. A verdict this tool did not compute must not be reported as one it
+    did (AGENTS.md rule 2), so an error propagates as None and `landed_status` degrades
+    the ticket to NOT_CHECKED rather than to ORPHANED.
+    """
+    unknown = False
+    for _label, rev in (_resolved_bases() if bases is None else bases):
+        try:
+            rc = subprocess.run(["git", "-C", str(TASKS.parent), "merge-base",
+                                 "--is-ancestor", ref, rev],
+                                capture_output=True, text=True).returncode
+        except (FileNotFoundError, OSError):
+            return None
+        if rc == 0:
+            return True
+        if rc != 1:
+            unknown = True
+    return None if unknown else False
+
+
+def landed_status(tid: str, refs: list[str] | None, is_ancestor) -> tuple[str, list[str]]:
+    """Is a closed ticket's work reachable from `main`? THREE values, never two.
+
+    `LANDED` at least one `task-<id>-*` ref is an ancestor of `main`.
+    `ORPHANED` such a ref exists and NONE of them is. This is the defect: a queue entry
+                 reading `done` over work `main` has never seen. Task 70 sat like that with
+                 458 lines of `eval/judge/paired_verdicts.py` reachable from nowhere else,
+                 and nothing in the repository compared a closed ticket against the tree.
+    `NOT_CHECKED` no such ref exists -- the usual case, because a merged branch is normally
+                 deleted. **It is not a pass.** `total=0 passed=0` is indistinguishable from
+                 correct failure (rule 1), and a two-valued version of this check would
+                 report 112 of 119 closed tickets as verified while verifying nothing.
+
+    WHAT IT ASKS IS REACHABILITY, NOT CONTENT. A branch merged with `-s ours`, or one whose
+    changes a later commit reverted, reads `LANDED` here and its work is absent. That is the
+    variant this cannot see (rule 15), and it is why the failure message says *read the
+    diff* rather than *merge it*.
+
+    THE KNOWN FALSE POSITIVE IS A SQUASH MERGE, which lands the content and leaves the tip
+    unreachable. 0 of the 7 tickets with a surviving branch were squashed when this shipped;
+    if the repository starts squashing, this trigger stops being the right one rather than
+    needing a wider tolerance.
+
+    A VERDICT IS RELATIVE TO THE REFS THE CALLER CAN SEE, AND CI CAN SEE FEWER. Measured on
+    the same commit, the same day: the operator's checkout read `7 LANDED / 112 NOT_CHECKED`
+    and CI read `6 LANDED / 113 NOT_CHECKED`, because task 70's branch was never pushed. **The
+    defect this exists to catch reads NOT_CHECKED in CI** -- correctly, since from there no
+    such ref exists. So the load-bearing instance is the git hook in the checkout that HOLDS
+    the branches, and CI is a weaker copy of it, not a second opinion. Do not read a green CI
+    run as covering this.
+    """
+    pat = _branch_pattern(tid)
+    if refs is None or pat is None:
+        return "NOT_CHECKED", []
+    cand = sorted(r for r in refs if pat.match(r))
+    if not cand:
+        return "NOT_CHECKED", []
+    # `is_ancestor` is THREE-VALUED: None means git could not answer (a ref that vanished
+    # between the listing and here, a corrupt object). An unanswered ref is not a
+    # negative one, so it degrades the ticket to NOT_CHECKED. Accusing on a failed read
+    # is rule 2 -- inferring a state from something that is not a report of it.
+    verdicts = [is_ancestor(r) for r in cand]
+    if any(v is True for v in verdicts):
+        return "LANDED", cand
+    if any(v is None for v in verdicts):
+        return "NOT_CHECKED", cand
+    return "ORPHANED", cand
+
+
 class _Malformed(Exception):
     """A task file `check` should name, rather than one `_load` should crash on."""
 
@@ -1016,6 +1217,38 @@ def cmd_check() -> int:
         for w in warn:
             print(f"  {w}")
         print()
+
+    # A `done` TICKET WHOSE BRANCH IS NOT AN ANCESTOR OF `main`. See `landed_status` for what
+    # the three values mean and what this cannot see. Measured on the live queue of 121
+    # tickets before it shipped: 119 `done`, of which 6 LANDED, 1 ORPHANED -- task 70, the
+    # true positive that caused this check to be written -- and 112 NOT_CHECKED. **0 false
+    # positives.** The counts are printed rather than remembered: the population moves
+    # every time a branch is deleted AND every time a peer closes a ticket in the shared
+    # queue -- it was 120 done / 8 LANDED within the hour, before this had merged.
+    refs = _all_refs()
+    bases = _resolved_bases()
+    if not bases:
+        refs = None                      # nothing to compare against is NOT CHECKED, not a pass
+    landed = notchecked = 0
+    for t in _load():
+        if t.get("status") != "done":
+            continue
+        verdict, cand = landed_status(str(t.get("id")), refs,
+                                      lambda r: _is_ancestor(r, bases))
+        if verdict == "LANDED":
+            landed += 1
+        elif verdict == "NOT_CHECKED":
+            notchecked += 1
+        else:
+            bad.append(f"{t.get('id')}: status done, but {', '.join(cand)} is not an "
+                       f"ancestor of main - the queue says this work is merged and the "
+                       f"tree has never seen it. Read the branch diff before believing "
+                       f"either side")
+    print(f"branches of `done` tickets: {landed} reachable from "
+          f"{' / '.join(lbl for lbl, _ in bases) or '-'}, "
+          f"{notchecked} NOT CHECKED (no `task-<id>-*` ref survives - not a pass)"
+          + ("" if refs is not None else " [git unavailable: nothing was checked]"))
+    print()
 
     if bad:
         print(f"{len(bad)} problem(s):")

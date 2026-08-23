@@ -79,11 +79,144 @@ def load(run_dir: str, adjudications_apply: bool):
                     "overall_stored": r["overall"],
                     "regime": r.get("scoring_regime", "weighted-0.31/0.69 (pre-gate)"),
                     "gate": r.get("gate"),
+                    # DERIVED, not read. Every stored record predates 2026-08-23 and
+                    # carries `gate: None` (measured over all 90), so reading the field
+                    # would gate nothing while looking like it gated. Tier 1 is a
+                    # PASS/FAIL gate under the current scheme (RUBRIC.md), and green
+                    # means every tier-1 criterion passed.
+                    "gate_green": all(c["passed"] for c in r["programmatic"]["criteria"]),
+                    "n_scored": len(scored),
+                    # THE ADJUDICATED PASS COUNT, CARRIED AS AN INTEGER. `overall_adj`
+                    # above goes through `overall_score`, which rounds to 4 decimals,
+                    # and `ranking_test` compares a gap against `1/N` -- at N=13 a
+                    # one-criterion gap arrives as 1.0000-0.9231=0.0769 against a
+                    # threshold of 0.076923..., so the documented boundary case read
+                    # DOES NOT CROSS on real data while the selftest, which built
+                    # 12/13 unrounded, read CROSSES. Tier 2 IS a pass count; the test
+                    # now does its arithmetic in counts and cannot round at all.
+                    "n_passed_adj": adj_pass,
                     "prog": pr, "bot_raw": r["tier_scores"]["playbot"], "bot_adj": pb_adj,
                     "fails": [c["id"] for c in scored if not c["passed"]],
                     "evidence_by_id": {c["id"]: c.get("evidence", "")
                                        for c in scored if not c["passed"]}})
     return out
+
+
+def _completed(row: dict) -> bool:
+    """Did this trial's AGENT finish? Absent field reads `completed`, deliberately.
+
+    THE HEADER SAYS `completed`, SO THIS FUNCTION HAS TO ENFORCE IT. `main()` already
+    filters non-completed rows out before calling here, so on the shipped path this
+    changes nothing -- but `ranking_test` is a public function that prints a claim about
+    its population, and a guarantee that lives only in the caller is a guarantee the next
+    caller will not have. A verdict must not out-live the filter that earned it.
+
+    A row with no `terminal_reason` key at all is a hand-built one (the selftest's), not
+    a stored trial; those are `completed` by construction. A row that HAS the field must
+    say `completed` - `unknown`, `max_turns` and `budget_exhausted` are all excluded,
+    which is FINDINGS #22's rule about not pooling populations that did not finish.
+    """
+    return str(row.get("terminal_reason", "completed")) == "completed"
+
+
+def ranking_test(rows: list[dict]) -> str:
+    """The re-open condition for the deterministic-tier ranking ban (`DECISIONS.md`).
+
+    Two things separate this from the ADJUDICATED block above, and both come from
+    decisions already made rather than from this test:
+
+    1. GATE-GREEN ONLY. Tier 1 is a PASS/FAIL gate, so a submission that does not build
+       has no tier-2 score to occupy a rank position - its 0.00, or its adjudicated
+       near-1.00, is a restatement of the gate failure. `DECISIONS.md` already puts
+       "it caught a game that does not compile" in the MAY column and "ranking stacks,
+       at any gap" in the MAY NOT column; this keeps the two apart mechanically.
+
+       It is not a way of hiding a stack difference. A gate failure is reported, loudly,
+       as a gate failure. What it may not do is read as a small deduction, which is the
+       exact misreading tier 1 stopped being weighted in order to prevent.
+
+    2. THE GAP MUST EXCEED THE FLOOR BY ONE CRITERION. `JUDGING.md` pre-registered
+       `range <= noise -> NO SEPARATION` on 2026-08-16. Tier 2 is a pass count over N
+       criteria, so no gap smaller than 1/N is representable at all: below that the
+       comparison is not a small effect, it is an unmeasurable one.
+
+    `n=2` per cell is the standing limitation and this test does not repair it: the
+    within-cell floor is one absolute difference per stack, averaged over stacks.
+    CROSSES here means the ban is re-opened for that group and the mechanism behind the
+    gap must then be named - not that a ranking has been established.
+
+    THE ARITHMETIC IS IN INTEGER PASS COUNTS, AND THAT IS NOT TIDINESS. Tier 2 IS a pass
+    count over N criteria, but the score reaches this function through
+    `evaluate.overall_score`, which ROUNDS TO 4 DECIMALS. At N=13 a one-criterion gap
+    arrives as 1.0000-0.9231 = 0.0769 against a threshold of 0.076923..., so the
+    boundary case this test documents read DOES NOT CROSS on real data - while the
+    selftest, which constructed `12/13` unrounded and never went through `load()`, read
+    CROSSES. A tolerance cannot fix that: 1e-9 is four orders of magnitude below the
+    rounding error, and a tolerance wide enough to absorb it would swallow real gaps.
+    So, with `s_i = p0+p1` and `d_i = |p0-p1|` per stack and `k` stacks, the condition
+    `(max_s - min_s)/2N - mean(d)/N >= 1/N` is multiplied through by the positive `2kN`:
+
+        k * (max_s - min_s)  -  2 * sum(d)  >=  2k
+
+    Every term is an integer and the boundary is exact. Found in review of task 122.
+
+    THE DENOMINATOR IS ESTABLISHED OVER THE SELECTED STACKS, NOT THE GAME. `N` used to be
+    `max(n_scored)` across every row in the game and the gating happened afterwards, so
+    the threshold could come from a submission that had been removed from the comparison
+    (AGENTS.md rule 4: never compute over a population you have not established is
+    homogeneous). A group whose selected stacks disagree on `N` is NOT ASKED and says so.
+    """
+    out = ["=== THE RANKING TEST: adjudicated, gate-green, completed (DECISIONS.md) ==="]
+    by_game = defaultdict(list)
+    for r in rows:
+        by_game[r["game"]].append(r)
+    for g, rs in sorted(by_game.items()):
+        by_stack = defaultdict(list)
+        for r in rs:
+            by_stack[r["stack"]].append(r)
+        ok = {s: v for s, v in by_stack.items()
+              if len(v) == 2 and all(x["gate_green"] and _completed(x) for x in v)}
+        gated = sorted(set(by_stack) - set(ok))
+        ns = sorted({x["n_scored"] for v in ok.values() for x in v})
+        n_scored = ns[0] if len(ns) == 1 else 0
+        quantum = 1.0 / n_scored if n_scored else 0.0
+        head = (f"{g:<13} N={n_scored or '?'} criteria"
+                + (f", one criterion = {quantum:.4f}" if n_scored else "")
+                + f"; gate-green stacks {sorted(ok) or '-'}")
+        out.append(head)
+        if gated:
+            out.append(f"              gated out (tier-1 FAIL, not completed, or not a "
+                       f"pair): {gated} - reported as a gate failure, never as a rank")
+        if len(ok) < 2:
+            out.append("              -> NOT ASKED: fewer than two gate-green stacks")
+            continue
+        if len(ns) != 1:
+            out.append(f"              -> NOT ASKED: the selected stacks disagree on the "
+                       f"criterion count {ns} - there is no single `1/N` to beat")
+            continue
+        # A ZERO DENOMINATOR IS NOT A TIE, IT IS AN ABSENT MEASUREMENT. `load()` records
+        # `n_scored = 0` for a submission with no scored play-bot criteria, and two such
+        # stacks used to reach the arithmetic below and raise ZeroDivisionError -- an
+        # aggregate over a population that does not exist. Reported, never divided by.
+        if n_scored == 0:
+            out.append("              -> NOT ASKED: the selected stacks have 0 scored "
+                       "criteria - there is nothing to take a fraction of")
+            continue
+        # INTEGER ARITHMETIC. See the docstring: floats round, and the rounding is larger
+        # than any tolerance that would still leave the test able to refuse.
+        sums = {s: v[0]["n_passed_adj"] + v[1]["n_passed_adj"] for s, v in ok.items()}
+        diffs = [abs(v[0]["n_passed_adj"] - v[1]["n_passed_adj"]) for v in ok.values()]
+        k = len(ok)
+        crosses = k * (max(sums.values()) - min(sums.values())) - 2 * sum(diffs) >= 2 * k
+        w = st.fmean(diffs) / n_scored
+        b = (max(sums.values()) - min(sums.values())) / (2 * n_scored)
+        note = "" if k == 4 else f" ({k} stacks - not a four-way comparison)"
+        out.append(f"              within-cell floor={w:.4f}  between-stack range={b:.4f}"
+                   f"  range-floor={b - w:.4f}  vs one criterion {quantum:.4f}")
+        out.append(f"              -> {'CROSSES' if crosses else 'DOES NOT CROSS'}"
+                   f" - the ban {'RE-OPENS' if crosses else 'stands'} for this group{note}")
+    out.append("")
+    return "\n".join(out)
 
 
 def main(run_dir: str) -> int:
@@ -164,6 +297,7 @@ def main(run_dir: str) -> int:
                 print(f"              mean within-cell diff={w:.4f}  "
                       f"between-stack range={b:.4f}  -> {verdict}")
         print()
+    print(ranking_test(rows))
     print("=== does any single criterion separate stacks? ===")
     per = defaultdict(lambda: defaultdict(int))
     stacks_seen = defaultdict(set)
@@ -189,6 +323,140 @@ def main(run_dir: str) -> int:
     return 0
 
 
+def _row(game: str, stack: str, trial: str, passed: int, gate: bool, n: int) -> dict:
+    """A row as `load()` builds one, INCLUDING the rounding.
+
+    `passed` is the adjudicated pass COUNT, because that is the quantity that exists;
+    `overall_adj` is then derived through the same `overall_score` the real path uses.
+    The previous version took a float and the callers handed it `12/13` unrounded, so
+    the BOUNDARY row exercised a value `load()` can never produce and asserted a verdict
+    the tool did not have on real data (AGENTS.md rule 12: a control that does not share
+    the subject's path is testing a different subject).
+    """
+    return {"game": game, "stack": stack, "trial": trial,
+            "overall_adj": overall_score({"programmatic": 1.0, "playbot": passed / n}),
+            "n_passed_adj": passed, "gate_green": gate, "n_scored": n}
+
+
+def ranking_test_selftest() -> int:
+    """Can `ranking_test` say CROSSES at all?
+
+    Over every stored run it says DOES NOT CROSS every time it is asked. That is the
+    shape of a check that cannot fail (rule 1) and of a census reporting its instrument
+    (rule 12), and the two are indistinguishable from outside without this.
+
+    **Every row is built by `_row`, which derives its score through `overall_score`, the
+    same rounding the real `load()` applies.** The first version of this selftest took
+    floats and was handed `12/13` unrounded, so BOUNDARY passed against a value that
+    cannot come out of `load()` while the runtime answered DOES NOT CROSS on the very
+    case the docstring documents. A control that does not travel the subject's path is a
+    control over a different subject.
+    """
+    failed = 0
+
+    def check(name: str, cond: bool, detail: str = "") -> None:
+        nonlocal failed
+        if not cond:
+            failed += 1
+        print(f"  {'ok  ' if cond else 'FAIL'}  {name}" + (f"   [{detail}]" if detail else ""))
+
+    # POSITIVE. Four gate-green stacks, zero within-cell noise, one stack two criteria
+    # below the rest. 2/13 = 0.1538 > 1/13.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", t, 11, True, 13) for t in "01"])
+    out = ranking_test(rows)
+    check("POSITIVE: a two-criterion gap on a silent floor CROSSES", "CROSSES" in out
+          and "DOES NOT CROSS" not in out, out.strip().splitlines()[-1].strip())
+
+    # THE QUANTUM, ON THE PATH `load()` ACTUALLY PRODUCES. A gap of exactly one criterion
+    # must cross. Through `overall_score`'s 4-decimal rounding the float form of this is
+    # 1.0000-0.9231 = 0.0769 against 1/13 = 0.076923..., which is why the comparison is
+    # in integer counts; this row is the one that was green on unrounded input while the
+    # runtime said DOES NOT CROSS.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", t, 12, True, 13) for t in "01"])
+    check("BOUNDARY: a gap of exactly one criterion crosses, through load()'s rounding",
+          "-> CROSSES" in ranking_test(rows),
+          f"scores {rows[0]['overall_adj']} vs {rows[-1]['overall_adj']}")
+
+    # VARIANT, and the other side of that boundary: anything SHORTER than one criterion
+    # must not cross. Without it, "crosses at 1/N" and "crosses at anything" look alike.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "ab" for t in "01"]
+            + [_row("g", "c", "0", 13, True, 13), _row("g", "c", "1", 12, True, 13)])
+    out = ranking_test(rows)
+    check("VARIANT: half a criterion of range does NOT cross", "DOES NOT CROSS" in out,
+          out.strip().splitlines()[-2].strip())
+
+    # VARIANT: the gap is real but the within-cell floor is just as large. This is the
+    # pre-registered `range <= noise` rule and it must still refuse.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", "0", 13, True, 13), _row("g", "d", "1", 11, True, 13)])
+    out = ranking_test(rows)
+    check("VARIANT: a gap no larger than its own within-cell floor does NOT cross",
+          "DOES NOT CROSS" in out, out.strip().splitlines()[-1].strip())
+
+    # MUTANT: the same crossing gap, but the low stack failed the tier-1 gate. A gate
+    # failure is not a rank, so the group must fall back to the three that are green -
+    # and they are tied.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [_row("g", "d", t, 11, False, 13) for t in "01"])
+    out = ranking_test(rows)
+    check("MUTANT: a gate-FAIL stack is gated out, not ranked last",
+          "DOES NOT CROSS" in out and "gated out" in out)
+    check("...and it is named where it went, not silently dropped", "'d'" in out)
+
+    # A group with one gate-green stack is not asked at all - never answered NO.
+    rows = ([_row("g", "a", t, 13, True, 13) for t in "01"]
+            + [_row("g", "b", t, 7, False, 13) for t in "01"])
+    check("NOT ASKED beats a false negative when there is nothing to compare",
+          "NOT ASKED" in ranking_test(rows))
+
+    # THE DENOMINATOR IS THE SELECTED STACKS'. A gated-out submission with a different
+    # criterion count must not set the threshold the survivors are judged against; and
+    # if the SURVIVORS disagree, there is no single 1/N and the group is NOT ASKED.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "ab" for t in "01"]
+            + [_row("g", "c", t, 11, True, 13) for t in "01"]
+            + [_row("g", "d", t, 40, False, 40) for t in "01"])
+    out = ranking_test(rows)
+    check("a gated-out stack's criterion count does not set the threshold",
+          "N=13 criteria" in out and "-> CROSSES" in out,
+          out.strip().splitlines()[1].strip())
+    rows = ([_row("g", "a", t, 13, True, 13) for t in "01"]
+            + [_row("g", "b", t, 40, True, 40) for t in "01"])
+    check("VARIANT: selected stacks disagreeing on N is NOT ASKED, not a verdict",
+          "NOT ASKED" in ranking_test(rows) and "disagree on the criterion count"
+          in ranking_test(rows))
+
+    # ZERO SCORED CRITERIA. Two otherwise-eligible stacks with nothing to take a fraction
+    # of used to raise ZeroDivisionError here - an aggregate over an empty population.
+    rows = [dict(_row("g", s, t, 1, True, 1), n_scored=0, n_passed_adj=0)
+            for s in "ab" for t in "01"]
+    out = ranking_test(rows)
+    check("a zero criterion denominator is NOT ASKED, not a crash and not a tie",
+          "NOT ASKED" in out and "0 scored" in out, out.strip().splitlines()[-1].strip())
+
+    # COMPLETION. The header claims `completed`; the function must enforce it rather than
+    # trust its caller. A crossing gap carried by a max_turns trial must not be ranked.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [dict(_row("g", "d", t, 11, True, 13), terminal_reason="max_turns")
+               for t in "01"])
+    out = ranking_test(rows)
+    check("MUTANT: a non-completed pair is gated out, not ranked",
+          "DOES NOT CROSS" in out and "gated out" in out,
+          out.strip().splitlines()[-1].strip())
+    # VARIANT: the same shape, completed, MUST still cross - or the repair is a deletion.
+    rows = ([_row("g", s, t, 13, True, 13) for s in "abc" for t in "01"]
+            + [dict(_row("g", "d", t, 11, True, 13), terminal_reason="completed")
+               for t in "01"])
+    check("VARIANT: the identical gap DOES cross when both trials completed",
+          "-> CROSSES" in ranking_test(rows))
+
+    print(f"discrimination ranking_test selftest: {'FAILED' if failed else 'OK'}")
+    return 1 if failed else 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+        raise SystemExit(ranking_test_selftest())
     raise SystemExit(main(sys.argv[1] if len(sys.argv) > 1
                           else "runs/wg-matrix-2026-08-13T14-02-50"))

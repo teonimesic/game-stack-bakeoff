@@ -243,6 +243,74 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         ("`done 70 -` on a 2280-character multi-line account",
          "`testing 70 -` on the same account",
          "(empty inline)", "(whitespace inline)", "with a closed/empty stdin")),
+    # THE ORPHANED-BRANCH GATE, and the failure it is against is a two-valued version of it:
+    # a `done` ticket whose branch is gone would read as verified. Under this mutant the one
+    # ORPHANED ticket in direction 11's fixture reads NOT_CHECKED and `check` exits 0.
+    "orphan_reads_as_not_checked": (
+        '    return "ORPHANED", cand',
+        '    return "NOT_CHECKED", cand  # MUTANT: an orphan is excused, not reported',
+        ("a surviving branch that is NOT an ancestor is ORPHANED",
+         "a remote-only branch that is not an ancestor is ORPHANED",
+         "VARIANT: a genuine False is still ORPHANED",
+         "end to end: exit 1, naming 71 and NOT 70")),
+    # THE VARIANT HALF. Reporting every closed ticket with no surviving branch as a failure
+    # would fire on 112 of this repository's 119 and be turned off the same day -- so the
+    # rows that must stay QUIET have to be able to go red as well (AGENTS.md rule 15).
+    "missing_branch_fails": (
+        '    if not cand:\n'
+        '        return "NOT_CHECKED", []',
+        '    if not cand:\n'
+        '        return "ORPHANED", []  # MUTANT: a deleted branch is now an accusation',
+        ("no branch at all is NOT_CHECKED",
+         "VARIANT: id 7 does NOT claim task-70-*'s branch",
+         "VARIANT: id 70 does NOT claim task-7-*'s branch",
+         "VARIANT: with the branch deleted the same queue is NOT CHECKED, exit 0")),
+    # THE REPORTING, as distinct from the predicate -- the `if False:` lesson of `tasks/106`
+    # applied before it can be paid for a second time. `check` still computes every verdict
+    # and appends every failure; it just stops printing the census, so a reader can no longer
+    # tell 112 NOT CHECKED from 112 verified.
+    "landed_census_never_printed": (
+        '    print(f"branches of `done` tickets: {landed} reachable from',
+        '    _unused = (f"branches of `done` tickets: {landed} reachable from',
+        ("PRINTS the three-valued census",
+         "bases coinciding are named ONCE",
+         "VARIANT: with the branch deleted the same queue is NOT CHECKED, exit 0")),
+    # DE-DUPLICATING THE BASES BY NAME INSTEAD OF BY SHA, which is what the first version did:
+    # `HEAD` asked at the queue's address IS `main`, so the census line named two bases where
+    # there was one and read as corroboration (AGENTS.md rule 9). The names still resolve, so
+    # every verdict is unchanged and only the reporting is wrong -- the shape that survives
+    # anything not reading the line.
+    "bases_deduped_by_name": (
+        "            add(b, r.stdout.strip())",
+        "            add(b, b)  # MUTANT: the label stands in for the sha",
+        ("bases coinciding are named ONCE",)),
+    # A GIT ERROR READ AS "NOT AN ANCESTOR". `merge-base --is-ancestor` reserves 0 and 1
+    # for the answer and everything else for a failure; collapsing the two makes `check`
+    # exit 1 naming a ticket whose ancestry it never established (rule 2). Found in
+    # review of task 122.
+    "git_error_is_not_ancestor": (
+        "        if rc != 1:\n            unknown = True",
+        "        # MUTANT: any non-zero exit now reads as a clean 'no'\n"
+        "        if False:\n            unknown = True",
+        ("_is_ancestor returns None (not False) when git cannot answer",)),
+    # THE CALLER'S HEAD ASKED ONLY AT THE FILE'S ADDRESS. This is what shipped first:
+    # `ROOT` comes from `__file__`, so an agent running the MAIN copy of the tool -- what
+    # the work skill recommends -- never has its own branch consulted, and the orphan it
+    # has just landed stays red with no way to clear it from the branch that fixed it.
+    "caller_head_only_at_file": (
+        '    return [("this checkout\'s HEAD", _head_at(Path.cwd())),\n'
+        '            (f"HEAD of {ROOT.name}", _head_at(ROOT))]',
+        '    return [(f"HEAD of {ROOT.name}", _head_at(ROOT))]  # MUTANT: cwd ignored',
+        ("the caller's cwd HEAD is a base",)),
+    # A BASE FROM ANOTHER REPOSITORY. Dropping the existence check lets a SHA that is not
+    # an object here become a base, and then EVERY `merge-base` exits 128 -- which the
+    # three-valued reader turns into NOT_CHECKED for every ticket. The gate goes silent
+    # and total, and reads as a clean queue.
+    "base_from_a_foreign_repo": (
+        "        if head and _head_exists_here(head):",
+        "        if head:  # MUTANT: a sha from any repository is accepted",
+        ("`check` end to end: exit 1, naming 71 and NOT 70",
+         "bases coinciding are named ONCE")),
 }
 
 #: THIS RUNNER'S OWN POSITIVE CONTROL: a mutation that must SURVIVE. `--selftest` runs it

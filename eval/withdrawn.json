@@ -104,7 +104,7 @@
       ],
       "anchor": "eval/findings/certifies-nothing.md",
       "declared_in": "README.md corrections table; tasks/13-pin-or-withdraw-the-380-paired-criteria-figure.md `established_by`; eval/findings/certifies-nothing.md, finding #50",
-      "replaced_by": "Per scope, never pooled: wg-matrix (3 games) 436 paired criteria, 5 verdict differences, 332 differing evidence strings; wg-audio48 232 paired, 0 verdict differences, 120 differing evidence strings.",
+      "replaced_by": "The PRODUCER, not a figure: python3 eval/judge/paired_verdicts.py --runs-root <main checkout>/eval/runs, which counts per (run, game) and per tier set and prints the tier set beside every row. Its 5 corpus pins reproduce the scoped recount this entry was replaced by - wg-matrix all tiers 436 paired / 5 verdict / 332 evidence, wg-audio48 all tiers 232 / 0 / 120 - and that pair may NOT support a claim about the deterministic tiers, because 156 of wg-matrix's 436 are LLM-judge criteria at weight 0.00 and wg-audio48's 232 contains none. Deterministic-only the same runs read 280 / 4 / 176 and 232 / 0 / 120. Quote a (run, game) row with its tier set; the pooled counts are counts, never rates. DECISIONS.md carries the nine-group table.",
       "retired_from_live_docs_by": "task 62"
     },
     {
@@ -119,7 +119,7 @@
       ],
       "anchor": "eval/findings/certifies-nothing.md",
       "declared_in": "README.md corrections table; tasks/13-pin-or-withdraw-the-380-paired-criteria-figure.md `established_by`; eval/findings/certifies-nothing.md, finding #50",
-      "replaced_by": "Per scope: wg-matrix 332 of 436 differing evidence strings; wg-audio48 120 of 232. Quote the run with the ratio.",
+      "replaced_by": "The PRODUCER: python3 eval/judge/paired_verdicts.py --runs-root <main checkout>/eval/runs prints an e-diff column per (run, game) per tier set. Over the 9 stored (run, game) groups, DETERMINISTIC tiers only, the evidence-difference rate runs 48.8% (41 of 84) to 66.9% (99 of 148); the ALL-TIER per-run readings this entry was replaced by, wg-matrix 332 of 436 and wg-audio48 120 of 232, are among its pins. Quote a group with its tier set, never the pool.",
       "retired_from_live_docs_by": "task 62"
     },
     {

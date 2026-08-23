@@ -294,6 +294,31 @@ before concluding the hour was idle.
 
 Raise a priority when evidence arrives, not when it has been sitting a while.
 
+## `done` is a claim about the tree, and `check` tests it
+
+**Authoritative: `DECISIONS.md`, *"A closed ticket is checked against the tree"*.** It holds the
+incident, the census, the bases, the false-positive count and the reversal conditions; if this
+section and that entry disagree, **the entry wins and this is the bug.** What follows is the
+procedure only.
+
+`check` classifies every `done` ticket's `task-<id>-*` branch into **three** values, and the
+third is the one to understand:
+
+| | what you do |
+|---|---|
+| `LANDED` | nothing |
+| `ORPHANED` | **`check` exits 1.** Read the branch diff before believing either side — the queue and the tree disagree and neither is automatically right |
+| `NOT_CHECKED` | nothing, but **do not read it as a pass.** It is the normal answer, because a merged branch is usually deleted |
+
+**Run it where the branches are.** A verdict is relative to the refs the caller can see, so a
+branch that exists only in one clone is invisible everywhere else — **including CI, where the
+defect this was built for reads `NOT_CHECKED`.** A green CI run does not cover this; the git hook
+in the checkout holding the branches is what does. The measurement behind that is in
+`DECISIONS.md`.
+
+**It asks reachability, not content.** A branch merged `-s ours`, or one a later commit reverted,
+reads `LANDED` with its work absent; a squash merge would read `ORPHANED` with its work present.
+
 ## Reachability: `check` warns, it cannot decide
 
 `tasks.py check` catches a **missing** `done_when`. It cannot in general catch an

@@ -13,10 +13,16 @@ deliberately left out** — a gate excluded and recorded is fine; one silently a
 
 | where | budget | what it checks | trigger |
 |---|---|---|---|
-| `.githooks/pre-commit` | **1.2s** | the findings log, the withdrawal register, the queue — the CONTENT you are about to commit | every commit, once installed |
-| `.githooks/pre-push` | **12.0s** | the above plus `docstat --sweep` | every push, once installed |
+| `.githooks/pre-commit` | **1.7s** | the findings log, the withdrawal register, the queue — the CONTENT you are about to commit | every commit, once installed |
+| `.githooks/pre-push` | **14.3s** | the above plus `docstat --sweep` | every push, once installed |
 | `.github/workflows/gates.yml` | **42s** | everything above, plus every control that checks a CHECKER | pull request; push to `main` |
-| `.github/workflows/controls.yml` | **521s** | the mutant suites and the skill-layout control | pull request and push touching `eval/**`, `.agents/**` or `.claude/**`; nightly; manual |
+| `.github/workflows/controls.yml` | **685s** | the mutant suites and the skill-layout control | pull request and push touching `eval/**`, `.agents/**` or `.claude/**`; nightly; manual |
+
+**The two CI budgets are the SUM of the rows measured below**, on the operator's machine, not a
+wall clock from a GitHub runner. `controls.yml` is `226.8 + 319.7 + 124.7 + 6.1 + 7.2`, and its
+largest term is now `tasks_mutants`, which pays for every row added to `tasks_control` 25 times
+over. The recorded CI wall clocks are in the run table at the foot of this file and are the
+authority on what a runner actually takes.
 
 The principle the hooks are drawn on: **a hook checks the content, CI additionally checks
 the checkers.** A control over a tool changes only when the tool changes, and paying for it
@@ -71,10 +77,10 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `docstat.py --selftest` | 0 | 0.1s | pre-commit |
 | `docstat.py --findings` | 0 | 0.1s | pre-commit |
 | `docstat.py --withdrawn` | 0 | 0.2s | pre-commit |
-| `tasks.py check` | 0 | 0.8s | pre-commit |
+| `tasks.py check` | 0 | 1.2s | pre-commit |
 | `docstat.py --sweep` | 0 | 10.9s | pre-push |
-| `.githooks/pre-commit`, whole hook | 0 | 1.2s | — |
-| `.githooks/pre-push`, whole hook | 0 | 12.0s | — |
+| `.githooks/pre-commit`, whole hook | 0 | 1.7s | — |
+| `.githooks/pre-push`, whole hook | 0 | 14.3s | — |
 | `lint.py --gate --rule invalid-syntax` | 0 | 0.1s | CI fast |
 | `lint_coverage.py --selftest` | 0 | 0.1s | CI fast |
 | `prompt_guard.py` | 0 | 0.1s | CI fast |
@@ -82,20 +88,24 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `findings_control.py` | 0 | 0.7s | CI fast |
 | `withdrawn_control.py` | 0 | 3.8s | CI fast |
 | `triage_control.py` | 0 | 8.4s | CI fast |
-| `tasks_control.py` | 0 | 6.4s | CI fast |
+| `tasks_control.py` | 0 | 11.8s | CI fast |
 | `dead_private_control.py` | 0 | 3.0s | CI fast |
 | `backup_evidence_control.py` | 0 | 0.2s | CI fast |
 | `hook_audit_control.py` | 0 | 5.7s | CI fast |
 | nine `judge/*_selftest.py` | 0 | 3.4s total | CI fast |
+| `judge/discrimination.py --selftest` | 0 | 0.1s | CI fast |
+| `judge/paired_verdicts.py --selftest` | 0 | 0.1s | CI fast |
 | `linkcheck.py` | 0 | 0.1s | CI fast |
 | `judge/bot_mutants.py` | 0 | 226.8s | CI slow |
-| `tools/tasks_mutants.py` | 0 | 157.0s | CI slow |
+| `tools/tasks_mutants.py` | 0 | 319.7s | CI slow |
 | `tools/skill_layout_control.py` | 0 | 124.7s | CI slow |
 | `judge/audio_selftest.py` | 0 | 6.1s | CI slow |
 | `judge/rusage_selftest.py` | 0 | 7.2s | CI slow |
 
-`tasks_mutants` was **39.0s** before task 109 landed and **157.0s** after it. A tier budget is
-a measurement with a date on it, not a property of the tier.
+`tasks_mutants` was **39.0s** before task 109 landed, **157.0s** after it, and **319.7s** once
+task 122 took it from 21 mutants to 25 over a control grown from 79 rows to 94 — the control runs
+once per mutant, so a row added there is paid 25 times. A tier budget is a measurement with a date
+on it, not a property of the tier.
 
 ## What is deliberately NOT in CI
 
@@ -104,6 +114,7 @@ a measurement with a date on it, not a property of the tier.
 | `judge/starter_parity.py`, `judge/parity_selftest.py` | need the four real toolchains. `parity_selftest` is exit 1 in any tree without `eval/starters/ts/node_modules`, which is untracked |
 | `tools/starter_gate_control.py` | **325s measured**, and it drives `godot`, `cargo`, `pnpm`, Unity and `just`. Toolchains are out of scope for CI by decision |
 | `tools/evidence_set_control.py`, `tools/disclosure_mutants.py` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored (129G) and can never be in a checkout |
+| the CORPUS half of `judge/paired_verdicts.py --selftest` | its 5 pins need `eval/runs/`. The **synthetic** half does run in CI and is 15 checks with every answer written into the check that reads it; the tool prints `CORPUS PINS: NOT RUN` and `0 corpus pins`, which is a non-measurement, not a pass. `judge/discrimination.py --selftest` needs no corpus and runs whole |
 | `judge/audit_criteria.py` | **runs, exits 0, and measures nothing without a corpus**: it printed `0 / 0 / 0` for every line of its verdict in a tree with no `eval/runs/`. That is the shape this repository exists to catch, not a gate |
 | `docstat.py --renumbered` | never gates, by design — its second half is explicitly undecidable. The half that does gate (the triage register) runs inside `--sweep` |
 | `lint.py --gate` (the whole pinned set) | 64 findings with a standing untriaged backlog. See below |
