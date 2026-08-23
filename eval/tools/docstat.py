@@ -330,6 +330,12 @@ FOREIGN_FLAG_PREFIXES = (
     # condition that hides a defect until a distant edit reveals it is a latent report,
     # not a clean one.
     "--wildcards",
+    # cargo's. `eval/RUNS.md`'s rust `default-run` break quotes cargo's own error, which
+    # offers `--bin` as the alternative remedy, and argues why the manifest key was taken
+    # instead. A doc that reproduces a foreign tool's error text verbatim is the case this
+    # list exists for; the alternative is paraphrasing the error, which is how a quoted
+    # measurement stops being quotable.
+    "--bin",
 )
 
 

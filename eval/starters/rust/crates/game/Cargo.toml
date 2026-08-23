@@ -5,6 +5,27 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+# This crate ships more than one binary — `src/main.rs` (target `game`) and
+# `src/bin/film.rs` — so `cargo run -p game` has nothing to pick and exits 101
+# with "could not determine which binary to run" BEFORE compiling anything.
+# `just run` is that exact command (`justfile`), so the recipe was red on a
+# pristine tree.
+#
+# Measured 2026-08-23, cargo 1.97.1: `cargo run -p game --release --offline` in a
+# pristine copy exited 101 in under a second, having compiled nothing. 12 Rust
+# trials across 5 stored runs hit it, diagnosed it and each added this same line
+# themselves — turns spent re-deriving a starter defect rather than on the game.
+# Nobody had executed the recipe here until then; the agents' closing messages
+# were the only record, and nothing read those until eval/tools/disclosure.py.
+# See eval/RUNS.md, the rust `default-run` comparability break.
+#
+# `default-run`, not `--bin game` in the recipe: the failing thing is the
+# COMMAND `cargo run -p game`, by whatever path it is typed, and agents type it
+# directly. Fixing only the recipe leaves every other caller broken. It also
+# survives the agent adding more binaries, which is what these agents did —
+# verified against a 3-binary variant.
+default-run = "game"
+
 [dependencies]
 sim = { path = "../sim" }
 
