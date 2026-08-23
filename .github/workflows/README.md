@@ -16,7 +16,7 @@ deliberately left out** — a gate excluded and recorded is fine; one silently a
 | `.githooks/pre-commit` | **1.2s** | the findings log, the withdrawal register, the queue — the CONTENT you are about to commit | every commit, once installed |
 | `.githooks/pre-push` | **12.0s** | the above plus `docstat --sweep` | every push, once installed |
 | `.github/workflows/gates.yml` | **42s** | everything above, plus every control that checks a CHECKER | pull request; push to `main` |
-| `.github/workflows/controls.yml` | **281s** | the mutant suites | pull request and push touching `eval/**`; nightly; manual |
+| `.github/workflows/controls.yml` | **521s** | the mutant suites and the skill-layout control | pull request and push touching `eval/**`, `.agents/**` or `.claude/**`; nightly; manual |
 
 The principle the hooks are drawn on: **a hook checks the content, CI additionally checks
 the checkers.** A control over a tool changes only when the tool changes, and paying for it
@@ -38,10 +38,11 @@ Both hooks are two-line wrappers around `.githooks/run-gates.sh`. Two hooks spel
 same gate list would disagree eventually, and the disagreement would look like the
 repository moving rather than like a bug (AGENTS.md rule 12).
 
-**Read this before installing:** the hooks are green on this branch and `docstat --sweep`
-was **red on `main`** when this was written — nine `.agents/skills/**` files that task 114
-is in the middle of moving. Installing pre-push before that lands means `--no-verify` on
-every push, which is the habit these hooks exist to avoid.
+**Installing is a live decision, so check the tree first.** While this was being built
+`docstat --sweep` was red on `main` for nine `.agents/skills/**` files, and installing
+pre-push then would have meant `--no-verify` on every push — the habit these hooks exist to
+avoid. Task 114 has since landed and the merged tree is green. Run
+`python3 eval/tools/docstat.py --sweep` before installing, not after.
 
 ### The queue gate blocks in a checkout and warns in a worktree
 
@@ -86,10 +87,15 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `backup_evidence_control.py` | 0 | 0.2s | CI fast |
 | `hook_audit_control.py` | 0 | 5.7s | CI fast |
 | nine `judge/*_selftest.py` | 0 | 3.4s total | CI fast |
-| `judge/bot_mutants.py` | 0 | 226.3s | CI slow |
-| `tools/tasks_mutants.py` | 0 | 39.0s | CI slow |
+| `linkcheck.py` | 0 | 0.1s | CI fast |
+| `judge/bot_mutants.py` | 0 | 226.8s | CI slow |
+| `tools/tasks_mutants.py` | 0 | 157.0s | CI slow |
+| `tools/skill_layout_control.py` | 0 | 124.7s | CI slow |
 | `judge/audio_selftest.py` | 0 | 6.1s | CI slow |
 | `judge/rusage_selftest.py` | 0 | 7.2s | CI slow |
+
+`tasks_mutants` was **39.0s** before task 109 landed and **157.0s** after it. A tier budget is
+a measurement with a date on it, not a property of the tier.
 
 ## What is deliberately NOT in CI
 
@@ -120,6 +126,19 @@ a correctly-passing suite. These are the runs, on
 | `32649591491` | **push** (`ci-control-green`) | gates | **success** | the push trigger fires and is green |
 | `32649595405` | **push** (`ci-control-red`) | gates | **success — the control FAILED** | see below |
 | `32649678840` | **push** (`ci-control-red`) | gates | **failure** | `README.md: flag --zzqflag matches no argparse in eval/`, at the `docstat --sweep` step, with every other step still reported |
+
+| `32649830893` | `pull_request` | gates | **failure** | `tasks.py check`: `109: status 'in_testing'`, `117: status 'todo'` — see below |
+| `32649830894` | `pull_request` | controls | **success** | the slow tier is unaffected by that |
+
+**The `pull_request` event runs against the MERGE of the head into the base, not against the
+head.** That failure was not a defect in either branch on its own: `main` had landed task
+109's five-status vocabulary (`todo`, `in_progress`, `in_review`, `in_testing`, `done`) while
+this branch still carried the three-status `eval/tools/tasks.py` it was forked with. The merge
+of the two is red, and nothing either side could run locally would have said so. Merging
+`main` in fixed it.
+
+That is the strongest argument in this file for CI existing: **a stale branch is a defect that
+only exists in the merge, and only a check that runs on the merge can see it.**
 
 **The first red attempt came out green, and that is the most useful row here.** The planted
 phantom flag went into *this* file, and `_check_flags`' inline half only looks at a document
@@ -223,9 +242,16 @@ So the design is lean rather than sized to a known budget:
 - the 281s tier is behind a path filter and a nightly cron rather than on every event.
 
 Rough arithmetic, with assumptions stated so they can be corrected: at ~30 fast runs/day
-(~1.4 min each including setup) and ~5 slow runs/day (~5.4 min), that is **~2200 minutes a
-month** — the same order as a Free-plan private allowance, not comfortably inside it. The
-first lever if it binds is the slow tier's `pull_request` trigger, leaving the nightly.
+(~1 min each including setup, from four observed runs of 44-50s) and ~5 slow runs/day
+(~10 min after task 109 tripled `tasks_mutants` and task 114 added the skill-layout control;
+6m32s was measured before either), that is **~2400 minutes a month** — the same order as a
+Free-plan private allowance, and not inside it with any margin. The first lever if it binds is
+the slow tier's `pull_request` trigger, leaving the nightly.
+
+**A `pull_request` path filter is evaluated over the WHOLE PR diff, not over the latest
+push.** Observed here: a push touching only this file still ran `controls`, because
+`.github/workflows/controls.yml` was somewhere in the PR's diff. So a PR that touches `eval/`
+once pays for the slow tier on every subsequent push to it.
 
 **Making the repository public would remove the constraint entirely** — Actions is unlimited
 for public repositories, and the whole 281s tier could run on every pull request. That is the

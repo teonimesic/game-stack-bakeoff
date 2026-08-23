@@ -66,6 +66,9 @@ jobs:
       - name: docstat --sweep (names in docs that do not resolve, plus structure)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/docstat.py --sweep
+      - name: linkcheck (markdown links that resolve to nothing)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/linkcheck.py
 
       # ---- the queue ---------------------------------------------------------------
       - name: tasks.py check

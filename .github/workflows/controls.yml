@@ -2,30 +2,36 @@
 #
 # Split out of gates.yml for one reason and it is not tidiness: this repository is
 # PRIVATE, so Actions minutes are metered against a monthly account allowance. These
-# four steps are 281s measured (bot_mutants alone is 226s) against the fast tier's 42s,
-# so running them on every event would be ~6x the bill for checks whose inputs are
-# ONLY the code under eval/.
+# five steps are 521s measured (bot_mutants 226s, tasks_mutants 157s, skill_layout 125s)
+# against the fast tier's 42s, so running them on every event would be an order of
+# magnitude more bill for checks whose inputs are only source.
 #
 # WHAT THE PATH FILTER IS CLAIMING, so it can be argued with: every check here reads
-# source under eval/ and nothing else. bot_mutants mutates judge criteria, tasks_mutants
-# mutates a COPY of eval/tools/tasks.py, and audio/rusage are fixture-driven. A change
-# to a document or a task file cannot alter their verdict. Anything that reads a
-# document or the queue is in gates.yml and runs unconditionally, precisely because a
-# path filter on those would be a gate that is silently absent.
+# source under eval/, or the skill layout under .agents/ and .claude/, and nothing else.
+# bot_mutants mutates judge criteria, tasks_mutants mutates a COPY of eval/tools/tasks.py,
+# audio/rusage are fixture-driven, and skill_layout_control plants and restores five
+# breakages of the symlink. A change to a document or a task file cannot alter their
+# verdict. Anything that reads a document or the queue is in gates.yml and runs
+# unconditionally, precisely because a path filter on those would be a gate that is
+# silently absent.
 #
 # The nightly run exists because a path filter is a claim, and the claim is checked by
-# running the suite on main whether or not anything under eval/ moved.
+# running the suite on main whether or not anything it names moved.
 name: controls
 
 on:
   pull_request:
     paths:
       - 'eval/**'
+      - '.agents/**'
+      - '.claude/**'
       - '.github/workflows/controls.yml'
   push:
     branches: [main, 'ci-control-**']
     paths:
       - 'eval/**'
+      - '.agents/**'
+      - '.claude/**'
       - '.github/workflows/controls.yml'
   schedule:
     - cron: '17 6 * * *'
@@ -82,3 +88,9 @@ jobs:
       - name: judge/rusage_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/judge/rusage_selftest.py
+      # 124.7s, and it plants five breakages in the skill layout and restores them. The
+      # `.claude/skills` symlink is load-bearing and fails silently, so this is exactly the
+      # kind of gate nobody would remember to run.
+      - name: skill_layout_control (the .agents/.claude symlink, five ways it can break)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/skill_layout_control.py
