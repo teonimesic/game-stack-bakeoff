@@ -176,9 +176,41 @@ Two consequences to know before touching it:
   400 lines where a stack name sits inside an innocent word and which must come out
   byte-identical, a mutant per name, and idempotence. It must stay green.
 
-**File extensions inside file CONTENT are a known, unrepaired leak** — 1,876 occurrences of
-`.ts`/`.gd`/`.rs`/`.cs` in comments and imports across 78 of 84 stored packs, which defeats an
-aspect whose whole blinding is renaming files to `.src`. See task 87.
+**The extensions a file MENTIONS are blinded in `field.py`, not here.** `neutralise` runs for
+every aspect and `idiomatic` cannot be asked whether Rust reads like Rust with `.rs` taken out
+of it, so the extension rewrite lives in `field.build_pack`'s `blind_language` branch —
+`field.BLIND_EXT` and `field.blind_extensions()`. Before that split existed, renaming each file
+to `.src` hid the extension of the file the judge OPENS and none of the ones it READS: 2,083
+arm-naming extension tokens across all 84 stored packs after `neutralise`, 0 after.
+
+`judge/blind_ext_selftest.py` pins it — a mutant, a variant proving the non-blind pack is
+byte-identical to `neutralise` alone, 12 collision inputs the rewrite must not touch, and a
+vocabulary audit read from the four starters. **It must stay green**, and pass it
+`--runs-root <main checkout>/eval/runs` to re-sweep the stored packs; without that flag a
+worktree's gitignored, empty `eval/runs` makes the sweep silently skip. Three things to know
+before touching it:
+
+- **`CHANGED.txt` is pack content and was the densest leak in it.** `field.build_pack` writes it
+  from `git diff --stat`, so the harness itself handed every blind pack a list of the real
+  authored paths with their true suffixes — 80 `.cs`, 78 `.gd`, 60 `.meta`, 43 `.ts`, 43 `.rs`
+  in the 8 stored `architecture` packs. **When you ask what a pack leaks, ask what the packer
+  ADDED, not only what the submission carried.**
+- **The vocabulary has two halves and neither can be derived from the other.** What is
+  arm-exclusive comes from the four starters and is audited mechanically by the selftest; what
+  can also be a *member name* comes only from the corpus. `.lock` is 108 `Mutex::lock()` calls
+  and 0 filenames, `.anim` is 128 member accesses and 0 filenames — both are excluded by name in
+  `field._NOT_AN_EXTENSION` with the count that decided it.
+- **Directory names are the same defect through the sibling property and are NOT repaired** —
+  1,561 arm-naming path segments survive in the stored blind packs (`public`, `Assets`,
+  `res://`, `src/sim`). Task 95.
+- **`field.py pack` read the aspect's `sees` and not its `blind_language`**, so a pack built
+  the way the module docstring tells you to build one was not blinded at all: 199 of 207 files
+  in a real `wg-g4c` `architecture` field kept a language-naming filename. `field_sweep.py`
+  passed both at all three of its call sites, so **no stored round is affected — which is
+  exactly why nothing noticed for as long as the CLI has existed.** Fixed 2026-08-23 and driven
+  by the selftest as a subprocess. **When an aspect gains a property, grep for every reader of
+  its siblings**; one call site reading half an object is invisible to every test that calls
+  the function directly.
 
 Three more things it has got wrong before:
 

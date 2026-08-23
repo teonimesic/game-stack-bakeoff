@@ -1215,7 +1215,7 @@ made against a repaired instrument with its controls shown.
 | # | aspect | repair | pinned both directions? |
 |---|---|---|---|
 | 1 | `fun` | a dedicated 3000-tick play session, separate from the criteria drive; pacing computed over **world** events only, with input echoes classified by a property | **yes** — healthy 0.192, deliberately dead **1.000** |
-| 2 | `architecture` | `blind_language=True`: every source file renamed to a neutral `.src` | **partly** — pack still complete (126 files, identical bytes), but **8 of 8** submissions remain identifiable by syntax |
+| 2 | `architecture` | `blind_language=True`: every source file renamed to a neutral `.src`, and since 2026-08-23 every extension the content NAMES rewritten too | **partly** — pack still complete (126 files, identical bytes), but **8 of 8** submissions remain identifiable by syntax |
 | 3 | `architecture` | code briefs now require citing **pack** paths; `adjudicate.py` splits reconstruction from fabrication | **yes** — 11 of 11 flags were reconstruction, **0** fabrication |
 
 **Repair 1's first attempt was wrong and the pin caught it.** Computing pacing over every event
@@ -1235,6 +1235,18 @@ a label, not the leak: `func`/`extends`, `fn`/`impl`, `export const` and `using 
 identify the stack in all 8. A leak closable only by destroying the evidence is a constraint on
 what the aspect can be asked, not a bug. `idiomatic` keeps its extensions and stays
 **per-stack-only** — a result, not a defect to engineer away.
+
+**And it was less than it claimed until 2026-08-23.** The rename covered the extension of the
+file the judge OPENS and nothing covered the ones it READS — an import specifier, a comment
+naming a sibling, and above all the `CHANGED.txt` the packer itself writes from
+`git diff --stat`, which lists every authored path with its true suffix. Measured over all 84
+stored packs after `neutralise`: **2,083 arm-naming extension tokens, 0 after**
+`field.blind_extensions`, which runs only where `blind_language` is set. **Every stored
+`architecture` round was judged before this** — say so wherever their ordering is reported,
+alongside the `neutralise` caveat in `eval/RUNS.md`. The 81 surviving `import.meta` occurrences
+are declined deliberately: ESM's namespace object is spelled like a path and names no file.
+The directory half of the same leak — `public`, `Assets`, `res://` — is **not** repaired: 1,561
+segments survive, task 95.
 
 **Repair 3 changed the number by two orders of magnitude in interpretation.** "The judges
 fabricate their evidence, 15 of 16" is, correctly split, **1 unlocatable claim in 80**.
