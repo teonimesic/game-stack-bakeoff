@@ -20,3 +20,38 @@ Why it matters: godot verify is what a building agent is told is the only eviden
 One thing to be careful of: godot verify opens a real 640x400 window (its AGENTS.md says so, and there is no flag to avoid it), and the same run logged '[no_raise] flag INSUFFICIENT - window raised anyway; minimised to return focus' on the check row. Anything that reproduces this touches the operator's screen - see root AGENTS.md rule 13 and #61. Do not run it repeatedly on their desk without saying so.
 
 Start by capturing test-render's own output rather than the recipe line: the gate control keeps only the last line.
+
+## Authorised by the operator, 2026-08-23
+
+**The operator has authorised running this even though reproducing it may open a window on their
+machine.** That authorisation is recorded here rather than left in a chat message, because the
+next agent to read this ticket needs it and the message will not survive.
+
+It authorises the *window*, not the *noise*. Two things this project has already paid for:
+
+- `eval/starters/_shared/launch.just` defines `STARTER_NO_RAISE` and `STARTER_SILENT_LAUNCH`, set
+  to `"1"` by `wholegame.py` in trial environments. **Use the guarded path first** and only fall
+  back to an unguarded run if the guarded one cannot reproduce the failure — say so if it does.
+- `#61` is the record of a guard that tested the already-silent path and reported the defect
+  unreproducible, and `#13`'s companion: Unity's player accepts `-disable-audio` and ignores it,
+  so `exit 0` meant "the command ran", not "audio is off". **An accepted-but-ignored flag is
+  worse than an unsupported one.** Do not conclude a guard works because a flag was accepted.
+
+If a run does raise a window or make a sound, that is a finding about the guards, not an
+acceptable cost — record it.
+
+## What is established, so you do not re-derive it
+
+`eval/tools/starter_gate_control.py` run to completion on 2026-08-23: **4 starters, 29
+measurements, 1 FAILED, exit 1.** The failing row is godot's *"GREEN on pristine (the same
+`just verify` must also exit 0)"* — `test-render` exit 1 in 4.1 s.
+
+It is **not** caused by the starter changes made that day: `git diff main -- eval/starters/` was
+empty at the time of measurement, and `starter_gate_control` imports neither file task 67
+touched.
+
+Note the shape this sits in. `just check` is green on the pristine godot tree — #98 repaired
+that — and `just verify` is not. Those are different recipes, and the gate control gained the
+verify direction only under task 51. **So this row has been red since it was first measured, and
+was reported as green in a summary I wrote before running it to completion.** Establish how long
+it has actually been failing before assuming it is new.

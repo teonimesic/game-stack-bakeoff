@@ -1,7 +1,7 @@
 ---
 id: 75
 title: Two more tree walkers glob one level deep and skip the four runs nested in archive-run1
-status: open
+status: in_flight
 priority: 4
 refs: eval/tools/census.py, eval/tools/manifest.py, eval/judge/tier1_census.py, eval/findings/certifies-nothing.md finding 126
 done_when: 'For each of manifest.py audit and judge/tier1_census.py: either it reaches the nested runs and its output is stated before and after, or it is documented as deliberately top-level-only with the reason. A depth fix that changes no number is a result, but it must be shown as a number that did not change, not asserted. Establish the current state first - manifest.py audit prints its own run-directory count on the last line.'
