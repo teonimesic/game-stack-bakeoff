@@ -11,8 +11,8 @@ relaxes one on the grounds that it looks paranoid.
 **Run `python3 tools/precampaign_smoke.py` first.** It exercises every command that is run
 once per campaign — `plan` for each game, `prompt_guard --snapshot`, `starter_parity`,
 `starter_gate_control`, `verify_blind`, `audio_selftest`, `capture_selftest`,
-`sequential_selftest`, `docstat --sweep` — **unpiped, reading each exit code**, and it exists
-because two of them were
+`parity_selftest`, `sequential_selftest`, `docstat --sweep` — **unpiped, reading each exit
+code**, and it exists because two of them were
 silently broken:
 
 - `plan` had crashed with a `TypeError` since the no-cap regime made `MAX_BUDGET_USD` `None`.
@@ -20,6 +20,12 @@ silently broken:
   once per campaign, so nobody found out (#56).
 - `starter_parity` had been exiting 1 on a condition `DECISIONS.md` formally accepts, making it
   permanently red and therefore unread (#57).
+
+**Run it from a checkout whose toolchains are installed**, not from an agent worktree.
+`starter_parity` now goes RED when a stack's `just test` cannot run at all, because `0/0` used to
+print as a test count and read as agreement (#108); `node_modules` is untracked, so in a worktree
+the TS arm genuinely cannot run its tests. If you mean to skip that axis, pass `--skip-tests` —
+it stays green and puts the non-measurement in the report.
 
 > **A command run once per campaign can be broken by an unrelated change and stay broken for
 > months. The interval between the break and the next use is the whole exposure.** A green row

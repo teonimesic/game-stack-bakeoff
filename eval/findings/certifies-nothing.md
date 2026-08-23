@@ -2738,3 +2738,107 @@ aspects on byte-identical input. Both defects here are in *how the number is rea
 changed a single aspect's verdict. The repair is a reporting discipline, not a code change:
 `separation()` already returns `marginal_pairs` for exactly this reason, and the zero-SE count
 belongs beside it.
+
+---
+
+## 108. The pre-campaign parity gate collected `just test`'s exit code and read `passed/total`, so a stack whose toolchain was absent printed `0/0` and the tool still said no drift
+
+`judge/starter_parity.py` is run once per campaign, before spending, and its last line is quoted
+into `eval/RUNS.md` as evidence that the four starters are still comparable. Its third axis —
+*"does one starter ship more safety net?"* — ran `just test` per stack through `static.run`,
+which returns the child's exit code correctly, stored it as `{"exit": ..., "passed": ...,
+"total": ...}`, and then **read only the two counts**. Nothing anywhere read the `exit` key.
+
+Measured in an agent worktree on 2026-08-23, before any repair, with `--stacks ts`:
+
+| | |
+|---|---|
+| `test_counts(starters/ts)` | `{"exit": 254, "passed": 0, "total": 0, "seconds": 0.2}` |
+| printed row | `ts   21   1959   0/0   401   yes  yes` |
+| last line | `No drift detected on any measured axis.` |
+| tool exit | **0** |
+
+`just test` had exited 254 with `Command "vitest" not found`. **`0/0` is not a count**: an absent
+toolchain, an empty suite, a summary shape no parser here knows, and a suite that ran and passed
+none of its zero tests are all the same two zeros — and one of them was being printed in the
+column a durable document cites as a number.
+
+**The input is ordinary, not exotic.** `node_modules` is untracked, so it exists only in the
+checkout it was installed in; every agent worktree in this project is a tree where the TypeScript
+arm cannot run its tests. The defect surfaced because a task-47 worktree ran the gate, not
+because anyone constructed a case.
+
+### Why #105's census could not have found this
+
+#105 swept the harness for unread exit statuses and triaged 27 of them. It found none of this,
+and it could not have: its extraction was **`subprocess.run` with no `check=`** — a call shape.
+Here the call is `static.run`, which reads and returns the code faithfully; the status is lost one
+level up, in a reader that had the value in hand and drew no conclusion from it.
+
+> **A census of "unread exit statuses" keyed on the call that produces them cannot see one that
+> is collected, stored, and then ignored.** The property is *nothing reads it*; the call shape is
+> only the instance the last incident happened to be made of — `AGENTS.md`'s rule-audit lesson
+> (write the trigger as the property) and rule 12 (the extraction is an input to the census),
+> together, one finding apart.
+
+### What `0/0` means now
+
+Unmeasured is not agreement — the same call this project already made for a judge pack with no
+manifest (*unmeasurable, not clean*). The axis has three answers instead of a pair of numbers:
+
+| status | when | effect |
+|---|---|---|
+| `ran` | exit 0 **and** a count parsed | the number is real, printed as `67/67` |
+| `unmeasurable` | non-zero exit, **or** exit 0 with nothing parseable | a finding; the tool exits 1 |
+| `not_measured` | `--skip-tests` | a note, on the record, and the green line says how many stacks really measured the axis |
+
+It fails rather than notes because this gate's output is read as permission to spend, and the
+honest path is free: `--skip-tests` costs one flag and puts the opt-out in the report. The
+`exit 0 with nothing parseable` row is the half a check on the exit code alone would still call
+green.
+
+### The control is a variant, in both directions
+
+`judge/parity_selftest.py`, 31 expectations, 0 failed. A mutant cannot ask this question — deleting
+the status check leaves a tool that is green on a healthy tree, which is what it was already
+doing wrong (rule 15). What asks it is a real starter tree with its dependencies genuinely absent:
+
+- **variant** — a copy of `starters/ts` without `node_modules`: tool **exit 1**, one finding, the
+  word `UNMEASURABLE`, no `0/0` in the printed row. Discriminating because the same tree is
+  healthy on every other axis — `just probe` is plain node, so the hash chain still runs to its
+  full 401 ticks and the test axis is the **only** thing the tool complains about.
+- **positive** — the same starter with `node_modules` present: **67/67**, status `ran`, tool
+  exit 0. It **fails rather than skips** when `node_modules` is absent, because "the control could
+  not run" and "the control passed" are the two things this whole finding is about.
+- **opt-out** — `--skip-tests` on the dependency-less tree: green, and the report carries the
+  axis as an explicit non-measurement rather than as a missing key.
+
+`eval/RUNS.md`'s cited figure survives: re-measured on 2026-08-23 with the toolchain installed,
+ts is **67/67**, so the number quoted for the tenth comparability break was right. What was wrong
+was that the sentence beside it could not distinguish a measured axis from an absent one.
+
+### More of the same shape in the same file
+
+Found by asking the same question of every value the tool gathers, which is how the file should
+have been read the first time:
+
+- **`agents_md()["headings"]`** — collected since the tool was written, named in its own
+  docstring, compared by nothing. Now reported (never failed, because three guides head the
+  determinism section with three different sentences on purpose). It immediately surfaced two
+  rows of the shape a forgotten copy leaves: *"Gameplay is not correctness"* is in three guides
+  and not unity's; *"The one command"* is in three and not ts's.
+- **`missing`** — a stack named on `--stacks` and absent from the starters directory printed as a
+  header line and left the exit code at 0. Same shape as `0/0`: a subject that could not be
+  looked at, reported as agreeing. Now a finding, and so is comparing **no** starter at all:
+  `--stacks nosuchstack` used to exit 0 over an empty set, and exits 1 as of this repair.
+- **the shared-launch note** said *"identical in all four"* however many copies it had actually
+  hashed — two, under `--stacks ts`. It now names the number and the files. Not an unread value:
+  a **claim wider than the measurement behind it**, which is the same defect written the other
+  way round.
+- **`_audio_capability()`** — no caller anywhere in the repository, including `eval/runs/**`,
+  under a docstring saying it keeps its name *"because callers grep for it"*. Left in place and
+  recorded here rather than removed, so the claim is at least written down somewhere a reader
+  will meet it.
+
+A dead `if False:` block in the recipes axis, holding a comparison that could never run, was
+removed.

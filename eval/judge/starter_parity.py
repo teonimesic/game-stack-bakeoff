@@ -11,7 +11,9 @@ Five comparisons, weakest to strongest:
 
   1. `just` recipe names           - do all four expose the same commands?
   2. AGENTS.md size and headings   - is one guide materially more helpful?
-  3. Test counts                   - does one starter ship more safety net?
+  3. Test counts                   - does one starter ship more safety net? An axis that
+                                     could not be measured on a stack is REPORTED AS
+                                     UNMEASURABLE and fails the tool; see `test_counts`.
   4. Harness files present         - hook, CI, version notes, lint config
   5. THE HASH CHAIN                - drive all four starters through the identical
                                      input tape and compare the per-tick state hashes.
@@ -71,12 +73,56 @@ def harness_files(repo: Path) -> dict[str, bool]:
     }
 
 
+#: THE THREE THINGS A TEST-COUNT ROW CAN BE. It used to be able to be one thing - a pair of
+#: numbers - and `0/0` was one of the pairs, which is why this axis measured nothing for as
+#: long as it existed. An absent toolchain, a suite with no tests in it, and a summary in a
+#: shape no parser here knows all print `0/0`, and so does a stack that ran and passed
+#: everything it had, which is none. **Unmeasured is not agreement** - the same call this
+#: project already made for a judge pack with no manifest ("unmeasurable, not clean").
+TESTS_RAN = "ran"                    #: exit 0 AND a count came back: the number is real
+TESTS_UNMEASURABLE = "unmeasurable"  #: a problem, and it is worded as unmeasurable not drift
+TESTS_NOT_MEASURED = "not_measured"  #: `--skip-tests`: the operator opted out, on the record
+
+
 def test_counts(repo: Path, timeout_s: int = 1200) -> dict[str, Any]:
+    """Run `just test` and say what came back - INCLUDING whether it ran at all.
+
+    The exit code was already collected here and read by nobody; `main` printed
+    `passed/total` and drew no conclusion from `0/0`. That is a live pre-campaign gate
+    reporting success while measuring nothing (AGENTS.md rule 1), and the input that
+    produces it is ordinary: a git worktree has no `node_modules`, because it is untracked
+    and exists only in the checkout it was installed in.
+    """
     import static  # local import: pulls in runner.py's parsers
     c = static.run(repo, "test", ["just", "test"], timeout_s=timeout_s)
     passed, total = static.parse_test_counts(c.tail)
-    return {"exit": c.code, "passed": passed, "total": total,
-            "seconds": round(c.seconds, 1)}
+    if c.code != 0:
+        status = TESTS_UNMEASURABLE
+        why = f"`just test` exited {c.code}" + (f" - {c.note}" if c.note else "")
+    elif total == 0:
+        status = TESTS_UNMEASURABLE
+        # The adversarial half: exit 0 alone would have called this fine. A recipe that
+        # succeeds having run no test is exactly the shape rule 1 is about.
+        why = ("`just test` exited 0 but no test summary could be parsed from its output - "
+               "either the suite ran nothing, or its runner prints a summary shape "
+               "`runner.parse_test_counts` does not know")
+    else:
+        status = TESTS_RAN
+        why = ""
+    return {"status": status, "exit": c.code, "passed": passed, "total": total,
+            "seconds": round(c.seconds, 1), "why_unmeasurable": why,
+            "output_tail": "" if status == TESTS_RAN else c.tail[-400:]}
+
+
+def tests_cell(t: dict[str, Any] | None) -> str:
+    """The printed column. It must never render an unmeasured axis as a pair of numbers."""
+    if not t:
+        return "?"
+    if t["status"] == TESTS_RAN:
+        return f"{t['passed']}/{t['total']}"
+    if t["status"] == TESTS_NOT_MEASURED:
+        return "not measured"
+    return f"UNMEASURABLE({t['exit']})"
 
 
 TAPE: list[dict[str, Any]] = (
@@ -210,6 +256,19 @@ def main() -> int:
     problems: list[str] = []
     notes: list[str] = []
 
+    # A STACK THAT WAS ASKED FOR AND IS NOT THERE IS NOT AGREEMENT EITHER. `--stacks` names
+    # what to compare, so an absent one is a subject that could not be measured - the same
+    # shape as `0/0`, and it printed as a header line while the tool exited 0.
+    if not present:
+        problems.append(f"no starter was compared at all - nothing under {a.starters} "
+                        f"matched {a.stacks}. Every axis below is vacuously green over an "
+                        f"empty set, which is the one result this tool must never print")
+    if missing:
+        problems.append(f"asked for {missing} and found no such starter under "
+                        f"{a.starters} - a stack that could not be looked at cannot be "
+                        f"reported as agreeing with the others; name only the stacks that "
+                        f"are there if that is what you meant")
+
     for s in present:
         repo = a.starters / s
         d: dict[str, Any] = {
@@ -217,8 +276,13 @@ def main() -> int:
             "agents_md": agents_md(repo),
             "harness": harness_files(repo),
         }
-        if not a.skip_tests:
-            d["tests"] = test_counts(repo)
+        # The axis is ALWAYS in the report. `--skip-tests` records an explicit opt-out
+        # rather than leaving a hole, because a missing key and a measured agreement are
+        # the same thing to every reader downstream.
+        d["tests"] = (test_counts(repo) if not a.skip_tests
+                      else {"status": TESTS_NOT_MEASURED, "exit": None, "passed": None,
+                            "total": None, "seconds": None,
+                            "why_unmeasurable": "--skip-tests", "output_tail": ""})
         chain, err = hash_chain(repo)
         d["hash_chain_len"] = len(chain)
         d["hash_error"] = err
@@ -240,11 +304,6 @@ def main() -> int:
                 problems.append(f"{s} is missing CORE recipes {missing_core} - every "
                                 f"stack must expose the same contract to a building agent")
             notes.append(f"recipes only in {s}: {sorted(sets[s] - common)}")
-        if False:
-            extra = gone = set()
-            if extra or gone:
-                problems.append(f"recipes differ in {s}: only-here={sorted(extra)} "
-                                f"missing-here={sorted(gone)}")
 
     # 2. AGENTS.md
     words = {s: report["stacks"][s]["agents_md"]["words"] for s in present}
@@ -255,7 +314,59 @@ def main() -> int:
                             f"({hi / lo:.2f}x) - one guide may be materially more "
                             f"helpful than another")
 
-    # 3. harness files
+    # 2b. AGENTS.md HEADINGS. Collected since this tool was written, named in its own
+    # docstring, and read by nothing until 2026-08-23 - the same defect as the test-count
+    # exit code, one axis over. Reported, never failed: three of the four guides head the
+    # determinism section with three different sentences ON PURPOSE, so heading TEXT is not
+    # a key that equality may be demanded of. What is worth a human's eye is the shape a
+    # forgotten copy leaves - a section that reached every stack but one.
+    if len(present) >= 3:
+        hsets = {s: set(report["stacks"][s]["agents_md"]["headings"]) for s in present}
+        near = sorted({h for h in set().union(*hsets.values())
+                       if len([s for s in present if h in hsets[s]]) == len(present) - 1})
+        for h in near:
+            without = sorted(s for s in present if h not in hsets[s])
+            notes.append(f"AGENTS.md heading in {len(present) - 1} of {len(present)} "
+                         f"guides, absent from {without}: {h!r} - reported, not failed; "
+                         f"wording differs by stack by design, so check whether this is a "
+                         f"section one guide never got")
+
+    # 3. TEST COUNTS - and the point of this block is that `0/0` is not one of the answers
+    measured: dict[str, tuple[int, int]] = {}
+    skipped: list[str] = []
+    for s in present:
+        t = report["stacks"][s]["tests"]
+        if t["status"] == TESTS_RAN:
+            measured[s] = (t["passed"], t["total"])
+        elif t["status"] == TESTS_NOT_MEASURED:
+            skipped.append(s)
+        else:
+            problems.append(
+                f"{s}: the test-count axis is UNMEASURABLE, which is NOT the same as "
+                f"agreement - {t['why_unmeasurable']}. The row would have read "
+                f"{t['passed']}/{t['total']}, and two zeros are what an absent toolchain, "
+                f"an empty suite and a suite nobody could start all print. Fix: run where "
+                f"this stack's toolchain is installed (a git WORKTREE has no node_modules "
+                f"- it is untracked and lives only in the checkout it was installed in), "
+                f"or pass --skip-tests to put the opt-out on the record. Last output: "
+                f"{' '.join(t['output_tail'].split())[-220:]}")
+    if skipped:
+        notes.append(f"test counts NOT MEASURED on {skipped} (--skip-tests). The axis is "
+                     f"declared unmeasured on purpose, which is why it is a note and not a "
+                     f"finding; it is NOT evidence that those starters agree on it.")
+    # Reported over the stacks that MEASURED, with n stated, and never over a mixed
+    # population (rule 4). It is a note and not a guard: the four suites are deliberately
+    # different sizes, so a spread limit here would be permanently red (#44, #57).
+    if len(measured) > 1:
+        rows = ", ".join(f"{s} {p}/{tt}" for s, (p, tt) in sorted(measured.items()))
+        tots = [tt for _, tt in measured.values()]
+        notes.append(f"test counts over the {len(measured)} stack(s) that MEASURED: {rows}"
+                     f" - spread {min(tots)}-{max(tots)} tests "
+                     f"({max(tots) / min(tots):.2f}x). Reported, never failed; suite size "
+                     f"is a property of the stack, and this row is here so a change in it "
+                     f"is visible rather than inferred.")
+
+    # 4. harness files
     for key in ("stop_hook", "claude_settings", "ci_workflow", "version_notes",
                 "golden_image"):
         vals = {s: report["stacks"][s]["harness"][key] for s in present}
@@ -315,7 +426,10 @@ def main() -> int:
                         f"each tree, and four copies that can drift is the thing it "
                         f"exists to prevent")
     else:
-        notes.append(f"shared launch discipline identical in all four: {distinct.pop()}")
+        # HOW MANY copies agreed, not "all four": under `--stacks ts` this line compared
+        # two files and said four, which is the same overclaim the test axis was making.
+        notes.append(f"shared launch discipline identical across the {len(hashes)} copies "
+                     f"compared ({sorted(hashes)}): {distinct.pop()}")
     report["launch_hashes"] = hashes
 
     # -- capability register: reported, never failed --------------------------- #
@@ -364,13 +478,12 @@ def main() -> int:
     report["notes"] = notes
 
     print(f"starters present: {present}" + (f"  MISSING: {missing}" if missing else ""))
-    print(f"\n{'stack':<8} {'recipes':>8} {'AGENTS':>8} {'tests':>12} {'chain':>7} "
+    print(f"\n{'stack':<8} {'recipes':>8} {'AGENTS':>8} {'tests':>17} {'chain':>7} "
           f"{'hook':>5} {'ci':>4}")
     for s in present:
         d = report["stacks"][s]
-        t = d.get("tests") or {}
         print(f"{s:<8} {len(d['recipes']):>8} {d['agents_md']['words']:>8} "
-              f"{(str(t.get('passed', '?')) + '/' + str(t.get('total', '?'))):>12} "
+              f"{tests_cell(d.get('tests')):>17} "
               f"{d['hash_chain_len']:>7} "
               f"{'yes' if d['harness']['stop_hook'] else 'NO':>5} "
               f"{'yes' if d['harness']['ci_workflow'] else 'NO':>4}")
@@ -383,11 +496,22 @@ def main() -> int:
         for nline in notes:
             print(f"  {nline}")
     if problems:
-        print(f"\nDRIFT - {len(problems)} finding(s):")
+        # Not all of these are drift. An axis that could not be measured on a stack is
+        # reported here too, because the alternative is the tool saying nothing about it.
+        print(f"\nDRIFT OR UNMEASURABLE - {len(problems)} finding(s):")
         for p in problems:
             print(f"  {p}")
     else:
-        print("\nNo drift detected on any measured axis.")
+        # WHICH axes were measured, before the sentence that says they agree. The tool
+        # exited 0 on "No drift detected on any measured axis" while one stack's test
+        # count was `0/0` because its toolchain was absent, and that sentence was quoted
+        # into eval/RUNS.md as evidence (2026-08-23).
+        n_ran = sum(1 for s in present
+                    if report["stacks"][s]["tests"]["status"] == TESTS_RAN)
+        print(f"\naxes measured: recipes, AGENTS.md, harness files, shared launch file and "
+              f"the hash chain on {len(present)} stack(s); test counts really ran on "
+              f"{n_ran} of {len(present)}.")
+        print("No drift detected on any measured axis.")
     if a.json:
         a.json.write_text(json.dumps(report, indent=2))
     return 1 if problems else 0

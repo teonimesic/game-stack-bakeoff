@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#107 from building and running this evaluator. **Check whether a
+Findings #19-#108 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -183,6 +183,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 
 | **106** | Two pristine starters are not format-clean, so `just verify` rewrites a file the agent never touched and every stored trial diff carries the hunk | [one-arm-bias](findings/one-arm-bias.md) |
 | **107** | Godot's capture path cannot show presentation state that accumulates across ticks and Bevy's can, so the two arms differ in what a filmed frame can contain | [one-arm-bias](findings/one-arm-bias.md) |
+| **108** | The pre-campaign parity gate collected `just test`'s exit code and read only `passed/total`, so a stack whose toolchain was absent printed `0/0` and the tool still reported no drift | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
