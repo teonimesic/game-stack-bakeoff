@@ -1,10 +1,12 @@
 ---
 id: 110
 title: Run the gates in GitHub Actions CI and in local pre-commit / pre-push hooks
-status: in_progress
+status: in_testing
 priority: 2
 refs: .github/workflows/ (does not exist), .git/hooks/, eval/tools/docstat.py, eval/tools/tasks.py check, eval/tools/lint.py, the seven *_control.py files, tasks/108
 done_when: a GitHub Actions workflow runs on push and on pull request, goes GREEN on a clean tree and RED on a deliberately broken one with both runs linked in the report; local hooks exist with a documented install step and a documented bypass; the wall-clock cost of each hook is measured and stated; and any gate deliberately left out of CI is named with the reason
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/3
+established_by: gates.yml and controls.yml green on PR 3 (runs 32651635991 gates 52s, 32651635966 controls 8m40s); the push trigger proved green on ci-control-green run 32649591491 and RED on ci-control-red run 32649678840, failing at the docstat --sweep step on a planted phantom flag; hooks pinned both ways - pre-commit exit 1 on a planted withdrawal, exit 0 clean, 1.2s; pre-push exit 1 on a red sweep, exit 0 clean, 12.0s; the queue gate blocks in a plain clone on a planted bad status and warns in a worktree; run-gates.sh exits 2 on an unknown tier; CodeRabbit posted 4 findings and all 4 were acted on
 ---
 
 The operator asked for it on 2026-08-23: now that the work is on GitHub, CI can run the linter and the other verification commands, and local pre-commit/pre-push hooks can catch the same things without waiting for GitHub. The repository is MIT/open source, so GitHub Actions is free for public repositories. Today every gate runs only when a person or an agent remembers to run it, which is the exact shape this project calls a mechanism nobody invokes - and it has already failed at least twice this session: a commit was pushed while docstat --findings was exit 1, and a citation gate stayed red across several merges because nothing ran it automatically.
