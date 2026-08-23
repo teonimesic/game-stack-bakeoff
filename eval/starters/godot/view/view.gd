@@ -29,6 +29,21 @@ const HUD_BASELINE: Vector2 = Vector2(12.0, 38.0)
 ## The world being drawn. Read-only from here.
 var world: Sim.World = null
 
+## Godot's GPU particle system, wired up and idle. Nothing emits until something
+## calls [method Fx.show_bursts]; the starter never does. Godot is the only stack
+## in this comparison that ships particles at all — see `view/fx.gd`, which also
+## explains the one rule (a burst is a pure function of simulation state, because
+## the capture path never sees the ticks in between).
+var fx: Fx = null
+
+
+## `_init`, not `_ready`: a [View] built with `View.new()` and parented to the
+## SceneTree root during `_initialize` does not get `_ready` until the first
+## frame, and `RenderTests.capture_frame` reaches for `fx` before then.
+func _init() -> void:
+	fx = Fx.new()
+	add_child(fx)
+
 
 ## The same colour as the renderer writes it: 0..255 per channel, RGB only.
 static func to_u8(color: Color) -> PackedByteArray:

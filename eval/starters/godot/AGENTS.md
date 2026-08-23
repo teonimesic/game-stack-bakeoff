@@ -113,6 +113,31 @@ screen space via `draw_set_transform_matrix(transform.affine_inverse())` because
 the view's own transform carries the arena's negative Y scale, and the "the HUD
 is inside the captured frame" test fails if those pixels leave the capture.
 
+## Particles — use them, they are one call
+
+Godot ships a GPU particle system. `view/fx.gd` wires it up; `View` already owns
+an idle `Fx`, so a burst costs one line:
+
+```gdscript
+fx.show_bursts([Fx.Burst.new(position, Color.ORANGE, age_seconds, entity.id)])
+```
+
+**A burst must be a pure function of simulation state.** `capture_frame` steps to
+tick N with no view attached and syncs once, so anything the view accumulated
+frame by frame — an emitter you started when an event fired, a tween, a shake —
+is missing from every filmed frame and every rendering test, with nothing red to
+say so. Keep the tick a thing happened on, and pass the age. That is also what
+makes a burst reproducible: `fx.gd` runs the emitters with `speed_scale = 0` so
+wall time cannot reach them, and three rendering tests hold it — the burst is
+drawn, the age drives it, and two identical bursts are byte-identical.
+
+`GPUParticles3D`, `CPUParticles2D/3D`, `MultiMesh`, `AtlasTexture`,
+`AnimatedSprite2D` and `Skeleton3D` are all in the engine at this version and
+need no addon. The `Viewport` antialiasing and `WorldEnvironment` post-processing
+knobs are the deliberate exception: `tests/render_test.gd` asserts exact byte
+values, and a tonemapper or an MSAA pass changes those bytes without changing any
+geometry — see the `[rendering]` block in `project.godot`.
+
 ## Probing a run
 
 Three recipes let you watch a run without playing it.

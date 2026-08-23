@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#102 from building and running this evaluator. **Check whether a
+Findings #19-#107 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it.**
 
 The entries live in `findings/`, grouped by the shape of the failure rather than by date,
@@ -177,6 +177,11 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **100** | The stored evidence for `verify.green` drops the gate's own "passed" line on 15 of 16 Rust submissions, because stdout is truncated before stderr | [one-arm-bias](findings/one-arm-bias.md) |
 | **101** | The TypeScript capture page never ran its own determinism script, and the defect filed instead was the opposite of the truth — radius zero on all 26 stored submissions | [one-arm-bias](findings/one-arm-bias.md) |
 | **102** | A submission the judge never disagreed with gets an error bar of zero, and then out-resolves everything | [certifies-nothing](findings/certifies-nothing.md) |
+| **103** | #100 was repaired in the file it named, and the same merged buffer is still in the runner that stores the agent's own gate | [one-arm-bias](findings/one-arm-bias.md) |
+| **104** | The only record of the starter a run was given is a git commit no archive contains, and the reclamation rule says to delete it | [limits-and-cost](findings/limits-and-cost.md) |
+| **105** | Of 27 unread exit statuses 24 were deliberate, and one of the three that were not was the lint category itself, green on two of the three ways ruff can fail to run | [fail-open](findings/fail-open.md) |
+| **106** | Two pristine starters are not format-clean, so `just verify` rewrites a file the agent never touched and every stored trial diff carries the hunk | [one-arm-bias](findings/one-arm-bias.md) |
+| **107** | Godot's capture path cannot show presentation state that accumulates across ticks and Bevy's can, so the two arms differ in what a filmed frame can contain | [one-arm-bias](findings/one-arm-bias.md) |
 
 ---
 

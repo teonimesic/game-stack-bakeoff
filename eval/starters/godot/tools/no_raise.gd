@@ -17,6 +17,7 @@ extends Node
 ## `open -g -j -a Godot.app` is overridden because the engine activates itself. The
 ## launch-time hint that works for Unity does not generalise.
 
+
 func _ready() -> void:
 	if OS.get_environment("STARTER_NO_RAISE") != "1":
 		return

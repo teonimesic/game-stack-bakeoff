@@ -95,7 +95,8 @@ struct ReadbackComplete { entity: Entity, data: Vec<u8> }  // EntityEvent, Deref
 |---|---|
 | `bevy/libm` → `bevy_math/libm` → `glam/libm` | Pure-Rust transcendentals, bit-identical across platforms. **On. Leave it on.** With `default-features = false`, dropping it is a hard error: glam's own `compile_error!` says "You must specify a math backend". |
 | `glam/fast-math` | Explicitly trades away bit-for-bit cross-platform identity. **Never enable.** `crates/sim/tests/boundary.rs` fails if you do. |
-| `bevy`'s `default` | Is `["2d", "3d", "ui", "audio"]`. `crates/game` sets `default-features = false`, so it compiles no PBR, no glTF, no UI and no audio. Measured: 405 s -> 294 s cold `just verify`. |
+| `bevy`'s `default` | Is `["2d", "3d", "ui", "audio"]`. `crates/game` spells that set out explicitly (plus `png`, `wav`, `libm`) rather than inheriting it, so `libm` can sit beside it — **PBR, lights, shadows, glTF, `bevy_ui`, `bevy_anti_alias` and rodio are all compiled and usable**. Measured on the grading machine, 2026-08-23, from an empty target dir: 270 s here against 167 s for the old `["2d", "png", "libm"]` pin; warm `just verify` 4.2 s against 2.7 s. |
+| `bevy/wav` | rodio's WAV decoder. `audio` alone pulls only Vorbis, and every clip written in this project so far has been a WAV. |
 
 ## Verifying a claim about the API
 

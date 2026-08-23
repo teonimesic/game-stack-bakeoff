@@ -8,24 +8,47 @@ license.workspace = true
 [dependencies]
 sim = { path = "../sim" }
 
-# `default-features = false` is the single biggest build-time lever in this
-# repo, and it is easy to leave off by accident. Bevy 0.19's default feature set
-# is ["2d", "3d", "ui", "audio"]: without this line the "2d" below is redundant
-# and you also compile bevy_pbr, bevy_gltf, bevy_light, bevy_anti_alias,
-# bevy_mikktspace, ktx2, morph targets, bevy_ui, bevy_ui_render and rodio —
-# none of which a 2D game uses. Measured cold `just verify`, holding everything
-# else fixed: 405 s with the default features, 294 s without them.
+# THE WHOLE ENGINE IS ON, DELIBERATELY. `["2d", "3d", "ui", "audio"]` IS Bevy
+# 0.19's own `default` feature set, spelled out rather than inherited so that
+# `libm` and `png` can sit beside it and `fast-math` can stay off.
 #
-# "2d" is a bundle: sprites, meshes, gizmos, text, picking, scenes, camera,
-# winit and the 2D render pipeline. It is deliberately not trimmed further —
-# an agent asked to draw something should not first have to discover which
-# feature flag unlocks the type it wants.
+# This template used to pin `["2d", "png", "libm"]`, which is a much smaller
+# engine than the name "Bevy" suggests, and the trim cost more than it saved:
+#
+#   * `MeshMaterial3d` lives in `bevy_pbr`, which the `2d` bundle excludes, so
+#     the arm could not render a lit 3D mesh AT ALL — on a task set where two of
+#     four games are 3D. The task prompt told the agent to go and enable the
+#     feature itself, which is a pin change every AGENTS.md marks "ask first".
+#   * `AudioPlayer` lives behind `bevy_audio`, also excluded, while the prompt
+#     said "Audio is Bevy's `AudioPlayer`" and sound is a scored criterion.
+#   * `bevy_ui` and `bevy_ui_render` were excluded, so menus and overlays had to
+#     be hand-built out of `Text2d` and sprites.
+#
+# Measured cold `just verify` from an empty target dir on the grading machine
+# (M3 Max, 2026-08-23), holding everything else fixed:
+#
+#   ["2d", "png", "libm"]                        warm 129 s + verify 38 s = 167 s
+#   ["2d","3d","ui","audio","wav","png","libm"]  warm 248 s + verify 22 s = 270 s
+#
+# ~103 s of extra cold build, once per trial, for a whole engine instead of a
+# quarter of one. Warm `just verify`, which is the number an agent actually pays
+# over and over, went 2.7 s -> 4.2 s; `just quick` (~0.8 s) did not move at all,
+# because `crates/sim` links none of this. See `eval/RUNS.md` — trials built
+# before and after this change are not comparable.
+#
+# `wav` is beside `audio` because `audio` only pulls rodio's Vorbis decoder and
+# every clip this project has ever seen an agent write is a WAV.
 #
 # `libm` routes transcendentals through a pure-Rust implementation so results
 # are bit-identical across platforms. Required for cross-platform replay, and
-# asserted by crates/sim/tests/boundary.rs.
+# asserted by crates/sim/tests/boundary.rs. `default-features = false` is what
+# keeps it, and the absence of `fast-math`, explicit rather than inherited.
 bevy = { version = "0.19", default-features = false, features = [
     "2d",
+    "3d",
+    "ui",
+    "audio",
+    "wav",
     "png",
     "libm",
 ] }

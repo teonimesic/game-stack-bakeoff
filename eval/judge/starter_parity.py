@@ -107,39 +107,91 @@ CORE_RECIPES = {"verify", "test", "lint", "fmt", "probe", "film", "run"}
 #:   launch discipline  - the shared `tools/launch.just`, byte-identical in all four. A
 #:                        Unity player appeared on the operator's desktop with sound
 #:                        because the guard was written per-recipe instead of per-resource.
-#:   capability parity  - can the starter make sound AT ALL? godot and ts can out of the
-#:                        box; rust (bevy default-features=false, no audio feature) and
-#:                        unity (no com.unity.modules.audio) cannot, and the task asks
-#:                        every agent for audio on a SCORED criterion. Reported, not
-#:                        failed: it may be a real property of those two stacks rather
-#:                        than a defect, and that argument belongs in IMPROVEMENTS.md.
+#:   capability parity  - what can each starter do WITHOUT a pin change? See
+#:                        `_capabilities`. Since DECISIONS.md (2026-08-22) the four are
+#:                        deliberately unequal, so this axis is REPORTED and can never
+#:                        fail. The row that still matters most is audio, because the
+#:                        task asks every agent for sound on a SCORED criterion: godot
+#:                        and ts always could, rust now can (task 26), unity still
+#:                        cannot without com.unity.modules.audio.
 #:   capture geometry   - see tools/frame_parity.py; one submission filmed at 768x576
 #:                        while 21 filmed at 640x400 (#59).
 SHARED_LAUNCH = "tools/launch.just"
 
 
-def _audio_capability(root):
-    """Can this starter open an audio device without the agent adding a dependency?"""
+#: CAPABILITY DIVERGENCE IS THE DESIGN, NOT DRIFT.
+#:
+#: `DECISIONS.md` ("The templates are measured at each stack's best, not at a common
+#: floor", 2026-08-22) settled this: every template exposes what ITS stack ships, and
+#: the four are deliberately not equal. So a capability difference reported here is a
+#: statement about the stacks, and the only thing this tool may do with it is SAY SO.
+#:
+#: Reading it as drift and "fixing" it would restore the common floor by the back door,
+#: through a guard nobody voted for - and a guard that is permanently red on a condition
+#: the project decided is acceptable is a guard that gets switched off (#44, #57, #72).
+#:
+#: Every probe reads an ARTIFACT - a manifest, a Cargo.toml - never a doc. The rust row
+#: of `starters/_shared/launch.just` asserted "no audio feature, nothing to silence" for
+#: four matrices, and nothing could have caught it going stale because nothing read it.
+def _capabilities(root):
+    """What this starter's stack can do WITHOUT the agent changing a pin.
+
+    Returns {capability: True | False | None}. `None` means "not established here",
+    which is different from `False` and must never be counted as one.
+    """
     import json as _j
     s = root.name
+    caps = {}
     if s == "unity":
-        m = root / "Packages" / "manifest.json"
         try:
-            return "com.unity.modules.audio" in _j.loads(m.read_text()).get("dependencies", {})
-        except Exception:
-            return None
-    if s == "rust":
-        c = root / "Cargo.toml"
+            deps = _j.loads((root / "Packages" / "manifest.json").read_text())
+            deps = deps.get("dependencies", {})
+        # Narrow: absent or unreadable manifest (OSError), not JSON
+        # (JSONDecodeError), or JSON that is not an object so `.get` is absent
+        # (AttributeError). None means "could not tell", which is a distinct parity
+        # answer from False -- and a defect in this function must not masquerade as it.
+        except (OSError, _j.JSONDecodeError, AttributeError):
+            deps = None
+        caps["audio"] = None if deps is None else ("com.unity.modules.audio" in deps)
+        caps["particles"] = (None if deps is None
+                             else ("com.unity.modules.particlesystem" in deps))
+        caps["physics_3d"] = None if deps is None else ("com.unity.modules.physics" in deps)
+        # Built-in RP with no render-pipeline asset: lit 3D and real-time shadows are on
+        # out of the box. research/10-stack-capability-matrix.md section 6.3, measured.
+        caps["lit_3d"] = True
+    elif s == "rust":
         try:
-            txt = c.read_text()
+            txt = (root / "crates" / "game" / "Cargo.toml").read_text()
         except OSError:
-            return None
-        return ("bevy_audio" in txt) or ("default-features = false" not in txt)
-    if s == "godot":
-        return True          # engine built-in
-    if s == "ts":
-        return True          # Web Audio API, no dependency
-    return None
+            txt = None
+        if txt is None:
+            caps = dict.fromkeys(("audio", "particles", "physics_3d", "lit_3d"))
+        else:
+            # The feature list IS the capability list for this arm. `MeshMaterial3d`
+            # lives in bevy_pbr, which only the `3d` bundle pulls in, and `AudioPlayer`
+            # only exists behind `bevy_audio`.
+            full = "default-features = false" not in txt
+            caps["audio"] = full or ('"audio"' in txt) or ('"bevy_audio"' in txt)
+            caps["lit_3d"] = full or ('"3d"' in txt)
+            caps["particles"] = False   # bevy 0.19 ships none at any feature setting
+            caps["physics_3d"] = False  # needs a crate; avian/rapier are not pinned
+    elif s == "godot":
+        caps["audio"] = True        # engine built-in
+        caps["particles"] = True    # GPUParticles2D/3D, CPUParticles2D/3D in ClassDB
+        caps["physics_3d"] = True   # Godot Physics is the default; Jolt is in-tree
+        caps["lit_3d"] = True
+    elif s == "ts":
+        caps["audio"] = True        # Web Audio API, no dependency
+        caps["particles"] = False   # `Points`/`Sprite` only; no emitter in three 0.185
+        caps["physics_3d"] = False  # examples/jsm/physics/* fetch an engine from a CDN
+        caps["lit_3d"] = True       # MeshStandardMaterial + lights, on SwiftShader
+    return caps
+
+
+def _audio_capability(root):
+    """The audio row on its own. It keeps a name because it is the one capability with a
+    SCORED criterion behind it, and because callers grep for it."""
+    return _capabilities(root).get("audio")
 
 
 def main() -> int:
@@ -266,21 +318,36 @@ def main() -> int:
         notes.append(f"shared launch discipline identical in all four: {distinct.pop()}")
     report["launch_hashes"] = hashes
 
-    # -- capability parity: reported, never failed ----------------------------- #
-    caps = {s: _audio_capability(a.starters / s) for s in present}
-    report["audio_capability"] = caps
-    if len(set(caps.values())) > 1:
-        yes = sorted(k for k, v in caps.items() if v)
-        no = sorted(k for k, v in caps.items() if v is False)
-        notes.append(f"AUDIO CAPABILITY IS NOT EQUAL: {yes} ship it, {no} need the agent "
-                     f"to add a dependency first - and the task asks every agent for "
-                     f"sound on a scored criterion. REAL BUT MEASURED SMALL, so do not "
-                     f"reach for it to explain a cost gap: measured from the stored "
-                     f"diffs, unity's dependency work is +1 line in manifest.json (+6 "
-                     f"lock) and rust's is 12-14 lines in Cargo.toml, while ALL FOUR "
-                     f"stacks then author a ~300-line WAV synthesiser (ts 320, rust 340, "
-                     f"unity 305, godot 46 on top of the engine's built-in). Reported, "
-                     f"not failed: see eval/IMPROVEMENTS.md.")
+    # -- capability register: reported, never failed --------------------------- #
+    caps = {s: _capabilities(a.starters / s) for s in present}
+    report["capabilities"] = caps
+    report["audio_capability"] = {s: c.get("audio") for s, c in caps.items()}
+    names = sorted({k for c in caps.values() for k in c})
+    notes.append(
+        "CAPABILITY PARITY IS NOT A GOAL, AND THE ROWS BELOW ARE NOT DRIFT. DECISIONS.md "
+        "(2026-08-22) puts every template at its own stack's best rather than at a floor "
+        "all four share, so a difference here is the SUBJECT of the comparison. Reported, "
+        "never failed - a guard that fired on these would be re-imposing the common floor "
+        "through the back door.")
+    for cap in names:
+        row = {s: caps[s].get(cap) for s in present}
+        if len(set(row.values())) <= 1:
+            continue
+        yes = sorted(k for k, v in row.items() if v is True)
+        no = sorted(k for k, v in row.items() if v is False)
+        unknown = sorted(k for k, v in row.items() if v is None)
+        line = f"  {cap}: {yes} yes / {no} no"
+        if unknown:
+            line += f" / {unknown} NOT ESTABLISHED (which is not the same as no)"
+        notes.append(line)
+    notes.append(
+        "  audio is the row with a SCORED criterion behind it. rust gained it under task "
+        "26 (bevy's own default feature set); unity's com.unity.modules.audio is the one "
+        "line still outstanding. When it was unequal the effect was REAL BUT MEASURED "
+        "SMALL, so do not reach for it to explain a cost gap: unity's dependency work is "
+        "+1 line in manifest.json (+6 lock) and rust's was 12-14 lines in Cargo.toml, "
+        "while ALL FOUR stacks then author a ~300-line WAV synthesiser (ts 320, rust 340, "
+        "unity 305, godot 46 on top of the engine's built-in). See eval/IMPROVEMENTS.md.")
 
     # -- recipe BEHAVIOUR now differs by stack; say so before it looks like drift --- #
     notes.append(

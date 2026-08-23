@@ -14,12 +14,18 @@ work.
 
 | Command | Warm | From an empty build dir | What it proves |
 |---|---|---|---|
-| `just quick` | ~2 s | ~25 s | all of `crates/sim`: logic, determinism, replay, boundary, lints |
-| `just verify` | ~4 s | ~3–4 min | the above **plus** real pixels from a real GPU |
+| `just quick` | ~1 s | ~25 s | all of `crates/sim`: logic, determinism, replay, boundary, lints |
+| `just verify` | ~4 s | ~4.5 min | the above **plus** real pixels from a real GPU |
 
 **`just quick` is the inner loop — run it constantly.** It is a complete signal
 for simulation work and never compiles the renderer. From an empty build
 directory, run `just warm` first.
+
+The cold number is what the whole engine costs: `crates/game/Cargo.toml` enables
+Bevy's full default feature set, so a first build links the 3D, UI and audio
+stacks too. Measured, 270 s against 167 s for the trimmed 2D-only build it
+replaced. Warm `verify` pays 1.5 s of that and `just quick` pays none of it —
+`crates/sim` cannot depend on any of it, and that is the point of the split.
 
 ## Layout
 
@@ -150,6 +156,36 @@ right now, as finite JSON numbers, in a stable machine-readable shape. Both
 probes must stay headless and deterministic — the same seed and the same inputs
 produce a byte-identical trace.
 
+## The whole engine is on — you do not have to unlock anything
+
+`crates/game/Cargo.toml` enables Bevy 0.19's own default feature set (`2d`, `3d`,
+`ui`, `audio`) plus `png`, `wav` and `libm`. So all of this compiles today, with
+no manifest edit and no permission to ask for:
+
+| You want | It is there |
+|---|---|
+| A lit 3D scene | `Mesh3d` + `MeshMaterial3d<StandardMaterial>`, `DirectionalLight`, `PointLight`, real-time shadows (`bevy_pbr`, `bevy_light`) |
+| Sound | `AudioPlayer` + `AudioSource`, WAV decoded by rodio. Trigger it from `crates/game`; `crates/sim` must not know sound exists |
+| Menus, overlays, layout | `bevy_ui` — `Node`, `BackgroundColor`, flex layout |
+| Bloom and depth of field | `bevy_post_process`. `Bloom` registers on **both** `Core2d` and `Core3d` |
+| Antialiasing | `bevy_anti_alias` — `Fxaa`, `Smaa`, `TemporalAntiAliasing`, `ContrastAdaptiveSharpening` |
+| Sprite sheets | `TextureAtlas` + `TextureAtlasLayout`, and `Sprite::from_atlas_image` |
+| Many identical things cheaply | nothing to do — meshes sharing a mesh and material batch into one draw call automatically |
+| Models | `bevy_gltf`, with skinning and glTF animation |
+
+Two things to know before you reach for them. **Anything the player must see has
+to be drawn by the camera the capture reads** — the section above is not about
+the HUD specifically, and a `bevy_ui` node tied to some other camera is invisible
+to `just film` and to every rendering test. And **the render tests assert
+byte-reproducibility across two runs**, so an effect driven by wall time rather
+than by `Time`/`Tick` will fail them for a reason that looks like a GPU bug; the
+harness pins `Time` while it settles the frame, which is what makes a
+`Time`-driven animation safe and an `Instant`-driven one not.
+
+Bevy 0.19 ships **no particle system** — there is no `particle` module anywhere
+in the crate tree. `Sprite` entities with your own lifetime component is the
+honest answer, and it is real work; budget for it before promising sparks.
+
 ## Bevy 0.19 API notes
 
 Your training data is probably older than this Bevy. When something doesn't
@@ -174,7 +210,9 @@ add a test for behaviour you changed.
 
 ⚠️ Ask first: adding a dependency; changing the tick rate; changing
 `state_hash`, the replay format or the trace format (compatibility surfaces);
-upgrading Bevy; changing `bevy`'s feature list (a 2.4× build-time difference).
+upgrading Bevy; **trimming** `bevy`'s feature list — the full engine is on
+deliberately and the trimmed build was measured at roughly half the cold time,
+which is a trade someone already made.
 
 🚫 Never: `#[ignore]` or delete a failing test to make `verify` pass; widen a
 determinism assertion; edit `crates/sim/clippy.toml` or the ban lists in

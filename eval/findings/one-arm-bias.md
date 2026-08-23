@@ -2052,3 +2052,173 @@ history is what makes a captured frame a pure function of `(seed, ticks, inputs)
 still cannot complete *inside* a capture — it must resolve in `__capturePreload` first. Recorded
 in the TS starter's `AGENTS.md` with the reason, because it is now a documented capability with a
 documented shape rather than a silent failure.
+
+---
+
+## 103. #100 was repaired in the file it named, and the same merged buffer is still in the runner that stores the agent's own gate
+
+The tier-1 capture is fixed. `judge/static.Cmd.to_dict` no longer truncates a concatenation: it
+stores **`stdout` and `stderr` as separate fields**, each sampled on its own budget — first 1000
+characters, last 3000, the middle replaced by a marker naming the characters and lines dropped —
+with `stdout_chars` / `stderr_chars` recording the full length of each, and a `note` field for the
+harness's own words (a timeout, a binary that could not be spawned) so nothing the harness says is
+attributed to a stream the command did not write. A timeout no longer erases what the command had
+already printed. `Cmd.tail` survives in memory, byte for byte, because the test-count and coverage
+parsers read it — so no criterion moved.
+
+### The variant, run against the unfixed function first
+
+A mutant that deletes the truncation cannot produce this defect; only an input where one stream is
+arbitrarily larger than the other can (rule 15). A child writing ~10 KB to one stream and one short
+line to the other, through the real `static.run`, against the code as it stood:
+
+| variant | stored record, before the repair | after |
+|---|---|---|
+| 10 KB on stderr, `✅ verify passed` on stdout | **token absent** — 4000 chars kept, all of them stderr | present |
+| 10 KB on stdout, one line on stderr | line present | present |
+
+**The asymmetry is the whole defect** — the survivor is whichever stream the tool wrote second, and
+that belongs to the tool. `judge/capture_selftest.py` was written before the repair and run against
+it: 9 of 17 expectations held and 7 of its 9 tests could not run at all against an API that did not
+exist yet. After: **39/39**, including two mutants — deleting the truncation, and reinstating the
+pre-#100 merge, which loses the stdout line on demand.
+
+### The positive control: the real gate, one execution, two renderings
+
+`just verify` in one `wg-g4c` submission per stack, in a scratch clone, each run **once** and the
+captured streams rendered under both policies — so the comparison cannot be confounded by a
+rebuild:
+
+| stack | exit | stdout chars | stderr chars | token under `[-4000:]` of `out+err` | token now |
+|---|---|---|---|---|---|
+| godot | 0 | 3263 | 0 | yes | yes |
+| rust | 0 | **16** | **8638** | **NO** | **yes** |
+| ts | 0 | 670 | 213 | yes | yes |
+| unity | 0 | 201 | 0 | yes | yes |
+
+The Rust arm's green gate writes **16 characters to stdout and 8638 to stderr** — the completion
+line is the entire stdout, and the old policy discarded it whole. This control does not reproduce
+the *godot* half of #100: that submission printed nothing to stderr, so the two godot misses in the
+stored corpus (engine resource-leak lines at exit) are not exercised here. Four positive controls,
+one of which is the arm that carried the defect; the godot failure mode is covered by the variant,
+not by this table.
+
+### The instance the finding did not name
+
+`#100` located the defect at `judge/static.py:64` and `:163`. The same shape is still in
+`eval/runner.py`, the spec-change harness: `sh()` returns `(p.stdout + p.stderr)` as one string
+(`runner.py:177`), and that buffer is stored as `self_verify.tail[-4000:]` (`:592`) and
+`holdout.tail[-5000:]` (`:622`). Swept over the stored `trials/*.json` on 2026-08-23:
+
+| | records | `self_verify` exit 0 | contain `verify passed` | at the 4000 cap |
+|---|---|---|---|---|
+| all arms | 47 | 26 | 24 | 2 |
+
+The two misses are exactly the two at the cap, and both are the Rust template — one on the
+`rust_bevy` arm, one on `baseline`. Same mechanism, same arm, a lower rate only because the
+spec-change tasks are smaller. `self_verify` is the record of *the agent's own gate*, which is the
+one place a future check could ask whether the agent ran it to completion. Filed as task 50 rather
+than fixed here: `sh()`'s two-tuple is read in ten places and the stored field shape has its own
+reader audit to do.
+
+> **A finding names the instance it was found at; the defect is a shape.** Repairing the file the
+> finding cites leaves the mechanism wherever nobody looked. The grep that finds this class is for
+> the shape — a stream concatenation followed by a slice — not for the file, and it takes one
+> command: two hits in this repository, one of them repaired today.
+
+### What this does not settle
+
+The stored corpus cannot be backfilled — the discarded stdout was never written down — so it stays
+mixed, and `static.stored_stdout()` returns **None** for a pre-repair record rather than `""`,
+because a line missing from a merged buffer is not evidence the command never printed it. And the
+`expected_stdout_contains` check this unblocks (`eval/IMPROVEMENTS.md` axis 2 candidate 1) is still
+a separate decision: it can only ever be asked of runs graded after today.
+
+---
+
+## 106. Two of the four pristine starters are not format-clean, so `just verify` rewrites a file the agent never touched — and that hunk is in every stored trial diff
+
+`eval/AGENTS.md`: *"Each trial gets a fresh template copy with a baseline commit, so
+`git diff HEAD` isolates exactly what the agent did."* That sentence is the mechanism by which
+authored work is separated from template code, and #77 is what happens when the separation slips.
+
+All four starters run **`fmt`, not `fmt-check`, inside `verify`** — deliberately, and the
+justfiles say why: *"a stray blank line should never be able to mask whether the real work is
+done."* The consequence nobody had looked for is that `verify` is only idempotent on a tree that
+is already formatted, and two of the four are not. Measured 2026-08-23 against `main`, with each
+file taken out of git rather than from a working tree:
+
+| arm | file | what the formatter changes |
+|---|---|---|
+| rust | `crates/game/src/main.rs` | `rustfmt --check --edition 2024` exit **1**: `fn no_raise_correction(...)` is exploded across four lines and rustfmt joins it |
+| godot | `tools/no_raise.gd` | `gdformat --check` — *"1 file would be reformatted, 19 files would be left unchanged"*: one missing blank line before `func _ready` |
+
+ts and unity were **not** checked, because both formatters need dependencies installed
+(`prettier` via pnpm, `tools/fmt.mjs`). The ratio is 2 of 2 checkable, not 2 of 4 established.
+
+### Why it is not cosmetic
+
+The agent's first `just verify` — and the Stop hook's, which runs whether the agent asks or not —
+commits a change to a file it has never opened. Three things read that diff:
+
+* `judge/static.py`'s authored-lines accounting, which is what #77 is about;
+* every human or judge reading a stored `submission.tar.gz` to see what was built;
+* `just ci`, which runs `fmt-check` and is therefore **red on the pristine tree in both arms** —
+  the #98 shape exactly, one arm's gate failing before any agent touches it, except that here it
+  is two arms and the recipe is not the graded one.
+
+### The rule that should have caught it, and why it did not fire
+
+`tools/starter_gate_control.py` exists precisely to ask *"is this starter's own gate green on a
+pristine copy, and can it still go red"*. It runs `just check`. Rust's `check` is `cargo check`
+and Godot's is a compile pass; **neither touches formatting**, so the control was green in both
+arms while the defect sat next to it.
+
+That is rule 12 with a different address: the method was right and pointed at one recipe out of
+five. The generalisation is not "also check `fmt`" — it is:
+
+> **A gate that repairs what it inspects has to be checked for idempotence, not only for its exit
+> code.** Run it twice on a pristine tree and diff. Anything it changed on the first pass is a
+> change every submission will be credited with.
+
+Repaired in both arms as part of task 26 (RUNS.md's eleventh comparability break), which is the
+only reason it surfaced: `just verify` rewrote `main.rs` under a change to `Cargo.toml`, and the
+hunk had nothing to do with the change. **A control for it is filed, not written.**
+
+---
+
+## 107. Godot's capture path cannot show presentation state that accumulates across ticks, and Bevy's can — the two arms differ in what a filmed frame is able to contain
+
+Task 26 went looking for a way to expose Godot's particle system and found that *"can a burst
+appear in a judged frame at all"* has a different answer per arm, for a reason that has nothing to
+do with the engines.
+
+| arm | what `capture_frame(seed, ticks)` does | consequence |
+|---|---|---|
+| **godot** | `for tick in range(ticks): Sim.step(world, ...)` — a bare loop with **no view attached** — then `_view.sync(world)` **once**, then three `process_frame`s | the view never observes ticks `1..N-1`. Anything it would have accumulated — an emitter started when an event fired, a tween, a shake, a trail — is **structurally absent** from every filmed frame and every rendering test |
+| **rust** | `for tick in 0..ticks { *world.resource_mut::<Intents>() = ...; app.update(); }` — the **whole App**, view systems included, once per tick | the view sees every tick. Accumulated state is visible, and `TimeUpdateStrategy::FixedTimesteps(1)` makes the clock a pure function of the tick, so it is deterministic as well |
+
+Both are defensible designs and neither is a bug. But they are not the same instrument, and the
+difference bites exactly where the survey says the largest capability asymmetry is:
+`Sim.TickEvents` in the Godot starter holds **only the current tick's** events, so an effect
+triggered by an event reaches a filmed frame only if the film happens to sample the very tick the
+event occurred on — 12 samples out of a run of hundreds.
+
+**What was done about it.** Not equalising the harnesses; that is a larger change than this task
+should make on the way to something else. `view/fx.gd` is built around the constraint instead: a
+burst is a **pure function of simulation state**, taking an age the caller derives from a tick the
+simulation still holds, so it reconstructs correctly at whatever tick is sampled. The AGENTS.md
+section states it as the one rule, beside the tree-shaped version of the same trap ("everything
+the player sees goes under the view") that the template already carried.
+
+**Why it is worth a number rather than a paragraph in a template.** It is a candidate explanation
+for any future cross-arm difference on effects, feedback, or "the game tells the player what just
+happened" — and it would look exactly like a stack property.
+
+> **Two harnesses can agree on every field they record and still differ in what an artifact is
+> able to contain.** Before attributing a difference in what submissions DID to the stacks, check
+> what the capture path in each arm makes possible.
+
+ts and unity were not audited on this axis. The TS capture builds a **fresh view per frame**
+(established in #101's wake), which is the same constraint arrived at by a third route; Unity's
+`RenderHarness` was not read.
