@@ -1,0 +1,4 @@
+#!/bin/sh
+# The cheap gates on the content you are about to commit. 1.2s measured 2026-08-23.
+# The gate list, the bypass and the worktree caveat are in run-gates.sh.
+exec "$(git rev-parse --show-toplevel)/.githooks/run-gates.sh" pre-commit
