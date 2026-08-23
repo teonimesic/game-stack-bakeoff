@@ -93,6 +93,14 @@ def _tracked_files() -> list[Path]:
 def _count_lines(paths: list[Path]) -> int:
     total = 0
     for p in paths:
+        # A TRACKED SYMLINK HAS NO LINES, and it is not an error. `.claude/skills` is a
+        # mode-120000 blob pointing at `.agents/skills` (task 114), so `git ls-files`
+        # yields it and `open()` follows it to a directory and raises. Skipped SILENTLY
+        # and by `is_symlink()` rather than by catching IsADirectoryError, because the
+        # two conditions are different: this one is deliberate and permanent, and the
+        # warning below exists to surface the other one.
+        if p.is_symlink():
+            continue
         try:
             with open(p, "rb") as fh:
                 total += fh.read().count(b"\n")
