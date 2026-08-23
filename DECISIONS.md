@@ -199,6 +199,104 @@ that reproduces them, and are now labelled with it. **Mixing methods in one sect
 acceptable; mixing them unlabelled is not** — and note that a `pool` figure is *not* the mean of
 any per-aspect table, so the two must never be presented as summarising one another.
 
+### A harder task is PRICED here, and gated behind a free pre-test — decided 2026-08-23
+
+Tier 2 is the only scored tier and it saturates, so the remedy proposed has been a harder task.
+**A harder task costs a matrix, so this entry brings the price and the one measurement that
+decides whether the money would buy anything. The spend itself is the operator's call and is not
+taken here.**
+
+**First, the corpus is flatter than the group count says.** Tier 2 has produced **no selective
+failure anywhere in the 68-trial corpus that survives adjudication.** `wg-matrix-2026-08-13` is
+the only run where tier 2 ever separated submissions, and its 9 selective-failure trials carry
+**38 criterion-failures**: 22 are a probe that died before tick 0 (both Unity arena trials,
+detected by signature), and the other **16 are every entry in `ADJUDICATED` in
+`eval/judge/audit_criteria.py`, all 16 marked `false_negative`** — the criterion fired on correct
+work. The **7 distinct criteria** involved (`ball.wall_bounce`, `move.translates`,
+`piece.stacks`, `gameover.triggers`, `determinism.replay`, `determinism.seed`, `enemies.chase`)
+are each marked `REPAIRED` in `CONSTRUCTIBLE_FAILURE` in the same file, for that reason.
+`python3 eval/judge/discrimination.py eval/runs/wg-matrix-2026-08-13T14-02-50` prints an
+**ADJUDICATED spread of 0.0000 in all three games**, against a raw 0.2308 / 0.3077 / 0.7333.
+
+The same thing is visible without adjudication, on one field, across one day: `wg-g4c-capgate`
+re-grades the eight `wg-g4c` work trees, and `g4_platformer__ts__t0` scores **14 of 20 on
+2026-08-22 and 20 of 20 on 2026-08-23** — the same submission, the same 20 criteria, the
+play-bot repaired in between. **Observed tier-2 spread has tracked the play-bot's false-negative
+rate, not the submissions.**
+
+**Second, the reason it saturates is structural, and it constrains what a harder task must be.**
+Every tier-2 criterion is derived from a bullet the prompt states; agents build to the prompt; so
+the tier returns one value by construction. **The prompt is tier 2's answer key.** Four more
+criteria of that family were measured against the `wg-g4c` trees and passed 8/8 (task 65). It is
+not a shortage of criteria.
+
+**Third — and this is what decides the design — the criteria are not short of resolution.** Over
+the eight `wg-g4c` submissions, **16 of the 20 scored criteria already record more than one
+distinct numeric evidence vector, and 8 of them record eight distinct vectors on eight
+submissions.** The underlying measurements discriminate perfectly. What they discriminate on is
+the problem:
+
+| criterion | what its numbers vary over, across the 8 submissions |
+|---|---|
+| `attack.faces` | hitbox offset, 22.0 to 32.0 px |
+| `jump.leaves_ground` | rise in 8 ticks, 44.6 to 66.8 |
+| `invuln.window` | i-frame gap, 43 to 80 ticks |
+| `enemy.damages_player` | starting health, 4 or 5 |
+| `player.falls` | first platform edge, x=300.0 to x=560.0 |
+| `player.walks` | walk distance in the window, 143.2 to 182.5 |
+
+Every one is a **free design parameter the prompt does not give a direction for.** Scoring any of
+them ranks the four stacks on jump height and hitbox width.
+
+> **A criterion has headroom only if the quantity it observes lies on an axis the prompt names a
+> DIRECTION for.** A stated mechanic gives an axis with no direction and every submission at the
+> same point; a free parameter gives an axis with no direction and every submission at a
+> different point. Neither is a quality scale. Adding resolution to a criterion on an
+> undirected axis manufactures a ranking out of design freedom.
+
+**The one criterion with headroom is `stage.completes`, made graded rather than binary** — the
+fraction of the stage the bot reaches. Three tier-2 criteria sit at the **floor** rather than the
+ceiling, and all three are `diagnostic_only` for the same reason, that the bot cannot play well
+enough: `layer.clears` and `score.rewards_clears` (tetris, `False` on all 19 trials where
+recorded) and `stage.completes` (platformer, `False` on all 8). **`stage.completes` is the only
+one of the three whose underlying quantity is a fraction on a directed axis.** A line was either
+cleared or not; there is no meaningful "how far towards a line". The stage has a length, the goal
+is at the end of it, and the prompt states the direction — *"Reaching the far end of the stage
+clears it."*
+
+**It must not be promoted as things stand, and the reason is the whole hazard in miniature.**
+Its stored evidence already yields eight distinct values — 14.3%, 15.8%, 17.8%, 20.3%, 20.6%,
+22.5%, 25.6%, 29.0% of the way to the goal — which would look exactly like the discrimination
+this project has been trying to find. It is not. The play-bot walks right until it falls in a
+hole (task 76), so that scalar ranks the field on **where each submission put its first pit.**
+
+**So: the pre-test comes first, and it costs no trials.** Repair the bot to pursue the goal (task
+76), re-drive the eight surviving `wg-g4c` work trees under `~/game-research-work/`, and read
+`stage.completes` as a fraction. It comes out three ways and each is decisive:
+
+| outcome | what it establishes |
+|---|---|
+| still spread, on a bot that can now cross gaps and fight | tier 2 **can** discriminate on a stated goal. No harder task is needed; promote it with a mutant and a variant, and this decision retires |
+| all eight at 1.000 | the goal is genuinely too easy. A harder task is justified, **and the pre-test says by how much the bar must move** |
+| all eight at some low fraction | the bot is still the constraint. Spending on a task would buy nothing |
+
+**The price of the alternative, read from `eval/RUNS.md` on 2026-08-23.** Judge spend is **$0** —
+tier 2 is deterministic and tier 3 carries no weight — so this is agent trials only:
+
+| | |
+|---|---|
+| one clean 8-cell field, standing regime (no cap, `--max-turns 1000`, `--parallel 2`) | **`wg-g4c` — $421.00**, 8/8 `completed`, per trial $36.16 to $77.60, wall 55.7 to 86.3 min |
+| the last game actually added, all in | **$698.21** — `wg-g4` $211.64 (stopped at 4 of 8) + `wg-g4b` $65.57 (8/8 `api_error`, a null) + `wg-g4c` $421.00. **Two of the three runs produced nothing gradeable** |
+| raising the bar on an existing game instead | the same order. The arena rewrite's field, `wg-arena3d`, was $374.05 for 8 `completed` — but that run straddled the #49 machine repair, so its *cost* is contaminated as well as its grades and it is not a clean price |
+
+**So a fifth game, or a raised bar, is $421 if the first field lands clean and $698 at the only
+precedent we have, n=1.** Engineering cost — prompt, play-bot, mutants and variants — is on top
+and is unmeasured; nothing in this project counts it.
+
+**What is decided here is the ordering, not the spend:** the free pre-test runs first, because a
+matrix bought before it would be bought on the assumption that a graded criterion discriminates,
+and that assumption is exactly what the pre-test tests.
+
 ## Task set and judging protocol
 
 | Decision | By |
@@ -849,6 +947,7 @@ settled question is noise that makes the live ones harder to find.
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
+| A harder task is priced, not bought | The **free pre-test coming back spread** — `stage.completes` read as a fraction, after task 76, over the eight surviving `wg-g4c` work trees. Spread there retires the harder-task question outright; all-eight-at-1.000 is what justifies the $421-to-$698 spend, and a low flat fraction says the bot is still the constraint and the money would buy nothing |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
