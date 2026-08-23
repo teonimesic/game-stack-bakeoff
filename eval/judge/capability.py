@@ -43,6 +43,14 @@ What is here instead is honest and dull: how big the capture was, how long it to
 in wall, CPU and memory, and how fast the headless probe answers. Every one is
 measured the same way on all four arms.
 
+**`probe.ticks_per_second` is the one field with real cross-arm spread, and it is
+not a stack ranking either.** Partitioned by game over the 68 stored submissions
+(2026-08-23) the ordering is stable — Godot lowest in all four games, Rust and Unity
+highest — but the WITHIN-cell spread reaches 2.8x (`g1_pong__rust`, 13,998 to
+38,876), which is wider than most of the gaps between arms. And it is a round trip
+over a pipe: engine, JSON encoding and IPC, not simulation cost. It says how fast a
+stack answers the probe, which is what it is named after, and nothing more.
+
 --------------------------------------------------------------------------------
 NOTHING HERE IS A CRITERION, DELIBERATELY
 --------------------------------------------------------------------------------
