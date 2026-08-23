@@ -1,11 +1,12 @@
 ---
 id: 126
 title: 'Adjudicate what the 7 cost groups say: the between-stack range exceeds the within-cell floor in 5 of 7, and ts is cheapest in 5 of 7'
-status: in_review
+status: in_testing
 priority: 2
 refs: 'eval/tools/cost_census.py, README.md cost row, DECISIONS.md ''The cost route is re-opened'', eval/findings/limits-and-cost.md #63, eval/RUNS.md, tasks/123'
 done_when: the ordering question is decided one way or the other with the statistic named and its dependence structure stated (runs, not groups, as the independent unit - say what n you treated as independent and why); a negative result is a complete answer and closes this; README's cost row and DECISIONS.md's 'The cost route is re-opened' section are updated to whatever is established, with the producer command beside every figure and run in the same session; and if the conclusion is that cost DOES separate the stacks, that is a finding number and it changes the count of instruments reaching the null in README's result section
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/12
+established_by: 'Adjudicated: the ordering does NOT resolve. Exact permutation of stack labels within a cluster, post-hoc-safe statistic, n=4 runs (ticket''s unit) p=0.0156 which IS the design floor; n=4 games p=0.0469; n=2 connected components of run-and-game p=0.25 which is also that design''s floor, so at the honest unit no outcome could have reached alpha. ts leads 5 of 7 but its margin is below that group''s own noise floor in 5 of 5. README cost row, README route row, DECISIONS.md section and reversal condition, and eval/AGENTS.md all updated; producer is cost_census.py --ordering, 39 mutants all caught with a named failure, census output byte-identical to main; gates.yml SUCCESS on final head a84d12c, controls.yml SUCCESS on two earlier heads and still running on the final one; 5 review rounds, the fifth clean.'
 ---
 
 Task 123 shipped eval/tools/cost_census.py, the producer README's cost result never had. It reproduces every published figure to the cent and disagrees with the scope around them. README said 'the one measure taken on all four stacks at once'; there are 7 such (run, game) groups in the stored tree, the published 42% ratio is the LOWEST of them, the seven run 42% to 254%, and the between-stack range EXCEEDS the within-cell noise floor in 5 of 7. The mechanism half of #63 survives - cost tracks turns at r = 0.65 to 0.97 in all 7 groups, and turns vary by up to 165 inside one stack's cell - but the ratio half, which is what reached the null, does not. README and DECISIONS.md now say the route is re-opened. What nobody has adjudicated is the ordering the same producer prints: the TypeScript arm has the LOWEST stack mean in 5 of the 7 groups (mean cost rank ts 1.43, unity 2.29, godot 3.14, rust 3.14). That is not a test and must not be published as one: the 7 groups are not independent - 3 come from wg-matrix, 2 from wg-audio48 - and every cell is n=2, so a within-cell gap is the range of two samples and the floor built from four of those is itself very noisy. #63's own lesson is that a floor estimated from too few cells can be wrong by a factor of 7. This costs NOTHING to settle: the producer is offline, no trial is bought, and the answer is a reading of 56 stored trial records that already exist.
@@ -270,3 +271,117 @@ task.
 5.7s locally. Census output byte-identical to `main` throughout. Every published figure re-read
 and unchanged: **0.0156 / 0.0469 / 0.25**, fragility floor **0.0625**, `ts` leads **5 of 7**
 and beats its own noise floor in **0 of 5**.
+
+## note 2026-08-23
+
+## Review round 4, and the shape all four rounds share
+
+Round 4 found the case rounds 2 and 3 both missed, and it is the cleanest statement of the
+defect:
+
+> **`EXACT_ASSIGNMENT_LIMIT` budgets `(k!)**m` — a count of ASSIGNMENTS, which is a TIME
+> cost. Materialising a table of relabelled vectors costs `k! * m` of them, which is a
+> MEMORY cost. The two decouple at high k with low m**, so a design is comfortably
+> **accepted** by the limit and still allocates hundreds of megabytes. 9 stacks over 1
+> cluster is 362,880 assignments against a limit of 2,000,000.
+
+Measured, same input, identical result (`p_named = 0.111111` both ways):
+
+| | grew | elapsed |
+|---|---|---|
+| materialising | **199 MB** | 0.31s |
+| streaming | **0 MB** | 0.15s |
+
+The enumeration no longer materialises. It descends the clusters, draws each permutation
+from `itertools.permutations` as a generator, and carries the running vector down. Memory
+is O(k·m) at any k, and it is **faster**, because partial sums are shared by the subtree
+below them instead of recomputed per assignment.
+
+**An allocation-specific limit was the obvious alternative and would have been worse** — a
+second thing to get wrong, guarding a quantity that did not need to exist.
+
+**The pin covers BOTH sides of the limit, and only one of them catches this.** The refusal
+path (9 stacks, 2 clusters) never reaches the allocation, so the accepted design beside it
+(9 stacks, 1 cluster) is the row that matters. Both run in a child process under a 60 MB
+ceiling.
+
+## What all four rounds had in common
+
+Rounds 2, 3 and 4 were the same defect seen three times: **a guard whose trigger names a
+different quantity from the resource it protects.** Round 2 was the guard on the wrong side
+of the allocation; round 3 was a p-value threshold applied to an estimate; round 4 was a
+limit on time protecting against memory. None of the three was visible from the return
+value — every one needed a pin on the RESOURCE.
+
+> **When a review finds several defects in one mechanism, ask what the mechanism buys before
+> patching each one.** The sampled path cost three Major findings and 12s of every CI run to
+> serve a hypothetical. Deleting it removed all three.
+
+## Three procedural things that cost me time, so they should not cost the next agent any
+
+1. **Mutant search text is code.** `margin_where_it_lost`, `drop_ordering_field` (twice),
+   `render_drops_the_fragility_line`, `p_any_is_p_named` and `p_excludes_the_observed` all
+   went `NOT APPLIED` after an edit to a line they name — including a bare re-indentation.
+   The sweep refused to count any of them as a pass, which is the mechanism working.
+   **Treat any edit to a line a mutant names as an edit to that mutant.**
+2. **My own pins raised instead of naming a failure, three times.** A selftest that crashes
+   **loses every failure collected before it**, because they print at the end — so a
+   traceback is strictly worse than a FAIL row even though both exit non-zero. Read a
+   fixture's result through a guard that records a named failure.
+3. **A producer and its report are two components.** `render_ordering` died on a `KeyError`
+   while `--selftest` was green, because every pin read the result dict and nothing had ever
+   called the renderer. The report is the part a person runs.
+
+## Final state
+
+**39 mutants**, all caught with a named failure, control green. Base `--selftest` ~0.2s;
+sweep ~6s locally; the `cost_census_mutants` CI step measured **10s** at round 3 against 2s
+on `main` (see task 129, which corrects an earlier 47s reading of mine). Census output
+byte-identical to `main` throughout all four rounds.
+
+**Every published figure re-read at the final head and unchanged:** p = **0.0156** (run),
+**0.0469** (game), **0.25** (connected component); fragility floor **0.0625**; `ts` leads
+**5 of 7** and beats its own within-cell noise floor in **0 of 5**.
+
+## note 2026-08-23
+
+## Round 5 came back clean, and then CI caught what the local sweep could not
+
+**Round 5: "No actionable comments were generated."** That is the clean round the procedure
+says to stop on, after 4 rounds that each found real defects.
+
+**But the head round 5 reviewed was RED in CI**, and the failure is worth carrying because
+it is a shape no local run can produce:
+
+> **`materialise_the_assignments` was caught on macOS and SURVIVED on the Linux runner.**
+> The pin compared the child process's **TOTAL peak RSS** against 60 MB. A total carries the
+> interpreter's own baseline, and that differs by platform — so the same allocation landed
+> above the ceiling on one machine and below it on the other. **A threshold calibrated on
+> the machine you are sitting at is not a threshold.**
+
+It now measures the **GROWTH** across the call — the child reads `ru_maxrss` before and
+after and returns the difference — which cancels the baseline and is the quantity the pin
+was always about. Against a 25 MB ceiling:
+
+| | shipped (streaming) | mutant (materialising) |
+|---|---|---|
+| accepted `k=9 m=1` | 0.0 MB | **97.3 MB** |
+| refused `k=9 m=2` | 0.0 MB | 0.0 MB |
+| corpus `k=4 m=4` | 0.0 MB | 0.0 MB |
+
+**The refused row reads 0.0 under the mutant on purpose** — the allocation sits after the
+refusal raises, so **only the accepted arm can catch it**. `limit_checked_after_allocation`
+is the mutant the refused arm catches, and it still does. Two arms, two mutants, neither
+redundant.
+
+The mutant also now restores **both** structures the code used to build (the permutations
+list and the relabelled table) rather than only the table, so it is a faithful restoration
+rather than a cheaper stand-in that happened to sit near the boundary.
+
+`_refusal_in_child` is renamed `_permutation_in_child`: it runs an accepted design as well
+as a refused one, and the old name described half of what it does.
+
+> **The generalisable rule, and it is rule 12 with a machine axis: a check whose verdict
+> depends on a baseline is a check that reports the baseline.** Measure the delta, and prove
+> the mutant reddens on the platform the gate runs on — a local mutant sweep cannot tell you
+> that.

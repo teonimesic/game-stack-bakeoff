@@ -100,3 +100,23 @@ both figures and saying "about a minute" / "about eleven minutes" is a complete 
 `done_when` already allows it.
 
 **Do not edit `.github/workflows/README.md` until PR #13 lands** — it touches that file.
+
+## note 2026-08-23
+
+## Final figure for task 126's branch — 19s, not the 10s in the note above
+
+The 10s reading was taken at task 126's round 3. Two more commits followed, and the final
+merged-branch figure for `cost_census_mutants` is **19s** (gates run 32672293141,
+23:00:48 -> 23:01:07), against **2s** on `main`.
+
+The difference from 10s is not more mutants — it is that the memory pins now run their
+subject in a **child process** (the fix for a `ru_maxrss` baseline that differed between
+macOS and the Linux runner). Two pins x one subprocess each, across 39 mutants plus the
+control, is ~80 extra interpreter starts.
+
+**So the settled cost is +17s on `gates.yml` for 18 more mutants and two resource pins**,
+and `cost_census_mutants` is still not the most expensive step there. The tier argument in
+the first note stays withdrawn.
+
+**Three figures for one step inside one day — 47s, 10s, 19s — all correct when read.**
+That is the ticket's own subject, and the reason a producer beats a number in a file.

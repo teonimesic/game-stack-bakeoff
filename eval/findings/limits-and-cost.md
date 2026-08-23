@@ -710,3 +710,71 @@ bound yet; the blind field charged 27.68 against it and stopped because it was f
 What should bound a run is what is actually finite: **turns, wall clock, and rate-limit capacity.**
 Turns are already the build-side bound and are invisible to the agent, which is why that choice
 was correct.
+
+---
+
+## 160. The smallest p-value a design can return is a property of its cluster structure, and here it rules the question out before any data is seen
+
+Token usage put one stack cheapest in **5 of 7** groups. Chance for one arm to lead a four-way
+group is 25%, so 5 of 7 looks like something. Adjudicating it produced a result about the
+**design** rather than about the stacks.
+
+The groups are not seven observations. **Three of the four games recur across runs**, so a
+permutation test that treats each group as independent evidence counts the same trials twice. With
+stack labels permuted *within a cluster* and held constant across every group in it:
+
+| independent unit | clusters | p (post-hoc-safe) | smallest p this design **can** return |
+|---|---|---|---|
+| run directory | 4 | 0.0156 | **0.0156** |
+| game | 4 | 0.0469 | 0.0156 |
+| **connected component of run and game** | **2** | **0.2500** | **0.2500** |
+
+Two readings, and both are about the instrument:
+
+- At the run unit the observed p **is the floor** — `4 × (1/4)⁴`, the most extreme outcome the
+  design can produce, with no margin. Anything short of a perfect sweep returns the next
+  attainable value, which is above 0.05. Dropping any single run puts the floor at 0.0625, so **no
+  subset of three runs could have reached α whatever it said** — measured over all four
+  leave-one-out cases.
+- **6 of the 7 groups form one connected component.** At that unit the floor is **0.25**, and no
+  outcome available to this corpus could have reached α = 0.05.
+
+> **The question is not answered no. It is unasked.** A design whose smallest attainable p exceeds
+> α cannot produce evidence at that α no matter what the world does — and that is knowable from
+> the cluster structure alone, before any data is read.
+>
+> **Report the floor beside the p, always.** A p-value at its design's floor and a p-value with
+> room underneath it look identical and mean opposite things: one is the strongest signal the
+> instrument can emit, the other is a measurement.
+
+This generalises past cost. **Any adjudication over these run directories inherits the same
+ceiling**, because the ceiling comes from how the corpus was built — three games reused across
+runs — and not from what is being measured.
+
+### The size question is separate and answers itself
+
+Where the leading stack leads, its margin is **14.9% to 93.7% of that group's own within-cell
+noise floor — above it in 0 of 5.** A consistent ordering and a lead that beats the noise are
+different claims, and only the first was ever in question.
+
+### What the adjudication cost, and what it caught
+
+Five review rounds, the fifth clean, and rounds 1-4 each found a real defect in work built to
+settle a question about rigour:
+
+- A **tied** cheapest pair was resolved by alphabetical order, so the tool reported
+  `groups_led=1` and `times_cheapest=0` in the same output.
+- A sampling limit was **checked after the allocation it exists to prevent** — 2085 MB against a
+  24 MB budget.
+- Three findings landed on one sampled code path, which was **deleted rather than patched three
+  ways**: it served a hypothetical and no stored data exercised it.
+- The limit budgeted **time** while the thing that grew was **memory**.
+
+Two are worth keeping for their shape:
+
+- **`--selftest` was green while the renderer had never been called at all**, and it died on a
+  `KeyError` the first time it ran. A producer and the report that prints it are two components,
+  and a selftest over the first says nothing about the second.
+- **A memory pin passed locally and let its mutant SURVIVE on Linux**, because it compared a
+  *total* peak RSS carrying the interpreter's baseline rather than the growth. Only CI caught it —
+  no local run could have.
