@@ -27,11 +27,22 @@ such context: it is a glob a machine matches against the repository root, so the
 exact and the comparison is total.
 
 The other half of a `.coderabbit.yaml` audit — that every key under `reviews.tools` is a tool
-the published schema knows — needs the network, so it is not gated here. It matters, because
-the schema does NOT set `additionalProperties: false` on that object: a typo is accepted and
-silently ignored, which is the accepted-but-ignored-flag shape. Run it by hand against
-https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json when you edit that
-block.
+the published schema knows — needs the network, so it is `--schema` and not part of the gate.
+It matters, and the schema was read on 2026-08-23 to find out how much:
+
+    (root).additionalProperties          False   <- a misspelled TOP-LEVEL key is rejected
+    reviews.additionalProperties       absent
+    reviews.tools.additionalProperties absent    <- a misspelled TOOL key is accepted
+
+Draft 2020-12 permits unknown properties wherever the keyword is absent, so the closure is
+exactly one level deep: `reviws:` fails, `reviews.tools.skillspecter:` passes and is then
+silently ignored. That is the accepted-but-ignored-flag shape (`AGENTS.md` rule 13) — an
+unsupported key that fails loudly is safer than one indistinguishable from a working setting.
+`--schema` is what turns "run it by hand" into a command; run it when you edit that block.
+
+WHY IT IS NOT IN CI. It needs the network, and a gate that fails when a third party's bucket
+is unreachable trains the reader to ignore it. Recorded as a deliberate exclusion in
+`.github/workflows/README.md` rather than left silently absent.
 
 The audited repository is ONE input. `--root` selects it, and the config is that root's own
 `.coderabbit.yaml` — there is deliberately no way to point the two at different trees, because a
@@ -40,19 +51,31 @@ config from one repository checked against another's file list returns a confide
 Usage:
     python3 eval/tools/coderabbit_config.py            # gate: exit 1 if any instruction is dead
     python3 eval/tools/coderabbit_config.py --control  # pin it red and green; exit 1 if a pin fails
+    python3 eval/tools/coderabbit_config.py --schema   # NETWORK: are our tool keys real tools?
 """
 
 import argparse
 import copy
 import fnmatch
+import json
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_NAME = ".coderabbit.yaml"
+SCHEMA_URL = "https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json"
+
+#: Tools this repository's config names in prose or in a key, whose presence in the published
+#: schema is known in advance. `--schema` checks these BEFORE reporting on anything else: a
+#: census that returns one value across a population it exists to discriminate is reporting
+#: the instrument, and an extraction aimed at the wrong node would call every key unknown.
+#: `markdownlint` and `languagetool` are recorded in `.coderabbit.yaml` as having produced
+#: findings on PR #2; `skillspector` is the key the same file sets.
+SCHEMA_CONTROL_TOOLS = ("markdownlint", "languagetool", "skillspector")
 
 # ONE ADDRESS, NOT TWO. This took a `--config` alongside `--root` until PR #4's review: the
 # config could then be read from one tree and the file list from another, and the audit would
@@ -179,6 +202,105 @@ def control(config: dict, paths: list[str]) -> int:
     return 1 if failures else 0
 
 
+def schema_audit(config: dict) -> int:
+    """Every key under `reviews.tools` against the published schema. NETWORK.
+
+    The schema does not close that object, so nothing upstream will ever tell us a key is
+    misspelled - the review simply runs without the setting, which is indistinguishable from
+    a setting that is being honoured. This is the only thing that can ask.
+
+    Red on: a tool key the schema does not declare; a per-tool sub-key it does not declare
+    (`skillspector` offers `enabled` and nothing else, so `severity: off` would be silently
+    dropped the same way); an empty tools block read as a clean bill of health; or the control
+    tools missing, which means the extraction is aimed at the wrong node.
+    """
+    print(f"fetching {SCHEMA_URL}")
+    try:
+        with urllib.request.urlopen(SCHEMA_URL, timeout=30) as r:
+            body = r.read()
+    except (OSError, ValueError) as exc:
+        # An unreachable schema is an ERROR, not an empty audit. Returning 0 here would be
+        # `cmd || echo 0` on a measurement (AGENTS.md rule 3).
+        print(f"  RED  could not read the schema: {exc}")
+        return 1
+    schema = json.loads(body)
+    print(f"  ok   {len(body)} bytes, {schema.get('$schema')}")
+
+    try:
+        tools_node = schema["properties"]["reviews"]["properties"]["tools"]
+    except (KeyError, TypeError) as exc:
+        print(f"  RED  the schema has no reviews.tools node ({exc}) - the shape moved, and "
+              f"this audit is aimed at an address that no longer exists")
+        return 1
+    declared = tools_node.get("properties") or {}
+
+    missing = [t for t in SCHEMA_CONTROL_TOOLS if t not in declared]
+    if missing:
+        print(f"  RED  CONTROL: {missing} absent from reviews.tools.properties, which "
+              f"{'.coderabbit.yaml'} records as real tools - this extraction is reading the "
+              f"wrong node and every verdict below it would be wrong")
+        return 1
+    print(f"  ok   control: {list(SCHEMA_CONTROL_TOOLS)} all declared, "
+          f"of {len(declared)} tools the schema knows")
+
+    # Draft 2020-12 permits unknown properties unless the keyword says otherwise, so "absent"
+    # and `True` both mean open. Only an explicit `False` closes the object.
+    closed = tools_node.get("additionalProperties", "absent")
+    note = "" if closed is False else "  <- unknown keys are ACCEPTED and silently ignored"
+    print(f"\n  reviews.tools.additionalProperties = {closed!r}{note}")
+
+    ours = ((config.get("reviews") or {}).get("tools")) or {}
+    if not ours:
+        print("\n  RED  no reviews.tools block - nothing was audited, which is not the same "
+              "as nothing being wrong")
+        return 1
+
+    bad = 0
+    for key, value in sorted(ours.items()):
+        if key not in declared:
+            near = [d for d in declared if d.startswith(key[:4]) or key.startswith(d[:4])]
+            print(f"  RED  {key:<22} not a tool the schema declares"
+                  + (f" - did you mean {near}?" if near else ""))
+            bad += 1
+            continue
+        sub = (declared[key].get("properties") or {})
+        unknown = [k for k in (value or {}) if k not in sub]
+        if unknown:
+            print(f"  RED  {key:<22} sets {unknown}, which it does not declare "
+                  f"(it offers {sorted(sub)})")
+            bad += 1
+        else:
+            print(f"  ok   {key:<22} {dict(value or {})}")
+
+    print(f"\n{len(ours)} tool keys configured, {bad} the schema does not know")
+    return 1 if bad else 0
+
+
+def schema_control(config: dict) -> int:
+    """Pin `--schema` red on a misspelling, since green on the shipped config proves nothing.
+
+    The audit's whole subject is a key nothing upstream rejects, so `total=0 passed=0` is its
+    natural resting state and the only way to know it can fire is to make it.
+    """
+    typo = copy.deepcopy(config)
+    tools = typo.setdefault("reviews", {}).setdefault("tools", {})
+    if "skillspector" not in tools:
+        print("PIN FAILED: the shipped config sets no `skillspector` key, so this mutant "
+              "does not describe it any more")
+        return 1
+    tools["skillspecter"] = tools.pop("skillspector")
+
+    print("shipped config, expected GREEN")
+    live = schema_audit(config)
+    print(f"  -> exit {live}\n")
+    print("MUTANT: `skillspector` misspelled as `skillspecter`, expected RED")
+    got = schema_audit(typo)
+    print(f"  -> exit {got}\n")
+    failures = (0 if live == 0 else 1) + (0 if got == 1 else 1)
+    print(f"2 pins, {failures} failed")
+    return 1 if failures else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
@@ -187,6 +309,8 @@ def main() -> int:
         help=f"repository to audit; its {CONFIG_NAME} and its git file list, never a mixed pair",
     )
     ap.add_argument("--control", action="store_true", help="pin the gate red and green")
+    ap.add_argument("--schema", action="store_true",
+                    help="NETWORK: audit reviews.tools keys against the published schema")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -194,6 +318,11 @@ def main() -> int:
     if not config_path.is_file():
         raise SystemExit(f"no {CONFIG_NAME} in {root} - that is an error, not an empty audit")
     config = yaml.safe_load(config_path.read_text())
+
+    if args.schema:
+        print(f"{config_path}\n")
+        return schema_control(config) if args.control else schema_audit(config)
+
     paths = tracked_files(root)
     print(f"{config_path} against {len(paths)} tracked files in {root}\n")
     return control(config, paths) if args.control else run(config, paths)

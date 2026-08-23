@@ -24,6 +24,7 @@ python3 tools/docstat.py --withdrawn  # live docs restating a figure declared re
 python3 tools/docstat.py --citations  # a census, never a gate: hashed numbers naming no finding
 python3 tools/withdrawn_control.py    # its controls; --mutate NAME to see them go red
 python3 tools/fragment_control.py     # the integrity check's controls; --mutate NAME, --list-mutants
+python3 tools/integrity_census.py     # how often the debris has ever occurred; --windows, --control
 python3 tools/linkcheck.py            # every relative link in the live docs: path AND fragment
 python3 tools/linkcheck.py --selftest # its controls, three link shapes, both directions
 ```
@@ -51,19 +52,48 @@ measured, not assumed.**
 | stranded tail | does a whole LINE recur in the paragraph above it? | `eval/FINDINGS.md:6` at `1f6fb65` |
 | duplicate fragment | does any 12-word WINDOW recur inside one paragraph, list item or frontmatter key? | `DECISIONS.md:745` at `75dde71` |
 
+**Both measure 0 at HEAD, and that is not a reason to retire either.** The tree at any one commit
+holds only the defects nobody has repaired yet, and both of these were repaired — so 0 is what a
+census of HEAD must return whether the gate is protecting or dead. The population that can tell
+those apart is every *revision* of every reference document:
+
+```
+python3 tools/integrity_census.py     # 1 incident each over every version in history
+```
+
+It runs both checks' known-answer pins first and refuses to print a census if either fails, and
+it asserts that every reference document tracked at HEAD appears in its historical enumeration —
+prove the extraction, and the *population*, on a row whose true value you can state in advance.
+That second control exists because the first enumeration was 22% short and said nothing: `git log
+--name-only` omits a merge commit's file list, and one tracked skill was added by a merge. It is a
+census, never a gate — everything it can find was repaired before it existed.
+
 The second was added because the first scores **0** on the `DECISIONS.md` defect: the duplicated
 span begins mid-sentence and ends mid-sentence, so no line of it and no sentence of it recurs
 whole. An exact-match rule over repeated sentences scores 0 there *and* 0 on the live corpus —
 the obvious property, and a complete false negative.
 
 **The window is a free parameter and it was chosen on the live false-positive count**, never on
-which size sounds more principled. Over 183 reference docs, live and archive: window 10 gives 1
-corpus hit, 11 and up give 0, and the real defect is invisible from 16. The single hit at 10 is
-an *antithesis* — `DECISIONS.md`'s headroom blockquote repeating a clause to carry an argument —
-which is the shape this check will keep meeting, because correct prose repeats itself. 12 ships
-rather than 11 to keep a word of margin at each end. **If you retune it, re-measure that count
-over the corpus as it stands then**; `tools/fragment_control.py` prints it, and its 8 mutants
-each flip a row that names them.
+which size sounds more principled. Window 10 gives 3 corpus hits, 11 and up give 0, and the real
+defect is invisible from 16. All 3 hits at 10 are the same *antithesis* — `DECISIONS.md`'s
+headroom blockquote repeating a clause to carry an argument — which is the shape this check will
+keep meeting, because correct prose repeats itself. 12 ships rather than 11 to keep a word of
+margin at each end.
+
+**If you retune it, re-measure over the corpus as it stands then, with the producer:**
+
+```
+python3 tools/integrity_census.py --windows   # hits AND distinct phrases, per window
+```
+
+**Read the distinct-phrase column, not the hit count.** At 183 documents window 10 gave 1 hit; at
+188 it gives 3, and the two extra are that same antithesis quoted in `DECISIONS.md` and
+`tasks/119` *because* it was named as the false positive that set the boundary. A trigger that
+fires on a passage correct documents quote grows its own count by being written about, and
+reading that as an open class would argue for widening a window that has not moved.
+
+`tools/fragment_control.py` prints the corpus count at the **shipped** window only — 0 — which is
+not the number that decides a retune. Its 8 mutants each flip a row that names them.
 
 **`--sweep` deliberately does not check file paths, and `linkcheck.py` is what covers the gap
 for links** — a phantom `eval/RUBRIC.md` passed a green sweep. It resolves the path *and* the

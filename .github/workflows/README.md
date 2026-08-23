@@ -106,7 +106,9 @@ a measurement with a date on it, not a property of the tier.
 | `tools/evidence_set_control.py`, `tools/disclosure_mutants.py` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored (129G) and can never be in a checkout |
 | `judge/audit_criteria.py` | **runs, exits 0, and measures nothing without a corpus**: it printed `0 / 0 / 0` for every line of its verdict in a tree with no `eval/runs/`. That is the shape this repository exists to catch, not a gate |
 | `docstat.py --renumbered` | never gates, by design — its second half is explicitly undecidable. The half that does gate (the triage register) runs inside `--sweep` |
-| `lint.py --gate` (the whole pinned set) | 64 findings with a standing untriaged backlog. See below |
+| `lint.py --gate` (the whole pinned set) | 67 findings with a standing untriaged backlog (`python3 eval/tools/lint.py --counts`). See below |
+| `coderabbit_config.py --schema` | **needs the network** — it reads the published CodeRabbit schema. A gate that fails when a third party's bucket is unreachable trains the reader to ignore it. Run it by hand when the `reviews.tools` block changes; it is the only thing that can catch a misspelled tool key, because the schema does not close that object and CodeRabbit accepts one silently |
+| `tools/integrity_census.py` | **a census, not a gate**: it exits 0 on a historical hit by construction, because everything it can find was repaired before it was written. Its known-answer control calls `docstat.py`'s two integrity pins, which `--sweep` already runs in the fast tier — gating it again would buy a second copy of the same red |
 | anything that spends money or drives the `claude` CLI | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py`. The operator's call, every time |
 
 ## The control: every run that established this

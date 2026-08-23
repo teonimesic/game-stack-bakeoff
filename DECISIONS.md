@@ -630,10 +630,11 @@ The property shipped instead: an unfenced, non-structural prose line of **≥5 w
 normalised text already appears verbatim in the paragraph above it**. The orphan is a
 *repetition* — that is what half a replaced sentence is — and repetition is a closed property of
 the text rather than a vocabulary, which is what the census-trigger section above asks for.
-**Measured over all 180 reference documents at HEAD: 0 false positives.** The tighter variant
-additionally requiring the line to end its paragraph also measures 0, so the looser one ships —
-same measured cost, strictly more coverage. This is the first open-shaped trigger tried here that
-opens at 0 rather than at 8, 18 or 26 (#140, #142, #146).
+**0 false positives over the whole reference corpus, live and archive** — 188 documents when
+last re-derived by `python3 eval/tools/docstat.py --sweep`, which runs it on every invocation.
+The tighter variant additionally requiring the line to end its paragraph also measures 0, so the
+looser one ships — same measured cost, strictly more coverage. This is the first open-shaped
+trigger tried here that opens at 0 rather than at 8, 18 or 26 (#140, #142, #146).
 
 **Scope includes the archive, deliberately against the rule two sections up.** The formatting
 gates exempt `eval/findings/` because reformatting an archived entry edits evidence. A
@@ -672,21 +673,33 @@ excluded. Repetition is again a closed property of the text; the free parameter 
 and **it was chosen on the live false-positive count, not on which size sounds more general** —
 the census-trigger section above, applied to a number instead of a regex.
 
-| window | hits over 183 reference docs | windows on the real defect |
-|---|---|---|
-| 10 | 1 | 7 |
-| 11 | 0 | 5 |
-| **12** | **0** | **4** |
-| 14 | 0 | 2 |
-| 16 | 0 | 0 — the defect is invisible from here up |
+The producer is **`python3 eval/tools/integrity_census.py --windows`**, and the figures below are
+its output over the 188 reference documents the corpus held when it was last run:
 
-**The single hit at 10 is the shape this check will keep meeting, and it is why the window is not
+| window | corpus hits | distinct phrases | windows on the real defect |
+|---|---|---|---|
+| 10 | 3 | 1 | 7 |
+| 11 | 0 | 0 | 5 |
+| **12** | **0** | **0** | **4** |
+| 14 | 0 | 0 | 2 |
+| 16 | 0 | 0 | 0 — the defect is invisible from here up |
+
+**The hits at 10 are the shape this check will keep meeting, and they are why the window is not
 smaller:** `DECISIONS.md`'s own headroom blockquote is an *antithesis* — "a stated mechanic gives
 an axis with no direction and every submission at the same point; a free parameter gives an axis
 with no direction and every submission at a different point" — where the repetition carries the
 argument. Correct prose does this. 11 also measures 0 and 12 ships instead, because 11 sits
 directly on that boundary and 12 keeps a word of margin at each end while still clearing the real
 defect by three.
+
+**Two columns, because the hit count answers the wrong question.** When the window was chosen the
+corpus was 183 documents and 10 gave **1** hit; at 188 it gives **3**, and every one of the three
+is that same antithesis — quoted twice in this file and once in `tasks/119`, both times *because*
+it was named as the false positive that set the boundary. The corpus acquired no new kind of hit;
+it acquired copies of the one already counted. **A trigger that fires on a passage which correct
+documents QUOTE grows its own false-positive count by being documented**, and reading that growth
+as evidence of an open class would argue for widening a window that has not moved. The count that
+decides a retune is therefore the **distinct-phrase** column: 1 at window 10, and 0 from 11 up.
 
 **Scope is live and archive**, for the section above's reason. **The frontmatter rule is one
 block per KEY, not a mask over the header**: `_claim_blocks` sees no blank line in a YAML header
@@ -715,6 +728,54 @@ mutants in `eval/tools/fragment_control.py`. The red pin is the **real blob**, a
 — line 745, four windows — is stated in the control rather than computed from the blob by the code
 under test. The eight mutants each flip a row that names them; `one_block` is the one worth
 quoting, because dropping the block scope takes the corpus from 0 hits to **676**.
+
+### Both integrity gates are kept on a measured base rate, not on the census at HEAD — decided 2026-08-23
+
+Each measures **0** over the corpus at HEAD, and a gate whose triggering case has not occurred is
+indistinguishable, from inside, from a gate that cannot fire. The pins answer half of that: each
+one fires on a real historical blob. What nothing could answer was *how often does this defect
+actually happen*, because **the tree at any one commit holds only the defects nobody has repaired
+yet** — both known instances were fixed, so both are invisible to any census of HEAD, and that is
+precisely why the count is 0.
+
+The population that can answer it is **every version of every reference document**, and
+`python3 eval/tools/integrity_census.py` is the producer. Over 1,551 distinct (version, path)
+pairs, spanning 219 paths and all 451 commits reachable from `--all` when it was last run:
+
+| | incidents | versions carrying it | corpus at HEAD |
+|---|---|---|---|
+| stranded tail | 1 | 34 | 0 |
+| duplicate fragment | 1 | 55 | 0 |
+
+**The denominator moves with every commit and the incident count has not moved at all** — two
+runs 20 minutes apart read 1,543 and 1,551 versions, the same 1 and 1. Re-derive it rather than
+quoting this table; what it is evidence for is the rate, not the digits.
+
+**A version is not an incident and a span is not either.** An unrepaired defect is re-counted in
+every version of its file, and one rewrite is seen as several *overlapping* windows of itself —
+the duplicate fragment reports 4 spans for what is one bullet edited once. Summing either figure
+measures how busy the file was. Incidents are therefore grouped on the set of versions a span
+appears in, which is what overlapping views of a single rewrite share; the tool prints the
+ungrouped span count beside it, because that grouping is a heuristic and two separate defects
+introduced and repaired together would collapse into one.
+
+**The denominator is the whole of a base rate, and the first enumeration of it was quietly 22%
+short.** `git log --all --name-only` is the obvious way to list every version of every document
+and it **omits a merge commit's file list by default**, so `.agents/skills/update-readme/SKILL.md`
+— tracked, and introduced by merge `6129034` — appeared in no revision at all: 216 paths and 1,196
+versions against a true 218 and 1,543 on the same tree. It named no error while doing it. The
+census now walks
+every commit's **tree**, and `enumeration_control` asserts that every reference document tracked
+at HEAD appears in the result, because HEAD's file list is the one membership that can be stated
+in advance. **A census aimed at a population nobody checked returns a confident number** — rule 12
+with the address being the population itself.
+
+**So the decision is to keep both gates on a base rate of 1 incident each over the whole history
+of the corpus, not to retire them for measuring 0 at HEAD.** That is a real rate over a real denominator rather
+than an absence, and it is the number to re-derive before anyone proposes deleting either — the
+same command, over the corpus as it stands then. The census exits 0 on a historical hit by
+construction: everything it can find was repaired before it was written, so it is a census and
+never a gate.
 
 ### The producer for the findings count is `docstat.py --findings` — decided 2026-08-23
 
