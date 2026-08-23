@@ -215,6 +215,11 @@ this repository has had: **`Reviews paused`** on #1, **`Review limit reached`** 
 > pause notice is a `> [!NOTE]`. It would have swapped which of the two deadlocks hangs the
 > loop, and it looked like a generalisation. *Choose between candidate triggers on the
 > live-corpus counts, never on which one sounds more general.*
+>
+> **`select(.user.login=="coderabbitai[bot]")` is load-bearing, and it is not hypothetical.**
+> The old check read every comment by anyone. Twenty minutes later, on this same PR, it went to
+> **1** — matching a comment *I* had posted, which quoted the string while explaining the bug.
+> A check on an unfiltered comment stream is a check the agent can trip by describing it.
 
 The two headings seen so far:
 
