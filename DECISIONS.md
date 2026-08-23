@@ -141,6 +141,34 @@ reliability, and the reliability you measure is highest exactly where you need t
 Rewriting the three unstable criteria did not fix it; the rewrite made a contested submission
 *less* stable.
 
+### The tier-3 separation figure is reported under `rank` + `pool` — decided 2026-08-23
+
+*"Does an aspect separate the stacks?"* is answered by a between-stack range against a
+within-stack gap. **That quantity has two free parameters, not none.** `value` is what a round
+asserts about a submission — its `score`, or its `rank` in the field. `order` is whether the
+rounds are averaged before the spread is taken (`pool`) or after (`perround`). Four
+combinations, four different numbers, and they disagree about the sign.
+
+`eval/judge/field_ranks.py` is the producer. **Every published figure for this quantity must
+come out of it and must be quoted with the field, the `value` and the `order`** — a pair quoted
+without its method names one of four quantities, which is how a pair matching none of them came
+to be published in four documents at once (#113).
+
+**When one pair is quoted, it is `rank` + `pool`.** Three grounds:
+
+1. The tier's output is an **ordering** — each specialist ranks a whole eight-submission field.
+   Ranks are the units the layer asserts; the scores are an intermediate.
+2. The scores **ceiling**. On seed 1, `architecture` puts 7 of 8 submissions on one score and
+   `audio` and `idiomatic` put 6 of 8 (`JUDGING.md`, gate 1). A between/within comparison on a
+   saturated scale is compressed by the saturation; a rank comparison is not.
+3. `pool` is the population the documents already meant. The withdrawn line's own words were
+   *"pooled over five aspects and both orders"*, and `README.md`'s replacement is pooled.
+
+`JUDGING.md`'s two per-aspect tables stay under `score` + `perround`, which is the only method
+that reproduces them, and are now labelled with it. **Mixing methods in one section is
+acceptable; mixing them unlabelled is not** — and note that a `pool` figure is *not* the mean of
+any per-aspect table, so the two must never be presented as summarising one another.
+
 ## Task set and judging protocol
 
 | Decision | By |
@@ -269,8 +297,24 @@ gate that fails on correct input gets disabled*:
 - **Whether the subjective layer earns a weight — ANSWERED 2026-08-16, and the answer is no.**
   All five aspects were run over a full eight-submission field for $46.79. Three fail the
   ceiling gate on one presentation order; `fun` and `idiomatic` fail adjudication (#52, #53);
-  `architecture` and `ux` are redundant with each other while sharing no evidence (#54). Its
-  between-stack range (1.70 rank positions) is **smaller than its within-stack spread (2.05)**.
+  `architecture` and `ux` are redundant with each other while sharing no evidence (#54). And
+  **no aspect separates the stacks at a magnitude that could matter**: recomputed by
+  `eval/judge/field_ranks.py` over both stored fields of `wg-tetris-judge-2026-08-17`, the
+  between-stack range **never exceeds the within-stack gap by more than 23%** across the eight
+  readings, on a field the deterministic tiers score identically. Reported pair, `rank`+`pool`:
+  **1.900 against 2.275** pre-repair, **2.100 against 1.925** post-repair.
+  **This is a magnitude, not a direction, and the change matters.** The bullet used to read
+  *"its between-stack range is smaller than its within-stack spread"* — an inequality that
+  **reverses in four of the eight readings**, including under the one method that reproduces
+  `JUDGING.md`'s own per-aspect table. That argument is retired rather than restated with better
+  numbers: a comparison whose sign is decided by a free method parameter cannot license a
+  conclusion in either direction. **The weight is unchanged; only its stated reason is.** The
+  two grounds under "Grading" above never depended on this field at all — a bounded contribution
+  of 0.10 against a tightest adjacent gap of 0.0622, and an aggregate noisiest exactly where it
+  would matter — and #83 means neither round is defensible as blind regardless. The withdrawn
+  pair is FINDINGS #113; the "within ~10% in both" reading that briefly stood in for it is wrong
+  on one of the two fields and is #115. Both stay in the log and appear in no live document as a
+  measurement.
   **Tier 3 stays at weight 0.00**, now on measurement rather than on argument. All three
   prerequisites were then BUILT and the layer re-run (2026-08-17, $21.05): `fun` has a
   representative play session and its confound is gone by construction, `architecture` packs
@@ -557,6 +601,7 @@ settled question is noise that makes the live ones harder to find.
 | Decision | Re-open when |
 |---|---|
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
+| Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
 | Deterministic tiers may not rank stacks | Any instrument change producing **non-zero within-cell verdict variance** — currently 0 of 380 |
 | Tier weights 0.31/0.69 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound**. Currently 0 of 10 groups flip, and the one group with both tiers varying is `wg-arena3d`, which `eval/RUNS.md` declares void (#92) |
