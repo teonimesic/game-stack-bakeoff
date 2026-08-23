@@ -103,6 +103,38 @@ an upper bound of unknown tightness) unless stated. Re-measure before relying on
 | `lint.py --gate` (the whole pinned set) | 64 findings with a standing untriaged backlog. See below |
 | anything that spends money or drives the `claude` CLI | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py`. The operator's call, every time |
 
+## The control: every run that established this
+
+A green CI run establishes nothing on its own — `total=0 passed=0` is indistinguishable from
+a correctly-passing suite. These are the runs, on
+`https://github.com/teonimesic/game-stack-bakeoff/actions/runs/<id>`, from PR
+[#3](https://github.com/teonimesic/game-stack-bakeoff/pull/3).
+
+| run | trigger | workflow | result | what it establishes |
+|---|---|---|---|---|
+| `32648710508` | `pull_request` | gates | **success**, 50s | the fast tier is green on a clean tree |
+| `32648710497` | `pull_request` | controls | **failure**, 31s | `bot_mutants` exit 2, `just` not on PATH |
+| `32648869727` | `pull_request` | controls | **failure**, 5m39s | `just` fixed; `audio_selftest` exit 2, no ffmpeg |
+| `32649208309` | `pull_request` | controls | **success**, 6m32s | the slow tier is green once both are installed |
+| `32649208330` | `pull_request` | gates | **success**, 44s | unchanged by the slow tier's repairs |
+| `32649591491` | **push** (`ci-control-green`) | gates | **success** | the push trigger fires and is green |
+| `32649595405` | **push** (`ci-control-red`) | gates | **success — the control FAILED** | see below |
+| `32649678840` | **push** (`ci-control-red`) | gates | **failure** | `README.md: flag --zzqflag matches no argparse in eval/`, at the `docstat --sweep` step, with every other step still reported |
+
+**The first red attempt came out green, and that is the most useful row here.** The planted
+phantom flag went into *this* file, and `_check_flags`' inline half only looks at a document
+that matches `(wholegame|runner|judge/|evaluate|regrade)\.py`. This file matches it **0**
+times; the root `README.md` matches it 8. So the break was invisible, the run was green, and a
+green run is exactly what a working gate also produces. Re-planted in the root `README.md`,
+the same phantom flag turned the sweep red locally *and* in CI.
+
+That is AGENTS.md rule 12 with the roles swapped: the method was right and the **address** was
+wrong, and the wrong answer was the reassuring one. **Verify a deliberate break locally before
+pushing it** — `docstat.py --sweep` exit 1 in the working tree — rather than trusting that
+breaking something breaks it.
+
+Both control branches were deleted afterwards; the plant never touched `main` or the PR.
+
 ## What CI found on its first run
 
 The fast tier was green first time. The slow tier was **red, correctly**: `bot_mutants.py`
