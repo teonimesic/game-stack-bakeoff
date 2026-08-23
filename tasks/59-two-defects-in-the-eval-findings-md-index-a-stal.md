@@ -1,6 +1,6 @@
 ---
 id: 59
-title: Two defects in the eval/FINDINGS.md index: a stale range and a table split in half
+title: 'Two defects in the eval/FINDINGS.md index: a stale range and a table split in half'
 status: open
 priority: 4
 refs: eval/FINDINGS.md, AGENTS.md read-before-changing table, eval/tools/docstat.py

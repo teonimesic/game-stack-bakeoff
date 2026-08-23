@@ -1,10 +1,10 @@
 ---
 id: 55
-title: A withdrawal register: declare retired figures so a gate can find them restated
+title: 'A withdrawal register: declare retired figures so a gate can find them restated'
 status: open
 priority: 4
-refs: eval/findings/certifies-nothing.md #112, eval/tools/docstat.py, README.md, game-research-gpt evaluation/cross-engine/results/FINAL-CORRECTIONS.json
-done_when: a machine-readable register of withdrawn figures exists; a check asserts that no live document restates one outside a block citing that entry's id; the check is red on the three sites #112 names before task 54 and green after; it carries a positive control planting a withdrawn pair in a temp copy and a negative control proving a declared withdrawal notice does not trip it; and it is wired into docstat.py --sweep only once it is green
+refs: 'eval/findings/certifies-nothing.md #112, eval/tools/docstat.py, README.md, game-research-gpt evaluation/cross-engine/results/FINAL-CORRECTIONS.json'
+done_when: 'a machine-readable register of withdrawn figures exists; a check asserts that no live document restates one outside a block citing that entry''s id; the check is red on the three sites #112 names before task 54 and green after; it carries a positive control planting a withdrawn pair in a temp copy and a negative control proving a declared withdrawal notice does not trip it; and it is wired into docstat.py --sweep only once it is green'
 ---
 
 

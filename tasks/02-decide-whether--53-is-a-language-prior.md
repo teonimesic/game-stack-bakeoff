@@ -1,11 +1,11 @@
 ---
-established_by: $14.04 extra to raise arena to n=4. idiomatic ordering reported for THREE games at n=4 each (96 observations), joined on submission not label. #53 NARROWED and CONFIRMED but its ARGUMENT REPLACED. Confirmed: resolved stack pairs never contradict across games; rust>unity resolves in all three; tetris and platformer resolve the IDENTICAL 4 of 6 pairs despite different pack regimes. Refuted: #53's supporting contrast that submission-level scores are 'not stable at all' - they are stable (6/8, 3/8, 2/8 submissions invariant across 4 rounds); that asymmetry was an artifact of n=1 per game, where a single draw carries the full judge SD. Effect is small: all 96 observations are 2/3/4 on a 0-4 scale, stack means span 2.88-3.88. The extension leak remains the live mechanism and is unfixable for this aspect. FINDINGS #79.
+established_by: '$14.04 extra to raise arena to n=4. idiomatic ordering reported for THREE games at n=4 each (96 observations), joined on submission not label. #53 NARROWED and CONFIRMED but its ARGUMENT REPLACED. Confirmed: resolved stack pairs never contradict across games; rust>unity resolves in all three; tetris and platformer resolve the IDENTICAL 4 of 6 pairs despite different pack regimes. Refuted: #53''s supporting contrast that submission-level scores are ''not stable at all'' - they are stable (6/8, 3/8, 2/8 submissions invariant across 4 rounds); that asymmetry was an artifact of n=1 per game, where a single draw carries the full judge SD. Effect is small: all 96 observations are 2/3/4 on a 0-4 scale, stack means span 2.88-3.88. The extension leak remains the live mechanism and is unfixable for this aspect. FINDINGS #79.'
 id: 02
 status: done
 priority: 1
 title: Find out whether `idiomatic` reads the code or guesses from the language
-refs: eval/FINDINGS.md #53, blocked by task 01
-done_when: idiomatic's per-stack ordering is reported for three different games, and #53 is confirmed, narrowed or withdrawn on that evidence
+refs: 'eval/FINDINGS.md #53, blocked by task 01'
+done_when: 'idiomatic''s per-stack ordering is reported for three different games, and #53 is confirmed, narrowed or withdrawn on that evidence'
 ---
 
 This project measures how well coding agents build whole games in four stacks

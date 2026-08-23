@@ -1,10 +1,10 @@
 ---
-established_by: Ran idiomatic on g4c both ways, 2 orders each, $27.30, reading pre-registered in JUDGING.md before spending. Verdict: outcome 3 of 3 - UNINTERPRETABLE at this n. Between-arm tau -0.231 (13 pairs) but the capped arm disagrees with ITSELF at +0.333 (6 pairs), so the effect is not separable from instrument noise; the #68 floor of +0.853 was measured on a different aspect/game and does not transfer. Root cause: 2 distinct scores in every round and 2 of 4 rounds FAIL the ceiling gate. Interpretable result: the judge reads more when given more - 1.74x content gave 115/178 files opened vs 79/98, first audit trail of judge file-opens in the project. Needs a measured floor for idiomatic on g4c (task 08).
+established_by: 'Ran idiomatic on g4c both ways, 2 orders each, $27.30, reading pre-registered in JUDGING.md before spending. Verdict: outcome 3 of 3 - UNINTERPRETABLE at this n. Between-arm tau -0.231 (13 pairs) but the capped arm disagrees with ITSELF at +0.333 (6 pairs), so the effect is not separable from instrument noise; the #68 floor of +0.853 was measured on a different aspect/game and does not transfer. Root cause: 2 distinct scores in every round and 2 of 4 rounds FAIL the ceiling gate. Interpretable result: the judge reads more when given more - 1.74x content gave 115/178 files opened vs 79/98, first audit trail of judge file-opens in the project. Needs a measured floor for idiomatic on g4c (task 08).'
 id: 09
 status: done
 priority: 3
 title: Test whether the removed pack budget changed any judgement
-refs: eval/FINDINGS.md #69, eval/FINDINGS.md #62, eval/IMPROVEMENTS.md 10
+refs: 'eval/FINDINGS.md #69, eval/FINDINGS.md #62, eval/IMPROVEMENTS.md 10'
 done_when: idiomatic has been run on g4c both with and without the character budget, at both orders, with the reading pre-registered before spending
 ---
 

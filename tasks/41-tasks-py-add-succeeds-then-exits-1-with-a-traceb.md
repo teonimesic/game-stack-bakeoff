@@ -1,5 +1,5 @@
 ---
-established_by: tasks.py add printed its result relative to ROOT while writing to the shared queue under the main worktree; from an agent worktree those differ, so relative_to raised ValueError AFTER the file was written and the command exited 1 having succeeded. Fixed to print relative to the shared queue's own parent. Verified by running add from a live agent worktree: exit 0, correct path printed, file created once. Checked for the damage this invites - a retry after a false failure would file a duplicate - and found none: 40 tasks, no duplicate ids, no duplicate titles.
+established_by: 'tasks.py add printed its result relative to ROOT while writing to the shared queue under the main worktree; from an agent worktree those differ, so relative_to raised ValueError AFTER the file was written and the command exited 1 having succeeded. Fixed to print relative to the shared queue''s own parent. Verified by running add from a live agent worktree: exit 0, correct path printed, file created once. Checked for the damage this invites - a retry after a false failure would file a duplicate - and found none: 40 tasks, no duplicate ids, no duplicate titles.'
 id: 41
 title: tasks.py add succeeds then exits 1 with a traceback when run from a worktree
 status: done

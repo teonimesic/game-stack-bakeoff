@@ -1,11 +1,11 @@
 ---
-established_by: fun_frames/g2_tetris3d SEPARATES at n=7 ($10.12, 7 fresh repeats under the current brief - not pooled with the 4 stored ones, which predate the geometry note). Pooled SD 0.577 (sample stdev, RMS - the conservative convention, now pinned in separation()), SE 0.218, 18 of 28 pairs resolved, 1 marginal pair reported. #58's ceiling gate REPLACED by field.separation(), pinned 4 ways: refuses at n<2, warns below n=4, distinguishes 'not yet' from 'never'. Proved the old done-when unsatisfiable: smallest gap shrinks as 1/n while SE shrinks as 1/sqrt(n), so it passes only at n=2-3 where SE is least trustworthy - FINDINGS #75. separation() corrected its author on first use (SE<gap vs SEi+SEj).
+established_by: 'fun_frames/g2_tetris3d SEPARATES at n=7 ($10.12, 7 fresh repeats under the current brief - not pooled with the 4 stored ones, which predate the geometry note). Pooled SD 0.577 (sample stdev, RMS - the conservative convention, now pinned in separation()), SE 0.218, 18 of 28 pairs resolved, 1 marginal pair reported. #58''s ceiling gate REPLACED by field.separation(), pinned 4 ways: refuses at n<2, warns below n=4, distinguishes ''not yet'' from ''never''. Proved the old done-when unsatisfiable: smallest gap shrinks as 1/n while SE shrinks as 1/sqrt(n), so it passes only at n=2-3 where SE is least trustworthy - FINDINGS #75. separation() corrected its author on first use (SE<gap vs SEi+SEj).'
 id: 08
 status: done
 priority: 1
 title: Repeat judgements until a difference between submissions is statistically resolvable
-refs: eval/IMPROVEMENTS.md 11b, eval/FINDINGS.md #58
-done_when: for each (aspect, field) attempted, the pooled SD, the SE at the n reached, and the count of submission PAIRS resolved (gap > SEi + SEj) are reported; a field where zero pairs resolve is reported as unresolvable-by-repetition with its measured gaps; and #58's ceiling gate is replaced rather than annotated
+refs: 'eval/IMPROVEMENTS.md 11b, eval/FINDINGS.md #58'
+done_when: 'for each (aspect, field) attempted, the pooled SD, the SE at the n reached, and the count of submission PAIRS resolved (gap > SEi + SEj) are reported; a field where zero pairs resolve is reported as unresolvable-by-repetition with its measured gaps; and #58''s ceiling gate is replaced rather than annotated'
 ---
 
 This project measures how well coding agents build whole games in four stacks

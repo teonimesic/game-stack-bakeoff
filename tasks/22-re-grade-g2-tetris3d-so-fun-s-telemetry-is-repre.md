@@ -1,11 +1,11 @@
 ---
-established_by: CLOSED AS UNNECESSARY - the premise was false and no spend was needed. Task 22 assumed #68's fun rounds read pre-repair telemetry from g2_tetris3d. Established from the round files instead of from reasoning: the rounds read wg-audio48-2026-08-14, which carries representative telemetry on 8 of 8 and was re-driven offline on 2026-08-17 specifically so the judge would not be run against unrepaired evidence. Fingerprint match, since the rounds did not record their run: all 7 of 7 quiet_fraction_of_run values and 4 of 4 events_per_second values quoted in #68's evidence strings appear in wg-audio48's stored telemetry, and 0 of 7 and 0 of 4 appear in wg-matrix-2026-08-13's. #68 stands as reported. The defect worth having found is different and is fixed: a stored judge round recorded its GAME but not its RUN, and g2_tetris3d names four fields in different states of repair - #70 (an id is not a key) one level up, with the namespace being the run. field.py now carries mapping['run'] into every stored round.
+established_by: 'CLOSED AS UNNECESSARY - the premise was false and no spend was needed. Task 22 assumed #68''s fun rounds read pre-repair telemetry from g2_tetris3d. Established from the round files instead of from reasoning: the rounds read wg-audio48-2026-08-14, which carries representative telemetry on 8 of 8 and was re-driven offline on 2026-08-17 specifically so the judge would not be run against unrepaired evidence. Fingerprint match, since the rounds did not record their run: all 7 of 7 quiet_fraction_of_run values and 4 of 4 events_per_second values quoted in #68''s evidence strings appear in wg-audio48''s stored telemetry, and 0 of 7 and 0 of 4 appear in wg-matrix-2026-08-13''s. #68 stands as reported. The defect worth having found is different and is fixed: a stored judge round recorded its GAME but not its RUN, and g2_tetris3d names four fields in different states of repair - #70 (an id is not a key) one level up, with the namespace being the run. field.py now carries mapping[''run''] into every stored round.'
 id: 22
 title: Re-grade g2_tetris3d so fun's telemetry is representative
 status: done
 priority: 1
-refs: eval/FINDINGS.md #52 #68, DECISIONS.md
-done_when: g2_tetris3d's stored playbot.json reports representative telemetry for all 8 submissions, and fun is re-run on the repaired field with the result compared against #68's - either the positive result survives, or it does not and #68 is corrected
+refs: 'eval/FINDINGS.md #52 #68, DECISIONS.md'
+done_when: 'g2_tetris3d''s stored playbot.json reports representative telemetry for all 8 submissions, and fun is re-run on the repaired field with the result compared against #68''s - either the positive result survives, or it does not and #68 is corrected'
 ---
 
 Tier 3's ONLY positive result (#68) is that fun's telemetry demonstrably moves the ranking - adjudicated to the two submissions whose telemetry was extreme.

@@ -1,10 +1,10 @@
 ---
-established_by: ux ~ distinct-colour count recomputed on THREE games (Spearman, average ranks, n=8 each): g2_tetris3d +0.528, g3_arena +0.733, g4_platformer +0.573. #59 CONFIRMED and generalised - it was not a tetris artifact. Robustness: arena has one extreme outlier (godot__t1 at 512 colours vs 3-10 for the rest); dropping it still gives +0.596 at n=7. Colour ranges differ hugely by game (3-512, 6-1254, 31-874), so the aspect tracks relative position within its own field. Pairs with #76: fun_frames correlates -0.120 on the same pixels, so the frames CHANNEL is clean and the defect is in ux specifically. FINDINGS #78.
+established_by: 'ux ~ distinct-colour count recomputed on THREE games (Spearman, average ranks, n=8 each): g2_tetris3d +0.528, g3_arena +0.733, g4_platformer +0.573. #59 CONFIRMED and generalised - it was not a tetris artifact. Robustness: arena has one extreme outlier (godot__t1 at 512 colours vs 3-10 for the rest); dropping it still gives +0.596 at n=7. Colour ranges differ hugely by game (3-512, 6-1254, 31-874), so the aspect tracks relative position within its own field. Pairs with #76: fun_frames correlates -0.120 on the same pixels, so the frames CHANNEL is clean and the defect is in ux specifically. FINDINGS #78.'
 id: 03
 status: done
 priority: 2
 title: Check whether `ux` measures usability or just picture quality
-refs: eval/FINDINGS.md #59, blocked by task 01
+refs: 'eval/FINDINGS.md #59, blocked by task 01'
 done_when: the ux-score vs distinct-colour-count correlation is reported for g3_arena and g4_platformer
 ---
 

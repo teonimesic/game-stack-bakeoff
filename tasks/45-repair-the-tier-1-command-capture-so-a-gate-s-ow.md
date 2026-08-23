@@ -1,10 +1,10 @@
 ---
-established_by: judge/capture_selftest.py 39/39 after, 9/17 with 7 of 9 tests unrunnable before (rule 14). Variant on the unfixed function: 10 KB stderr plus one stdout line lost the line, reverse kept it. Positive control, one wg-g4c submission per stack, gate run once and rendered under both policies - godot 3263/0 yes-yes, rust 16/8638 NO-yes, ts 670/213 yes-yes, unity 201/0 yes-yes. End to end: full collect on godot 9/9, 51/51 tests parsed, capability.py reads all nine fields. Commit 9a0345f on task-45-command-capture; FINDINGS #103; runner.py instance filed as task 50.
+established_by: 'judge/capture_selftest.py 39/39 after, 9/17 with 7 of 9 tests unrunnable before (rule 14). Variant on the unfixed function: 10 KB stderr plus one stdout line lost the line, reverse kept it. Positive control, one wg-g4c submission per stack, gate run once and rendered under both policies - godot 3263/0 yes-yes, rust 16/8638 NO-yes, ts 670/213 yes-yes, unity 201/0 yes-yes. End to end: full collect on godot 9/9, 51/51 tests parsed, capability.py reads all nine fields. Commit 9a0345f on task-45-command-capture; FINDINGS #103; runner.py instance filed as task 50.'
 id: 45
 title: Repair the tier-1 command capture so a gate's own completion line survives truncation
 status: done
 priority: 3
-refs: eval/FINDINGS.md #100, eval/judge/static.py, eval/IMPROVEMENTS.md axis 2 candidate 1
+refs: 'eval/FINDINGS.md #100, eval/judge/static.py, eval/IMPROVEMENTS.md axis 2 candidate 1'
 done_when: a selftest pins both directions - a command that floods stderr keeps its one stdout line, and the reverse - and a fresh collect over one submission per stack records which of the four stored tails hold the verify recipe's completion line; if any arm still loses it, report that arm and the reason rather than closing
 ---
 

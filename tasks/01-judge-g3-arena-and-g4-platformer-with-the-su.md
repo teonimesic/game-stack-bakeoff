@@ -1,10 +1,10 @@
 ---
-established_by: $61.26. g4_platformer (wg-g4c) has all SIX aspects x2 orders; g3_arena (wg-matrix-2026-08-13) has its FOUR: architecture, fun_frames, idiomatic, ux. Two aspects skipped on arena and both verified as genuine evidence gaps, not oversights - build_pack refuses them: 'audio' because that field predates the audio task set and has 0 submissions carrying audio evidence, and 'fun' (frames+telemetry) because g3_arena__ts__t0 has no telemetry evidence. Do NOT re-run those two on arena; the evidence does not exist. Unblocking required rebuilding both fields' packs uncapped (#69) and, for arena, an exclusion set for 3 starter-drift files (#77) that restored the original starter-identical counts exactly.
+established_by: '$61.26. g4_platformer (wg-g4c) has all SIX aspects x2 orders; g3_arena (wg-matrix-2026-08-13) has its FOUR: architecture, fun_frames, idiomatic, ux. Two aspects skipped on arena and both verified as genuine evidence gaps, not oversights - build_pack refuses them: ''audio'' because that field predates the audio task set and has 0 submissions carrying audio evidence, and ''fun'' (frames+telemetry) because g3_arena__ts__t0 has no telemetry evidence. Do NOT re-run those two on arena; the evidence does not exist. Unblocking required rebuilding both fields'' packs uncapped (#69) and, for arena, an exclusion set for 3 starter-drift files (#77) that restored the original starter-identical counts exactly.'
 id: 01
 status: done
 priority: 1
 title: Judge g3_arena and g4_platformer with the subjective layer
-refs: eval/FINDINGS.md #71, eval/judge/JUDGING.md
+refs: 'eval/FINDINGS.md #71, eval/judge/JUDGING.md'
 done_when: every aspect that HAS evidence to read has a stored round for g3_arena and g4_platformer under eval/runs/, and any aspect skipped is named with the evidence it lacks
 ---
 

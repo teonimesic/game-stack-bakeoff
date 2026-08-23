@@ -1,10 +1,10 @@
 ---
-established_by: WITHDRAWN, the same way 20-of-24 was. Searched every coherent scope for a paired-criteria count of 380: all runs 1098, wg-matrix alone 436, wg-matrix+wg-arena3d 584, wg-audio48 232, everything-except-g4 958; by tier, playbot 540 and programmatic 402; and scored-only variants of each. NONE gives 380. Six arbitrary subsets do, but every one mixes runs and games incoherently (e.g. wg-audio pong + wg-matrix arena + wg-audio48 tetris) - the same signature as 20-of-24, where many combinations reach the number and none is principled. Separately, the claim's OTHER half is false under every scope with a plausible count: '0 verdict differences' is 5 for wg-matrix and 13 across all runs. Part of that drift is this session's own criterion repairs re-grading cells, so the figure may have been true when written - which is the argument for recording an aggregate's scope AND its date. README now reports per scope instead: wg-matrix 436 paired / 5 verdict diffs / 332 evidence diffs; wg-audio48 232 / 0 / 120.
+established_by: 'WITHDRAWN, the same way 20-of-24 was. Searched every coherent scope for a paired-criteria count of 380: all runs 1098, wg-matrix alone 436, wg-matrix+wg-arena3d 584, wg-audio48 232, everything-except-g4 958; by tier, playbot 540 and programmatic 402; and scored-only variants of each. NONE gives 380. Six arbitrary subsets do, but every one mixes runs and games incoherently (e.g. wg-audio pong + wg-matrix arena + wg-audio48 tetris) - the same signature as 20-of-24, where many combinations reach the number and none is principled. Separately, the claim''s OTHER half is false under every scope with a plausible count: ''0 verdict differences'' is 5 for wg-matrix and 13 across all runs. Part of that drift is this session''s own criterion repairs re-grading cells, so the figure may have been true when written - which is the argument for recording an aggregate''s scope AND its date. README now reports per scope instead: wg-matrix 436 paired / 5 verdict diffs / 332 evidence diffs; wg-audio48 232 / 0 / 120.'
 id: 13
 title: Pin or withdraw the 380-paired-criteria figure
 status: done
 priority: 2
-refs: README.md:22, eval/FINDINGS.md #72
+refs: 'README.md:22, eval/FINDINGS.md #72'
 done_when: README's 380-paired-criteria row either names the exact runs and games that reproduce it, or is withdrawn in place the way the 20-of-24 figure was
 ---
 

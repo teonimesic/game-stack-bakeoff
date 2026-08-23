@@ -1,10 +1,10 @@
 ---
-established_by: research/11-doc-linting-for-agents.md committed on task-32-doc-tooling-survey. Eleven tools run against real files here on 2026-08-23: markdownlint-cli2 9697 alerts, vale+Microsoft+Google 4234 on six docs, write-good 137, alex 35, proselint 18, typos 161, cspell 17, agnix 279, remark-lint 0, textlint refuses without config, claude plugin validate --strict 5 errors. Two defects total, both structural: five SKILL.md frontmatter blocks are invalid YAML (positive control: quoting them makes all seven validate clean), and AGENTS.md rules 10-16 detach five paragraphs under CommonMark. Zero prose defects. Recommendation is to adopt no prose linter, with the false-positive counts recorded per tool. Follow-ups filed as tasks 35, 36, 37, 38, 39.
+established_by: 'research/11-doc-linting-for-agents.md committed on task-32-doc-tooling-survey. Eleven tools run against real files here on 2026-08-23: markdownlint-cli2 9697 alerts, vale+Microsoft+Google 4234 on six docs, write-good 137, alex 35, proselint 18, typos 161, cspell 17, agnix 279, remark-lint 0, textlint refuses without config, claude plugin validate --strict 5 errors. Two defects total, both structural: five SKILL.md frontmatter blocks are invalid YAML (positive control: quoting them makes all seven validate clean), and AGENTS.md rules 10-16 detach five paragraphs under CommonMark. Zero prose defects. Recommendation is to adopt no prose linter, with the false-positive counts recorded per tool. Follow-ups filed as tasks 35, 36, 37, 38, 39.'
 id: 32
 title: Survey prose and markdown linting tooling for agent-read documentation
 status: done
 priority: 3
-refs: research/AGENTS.md, CLEANUP-LOG.md, eval/FINDINGS.md #59, .claude/skills/prune/SKILL.md
+refs: 'research/AGENTS.md, CLEANUP-LOG.md, eval/FINDINGS.md #59, .claude/skills/prune/SKILL.md'
 done_when: research/11-doc-linting-for-agents.md exists, naming each tool the survey examined with its maintenance status and its measured output when run against this repository's real markdown, and stating explicitly which claims are demonstrated and which are guessed. If no tool is worth adopting, the file records that as the result with the evidence behind it, and that closes the task too
 ---
 

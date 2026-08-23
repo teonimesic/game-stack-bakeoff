@@ -3,7 +3,7 @@ id: 56
 title: Retire template*/ and the spec-change suite, or say why four forked product trees stay
 status: open
 priority: 2
-refs: template-ts/, template/, template-unity/, template-godot/, eval/run-bakeoff.sh, eval/suites/bakeoff-ts.toml, eval/FINDINGS.md #112, eval/findings/documentation.md #99
+refs: 'template-ts/, template/, template-unity/, template-godot/, eval/run-bakeoff.sh, eval/suites/bakeoff-ts.toml, eval/FINDINGS.md #112, eval/findings/documentation.md #99'
 done_when: either all four template*/ trees and eval/run-bakeoff.sh and eval/suites/bakeoff-*.toml are removed with the retirement stated in eval/RUNS.md and README.md, and eval/tools/docstat.py --sweep green afterwards; or DECISIONS.md carries a dated row saying the four templates stay, naming the consumer that justifies them, and a gate exists that compares the instrument files shared by each template*/ and eval/starters/*/ pair, green on the repaired trees and red under a planted single-line divergence in each of the four
 ---
 

@@ -1,10 +1,10 @@
 ---
-established_by: eval/RUNS.md now states the criterion-count disparity (pong 13, tetris 15, platformer 20, arena 22) as a pooling ban INDEPENDENT of the regime rule, with an explicit note that fixing the regime problem would not retire it, plus the checked exception that tier 1's 14 criteria apply to all four games. Cross-game aggregates audited: README's headline '20 of 24 cells score exactly 1.000' WITHDRAWN as unreproducible - eight different combinations of three 8-cell groups give 20/24 and it never named which cells, some spanning regime boundaries the docs call void; replaced by per-game figures (wg-matrix pong 5/8 tetris 5/8 arena 5/8; wg-audio48 8/8 and 8/8; wg-g4c 4/8), explicitly not summed. Second aggregate '380 paired criteria' flagged as scope-unstated and not reproduced, but NOT withdrawn since the reading may differ.
+established_by: 'eval/RUNS.md now states the criterion-count disparity (pong 13, tetris 15, platformer 20, arena 22) as a pooling ban INDEPENDENT of the regime rule, with an explicit note that fixing the regime problem would not retire it, plus the checked exception that tier 1''s 14 criteria apply to all four games. Cross-game aggregates audited: README''s headline ''20 of 24 cells score exactly 1.000'' WITHDRAWN as unreproducible - eight different combinations of three 8-cell groups give 20/24 and it never named which cells, some spanning regime boundaries the docs call void; replaced by per-game figures (wg-matrix pong 5/8 tetris 5/8 arena 5/8; wg-audio48 8/8 and 8/8; wg-g4c 4/8), explicitly not summed. Second aggregate ''380 paired criteria'' flagged as scope-unstated and not reproduced, but NOT withdrawn since the reading may differ.'
 id: 05
 status: done
 priority: 2
 title: Write down that a perfect score means different things in different games
-refs: eval/FINDINGS.md #72, eval/RUNS.md
+refs: 'eval/FINDINGS.md #72, eval/RUNS.md'
 done_when: eval/RUNS.md states the criterion-count disparity as a reason not to pool across games, independent of the regime rule, and existing cross-game aggregates are checked against it
 ---
 

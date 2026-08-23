@@ -1,11 +1,11 @@
 ---
-established_by: Re-ran idiomatic on the stored g1_pong field (wg-matrix-2026-08-13; packs complete and original - 0 dropped, never rebuilt, so no truncation and no starter drift). ALL 4 ordered rounds stored under runs/wg-funframes-crossgame/pong/, $17.66; the #53 pong row is now backed by files. RESULT at n=4: ordering reproduces exactly (rust 3.38 > ts 3.00 > unity 2.75 = godot 2.75) INCLUDING the godot/unity tie, but every value is ~0.6 lower than #53's (3.0/4.0/3.5/3.0) - the row is sound as a RANKING and not reproducible as SCORES; #53 annotated in place. For task 02, pong resolves rust>godot and rust>unity with zero contradictions, so rust>unity now resolves in ALL FOUR games across 32 submissions. CORRECTION: an interim report at n=3 also listed ts>godot as resolved on pong; the 4th round removed it (godot 2.50->2.75, gap fell inside the combined SE). Adding evidence WEAKENED that pair - corrected in FINDINGS #79, and a live instance of separation()'s low-n warning.
+established_by: 'Re-ran idiomatic on the stored g1_pong field (wg-matrix-2026-08-13; packs complete and original - 0 dropped, never rebuilt, so no truncation and no starter drift). ALL 4 ordered rounds stored under runs/wg-funframes-crossgame/pong/, $17.66; the #53 pong row is now backed by files. RESULT at n=4: ordering reproduces exactly (rust 3.38 > ts 3.00 > unity 2.75 = godot 2.75) INCLUDING the godot/unity tie, but every value is ~0.6 lower than #53''s (3.0/4.0/3.5/3.0) - the row is sound as a RANKING and not reproducible as SCORES; #53 annotated in place. For task 02, pong resolves rust>godot and rust>unity with zero contradictions, so rust>unity now resolves in ALL FOUR games across 32 submissions. CORRECTION: an interim report at n=3 also listed ts>godot as resolved on pong; the 4th round removed it (godot 2.50->2.75, gap fell inside the combined SE). Adding evidence WEAKENED that pair - corrected in FINDINGS #79, and a live instance of separation()''s low-n warning.'
 id: 04
 status: done
 priority: 3
 title: Recover or retract the missing g1_pong judge outputs
-refs: eval/FINDINGS.md #53, eval/judge/JUDGING.md:213
-done_when: the pong row in #53 is backed by a file on disk, or annotated in eval/FINDINGS.md as unreproducible
+refs: 'eval/FINDINGS.md #53, eval/judge/JUDGING.md:213'
+done_when: 'the pong row in #53 is backed by a file on disk, or annotated in eval/FINDINGS.md as unreproducible'
 ---
 
 This project measures how well coding agents build whole games in four stacks

@@ -3,7 +3,7 @@ id: 58
 title: Nothing flags a citation of a finding that was renumbered at merge
 status: in_flight
 priority: 3
-refs: eval/tools/docstat.py cmd_sweep, eval/FINDINGS.md #94, eval/FINDINGS.md #80
+refs: 'eval/tools/docstat.py cmd_sweep, eval/FINDINGS.md #94, eval/FINDINGS.md #80'
 done_when: a check reports every citation in the repository that names a finding number which git history shows was used for a different finding, run against tasks/ and the instruction docs; if it reports zero after the four known instances are repaired, that is the pass, and if the check cannot be made to fire on a planted stale citation it does not count as done
 ---
 
