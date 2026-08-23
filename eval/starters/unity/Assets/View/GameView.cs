@@ -44,6 +44,7 @@ namespace Starter.View
         private readonly Transform _root;
         private readonly Material _markerMaterial;
         private readonly Hud _hud;
+        private readonly Fx _fx;
         private readonly Dictionary<int, Transform> _viewOf = new Dictionary<int, Transform>();
 
         public Transform Root => _root;
@@ -52,6 +53,12 @@ namespace Starter.View
         /// builds a `GameView` gets it: the windowed player, and the offscreen
         /// capture that `just film` and the rendering tests read back.
         public Hud Hud => _hud;
+
+        /// Particle bursts, idle until something asks for one. `Sync` never
+        /// calls it: what a burst MEANS is the game, not the template. See
+        /// `Assets/View/Fx.cs` — a burst has to be a pure function of
+        /// simulation state or the capture path cannot show it.
+        public Fx Fx => _fx;
 
         public GameView(string name = "game-view")
         {
@@ -64,6 +71,7 @@ namespace Starter.View
             }
             _markerMaterial = new Material(shader) { color = ViewConfig.MARKER_COLOR };
             _hud = new Hud(_root);
+            _fx = new Fx(_root);
         }
 
         /// Give every simulation entity that lacks a view a quad, then copy
@@ -136,6 +144,7 @@ namespace Starter.View
 
         public void Destroy()
         {
+            _fx.Destroy();
             _hud.Destroy();
             if (_root != null) Object.DestroyImmediate(_root.gameObject);
             if (_markerMaterial != null) Object.DestroyImmediate(_markerMaterial);

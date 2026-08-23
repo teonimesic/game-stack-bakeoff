@@ -77,6 +77,43 @@ reason. Note that each capture builds a **fresh view with no history**, so
 `clock.getDelta()` has nothing to measure: drive animation from the simulation
 tick, or from the absolute time, not from a frame-to-frame delta.
 
+## Drawing many things: reach for `Points`, not `InstancedMesh`
+
+three 0.185 ships **no particle system and no emitter**. `Points`, `Sprite`,
+`InstancedMesh` and `BatchedMesh` are batching primitives; lifetimes, spawning
+and fading are yours to write, and that is real work — budget for it before
+promising sparks. `Points` needs nothing added to this template:
+
+```ts
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+scene.add(new THREE.Points(geometry, new THREE.PointsMaterial({ color, size: 10 })));
+```
+
+Measured here, on the SwiftShader rasteriser every render test and `just film`
+uses — mean ms per 640x400 frame rendered and read back:
+
+| objects | N separate `Mesh` | one `InstancedMesh` | one `Points` |
+| ------- | ----------------- | ------------------- | ------------ |
+| 300     | 5.06              | 4.73                | 0.49         |
+| 2 000   | 30.19             | 28.47               | 0.69         |
+| 10 000  | 149.16            | 140.68              | 1.71         |
+
+**`InstancedMesh` buys about 6% here, at every size.** It is not the cheap
+option it is on a hardware GPU, and it is not what to reach for. `Points` is
+10-87x, and that is the choice worth making deliberately.
+
+Two things about `Points` under this template's **orthographic** camera.
+`PointsMaterial.size` is in **device pixels, not world units**, and
+`sizeAttenuation` is ignored — three's point shader only attenuates when the
+projection matrix is perspective, so the size you want is
+`worldSize * VIEW_HEIGHT / (2 * ARENA_HALF_HEIGHT)`. And `setDrawRange` draws
+fewer points than the buffer holds without reallocating it.
+
+Keep it in proportion: `just film` on the pristine starter costs 3.9 s of CPU
+for twelve frames, so at 300 objects the whole difference is ~55 ms. This is
+about how the game feels at thousands of sprites, not about any harness timing.
+
 ## The firewall around src/sim
 
 Three overlapping mechanisms; each catches what the others miss. You will be told

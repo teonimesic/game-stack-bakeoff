@@ -15,6 +15,7 @@
 // `just test-render` does that; `just test-sim` keeps `-nographics` and is
 // faster.
 
+using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
 using Starter.Sim;
@@ -33,11 +34,12 @@ namespace Starter.View.Tests
         /// Skip rather than fail when there is no usable GPU adapter. A
         /// developer without a graphics device should not see red tests they
         /// cannot fix; CI runs them for real.
-        private static Frame CaptureOrSkip(ulong seed, int ticks, Intents[] inputs = null)
+        private static Frame CaptureOrSkip(ulong seed, int ticks, Intents[] inputs = null,
+                                          IReadOnlyList<Fx.Burst> bursts = null)
         {
             try
             {
-                return RenderHarness.CaptureFrame(seed, ticks, inputs);
+                return RenderHarness.CaptureFrame(seed, ticks, inputs, bursts);
             }
             catch (NoGraphicsDeviceException e)
             {
@@ -191,6 +193,77 @@ namespace Starter.View.Tests
                     a.WriteComparisonArtifacts(b, 0, "reproducible") + "\n" +
                     "  Check the Sim tests first: if the simulation is nondeterministic the " +
                     "renderer is only the messenger.");
+            }
+        }
+
+        /// The colour the burst tests emit in: deliberately neither the
+        /// marker's nor the HUD's, so "burst ink" cannot be satisfied by either
+        /// of them.
+        private static readonly Color BurstColor = new Color(1.0f, 0.42f, 0.16f, 1f);
+
+        /// Seeded from a fixed id, so the burst these tests draw is the same
+        /// burst every time — see Assets/View/Fx.cs.
+        private const int BurstId = 1;
+
+        /// One burst at the centre of the arena, `age` seconds old.
+        private static Fx.Burst[] OneBurst(float age) =>
+            new[] { new Fx.Burst(Vector2.zero, BurstColor, age, BurstId) };
+
+        [Test]
+        public void ABurstIsDrawn()
+        {
+            // The weakest of the three burst tests and the one that has to pass
+            // first: everything else here is a statement about a burst that is
+            // assumed to exist.
+            var bare = CaptureOrSkip(8, 20);
+            var lit = CaptureOrSkip(8, 20, null, OneBurst(0.12f));
+
+            float bareInk = bare.InkCoverage(Bg, Tol);
+            float litInk = lit.InkCoverage(Bg, Tol);
+            Assert.Greater(litInk, bareInk + 0.0005f,
+                $"a burst added {(litInk - bareInk) * 100f:F4}% ink to a frame that already " +
+                $"had {bareInk * 100f:F4}% — the particle system is not reaching the captured " +
+                "frame. Check that Fx builds its emitters under GameView.Root (the camera " +
+                "renders that tree) and that the burst is inside the arena.");
+        }
+
+        [Test]
+        public void ABurstAges()
+        {
+            // THE VARIANT, not the mutant (AGENTS.md rule 15). Freezing an
+            // emitter is what makes a burst reproducible, and one frozen so
+            // hard it never advances at all would pass the reproducibility test
+            // perfectly. Two ages have to produce two different pictures, or
+            // the parameter is decorative.
+            var young = CaptureOrSkip(8, 20, null, OneBurst(0.02f));
+            var old = CaptureOrSkip(8, 20, null, OneBurst(0.40f));
+
+            float diff = young.DiffFraction(old, Tol);
+            Assert.Greater(diff, 0.0005f,
+                $"a burst 0.02 s old and one 0.40 s old differ in only {diff * 100f:F4}% of " +
+                "pixels. The age is not reaching the emitter — check that Simulate() is " +
+                "called with the age in Assets/View/Fx.cs.");
+        }
+
+        [Test]
+        public void RenderingIsReproducibleWithABurstOnScreen()
+        {
+            // Same state, same pixels — with a particle system on screen. This
+            // is the one that goes red if an emitter is reading wall time.
+            var a = CaptureOrSkip(9, 25, null, OneBurst(0.20f));
+            var b = CaptureOrSkip(9, 25, null, OneBurst(0.20f));
+
+            var diff = a.Compare(b, 0);
+            if (diff.DifferingPixels > 0)
+            {
+                Assert.Fail(
+                    "two identical captures holding the same burst produced different " +
+                    "frames.\n" +
+                    $"  {diff}\n" +
+                    a.WriteComparisonArtifacts(b, 0, "reproducible-burst") + "\n" +
+                    "  A particle system advancing on the frame delta is the usual cause: " +
+                    "Assets/View/Fx.cs keeps playOnAwake off and a fixed seed so that only " +
+                    "Simulate() can move one.");
             }
         }
 
