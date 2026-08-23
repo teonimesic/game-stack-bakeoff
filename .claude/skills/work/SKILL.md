@@ -37,11 +37,21 @@ You run in an **isolated git worktree**. Three consequences bite every time:
 | **Your copy of a tool may be stale** | Your worktree was forked at some commit. If `main` has moved, your `eval/tools/*.py` is older. A pre-migration `tasks.py` once wrote an unparseable task file. When in doubt run the tool from the main checkout by absolute path. |
 | **`eval/runs/` does not exist here** | It is gitignored. Read stored evidence by absolute path from the main checkout. |
 
-**Finding numbers collide.** Every agent reads the highest number from its own branch, which was
-forked before the last merge. Eleven collisions happened on 2026-08-23. So: re-read the highest
-number from `main` immediately before you take one, and prefer *not* taking one at all if a peer
-is working a findings-heavy task — hand it to the orchestrator instead. `docstat.py --sweep`
-fails on a duplicate or unindexed finding.
+**Do not allocate a finding number. Hand the finding to the orchestrator.**
+
+Write the finding — the claim, the measurement, the control, everything — in your ticket, and say
+in your report that it needs a number. The orchestrator allocates it against `main` at merge time,
+where every concurrent branch is visible.
+
+This was tried the other way and measured. Agents were told to re-read the highest number from
+`main` immediately before taking one. **On 2026-08-23 that produced fourteen collisions**, and one
+task collided *three times in a row* — written as #133, renumbered to #135, renumbered again to
+#136 — because at this parallelism `main` moves in the window between reading it and committing.
+Re-reading is not a fix for a race; it just narrows it.
+
+The cost of handing it over is one line in your report. The cost of a collision is a renumber
+across the body, the index row, and **every citation** — and a citation that still resolves, now
+pointing at a stranger, which no check can see.
 
 ## 3. Do the work — the standard, not the steps
 

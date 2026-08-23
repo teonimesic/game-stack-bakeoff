@@ -199,6 +199,20 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
                 "plant-discriminates row on godot, and `just warm` / `just verify` "
                 "leaving each pristine tree unchanged)",
                 ["python3", "tools/starter_gate_control.py"], EVAL))
+    # ~3s, offline, no toolchain: `just` is a shim that exits 0 or 1 on demand. It asks the
+    # question `starter_gate_control` cannot - not whether the gate is right, but whether a
+    # stored trial can later tell a gate that PASSED from a gate that NEVER RAN. It could not,
+    # for the whole archive: an exit-0 Stop hook writes nothing anywhere, so 19 blocks on two
+    # days in August were the only evidence the gate had ever existed at runtime (task 84).
+    # It carries a mutant (logging deleted) and two variants (append-not-truncate, and the
+    # unset-variable fallback still landing outside the tree), and it re-measures the property
+    # that makes the trail safe: the log is absent from `diff.stat`, `tree.txt` and
+    # `submission.tar.gz`, which is what stops an audit trail becoming #106.
+    #
+    # `--live` is NOT run here. It spends money and it competes for account session capacity,
+    # which this file runs immediately before a matrix that needs all of it.
+    out.append(("hook_audit_control (the Stop gate's audit trail, 4 stacks, offline)",
+                ["python3", "tools/hook_audit_control.py"], EVAL))
     # verify_blind on COPIES outside the repo: pointed at `starters/` in place it
     # reports RUBRIC REACHABLE from an ancestor, which is true and not the question.
     blind = tmp / "blind"

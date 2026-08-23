@@ -570,7 +570,7 @@ directly comparable**. Recorded in FINDINGS.
 
 ## The one thing this project actually learned
 
-119 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+120 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
 instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**

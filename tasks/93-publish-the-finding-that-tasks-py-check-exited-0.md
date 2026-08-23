@@ -1,7 +1,7 @@
 ---
 id: 93
 title: Publish the finding that tasks.py check exited 0 on a ticket carrying another ticket's brief
-status: open
+status: in_flight
 priority: 3
 refs: tasks/82, eval/tools/tasks.py misfiled_body, .claude/skills/tasks/SKILL.md, commit 436bf64
 done_when: eval/FINDINGS.md carries a numbered finding for the queue lint reading exit 0 over commit 436bf64's two malformed task files, with the number allocated against main at the time of writing and the index row present so docstat.py --sweep stays green; or, if a peer has already published the same observation under another number, that number is recorded here instead and this closes

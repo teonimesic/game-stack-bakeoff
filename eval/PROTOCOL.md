@@ -10,8 +10,9 @@ relaxes one on the grounds that it looks paranoid.
 
 **Run `python3 tools/precampaign_smoke.py` first.** It exercises every command that is run
 once per campaign — `plan` for each game, `prompt_guard --snapshot`, `starter_parity`,
-`starter_gate_control`, `verify_blind`, `audio_selftest`, `capture_selftest`,
-`runner_capture_selftest`, `parity_selftest`, `sequential_selftest`, `docstat --sweep` —
+`starter_gate_control`, `hook_audit_control`, `verify_blind`, `audio_selftest`,
+`capture_selftest`, `runner_capture_selftest`, `parity_selftest`, `sequential_selftest`,
+`docstat --sweep` —
 **unpiped, reading each exit
 code**, and it exists because two of them were
 silently broken:
@@ -428,6 +429,20 @@ separated them cleanly, and the live pair is what proved the checks could still 
 
 Only after all of these point the same way is a restart justified. **A restart that clears
 the symptom without the cause is how this run has already lost trials three times.**
+
+**"No Stop-hook block in the transcript" says nothing about the gate.** A blocking Stop hook
+writes a `user` entry with `isMeta: true` beginning `"Stop hook feedback:"`; a Stop hook that
+exits 0 writes **nothing, anywhere** — measured at CLI 2.1.220 with these flags. So an absent
+block is equally consistent with `just verify` having been green at every stop and with the hook
+never having run, and every trial before 2026-08-23 is permanently in that state (task 84).
+Since then, read **`trials/<trial>.json` → `stop_hook`**, backed by
+`artifacts/<trial>/hook_log.tsv`:
+
+| `stop_hook.log` | means |
+|---|---|
+| `absent` | the hook never ran, or the CLI never passed `$STARTER_HOOK_LOG`, or the trial predates the trail. **Not "the gate passed."** |
+| `present`, `verdicts.skip` | the hook ran and short-circuited on its warm guard — the row names which one. Also not a pass |
+| `present`, `verdicts.pass` | the gate ran `just verify` and it was green, that many times |
 
 ## Stopping a run
 

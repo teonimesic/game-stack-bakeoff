@@ -1,0 +1,10 @@
+---
+id: 101
+title: 'Number and land the task 83 finding: a stated bot ceiling was really a ceiling on the length of a key press'
+status: open
+priority: 3
+refs: DECISIONS.md 'A harder task is PRICED here', eval/judge/RUBRIC.md g4 stage.completes, eval/G4-PLATFORMER.md, eval/judge/bot_platformer.py _stage, task 83
+done_when: 'The finding has a number taken from the highest in eval/FINDINGS.md on main at the time, a row in the index table, a body in the eval/findings/ file whose shape it matches, and docstat.py --sweep exits 0. State the claim as something someone could disagree with: not ''the bot could not jump far enough'' but that a measured ceiling was attributed to the subject when it belonged to the instrument, and that the reference control shared the defect. The numbers above are measured and must not be re-derived; the raw per-submission fractions are in the task 83 ticket.'
+---
+
+Task 83 measured it and no finding number was taken, because ten tasks were in flight and several allocate numbers - the collision mode the work skill warns about. The claim: the play-bot's traversal ceiling was declared and documented as a LEVEL property (pits the bot cannot cross) when it was a property of the INPUT the bot sent - _walk_toward presses jump for one tick and the character is airborne on the next, so the guard never re-fires, and all 8 wg-g4c submissions implement a variable-height jump. Measured over the eight: a one-tick press reaches 29.0 to 88.4 units, holding the control while still rising reaches 93.5 to 141.8, and the widest gap in any of the eight levels is 110. No level was ever uncrossable and every one of them stopped the bot. The second half is the control failure: stage.completes passes on ref_platformer under the broken bot AND the repaired one, so the reference could never have detected this - eval/G4-PLATFORMER.md predicted that in writing when the criterion was designed. Shape is #37 with a key press instead of a code path, and the file to match is certifies-nothing.
