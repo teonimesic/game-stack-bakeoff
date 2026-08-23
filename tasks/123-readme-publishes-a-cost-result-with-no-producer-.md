@@ -1,11 +1,12 @@
 ---
 id: 123
 title: README publishes a cost result with no producer, and it is the last such number in the file
-status: in_review
+status: done
 priority: 2
 refs: 'README.md cost row, eval/findings/limits-and-cost.md #63, eval/tools/census.py, eval/runs/wg-g4c-2026-08-21T02-26-46, tasks/115'
 done_when: a producer prints the cost result with the population it counted and a selftest that pins it in both directions; README cites the command beside the figure; and either the published figures are reproduced exactly or the differences are stated with which is right and why
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/9
+established_by: 'eval/tools/cost_census.py reproduces every published cost figure to the cent and refuted the sentence around them: there are 7 (run,game) groups where all four stacks ran at once, not 1; the published 42% is the lowest of them; they run 42-254%; and the between-stack range exceeds the within-cell floor in 5 of 7. The half that reached the null does not survive. 21 mutants all caught. Merged with FINDINGS 159, which independently corrected the unit - the r=0.65-0.97 correlation is arithmetic, not a mechanism. PR #9.'
 ---
 
 Task 115's agent said this in as many words and did not file it: the cost row's figures - the between-stack range as a fraction of the within-cell noise floor, the correlation between cost and turns, and the turn spread - reproduce exactly from the stored trial records, but only via an ad-hoc script that was not shipped. README cites the finding for the field and the method rather than a command. By AGENTS.md's own rule that is the defect, not a shortfall: a quantity with no producer goes stale forever rather than for an hour, and FINDINGS 144 measured that failing twice in one day on a figure whose producer existed and simply was not run. It is now the ONLY number in README with no way to re-derive it.

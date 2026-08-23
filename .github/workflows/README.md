@@ -10,7 +10,7 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | pushes and pull requests **touching `eval/`, `.agents/`, `.github/`**, plus nightly at 06:17 UTC and on demand |
 | checks | 29 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | ~1 minute | ~9 minutes |
+| takes | **51.9s** | **685s** |
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, and every `*_control.py` and `*_selftest.py` that
@@ -33,8 +33,8 @@ git config core.hooksPath .githooks
 
 | | runs | takes |
 |---|---|---|
-| `pre-commit` | the cheap gates on what you are about to commit | ~1s |
-| `pre-push` | the full `gates.yml` set | ~12s |
+| `pre-commit` | the cheap gates on what you are about to commit | **1.7s** |
+| `pre-push` | the full `gates.yml` set | **14.3s** |
 
 Bypass either with `git commit --no-verify` / `git push --no-verify`.
 
