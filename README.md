@@ -11,22 +11,14 @@ scores what came out. [`eval/judge/verify_blind.py`](eval/judge/verify_blind.py)
 that it really cannot see it.
 
 **The answer so far: no stack wins, and the honest reading is that this instrument cannot tell
-the four apart.** What that does and does not mean is the next section.
+the four apart.**
 
 Netcode, multiplayer and console portability were researched ([`research/`](research/)) and
 deliberately not built.
 
-> **What this file is.** Four things and nothing else: what the project is, what it found, how to
-> run it, and how a submission is graded. Anything particular to one run — what it cost, what went
-> wrong in it, which runs may be compared with which — is in [`eval/RUNS.md`](eval/RUNS.md). What
-> went wrong and what it taught is in [`eval/FINDINGS.md`](eval/FINDINGS.md). How big the stored
-> corpus is, at any moment, is whatever `python3 eval/tools/census.py` prints.
-
 ---
 
-## The words this file uses
-
-Read this once and the rest of the file parses.
+## Terms
 
 | term | what it means here |
 |---|---|
@@ -68,7 +60,7 @@ different routes; the fifth turned out not to be usable at all.
 | **the two trials of a cell are different work the instrument mostly cannot separate** | Compared criterion by criterion, the two independent trials in a cell agree on **verdicts** far more often than on **evidence** — most of the evidence strings differ, and differ in substance. That control is what makes the agreement readable: identical verdicts on identical artifacts would say nothing. "Mostly", not "never" | `python3 eval/judge/paired_verdicts.py --runs-root <main checkout>/eval/runs` — per (run, game), tier set stated, never pooled. `--selftest` pins its extraction on fixtures whose answers are written into the checks, and the retired unscoped figures are `WR-paired-verdict-tie` and `WR-paired-evidence-diff` in [`eval/withdrawn.json`](eval/withdrawn.json) |
 | **cost does not discriminate, and never can** | On the one measure taken on all four stacks at once, the **between-stack range is 42% of its own noise floor**. The mechanism matters more than that ratio: **cost tracks turns taken at r = 0.971**, and turns vary **205–370 within a single stack**. Cost is very nearly a restatement of how many turns an agent chose to take, so it cannot separate stacks and no number of extra trials would fix that ([#63]) | no producer prints this; [#63] holds the method and the per-stack table |
 | **a fourth game, unseen by the templates, changes nothing** | The fourth game was written *after* all four templates were frozen, so it is the first with no history of having been shaped — however unintentionally — around what the templates already did well. It reproduces the null | [`eval/judge/RUBRIC.md`](eval/judge/RUBRIC.md) for its criteria, [`eval/G4-PLATFORMER.md`](eval/G4-PLATFORMER.md) for its design |
-| **the LLM judge is not a fifth route** | No subjective aspect separates the stacks either — but that can no longer be offered as independent corroboration, because **the blinding failed and every one of the 84 stored judge packs carried text naming the stack**. See the warning below | [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md); `eval/judge/field_ranks.py --rounds <stored rounds>` |
+| **the LLM judge is not a fifth route** | No subjective aspect separates the stacks either — but that can no longer be offered as independent corroboration, because **the blinding failed and every one of the 84 stored judge packs carried text naming the stack**. | [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md); `eval/judge/field_ranks.py --rounds <stored rounds>` |
 
 > ⚠️ **The subjective layer's blinding failed, and the repairs licence new rounds without
 > repairing any stored one.** Pack files named the submissions ([#83]); the anonymiser's stack
@@ -90,9 +82,8 @@ occur ([#68], [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md)).
 
 > ⚠️ **Results from different runs mostly may NOT be pooled.**
 > [`eval/RUNS.md`](eval/RUNS.md) says which may. A change to a game, to a starter, to a grader, and
-> one machine repair each void a comparison, and the boundaries are numbered there. A reader who
-> misses this will compute a number that must not be computed — it is the single most damaging
-> thing this file could fail to say.
+> one machine repair each void a comparison, and the boundaries are numbered there. Pooling across a boundary produces a
+> number that means nothing.
 >
 > The corpus also holds **two instruments that are never pooled**: whole-game trial records, and
 > the records of a retired suite that ran different tasks and was graded differently. `census.py`
@@ -337,12 +328,7 @@ Four rules that are specific to measuring this way, and are not in [`AGENTS.md`]
 
 The rules that generalise past this project — negative controls, never inferring a process's state
 from its artifact's, pipeline exit status, means over mixed populations, never quoting a value you
-did not just read — are in [`AGENTS.md`](AGENTS.md), which also states how these documents are kept
-current and which of them may state a retired figure. It is the authority; this file does not
-restate it.
-
-Every relative link on this page is checked by `python3 eval/tools/linkcheck.py`, path and heading
-fragment both.
+did not just read — are in [`AGENTS.md`](AGENTS.md).
 
 <!-- Finding links. Anchors are GitHub's heading rule, verified by eval/tools/linkcheck.py. -->
 [#19]: eval/findings/certifies-nothing.md#19--the-failure-mode-that-is-worse-than-measuring-nothing

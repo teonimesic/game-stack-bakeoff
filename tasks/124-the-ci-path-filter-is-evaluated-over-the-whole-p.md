@@ -206,3 +206,32 @@ Regressing the check to substring form makes all 3 new mutants SURVIVE — that 
   `repos/O/R/pulls/comments/<id>`; the reply route is `repos/O/R/pulls/N/comments/<id>/replies`.
 - CodeRabbit's body embeds its whole analysis chain. The finding is the line starting `**`;
   everything above it is the shell it ran.
+
+## note 2026-08-23
+
+## The finding is stable as the corpus grows — 2026-08-23, after the round-1 push
+
+Re-running `python3 eval/tools/ci_minutes.py --path-filter` a few hours after the first
+reading, with 3 more agent branches having opened and merged in between:
+
+| | first reading | later reading |
+|---|---|---|
+| `controls` runs on `pull_request` | 19 | **24** |
+| first-on-branch | 6 | **8** |
+| analysed (have a predecessor push) | 13 | **16** |
+| latest push touched a filter path | 11 | **14** |
+| **latest push touched NOTHING filtered** | **2** | **2** |
+
+**The analysed population grew by 3 and the wasted-run count did not move.** Both instances
+remain the 2 on `task-110-ci-and-hooks` — the branch that was editing
+`.github/workflows/README.md` while `.github/workflows/controls.yml` sat in its diff.
+
+This matters for the decision more than the original ratio did. A cost that grows with the
+number of pull requests would eventually justify the fix whatever its risk; a cost that is a
+**one-off from a single branch editing the CI's own documentation** does not. The saving stays
+16 minutes while the denominator climbs, so the case for narrowing the filter gets *weaker*
+over time, not stronger.
+
+**Do not restate 2 of 13, or 2 of 16, as a rate.** Run the producer. The numerator has been
+constant across 2 readings and the denominator has not, so any ratio quoted from this is a
+snapshot of one afternoon.

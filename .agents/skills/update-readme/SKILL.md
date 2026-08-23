@@ -27,8 +27,18 @@ Anything else has a home and belongs there:
 | an always-loaded rule | `AGENTS.md` |
 | a procedure | `.claude/skills/<name>/SKILL.md` |
 
-The file had become a run diary and a register of retired figures, and that was 38% of its
-length. **When a section is neither of the four, move it — do not shorten it in place.**
+**When a section is neither of the four, move it — do not shorten it in place.**
+
+**And the file never talks about itself.** Delete, on sight:
+
+- a paragraph saying what the file contains or deliberately leaves out — headings already do
+- "read this section first", "the next section covers", "see the warning below"
+- a sentence rating one of its own sentences ("the most important thing here is…")
+- a note about how the file is checked or kept current
+
+A reader wants the content. A preface about the content is a second thing to read before
+reaching the first. `.claude/skills/` and `AGENTS.md` say where things live; the front door
+does not narrate its own table of contents.
 
 ## 2. No information particular to a run. Anywhere, including inside a caveat
 

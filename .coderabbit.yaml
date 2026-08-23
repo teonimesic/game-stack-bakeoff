@@ -237,6 +237,10 @@ reviews:
             what, which pull request or review something came from, or the reasoning that led
             to a decision. Findings and history belong in `eval/findings/` and `eval/RUNS.md`.
           - jargon or coined phrasing used in place of the plain word
+          - the document talking about ITSELF: a paragraph explaining what the file contains,
+            what it deliberately leaves out, how to read it, which section comes next, or how
+            important one of its own sentences is. A reader wants the content, not a preface
+            about the content. Headings and links already say what is where.
 
         Suggest concrete replacement wording, not just an observation.
 
