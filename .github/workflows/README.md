@@ -342,31 +342,53 @@ base moves. In both windows a latest-push filter would have skipped:
 
 Both would have skipped a run whose merge inputs had genuinely moved. `tasks_mutants.py`
 mutates a copy of `eval/tools/tasks.py` and `skill_layout_control.py` reads exactly those
-skill paths, so neither is a near-miss. Across 2026-08-23, **270 of 437 `main` commits — 62% —
-touch a filtered path**, so the exposure is continuous rather than a coincidence of two
-windows. Re-derive it, and expect the two counts to have grown while the ratio holds:
+skill paths, so neither is a near-miss. Measured over `main`'s commits **on 2026-08-23**:
+**270 of 438 touch a filtered path**. That is a reading of one day, and nothing here
+establishes it as a rate — re-run the command below for any other window and use what it
+returns rather than carrying 62% forward:
 
-    while read -r s; do
-      total=$((total+1))
-      git show --pretty= --name-only "$s" \
+    #!/bin/bash
+    set -eu
+    REF="${1:-origin/main}"; SINCE="${2:-2026-08-23T00:00:00Z}"
+    shas=$(git log "$REF" --since="$SINCE" --format=%H)
+    total=$(printf '%s' "$shas" | grep -c '' || true)
+    [ "$total" -gt 0 ] || { echo "empty window - refusing to print a ratio" >&2; exit 2; }
+    hit=0
+    for s in $shas; do
+      files=$(git show --pretty= --name-only "$s")
+      printf '%s\n' "$files" \
         | grep -qE '^(eval/|\.agents/|\.claude/|\.github/workflows/controls\.yml)' \
         && hit=$((hit+1))
-    done < <(git log origin/main --since=2026-08-23T00:00:00Z --format=%H)
+    done
     echo "$hit of $total"
 
-**Ask it per sha, not over the concatenated file list** — `grep -c` on the latter counts
-changed *files* and silently answers a different question. It
-is also the defect class this repository has already been bitten by once: run `32649830893`
-went red on the merge alone, and the section above calls that the strongest argument in this
-file for CI existing.
+**Two things in that script are the point, and the version printed here until 2026-08-23 had
+neither.** First, **ask per sha**: `grep -c` over the concatenated file list counts changed
+*files* and silently answers a different question. Second, **fail closed**. The earlier form
+ran `git log` in process substitution and let `grep`'s status stand for the pipeline's, so on
+a bad ref and on an empty window it printed **`0 of 0` at exit 0** — measured both ways — a
+plausible in-range ratio from a command that read nothing, which is the shape `AGENTS.md`
+rule 3 exists to forbid. The version above exits 128 on a bad ref and 2 on an empty window,
+and prints a ratio in neither case.
 
-**And the cheaper of the two implementations costs more than it saves.** GitHub bills a
-minimum of one minute per job, so:
+The merge-drift exposure is also the defect class this repository has already been bitten by
+once: run `32649830893` went red on the merge alone, and the section above calls that the
+strongest argument in this file for CI existing.
 
-| design | saves | costs | net |
-|---|---|---|---|
-| a separate gating job, then `controls` | the 2 skipped runs, 16 min | +1 min × 25 `controls` jobs = **+25 min** | **+9 min — worse than doing nothing** |
-| one job, `if:` on the 5 gate steps | ~14 min (a skipped run still pays the 36s setup floor) | a **green `controls` run that executed no gate** | 6.4% of 220, for a run that reports success and measures nothing |
+**And neither implementation is worth having, but for different reasons — one loses minutes,
+the other loses the gate.** GitHub bills a minimum of one minute per job. Against a baseline
+of **220 billable minutes**, of which `controls` is 187:
+
+| design | minutes saved | minutes added | **net minutes** | what else it costs |
+|---|---|---|---|---|
+| a separate gating job, then `controls` | 16 (the 2 skipped runs) | +1 × 25 `controls` jobs = +25 | **+9 — spends more than it saves** | — |
+| one job, `if:` on the 5 gate steps | ~14 (a skipped run still pays the 36s setup floor) | 0 | **−14, a real 6.4% saving** | a **green `controls` run that executed no gate** |
+
+**The second row does save minutes, and it is still the wrong trade.** What it buys the
+saving with is a run that reports success having verified nothing — the single pattern this
+repository exists to catch — and, on top of that, both designs are fail-open on the merge
+drift measured above. The 14 minutes are real; a `controls` check that cannot distinguish
+"passed" from "did not run" is not worth 6.4% of an afternoon's bill.
 
 The setup floor is measured on run `32657248359`: 36s of checkout, `setup-python`, pip, `just`
 and ffmpeg against 549s of actual gates. A skipped run cannot cost less than a minute.

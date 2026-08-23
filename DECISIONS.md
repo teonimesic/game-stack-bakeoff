@@ -1314,10 +1314,17 @@ and in **2 of those 2**, `main` had moved in a filtered path inside the window, 
 `eval/tools/tasks.py`, which `tasks_mutants.py` mutates — and 62% of `main`'s commits that day
 touch a filtered path, so the exposure is continuous. Narrowing the filter to the latest push
 would therefore have been fail-open on every measured opportunity, for at most 16 of 220 minutes.
-The two-job implementation is also arithmetically worse — GitHub bills a minimum of one minute
-per job, so gating costs +25 minutes to save 16. **The lever if minutes ever bind is the slow
-tier's `pull_request` trigger, which is 141 of 220 minutes**, not the path filter, which is 7%.
-The derivation and the run ids are in `.github/workflows/README.md`.
+**And the wasted-run count does not grow**: re-read later the same day with the analysed
+population up from 13 to 16, it was still 2 — a one-off from the branch that was editing the
+CI's own documentation, so the case for narrowing weakens as the denominator climbs.
+
+Neither implementation is worth having, for different reasons. The two-job form is
+arithmetically worse — GitHub bills a minimum of one minute per job, so gating costs +25 minutes
+to save 16. The step-gating form **does** save ~14 minutes, and buys them with a green `controls`
+run that executed no gate, which is the one pattern this project exists to catch. **The lever if
+minutes ever bind is the slow tier's `pull_request` trigger, which is 141 of 220 minutes**, not
+the path filter, which is 7%. The derivation and the run ids are in
+`.github/workflows/README.md`.
 
 ---
 ## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]
