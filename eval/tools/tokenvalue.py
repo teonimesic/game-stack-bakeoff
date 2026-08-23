@@ -108,7 +108,13 @@ _CONV = r"[fgdeisu]"
 #: This module's own renderers. A module that calls one of them is a producer whether or
 #: not it ever names a `*_usd` field.
 _RENDERERS = frozenset({"fmt", "tag", "total"})
-_PCT = re.compile(rf"%(?:\([^)]*\))?[-+ #0-9.*]*{_CONV}", re.I)
+#: The body of a `%` conversion, WITH its optional mapping key. ONE SPELLING, shared by
+#: `_PCT` and by `MONEY_PERCENT` below: the two asking about different sets is exactly how
+#: `"$%(spent).2f" % row` came to be DISCOVERED as a producer and then PASSED by the sigil
+#: check that reads it. Same failure as the conversion set two revisions earlier, one
+#: construct along.
+_PCT_BODY = rf"%(?:\([^)]*\))?[-+ #0-9.*]*{_CONV}"
+_PCT = re.compile(_PCT_BODY, re.I)
 
 #: `%%` is an escaped percent sign and introduces nothing. It comes out of a literal before
 #: anything looks for a conversion or a mapping key, or the template `"%%(cost_usd)s"` -
@@ -131,7 +137,7 @@ MONEY_LITERAL = re.compile(r"\$\d")
 #: are money labels that `MONEY_LITERAL` cannot see - `$` there is followed by `%` or `{:`,
 #: never by a digit. Discovery and the sigil check have to know the same 3 forms, or a
 #: module found by one passes the other.
-MONEY_PERCENT = re.compile(rf"\$%[-+ #0-9.*]*{_CONV}"
+MONEY_PERCENT = re.compile(rf"\${_PCT_BODY}"
                            r"|\$\{[^A-Za-z{}\n][^{}\n]{0,10}\}", re.I)
 
 #: A `$` that is NOT a money label: a shell variable a producer legitimately quotes, or a
@@ -366,6 +372,12 @@ def selftest() -> int:
 
     unlisted = _unlisted_producers()
     check("every module formatting a *_usd value is in PRODUCERS", not unlisted)
+    # DISCOVERY AND THE SIGIL CHECK MUST ASK THE SAME QUESTION about a `%` conversion. One
+    # accepting a form the other does not is how a producer gets found by one and passed by
+    # the other, and it has happened twice in this file - once on the conversion set, once
+    # on the mapping key. They share `_PCT_BODY`; this is the row that says so.
+    check("MONEY_PERCENT and _PCT share one conversion body",
+          _PCT_BODY in MONEY_PERCENT.pattern and _PCT.pattern == _PCT_BODY)
     for u in unlisted[:20]:
         print(f"    unlisted producer: {u}")
 
@@ -474,6 +486,8 @@ def selftest() -> int:
         ('print(f"total $27.68")', "a literal sigil"),
         ('print("$%.2f" % spent)', "the percent form"),
         ('print("$%E" % spent)', "the percent form, uppercase conversion"),
+        ('print("$%(spent).2f" % row)', "the percent MAPPING form"),
+        ('print("$%(cost_usd)d" % row)', "a mapping key with an integer conversion"),
         ('print("${:.2f}".format(spent))', "the .format form"),
     ]
     for line, what in RED:
@@ -484,6 +498,7 @@ def selftest() -> int:
         ("f\"MEASURED: $TMPDIR erosion destroyed 80%\"", "a bare $TMPDIR"),
         ('if: ${{ !cancelled() }}', "an Actions template"),
         ('print(f"{pct:.0f}% of the floor")', "a plain percentage"),
+        ('print("%(cost_usd).2f" % row)', "a mapping key with NO sigil in front of it"),
         ('print(f"{tokenvalue.fmt(spent)} tokval")', "a correctly formatted figure"),
     ]
     for line, what in GREEN:
