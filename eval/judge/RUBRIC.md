@@ -183,9 +183,10 @@ child of known size — `ru_maxrss` is bytes on macOS and kilobytes on Linux, an
 
 ---
 
-## Tier 2 — Scripted play-bot (11–15 criteria per game)
+## Tier 2 — Scripted play-bot (13–22 scored criteria per game, 14–23 with audio)
 
-Implemented in `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py`, driven through
+Implemented in `bot_pong.py`, `bot_tetris3d.py`, `bot_arena.py`, `bot_platformer.py`, driven
+through
 `just probe SEED` — a live stdin/stdout session, so the bot can *read the game's state
 and react*, not merely replay a tape. Every criterion asserts on state the game itself
 reports.
@@ -549,7 +550,7 @@ The task prompts now state that everything the player sees must appear in the fr
 tier1 = GATE: PASS iff every scored criterion passed  -- NOT WEIGHTED
         (9 criteria + 5 audio criteria where audio is in the task)
         an empty tier is `usable: false`, which is NOT a pass
-tier2 = passed/total  (13-15 SCORED criteria, per game, + audio.triggered;
+tier2 = passed/total  (13-22 SCORED criteria, per game, + audio.triggered;
                        diagnostic-only criteria are reported but excluded)
 tier3 = per-aspect rankings and grades   -- DIAGNOSTIC ONLY, weight 0.00
 
