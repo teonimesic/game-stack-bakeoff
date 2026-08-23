@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#143 from building and running this evaluator. **Check whether a
+Findings #19-#144 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -219,6 +219,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **141** | The queue lint validated the frontmatter and never read the body, so a wrong filename that MISSED was caught and the same mistake that HIT an existing ticket was certified well-formed | [certifies-nothing](findings/certifies-nothing.md) |
 | **142** | The flag gate covered the position a reader ignores and not the one a reader copies, and the obvious widening is 8 false positives against 0 true | [certifies-nothing](findings/certifies-nothing.md) |
 | **143** | Every stale citation a merge could not adjudicate was a task citing the number it had allocated itself, and none of the live documents was wrong | [certifies-nothing](findings/certifies-nothing.md) |
+| **144** | A count with a producer still goes stale, because the producer bounds the staleness and does not prevent it | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

@@ -4108,3 +4108,47 @@ showing it does *not* pair against the truncated excerpt.
 **Five of the rows are not citations at all** — they are range endpoints (`#19-#132`). Recorded as
 a class in the register rather than fixed by tuning `_CITE_RX`, which is shared with the decided
 half and would have been changed to satisfy a display problem.
+
+---
+
+## 144. A count with a producer still goes stale, because the producer bounds the staleness and does not prevent it — and this one drifted while a single session was reading it
+
+`AGENTS.md` has a rule bought with a retracted README figure: **when you write how much of
+anything the project has, find the producer, run it, and write the command beside the number.**
+The reasoning was *a count with a producer goes stale for an hour; a count with none goes stale
+forever.*
+
+Two live documents — `README.md` and `eval/instrfollow/RESULT.md` — stated the always-loaded
+instruction set at **73–113**. `python3 eval/tools/instruction_census.py`, which sits in the
+repository and was cited beside the figure in one of them, reported **108–151**.
+
+**The producer has exactly one commit and has never changed.** The subject moved: the
+always-loaded documents grew by roughly forty instructions, and neither document re-ran the tool
+standing next to its own number.
+
+> **Citing a producer is not running it.** The rule as written makes a number *checkable*, and a
+> checkable number that nobody checks is exactly as wrong as an uncheckable one — with the extra
+> hazard that the citation reads as freshness. `RESULT.md` carried a date and a command beside a
+> figure neither had produced.
+
+### The part that could not have been designed
+
+While this was being repaired, the count moved **again**. The finding was drafted against a
+reading of **108–151**; re-running the same tool one hour later, on a tree whose only change was
+this session's own documentation edits, gives **110–153**.
+
+That is the whole mechanism in miniature: **the quantity is a function of the always-loaded
+documents, and this project edits those constantly.** The pre-registered experiment reached k = 16
+against a ceiling that has now drifted three times in a day. Any statement of the form *"the repo
+loads N instructions"* is stale from the moment it is written, and the honest form is the command,
+not the digits.
+
+**The repair is not a fresher number.** Where a document needs the count in order to make a
+point — the gap between what the experiment tested and what the repository actually loads — it
+states the command and the reading with the date it was taken, and the point survives any
+particular value: **the experiment reached 16 and the repository loads an order of magnitude
+more, whatever today's exact figure is.** A claim that survives its own number going stale is the
+only kind worth writing beside a moving quantity.
+
+This is the fourth finding here about a number nobody re-derived, and the first where the producer
+existed, was named, and was still not run.
