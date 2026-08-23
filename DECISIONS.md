@@ -553,8 +553,21 @@ Stated as a rule rather than a list of directories because an enumeration misses
 and fails in the direction that loses evidence. It is applied by `eval/tools/evidence_set.py`;
 `eval/PROTOCOL.md` says when to re-sync and `#90` says what this replaced.
 
-Measured on that rule: 14,192 files, 1.109 GB of 138.146 GB — 99.20% of `eval/runs/` is
+Measured on that rule: 14,270 files, 1.118 GB of 138.164 GB — 99.19% of `eval/runs/` is
 regenerable. **Reclaiming the 137 GB remains task 10's call**, and nothing was deleted here.
+
+**When to re-sync is decided by the resource, not by an activity — revised 2026-08-23.** The rule
+was *"after any run completes"*, and the starter baselines (7.5 MB, the only record of what
+starter each agent was given, #104) were created by a **repair**, so the copy verified complete at
+00:08 did not contain them at 04:24 (#115). The trigger is now *the evidence set has grown or
+changed, whatever made it move*, with `backup_evidence.py --verify-only` as the mechanical form —
+it re-classifies and a non-zero missing count is the signal, so nobody has to judge what counts.
+
+**The copy is deliberately additive.** `rsync` runs without `--delete` and nothing removes from
+the destination, because a mirror that faithfully reproduces an `rm -rf` protects against nothing.
+The cost is that it becomes a superset; `DEST_ONLY.txt` at the destination lists every such path
+so a stale file cannot pass for a current one, and reconciliation happens at the source or not at
+all.
 
 **Where the copy goes is still open.** The current copy at `/Users/stefano/game-research-evidence`
 is on the same physical disk as the original and is therefore not a backup — it survives `rm -rf`

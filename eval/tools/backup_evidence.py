@@ -15,7 +15,7 @@ its artifact's state; rule 3: a pipeline's exit status is the last stage's), and
 a backup verified by its own exit code is that failure with the highest possible
 cost, because it is discovered on the day the original is gone.
 
-So verification runs in three tiers, all of them reading the DESTINATION:
+So verification runs in four tiers, all of them reading the DESTINATION:
 
   1. INVENTORY   every source path exists at the destination, same size.
   2. CONTENT     SHA-256 of every destination file matches the source's.
@@ -25,6 +25,13 @@ So verification runs in three tiers, all of them reading the DESTINATION:
                  counted. Bytes matching is not the same as a file still being
                  the thing it claims to be, and these are the two formats
                  everything downstream depends on.
+  4. PROVENANCE  every starter baseline is re-derived, not sampled: the git blob
+                 id of each member of the archive is recomputed from the bytes at
+                 the destination and matched against the `ls-tree` the baseline
+                 shipped with. A starter baseline is the ONLY record of what
+                 starter an agent was handed (FINDINGS #104), so "the tarball
+                 opens" is not enough — the question it will be asked is whether
+                 it is still the commit it claims to be.
 
 A MANIFEST.sha256 is written next to the copy so a THIRD location — an external
 disk, another machine — can be verified against this one later without either
@@ -38,7 +45,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import posixpath
 import random
+import re
 import subprocess
 import sys
 import tarfile
@@ -50,6 +59,13 @@ import evidence_set as ES  # noqa: E402
 
 CHUNK = 1 << 20
 
+BASELINE_SUFFIX = ".starter-baseline.tar.gz"
+BLOBS_SUFFIX = ".starter-baseline.blobs.txt"
+# `# root commit <sha> subject '<subject>'` — the header starter_baseline writes.
+COMMIT_RE = re.compile(r"^# root commit ([0-9a-f]{40}) subject '(.*)'$")
+# `<mode> blob <sha>\t<path>` — one `git ls-tree -r` line.
+LSTREE_RE = re.compile(r"^(\d{6}) (blob|commit) ([0-9a-f]{40})\t(.+)$")
+
 
 def sha256(p: Path) -> str:
     h = hashlib.sha256()
@@ -57,6 +73,81 @@ def sha256(p: Path) -> str:
         while chunk := fh.read(CHUNK):
             h.update(chunk)
     return h.hexdigest()
+
+
+def git_blob_id(data: bytes) -> str:
+    """The git object id of `data` as a blob: sha1("blob <len>\\0" + data).
+
+    Recomputing this from the destination's bytes is what makes tier 4 a
+    provenance check rather than a second byte comparison: it answers "is this
+    archive the tree that commit named?" using only the archive and the
+    `ls-tree` beside it, with no access to the repository that made either.
+    """
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def verify_starter_baseline(tar_path: Path, blobs_path: Path) -> list[str]:
+    """Check one baseline pair at the destination. Returns a list of problems.
+
+    Fails closed: a missing companion, an unreadable header, an archive with no
+    recorded blobs, and a member the ls-tree does not mention are all problems.
+    An empty ls-tree would otherwise pass 0/0, which is indistinguishable from a
+    check that cannot fail (AGENTS.md rule 1).
+    """
+    problems: list[str] = []
+    if not blobs_path.is_file():
+        return [f"{tar_path.name}: no {BLOBS_SUFFIX} companion at the destination"]
+
+    lines = blobs_path.read_text(errors="replace").splitlines()
+    if not lines or not COMMIT_RE.match(lines[0]):
+        return [f"{blobs_path.name}: first line is not a readable root-commit "
+                f"header: {lines[0][:80] if lines else '<empty file>'!r}"]
+
+    want: dict[str, str] = {}
+    for ln in lines[1:]:
+        if not ln.strip():
+            continue
+        m = LSTREE_RE.match(ln)
+        if not m:
+            problems.append(f"{blobs_path.name}: unparseable ls-tree line {ln[:80]!r}")
+            continue
+        _mode, otype, oid, path = m.groups()
+        if otype != "blob":
+            # A submodule (mode 160000) has no blob to re-derive. No template
+            # ships one today; say so rather than passing over it in silence.
+            problems.append(f"{blobs_path.name}: non-blob entry {otype} {path}")
+            continue
+        want[path] = oid
+
+    if not want:
+        return problems + [f"{blobs_path.name}: records zero blobs"]
+
+    got: dict[str, str] = {}
+    try:
+        with tarfile.open(tar_path, "r:gz") as tf:
+            for m in tf:
+                if not m.isfile():
+                    continue
+                # `git archive --prefix=<tid>/` — drop the single leading component.
+                name = m.name.split("/", 1)[1] if "/" in m.name else m.name
+                if posixpath.basename(name).startswith("._"):
+                    continue  # AppleDouble sidecar; not part of the commit
+                f = tf.extractfile(m)
+                if f is None:
+                    problems.append(f"{tar_path.name}: member {name} will not extract")
+                    continue
+                got[name] = git_blob_id(f.read())
+    except Exception as e:  # noqa: BLE001 — a verifier: every way it can break is a failure
+        return problems + [f"{tar_path.name}: {type(e).__name__}: {e}"]
+
+    for path, oid in sorted(want.items()):
+        if path not in got:
+            problems.append(f"{tar_path.name}: ls-tree names {path}, archive has no such member")
+        elif got[path] != oid:
+            problems.append(f"{tar_path.name}: {path} blob {got[path]} != recorded {oid}")
+    for path in sorted(set(got) - set(want)):
+        problems.append(f"{tar_path.name}: archive holds {path}, not in the ls-tree")
+    return problems
 
 
 def human(n: int) -> str:
@@ -104,7 +195,7 @@ def main() -> int:
     print(f"source      {src_root}")
     print(f"destination {dest_runs}")
 
-    print("\n[1/5] classifying")
+    print("\n[1/6] classifying")
     part = ES.partition(src_root)
     if part.errors:
         print(f"  {len(part.errors)} paths unreadable — the set is incomplete, "
@@ -119,18 +210,18 @@ def main() -> int:
           f"{human(part.regenerable_bytes)} not copied")
 
     if not a.verify_only:
-        print("\n[2/5] copying")
+        print("\n[2/6] copying")
         t0 = time.time()
         rc = do_rsync(src_root, dest_runs, rels)
         print(f"  rsync exit {rc} in {time.time() - t0:.1f}s "
-              f"(NOT evidence the copy is good — see [3/5])")
+              f"(NOT evidence the copy is good — see [3/6])")
         if rc != 0:
             return 1
     else:
-        print("\n[2/5] copy skipped (--verify-only)")
+        print("\n[2/6] copy skipped (--verify-only)")
 
     # ---- tier 1: inventory -------------------------------------------------
-    print("\n[3/5] verifying inventory at the destination")
+    print("\n[3/6] verifying inventory at the destination")
     missing, wrong_size = [], []
     for rel in rels:
         s, d = src_root / rel, dest_runs / rel
@@ -147,7 +238,7 @@ def main() -> int:
         print(f"    BAD {rel}")
 
     # ---- tier 2: content ---------------------------------------------------
-    print("\n[4/5] verifying content (SHA-256, reading both sides)")
+    print("\n[4/6] verifying content (SHA-256, reading both sides)")
     bad_hash, manifest = [], []
     checked_bytes = 0
     t0 = time.time()
@@ -170,7 +261,7 @@ def main() -> int:
         print(f"    BAD {b}")
 
     # ---- tier 3: semantic --------------------------------------------------
-    print("\n[5/5] opening files at the destination")
+    print("\n[5/6] opening files at the destination")
     rng = random.Random(a.seed)
 
     # Only JSON the HARNESS wrote is checked for parseability. A work tree's
@@ -245,11 +336,63 @@ def main() -> int:
               "tier 3 checked NOTHING. Only tiers 1-2 (inventory, SHA-256) "
               "cover this copy.")
 
+    # ---- tier 4: provenance of the starter baselines -----------------------
+    # NOT sampled. This is the one class the project has established it cannot
+    # reconstruct from anything else (FINDINGS #104), it is 7.5 MB, and a sample
+    # of an irreplaceable class tells you about the sample.
+    print("\n[6/6] re-deriving starter-baseline provenance at the destination")
+    baselines = [r for r in rels if r.endswith(BASELINE_SUFFIX)]
+    base_ok, base_bad, blobs_checked = 0, [], 0
+    for rel in baselines:
+        blobs_rel = rel[: -len(BASELINE_SUFFIX)] + BLOBS_SUFFIX
+        probs = verify_starter_baseline(dest_runs / rel, dest_runs / blobs_rel)
+        try:
+            blobs_checked += sum(
+                1 for ln in (dest_runs / blobs_rel).read_text(errors="replace").splitlines()
+                if LSTREE_RE.match(ln))
+        except OSError:
+            pass
+        if probs:
+            base_bad.extend(probs)
+        else:
+            base_ok += 1
+    print(f"  baselines whose archive matches its ls-tree  {base_ok}/{len(baselines)}"
+          f"   ({blobs_checked:,} git blob ids recomputed)")
+    for b in base_bad[:10]:
+        print(f"    BAD {b}")
+    if not baselines:
+        print("  NOTE: no starter baselines in this set, so tier 4 checked NOTHING.")
+
+    # ---- drift: what the destination holds that the source no longer does ---
+    # The copy is additive by design — rsync runs without --delete and this tool
+    # never removes anything. That makes the destination a SUPERSET whenever the
+    # source loses a file, and a superset is not a fault: `judge/repack.py`
+    # removed 23 stale judge-pack files from `wg-g4c` on 2026-08-23 and the copy
+    # still held them. It is only dangerous while it is invisible, because
+    # someone re-packing from the second copy would resurrect exactly what was
+    # removed. So it is written down, per path, and never acted on here.
+    dest_only = sorted(
+        str(p.relative_to(dest_runs))
+        for p in dest_runs.rglob("*")
+        if p.is_file() and str(p.relative_to(dest_runs)) not in set(rels))
+    print(f"\ndestination-only files (present here, no longer in the evidence "
+          f"set): {len(dest_only):,}")
+    for r in dest_only[:10]:
+        print(f"    KEPT {r}")
+    if dest_only:
+        print(f"  full list: {dest_root / 'DEST_ONLY.txt'} — inventory, not a "
+              f"defect. Nothing is deleted; decide per path at the source.")
+
     # ---- manifest ----------------------------------------------------------
-    ok = not (missing or wrong_size or bad_hash or json_bad or tar_bad)
+    ok = not (missing or wrong_size or bad_hash or json_bad or tar_bad or base_bad)
     if ok:
         dest_root.mkdir(parents=True, exist_ok=True)
         (dest_root / "MANIFEST.sha256").write_text("\n".join(manifest) + "\n")
+        (dest_root / "DEST_ONLY.txt").write_text(
+            "# Files at this destination that the current evidence set does not\n"
+            "# contain. Written by backup_evidence.py; nothing here was deleted.\n"
+            f"# {time.strftime('%Y-%m-%dT%H:%M:%S%z')}  source {src_root}\n"
+            + "".join(f"runs/{r}\n" for r in dest_only))
         (dest_root / "MEASURED.json").write_text(json.dumps({
             "verified_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "source": str(src_root),
@@ -262,6 +405,10 @@ def main() -> int:
             "json_parsed": json_ok,
             "tarballs_extracted": tar_ok,
             "tarball_members_read": members_total,
+            "starter_baselines_verified": base_ok,
+            "starter_baselines_present": len(baselines),
+            "starter_baseline_blobs_rederived": blobs_checked,
+            "destination_only_files": len(dest_only),
         }, indent=2))
         print(f"\nOK — {len(manifest):,} files verified by content at "
               f"{dest_runs}")

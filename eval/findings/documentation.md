@@ -670,3 +670,141 @@ counter *after* `captureFrame` returns, and an unawaited hook has often finished
 a race, not a second pin. The mechanism is held by the failing-preload test, which is
 deterministic. Recorded rather than tuned: a mutant sweep whose counts are quietly matched
 across trees is reporting the tuning.
+
+---
+
+
+## 116. The re-sync trigger named an event, so the copy missed the one class the project had just proved it could not rebuild
+
+Task 17 built a second copy of the evidence and closed with a claim that was **true when
+written**: 14,196 files, verified at the destination by SHA-256 on both sides, `MEASURED.json`
+stamped `2026-08-23T00:08:58-0300`. Four hours and sixteen minutes later the source held 7.5 MB
+that the copy did not, and it was the 7.5 MB the project had spent a whole finding establishing
+it could not reconstruct from anything else.
+
+### The measurement
+
+Read from both trees on 2026-08-23, source addressed by absolute path because `eval/runs/` is
+gitignored and does not exist in an agent worktree (rule 12):
+
+| | source | destination, before |
+|---|---|---|
+| `eval/runs/*/starter-baselines/` directories | 3 | **0** |
+| files in them | 44 (22 archives + 22 `ls-tree`s) | 0 |
+| bytes | 7,574,790 | 0 |
+| every file's mtime | `2026-08-23T04:24:27`–`04:24:29` | — |
+| destination `MEASURED.json` `verified_at` | — | `2026-08-23T00:08:58` |
+
+The copy predated the files by 4h15m. **Nothing was misclassified**, and establishing that first
+was the point: `evidence_set.py` classifies all 44 as evidence *by its own rule*, because nothing
+in the tree discharges the burden of proving them regenerable — confirmed by running the
+classifier and intersecting its output, with `report.json` as a row whose answer was stateable in
+advance. Had the classifier been the fault, the fix would have been a different and much larger
+one; a missing file at a destination does not distinguish the two, and the order matters.
+
+### What the rule said, and why it could not fire
+
+`eval/PROTOCOL.md` had a section headed **"Re-sync after any run completes, before the work root
+is reclaimed"**. The starter baselines were not created by a run. They were created by a
+**repair**: `git archive` of each work tree's root commit, taken deliberately so the work roots
+could be reclaimed without destroying the only record of the starter each agent was handed
+(#104). A repair is not on the list, so a rule that was written, read and understood did not
+apply — this file's most-repeated defect, in a new instance:
+
+> **A rule whose trigger is a list must be re-derived by every reader who meets an item not on
+> the list. Write the trigger as the RESOURCE or the PROPERTY, never as an enumeration of the
+> instances you happened to see.** (`AGENTS.md`, the 2026-08-15 rule audit)
+
+The trigger now names the resource — *the set of files `evidence_set.py` classifies as evidence
+has grown or changed, whatever made it move* — and, because a resource-shaped trigger still asks
+the reader to judge, it is backed by a mechanical answer: `backup_evidence.py --verify-only`
+re-classifies and reports what is missing, so a non-zero count *is* the signal. The question
+"does this count as a run?" is gone.
+
+### What else the snapshot had missed
+
+The baselines were the reason for the task; they were 44 of 97 files.
+
+| missing at the destination | files | bytes | created by |
+|---|---|---|---|
+| `*/starter-baselines/` | 44 | 7,574,790 | the repair that preserved the root commits |
+| `wg-g4c-*/repack-2026-08-23-stale-files-removed/` | 24 | 143,454 | task 42 quarantining what `repack.py` removed |
+| `wg-aspect-reliability/*.json` judge rounds | 29 | 1,259,688 | a sweep still running at 00:08 |
+
+And **10 files whose destination copy was a stale prefix that had verified correctly.**
+`REPRODUCIBILITY.json` was 220 bytes at the destination against 49,666 at the source, `sweep.log`
+88 against 8,070; the other 8 were `wg-g4c` reports the re-pack rewrote. The two truncated ones
+are the sharper half:
+
+> **A SHA-256 match proves the copy equals the source at classification time. It says nothing
+> about whether the source had finished writing.** Tier 2 was correctly green on a file holding
+> 0.4% of its eventual content, because both sides genuinely held those 220 bytes.
+
+That is rule 2 with the roles swapped — not inferring a process's state from its artifact, but a
+*verifier* that is structurally unable to ask the question at all. The defence is not a better
+hash; it is checking for recent writes before spending on a copy, and re-syncing after.
+
+### The copy is a superset, and that was invisible too
+
+Twenty-three files existed at the destination and no longer at the source: the stale judge-pack
+entries `repack.py` removed from `wg-g4c` that morning. `rsync` runs without `--delete` and
+nothing removes from the destination — which is correct, since a mirror that faithfully
+reproduces an `rm -rf` protects against nothing — but it means a stale file there is
+indistinguishable from a current one, and anyone re-packing from the second copy resurrects
+exactly what was removed. `backup_evidence.py` now reports the count every run and writes every
+path to `DEST_ONLY.txt` at the destination. It is an inventory and does not fail the tool:
+**deleting at the destination to make an inventory question go away is how an inventory question
+becomes lost evidence.**
+
+### The new tier, and its controls
+
+"The bytes arrived" is the wrong question for a starter baseline. The question it will be asked
+is *"is this still the commit it claims to be?"*, so tier 4 recomputes the git blob id —
+`sha1("blob <len>\0" + data)` — of every member **from the destination's bytes** and matches it
+against the `ls-tree` in the companion `.blobs.txt`, whose first line carries the root commit id.
+It is not sampled: the class is 7.5 MB and irreplaceable, and a sample of an irreplaceable class
+tells you about the sample.
+
+`eval/tools/backup_evidence_control.py` adjudicates it against a real git repository, the same
+way `evidence_set_control.py` adjudicates the matcher against real git rather than against a
+hand-written expectation.
+
+| control | expected | got |
+|---|---|---|
+| **positive:** a genuine `git archive` + `ls-tree` pair | clean | clean |
+| **positive:** all 22 real baselines (`--runs-root`) | clean | 22/22 clean, 1,238 blobs |
+| flipped byte inside a member | problem | caught |
+| member dropped from the archive | problem | caught |
+| member added to the archive | problem | caught |
+| ls-tree oid rewritten | problem | caught |
+| commit header garbled | problem | caught |
+| ls-tree records zero blobs | problem | caught |
+| gzip truncated | problem | caught |
+| companion `.blobs.txt` missing | problem | caught |
+| M1 `no_blob_compare` | red | red — 2 cases |
+| M2 `no_missing_check` | red | red — the dropped member |
+| M3 `no_extra_check` | red | red — the added member |
+| M4 `no_header_check` | red | red — the garbled header |
+| M5 `no_empty_check` | red | red — the empty ls-tree |
+
+Every mutant is caught by exactly the case that names its mechanism, and none is inert.
+
+### Verified by reading the destination back, twice, by two paths
+
+The re-sync's own tiers report 14,270/14,270 present, 14,270 SHA-256 matches, 759/759 harness
+JSON records parsed, 89/89 tarballs extracted (25,642 members), 22/22 baselines re-derived from
+1,238 blob ids. Those all run inside `backup_evidence.py`, so a defect in it would be shared by
+its own check (#37). A second pass therefore re-read the destination without importing that
+module at all, extracting each baseline and asking **`git hash-object`** — git itself — for the
+blob ids: 1,238 re-hashed, 0 mismatches, 68 `report.json` parsed to non-empty objects, and the
+two formerly-truncated files read back at their full 49,666 and 8,070 bytes.
+
+### Still not copied, and why that is a decision rather than a gap
+
+`~/game-research-work/wg-g4b-*` and `wg-g4c-*` have no second copy. Checked **per tree, never per
+run** — the distinction that already saved evidence once in `PROTOCOL.md` — all 16 of those trees
+have both a `submission.tar.gz` and a starter baseline under `eval/runs/`. Only `wg-g4`'s two
+Unity trees lack a tarball, and `wg-g4`'s work root is the one that was copied. This is now
+written down at the destination rather than being true by accident.
+
+And the copy is still **same-disk**, still not a backup, and this task did not change that.

@@ -301,6 +301,9 @@ FOREIGN_FLAG_PREFIXES = (
     "--quiet", "--strict", "--no-header", "--check-only", "--experimental-",
     "--write-movie", "--update-snapshots", "--keep-going", "--no-patch", "--no-verify",
     "--file", "--re", "--flags",
+    # rsync's. `backup_evidence.py` documents that it runs WITHOUT --delete, which is
+    # why the copy is a superset (#115); the flag it names is rsync's, not ours.
+    "--delete",
 )
 
 
