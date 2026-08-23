@@ -244,6 +244,12 @@ approved.** A one-line fix to a gate that had been reporting its build cache for
 measured at two seconds, with a control proving the obvious alternative fix does nothing — cost
 six hours of nothing happening because it was raised as a question.
 
+**A task in `tasks/` is already authorised. Being in the queue IS the go-ahead.** Do not park a
+planned task waiting for permission to start it — the decision was made when it was filed, and
+asking again spends attention to re-confirm something already agreed. If a task turns out to need
+a decision that was not anticipated when it was written, raise *that specific question* and keep
+working on everything else meanwhile. Never idle a queue behind one item.
+
 **Decide and proceed** when the change is technical and its mechanism is measured: repairs to
 graders, tools, criteria and docs; which field to judge; regime boundaries (they are *recorded*
 in `eval/RUNS.md`, not catastrophic); anything reversible; anything whose cost is small against

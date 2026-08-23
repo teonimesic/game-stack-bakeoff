@@ -36,6 +36,11 @@ is the cost this layout exists to remove.
 
 ## Working it
 
+**A task in this queue is authorised. Filing it was the decision.** Start it, do it, close it.
+Do not wait for confirmation to begin planned work — if a task raises a question nobody
+anticipated, ask that question and continue with the rest of the queue rather than stalling.
+
+
 ```bash
 python3 eval/tools/tasks.py start 07
 python3 eval/tools/tasks.py done 07 "lint now identical warm and cold, pinned both ways; RUNS.md regime note added"
