@@ -2904,3 +2904,81 @@ template author's words is the trap that costs a turn: under this starter's **or
 camera `PointsMaterial.size` is in device pixels and `sizeAttenuation` is ignored outright,
 because three 0.185's point shader guards its attenuation with
 `if ( isPerspective )` — read out of `node_modules/three/build/three.module.js`, not remembered.
+
+---
+
+## 111. The reference sweep had never read an instruction document, because its corpus was built with `glob` and every skill lives under a dot-directory
+
+`docstat.py --sweep` is this project's mechanical documentation check. Its REFERENCE half asks
+whether a name a document uses resolves — is this flag in some argparse, is this an aspect id
+in `judge/aspects.py`? It was built for #38, where `RUBRIC.md` named five judge aspects that do
+not exist.
+
+Its corpus was `project_docs()`, which is `glob.glob(ROOT/**/*.md, recursive=True)`.
+
+**Python's `glob` does not match names beginning with a dot, at any depth.** Every skill in this
+project lives at `.claude/skills/<name>/SKILL.md`. So for the entire life of the sweep the
+reference checks read **117 documents and 0 skills** — and the skills are the one class of
+document that is *always loaded* and *followed as a procedure*. A phantom flag in `RUBRIC.md` is
+read by whoever opens `RUBRIC.md`; a phantom flag in a skill is executed. (Both names in this
+paragraph are illustrations, not claims — the sweep would read them as claims if they were
+spelled as flags, which is the check working.)
+
+This is #60 with a different address: the method was correct and pointed somewhere that excluded
+its most important subjects. The gap was known and written down in `project_docs()`' own
+docstring — *"That is a gap, not a policy"* — which is the part worth noticing. **A defect
+recorded in a comment next to the code that has it is not mitigated; it is documented and still
+shipping.**
+
+### What was actually in there — and why nobody had turned it on
+
+Measured over the 7 SKILL.md files:
+
+| check | hits | true |
+|---|---|---|
+| flags | 0 | — |
+| aspect ids | 2 | **0** |
+| bare trial ids | 0 | — (and it is scoped to `findings/` regardless) |
+
+Both aspect hits were the same line of `audit-docs/SKILL.md`: the `printf` that plants the
+phantom ids `feel` and `tuning` into `JUDGING.md` as **this sweep's own documented positive
+control**. So switching the corpus on naively fails on correct input on its first run, which is
+why task 37 scoped only its two new structure checks over the skills and left the reference
+checks where they were. That caution was right, and it is also how a gap survives indefinitely.
+
+The discriminator is that **a fenced line is not a claim**: inside ``` a line is a command to run
+or an output to expect, and a shell command asserts nothing about its own arguments. `_fence_mask()`
+already existed for the structure checks; the aspect check was the one reader of markdown in the
+module that was still fence-blind, which is the same defect the module's own docstring opens with.
+Line-scoped, because a file-wide exemption for this once let a single legitimate disclaimer
+silence every aspect check in its file and the planted-phantom control went green.
+
+The stated cost, so it is not discovered later as a surprise: **a phantom planted inside a fence
+is now invisible.** The documented control appends unfenced prose, so it still fires; a control
+that planted its phantom in a code block would test nothing. `audit-docs/SKILL.md` now says so.
+
+`project_docs()` was deliberately **not** widened. It also feeds the size report and the
+bare-trial-id ratchet, and that ratchet is pinned to an exact count — a larger corpus moves it
+silently, in the direction that makes the guard pass. The skills went into a second corpus,
+`reference_docs()`, and each check now names the one it wants.
+
+### The exemption's trigger was one inflection of a verb
+
+Found by the new corpus, within minutes, against a line written to document the new corpus. The
+aspect exemption listed `phantom|planted`. The sentence *"…where `feel` and `tuning` are PLANTING
+the control"* went red; the same sentence in the past tense was green. Widened to `plant\w*`.
+
+> **A trigger spelled as an enumeration must be re-derived by the first reader who meets an item
+> not on it — and the enumeration does not have to look like a list.** `AGENTS.md` states this
+> rule about lists of mechanisms; two tenses of one verb is the same failure at the smallest
+> possible scale.
+
+### Controls, both directions
+
+| control | result |
+|---|---|
+| clean tree, skills in corpus | exit 0 |
+| phantom aspect id appended to a SKILL.md, unfenced, no exempting word | exit 1, both ids named |
+| phantom flag appended to a SKILL.md | exit 1 |
+| **mutant**: same phantom, `reference_docs` reverted to `project_docs` | **exit 0** — the corpus change is what carries it, not the fence edit |
+| documented `JUDGING.md` control, re-run under fence masking | exit 1, unchanged |

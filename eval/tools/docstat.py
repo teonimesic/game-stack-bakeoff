@@ -54,9 +54,10 @@ def is_vendored(p: str) -> bool:
 def project_docs() -> list[str]:
     """Every project markdown file OUTSIDE a dot-directory.
 
-    `glob("**")` does not descend into `.claude/` or `.agents/`, so this list has never
-    contained a `SKILL.md` and the reference checks below have never read one. That is a
-    gap, not a policy - see the note in `gated_docs()`.
+    `glob("**")` does not descend into `.claude/`, so this list contains no `SKILL.md`.
+    That is now a PROPERTY of this helper and not a gap: the reference checks read
+    `reference_docs()` instead, and the size report and the bare-trial-id ratchet read
+    this one, because the ratchet is pinned to an exact count a larger corpus would move.
     """
     out = []
     for p in glob.glob(os.path.join(ROOT, "**", "*.md"), recursive=True):
@@ -84,6 +85,33 @@ def _all_skill_files() -> list[str]:
         if "SKILL.md" in files:
             out.append(os.path.join(d, "SKILL.md"))
     return out
+
+
+def reference_docs() -> list[str]:
+    """The corpus for the REFERENCE checks: every project doc, PLUS every skill.
+
+    The skills are always-loaded instruction documents. A skill naming a flag or an aspect
+    that does not exist is the exact defect this sweep was built for (#38), and until
+    2026-08-23 nothing had ever looked: `project_docs()` globs, `glob` does not descend into
+    dot-directories, and every skill lives under one.
+
+    `project_docs()` is deliberately NOT widened to fix that. It also feeds the size report
+    and the bare-trial-id ratchet, and the ratchet is pinned to an EXACT count; a larger
+    corpus would move it silently, in the direction that makes the guard pass. A corpus is
+    an input to a check (#60), so each check names the one it wants rather than inheriting
+    whatever a shared helper happens to return.
+
+    Measured with this code, 2026-08-23, over the 7 SKILL.md files:
+
+      flag check    0 hits. Also 0 unresolved among the 17 flags the skills name WITHOUT
+                    backticks, which the extraction does not see either way.
+      aspect check  2 hits before fence-masking, 0 after. Both were the same line of
+                    `audit-docs/SKILL.md` - the shell command that plants the phantom
+                    aspects `feel` and `tuning` as this sweep's own positive control.
+      ratchet       0 trial ids appear in any skill, and it is scoped to `findings/`
+                    regardless, so the count is unmoved.
+    """
+    return sorted(set(project_docs()) | set(_all_skill_files()))
 
 
 def _fence_mask(lines: list[str]) -> list[bool]:
@@ -547,10 +575,11 @@ def cmd_sweep() -> int:
     output, and then the real hit is invisible. When unsure, say nothing.
     """
     docs = project_docs()
+    refs = reference_docs()  # docs + skills; see why they are two corpora, not one
     flags, aspects = _argparse_flags(), _aspect_ids()
     problems: list[str] = []
 
-    for p in docs:
+    for p in refs:
         rel = os.path.relpath(p, ROOT)
         text = open(p, encoding="utf-8", errors="replace").read()
 
@@ -574,7 +603,29 @@ def cmd_sweep() -> int:
         # went green. Document-scope exemptions make a check vacuous.
         # findings/ is an archive: naming a superseded aspect is its subject matter.
         if aspects and "findings/" not in rel:
-            for ln in text.split("\n"):
+            lines = text.split("\n")
+            fenced = _fence_mask(lines)
+            for i, ln in enumerate(lines):
+                # A FENCED LINE IS NOT A CLAIM. Inside ``` a line is a command to run or an
+                # output to expect; the reference checks ask whether a doc ASSERTS that a
+                # name exists, and a shell command asserts nothing about its own arguments.
+                # This is the discriminator that let the skills into the corpus at all:
+                # `audit-docs/SKILL.md` names `feel` and `tuning` in the printf that PLANTS
+                # them as this sweep's positive control, and it is the only place in 124
+                # documents where the aspect check fires on correct input. A gate that fails
+                # on correct input gets disabled - which is why the path check below was
+                # deleted rather than tuned.
+                #
+                # LINE-SCOPED, and that is the whole design. A file-wide exemption for this
+                # once let a single legitimate disclaimer silence every aspect check in its
+                # file, and the planted-phantom control went green.
+                #
+                # THE COST, measured rather than assumed: a phantom planted INSIDE a fence
+                # is now invisible. The documented positive control appends unfenced prose
+                # to `judge/JUDGING.md`, so it still goes red; a control that planted its
+                # phantom in a code block would not, and would be testing nothing.
+                if fenced[i]:
+                    continue
                 # `phantom` and `planted` are this project's OWN vocabulary for an id that
                 # deliberately does not exist -- the comment above this function already
                 # says "the planted-phantom control went green". A task describing how to
@@ -582,8 +633,15 @@ def cmd_sweep() -> int:
                 # 2026-08-23 that turned the whole sweep red for a document that was
                 # correct. A gate that fails on correct input is a gate that gets disabled,
                 # which is why the path check below this was deleted rather than tuned.
+                # `plant\w*`, not `planted`. The exemption listed ONE INFLECTION of the verb,
+                # so the sentence "…where `feel` and `tuning` are PLANTING the control" was
+                # red and the same sentence in the past tense was green. Found 2026-08-23 by
+                # this check firing on a line written to document this check. A trigger
+                # spelled as an enumeration has to be re-derived by the first reader who
+                # meets an item not on it (AGENTS.md, the 2026-08-15 rule audit) - and the
+                # enumeration does not have to be a list to be one.
                 if re.search(r"(no `\w+` judge|not built|candidate|does not exist|retired|"
-                             r"superseded|do not name them|phantom|planted)", ln, re.I):
+                             r"superseded|do not name them|phantom|plant\w*)", ln, re.I):
                     continue
                 for tok in set(re.findall(r"`(feel|tuning|design|polish|gameplay)`", ln)):
                     problems.append(
@@ -718,8 +776,9 @@ def cmd_sweep() -> int:
         print("as what it is read as is worse: it looks right to everyone but the parser.")
         return 1
 
-    print(f"sweep clean: {len(docs)} docs checked; {len(flags)} of our flags, "
-          f"{len(aspects)} aspects known; structure: {len(skill_files())} SKILL.md "
+    print(f"sweep clean: references over {len(refs)} docs "
+          f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
+          f"flags, {len(aspects)} aspects known; structure: {len(skill_files())} SKILL.md "
           f"frontmatter, {len(gated_docs())} instruction docs for list indent")
     return 0
 
