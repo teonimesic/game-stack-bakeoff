@@ -154,6 +154,71 @@ def clone_target(pristine: Path, dest: Path) -> Path | None:
     return None
 
 
+#: Name of the Stop-hook audit trail, inside the trial's ARTIFACT directory.
+#:
+#: Every starter wires `.claude/hooks/verify-gate.sh` under `"Stop"`, and a Stop hook that
+#: exits 0 leaves no trace in the transcript, in the result JSON or anywhere else -
+#: measured at CLI 2.1.220 with these flags. "No block in the transcript" is therefore
+#: equally consistent with `just verify` having been green at every stop and with the hook
+#: never having run, and no stored artifact separated them. Task 67 recorded the gate as
+#: live in all four arms on the strength of the file existing in the starter, which is
+#: AGENTS.md rule 2.
+#:
+#: The hooks now append one `invoked` line and one verdict line per invocation to the path
+#: named here. `tools/hook_audit_control.py` pins that in both directions, offline.
+HOOK_LOG_NAME = "hook_log.tsv"
+
+
+def hook_log_path(art: Path, work: Path) -> Path:
+    """Where a trial's Stop hook writes, with the one property that matters asserted.
+
+    THE TRIAL TREE BECOMES THE GRADED DIFF. Anything written under `work` lands in
+    `files_changed`, `diff.stat`, `tree.txt` and `submission.tar.gz`, which is the shape
+    of #106 - a gate that rewrote the tree it was measuring, and six stored diffs carrying
+    a hunk no agent authored.
+
+    So the address is checked here rather than promised by a comment (rule 12), and it
+    fails the trial rather than degrading quietly: a log inside the tree is not a smaller
+    problem than no log, it is a contaminated submission.
+    """
+    log = (art / HOOK_LOG_NAME).resolve()
+    root = work.resolve()
+    if log == root or root in log.parents:
+        raise SystemExit(
+            f"REFUSING TO LAUNCH: the Stop-hook log would be written to {log}, which is "
+            f"inside the trial tree {root}. The tree becomes the graded diff (#106).")
+    return log
+
+
+def read_hook_log(p: Path) -> dict[str, Any]:
+    """Summarise the audit trail into the trial record.
+
+    THREE VALUES, not two. `absent` (the file was never created - the hook never ran, or
+    the CLI never passed the variable through, or the starter predates this) is not
+    `present with no invocations`, and neither is "the gate passed". A reader that tests
+    for truthiness collapses exactly the distinction this log exists to make.
+    """
+    if not p.exists():
+        return {"log": "absent", "path": str(p), "invocations": 0, "verdicts": {}}
+    verdicts: dict[str, int] = {}
+    invocations = 0
+    malformed = 0
+    for ln in p.read_text(errors="replace").splitlines():
+        if not ln.strip():
+            continue
+        parts = ln.split("\t")
+        if len(parts) != 4:
+            malformed += 1
+            continue
+        event = parts[2]
+        if event == "invoked":
+            invocations += 1
+        else:
+            verdicts[event] = verdicts.get(event, 0) + 1
+    return {"log": "present", "path": str(p), "invocations": invocations,
+            "verdicts": verdicts, "malformed_lines": malformed}
+
+
 def agent_metrics(agent: dict[str, Any]) -> dict[str, Any]:
     """Cost and tokens from `modelUsage`, which the SDK docs say to prefer over
     `usage` - `usage` is the main loop only and excludes subagents."""
@@ -308,6 +373,11 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
         env["STARTER_SILENT_LAUNCH"] = "1"
         env["STARTER_NO_RAISE"] = "1"
 
+        # THE STOP GATE GETS AN AUDIT TRAIL, and it is addressed OUTSIDE the tree it
+        # gates. `hook_log_path` refuses to launch if that ever stops being true.
+        _hook_log = hook_log_path(art, work)
+        env["STARTER_HOOK_LOG"] = str(_hook_log)
+
         prompt = (prompt_override if prompt_override is not None
                   else P.TASKS[game](stack))
         (art / "prompt.txt").write_text(prompt)
@@ -403,6 +473,25 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     _cap["find"] = _find.returncode
     (art / "tree.txt").write_text(_find.stdout)
     rec["capture_exit_codes"] = _cap
+
+    # WHAT THE STOP GATE DID, recorded beside what the agent produced.
+    #
+    # Three values, and `absent` is one of them: a trial whose log was never created did
+    # not run a green gate, it ran an UNKNOWN gate, and that is the state every trial
+    # before this change is permanently in.
+    rec["stop_hook"] = read_hook_log(_hook_log)
+    # AND THE CONTROL, run per trial rather than reasoned about once. `hook_log_path`
+    # asserts the address before the launch; this asserts the OUTCOME after it, against
+    # the same three artifacts a grader reads. They are different questions: a hook is
+    # free to write wherever it likes once it is running, and the tree is what gets graded.
+    _leak = sorted({ln for ln in _find.stdout.splitlines()
+                    if HOOK_LOG_NAME in ln} |
+                   {ln for ln in (art / "diff.stat").read_text().splitlines()
+                    if HOOK_LOG_NAME in ln})
+    rec["stop_hook"]["leaked_into_tree"] = _leak
+    if _leak:
+        print(f"  [hooklog] {tid} CONTAMINATION: the Stop-hook log is inside the graded "
+              f"tree: {_leak}", flush=True)
     if any(v != 0 for v in _cap.values()):
         print(f"  [capture] {tid} NON-ZERO evidence capture: {_cap} — the stored "
               f"submission may be incomplete", flush=True)

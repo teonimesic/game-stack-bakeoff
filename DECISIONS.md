@@ -64,6 +64,16 @@ so. Wording still differs per stack; silence is the thing forbidden. Enforced as
 than a habit — `judge/starter_parity.py::mechanism_findings`, keyed on **every event wired in
 every starter**, so the next hook is covered by the rule that caught this one.
 
+**A harness mechanism whose success path is silent records what it DID, outside the tree it
+acts on.** The Stop gate was the case: exit 0 leaves nothing in the transcript, so "the gate is
+live in all four arms" had only ever been established from the file existing (task 78). The four
+hooks now append `invoked` plus a verdict to `$STARTER_HOOK_LOG`, which `wholegame.py` addresses
+into the trial's **artifact** directory and never into the trial tree — the tree becomes the
+graded diff, and a log written there is #106's contamination wearing an audit trail's clothes.
+The address is asserted in code before launch and the outcome re-measured per trial, because
+those are two different questions. The guides were deliberately not told: it changes nothing an
+agent should do, and telling it would be an observer effect on the thing being measured.
+
 ## What the task asks for
 
 | Decision | By |
