@@ -609,3 +609,54 @@ sweep as *"your frontmatter is malformed"*, sending a reader to edit a file that
 > The linter can tell them apart only if you write the difference down.** That is the entire
 > value of this triage, and it is why the count matters more as a *baseline* than as a total: a
 > new PLW1510 or BLE001 hit is now a site nobody has considered.
+
+---
+
+## 109. Unity's batchmode editor runs an FMOD CoreAudio output whatever the manifest says and whatever `-disable-audio` says — so `-disable-audio`'s stated reason is not something it achieves
+
+`tools/unity-tests.sh` puts `-disable-audio` on every invocation and gives a reason: *"an editor
+that opens an audio device also contends for one."* Task 52 put `com.unity.modules.audio` into
+the Unity starter, and the brief asked the obvious follow-up — Bevy's audio capability opened a
+device on the capture path silently and needed a guard, so does Unity's?
+
+The check was run **with the pristine manifest as a control**, and that is the whole reason the
+answer is usable. A live batchmode editor was sampled with `sample`, counting
+`FMOD::OutputCoreAudio` frames on a CoreAudio IO thread — the probe `starters/_shared/launch.just`
+validated both ways against `afplay` of a silent WAV (5) and `sleep` (0):
+
+| arm | frames |
+|---|---|
+| pristine manifest, **no audio module**, with `-disable-audio` | **2** |
+| audio module, with `-disable-audio` | **1** |
+| audio module, without `-disable-audio` | **1** |
+
+**All three have one.** The editor's mixer is rendering into the device in the arm that has no
+audio module at all — the arm believed to have nothing capable of opening one. So this was true
+of every matrix already graded, and the module adds nothing.
+
+Two conclusions, which must not be merged:
+
+- **Task 52 introduced no new hazard on the capture path and needs no new guard.** That is the
+  question that was asked, and only the control answers it: a measurement taken after the change
+  alone could not separate *"the module did this"* from *"this was always true"* (AGENTS.md
+  rule 14, with the pristine tree standing in for the mtime).
+- **The flag does not do what the comment says.** `-disable-audio` may well silence the editor's
+  output — nothing here contradicts that, and nothing was audible — but it does not stop a device
+  being opened, so *"an editor that opens an audio device also contends for one"* is a rationale
+  for an effect that is not in force. It is #61's shape again, on the editor this time instead of
+  the player: a flag accepted without complaint, on a path where no exit code can report that
+  half of it did nothing. **The flag is kept and the rationale is what was repaired**, because
+  the flag is free and may still be doing the other half of its job.
+
+The path where a human would actually hear something is the launch path, and it is guarded and
+now measured for the first time. `StarterLaunchGuard` finds `AudioListener` by reflection
+precisely so that it would work once an agent added the module; with no module it had always
+taken the *"this project has no audio module — nothing can play"* branch. It now logs **"SILENT
+LAUNCH ACTIVE — AudioListener.volume=0, pause=True"**, against a control launch without the flag
+that logs *"silent launch NOT requested"*. The device is still open at zero volume, exactly as
+`launch.just` says it will be.
+
+> **A guard's comment is a claim about a mechanism, and it decays with nothing going red.**
+> `-disable-audio` was right to add, has never been wrong in its effect, and acquired a reason
+> nobody could check. When the reason is the only thing carrying the claim, the reason is the
+> thing that has to be measured.

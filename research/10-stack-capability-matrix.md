@@ -108,6 +108,16 @@ task prompt anticipates this: `THREE_D_NOTE["rust"]` says *"Building in 3D means
 `just verify`; `template/AGENTS.md` calls the feature list *"a 2.4× build-time difference"* and
 marks it ⚠️ ask first. All the crates are already vendored, so it is **E3ₗ**.
 
+> **SUPERSEDED FOR THE STARTER, 2026-08-23 (task 52), on the manifest only.** The Unity starter
+> now declares **seven** packages: `com.unity.modules.audio` and
+> `com.unity.modules.particlesystem` were added, and `packages-lock.json` resolves both
+> `source: "builtin"` with the network irrelevant — which *confirms* this section's E3ₗ
+> classification rather than overturning it. Every measurement below was taken against the
+> five-package manifest and remains the record of what that pin could do; where a row says a
+> module is "absent from the manifest", read it as absent **before 2026-08-23**. The `View`
+> assembly's module-reference count, the E-tiers, and every claim about the editor itself are
+> unaffected. `eval/RUNS.md`'s thirteenth comparability break is the regime note.
+
 **(b) Unity is pinned to the Built-in Render Pipeline and five packages.**
 `Packages/manifest.json` declares `com.unity.modules.imageconversion`, `.imgui`,
 `.jsonserialize`, `com.unity.test-framework`, `com.unity.testtools.codecoverage`.
@@ -147,7 +157,7 @@ Both in `eval/suites/wholegame_prompts.py`.
 | prompt says | pin says |
 |---|---|
 | `AUDIO_NOTE["rust"]`: *"Audio is Bevy's `AudioPlayer`"* | `bevy_audio` is not in `features = ["2d","png","libm"]`. `AudioPlayer` does not exist until the agent adds the `audio` feature |
-| `AUDIO_NOTE["unity"]`: *"Audio is `AudioSource`/`AudioClip`"* | `com.unity.modules.audio` is absent; measured, `UnityEngine.AudioModule` is not among `View`'s 40 module references |
+| `AUDIO_NOTE["unity"]`: *"Audio is `AudioSource`/`AudioClip`"* | `com.unity.modules.audio` is absent; measured, `UnityEngine.AudioModule` is not among `View`'s 40 module references. **CLOSED 2026-08-23 (task 52)**: the module is in the manifest, and the disagreement was sharper than this row says — `AudioSource` was a hard compile error, `CS1069`, four of them, `just check` exit 1 |
 
 **This is not new**, and it is important that it is not: the capability register in
 `eval/judge/starter_parity.py` (`_capabilities`, and the note it prints) already records it —
@@ -402,7 +412,7 @@ without changing any geometry** — and the failure looks like a rendering bug a
 |---|---|---|---|
 | Rust | **NO.** No `particle` module anywhere in bevy 0.19's crate tree | E4 | crate-tree scan |
 | TS | **NO.** `Points` and `Sprite` only; machine-checked (esbuild "will always be undefined"; `Object.keys(THREE).filter(/particle/i)` → `[]`). ⚠️ Perf note: `Points` is the **only** viable large-count primitive on SwiftShader — 50 000 points **4.1 ms** vs 50 000 `InstancedMesh` **590 ms** (144×) | E4 | `src/objects/Points.js`, `src/objects/Sprite.js`; absence in `src/Three.Core.js` |
-| Unity | **NO at the pin** — `com.unity.modules.particlesystem` absent from the manifest *and* from `View`'s 40 refs (measured). Module ships in the editor → **E3ₗ**. **VFX Graph is BiRP = No**, so it needs a pipeline switch on top | E3ₗ | probe; `.../BuiltInPackages/com.unity.modules.particlesystem/`; feature-comparison §GPU Particles |
+| Unity | **YES since 2026-08-23 (task 52); NO at the surveyed pin** — `com.unity.modules.particlesystem` was absent from the manifest *and* from `View`'s 40 refs (measured). Module ships in the editor → **E3ₗ**, now confirmed `builtin` in `packages-lock.json` and exposed through `Assets/View/Fx.cs`, so **E1**. **VFX Graph is BiRP = No**, so it still needs a pipeline switch on top | E3ₗ → **E1** | probe; `.../BuiltInPackages/com.unity.modules.particlesystem/`; feature-comparison §GPU Particles |
 | Godot | **YES** — `GPUParticles3D`, `GPUParticles2D`, `CPUParticles3D`, `CPUParticles2D` all exist (probed) | E1–E2 | ClassDB probe; `GPUParticles3D.xml` |
 
 ### 6.6 Native physics
@@ -463,7 +473,7 @@ audio.**
 |---|---|---|---|
 | Rust | **NO HRTF, stated in the source.** `bevy_audio-0.19.0/src/audio.rs:55` — *"Note: Bevy does not currently support HRTF or any other high-quality 3D sound rendering."* Spatial panning + `SpatialListener` + `SpatialScale` exist. All of it is behind the `audio` feature, which the pin excludes | E3ₗ then E1 | vendored `bevy_audio-0.19.0/src/audio.rs:51-60` |
 | TS | **YES, and it genuinely runs headless.** three sets `panningModel='HRTF'` by default on `PositionalAudio`; measured in Playwright: `AudioContext` state `running` at 48 kHz, and an `OfflineAudioContext` HRTF render produced real L/R divergence (ΣL 4482.6 vs ΣR 7713.1). **But `capture.ts` returns RGBA from a render target and nothing captures audio**, so none of it reaches any judge | E1 | `src/audio/PositionalAudio.js`; live probe; `capture.ts:70-80` |
-| Unity | **NO — no audio at all at the pin, and no spatializer ships.** `find Unity.app -iname "*spatializ*"` returns **zero files**. `Manual/AudioSpatializerSDK.html` describes built-in panning as *"a simple form of spatialization… based on the distance and angle"* and says the HRTF example *"is intended for example purposes only"*, living in the external Native Audio Plugin SDK | E3ₗ for audio; E4 or E3ₙ for HRTF | probe; `Manual/AudioSpatializerSDK.html` |
+| Unity | **Audio YES since 2026-08-23 (task 52), spatialisation still NO — and no spatializer ships.** `com.unity.modules.audio` is now in the manifest, resolved `builtin`, so plain `AudioSource` is E1; nothing below changes. `find Unity.app -iname "*spatializ*"` returns **zero files**. `Manual/AudioSpatializerSDK.html` describes built-in panning as *"a simple form of spatialization… based on the distance and angle"* and says the HRTF example *"is intended for example purposes only"*, living in the external Native Audio Plugin SDK | E3ₗ for audio; E4 or E3ₙ for HRTF | probe; `Manual/AudioSpatializerSDK.html` |
 | Godot | **CAVEAT — full spatial audio, no HRTF.** `AudioStreamPlayer3D` has `attenuation_model`, `max_distance`, `unit_size`, `panning_strength`, `emission_angle_*`, `attenuation_filter_*`, `area_mask`; `doppler_tracking`; `AudioEffectReverb` and the full bus API. **HRTF: 0 hits across all 1076 class XMLs and 0 hits in the binary strings** | E1–E2 | `AudioStreamPlayer3D.xml`; `grep -ci hrtf` = 0 |
 
 **And the instrument discards it anyway.** `eval/judge/audio.py:117,135` decodes every clip to

@@ -420,15 +420,22 @@ geometry is the next section; what it still cannot see, and why, is the `DECLINE
 `judge/capability.py`. **A capability change must name the field that would move if it worked**,
 and if the only candidate is a palette-coupled one, it cannot be shown to have helped.
 
-**Implemented, 2026-08-23, in two arms of four.** Rust is on Bevy's own default feature set, so
+**Implemented, 2026-08-23, in all four arms.** Rust is on Bevy's own default feature set, so
 the arm can render a lit 3D mesh and open an audio device — neither of which it could do at the
 old pin, on a task set where two of four games are 3D and audio is a scored criterion. Godot
-exposes `GPUParticles2D` through `view/fx.gd`, the one native particle system in the comparison.
-The regime note and the measured build-time cost are in `eval/RUNS.md` (eleventh comparability
-break); the hypothesis, the falsifier and **the register of capabilities surveyed as available
-and deliberately not adopted** are the task-26 iteration in the root `IMPROVEMENTS.md`.
-TypeScript and Unity are **not** done, and Unity's one-line `com.unity.modules.audio` is the
-highest-value item outstanding under this decision.
+exposes `GPUParticles2D` through `view/fx.gd`. Unity carries `com.unity.modules.audio` and
+`com.unity.modules.particlesystem` and exposes Shuriken through `Assets/View/Fx.cs`, so the two
+engines that ship a native particle system both expose it and `AudioSource` compiles for the
+first time — it was a hard compile error (`CS1069`) through every matrix graded before this
+date, on a criterion that is scored. TypeScript adopts nothing: three 0.185 ships no emitter,
+and its batching primitives are documented with the measurement instead, because on the
+rasteriser the harness actually uses `InstancedMesh` buys ~6% and `Points` is already five lines
+away.
+
+The regime notes and the measured costs are in `eval/RUNS.md` (twelfth and thirteenth
+comparability breaks); the hypotheses, the falsifiers and **the register of capabilities
+surveyed as available and deliberately not adopted** are the task-26 and task-52 iterations in
+the root `IMPROVEMENTS.md`.
 
 **One operating rule came out of doing it, and it decides the cases the survey does not.**
 
@@ -436,9 +443,17 @@ highest-value item outstanding under this decision.
 
 Lowering a capability from E2/E3 to E1 for something the engine already contains is exposing it;
 writing the subsystem is manufacturing one, and it would erase the asymmetry this decision exists
-to measure. It is why Godot gets a particle helper and Rust and three.js do not: neither ships a
-particle system at any effort below writing one, and a template that wrote one for them would be
-reporting a fact about four template authors.
+to measure. It is why Godot and Unity get a particle helper and Rust and three.js do not: neither
+ships a particle system at any effort below writing one, and a template that wrote one for them
+would be reporting a fact about four template authors.
+
+**Its corollary, learned in task 52: a capability the stack already ships in one line is
+documentation, not scaffolding.** Exposing means removing the cost of discovering something; it
+does not mean wrapping something that has no cost to discover. `Points`, `InstancedMesh` and
+sprite atlasing are all E1 in their arms, so what the template owes an agent about them is the
+number that tells it which to pick — for ts, that one batched `InstancedMesh` is 6% cheaper than
+N separate meshes on SwiftShader and one `Points` is 10x, at the geometry counts this task set
+actually reaches. A wrapper would add surface without adding reach.
 
 ---
 

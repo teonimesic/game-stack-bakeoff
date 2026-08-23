@@ -2187,7 +2187,9 @@ five. The generalisation is not "also check `fmt`" — it is:
 > code.** Run it twice on a pristine tree and diff. Anything it changed on the first pass is a
 > change every submission will be credited with.
 
-Repaired in both arms as part of task 26 (RUNS.md's eleventh comparability break), which is the
+Repaired in both arms as part of task 26 (RUNS.md's twelfth comparability break — renumbered in
+task 52, where it turned out two sections had been written as the eleventh on the same day; the
+one meant here is the rust and godot capability change), which is the
 only reason it surfaced: `just verify` rewrote `main.rs` under a change to `Cargo.toml`, and the
 hunk had nothing to do with the change.
 
