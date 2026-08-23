@@ -147,7 +147,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 
 | Directory | What it is |
 |---|---|
-| `research/` | Ten briefs answering the original questions, plus `DECISION.md`. Every claim dated and sourced; unverified claims labelled. `DECISION.md` opens with a retraction — it decided on paper, and two of its eliminations were wrong. |
+| `research/` | Eleven briefs answering the original questions, plus `DECISION.md`. Every claim dated and sourced; unverified claims labelled. `DECISION.md` opens with a retraction — it decided on paper, and two of its eliminations were wrong. `10-stack-capability-matrix.md` is what each stack can do **at its pinned version**. |
 | `template/` | **Rust + Bevy 0.19.** The reference template. Deterministic sim crate, headless GPU pixel readback. |
 | `template-ts/` | **TypeScript + three.js.** |
 | `template-unity/` | **Unity 6.** Boundary enforced by `noEngineReferences: true` — compiler-enforced, the strongest of the four. |
@@ -162,6 +162,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 - **What was decided and why?** → `DECISIONS.md`
 - **What went wrong and what it taught?** → `eval/FINDINGS.md`
 - **Why this stack?** → `research/DECISION.md` (the *prior*; the bake-off is the evidence)
+- **What can each stack actually do at its pinned version?** → `research/10-stack-capability-matrix.md`
 - **What does a building agent read?** → `template*/AGENTS.md`
 - **How is a submission graded?** → `eval/judge/RUBRIC.md`
 - **How does subjective judging work, and what is being changed?** → `eval/judge/JUDGING.md`
