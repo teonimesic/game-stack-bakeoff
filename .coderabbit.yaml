@@ -29,7 +29,7 @@ reviews:
   # attention that a check firing correctly needs".
   profile: chill
 
-  # THE ONE SETTING CHANGED FOR A REASON SPECIFIC TO THIS PROJECT, and the reason is
+  # THE ONLY SETTING CHANGED FOR A REASON SPECIFIC TO THIS PROJECT, and the reason is
   # `AGENTS.md`, "Capture what the instrument DID, not only what it concluded": record the
   # inputs a component actually consumed, not merely the output it produced. Default is false.
   # With it on, every review states which files it ignored — so the question "did our own
