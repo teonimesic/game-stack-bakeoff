@@ -1,10 +1,11 @@
 ---
 id: 109
 title: Change the work and dispatch skills so agents open PRs and address a CodeRabbit review before handing back
-status: in_flight
+status: in_review
 priority: 2
 refs: BLOCKED BY tasks/108 - do not start until a real PR here has received a CodeRabbit review. .claude/skills/work/SKILL.md, .claude/skills/dispatch/SKILL.md, AGENTS.md
 done_when: work/SKILL.md and dispatch/SKILL.md describe the PR flow end to end including how an agent waits for a review, how it decides which recommendations to act on, and what it does when the review never arrives; the flow has been run end to end on at least one real task and the resulting PR is cited; and the failure modes are stated with what an agent does in each rather than left to be re-derived
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/2
 ---
 
 The operator specified the flow on 2026-08-23: agents should pick up tasks, then submit PRs, then trigger CodeRabbit reviews, then address whatever CodeRabbit recommends, then submit it as ready to be merged for the orchestrator to verify and merge. Today agents hand back a raw branch and the orchestrator merges it with git merge --no-ff; no pull request is ever opened and nothing external reviews the work. The two skills are the only place this workflow is written down, so this is where it changes.
