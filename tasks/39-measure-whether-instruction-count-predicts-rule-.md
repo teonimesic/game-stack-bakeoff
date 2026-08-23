@@ -73,3 +73,57 @@ Cheap things worth doing before any spend:
   that changes more than one thing is rule 8.
 - **Do not adopt a readability score as the compliance measure.** That is the proxy failure of
   #59 with prose substituted for `ux`.
+
+---
+
+## Worked 2026-08-23 -- what exists now, so the next agent does not re-derive it
+
+**The design is written and pre-registered: `eval/instrfollow/DESIGN.md`.** Read that before
+anything here. The apparatus is `eval/instrfollow/pool.py` (16 instructions + deterministic
+checkers + the control suite) and `eval/instrfollow/run.py` (assignment, trials, analysis).
+
+### Settled, and not to be re-opened without a reason
+
+- **The third pre-registered outcome does not apply. The experiment CAN be designed without
+  confounding count with content**, and the way is a *within-instruction paired* estimand: the
+  same instruction at k=1 against itself at k=16. Content is then held constant because both
+  members of the pair are the same sentence. Anyone re-deriving this should not spend the time.
+- **Instruction count of the always-loaded set: 73-113** (`AGENTS.md` alone 39-60), by
+  `eval/tools/instruction_census.py`, which reports three definitions and never one number. Main
+  checkout and branch agree to the digit. ManyIFEval, the benchmark the hypothesis comes from,
+  tops out at 10.
+- **A length control arm is mandatory**, not optional. Count and prompt length rise together, so
+  without `k1pad` the comparison changes two things and rule 8 forbids the reading.
+- **Arms must NOT have equal trial counts.** A trial yields k observations; equal n leaves
+  instructions with zero observations in the small-k arms. `run.py plan` exits non-zero on it.
+
+### Found while doing this, and filed separately
+
+Two contradictions inside the always-loaded set, both re-read from source rather than taken
+from the scan that proposed them:
+
+- `AGENTS.md:215` claims the sweep covers file paths; `eval/tools/docstat.py:1597` reads
+  `# NO PATH CHECK.` -> **task 77**
+- `.claude/skills/evaluate-run/SKILL.md:59` says five aspects exist; `eval/judge/aspects.py:281`
+  defines six -> **task 79**
+
+These matter to this ticket and not only as defects: arXiv:2510.14842 identifies conflict
+between instructions, not their number, as the mechanism. The pool is therefore proved
+conflict-free by construction (the gold artifact obeys all 16 at once).
+
+### What the pilot cost and what it changed
+
+$0.83 for 8 trials, and it changed the apparatus twice -- both times in ways the offline control
+suite could not have found, because every mutant is derived from an artifact that already obeys
+everything. Details in `DESIGN.md`; the short version is that one shared fixture made the
+behavioural checkers dependent on one another, and one instruction was ambiguous enough that a
+defensible reading scored as non-compliance.
+
+### The trap in the length control, and where its measurement lives
+
+The padding for `k1pad` is drawn from this project's own docs and twice leaked an actual
+instruction -- once the source rule behind pool instruction F2, once the source rule behind B1.
+Both were caught by RENDERING the prompt and reading it, not by reasoning about the filter.
+`python3 eval/instrfollow/run.py padcheck` is the standing control and must stay green. Its
+residual limitation, and the direction the residual biases the result, is stated in `DESIGN.md`
+-- read it before quoting the length arm.

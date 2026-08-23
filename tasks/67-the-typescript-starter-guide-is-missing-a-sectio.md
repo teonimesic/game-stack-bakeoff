@@ -1,10 +1,11 @@
 ---
 id: 67
 title: The TypeScript starter guide is missing a section the other three have
-status: in_flight
+status: done
 priority: 3
 refs: eval/judge/starter_parity.py agents_md headings, tasks/49
 done_when: either the ts guide gains the missing section and starter_parity reports the heading sets equal, or the divergence is recorded as deliberate in the capability register with the reason; and verify_blind, starter_parity and starter_gate_control are re-run
+established_by: 'The ticket premise is false: the ts guide carries the one-command contract under the heading Commands at line 8, same position, same sentence (just verify green means done, red means not done, nothing else is evidence). No starter edited, no regime boundary, eval/RUNS.md untouched. The second row is the same shape inverted: unity carries Gameplay is not correctness as a bold paragraph at eval/starters/unity/AGENTS.md:123, so starter_parity still reports it absent from unity headings, contradicting the ticket re-measurement claim. Repaired the instrument instead: ADJUDICATED_HEADINGS plus heading_findings in eval/judge/starter_parity.py record the verdict AND the sentence that carries the guidance, and re-read that sentence out of all four guides every run, so the tool goes red if an adjudication stops being true and notes a register entry whose row stops firing. parity_selftest 23 of 23 pass, up from 10, including the variant that matters - ts contract sentence deleted, heading still absent, tool must go red - which the pre-change code cannot produce at all. Gates re-run unpiped: starter_parity exit 0, verify_blind exit 0 on all four starters copied outside the repo (in-repo it is structurally red on ancestor reachability, now documented in eval/judge/AGENTS.md), starter_gate_control exit 1 with 1 of 29 FAILED - godot pristine verify test-render, pre-existing and independent since git diff main on eval/starters is empty, filed as task 80. Also filed task 78: only the rust guide mentions the Stop hook, which is live in all four.'
 ---
 
 ## What this is

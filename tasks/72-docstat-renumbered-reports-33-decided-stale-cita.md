@@ -1,7 +1,7 @@
 ---
 id: 72
 title: docstat --renumbered reports 33 decided stale citations after the 2026-08-23 merge wave, and nothing has repaired them
-status: open
+status: in_flight
 priority: 3
 refs: 'eval/tools/docstat.py --renumbered, eval/FINDINGS.md, eval/findings/documentation.md #118'
 done_when: 'python3 eval/tools/docstat.py --renumbered reports zero DECIDED stale citations, with every repair made to the CITATION and never to a finding number; the undecidable list is read individually and each entry either repaired or recorded as correct, with the count stated. A positive control is required: the tool must still fire on a planted stale citation after the sweep is clean, otherwise a green result is indistinguishable from a tool that stopped looking.'

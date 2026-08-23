@@ -1,7 +1,7 @@
 ---
 id: 73
 title: anonymise.neutralise leaves the stack name in 22 of 68 stored code packs, and the architecture aspect is language-blind
-status: open
+status: in_flight
 priority: 1
 refs: 'eval/judge/anonymise.py _STACK_TOKENS, eval/judge/aspects.py ARCHITECTURE blind_language, eval/FINDINGS #83, tasks/66'
 done_when: neutralise rewrites the uppercase env-var and build-tool forms as well, pinned by a selftest that fails before the fix and passes after; a re-sweep of every stored judge_pack/code under eval/runs reports 0 packs carrying a surviving stack token, or the residue is enumerated with the reason each one is judged harmless; and whether any stored architecture round read a leaking pack is answered from the judge file-open log where it exists and stated as unassessable where it does not
