@@ -120,3 +120,40 @@ WHAT EACH OUTCOME MEANS
   allocated at merge, not by you.
 - **The question is not currently being pursued** — a legitimate answer. State it plainly and say
   what it would take to resume.
+
+## 5. Write the `update-readme` skill — the operator asked for it, and you are the one who can
+
+> *"and maybe this warrants an update-readme skill that properly instructs how readme should be
+> done"* — the operator, 2026-08-23.
+
+**Write it at the end, from what the work taught you, not at the start from this ticket.** A skill
+assembled by paraphrasing a ticket is a second copy of the ticket. A skill written after doing the
+thing records the decisions that were hard.
+
+`.claude/skills/update-readme/SKILL.md`, and **that path is the only one** — `AGENTS.md` names it,
+and `docstat.py --sweep` fails a `SKILL.md` anywhere else. Match the seven existing skills' shape:
+frontmatter with `name`, `description`, `when_to_use`; an **authoritative file** named at the top
+with the standing sentence that *if the skill and the doc disagree, the doc wins and the skill is
+the bug*; and steps that are procedures rather than principles.
+
+What it has to encode, because these were all decided against a real alternative:
+
+| rule | the alternative it was chosen over |
+|---|---|
+| the file is four things — what it is, what was found, how to run it, how it is graded | it had also become a run diary and a register of retired figures, 38% of its length |
+| **no information particular to a run**, anywhere, including in caveats | scope inline was thought necessary for falsifiability; a producer or a finding link does the same job without the provenance |
+| a quantity gets its **producer command** beside it, and the producer is **run in the session** | #144 — citing a producer is not running it, and a citation reads as freshness |
+| define a term before its first use | tiers were used throughout a section that precedes their definition |
+| references are **links**, verified to resolve, method proved on a known-good and a known-bad first | `--sweep` does not check paths, and a phantom path passed a green sweep |
+| write counts in **digits** | no check can read a cardinal spelled in words; one survived 11 days |
+| the comparability warning and *a null is a noise floor, not proof of equality* survive any cut | they are what stop a reader computing a number that must not be computed |
+| verify the destination **before** cutting, and move content in its own commit if it lives nowhere else | one block existed only in the README and had no producer |
+
+Also name the gates a README edit must leave green — `docstat.py --sweep`, `--findings`,
+`--withdrawn` — and that `--findings` will demand the count and range be updated **in the same
+pass**, since it fails otherwise.
+
+**What the skill must NOT become:** a style guide, or a second statement of what is true. It is a
+procedure for editing one file. Anything that is a *fact about the project* belongs in the
+documents; anything that is an *always-loaded rule* belongs in `AGENTS.md`. If you find yourself
+writing either into the skill, that is the signal it goes elsewhere.
