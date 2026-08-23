@@ -1220,10 +1220,24 @@ findings figure survive 11 days. The reviewer derived that rule from `DECISIONS.
 number is a quantity of something in this repository that could change; words where the word is an
 indefinite article or a compound modifier naming no population — *a one-task branch* stays.
 
-`profile: chill` produced no prose comments on the markdown file, which is 1 review's worth of
-evidence against the guess that `markdownlint` and `languagetool` need disabling, and not enough
-to act on. `review_details: true` worked as intended: the review listed which path instructions
-and which learnings it used, so what the reviewer consumed is on the record.
+`profile: chill` produced no prose comments on the markdown files, which is weak evidence against
+the guess that `markdownlint` and `languagetool` need disabling, and not enough to act on.
+`review_details: true` worked as intended: each review listed which path instructions and which
+learnings it used, so what the reviewer consumed is on the record.
+
+**Over 3 rounds on PR #1 the reviewer posted 2 actionable comments, both true positives, and 0
+false positives — and the 2 came through the 2 different mechanisms configured here.** The first
+was sourced from `Coding guidelines`, i.e. `code_guidelines.filePatterns`, and applied the digits
+rule. The second was sourced from `Path instructions` and applied the `**/*.md` rule — *comment
+only when a document states something FALSE* — to catch `README.md` saying `.coderabbit.yaml`
+"drops the archives" when `tasks/` is an archive this config deliberately keeps reviewable. A
+reviewer with the default configuration would have had neither rule available.
+
+**The rate limit is a real constraint on a parallel queue and belongs in `tasks/109`:** the plan
+allows **10 included reviews per hour**, and each review round reports what is left. Across 3
+rounds on this 1 pull request the counter read **9, then 8, then 6** — so 4 of the hour's 10 went
+on 1 PR, and the third round consumed 2. **The cost is per review round, not per pull request,
+and it is not 1 per push**; anything that assumes a fixed rate should read the counter instead.
 
 ---
 ## Reversal conditions — what would re-open a decision
