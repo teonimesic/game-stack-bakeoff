@@ -365,6 +365,14 @@ def landed_status(tid: str, refs: list[str] | None, is_ancestor) -> tuple[str, l
     unreachable. 0 of the 7 tickets with a surviving branch were squashed when this shipped;
     if the repository starts squashing, this trigger stops being the right one rather than
     needing a wider tolerance.
+
+    A VERDICT IS RELATIVE TO THE REFS THE CALLER CAN SEE, AND CI CAN SEE FEWER. Measured on
+    the same commit, the same day: the operator's checkout read `7 LANDED / 112 NOT_CHECKED`
+    and CI read `6 LANDED / 113 NOT_CHECKED`, because task 70's branch was never pushed. **The
+    defect this exists to catch reads NOT_CHECKED in CI** -- correctly, since from there no
+    such ref exists. So the load-bearing instance is the git hook in the checkout that HOLDS
+    the branches, and CI is a weaker copy of it, not a second opinion. Do not read a green CI
+    run as covering this.
     """
     pat = _branch_pattern(tid)
     if refs is None or pat is None:

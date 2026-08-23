@@ -1698,6 +1698,15 @@ merge**, which lands the content and leaves the tip unreachable — 0 of the 7 s
 were squashed when this shipped, and if the repository starts squashing, the trigger stops being
 the right one rather than needing a wider tolerance.
 
+> **A verdict is relative to the refs the caller can see, and CI can see fewer — measured, not
+> supposed.** On the same commit on the same day, the operator's checkout read **7 LANDED / 112
+> NOT_CHECKED** and CI run `32656195661` read **6 LANDED / 113 NOT_CHECKED**, because task 70's
+> branch was never pushed. **The defect this gate exists to catch reads `NOT_CHECKED` in CI** —
+> correctly, since from there the ref does not exist. The load-bearing instance is therefore the
+> **git hook in the checkout that holds the branches**; CI is a weaker copy, not a second
+> opinion, and a green CI run does not cover this. The same run also showed `main` failing to
+> resolve there and `origin/main` carrying it, which is what that fallback is for.
+
 Pinned in both directions by `tasks_control.py` direction 11 — 11 predicate rows including the
 `task-7-` / `task-70-` prefix variants in both directions, and 4 end-to-end rows on a real scratch
 repository — and by four mutants in `tasks_mutants.py`: excusing an orphan, accusing a deleted

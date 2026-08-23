@@ -319,6 +319,12 @@ two-valued version would have reported those 112 as verified while verifying not
 reads `LANDED` with its work absent; a squash merge would read `ORPHANED` with its work present.
 The derivation and what would re-open it are in `DECISIONS.md`.
 
+> **Run it where the branches are.** A verdict is relative to the refs the caller can see, and a
+> local-only branch is invisible to CI: on the same commit, the operator's checkout read
+> **7 LANDED / 112 NOT CHECKED** and CI read **6 LANDED / 113 NOT CHECKED**, because task 70's
+> branch was never pushed. **The very defect this catches reads `NOT CHECKED` in CI.** A green CI
+> run does not cover this; the git hook in the checkout holding the branches is what does.
+
 ## Reachability: `check` warns, it cannot decide
 
 `tasks.py check` catches a **missing** `done_when`. It cannot in general catch an

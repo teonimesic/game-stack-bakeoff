@@ -2,7 +2,7 @@
 #
 # Split out of gates.yml for one reason and it is not tidiness: this repository is
 # PRIVATE, so Actions minutes are metered against a monthly account allowance. These
-# five steps are 521s measured (bot_mutants 226s, tasks_mutants 157s, skill_layout 125s)
+# five steps are 685s measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s)
 # against the fast tier's 42s, so running them on every event would be an order of
 # magnitude more bill for checks whose inputs are only source.
 #
@@ -83,7 +83,10 @@ jobs:
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/bot_mutants.py
-      - name: tasks_mutants (the five mutants tasks_control's rows must catch)
+      # NOT a count. This said "the five mutants" while there were 21, and task 122 made it
+      # 25 -- a cardinal in a step name has no producer and cannot be checked, which is the
+      # failure AGENTS.md's counts rule is about. `tasks_mutants.py --list` is the producer.
+      - name: tasks_mutants (every mutant tasks_control's rows must catch)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/tasks_mutants.py
       - name: judge/audio_selftest
