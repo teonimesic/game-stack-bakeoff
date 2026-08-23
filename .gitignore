@@ -1,6 +1,6 @@
 # WHAT IS DELIBERATELY NOT HERE, AND WHY
 #
-# This repository holds the PRODUCT (four templates, the evaluation harness, the docs and
+# This repository holds the PRODUCT (the four starters, the evaluation harness, the docs and
 # findings) — not the EVIDENCE. Stored results are 129G and cannot live on a remote; they are
 # backed up separately, see tasks/12.
 #
@@ -48,3 +48,18 @@ venv/
 # committing them would put one agent's entire working copy inside another's history,
 # and `git add -A` in a wind-down would do it silently.
 .claude/worktrees/
+
+# ---- retired trees: nothing under here may be tracked again ----------------------------
+#
+# The four template*/ trees were deleted 2026-08-23 (DECISIONS.md, #122). The deletion commit
+# was complete — zero template*/ paths — and the MERGE re-added five, because each tree carried
+# its own .gitignore covering its build output (template-ts/.gitignore ignored `public/main.js`
+# and `.eslintcache`; template-unity/.gitignore ignored `/tools/analyzer/bin/`). Deleting a tree
+# deletes its ignore rules, so every build artefact still on disk under it became visible to
+# `git add -A`, and the merge swept in an eslint cache, a 1.2M bundle and a compiled analyzer
+# with its .pdb. AGENTS.md then stated `template*/ is deleted` while 5 paths were tracked.
+#
+# This entry exists so that a leftover build tree in an old checkout cannot be re-committed.
+# It is scoped to `template*/` on purpose: a general `**/bin/` rule would also ignore
+# eval/starters/rust/crates/{game,sim}/src/bin/, which is Rust source.
+template*/

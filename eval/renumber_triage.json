@@ -2,10 +2,10 @@
  {
   "path": "AGENTS.md",
   "cites": 99,
-  "anchor": "the measurement is #99",
+  "anchor": "a single-variable experiment (#99)",
   "verdict": "correct",
-  "note": "the .agents/skills mirror, deleted 2026-08-23; that is #99 today",
-  "triaged": "2026-08-23, task 102"
+  "note": "the .agents/skills mirror; #99 today. Sentence rewritten 2026-08-23 (task 114) when the real files moved to .agents/skills behind a symlink; the citation still means the drifting COPY, which is what #99 measured",
+  "triaged": "2026-08-23, task 102; re-anchored 2026-08-23, task 114"
  },
  {
   "path": "AGENTS.md",
@@ -26,10 +26,10 @@
  {
   "path": "DECISIONS.md",
   "cites": 99,
-  "anchor": "#99: the only Codex-adjacent sibling",
+  "anchor": "**This is not a reversal of #99",
   "verdict": "correct",
-  "note": "the .agents/skills mirror; #99 today",
-  "triaged": "2026-08-23, task 102"
+  "note": "the .agents/skills mirror; #99 today. Section rewritten 2026-08-23 (task 114): the real files now sit at .agents/skills with .claude/skills a symlink, and the citation marks that as #99's own escape clause rather than a reversal of it",
+  "triaged": "2026-08-23, task 102; re-anchored 2026-08-23, task 114"
  },
  {
   "path": "DECISIONS.md",
@@ -218,10 +218,10 @@
  {
   "path": "research/11-doc-linting-for-agents.md",
   "cites": 99,
-  "anchor": "`.agents/skills/` is deleted** (#99)",
+  "anchor": "The copies were deleted 2026-08-23 (#99)",
   "verdict": "correct",
-  "note": "the .agents/skills mirror; #99 today",
-  "triaged": "2026-08-23, task 102"
+  "note": "the .agents/skills COPIES; #99 today. Reworded 2026-08-23 (task 114) to distinguish the deleted copies from the directory that now holds the only real skills",
+  "triaged": "2026-08-23, task 102; re-anchored 2026-08-23, task 114"
  },
  {
   "path": "research/11-doc-linting-for-agents.md",

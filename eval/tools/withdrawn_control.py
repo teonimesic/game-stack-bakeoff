@@ -239,7 +239,7 @@ def controls() -> int:
     # documents the ticket names as live must be in it.
     for live in ("README.md", "DECISIONS.md", "eval/RUNS.md", "eval/judge/RUBRIC.md",
                  "eval/judge/JUDGING.md", "eval/PROTOCOL.md", "research/11-x.md",
-                 ".claude/skills/refine/SKILL.md"):
+                 f"{DS.SKILLS_REAL}/refine/SKILL.md"):
         r.check(not DS.is_archive(live), f"ARCHIVE: {live} is LIVE")
     for arch in ("eval/findings/certifies-nothing.md", "eval/FINDINGS.md",
                  "eval/IMPROVEMENTS.md", "IMPROVEMENTS.md", "CLEANUP-LOG.md",

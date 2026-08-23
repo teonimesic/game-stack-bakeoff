@@ -339,9 +339,9 @@ cleared or not; there is no meaningful "how far towards a line". The stage has a
 is at the end of it, and the prompt states the direction — *"Reaching the far end of the stage
 clears it."*
 
-**The free pre-test has run — task 83, 2026-08-23 — and it answers both questions: do not buy the
-harder task, and do not promote the criterion.** It cost no trials: the eight `wg-g4c` work trees
-survive under `~/game-research-work/` and were re-driven offline.
+**The free pre-test has run — task 83, 2026-08-23, published as #139 — and it answers both
+questions: do not buy the harder task, and do not promote the criterion.** It cost no trials: the
+eight `wg-g4c` work trees survive under `~/game-research-work/` and were re-driven offline.
 
 The bot was first repaired until it could actually pursue the goal — cross the pits with a **held**
 jump, stop at swinging range and kill what stands in the way — in four steps, each measured on all
@@ -374,7 +374,7 @@ task is not justified on this evidence.** The numbers are spread, and the spread
 
 Two things the repair does establish, and both are worth keeping:
 
-- **The levels were never the constraint.** Every gap in all eight is crossable by the submission's
+- **The levels were never the constraint** (#139). Every gap in all eight is crossable by the submission's
   own physics: measured jump reach with the control **held** is 93.5 to 141.8 units against a
   widest gap of 110, while a one-tick press reaches 29.0 to 88.4. A variable-height jump is
   answered by how long the control is held, and the bot had been asking every submission for its
@@ -473,30 +473,56 @@ across sessions rather than re-invented each time. See `AGENTS.md`.
 | Criteria, tiers and weights | `eval/judge/RUBRIC.md` |
 | Every run's cost and comparability | `eval/RUNS.md` |
 
-### One authoritative path per skill — decided 2026-08-23
+### One real copy of each skill, at `.agents/skills/`, reached by symlink — decided 2026-08-23
 
-`.claude/skills/<name>/SKILL.md` is the **only** location for a skill. There is no per-CLI copy,
-and `docstat.py --sweep` exits 1 on any `SKILL.md` outside that root.
+`.agents/skills/<name>/SKILL.md` holds the **only real copy** of each skill. `.claude/skills` is
+a **symlink** to that directory. `docstat.py --sweep` exits 1 on any real `SKILL.md` outside the
+authoritative root, and also on a `.claude/skills` that is missing, dangling, or a real directory.
 
-`.agents/skills/` held a Codex-flavoured duplicate of the skills from the first commit until
-2026-08-23, when it was deleted (task 27). The three measurements that decided it, in full in
-#99: the only Codex-adjacent sibling — `game-research-gpt` — has no `.agents/`, no `SKILL.md`
-and no root `AGENTS.md`, so it was never a reader; the mirror was **never once in sync**, with
-`add-game` 39 lines short in the initial commit and `tasks` and `prune` absent entirely; and
-after the initial import it took **0 edits that changed a procedure, against the authoritative
-tree's 6**.
+`.agents/` is the cross-tool convention — the same one that makes a root `AGENTS.md` readable by
+several agent CLIs — so Codex, Claude and anything else read one source rather than a copy each.
+**No `.codex/skills` or `.Codex/skills` exists as a real folder**; a second path to the skills is
+a symlink or it is nothing.
 
-It was deleted rather than synchronised because a copy with no reader has nothing pulling it
-back into line — three of six files were identical on the morning the ticket was read and four
-of six differed by the afternoon.
+**This is not a reversal of #99, it is that finding's own escape clause.** #99's objection was
+never to a location. It was to a **copy**, and its three measurements still stand: the only
+Codex-adjacent sibling — `game-research-gpt` — has no `.agents/`, no `SKILL.md` and no root
+`AGENTS.md`, so it was never a reader; the mirror was **never once in sync**, with `add-game` 39
+lines short in the initial commit and `tasks` and `prune` absent entirely; and after the initial
+import it took **0 edits that changed a procedure, against the authoritative tree's 6**. The
+finding closed by saying *add a pointer, never a copy*. This inverts which end holds the pointer
+and leaves the count of copies at exactly one. A symlink has no second file to get edited.
 
-**Cross-tool support was considered, not overlooked.** The repository is MIT and public and a
-non-Claude agent reading it is not hypothetical. The judgement is that such a reader is better
-served by `AGENTS.md` pointing at one tree than by a second tree that is confidently wrong: the
-deleted `add-game` omitted the `prompt_guard.py` procedure entirely, and the deleted `audit-docs`
-asserted that `--max-turns` and `--permission-mode` belong to the Codex CLI when
-`eval/runner.py:510,519` passes both to `claude`. If cross-tool support is wanted, add a
-**pointer** to `.claude/skills/`; a pointer cannot drift from content it does not hold.
+**Which end holds the real files was decided by measurement, not by preference.** Against
+`claude` 2.1.220, one uniquely-named probe skill per layout, every tool but `Skill` denied so the
+content could not arrive by reading the file:
+
+| layout | skill loads? |
+|---|---|
+| real `.claude/skills/<n>/SKILL.md` (the old layout, positive control) | yes |
+| real `.agents/skills/`, `.claude/skills` a symlink to it — **shipped** | yes |
+| real `.agents/skills/`, `.claude/skills/<n>` each a symlink | yes |
+| real `.agents/skills/` only, no `.claude/skills` (negative control) | **no** |
+| real `.claude/skills/`, `.agents/skills` a symlink to it | yes |
+
+The whole-directory symlink was chosen over the per-entry one because it needs no upkeep: a new
+skill is one new directory, where the per-entry layout would need a matching symlink added by
+hand every time, and a rule you have to remember is a rule that will fail.
+
+**The negative control is why the gate checks the pointer.** Claude Code does not discover
+`.agents/skills` on its own. With the symlink deleted the nine skills are still present, still at
+the authoritative address, and every file-counting check reads clean — while no agent can load
+one. `eval/tools/skill_layout_control.py` pins the gate red on all five ways this breaks: a real
+copy elsewhere, a copy at the wrong nesting depth inside the authoritative root, the pointer
+deleted, the pointer dangling, and the pointer replaced by a real directory of copies.
+
+**The mirror came back by a git merge, not by outside tooling.** After the 2026-08-23 deletion,
+`.agents/skills` reappeared, tracked, as nine pure additions in the commit merging task 101 —
+a branch forked before the deletion, so the merge restored what it had never seen removed. It is
+worth knowing because the diagnosis on sight was "some tool outside the repository regenerates
+this", which would have been unfixable from inside the repo; the true cause is ordinary and the
+layout is now merge-safe, because a branch carrying a real `.claude/skills/` directory conflicts
+with the symlink rather than silently shadowing it.
 ### The documentation is gated on structure and on names, never on prose — decided 2026-08-23
 
 Eleven documentation linters were measured against this repository and produced **over 14,000
@@ -684,7 +710,7 @@ freely; everything else is live.
 | | documents |
 |---|---|
 | **ARCHIVE**, exempt | `eval/findings/`, `eval/FINDINGS.md`, `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md`, `CLEANUP-LOG.md`, `tasks/`, `eval/runs/` |
-| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `template*/`, `eval/starters/`, `.claude/skills/` |
+| **LIVE**, gated | every other tracked markdown — `README.md`, `DECISIONS.md`, `eval/RUNS.md`, `eval/judge/RUBRIC.md`, `eval/judge/JUDGING.md`, `eval/PROTOCOL.md`, `research/`, `eval/starters/`, `.agents/skills/` |
 
 `tasks/` is archive because a retired figure can be a task's whole subject — task 54's `done_when`
 states the pair three times, correctly. The list lives in `ARCHIVE_PATHS` in `eval/tools/docstat.py`
@@ -1199,6 +1225,28 @@ repair on 2026-08-23 (#112, task 48, commit `ee8625f`) — about 500 lines of po
 before this. That work is discarded. It was correct to do and correct to discard: it closed the
 instance, and this closes the shape.
 
+**The deletion did not survive its own merge, and the mechanism is worth keeping (task 111).**
+The retirement commit `e86e09d` was complete: `git ls-tree -r e86e09d` matches **0** paths under
+`template*/`. So does its other merge parent, `5afeb31`. The merge `f315f7e` nonetheless carried
+**5** — `template-ts/.eslintcache`, `template-ts/public/main.js` and three build outputs under
+`template-unity/tools/analyzer/bin/`. They came from neither parent; they came off the disk.
+**Each tree carried its own `.gitignore`, and deleting the tree deleted the ignore rules that
+had been hiding its build output** — `template-ts/.gitignore` listed `public/main.js` and
+`.eslintcache`, `template-unity/.gitignore` listed `/tools/analyzer/bin/` — so a `git add -A`
+at merge time saw an eslint cache, a 1.2M bundle and a compiled analyzer with its `.pdb` for the
+first time, and staged them. From `f315f7e` (2026-08-23 08:35 -0300) until this repair the same
+day, `AGENTS.md` stated `template*/` is deleted while 5 paths were tracked on `origin/main`, and
+nothing could disagree: **no gate reads the tree for a claim a document makes about it.** It was
+caught by a person configuring a code reviewer, not by a check. The 5 are now removed, and the
+root `.gitignore` carries
+`template*/` so a leftover build tree in an old checkout cannot be re-committed. Reproduced in
+both directions on 2026-08-23: with the entry, `git add -A` over three replanted artefacts stages
+nothing; without it, the same command un-deletes all three.
+
+> **Deleting a directory deletes its `.gitignore`, which un-ignores every build artefact still
+> on disk beneath it.** The removal and the loss of the guard land in the same commit, and the
+> re-add lands in the next one — where it reads as an unrelated file, not as a botched deletion.
+
 ---
 ## A blind pack's `CHANGED.txt` is rebuilt from the manifest; the code half is not rewritten — decided 2026-08-23
 
@@ -1222,17 +1270,200 @@ the two TypeScript ones, so reporting it — like reporting the `git diff --stat
 judge a partition of the field nobody chose to measure (#62). It is recorded beside the pack as
 `changed_rows_dropped`, and zero mapped rows is a refusal rather than an empty file.
 
-**The code-content half is NOT repaired, and feasibility was not the reason.** A whole-segment,
-path-adjacent vocabulary read from `git ls-files` over the four starters works: 536 hits across
-all 84 stored packs, exactly 1 in an arm the segment does not name. It is declined because the
-**redaction density it produces is stack-correlated by construction** — Godot 0, Rust 43, Unity
-228, TypeScript 265 — since only some starters have arm-exclusive directories. A judge that sees
-three packs with redacted paths and one without has been handed the partition by the instrument.
-`tasks/103` holds the measurement and what would re-open it.
+**The code-content half is NOT repaired. Feasibility was not the reason, and neither — it turns
+out — is the per-arm density the decision was first written against (task 103).** Four candidates
+were measured over the 9 independent stored fields:
+
+| candidate | godot | rust | ts | unity | per-arm density | isolates an arm |
+|---|---|---|---|---|---|---|
+| arm-exclusive vocabulary from `git ls-files` | 0 | 43 | 265 | 228 | infinite | 6 of 9 fields |
+| every starter directory, shared included | 271 | 102 | 830 | 273 | 8.9x | 9 of 9 |
+| vocabulary-free: every path component | 831 | 927 | 1701 | 668 | 2.8x | 9 of 9 |
+| the same, minus the four bucket labels | 428 | 690 | 1021 | 668 | 2.1x | 9 of 9 |
+
+*Isolates* means a **strict** threshold on one pack's redaction count separates a whole arm from
+the other six, measured per field, against **7.1%** by chance. Nothing measured comes near it.
+
+> **The statistic the first version of this decision named was one no judge can see.** Per-arm
+> density is an aggregate over the whole corpus; a judge is shown eight packs and how redacted
+> each one looks. A vocabulary-free rewrite drives the aggregate from infinite to **2.1x** and
+> leaves no arm at zero — satisfying the reversal condition exactly as it was written — while
+> making the per-field figure **worse**, 9 of 9 against 6 of 9. It does not close the channel; it
+> moves the leak from Godot's zero to TypeScript's extreme, where it is just as readable and
+> costs 2,807 redactions instead of 536. **Optimising a proxy that the protected party never
+> observes is the shape of a fix that measures nothing.**
+
+The census is part 6 of `judge/blind_dir_selftest.py`, run with `--runs-root`, so the decision has
+a producer; it pins the published table and refuses a `--runs-root` that is not the corpus. The
+table **excludes `bin`**, the one arm-exclusive segment that fires in all four arms, because 19 of
+its 26 hits are `#!/usr/bin/env` shebangs rather than the Rust starter's `src/bin/`; with it the
+table reads 9/50/265/238. `tasks/103` holds the working.
+
+**What is left unblinded is smaller than it looks.** Code aspects are already barred from every
+cross-stack claim (below), and the judge names the engine correctly in 20% of `architecture`
+evidence strings from **syntax alone**, with the tokens verifiably absent. The residue this would
+have removed sits underneath a signal that is unremovable and already conceded.
 
 **Scope, stated because it is easy to assume otherwise:** this licenses new rounds and repairs
 none. Every `architecture` round stored in this repository read a `CHANGED.txt` listing the real
 authored tree.
+
+---
+## Pull requests are reviewed by CodeRabbit, and the config is exclusion-only — decided 2026-08-23
+
+**[user]** that agent work should be reviewed before it is merged. **[agent]** everything below
+about how. `.coderabbit.yaml` at the repository root is the whole in-repository half; the other
+half is a GitHub App authorisation that only the operator can perform, and `tasks/108` holds the
+steps.
+
+**`path_filters` carries exclusions and never an inclusion.** Per the schema those patterns also
+drive a sparse checkout, so 1 positive pattern turns the list into an allowlist and blinds the
+reviewer to everything not named — including `.coderabbit.yaml` itself. An exclusion-only list
+cannot do that.
+
+What is excluded, and the population each pattern covers (`git ls-files`, 673 tracked files,
+2026-08-23 — re-run it, this tree moves daily):
+
+| pattern | files | why |
+|---|---|---|
+| `!eval/instrfollow/runs/**` | 115 | committed stored evidence — 1 JSON record per trial. Data, not source |
+| `!eval/findings/**`, `!eval/FINDINGS.md`, `!eval/IMPROVEMENTS.md`, `!IMPROVEMENTS.md`, `!CLEANUP-LOG.md` | 10 | archives. A figure published and later proven wrong **stays** there, so a comment flagging one is a false positive with certainty, not with probability |
+| `!eval/runs/**` | **0** | gitignored, so it matches nothing today. Kept as a second guard, and the firing case is constructible: `.gitignore` changes, or 1 record is committed as a fixture |
+
+**`eval/instrfollow/runs/` is the stored evidence that can actually reach a diff, and `eval/runs/`
+is not** — the opposite of what is easy to assume. `eval/runs/` is 129G and gitignored;
+`git ls-files eval/runs` returns 0. Rule 12: the address is an input to the check.
+
+**`tasks/` is reviewed, against the archive list.** It is an archive by `ARCHIVE_PATHS` in
+`eval/tools/docstat.py`, and excluding it would also drop it from the sparse checkout — leaving
+the reviewer assessing a one-task branch with no access to its brief. The ticket is the only
+written statement of what the diff was supposed to do. The false-positive risk is handled by a
+`path_instruction` telling the reviewer not to correct figures there.
+
+**`eval/starters/*/` is reviewed too, not excluded, and its instruction redirects what is asked.**
+It is the experimental material, so "this could be better" is out of scope by construction. What a
+reviewer *can* do there is procedural and valuable: ask whether a change to 1 of the 4 stack trees
+was made to the other 3, and whether the regime-boundary gates named in `AGENTS.md` were run.
+
+**`reviews.review_details: true`** is the only setting changed for a reason particular to this
+project rather than to code review: it makes each review state which files it ignored, so *"did
+our own filters swallow the change?"* is answerable from the artifact. That is `AGENTS.md`,
+"capture what the instrument DID".
+
+**`knowledge_base.{learnings,issues,pull_requests}.scope: local`.** All three default to `auto`,
+which resolves to **global** on a private repository — what CodeRabbit learns here would be
+applied to unrelated repositories on the same account. Same reason skills may not live in
+`~/.claude`.
+
+**`code_guidelines.filePatterns` enumerates 6 files rather than globbing `**/AGENTS.md`.** That
+glob matches 8, and 4 of them are `eval/starters/{rust,ts,unity,godot}/AGENTS.md` — the product,
+not standards this repository holds itself to. It is an enumeration, which is normally the wrong
+shape, and it goes stale in exactly 1 way: **a new folder-scoped `AGENTS.md` outside
+`eval/starters/` has to be added to it.**
+
+**`reviews.tools` is deliberately empty.** Disabling `markdownlint` and `languagetool` over 173
+markdown files is the obvious edit and it is a guess. The first reviews are the measurement.
+
+**What the first review actually did, on PR #1, 2026-08-23 — because a configuration that has
+never caused a review is a mechanism that runs and measures nothing.** It posted 1 actionable
+comment across a 2-file diff, and the comment was a **true positive against this repository's own
+rules, not against a style guide**: the section you are reading spelled its counts as *single*,
+*one*, *three* and *six*, and `AGENTS.md` requires a count in a live document to be written in
+digits, because no check can read a cardinal spelled in words — the failure that let a stale
+findings figure survive 11 days. The reviewer derived that rule from `DECISIONS.md` through
+`code_guidelines.filePatterns` and cited it as its source. The counts are now digits.
+
+**The boundary applied when fixing it, because the rule does not state one:** digits wherever the
+number is a quantity of something in this repository that could change; words where the word is an
+indefinite article or a compound modifier naming no population — *a one-task branch* stays.
+
+`profile: chill` produced no prose comments on the markdown files, which is weak evidence against
+the guess that `markdownlint` and `languagetool` need disabling, and not enough to act on.
+`review_details: true` worked as intended: each review listed which path instructions and which
+learnings it used, so what the reviewer consumed is on the record.
+
+**Over 3 rounds on PR #1 the reviewer posted 2 actionable comments, both true positives, and 0
+false positives — and the 2 came through the 2 different mechanisms configured here.** The first
+was sourced from `Coding guidelines`, i.e. `code_guidelines.filePatterns`, and applied the digits
+rule. The second was sourced from `Path instructions` and applied the `**/*.md` rule — *comment
+only when a document states something FALSE* — to catch `README.md` saying `.coderabbit.yaml`
+"drops the archives" when `tasks/` is an archive this config deliberately keeps reviewable. A
+reviewer with the default configuration would have had neither rule available.
+
+**The rate limit is a real constraint on a parallel queue and belongs in `tasks/109`:** the plan
+allows **10 included reviews per hour**, and each review round reports what is left. Across 3
+rounds on this 1 pull request the counter read **9, then 8, then 6** — so 4 of the hour's 10 went
+on 1 PR, and the third round consumed 2. **The cost is per review round, not per pull request,
+and it is not 1 per push**; anything that assumes a fixed rate should read the counter instead.
+
+> **That counter is not a durable artifact, and `tasks/109` had to stop depending on it.**
+> Re-read from PR #1's stored reviews and issue comments on 2026-08-23, the text is no longer
+> anywhere in either — CodeRabbit edits its summary comment in place, so what was true when it
+> was read is unrecoverable afterwards. The measurement above stands as what was observed; the
+> procedure bounds **review rounds per task at 2** rather than reading a counter it cannot rely
+> on finding.
+
+---
+## An agent hands back a pull request, and the queue has 5 statuses — decided 2026-08-23
+
+**The operator's specification:** *"agents should pick up tasks, then submit PRs, then trigger
+code rabbit reviews, then address whatever coderabbit recommends, then submit it as ready to be
+merged for you to verify and merge"*, with the ticket moving through *todo, in progress, in
+review, in testing, done*.
+
+Before this, an agent committed to a `task-<id>-<slug>` branch and the orchestrator merged it
+with `git merge --no-ff`. No pull request was opened and nothing external read the diff.
+
+| Decided | Rejected, and why |
+|---|---|
+| `STATUSES = ("todo", "in_progress", "in_review", "in_testing", "done")` | Keeping `open`/`in_flight` as the stored names and adding only the 2 new states. It costs no migration, and it leaves the tool's vocabulary permanently disagreeing with the operator's, so every document carries a translation table — the shape this project calls a rule that must be re-derived by each reader |
+| **`open` and `in_flight` are accepted permanently and map on read**, not for a migration window | A clean cutover. The queue is shared across worktrees while each worktree holds its own possibly-older `tasks.py`: an agent forked before the rename runs `start`, writes `in_flight`, and every peer's `check` goes red at once on a file none of them touched |
+| `check` **fails** an `in_review` ticket with no `pr` field | Leaving the link to the report. The state exists so the orchestrator can find the pull request from the ticket; without the field it is a status that has stopped being a locator |
+| The heartbeat's metric **keys keep the old names** (`tasks_open`, `tasks_inflight`) while the statuses are renamed | Renaming the keys with the statuses. The heartbeat's output is read as a diff against the previous hour, and a renamed key is one series ending at 0 and another starting from nothing — 12 tasks' worth of apparent movement in an hour where nothing happened |
+| Merging through `gh pr merge`, not `git merge --no-ff` | A local merge. The pull request is the durable record of what was reviewed and what was declined; a local merge closes it by inference |
+| The reviewer's comments are **weighed against `AGENTS.md` and `DECISIONS.md`, and declined in the thread when they contradict one** | Applying every suggestion. An agent that complies by default will eventually loosen a test, which the global instructions forbid outright |
+
+**The verification standard does not move.** `dispatch/SKILL.md` says *verify against the
+artifacts, not against the report*, and a review is a second opinion on the code with no access
+to the artifacts. *"It passed review"* is exactly the shape this project calls a mechanism that
+runs and reports success.
+
+**How an agent knows a review has finished**, and this is the part that was measured rather than
+designed: the reviews API returns a full 40-character `commit_id` per review, and `gh pr view --json
+headRefOid` returns the full sha GitHub thinks is the head. Comparing those two is the check.
+`tasks/108`'s poll loop compared a **7-character** sha against the **5-character** abbreviation in
+the walkthrough prose and reported *"not reviewed"* through 8 polls after the review had landed —
+rule 12 against a poll loop, when the API had the exact address all along. Pinned on PR #1, whose
+answer was known in advance: `true` for the head that was reviewed, `false` for `941e5f5`, the
+commit that was pushed and never reviewed.
+
+**The deadlock to design against is the reviewer's auto-pause**, not a slow review. CodeRabbit
+pauses a branch it considers under active development, and the notice lands in the PR's *issue*
+comments rather than in its reviews — so an agent that pushes a fix per comment can wait forever
+for a review that will never come because it was too productive. The procedure batches fixes into
+one push per round, detects the pause by its own text, and resumes with `@coderabbitai review`.
+
+| Would re-open this | The observation |
+|---|---|
+| The 5-value vocabulary | An orchestrator finding it still cannot tell whose turn it is, or a state that no ticket ever occupies for more than a moment. `in_review` and `in_testing` are cheap to retire; `todo`/`in_progress` are not |
+| The legacy aliases | Nothing. They cost one dict and they close a class of failure that is invisible until it hits every agent at once |
+| The 15-minute bound on the wait | Two tasks in a row handing back `in_testing` with no review. That is evidence about the reviewer, and the fix is not a longer wait |
+| Merging through `gh pr merge` | A conflict pattern the PR route makes worse than the local one. Conflicts already resolve locally on the branch and then merge through the PR |
+
+**The flow was run end to end on its own ticket: PR #2**, the first pull request opened by the
+procedure it adds. Round 1 posted **8 actionable comments; 7 were acted on and 1 was declined
+with a measurement** — the declined one asserted that new `E702` lines make `ruff check` fail,
+where 4 lines of that shape already stood at the merge base and no ruff configuration or gate
+exists in the tree. Two of the 7 were defects in this project's own terms: an empty `$HEAD` after
+a failed `gh pr view` makes the poll answer `false` about a question it never asked (jq's
+`index("")` is `null`, measured), and `in_testing` was gated for a `pr` in neither the code nor
+the prose while being the state the orchestrator merges from.
+
+**Review time scales with the diff, and one number was not enough to size the wait.** PR #1:
+2 files, acknowledged 31s, reviewed **2m 30s**. PR #2: 17 files and 615 insertions, acknowledged
+49s, reviewed **6m 15s**. The 15-minute bound is 2.4x the slower of the two, not the 6x it was
+first written as; `.claude/skills/work/SKILL.md` carries both points so the next reader can see
+the trend rather than a constant.
 
 ---
 ## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
@@ -1293,6 +1524,69 @@ brief hash demonstrably read the stale sentence and cannot be re-run for it; `ev
 records that, and the other 26 code rounds stored no hash and are unassessable.
 
 ---
+## A ticket's body is appended to by `tasks.py note`, and a control never imports its expectation — decided 2026-08-23
+
+`.claude/skills/work/SKILL.md` has told every dispatched agent to *write back what the next one
+would otherwise re-derive* since the skill existed, and until now no agent could. Measured from a
+real agent worktree (task 113): `Write`/`Edit` aimed at the shared checkout is **refused** by
+worktree isolation; the worktree's own copy of `tasks/NNN-*.md` is a tracked file whose
+main-checkout twin `start`/`done` rewrite, so a committed edit offers the merge a conflict in a
+file the merge is already rewriting; and `tasks.py` had no subcommand that touched a body. Tasks
+105 and 106 each emptied a session's findings into `established_by` — one unbroken line of YAML
+prose that cannot carry a backtick (#80) and is not where the next agent looks.
+
+**The decision is the subcommand, not a relaxation of the isolation.** The queue resolving to the
+main checkout is #94's decision and stays; `note` writes there by the mechanism `add`, `start` and
+`done` already use, and resolves the file **by id** rather than by a filename anyone typed —
+which is the difference between it and the `>>` an agent would otherwise reach for, nothing
+having ever blocked one. It appends through `open(p, "a")` and rewrites nothing, so *the rest of
+the ticket is unchanged* is true by construction rather than by a round-trip that happened to
+hold, and `-` reads the section from stdin because a backtick in argv is command substitution
+before the program runs.
+
+**The general rule this bought, and it is a refinement of AGENTS.md rule 12 rather than an
+instance of it.** The first version of the control built its expected suffix by calling
+`tasks.py`'s own `_note_block` — one value at one address, which is what rule 12 asks for, and
+here it made the rows structurally incapable of failing: the mutant that deletes the newline
+separating a section from the body came back **SURVIVED with 0 red rows of 48**, because the
+mutant had edited the check. Rule 12 is about one **fact** at one address. **An expectation is
+not the fact; it is the second, independent statement of it**, and a control that imports its
+expectation from its subject is not a control. Where the two must be kept in step, do it with a
+row that compares them — never by making them the same object.
+
+---
+## A finding cited in a live document is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
+
+A bare `(#68)` is honest and useless: a reader who cannot click it has been told nothing. Making
+it a link is not free, because **`docstat.py --sweep` does not check file paths** — a phantom
+`eval/RUBRIC.md` passed a green sweep — so a link is a stronger claim than a number with no gate
+behind it. **A link that resolves to the wrong place is worse than a bare number, because it looks
+checked.**
+
+Three shapes were available and the choice was made on what each fails at, not on which reads best:
+
+| shape | why not |
+|---|---|
+| bare `(#68)` | unclickable; the objection that opened task 115 |
+| inline `[#68](eval/findings/...#68-the-subjective-layers-first-...)` | a ~150-character URL inside every sentence, in a file whose stated defect was that it was hard to read |
+| link to `eval/FINDINGS.md` with no fragment | always resolves and never lands on the finding. The index is a **table**, and GitHub generates no anchors for table rows, so there is nothing to aim at |
+
+**Shipped: reference-style.** `[#68]` in the prose, and one definition block at the foot of the
+file carrying the group file and the GitHub heading anchor. Prose stays as short as the bare form
+and the machinery is in one place a checker can read.
+
+**The fragment is the risk and `eval/tools/linkcheck.py` is the answer to it.** A reworded heading
+kills an anchor silently. The tool derives the anchors from the target file's own headings rather
+than assuming the rule, so a rewording turns a gate red instead of turning a link into a lie. It
+checks inline links, reference definitions and `[#NN]` shortcuts with no definition, skips fenced
+blocks and external schemes by design, and `--selftest` plants a known-good and a known-bad of
+each of the three shapes — rule 12's corollary, prove the extraction on a case whose answer you
+can state in advance. Both directions were exercised on `README.md` itself before the count over it
+was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#999]` each went red.
+
+**To re-open:** GitHub changing its heading-anchor rule, or a second consumer of these documents
+that does not render Markdown links.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -1307,7 +1601,7 @@ settled question is noise that makes the live ones harder to find.
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
-| The code half of the directory leak stays unrepaired | A rewrite whose **redaction density is uniform across the four arms**, measured per arm rather than argued. The current candidate is 0/43/228/265; anything that fires on all four arms comparably is a different proposal and should be measured, not assumed |
+| The code half of the directory leak stays unrepaired | A rewrite that **stops isolating an arm per field** — a strict threshold on one pack's redaction count naming a whole arm in fewer than a third of the stored fields. Currently 6 of 9 for the arm-exclusive vocabulary and 9 of 9 for all three alternatives, against 7.1% by chance. **This row asked for a uniform per-arm density until 2026-08-23, and that was the wrong quantity**: a vocabulary-free rewrite satisfies it at 2.1x with no arm at zero and is *worse* on the per-field figure, because per-arm density is an aggregate the judge never sees. `judge/blind_dir_selftest.py --runs-root` reports both and fails if any candidate stops partitioning |
 | Deterministic tiers may not rank stacks | Within-cell verdict variance **large enough to resolve a between-stack gap** — currently **5 of 436** paired criteria in `wg-matrix` and **0 of 232** in `wg-audio48`, i.e. 1.1% and 0%, against a between-stack gap of zero. This row read *non-zero* until 2026-08-23, when the unscoped figure it rested on was withdrawn and the scoped recount came back **not zero**; a sign is not a threshold, and what size counts is unsettled (task 70) |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 10 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
@@ -1319,9 +1613,11 @@ settled question is noise that makes the live ones harder to find.
 | An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
-| A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
-| Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and the always-loaded set holds 73-113 — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
+| A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83, #139) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies the $421-to-$698 spend: all-eight-at-1.000 would, and none of the eight reaches 1.000. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |
+| Compliance with the always-loaded rules is measured, not assumed, and the measurement stops at k=16 | A pool **larger than 32 live instructions** exists. `eval/instrfollow/RESULT.md` bounds the count effect at 3.3pp up to 16, and `python3 eval/tools/instruction_census.py` puts the always-loaded set at 112-155 (read 2026-08-23) — so the open question is the gap, and closing it needs instructions, not trials. Cost rises steeply with k ($0.056 at k1, $0.273 at k16), so price a k32 pilot before sizing anything. Conflict is the cheaper subject: arXiv:2510.14842 puts the mechanism there, and two contradictions already sit in the always-loaded set (tasks 77, 79) |
 | Both completeness wordings are kept in `COMPLETENESS_NOTE` | `--allow-truncated` being **removed from `field_sweep.py`**. While a deliberately capped field can be built, the truncated wording is reachable and the claim is checkable; delete the escape and the note collapses back to a constant, at which point the honest move is to delete the claim from the brief too rather than leave an uncheckable sentence in it |
+| `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
+| `reviews.tools` left empty | The **first reviews naming which tool produced a comment nobody wanted**. Disable that tool and cite the review; do not pre-emptively disable `markdownlint` or `languagetool` on the argument that 173 markdown files must be noisy — that argument is available now and is not evidence |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the

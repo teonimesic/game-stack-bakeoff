@@ -293,8 +293,15 @@ def blind_extensions(text: str) -> str:
 # --stat`, one true authored path per row, handed to a judge whose every file was
 # renamed to `bucket/NN.src`. The code half is 89% collision - 1,129 of the 1,148
 # `public` hits are the C# access modifier, 16 of 17 `ProjectSettings` are
-# `ProjectSettings.globalize_path()`, and `Assets` is a Bevy type in Rust packs. The
-# code half is NOT repaired here and the measurement that declined it is in tasks/96.
+# `ProjectSettings.globalize_path()`, and `Assets` is a Bevy type in Rust packs.
+#
+# THE CODE HALF IS NOT REPAIRED, and four candidate rewrites were measured before
+# that was settled. Every one hands the judge the arm partition: over the 9
+# independent stored fields, a strict threshold on a single pack's redaction count
+# isolates an arm in 6 of 9 fields for the arm-exclusive vocabulary and in 9 of 9 for
+# each vocabulary-free alternative, against 7.1% by chance. The census is part 6 of
+# `blind_dir_selftest.py` and re-runs with `--runs-root`; the reasoning and the
+# reversal condition are in `DECISIONS.md`, and `tasks/103` holds the working.
 #
 # WHY THE MANIFEST AND NOT A REWRITE. Every row of `--stat` is a real path, and the
 # pack already knows what each of those paths became: `pack.manifest` in

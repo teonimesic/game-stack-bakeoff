@@ -46,6 +46,17 @@ reproduced here. Comparisons are valid from this commit forward only.
 command's values exactly (71 findings, highest #89, matching the documented #19-#89 range
 with no gaps).
 
+THE TASK SERIES DID NOT RESET WHEN THE STATUS VOCABULARY GREW, AND THAT WAS THE POINT
+-------------------------------------------------------------------------------------
+On 2026-08-23 `tasks.py`'s statuses went from 3 to 5 -- `open`/`in_flight` renamed to
+`todo`/`in_progress`, and `in_review`/`in_testing` added for the pull-request flow.
+`tasks_open` and `tasks_inflight` KEPT THEIR NAMES, because this file's output is read as a
+diff and a renamed key is indistinguishable from a series ending at 0 while another starts
+from nothing. Only `tasks_inreview`, `tasks_intesting` and `tasks_unknown` are new, and each
+starts at 0, so the first hour across the change is readable rather than meaningless.
+
+The mapping is `TASK_METRIC`, asserted against `tasks.STATUSES` on every run.
+
     python3 eval/tools/heartbeat.py          # key=value lines, one per metric
     python3 eval/tools/heartbeat.py --json
 """
@@ -53,6 +64,7 @@ with no gaps).
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
@@ -117,12 +129,67 @@ def _findings() -> tuple[int, int]:
     return len(nums), (max(nums) if nums else 0)
 
 
+#: status -> the METRIC KEY it is reported under. Two things are deliberate here.
+#:
+#: 1. THE KEYS ARE THE OLD NAMES, AND THE STATUSES ARE THE NEW ONES. The vocabulary grew from
+#:    3 values to 5 on 2026-08-23 (`todo`/`in_progress`/`in_review`/`in_testing`/`done`). The
+#:    heartbeat's whole output is read as a DIFF against the previous hour, and a renamed key
+#:    is not a rename to a differ -- it is one series ending at 0 and another starting from
+#:    nothing. `tasks_open` going to absent and `tasks_todo` appearing at 6 reads as twelve
+#:    tasks' worth of movement in an hour where nothing happened. The series continue.
+#: 2. IT IS A MAP, NOT THREE HAND-WRITTEN KEYS, so `collect` cannot report a subset of the
+#:    vocabulary. The old code held `{"open", "in_flight", "done"}` and dropped anything else
+#:    silently: over a queue holding 1 file in each of the 5 states it counted 3 of 5, so a
+#:    ticket moving into review vanished from every counter and the hour read as work
+#:    disappearing. `_tasks` now asserts these keys against `tasks.STATUSES` (rule 12: one
+#:    value at two addresses is asserted equal in code, never promised in a comment).
+TASK_METRIC = {
+    "todo": "tasks_open",
+    "in_progress": "tasks_inflight",
+    "in_review": "tasks_inreview",
+    "in_testing": "tasks_intesting",
+    "done": "tasks_done",
+}
+
+
+def _statuses() -> tuple[tuple[str, ...], dict[str, str]]:
+    """`tasks.py`'s vocabulary and its legacy aliases, IMPORTED rather than restated.
+
+    Imported by path for the reason `tasks_control.py` gives: `sys.path` games reach whatever
+    copy happens to be first. If the import fails this raises -- a heartbeat that silently
+    fell back to a hardcoded 3-value list would go on printing plausible counts while the
+    thing it counts had 5 states, which is the exact defect this replaces.
+    """
+    spec = importlib.util.spec_from_file_location("tasks_for_heartbeat",
+                                                  Path(__file__).resolve().parent / "tasks.py")
+    if spec is None or spec.loader is None:
+        raise SystemExit("heartbeat.py cannot import eval/tools/tasks.py, which defines the "
+                         "status vocabulary it counts")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.STATUSES, mod.LEGACY_STATUSES
+
+
 def _tasks() -> dict[str, int]:
-    counts = {"open": 0, "in_flight": 0, "done": 0}
+    """One count per status, keyed by STATUS. `collect` maps them to metric names.
+
+    Unknown values are counted under `""` rather than dropped, and `collect` adds them to no
+    metric but the total -- so `tasks_unknown` is what a typo or a status this file has not
+    been taught about shows up as, instead of a file that exists in the queue and in none of
+    the counts.
+    """
+    statuses, legacy = _statuses()
+    if tuple(TASK_METRIC) != statuses:
+        raise SystemExit(f"heartbeat.py's TASK_METRIC covers {tuple(TASK_METRIC)} but "
+                         f"tasks.py's STATUSES is {statuses}. A status missing from the map "
+                         f"is a task counted by nothing: add it, and give it a metric key.")
+    counts: dict[str, int] = {s: 0 for s in statuses}
+    counts[""] = 0
     for p in sorted((ROOT / "tasks").glob("*.md")):
         m = re.search(r"^status:\s*(\S+)", p.read_text(encoding="utf-8"), re.M)
-        if m and m.group(1) in counts:
-            counts[m.group(1)] += 1
+        raw = m.group(1) if m else ""
+        canonical = legacy.get(raw, raw)
+        counts[canonical if canonical in counts else ""] += 1
     return counts
 
 
@@ -174,9 +241,8 @@ def collect() -> dict[str, int]:
     m = {
         "findings": n_findings,
         "findings_highest": highest,
-        "tasks_open": tasks["open"],
-        "tasks_inflight": tasks["in_flight"],
-        "tasks_done": tasks["done"],
+        **{metric: tasks[status] for status, metric in TASK_METRIC.items()},
+        "tasks_unknown": tasks[""],
         "judge_code": _lines_under("eval/judge/"),
         "tools_code": _lines_under("eval/tools/"),
         "criteria": _criteria(),

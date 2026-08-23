@@ -211,8 +211,10 @@ before touching it:
   type in Rust packs. **A single total over two channels with a 0% and an 89% collision rate
   describes neither** (rule 4, one level below where it usually fires). `CHANGED.txt` is now
   rebuilt from the pack's own manifest, which repairs the extension half (#137) and the
-  directory half together; the code-content half is declined on purpose, because its redaction
-  density is stack-correlated by construction — godot 0, rust 43, unity 228, ts 265. Task 103.
+  directory half together; the code-content half is **declined on measurement, not on
+  feasibility** — four candidate rewrites were tried and every one hands the judge the arm
+  partition. `python3 judge/blind_dir_selftest.py --runs-root <main>/eval/runs` re-derives it.
+  Task 103.
 - **`field.py pack` read the aspect's `sees` and not its `blind_language` (#138)**, so a pack built
   the way the module docstring tells you to build one was not blinded at all: 199 of the 207
   evidence files in a real `wg-g4c` `architecture` field kept a language-naming filename and the
@@ -246,13 +248,32 @@ Three properties to preserve if you touch it:
   still parses and still maps — it just maps nothing, and an empty `CHANGED.txt` reads as a
   submission that changed nothing (rule 7, rule 12).
 
-**The code-content half is deliberately not repaired**, and the measurement that declined it is
-worth knowing before anyone reaches for the obvious fix: a whole-segment, path-adjacent
-vocabulary derived from `git ls-files` over the four starters is *feasible* — 536 whole-segment
-path hits across all 84 stored packs, exactly **1** of them in an arm the segment does not name —
-but its redaction density is stack-correlated by construction, **Godot 0, Rust 43, Unity 228,
-TypeScript 265**, because only some starters have arm-exclusive directories. It would trade a leak
-the judge must read for one it cannot help seeing. See `tasks/103`.
+**The code-content half is deliberately not repaired, and four candidate rewrites were measured
+before that was settled.** The census is part 6 of `blind_dir_selftest.py` and re-runs with
+`--runs-root`, so the decision has a producer rather than a remembered table:
+
+| candidate | godot | rust | ts | unity | density ratio | isolates an arm |
+|---|---|---|---|---|---|---|
+| arm-exclusive vocabulary from `git ls-files` | 0 | 43 | 265 | 228 | infinite | **6 of 9 fields** |
+| every starter directory, shared included | 271 | 102 | 830 | 273 | 8.9x | **9 of 9** |
+| vocabulary-free: every path component | 831 | 927 | 1701 | 668 | 2.8x | **9 of 9** |
+| the same, minus the four bucket labels | 428 | 690 | 1021 | 668 | 2.1x | **9 of 9** |
+
+**Read the last column, not the ratio.** *Isolates* means a strict threshold on ONE pack's
+redaction count separates a whole arm from the other six packs — measured per field over the 9
+independent stored fields, against **7.1%** by chance. A per-arm total is an aggregate no judge
+ever sees; eight packs and how redacted each looks is what it does see. Driving the aggregate
+from infinite to 2.1x — which satisfies the reversal condition as it was first written — moved
+the leak from Godot's zero to TypeScript's extreme and made the per-field figure **worse**.
+
+Two things a reader will otherwise re-derive. **The published table excludes `bin`**: it is the
+only arm-exclusive segment firing in all four arms, and it does so through `#!/usr/bin/env` —
+19 of its 26 hits are shebang lines. Including it reads 9/50/265/238, and the 9 in Godot is a
+redaction that removes nothing. The `CHANGED.txt` detector above keeps `bin`, correctly, because
+every row of a `git diff` summary *is* a path. And **`wg-g4c-capgate/uncapped` is not an
+independent field**: it
+shares 176 of 199 pack file blobs with `wg-g4c-2026-08-21T02-26-46`, so the census collapses
+fields on shared content rather than on a run name (rule 9). See `tasks/103`.
 
 Three more things it has got wrong before:
 

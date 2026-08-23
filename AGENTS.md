@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#145, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#151, including marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -38,7 +38,7 @@ it describes and travels with it.
 
 | Thing | Where |
 |---|---|
-| Skills | `.claude/skills/<name>/SKILL.md` — **the only path. A skill anywhere else fails `docstat.py --sweep`** |
+| Skills | `.agents/skills/<name>/SKILL.md` — **the only real copy. `.claude/skills` is a symlink to it, and a real `SKILL.md` anywhere else fails `docstat.py --sweep`** |
 | Memories | `.claude/memory/` |
 | Permissions and hooks | `.claude/settings.json` |
 | Machine-local settings | `.claude/settings.local.json` |
@@ -54,16 +54,24 @@ skill that lives in a home directory silently applies to unrelated work.
 
 ## Skills — procedures, invoked when you are doing the thing
 
-These live in `.claude/skills/<name>/SKILL.md`, and **that is the sole authoritative path**.
-Invoke the one that covers what you are about to do rather than reconstructing the procedure —
-each encodes failures that cost trials.
+The real files live at `.agents/skills/<name>/SKILL.md`, and **that is the sole authoritative
+path — edit there.** `.claude/skills` is a **symlink** to it, so every path below resolves to
+the same nine files. Invoke the one that covers what you are about to do rather than
+reconstructing the procedure — each encodes failures that cost trials.
 
-There is no second copy for another agent CLI, and adding one fails the sweep. `.agents/skills/`
-held exactly that until 2026-08-23 — a Codex-flavoured duplicate that was never once in sync,
-had no reader, and shipped an `add-game` missing the guard that exists because a shared preamble
-contaminated a single-variable experiment. The reasoning, and what would re-open it, is in
-`DECISIONS.md`; the measurement is #99. If you want cross-tool support, add a **pointer** to
-`.claude/skills/`, never a copy of it.
+**One copy, any number of pointers.** `.agents/` is the cross-tool convention, so Codex, Claude
+and anything else read one source rather than a copy each. A second *pointer* is free; a second
+*copy* fails the sweep. `.agents/skills/` was a real Codex-flavoured duplicate until 2026-08-23 —
+never once in sync, no reader, and it shipped an `add-game` missing the guard that exists because
+a shared preamble contaminated a single-variable experiment (#99). That objection was to the
+**copy**, not the location, and a symlink has no second file to get edited. The reasoning, and
+what would re-open it, is in `DECISIONS.md`.
+
+**The pointer is load-bearing and it fails silently.** Measured against `claude` 2.1.220: a
+project holding only `.agents/skills` loads **no skills at all**. Delete `.claude/skills` and the
+nine files are still there, still at the authoritative address, and unreachable by every agent —
+so `docstat.py --sweep` asserts the symlink exists and resolves, rather than only counting files.
+`eval/tools/skill_layout_control.py` pins that gate red on all five ways the layout can break.
 
 | Skill | Use when | Authoritative file |
 |---|---|---|
@@ -74,8 +82,9 @@ contaminated a single-variable experiment. The reasoning, and what would re-open
 | `audit-docs` | after a session, or when a rule failed to prevent what it was written for | this file |
 | `tasks` | reading, claiming, closing or writing an item in the open-work queue | `tasks/` |
 | `prune` | a cleanup exploration pass — text or code that no longer earns its space | `CLEANUP-LOG.md`, this file |
-| `dispatch` | sending a queued task to an agent, and verifying and merging what comes back | `tasks/<id>`, `.claude/skills/work/SKILL.md` |
-| `work` | **you were dispatched to do one task.** Read the ticket, do it, hand back a branch | the ticket at `tasks/<id>-*.md` |
+| `dispatch` | sending a queued task to an agent, and verifying and merging the pull request that comes back | `tasks/<id>`, `.agents/skills/work/SKILL.md` |
+| `work` | **you were dispatched to do one task.** Read the ticket, do it, open a pull request, address the review, hand it back | the ticket at `tasks/<id>-*.md` |
+| `update-readme` | editing `README.md` — the result moved, a count went stale, a reference is bare, a reader could not follow it | `README.md`, this file |
 
 The usual order across one cycle is **`run-matrix` → `evaluate-run` → `refine`**, with
 `add-game` when the task set changes and `audit-docs` folded into `refine` or run alone.
@@ -106,7 +115,7 @@ work keeps happening rather than waiting to be asked for.
 | | fires | asks | measurement |
 |---|---|---|---|
 | **heartbeat** | hourly | *is new work happening?* verify the queue, merge finished task branches, pick the next item | `python3 eval/tools/heartbeat.py` |
-| **cleanup** | every 6 hours | *what no longer earns its space?* explore one area, record it, file tasks | `.claude/skills/prune/SKILL.md`, log in `CLEANUP-LOG.md` |
+| **cleanup** | every 6 hours | *what no longer earns its space?* explore one area, record it, file tasks | `.agents/skills/prune/SKILL.md`, log in `CLEANUP-LOG.md` |
 
 **The heartbeat** diffs `heartbeat.py`'s counts against the previous hour and prints what
 moved. It counts **outputs** (`judge_rounds`, `graded_submissions`) as well as source, because
@@ -235,7 +244,7 @@ Documentation defects found by the mechanical sweep, not by reading:
   an always-loaded document promised a gate nothing ran (task 77: a phantom path and two
   phantom criterion ids planted in `judge/JUDGING.md` both read exit 0, while a phantom
   aspect and a phantom `--flag` planted in the same place read exit 1). Run `--sweep` for
-  what it covers; `.claude/skills/audit-docs/SKILL.md` lists what it deliberately does not,
+  what it covers; `.agents/skills/audit-docs/SKILL.md` lists what it deliberately does not,
   and why each was removed rather than tuned until quiet.
 - Two files named `IMPROVEMENTS.md` in different directories, referenced from `FINDINGS.md`
   by name alone, and listed in no index. Now indexed above, and citations must use the path.
@@ -566,6 +575,17 @@ Two refinements that pattern does not cover:
 
     The tell is uniformity. **A census that returns one value across a population it exists to
     discriminate is reporting the instrument, not the population.**
+
+    **And the direction this rule fails in when it is followed: rule 12 is about one FACT at
+    one address. An EXPECTATION is not the fact — it is the second, independent statement of
+    it, and a control that imports its expectation from its subject is not a control.** A
+    control for `tasks.py note` built its expected bytes by calling `tasks.py`'s own
+    `_note_block`, which is exactly what the paragraph above asks for; the mutant that deletes
+    the newline separating an appended section from the body then came back **SURVIVED, 0 red
+    rows of 48**, because the mutant had edited the check (task 113). Where the two must be
+    kept in step, do it with a **row that compares them** — never by making them the same
+    object. A shared address is right for a path, a root and a commit id, and wrong for the
+    answer a check is asking for.
 
 13. **Guard the RESOURCE, and verify on the path that actually holds it.** Tasks #14/#15
     were marked complete having guarded the capture and test recipes — already offscreen,

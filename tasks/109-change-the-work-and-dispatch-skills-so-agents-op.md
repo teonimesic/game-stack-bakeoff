@@ -1,10 +1,12 @@
 ---
 id: 109
 title: Change the work and dispatch skills so agents open PRs and address a CodeRabbit review before handing back
-status: open
+status: in_testing
 priority: 2
 refs: BLOCKED BY tasks/108 - do not start until a real PR here has received a CodeRabbit review. .claude/skills/work/SKILL.md, .claude/skills/dispatch/SKILL.md, AGENTS.md
 done_when: work/SKILL.md and dispatch/SKILL.md describe the PR flow end to end including how an agent waits for a review, how it decides which recommendations to act on, and what it does when the review never arrives; the flow has been run end to end on at least one real task and the resulting PR is cited; and the failure modes are stated with what an agent does in each rather than left to be re-derived
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/2
+established_by: 'PR 2 on teonimesic/game-stack-bakeoff, opened by the procedure this branch adds: 2 review rounds, 9 actionable comments, 8 acted on, 1 declined twice with the measurement that 4 lines of that shape stand at the merge base and no ruff config or gate exists. tasks_control.py 50 measurements 0 FAILED 0 NOT CHECKED exit 0, including direction 7 which reads each transition back off disk and asserts heartbeat TASK_METRIC equals tasks STATUSES. tasks_mutants.py --selftest 12 mutants 0 survived, inert mutation SURVIVED, exit 0. tasks.py check exit 0 over the live shared queue, which still holds legacy open and in_flight values written by peers. Broken state established first: over a queue with 1 file in each of the 5 states the old heartbeat counted 3 of 5. Review detection pinned on merged PR 1 in both directions, true for the head it was reviewed at and false for 941e5f5 which was pushed and never reviewed.'
 ---
 
 The operator specified the flow on 2026-08-23: agents should pick up tasks, then submit PRs, then trigger CodeRabbit reviews, then address whatever CodeRabbit recommends, then submit it as ready to be merged for the orchestrator to verify and merge. Today agents hand back a raw branch and the orchestrator merges it with git merge --no-ff; no pull request is ever opened and nothing external reviews the work. The two skills are the only place this workflow is written down, so this is where it changes.
@@ -121,3 +123,155 @@ WHAT EACH OUTCOME MEANS
 - **The waiting step turns out to be unworkable** (no reliable way to know a review has finished)
   — that is a real finding about the design, not a failure. Record what you measured, and propose
   what the orchestrator does instead.
+
+## UNBLOCKED at dispatch, 2026-08-23 — task 108 landed and the review flow is proven
+
+`tasks/108` is **done and merged**. Everything below is measured on this repository, not assumed:
+
+| | |
+|---|---|
+| the CodeRabbit app | **already authorised** on `teonimesic/game-stack-bakeoff`, plan covers this private repo |
+| the first PR ever opened here | **#1**, merged |
+| acknowledgement | **31 seconds** after opening |
+| finished review | **119 seconds** after that |
+| review rounds on that one PR | **3**, producing **2 actionable comments, both true positives, 0 false positives** |
+| config in force | `.coderabbit.yaml` at the repo root, `profile: chill`, `review_details: true` |
+
+**Both true positives came through the two mechanisms the config sets up** — one from
+`code_guidelines.filePatterns`, one from a `**/*.md` path instruction. A default configuration
+would have had neither rule available, so the config is load-bearing rather than decorative.
+
+### Four things measured under 108 that change how you write the waiting step
+
+1. **Reviews arrive in roughly 150 seconds on a small diff.** That is the number to size a bounded
+   wait against — not a guess, and not an unbounded poll.
+2. **The rate limit is per REVIEW ROUND, not per push.** The plan allows 10 included reviews per
+   hour; the counter read **9, then 8, then 6** across 3 rounds on a single PR. **Read it from the
+   review body** rather than assuming one review per push. An agent that pushes ten times to
+   address comments can exhaust the hour on one ticket.
+3. **CodeRabbit AUTO-PAUSES reviews on a branch under active development.** PR #1 currently
+   carries: *"It looks like this branch is under active development... CodeRabbit has automatically
+   paused this review."* — with `@coderabbitai resume` and `@coderabbitai review` as the
+   commands. **This is the single most likely way the flow deadlocks**: an agent pushes fixes,
+   the reviews pause, and the agent waits forever for a review that will never come because it
+   was too productive. Handle it explicitly.
+4. **No GitHub API route answers "is the app authorised."** `/repos/../installation` → 401 (needs
+   an App JWT), `/repos/../hooks` → `[]` (Apps do not use repo webhooks), `/user/installations` →
+   403 with `gh`'s OAuth token. **Opening a PR is the only test.** Do not write a precondition
+   check the agent cannot perform.
+
+### The instrument defect 108's own agent hit, which your polling step will hit too
+
+Their poll script compared a **7-character sha** against the walkthrough's **5-character
+abbreviation** and reported "not reviewed" through 8 polls *after the review had landed*. Rule 12
+against their own instrument. **Whatever you write to detect "the review is done", prove it on a
+case whose answer you already know** — PR #1 is merged and reviewed, so it is available as exactly
+that fixture.
+
+### The merge path is now known to work
+
+PR #1 was merged with `gh pr merge 1 --merge --delete-branch` from the orchestrator side. Note it
+**failed to delete the local branch** because an agent worktree still held it — so the orchestrator
+step order is: remove the worktree, then delete the branch. Fold that into `dispatch/SKILL.md`.
+
+### Still true, and still the point
+
+The verification standard does not move. `dispatch/SKILL.md` says *verify against the artifacts,
+not against the report*, and a CodeRabbit review is **a second opinion on the code, not a
+measurement of the claim.** Say so in the skill. "It passed review" is precisely the shape this
+project calls a mechanism that runs and reports success.
+## DONE, 2026-08-23 — PR https://github.com/teonimesic/game-stack-bakeoff/pull/2
+
+Both halves landed together. The flow was run end to end on **this** ticket: the PR above is the
+second ever opened on this repository and the first opened by the procedure it adds.
+
+**Where the knowledge lives now, so nothing here has to be re-derived from a closed ticket:**
+`DECISIONS.md`, "An agent hands back a pull request, and the queue has 5 statuses", carries the
+decision table and what would re-open each row. `.claude/skills/work/SKILL.md` §6 carries the
+waiting step, the two deadlocks and the table of which recommendations to act on.
+`.claude/skills/dispatch/SKILL.md` §4 carries the merge path.
+
+**Three things measured here that correct or extend what `tasks/108` recorded:**
+
+1. **The address for "has this been reviewed" is the reviews API's full 40-character `commit_id`,
+   compared against `gh pr view --json headRefOid`.** No prose parsing, no abbreviation. Pinned
+   on merged PR #1 in both directions: `true` for `4f95b99...`, the head it was reviewed at, and
+   `false` for `941e5f5...`, the commit that was pushed and never reviewed.
+2. **The rate-limit counter `tasks/108` quoted is not a durable artifact.** Re-read on
+   2026-08-23, the text is nowhere in PR #1's stored reviews or issue comments — CodeRabbit edits
+   its summary comment in place. Anything sizing a parallel queue must bound review ROUNDS rather
+   than read a counter it cannot rely on finding.
+3. **The auto-pause notice is in the PR's ISSUE comments, not in its reviews.** Two different API
+   routes; a poll that only reads `/pulls/N/reviews` cannot see the pause that is stopping it.
+
+**The transition hazard, for whoever merges this.** New statuses reach the SHARED queue as soon
+as an agent writes one, while every unmerged worktree still runs the 3-value `tasks.py`. Until
+this branch is on `main`, `tasks.py check` run from the main checkout fails on this ticket's
+`in_review`. Merging is what closes it. The reverse case — a stale worktree writing `in_flight`
+into a migrated queue — is closed permanently by `LEGACY_STATUSES`, and the `legacy_dropped`
+mutant is what asks whether that row can still fail.
+
+### Review round 1 on PR #2, 2026-08-23 — 8 comments, 7 acted on, 1 declined with a measurement
+
+The flow's own first use is the evidence for it, so the numbers are here rather than only in the
+thread.
+
+**Timing, and it corrects the single figure `tasks/108` supplied.** PR #2 was created at
+15:23:12Z, acknowledged at 15:24:01Z (**49s**) and reviewed at 15:29:27Z (**6m 15s**) on a
+17-file, 615-insertion diff. `tasks/108`'s 2m 30s was a 2-file diff. **Review time scales with
+the diff**, so the 15-minute bound is 2.4x the slower case rather than the 6x it was written as,
+and the skill now carries both points instead of one.
+
+**What round 1 caught that the gates did not**, all true positives:
+
+| what | why it mattered |
+|---|---|
+| `$HEAD` empty after a failed `gh pr view` makes the poll answer `false` | `jq`'s `index("")` is `null` — measured. The loop would poll to its deadline reporting a review state inferred from a read that failed. AGENTS.md rule 2, in the code written to obey rule 12 |
+| `in_testing` was defined as *"finished and addressed its review"* | The skill's own timeout branch sets `in_testing` with no review. The definition contradicted the procedure 100 lines below it |
+| `40-byte commit_id` | SHA-1 is 20 bytes in 40 hex characters. Wrong in 2 live documents |
+| `in_testing` did not have to name a `pr` | `in_review` was gated and `in_testing` was not — the state that only REPORTS a pull request, and not the state the orchestrator MERGES from. Now `PR_REQUIRED`, with its own control row and the `pr_required_review_only` mutant, which narrows it back and must go red |
+| a task with no `status:` rendered as `todo` in the listing | `check` rejects it and `next` skips it, so the only view a person reads disagreed with both views a tool reads |
+
+**The one declined, with what decides it:** *"Ruff reports E702 on each of these lines. The added
+statements make `ruff check` fail."* The premise is false. `git show 16c75d2:eval/tools/tasks.py`
+has **4** lines of exactly that shape, one of them the 3-statement `done` parser this diff copied,
+so `ruff check` would already fail before this branch. There is no `pyproject.toml`, `ruff.toml`
+or `setup.cfg` in the tree and no gate in `AGENTS.md` or `eval/tools/` runs ruff. Declined in the
+thread with that measurement.
+
+**A third-party analyser inside the review is producing false positives by construction.**
+Every comment on a `.claude/skills/**` file carried SkillSpector `[AS3] Skill Enumeration:
+Skill enumerates or reads other installed skills`, on skills that point at each other because
+`AGENTS.md` requires them to. It generated no comments of its own, so `DECISIONS.md`'s reversal
+condition for `reviews.tools` — *if they show noise, disable the tool that produced it* — is
+arguably met and arguably not. Filed rather than changed here: `.coderabbit.yaml` is
+`tasks/108`'s artifact and changing review behaviour mid-flow is an uncontrolled variable.
+
+### Review round 2 on PR #2 — 1 new comment, and the shape of a re-post
+
+**2m 41s** on an 8-file diff (pushed `ce4a12c` 15:39:47Z, reviewed 15:42:28Z), which is the third
+point on the timing curve and consistent with the first two.
+
+The review header said *"Actionable comments posted: 1"*, and the API returned **4** comments
+attached to that head. The other 3 were round 1's carried forward unchanged — 2 I had acted on
+and 1 I had declined in the thread. **Read the header for the round's count and the comment set
+for the content; a comment attached to the new head is not necessarily a new finding.**
+
+The 1 genuinely new comment was a true positive and a good one: the merge block ran
+`gh pr merge --delete-branch` **above** the paragraph telling the orchestrator to remove the
+worktree first — the skill contradicted itself in six lines, reproducing the exact failure
+`tasks/108` recorded. The block now has worktree removal inside it, in order, with all 3
+orderings and what each one cost.
+
+**The `git commit -m` comment re-fired after being answered, and that is evidence about the
+rule, not about the reviewer.** The rule had been written as a FLAG — *use `-F`, not `-m`* —
+when its subject is the CONTENT: a fixed literal with no backticks cannot be altered by the
+shell, and composed prose containing paths and identifiers can. Restated as the property, which
+is AGENTS.md's own central rule about triggers, the contradiction disappears rather than being
+excused. A reviewer that keeps flagging correct code is spending the attention a real finding
+needs.
+
+**Held, twice, on the same measurement:** the `ruff` E702 comment. 4 lines of that shape stand at
+the merge base and no ruff configuration or gate exists in this tree. Adopting a linter is
+`tasks/110`'s subject; when it lands the file is reformatted whole, not in the 4 lines one diff
+touched.

@@ -4217,3 +4217,339 @@ A second stale claim surfaced in the same constant: both code briefs told the ju
 with a real file extension, but only one aspect blinds extensions. It cannot be fixed by printing
 the true suffix — one brief serves eight submissions from four stacks, so **any** real suffix names
 an arm. The example is now suffix-free.
+
+---
+
+## 146. Four gates check that a finding citation still means what it meant, and none checks that it means anything at all
+
+`docstat.py` has four questions about finding numbers. Do the bodies and the index agree
+(`--findings`). Does every live document state the same range. Did a number get reassigned since a
+citation was written (`--renumbered`). Has a retired figure been restated (`--withdrawn`).
+
+Every one of them is about a number that **exists**. Planted in a live document as a control:
+
+    A fabricated citation planted for a control (#999).
+
+`--sweep` **0**. `--findings` **0**. `--renumbered` **0**. The register is untouched, the range
+sentences still agree, the index still matches the bodies, and a reader following `(#999)` finds
+nothing at all.
+
+`--renumbered` is the one that looks like it should catch this, and it structurally cannot: it
+derives from **git renumber events**, so a number that never moved is invisible to it, and a
+number that never existed moved least of all.
+
+> **A citation gate that verifies provenance does not verify existence.** These are different
+> questions and the first one is much easier, which is why it got built. Landing a citation here
+> is worth exactly as much as the care of the person who read the destination.
+
+### The obvious repair is 18 false positives to 2 true, and that is the point
+
+Check every `#NN` in a live document against the published range. Measured over the 53 live
+markdown files: **20 rows, 2 true positives.** The other 18 are rule numbers (`rule #7`), task
+ids, table-row references, GitHub issue numbers and one *"the #1 risk"*. `#` before a number is
+not a finding citation in this repository; it is four other things as well.
+
+That is **#140's open-class trap in a new place** — the third measured instance today, after the
+aspect-census quantifier and the bare-flag trigger. The property being triggered on, *"a number
+preceded by a hash"*, is an open class, and an open-class trigger fires on correct input. **Do not
+build this check without measuring it first**, and if it is built, the closed class has to be
+something narrower than the hash — proximity to a findings word, or a deliberate citation syntax
+the documents adopt.
+
+The extraction was pinned in both directions before the count was believed: **20 clean, 21 with a
+plant, 20 after restore** (rule 12's corollary).
+
+### The two true positives are unrepairable, which is the cost
+
+`eval/RUNS.md` cites `#17` twice, below the published range of #19–#145, and **no finding #17
+exists**. It is not task 17 either — that ticket is about backing up `eval/runs`. Both lines were
+written in the initial squashed commit, so blame cannot recover what was meant.
+
+**They cannot be fixed by renumbering**, because `AGENTS.md` forbids renumbering a finding to
+satisfy a citation: the number in `eval/findings/` is published and the citation is what is wrong.
+And they cannot be fixed by reading, because the intended target is unknown. **A dangling citation
+found two months late is a permanent hole** — which is the argument for the check that the
+false-positive count says cannot yet be built, and the reason this finding records the tension
+rather than resolving it.
+
+---
+
+## 147. The positive control was built on a defect somebody was supposed to fix, so closing the defect broke the control — and the control said `ok` while it broke
+
+A mutant runner needs one mutation that **survives**. A harness that can only ever print `CAUGHT`
+is rule 1's `total=0 passed=0`: it cannot distinguish "every mutant is killed" from "the report
+only has one word in it". So `tasks_mutants.py --selftest` carried an **inert** mutation and
+asserted it comes back `SURVIVED`.
+
+The inert mutation chosen was `if warn:` → `if False:` in `cmd_check`. It was inert because it was
+a **real, measured gap**: `tasks.py` computed every reachability warning and printed none, and all
+34 control rows stayed green. That gap was filed as a ticket, which said in as many words that
+closing it would break the selftest *"loudly, with a message saying to pick another inert
+mutation"*.
+
+**It did not break loudly. It did not break at all.** With the end-to-end row added and the
+selftest untouched, it printed:
+
+    ok  the INERT mutation is reported as SURVIVED
+
+over a mutation that had just stopped being inert.
+
+### Why the guard could not fire
+
+`_cycle` decided `CAUGHT` by asking whether a row **whose name it enumerated** had gone red. The
+row that closed the gap has a different name, so the enumeration did not contain it, and the
+runner concluded nothing had been caught.
+
+**This is the rule audit's own lesson, landing on code instead of prose.** *A rule whose trigger
+is a list must be re-derived by every reader who meets an item not on the list* — and here the
+reader was a function, which cannot re-derive anything. `INERT` is a property of **the whole
+report**, not of a named subset of it, so the selftest now requires **zero red rows**. Controlled
+both ways: pointed at the non-inert mutation it now reports `CAUGHT` and returns 1 — the exact
+case where the old one said `ok` — and pointed at the shipped mutation it reports `SURVIVED` at
+0 red of 37 and returns 0.
+
+### The general form, and it is a rule about controls rather than about this tool
+
+> **Never build a positive control on a defect somebody is supposed to fix.** The control's
+> validity and the defect's existence are the same fact, so closing the defect silently invalidates
+> the control — and the repair then has to carry an unrelated fix, which is what this ticket cost.
+
+The replacement is a trailing comment appended to a constant. It changes no value, so **no
+behavioural row can ever go red on it and no future row can close it.** The line is chosen
+deliberately rather than arbitrarily: two other mutants mutate that same constant and both are
+caught, so `SURVIVED` here cannot be misread as *"nothing tests that line"*.
+
+### What the new row does not establish
+
+`_run_tool` merges stdout and stderr, so the end-to-end rows assert the warning is **reported**,
+not that it reaches stdout. A change routing it to stderr stays green. Deliberate — nothing reads
+this warning from a pipe — and recorded because it is exactly the variant these rows would miss.
+
+### An adjacent repair, found because no check can read a duration
+
+#141 retired *"for a day"* as the exposure of the misfiled-ticket defect; the true figure is
+**25m48s**. `tasks/93` records fixing it in one docstring. **Three more live copies survived** —
+`tasks.py`'s module docstring, `.claude/skills/tasks/SKILL.md`, and a comment in
+`tasks_mutants.py`. All three now state the measured figure and cite #141.
+
+**Nothing in the repository could have found them.** Every gate here reads numbers, ranges,
+identifiers and paths; a wrong *duration* written in words is invisible to all of them, which is
+the same blind spot that let a findings count spelled in words stand for eleven days.
+
+---
+
+## 148. A reversal condition can name an aggregate the protected party never observes, so satisfying it makes the protected property worse while looking exactly like progress
+
+A leak was declined and a **reversal condition** written for it: reopen the decision if a rewrite
+can be built whose redaction count is *comparable across the four arms*. The declined candidate
+was stack-correlated by construction — **godot 0, rust 43, ts 265, unity 228** — and an infinite
+ratio with one arm at zero is a redaction pattern that names an arm by how little it redacts.
+
+**That condition is satisfiable, and satisfying it makes the leak worse.**
+
+| candidate | godot | rust | ts | unity | per-arm ratio | arm at zero | **isolates a whole arm** |
+|---|---|---|---|---|---|---|---|
+| the declined one | 0 | 43 | 265 | 228 | ∞ | 8 of 9 | **6 of 9 fields** |
+| every starter directory | 271 | 102 | 830 | 273 | 8.9× | 0 of 9 | **9 of 9** |
+| vocabulary-free, every path component | 831 | 927 | 1701 | 668 | 2.8× | 0 of 9 | **9 of 9** |
+| the same, minus the bucket labels | 428 | 690 | 1021 | 668 | **2.1×** | **0 of 9** | **9 of 9** |
+
+The last row **passes the reversal condition outright** — no arm at zero, the tightest ratio
+available — and it is worse on every axis that matters. Per-field arm isolation goes from 6 of 9
+to **9 of 9** against a 7.1% chance baseline, at **2,807 redactions against 536**: 5.6:1
+collateral overall, 35:1 in Rust, and in Godot it removes 428 tokens carrying no arm signal at
+all.
+
+### Why the condition was the wrong quantity
+
+**Per-arm density is an aggregate over the corpus. A judge is shown one field of eight packs.** It
+never observes the corpus-wide figure and cannot be influenced by it. What it can see is how
+redacted each of the eight packs in front of it looks — which is a *per-field* quantity, and the
+condition never mentioned it.
+
+> **A reversal condition must name a quantity the protected party actually observes.** Otherwise
+> it can be driven to a better value by a change that degrades the thing it was written to
+> protect — and the improvement is real, measurable and in the direction the condition asked for,
+> which is what makes it hard to catch.
+
+This is rule 16 one level up. Rule 16 says an inert parameter is a question about the *quantity*
+it multiplies, not about the parameter. This says a **live** parameter can be the wrong quantity:
+moving it produces a genuine, verifiable improvement in the stated metric while the protected
+property gets worse. **A sweep would have shown the parameter acting.** Only asking *what does the
+judge see* shows it acting on the wrong thing.
+
+### The ticket's own table reproduced only under an unstated exclusion
+
+The published code-half figure of **536** requires `bin` to be excluded, and nothing said so. The
+shipped segment list has 19 entries including `bin`; swept with all 19 it reads
+**9/50/265/238 = 562**. The whole 26-hit gap is `bin`, and **19 of those 26 are `#!/usr/bin/env`
+shebangs** — which are not paths into a starter tree at all. The sibling detector keeps `bin`
+correctly, because there every row *is* a path. **The same segment means different things in two
+populations**, and a figure quoted without its exclusion list is not reproducible.
+
+### Rule 9 fired on the census itself
+
+Two stored fields produced byte-identical per-arm counts. They share **176 of 199 pack file
+blobs** under different labels, so no digest over pack names catches it — a repeated identical
+measurement across nominally independent subjects, reporting the instrument. The census now
+collapses fields on **shared content**, never on a run name.
+
+And a first attempt at the isolation metric was wrong in the flattering direction: sorting each
+field and counting contiguous arm blocks reported *"godot is the lowest pair in 10 of 10 fields"*.
+Three fields have four packs at zero, so that was `sorted`'s tie-breaking presented as a signal.
+**Ties must never count** in a metric about separation.
+
+---
+
+## 149. A deletion did not survive its own merge, because deleting a directory deletes the `.gitignore` that was hiding its build output — and nothing reads a tree for a claim a document makes about it
+
+`AGENTS.md` is always loaded and stated that four `template*/` trees were **deleted**. Five paths
+of them were tracked on `main`: an eslint cache, a 1.2 MB bundle, and a compiled analyzer with its
+`.deps.json` and `.pdb`.
+
+The obvious explanation — *the deletion pass missed files git was already tracking* — is **wrong**,
+and checking it against the artifacts is what found the real mechanism. The retirement commit
+tracks **0** paths under `template*/`. So does its other merge parent. **The merge carries 5, from
+neither parent.**
+
+> **Each tree carried its own `.gitignore`, so deleting the tree deleted the rules hiding its
+> build output.** A `git add -A` at merge time then saw an eslint cache, a bundle and a compiled
+> DLL *for the first time* and staged them.
+
+The removal and the loss of the guard land in **the same commit**. The re-add lands in the next
+one, where it reads as an unrelated new file rather than as a botched deletion — which is why it
+stood, in an always-loaded document, until somebody configuring a code reviewer noticed a binary
+being shipped to it.
+
+**The diagnosis changed the remedy.** For the stated cause, `git rm --cached` plus per-class rules
+would have been right. For the real one it is `git rm` plus a root ignore rule scoped to
+`template*/` — pinned in both directions: with the rule, replanted artefacts plus `git add -A`
+stages nothing; with only that line removed, the identical command **un-deletes all three**,
+reproducing the merge-time mechanism exactly. A general `**/bin/` rule was rejected on
+measurement rather than taste: it also matches two Rust *source* files under `src/bin/`.
+
+### The same defect, committed by the session that was writing this finding
+
+Hours later, an untracked `.agents/skills/` mirror appeared on disk from tooling outside the
+repository. It was inspected, and a deliberate decision was recorded **not** to delete it — the
+commit message says *"Left in place; deleting the operator's files is not this session's call."*
+
+**That same commit tracked all nine files**, because it was made with `git add -A`.
+
+The decision and its violation are the same commit, by the author who had just written the
+decision down. Nothing objected: the working tree was clean afterwards, every gate stayed green,
+and `--sweep`'s complaint about the mirror was identical before and after — because that check
+reads the **working tree**, where the files existed either way. **Tracked and untracked look the
+same to every check here.**
+
+> **`git add -A` stages a decision you did not make.** It is the mechanism in both halves of this
+> finding: once at a merge that re-added deleted build output, once in a commit whose own message
+> declined to touch the files it committed. Where a decision is *not to include* something, the
+> commit has to name what it includes.
+
+### What is not gated
+
+**No check compares a document's claim that a tree is deleted against the tree.** Both halves here
+were found by a person looking — one while configuring a reviewer, one because a dispatched agent
+reported a contradiction the orchestrator had asserted the opposite of an hour earlier. The
+ignore rule closes the recurrence path it names and no other; the general class stands open.
+
+---
+
+## 150. A control that builds its expectation from its subject cannot fail, and rule 12 is what talks you into writing one
+
+`AGENTS.md` rule 12 says: when a path, root or endpoint is spelled in two files, **assert them
+equal in code** — a comment promising they match is not a defence. It is one of the most-cited
+rules here.
+
+Applied to a control, it produces a control that cannot fail.
+
+A new `tasks.py note` subcommand appends a section to a ticket. Its control asserted the appended
+bytes. Building the expected suffix by calling the subject's own `_note_block()` is *exactly* what
+rule 12 asks for — one address for the format, no second copy to drift.
+
+Then the mutant that deletes the newline separating the new section from the body came back
+**SURVIVED, 0 red rows of 49**. The mutant had edited the check. Subject and expectation moved
+together, so no mutation of the format could ever be seen.
+
+> **Rule 12 is about one FACT at one address. An expectation is not a second copy of the fact —
+> it is the second, INDEPENDENT statement of it, and independence is the whole content of a
+> control.** Where a value is *derived*, share the address. Where a value is *asserted*, never.
+
+Repaired with a literal expected block and a regex written independently of the producer. The same
+mutant is now caught with 5 rows red. Rule 12 in `AGENTS.md` now carries the exception.
+
+This is the third control-shaped defect in two days and they form a set:
+
+| | what could not fail, and why |
+|---|---|
+| #147 | the positive control was built on a defect somebody was supposed to fix, so closing the defect invalidated it — and it printed `ok` while breaking |
+| this one | the control imported its expectation from its subject, so the mutant edited the check |
+| below | the mutant runner read row names from a lossy address, so red rows were invisible to it |
+
+### The same shape one layer out, latent rather than active
+
+The mutant runner decided which rows a mutant turned red by parsing its summary line with
+`^  FAIL (.+?): ` — non-greedy, so it stopped at a row name's **first** `": "`. Every row named
+`round trip: ...` arrived as five characters. Two new mutants each turned **7 rows red and both
+reported SURVIVED**.
+
+**No previously shipped mutant changes verdict**, because none of the seven names they are keyed
+on contains `": "`. So this had never fired — a latent fail-open channel that would have activated
+the first time somebody named a row with a colon in it, which is a formatting choice nobody would
+think of as a decision. Now reads the table rather than the summary.
+
+> A mutant runner that cannot see a red row reports `SURVIVED`, which is the one word that means
+> *your check has a hole*. **The failure mode of a mutation harness is to accuse the thing it was
+> built to defend.**
+
+---
+
+## 151. A status the queue could hold was counted by nothing, so a ticket entering review would have read as work disappearing
+
+The queue's status vocabulary grew from three values to five — `todo`, `in_progress`,
+`in_review`, `in_testing`, `done` — so the orchestrator can tell whose turn a ticket is.
+
+`heartbeat.py` is the hourly monitor that asks *is new work happening?* by diffing counts against
+the previous hour. It counted statuses from a **hardcoded dictionary of the three old names**.
+
+Measured before the repair, over a scratch queue holding one file in each of the five states:
+**it counted 3 of 5.** The other two were dropped silently — no error, no unknown bucket, no
+warning.
+
+> A ticket moving from `in_progress` to `in_review` would have decremented one counter and
+> incremented nothing. **The hour would have read as work disappearing** — and the monitor's own
+> documentation says "nothing moved" is a claim about the snapshot rather than about the world,
+> a warning written after three separate occasions when the counters sat still through real work.
+> This would have been the fourth, and the first where the snapshot was wrong by construction.
+
+The failure needed no bug. **A vocabulary was extended at one address and read at another**, which
+is `AGENTS.md` rule 12 with the two addresses in different files — and unlike a path, a status
+vocabulary gives no error when the reader's copy is short. It simply reports a smaller world.
+
+The repair is not a longer dictionary. The heartbeat's map is now **asserted equal to
+`tasks.STATUSES` on every run**, and an unrecognised value lands in an explicit `tasks_unknown`
+counter rather than nowhere. The counter reads 0 today; **it exists so that the next extension
+shows up as a number instead of as an absence.**
+
+### Two of the previous ticket's recorded facts did not survive re-measurement
+
+Both were recorded in good faith one task earlier, and both changed the design that depended on
+them:
+
+- **A per-hour review-quota counter, recorded as reading 9, then 8, then 6, is no longer anywhere
+  in the stored pull request.** The reviewer edits its summary comment in place, so the earlier
+  readings are gone rather than superseded. Anything built to read that number would have been
+  reading a value with no durable existence. The procedure now bounds review *rounds* itself.
+- **The auto-pause notice lives in the pull request's ISSUE comments, not its reviews.** A poll
+  reading only the reviews endpoint cannot see the notice that is stopping it — the deadlock and
+  the blindness to the deadlock are the same fact.
+
+> **A measurement taken from a mutable surface is not a measurement; it is a reading of the
+> surface at a moment.** Where a number is going to be depended on, record where it came from and
+> whether that place keeps history — because "I saw it" and "it is there" are different claims
+> about anything a third party can edit.
+
+And the timing bound was set from **three** points across two pull requests rather than one, which
+moved it: reviews scale with the diff, so a bound sized on the smallest observed diff would have
+been 6× too tight rather than the 2.4× margin it now carries.

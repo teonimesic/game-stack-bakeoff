@@ -33,18 +33,33 @@ not a mechanism:
     that contrast is the finding: a wrong address that misses makes an artifact the lint can
     see, and one that hits makes a well-formed one it cannot.
 
-THE FIVE DIRECTIONS
--------------------
+THE DIRECTIONS
+--------------
+There are seven. The heading counted five while `coverage_rows` had already made it six --
+a census with no producer, in the file whose job is to have one. It is not a cardinal any
+more: `python3 eval/tools/tasks_control.py` prints the row for every direction it ran.
+
 1. ROUND TRIP, byte for byte, over every file in the live shared queue. Not "the values
    survive" -- the BYTES. The value round-trip was green while `_render` was rewriting
    `id: 01` as `id: 1`, because the value was never wrong (see `_id_text`). An
    `established_by` string is a durable record of what established a result, and this is
    the only direction that proves a status change cannot quietly edit one.
 
-2. `add` FROM AN AGENT WORKTREE exits 0 and prints the created path. Run in a scratch
-   git repo with its own worktree, because the defect only exists where `TASKS` and `ROOT`
-   disagree -- and with the PRE-FIX copy of `tasks.py` as the positive control, since a
-   green row from a harness that cannot observe the failure is rule 1's `total=0 passed=0`.
+2. THE TWO WRITES A DISPATCHED AGENT MAKES FROM ITS OWN WORKTREE, `add` and `note`. Run in
+   a scratch git repo with its own worktree, because both defects only exist where `TASKS`
+   and `ROOT` disagree -- and each with the copy of `tasks.py` that PREDATES its repair as
+   the positive control, since a green row from a harness that cannot observe the failure
+   is rule 1's `total=0 passed=0`.
+
+   `add` exits 0 and prints the created path (#94, task 41). `note` appends a section to a
+   ticket BODY, and its central row is not "the values survived" but that the file
+   afterwards is the file before it PLUS the expected section and NOTHING else -- the ticket
+   an agent was briefed from is a durable record, and an append that quietly reflowed it
+   would be indistinguishable from one that did not. The expected bytes are stated HERE, in
+   `_expected_block`, and deliberately not imported from the subject: see that function for
+   the mutant that survived with 0 red rows when they were. Both refusals (unknown id, empty
+   note) assert the file is untouched, because a write that reports failure and a failure
+   that reports success are the two shapes rule 7 is about.
 
 3. `check` STILL FAILS on the three things it is there to catch: a duplicate id, a missing
    `done_when`, a bad status. Each is exercised on its own scratch queue, with a
@@ -54,6 +69,15 @@ THE FIVE DIRECTIONS
    an escape branch and still fire on the two originals, on a bare universal and on a bare
    threshold. Only direction 4b -- must still WARN -- keeps a repair from being a deletion.
 
+   4a and 4b call `reachability_warning` IN PROCESS, so between them they pin the PREDICATE
+   and never ask whether `check` REPORTS what the predicate returns. That gap was measured,
+   not suspected: replacing `if warn:` in `cmd_check` with `if False:` left `tasks.py`
+   computing every warning and printing none, and all 34 rows this file then had stayed
+   green -- exit 0, 0 FAILED (`tasks/106`). 4c runs `check` end to end on a scratch queue and
+   reads its STDOUT, in both directions: the warning text printed on an unreachable
+   done_when, and absent on a reachable one. Both rows also assert exit 0, because this is a
+   smell and not a gate; a repair that turned it into a failure would go red here.
+
 5. THE MISFILED-BODY CHECK, both ways, ON THE REAL BLOBS. `check` must fail on the actual
    `436bf64` pair naming both halves, and go quiet on the same two tickets as `28f6598`
    repaired them. `MISFILED_MARGIN` is pinned from BOTH sides -- the true positive at 0.36
@@ -61,6 +85,16 @@ THE FIVE DIRECTIONS
    brief, 0.14) must not -- so raising the threshold and lowering it are each visible.
    A mutant can only show the check CAN fail; the 0.14 row and the ten-task-ids row are
    what ask whether it can still PASS (AGENTS.md rule 15).
+
+6. #141's COVERAGE FIGURE, run rather than quoted -- how little of a task file the pre-fix
+   lint ever read. It is here because the figure was published wrong in both terms and had
+   no producer, so nothing in the repository could disagree with it.
+
+7. THE 5-VALUE STATUS VOCABULARY. `check` only ever asked whether a WRONG status fails; this
+   asks whether each transition WRITES the state it names, and whether `heartbeat.py` -- the
+   one other file that counts statuses -- covers exactly `STATUSES`. Its map was a hardcoded
+   3 keys that dropped the rest silently: over a queue with 1 file in each of the 5 states it
+   counted 3.
 
 THE CONTROLS DO NOT TOUCH THE SHARED QUEUE. `TASKS` is derived at import from
 `git worktree list`, and monkeypatching a module constant that has already been derived is
@@ -227,13 +261,15 @@ WORDINGS: list[tuple[str, bool, str]] = [
      "research/11-doc-linting-for-agents.md exists and names the tool it adopted"),
 ]
 
-_FM = "---\nid: {tid}\ntitle: {title}\nstatus: {status}\npriority: 3\nrefs: ''\n{dw}---\n{body}"
+_FM = ("---\nid: {tid}\ntitle: {title}\nstatus: {status}\npriority: 3\nrefs: ''\n"
+       "{extra}{dw}---\n{body}")
 
 
-def _task_file(tid: str, title: str = "a title", status: str = "open",
-               done_when: str | None = "something observable", body: str = "\nbody\n") -> str:
+def _task_file(tid: str, title: str = "a title", status: str = "todo",
+               done_when: str | None = "something observable", body: str = "\nbody\n",
+               extra: str = "") -> str:
     dw = "" if done_when is None else f"done_when: {done_when}\n"
-    return _FM.format(tid=tid, title=title, status=status, dw=dw, body=body)
+    return _FM.format(tid=tid, title=title, status=status, dw=dw, body=body, extra=extra)
 
 
 def _scratch_pair(tmp: Path) -> tuple[Path, Path]:
@@ -362,6 +398,220 @@ def _run_tool_git(*argv: str) -> tuple[int, str]:
     return p.returncode, (p.stdout if p.returncode == 0 else (p.stderr or "")).strip()
 
 
+# ------------------------------------------------------------------- direction 2, `note`
+#: The last commit before `note` existed, and direction 2's positive control for the rows
+#: below. That copy of `tasks.py` has no `note` subcommand at all -- `argparse` rejects the
+#: word and exits 2 -- so it MUST fail the same probe the current copy passes. Without it a
+#: green row here is rule 1's `total=0 passed=0`: a harness that cannot observe the absence
+#: of the capability proves nothing by reporting the capability.
+PRE_NOTE_COMMIT = "ea9f853"
+
+#: The ticket the note rows are appended to. A real body, because the property under test is
+#: that the body AS DISPATCHED survives an append byte for byte -- an empty stub would make
+#: "unchanged" vacuously true. Short enough that `misfiled_body` cannot reach it (its brief
+#: is four words, below `MISFILED_MIN_BRIEF`), so nothing else in `check` can colour a row.
+_NOTE_BODY = "\nthe brief exactly as it was dispatched, ending without a newline of its own"
+
+#: A note that cannot be passed as argv. Backticks are command substitution before `tasks.py`
+#: ever runs (#80) and a newline cannot survive a `done` evidence string at all -- which is
+#: precisely what tasks 105 and 106 had to work around. `-` is the channel that carries both.
+_NOTE_STDIN = (
+    "The starter recipe is wrong: `just build` calls `cargo build --offline`.\n"
+    "\n"
+    "- measured on 4 of 12 trials\n"
+    "- the next agent must not re-derive this\n")
+
+
+def _expected_block(text: str, heading: str) -> str:
+    """The bytes `note` is SUPPOSED to append. STATED HERE, deliberately not imported.
+
+    IMPORTING `tasks.py`'s OWN `_note_block` MADE THESE ROWS INCAPABLE OF FAILING, and that
+    was measured, not foreseen. The first version of this direction built its expected suffix
+    with `T._note_block`, which reads correctly -- one value at one address, AGENTS.md rule 12
+    -- and is wrong here for the opposite reason: the subject and the expectation moved
+    together. `tasks_mutants.py`'s `note_no_separator`, which deletes the leading newline that
+    separates the section from the body, came back SURVIVED with **0 red rows of 48**. The
+    check agreed with the mutant because the mutant had edited the check.
+
+    Rule 12 is about one FACT at one address. An expectation is not the fact; it is the
+    second, independent statement of it, and a control that imports its expectation from its
+    subject is not a control. Where the two must be kept in step, do it with a row that
+    compares them -- never by making them the same object.
+
+    `heading` is required rather than defaulting to today's date for a smaller reason with the
+    same shape: two `strftime` calls straddling midnight would make this disagree with the
+    subject over nothing. The DEFAULT heading is pinned separately, by a row that matches its
+    shape with a regex rather than by recomputing the date.
+    """
+    return f"\n## {heading}\n\n{text.strip()}\n"
+
+
+#: The default heading's shape -- `## note <ISO date>` -- and the blank line under it, with
+#: the leading newline that separates the section from whatever the body ended with. Written
+#: as a pattern here for `_expected_block`'s reason: it is the independent statement of the
+#: format, and it is what goes red if the separator or the date is dropped.
+_DEFAULT_BLOCK_RE = re.compile(r"^\n## note \d{4}-\d\d-\d\d\n\n(.*)\n$", re.S)
+
+
+def note_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
+    """Can a dispatched agent append what it learned to a ticket BODY, from its worktree,
+    without disturbing a byte of the ticket it was briefed from?
+
+    Every row runs the tool from the WORKTREE and reads the file in the MAIN checkout. That
+    asymmetry is the defect's address: `TASKS` and `ROOT` disagree only there, and a probe
+    run in the main checkout would pass on a `note` that wrote to the wrong queue entirely.
+    """
+    rows, unchecked = [], []
+    main, wt = _scratch_pair(tmp / "note")
+    target = main / "tasks" / "70-a.md"
+    original = _task_file("70", body=_NOTE_BODY)
+
+    def probe(src: Path, *argv: str, stdin: str | None = None,
+              reset: bool = True) -> tuple[int, str, str]:
+        shutil.copy(src, main / "eval/tools/tasks.py")
+        shutil.copy(src, wt / "eval/tools/tasks.py")
+        if reset:
+            target.write_text(original, encoding="utf-8")
+        p = subprocess.run([sys.executable, str(wt / "eval/tools/tasks.py"), *argv],
+                           capture_output=True, text=True, input=stdin)
+        return p.returncode, ((p.stdout or "") + (p.stderr or "")).strip(), target.read_text()
+
+    # THE POSITIVE CONTROL FIRST, for the same reason `add_rows` runs one: if the copy that
+    # predates the subcommand passes this harness, the harness is not exercising it.
+    if skip_prefix:
+        unchecked.append("`note` positive control NOT CHECKED - --skip-prefix was given. "
+                         "Nothing in the note rows shows this harness can observe the "
+                         "absence of the subcommand.")
+    else:
+        rc_g, blob = _run_tool_git("show", f"{PRE_NOTE_COMMIT}:eval/tools/tasks.py")
+        if rc_g != 0:
+            unchecked.append(f"`note` positive control NOT CHECKED - could not read "
+                             f"{PRE_NOTE_COMMIT}:eval/tools/tasks.py ({blob[:90]}). The "
+                             f"note rows below are unproven, not passing.")
+        else:
+            pre_py = tmp / "pre_note_tasks.py"
+            pre_py.write_text(blob if blob.endswith("\n") else blob + "\n")
+            rc, out, after = probe(pre_py, "note", "70", "anything at all")
+            rows.append((f"`note` CAN be reported missing ({PRE_NOTE_COMMIT} must exit "
+                         f"non-zero and write nothing)", rc,
+                         rc != 0 and after == original,
+                         f"exit {rc}, file unchanged: {after == original}; "
+                         f"{out.splitlines()[-1][:90] if out else ''}"))
+
+    # --- the capability itself, run from the worktree.
+    text = "what working this task established, in one line"
+    head = "note 2026-08-23, first pass"
+    expected = _expected_block(text, head)
+    rc, out, after = probe(TASKS_PY, "note", "70", text, "--heading", head)
+    printed = out.splitlines()[-1] if out else ""
+    rows.append(("`note` from a worktree exits 0 and prints the MAIN checkout's file", rc,
+                 rc == 0 and printed.startswith("appended ") and str(target) in printed,
+                 printed[:150]))
+    rows.append(("`note` wrote into the MAIN checkout's queue, not the worktree's", 0,
+                 after != original and not (wt / "tasks").exists(),
+                 f"main file grew by {len(after) - len(original)} bytes; worktree tasks/ "
+                 f"exists: {(wt / 'tasks').exists()}"))
+
+    # THE ROW THE TICKET ASKED FOR. Not "the values survived" and not "it still parses": the
+    # file afterwards is the file before it PLUS the expected section and NOTHING else.
+    rows.append(("the noted ticket is byte-identical plus exactly the section appended",
+                 len(expected), after == original + expected,
+                 "identical + block" if after == original + expected
+                 else f"DIFFERS: prefix intact={after.startswith(original)}; "
+                      f"suffix={after[len(original):][:70]!r}"))
+    # The weaker claim beside the stronger one, as direction 1 does, because they fail
+    # differently: a `note` that rewrote the frontmatter through `_render` would keep every
+    # value and break the row above, which is the whole reason the row above is the byte one.
+    rows.append(("`note` leaves every frontmatter value alone (the weaker claim, for "
+                 "contrast)", 0, _fm_values(after) == _fm_values(original),
+                 f"{_fm_values(original)} -> {_fm_values(after)}"))
+
+    # Stacking. A second note must not replace the first, and the first must still be there
+    # byte for byte -- otherwise "append" is a rewrite that happens to look like one.
+    first = after
+    expected2 = _expected_block("a second, later note", "note 2026-08-23, second pass")
+    rc2, _out2, after2 = probe(TASKS_PY, "note", "70", "a second, later note",
+                               "--heading", "note 2026-08-23, second pass", reset=False)
+    rows.append(("a second `note` stacks and the first section is untouched", rc2,
+                 rc2 == 0 and after2 == first + expected2,
+                 "stacked" if after2 == first + expected2
+                 else f"DIFFERS: {after2[len(first):][:70]!r}"))
+
+    # THE DEFAULT HEADING, which every real invocation will use. Matched by SHAPE rather than
+    # by recomputing today's date, so it cannot disagree with the subject over a clock -- and
+    # the pattern carries the leading newline, which is what separates the section from the
+    # body and what a mutant deleting it must go red on.
+    rc_d, _out_d, after_d = probe(TASKS_PY, "note", "70", text)
+    m_d = _DEFAULT_BLOCK_RE.match(after_d[len(original):])
+    rows.append(("the default heading is `## note <ISO date>`, separated from the body", rc_d,
+                 rc_d == 0 and after_d.startswith(original) and bool(m_d)
+                 and m_d.group(1) == text,
+                 f"suffix: {after_d[len(original):][:70]!r}"))
+
+    # THE SAME CLAIM ON A BODY THAT ENDS IN A NEWLINE, which is what every real queue file
+    # does. `_NOTE_BODY` deliberately does NOT, because that is the harder case for a leading
+    # separator -- and a separator right for one shape and wrong for the other would pass a
+    # probe that only ever fed it one. This is the variant half of rule 15: it asks whether
+    # the check can still PASS on an input a mutant cannot manufacture. It writes its own
+    # `original` rather than going through `probe`, which resets to the other shape.
+    original_nl = _task_file("70", body=_NOTE_BODY + "\n")
+    target.write_text(original_nl, encoding="utf-8")
+    p_nl = subprocess.run([sys.executable, str(wt / "eval/tools/tasks.py"),
+                           "note", "70", text, "--heading", head],
+                          capture_output=True, text=True)
+    after_nl = target.read_text()
+    rows.append(("the same, on a body that DOES end in a newline", p_nl.returncode,
+                 p_nl.returncode == 0 and after_nl == original_nl + expected,
+                 "identical + block" if after_nl == original_nl + expected
+                 else f"DIFFERS: {after_nl[len(original_nl):][:70]!r}"))
+
+    # `-`: the channel that carries what `established_by` cannot. This is the row that
+    # closes #80's half of the ticket, so it asserts the backtick and the newlines arrive.
+    rc3, _out3, after3 = probe(TASKS_PY, "note", "70", "-", "--heading", head,
+                               stdin=_NOTE_STDIN)
+    rows.append(("`note 70 -` carries backticks and newlines from stdin verbatim", rc3,
+                 rc3 == 0 and after3 == original + _expected_block(_NOTE_STDIN, head)
+                 and "`just build`" in after3,
+                 f"backtick present: {'`just build`' in after3}; "
+                 f"lines added: {after3.count(chr(10)) - original.count(chr(10))}"))
+
+    # The appended ticket must still pass the lint it is briefed through -- `check` reads
+    # bodies now, and an append that broke `_FM_RE` or the misfiled-body comparison would be
+    # a repair that costs the gate. Run in the MAIN checkout, where `check` reads the queue.
+    rc4, out4 = _run_tool(main / "eval/tools/tasks.py", "check")
+    rows.append(("`check` is still clean on a ticket that has been noted", rc4,
+                 rc4 == 0 and "well-formed" in out4,
+                 f"exit {rc4}: {out4.splitlines()[-1][:100] if out4 else '(none)'}"))
+
+    # --- both refusals. A write that reports failure and a failure that reports success are
+    # the two shapes rule 7 is about; these assert the file is untouched in each case.
+    rc5, out5, after5 = probe(TASKS_PY, "note", "99", "a note for a task that is not there")
+    rows.append(("`note` on an unknown id exits 1 and writes nothing", rc5,
+                 rc5 == 1 and after5 == original
+                 and len(list((main / "tasks").glob("*.md"))) == 1,
+                 f"exit {rc5}, file unchanged: {after5 == original}; "
+                 f"{out5.splitlines()[-1][:70] if out5 else ''}"))
+    rc6, out6, after6 = probe(TASKS_PY, "note", "70", "-", stdin="   \n\n  \n")
+    rows.append(("`note` refuses an empty note rather than writing a bare heading", rc6,
+                 rc6 == 1 and after6 == original,
+                 f"exit {rc6}, file unchanged: {after6 == original}; "
+                 f"{out6.splitlines()[-1][:70] if out6 else ''}"))
+    return rows, unchecked
+
+
+def _fm_values(text: str) -> dict:
+    """Every frontmatter value of a task file held as TEXT, for the contrast row above."""
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return {"(no frontmatter)": text[:40]}
+    import yaml
+    try:
+        fm = yaml.safe_load(m.group(1))
+    except Exception:                                           # noqa: BLE001
+        return {"(unparseable)": m.group(1)[:40]}
+    return {str(k): T._scalar(v) for k, v in (fm or {}).items()}
+
+
 # --------------------------------------------------------------------------- direction 3
 #: (name, files, must_fail, the phrase the failure must NAME).
 #:
@@ -377,6 +627,35 @@ CHECK_CASES: list[tuple[str, dict[str, str], bool, str]] = [
      {"70-a.md": _task_file("70", done_when=None)}, True, "no `done_when`"),
     ("bad status",
      {"70-a.md": _task_file("70", status="wip")}, True, "not in"),
+    # THE FIVE-VALUE VOCABULARY, BOTH DIRECTIONS. The rows above only ever asked whether a
+    # WRONG status fails; nothing asked whether a RIGHT one passes, so dropping a value from
+    # STATUSES would have left every row green. `in_review` carries its `pr` because `check`
+    # requires one -- the row below is what pins that requirement.
+    ("every one of the 5 statuses (the vocabulary can still go green)",
+     {"70-a.md": _task_file("70", status="todo"),
+      "71-b.md": _task_file("71", status="in_progress"),
+      "72-c.md": _task_file("72", status="in_review",
+                            extra="pr: https://github.com/o/r/pull/1\n"),
+      "73-d.md": _task_file("73", status="in_testing",
+                            extra="pr: https://github.com/o/r/pull/2\n"),
+      "74-e.md": _task_file("74", status="done")}, False, "well-formed"),
+    # The legacy names an agent forked before 2026-08-23 still writes into the SHARED queue.
+    # If this ever goes red, every peer's `check` is red on a file none of them touched.
+    ("legacy `open` and `in_flight` still lint clean (a stale worktree writes them)",
+     {"70-a.md": _task_file("70", status="open"),
+      "71-b.md": _task_file("71", status="in_flight")}, False, "well-formed"),
+    ("`in_review` with no `pr` (the state stops being a locator)",
+     {"70-a.md": _task_file("70", status="in_review")}, True, "no `pr`"),
+    # The state the orchestrator MERGES FROM, which is the one that matters more. Its own row,
+    # not a parametrisation of the one above, so narrowing PR_REQUIRED back to `in_review`
+    # alone -- the shipped-but-half-gated shape, not a deleted branch -- goes red.
+    ("`in_testing` with no `pr` (the orchestrator is told to merge nothing)",
+     {"70-a.md": _task_file("70", status="in_testing")}, True, "no `pr`"),
+    ("both PR states WITH a `pr` still lint clean (the requirement can be satisfied)",
+     {"70-a.md": _task_file("70", status="in_review",
+                            extra="pr: https://github.com/o/r/pull/1\n"),
+      "71-b.md": _task_file("71", status="in_testing",
+                            extra="pr: https://github.com/o/r/pull/2\n")}, False, "well-formed"),
     # Direction 5's degenerate half, exercised synthetically as well as on the real blob,
     # because it must hold for a task nobody ever wrote a body for -- not only for the one
     # 436bf64 produced. `_task_file`'s brief is four words, below MISFILED_MIN_BRIEF, so the
@@ -403,6 +682,59 @@ def check_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
 
 
 # --------------------------------------------------------------------------- direction 4
+def _wording(name: str) -> str:
+    """One `WORDINGS` row's done_when, BY NAME. Never a second copy of the text.
+
+    4c has to be pinned on the same wordings 4a/4b are, or the two halves of this direction
+    drift apart and each stays green on its own copy -- rule 12, one value at two addresses.
+    A missing name is a hard failure rather than a skipped row: a pin that silently stops
+    pointing at anything is the shape this whole file exists to catch.
+    """
+    for n, _must_warn, dw in WORDINGS:
+        if n == name:
+            return dw
+    raise SystemExit(f"WORDINGS has no row named {name!r}, which direction 4c is pinned on")
+
+
+def reachability_printed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """4c: does `check` PRINT what `reachability_warning` returns?
+
+    One task per scratch queue, so nothing else in `check` can be the reason a row is red:
+    a single ticket has no neighbour to lose a containment comparison against, and its body
+    is non-empty. `status: open`, because `cmd_check` skips `done` deliberately.
+    """
+    rows = []
+    # Two quiet rows, not one, and they are quiet for DIFFERENT reasons. The first carries no
+    # universal and no threshold, so the predicate never gets as far as looking for an escape
+    # branch; the second is a real done_when that carries both a universal AND an escape, so
+    # it is the only one of the three that can go red if the escape class is dropped. A
+    # negative control that cannot be made to fail is rule 1's `total=0 passed=0`, and
+    # `tasks_mutants.py` runs a mutant against each of these three rows.
+    cases = [
+        ("an UNREACHABLE done_when: the warning text is PRINTED", True,
+         _wording("universal, no escape at all")),
+        ("a done_when with no universal at all: nothing is printed", False,
+         _wording("plain artifact condition")),
+        ("a universal WITH an escape branch (task 32's real wording): nothing is printed",
+         False, _wording("32 real, escape says 'If no tool'")),
+    ]
+    for i, (label, must_print, dw) in enumerate(cases):
+        main, _ = _scratch_pair(tmp / f"warnprint{i}")
+        shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+        (main / "tasks" / "70-a.md").write_text(_task_file("70", done_when=dw))
+        rc, out = _run_tool(main / "eval/tools/tasks.py", "check")
+        # The HEADER and the per-task LINE, both. The header alone would survive a loop that
+        # printed a count and no warnings; the line alone would survive a message that named
+        # no task. `70:` is the id `check` must attribute it to.
+        printed = "reachability warning(s):" in out and "70: done_when says" in out
+        rows.append((f"`check` end to end on {label}", rc,
+                     rc == 0 and printed == must_print,
+                     f"want exit 0 and the warning "
+                     f"{'PRINTED' if must_print else 'ABSENT'}; got exit {rc}, "
+                     f"printed={printed}: {out.splitlines()[0][:90] if out else '(none)'}"))
+    return rows, []
+
+
 def reachability_rows() -> tuple[list[tuple], list[str]]:
     rows, unchecked = [], []
     for name, must_warn, dw in WORDINGS:
@@ -665,6 +997,77 @@ def coverage_rows() -> tuple[list[tuple], list[str]]:
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 7
+def status_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """The 5-value status vocabulary: its transitions, and the one other file that counts it.
+
+    `check_rows` asks whether `check` accepts and rejects the right values. This asks the two
+    questions `check` structurally cannot:
+
+    * do `start`, `review`, `testing` and `done` actually WRITE the state they name? A
+      subcommand wired to the wrong constant produces a queue that lints clean and reports the
+      wrong thing -- the shape this project calls a mechanism that runs and measures nothing.
+    * does `heartbeat.py` count all 5? Its map is a SECOND address for the vocabulary, and
+      rule 12 says two addresses are asserted equal in code. Before this, `_tasks` held a
+      hardcoded 3-key dict and dropped the rest: over a queue with 1 file in each of 5 states
+      it counted 3, so a ticket in review vanished from every counter.
+    """
+    rows, unchecked = [], []
+    main, _ = _scratch_pair(tmp / "status")
+    shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+    tool = main / "eval/tools/tasks.py"
+    (main / "tasks" / "70-a.md").write_text(_task_file("70"))
+
+    # Each transition, run through the real command line, then read back off disk. `review`
+    # and `testing` take an argument, so the row also proves the argument reaches the file.
+    for cmd, argv, want in (("start", (), "in_progress"),
+                            ("review", ("https://github.com/o/r/pull/9",), "in_review"),
+                            ("testing", ("a measurement, not the word completed",), "in_testing"),
+                            ("done", ("a measurement, not the word completed",), "done")):
+        rc, out = _run_tool(tool, cmd, "70", *argv)
+        text = (main / "tasks" / "70-a.md").read_text()
+        got = re.search(r"^status:\s*(\S+)", text, re.M)
+        rows.append((f"`{cmd}` writes status {want}", rc,
+                     rc == 0 and got is not None and got.group(1) == want,
+                     f"exit {rc}, file says {got.group(1) if got else '(none)'}; "
+                     f"{out.splitlines()[-1][:70] if out else ''}"))
+    rows.append(("`review` recorded the pull request in the ticket (the ticket -> PR link)", 0,
+                 "https://github.com/o/r/pull/9" in
+                 (main / "tasks" / "70-a.md").read_text(),
+                 "pr: present" if "pull/9" in (main / "tasks" / "70-a.md").read_text()
+                 else "PR URL NOT IN THE FILE"))
+
+    # The second address. Loaded by path, never by name, for `_load_subject`'s reason.
+    try:
+        HB = _load_module("heartbeat_for_status", TOOLS / "heartbeat.py")
+    except Exception as exc:                                    # noqa: BLE001
+        return rows, [f"heartbeat's status map NOT CHECKED - eval/tools/heartbeat.py did not "
+                      f"load ({type(exc).__name__}). A status counted by nothing is invisible "
+                      f"in exactly the way this row exists to prevent."]
+    rows.append(("heartbeat's TASK_METRIC covers EXACTLY tasks.py's STATUSES (rule 12)",
+                 len(HB.TASK_METRIC), tuple(HB.TASK_METRIC) == T.STATUSES,
+                 f"{tuple(HB.TASK_METRIC)} vs {T.STATUSES}"))
+    # And the count itself, on a queue whose true answer is stated in advance: 1 file per
+    # status plus 1 legacy alias per legacy name. Proving the extraction on a known case is
+    # what rule 12's corollary asks for -- the old code returned 3 here and looked fine.
+    hb_root = tmp / "hbqueue"
+    (hb_root / "tasks").mkdir(parents=True)
+    for i, st in enumerate(list(T.STATUSES) + list(T.LEGACY_STATUSES)):
+        (hb_root / "tasks" / f"{i}-x.md").write_text(f"---\nid: 0{i}\nstatus: {st}\n---\nb\n")
+    n_files = len(T.STATUSES) + len(T.LEGACY_STATUSES)
+    HB.ROOT = hb_root
+    counted = HB._tasks()
+    rows.append((f"heartbeat counts every file in a queue holding all {n_files} spellings",
+                 sum(counted.values()), sum(counted.values()) == n_files,
+                 f"{sum(counted.values())} of {n_files}: {counted}"))
+    rows.append(("heartbeat maps the legacy names onto the canonical states, not onto nothing",
+                 counted.get("todo", 0), counted.get("todo") == 2
+                 and counted.get("in_progress") == 2 and counted.get("") == 0,
+                 f"todo={counted.get('todo')} in_progress={counted.get('in_progress')} "
+                 f"unknown={counted.get('')}"))
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -696,10 +1099,13 @@ def main(argv: list[str]) -> int:
         tmp = Path(td)
         for fn in (lambda: roundtrip_rows(),
                    lambda: add_rows(tmp, a.skip_prefix),
+                   lambda: note_rows(tmp, a.skip_prefix),
                    lambda: check_rows(tmp),
                    lambda: reachability_rows(),
+                   lambda: reachability_printed_rows(tmp),
                    lambda: misfiled_rows(tmp),
-                   lambda: coverage_rows()):
+                   lambda: coverage_rows(),
+                   lambda: status_rows(tmp)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)

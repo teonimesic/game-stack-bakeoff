@@ -1,7 +1,7 @@
 ---
 id: 110
 title: Run the gates in GitHub Actions CI and in local pre-commit / pre-push hooks
-status: open
+status: in_progress
 priority: 2
 refs: .github/workflows/ (does not exist), .git/hooks/, eval/tools/docstat.py, eval/tools/tasks.py check, eval/tools/lint.py, the seven *_control.py files, tasks/108
 done_when: a GitHub Actions workflow runs on push and on pull request, goes GREEN on a clean tree and RED on a deliberately broken one with both runs linked in the report; local hooks exist with a documented install step and a documented bypass; the wall-clock cost of each hook is measured and stated; and any gate deliberately left out of CI is named with the reason
@@ -157,3 +157,47 @@ What this changes:
 the way that matters — the history contains every run, every cost figure and every finding. If the
 metered budget turns out to be the binding constraint, **say so and say what public would buy**;
 the operator decides.
+
+## What was built, and what the next agent must not re-derive — 2026-08-23
+
+Branch `task-110-ci-and-hooks`, PR
+https://github.com/teonimesic/game-stack-bakeoff/pull/3
+
+**`.github/workflows/README.md` is the register.** It holds the tier split, the measured cost
+of every gate, every gate deliberately left out with its reason, the run table for the
+control, and the minutes arithmetic. Read it rather than this section; this section says only
+what a future ticket needs.
+
+**Answers to the questions this ticket asked:**
+
+- The repository is **PRIVATE** and the **allowance could not be read**: `gh api
+  /users/teonimesic/settings/billing/actions` returns 404 and asks for the `user` token scope,
+  which the `gho_` token does not carry. The design is lean rather than sized, and the
+  arithmetic (~2200 min/month, same order as a Free-plan allowance) is in the register with
+  its assumptions. Making the repository public was NOT decided here.
+- **The lint decision:** CI gates `lint.py --gate --rule invalid-syntax` only. The full pinned
+  set stands at 64 findings. The syntax finding's ruff 0.16.4 code is `invalid-syntax`, NOT
+  `E999` — `--select E999` is rejected with exit 2.
+- **`lint.py`'s "clean baseline" claim was stale the same day it was written**: `PLW1510` and
+  `BLE001`, triaged to 0 on 2026-08-23, measured **10 and 1** hours later. `DECISIONS.md` is
+  corrected. Triaging those 11 sites is what would widen the CI lint gate.
+
+**Three things that cost time and should not cost it twice:**
+
+1. **A deliberate break that does not break is indistinguishable from a working gate.** The
+   first red control run came out GREEN (run `32649595405`). The planted phantom flag went
+   into `.github/workflows/README.md`, and `docstat`'s inline-flag half only inspects a
+   document matching `(wholegame|runner|judge/|evaluate|regrade)\.py` — that file matches it
+   0 times, the root `README.md` 8. **Verify a break is red locally before pushing it.**
+2. **`docstat`'s `_DELIBERATELY_FAKE` exempts any line containing `phantom`, `plant`, `does
+   not exist` or `do not name them`.** A control flag named `--phantomflag` silently exempts
+   its own line. Use a neutral name; `--zzqflag` works.
+3. **Two controls had undeclared external dependencies that only a clean machine reveals**:
+   `judge/bot_mutants.py` needs `just` (its fixtures are pure Python; `just` is only the
+   recipe runner) and `judge/audio_selftest.py` needs `ffmpeg`. Both exit 2 rather than
+   reporting an empty population, which is why CI found them instead of passing over them.
+
+**Not done, deliberately:** the hooks are NOT installed. `git config core.hooksPath .githooks`
+is shared git config and arms every concurrent agent worktree at once, and `docstat --sweep`
+was red on `main` at the time of writing (nine `.agents/skills/**` files, task 114 in flight),
+so installing pre-push before 114 lands means `--no-verify` on every push.

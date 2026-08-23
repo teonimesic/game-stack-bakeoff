@@ -231,3 +231,62 @@ is a real constraint on a parallel queue and `tasks/109` should account for it.
 
 Filed while here: `tasks/111` — `AGENTS.md` says `template*/` is deleted, and 5 files of it are
 still tracked on `main`.
+
+## WHAT 3 REVIEW ROUNDS MEASURED, added after the first append
+
+The PR ran to 4 commits and 3 review rounds. **2 actionable comments, both true positives, 0
+false positives** — and the 2 arrived through the 2 different mechanisms this config sets up:
+
+| round | head | comments | source it cited | what it caught |
+|---|---|---|---|---|
+| 1 | `dbb1299` | 1 | `Coding guidelines` | `DECISIONS.md` spelling counts as words against the digits rule |
+| 2 | `5df349a` | 0 | — | *No actionable comments were generated* |
+| 3 | `c7d4c34` | 1 | `Path instructions` | `README.md` saying the config "drops the archives" when `tasks/` is an archive it deliberately keeps |
+
+The second comment, quoted:
+
+> _🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_
+>
+> **Clarify that only excluded archive paths are dropped.**
+>
+> `tasks/` is an archive, but `.coderabbit.yaml` deliberately keeps it reviewable. Replace
+> "drops the archives" with "drops the excluded archive paths" to match `DECISIONS.md`.
+>
+> As per path instructions, this comment addresses a false statement in the live Markdown
+> document.
+>
+> _Source: Path instructions_
+
+**Both of the useful comments came from rules this repository supplied.** A default
+configuration would have had neither: the digits rule is in `AGENTS.md` and reached the reviewer
+through `code_guidelines.filePatterns`; the *only-when-FALSE* rule is the `**/*.md` path
+instruction. That is the argument for spending effort on the config rather than accepting
+defaults, and it is now evidence rather than an argument.
+
+**Rate limit, for `tasks/109`.** The plan allows **10 included reviews per hour** and every round
+prints what remains. Across 3 rounds on this 1 pull request the counter read **9, then 8, then
+6** — 4 of the hour's 10 spent on 1 PR, with the third round consuming 2. **The cost is per
+review round, not per pull request, and it is not 1 per push.** Anything that sizes a parallel
+queue should read the counter out of the review body rather than assume a rate.
+
+**A defect in this session's own instrument, worth not repeating.** The script waiting for the
+head commit to be reviewed compared a **7-character** sha against the walkthrough's
+**5-character** abbreviation, so it reported "not yet reviewed" through 8 consecutive polls after
+the review had landed. Rule 12 — the address is an input to the check — against a poll loop.
+
+Final head of the branch is `941e5f5`; the last commit is the fix for round 3 and has not itself
+been reviewed.
+
+## FINAL STATE
+
+`main` moved under the branch while PR #1 was being reviewed (tasks 102, 104 and 107 merged; task
+107 rewrote `README.md` from 643 lines to 281). The PR read `mergeable=CONFLICTING` in
+`DECISIONS.md` and `README.md`, both files this branch had edited, so `origin/main` was merged in
+and the conflicts resolved: both sides had appended a new section and new reversal-condition rows
+in the same place, and the README row was re-added in the tighter style the rewrite established.
+The population counts were re-read rather than carried over — **673** tracked files, **173**
+markdown, **117** python.
+
+Branch head **4f95b99**, pushed. PR #1 now reads **mergeable=MERGEABLE, CLEAN**, is **open and
+unmerged**, and is the orchestrator's to merge. `docstat.py --sweep` exit 0 and `tasks.py check`
+exit 0 against the merged tree.

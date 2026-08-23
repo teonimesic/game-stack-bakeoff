@@ -362,7 +362,7 @@ after it — so promoting it would lower every score in the group by the same am
 separate nothing (#128).
 
 **The traversal loop was repaired anyway, and reading its FRACTION was the free pre-test
-the harder-task decision was gated behind (task 83, `DECISIONS.md`).** `_stage` was a
+the harder-task decision was gated behind (#139; task 83, `DECISIONS.md`).** `_stage` was a
 fourth copy of "walk right" that task 76's unification did not reach: it pressed
 `move_right` every tick, jumped only after being stuck for 12, and never attacked. It now
 walks toward `goal_x` through `_walk_toward`, stands off at swinging range and attacks
@@ -377,7 +377,7 @@ Each step was measured on all eight work trees:
 | + stand off at 26 to swing | 0.143 – 0.510 | `_combat`'s own reach |
 | **+ hold jump while rising** | **0.274 – 0.803** | the rest of the jump arc |
 
-**The single biggest defect was the length of the key press, not the logic.** A
+**The single biggest defect was the length of the key press, not the logic** (#139). A
 variable-height jump answers *how long the control is held*; a one-tick press reaches
 29.0 to 88.4 units across the eight submissions and holding reaches 93.5 to 141.8, against
 a widest gap in any of the eight levels of 110. So no level was uncrossable and every one
@@ -389,8 +389,8 @@ of them stopped the bot.
 bar. And the ordering is not the submissions': Spearman ρ between the shipped bot's
 ranking of the eight and the repaired bot's is **0.405**, exact permutation p = 0.163.
 **Improving the instrument reordered the field**, which is what a scalar reporting the
-instrument looks like. To promote it, the three awkward reference levels above **and** a
-bot that does not die of attrition on 8 of 8 real submissions.
+instrument looks like (#139). To promote it, the three awkward reference levels above
+**and** a bot that does not die of attrition on 8 of 8 real submissions.
 
 **`platform.lands` was repaired after `wg-g4c`, for the same reason one level down.** It
 walked off the opening ledge and asserted a landing, which requires a floor to be under
@@ -427,7 +427,7 @@ the earlier repairs, the one exception being `unity__t0`'s `knockback.applied`, 
 for the separate reason in #89. The repair matters for the next gapped submission.
 
 **That "crosses a gap" was crossing the SMALLEST gap the submission would allow, and
-nothing said so** (task 83). `_walk_toward` presses `jump` on one tick and the character is
+nothing said so** (#139, task 83). `_walk_toward` presses `jump` on one tick and the character is
 airborne on the next, so the guard never re-fires — and eight of eight `wg-g4c` submissions
 implement a variable-height jump, where the arc is a function of how long the control is
 held. Measured on all eight: a one-tick press reaches **29.0 to 88.4** units, holding

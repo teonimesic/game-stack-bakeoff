@@ -1264,9 +1264,12 @@ are declined deliberately: ESM's namespace object is spelled like a path and nam
 were paths — `public` is the C# access modifier 1,129 times. `CHANGED.txt` is now rebuilt from
 the pack's own origin → label manifest under `blind_language`, so it reads ` sim/01.src | 42 ++--`:
 **330 arm-naming directory segments to 0** on a rebuild of `wg-g4c`'s field, with the other 199
-files of the pack byte-identical. The code half stays open, and the measurement that declined a
-vocabulary rewrite for it is in `tasks/103`. **No stored round is repaired by this** — every
-`architecture` round on disk read a `CHANGED.txt` listing the real authored tree.
+files of the pack byte-identical. **The code half is now closed as unrepairable, not open**: four
+candidate rewrites were measured and every one lets a strict threshold on a single pack's
+redaction count name a whole arm — 6 of 9 stored fields for a starter-derived vocabulary, 9 of 9
+for each vocabulary-free alternative, against 7.1% by chance (`DECISIONS.md`, `tasks/103`;
+`judge/blind_dir_selftest.py --runs-root` re-derives it). **No stored round is repaired by this**
+— every `architecture` round on disk read a `CHANGED.txt` listing the real authored tree.
 
 **Repair 3 changed the number by two orders of magnitude in interpretation.** "The judges
 fabricate their evidence, 15 of 16" is, correctly split, **1 unlocatable claim in 80**.
