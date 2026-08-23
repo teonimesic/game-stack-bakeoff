@@ -28,6 +28,8 @@ Usage, from eval/:
     python3 tools/docstat.py                    # size + structure of project docs
     python3 tools/docstat.py --outline FILE     # fence-aware heading map of one file
     python3 tools/docstat.py --sweep            # names in docs that do not resolve
+    python3 tools/docstat.py --findings         # THE PRODUCER for any count of the log
+    python3 tools/docstat.py --findings --json  # ... machine-readable
     python3 tools/docstat.py --renumbered       # citations of a finding that was renumbered
     python3 tools/docstat.py --renumbered --at REV   # ... as of any revision
     python3 tools/docstat.py --withdrawn        # live docs restating a retired figure
@@ -40,6 +42,14 @@ figure RESOLVES and every copy of it AGREES - propagation and consistency are th
 observation (#113). The register is `eval/withdrawn.json`, the rule is in
 `_check_withdrawal_register`, and its controls are `tools/withdrawn_control.py`.
 
+A FOURTH, added 2026-08-23. QUANTITY: how many findings are there, and does every live
+document say so? `README.md` said "Thirty-seven numbered findings" over a log that had
+reached #131 — past a range gate that was green, because a range is not a count and
+`#19-#131` is equally true of 113 findings and of 40. `--findings` is the producer, it reads
+`eval/findings/` and `eval/FINDINGS.md` independently, and `_findings_census_pins` proves it
+disagrees when a finding is added, renumbered or duplicated — and still agrees when one is
+added correctly.
+
 Exit code is 1 if --sweep finds anything unresolved, so it can gate a commit.
 `--renumbered` never gates: it is a smell detector, and its second half is explicitly
 undecidable. See `_check_renumbered_citations` for which half is which. `--withdrawn` DOES
@@ -51,6 +61,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime as _dt
 import glob
 import json
 import os
@@ -589,17 +600,17 @@ def _check_index(itext: str, body: set[int]) -> list[str]:
     """
     problems: list[str] = []
     rows = _index_rows(itext)
-    indexed = {n for _, n in rows}
-    for n in sorted(body - indexed):
-        problems.append(f"finding #{n} has a body but no row in eval/FINDINGS.md - it "
-                        f"is uncitable, which is how a finding becomes invisible")
-    for n in sorted(indexed - body):
-        problems.append(f"eval/FINDINGS.md indexes #{n} but no body defines it")
 
-    # The two set differences above cannot see a number indexed TWICE - a set collapses it,
-    # both differences come back empty, and both rows resolve. Only counting does, which is
-    # why the row count is asserted rather than inferred from the reconciliation. With the
-    # sets equal, this is exactly `len(rows) == len(body)`.
+    # THE SET RECONCILIATION IS NOT HERE ANY MORE, and its move is the only reason to trust
+    # either half. `findings_census` needs the same two set differences to produce a count,
+    # so for one afternoon this repository had two implementations of "is the index the same
+    # set as the bodies" - one gating, one producing. `findings_control.py --mutate
+    # no_count_check` deleted one of them and all ten controls still passed. A duplicated
+    # mechanism buys you half a gate and no way to tell which half you removed.
+    #
+    # What stays here is what a SET cannot express: a number indexed TWICE. A set collapses
+    # it, both differences come back empty, both rows resolve, and only counting sees it -
+    # and the line numbers are what a person needs in order to delete the right row.
     counts = collections.Counter(n for _, n in rows)
     for n in sorted(n for n, c in counts.items() if c > 1):
         at = ", ".join(str(ln) for ln, x in rows if x == n)
@@ -608,10 +619,10 @@ def _check_index(itext: str, body: set[int]) -> list[str]:
                         f"reader following the first row may land on a different entry "
                         f"than one following the second")
 
-    # The stated range is NOT checked here. It used to be, for eval/FINDINGS.md only, which
-    # is how AGENTS.md and README.md carried `#19-#110` for a day after the index was
-    # repaired. `_check_stated_range` now asks it of all three live statements at once, with
-    # a line number - and a second phrasing of the same fact here would report it twice.
+    # The stated range is not checked here either, for the same reason and an older one: it
+    # used to be, for eval/FINDINGS.md alone, which is how AGENTS.md and README.md carried
+    # `#19-#110` for a day after the index was repaired. `findings_census` asks it of all
+    # three live statements at once, with line numbers.
     return problems + _check_index_renders_as_one_table(itext)
 
 
@@ -664,18 +675,33 @@ def _check_range_in(rel: str, text: str, highest: int) -> list[str]:
     return problems
 
 
-def _check_stated_range(highest: int) -> list[str]:
-    """Every live statement of where the findings log ends must name the same number."""
-    problems = []
-    for rel in RANGE_DOCS:
-        p = os.path.join(ROOT, rel)
-        if not os.path.exists(p):
-            problems.append(f"{rel} is named as a place the findings range is stated, but "
-                            f"it does not exist at {p} - this check ran over nothing")
-            continue
-        text = open(p, encoding="utf-8", errors="replace").read()
-        problems += _check_range_in(rel, text, highest)
-    return problems
+#: A finding's body heading. Two styles are in the archive and both are live:
+#: `## #19 - the failure mode ...` and `## 26. The judge's only measured signal ...`.
+_BODY_HEADING_RX = re.compile(r"^##\s+#?(\d+)[.\s]")
+
+
+def _body_findings(fdir: str) -> dict[int, list[str]]:
+    """{finding number: [file, ...]} for every `## #NN` heading in `fdir`/*.md.
+
+    Fence-aware for the reason in this module's docstring: a GDScript doc-comment inside a
+    ``` block starts with `##` and once read as a malformed finding heading.
+
+    One extractor, two readers -- `_check_findings_integrity` (the gate) and
+    `findings_census` (the producer). They were written apart and would have drifted apart;
+    a count and the gate over it disagreeing about what a finding IS is the failure the
+    producer exists to prevent.
+    """
+    seen: dict[int, list[str]] = collections.defaultdict(list)
+    for p in sorted(glob.glob(os.path.join(fdir, "*.md"))):
+        lines = open(p, encoding="utf-8", errors="replace").read().split("\n")
+        fenced = _fence_mask(lines)
+        for i, ln in enumerate(lines):
+            if fenced[i]:
+                continue
+            m = _BODY_HEADING_RX.match(ln)
+            if m:
+                seen[int(m.group(1))].append(os.path.basename(p))
+    return dict(seen)
 
 
 def _check_findings_integrity() -> list[str]:
@@ -697,11 +723,12 @@ def _check_findings_integrity() -> list[str]:
     them resolves to two different pieces of work, and nothing downstream can tell which one
     an author meant.
 
-    Four questions, all cheap:
+    Five questions, all cheap:
       1. does any number appear twice in the bodies?
       2. is every body finding present in the FINDINGS.md index, and vice versa?
       3. does every LIVE statement of the range - three files - match the highest number?
       4. does the index still render as ONE table?
+      5. does every LIVE statement of the COUNT match how many there are?
 
     (3) matters because that sentence is what a reader trusts to know where the log ends,
     and it is edited by hand in three files. It has been wrong before, in two of the three:
@@ -711,39 +738,290 @@ def _check_findings_integrity() -> list[str]:
     (4) is the one the other three cannot see. 1-3 read the index as a SET of numbers, and a
     set is identical whether or not a blank line has split the rows into two tables — see
     `_check_index_renders_as_one_table` for the split that stood undetected.
+
+    (5) is the one 1-4 cannot see either, and for the same kind of reason: they are all
+    about the RANGE, and a range is not a count. `#19-#131` is equally true of 113 findings
+    and of 40. `findings_census` asks it, and `--findings` prints what it counted.
+
+    THE GATE AND THE PRODUCER ARE ONE FUNCTION. Questions 1, 2, 3 and 5 are exactly
+    `findings_census(...)["disagreements"]`; this wrapper adds only what the census does not
+    express - the index's structure (4) and which LINES an over-indexed number sits on. The
+    first draft implemented 1, 2 and 3 here and again in the census, and
+    `findings_control.py --mutate no_count_check` proved what that costs: it deleted one
+    copy and all ten controls stayed green.
     """
-    problems: list[str] = []
-    fdir = os.path.join(ROOT, "eval", "findings")
-    if not os.path.isdir(fdir):
-        return [f"findings directory not found at {fdir} - this check ran over nothing"]
+    try:
+        c = read_findings_census()
+    except FileNotFoundError as exc:
+        return [f"{exc} - this check ran over nothing"]
 
-    seen: dict[int, list[str]] = collections.defaultdict(list)
-    for p in sorted(glob.glob(os.path.join(fdir, "*.md"))):
-        text = open(p, encoding="utf-8", errors="replace").read()
-        lines = text.split("\n")
-        fenced = _fence_mask(lines)
-        for i, ln in enumerate(lines):
-            if fenced[i]:
-                continue
-            m = re.match(r"^##\s+#?(\d+)[.\s]", ln)
-            if m:
-                seen[int(m.group(1))].append(os.path.basename(p))
-    if not seen:
-        return ["no findings parsed from eval/findings/ - the heading pattern has changed "
-                "and this check is reading nothing (two styles exist: '## #19 -' and '## 26.')"]
-
-    for num, files in sorted(seen.items()):
-        if len(files) > 1:
-            problems.append(
-                f"finding #{num} is defined {len(files)} times ({', '.join(files)}) - a "
-                f"citation to it resolves to more than one piece of work. Renumber the "
-                f"later one; see #94 for why this keeps happening.")
-
+    problems = list(c["disagreements"])
     index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
-    if os.path.exists(index_path):
-        itext = open(index_path, encoding="utf-8", errors="replace").read()
-        problems += _check_index(itext, set(seen))
-    return problems + _check_stated_range(max(seen))
+    itext = open(index_path, encoding="utf-8", errors="replace").read()
+    return problems + _check_index(itext, set(_body_findings(
+        os.path.join(ROOT, "eval", "findings"))))
+
+
+# --------------------------------------------------------------- the findings producer
+#
+# WHY A COUNT OF THE FINDINGS LOG NEEDS A PRODUCER AT ALL
+# -------------------------------------------------------
+# `README.md` opened its "one thing this project actually learned" section with "Thirty-seven
+# numbered findings" from 2026-08-12 until 2026-08-23, while the log ran to #131. Nothing in
+# the repository produced that 37, so nothing could disagree with it -- the exact shape
+# AGENTS.md names: a count with a producer goes stale for an hour; a count with none goes
+# stale forever.
+#
+# The range sentence (`Findings #19-#131`) already had a gate, added by task 59. A range is
+# not a count: #19-#131 is consistent with any number of findings between 1 and 113, and the
+# range gate is green on a log with half its entries missing. This asks the other question.
+#
+# TWO SOURCES, DELIBERATELY. `eval/findings/*.md` holds the bodies; `eval/FINDINGS.md` holds
+# the index rows. Counting one and reporting it as "the findings" is how #127 happened one
+# directory over -- a census certified by a cross-check that shared its extractor. Here the
+# two are counted independently and their disagreement IS the output.
+
+#: "Thirty-seven numbered findings" -- a cardinal spelled in words. It is not that words are
+#: wrong; it is that no check can read one, which is why this particular figure outlived
+#: eleven merges. Digits are gated against the producer, words are reported as ungateable.
+_COUNT_WORD_RX = re.compile(
+    r"\b((?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:-\w+)?|"
+    r"one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|"
+    r"fifteen|sixteen|seventeen|eighteen|nineteen|hundred)\s+numbered findings\b", re.I)
+_COUNT_DIGIT_RX = re.compile(r"\b(\d+)\s+numbered findings\b")
+
+
+def _stated_counts(rel: str, text: str, count: int) -> list[str]:
+    """One live document's statement of HOW MANY findings there are, as a function of TEXT.
+
+    Pure, like `_check_range_in`, so the pins feed it a mutated copy rather than editing a
+    live instruction document to prove the gate works.
+
+    The word form is reported rather than tolerated. A gate that only reads digits is a gate
+    the next stale count can walk straight past by being written out in full -- which is not
+    hypothetical, it is what the one instance in this repository did.
+    """
+    problems = []
+    lines = text.split("\n")
+    fenced = _fence_mask(lines)
+    for i, ln in enumerate(lines):
+        if fenced[i]:
+            continue
+        for m in _COUNT_DIGIT_RX.finditer(ln):
+            if int(m.group(1)) != count:
+                problems.append(
+                    f"{rel}:{i + 1} says there are {m.group(1)} numbered findings; "
+                    f"eval/findings/ holds {count}. Produce it with "
+                    f"`python3 eval/tools/docstat.py --findings` rather than editing the "
+                    f"digit, and check the range sentence in the same pass.")
+        m = _COUNT_WORD_RX.search(ln)
+        if m:
+            problems.append(
+                f"{rel}:{i + 1} states a findings count in words (`{m.group(1)}`). No check "
+                f"can compare a cardinal it cannot parse, which is why `Thirty-seven` "
+                f"survived to #131. Write it in digits, beside its producer.")
+    return problems
+
+
+def findings_census(bodies: dict[int, list[str]], index_text: str,
+                    stated: dict[str, str], corpus_files: list[str] | None = None) -> dict:
+    """How many numbered findings exist, from both sources, and where the two disagree.
+
+    A FUNCTION OF ITS INPUTS, for the same reason `_check_index` is: the pins hand it a
+    mutated copy in memory, so proving that the producer notices an added or renumbered
+    finding never writes to the archive.
+
+    `bodies` is `{number: [file, ...]}` from `eval/findings/`; `index_text` is
+    `eval/FINDINGS.md`; `stated` is `{relative path: text}` for the live documents that
+    quote the figure. Every disagreement is a string, and the caller's exit code is
+    `bool(disagreements)`.
+    """
+    rows = _index_rows(index_text)
+    indexed = collections.Counter(n for _, n in rows)
+    with_findings = {f for fs in bodies.values() for f in fs}
+    numbers = sorted(bodies)
+    lo, hi = (numbers[0], numbers[-1]) if numbers else (0, 0)
+    gaps = [n for n in range(lo, hi + 1) if n not in bodies] if numbers else []
+    count = len(bodies)
+
+    disagreements: list[str] = []
+    for num in sorted(n for n, f in bodies.items() if len(f) > 1):
+        disagreements.append(
+            f"finding #{num} is defined {len(bodies[num])} times "
+            f"({', '.join(bodies[num])}) - a citation to it resolves to more than one "
+            f"piece of work, and the count is ambiguous by exactly that much. Renumber "
+            f"the later one; see #94 for why this keeps happening.")
+    if len(rows) != count:
+        disagreements.append(
+            f"eval/findings/ holds {count} finding bodies and eval/FINDINGS.md indexes "
+            f"{len(rows)} rows. The two sources of the count disagree by "
+            f"{abs(len(rows) - count)}.")
+    for num in sorted(set(bodies) - set(indexed)):
+        disagreements.append(f"#{num} has a body and no index row - uncountable to a "
+                             f"reader of eval/FINDINGS.md")
+    for num in sorted(set(indexed) - set(bodies)):
+        disagreements.append(f"#{num} has an index row and no body - counted by the index "
+                             f"and by nothing else")
+    if gaps:
+        disagreements.append(
+            f"the numbering has {len(gaps)} gap(s) - #{', #'.join(map(str, gaps))} - so "
+            f"the count ({count}) is not the range width ({hi - lo + 1}), and any document "
+            f"deriving one from the other is wrong")
+
+    occurrences = {rel: _range_occurrences(text) for rel, text in sorted(stated.items())}
+    for rel, text in sorted(stated.items()):
+        disagreements += _check_range_in(rel, text, hi) if numbers else []
+        disagreements += _stated_counts(rel, text, count)
+        if len(occurrences[rel]) > 1:
+            at = ", ".join(str(o["line"]) for o in occurrences[rel])
+            disagreements.append(
+                f"{rel} states the findings range on {len(occurrences[rel])} lines "
+                f"({at}). `_check_range_in` validates each one, so N correct copies are N "
+                f"passes and a merge can duplicate the sentence in silence - which is what "
+                f"8fef835 did here, in this file and in the other one, on the same day. "
+                f"One statement per live document; delete the copy.")
+
+    return {
+        "bodies": {
+            "population": "`## #NN` headings in eval/findings/*.md, outside ``` fences",
+            "count": count,
+            "lowest": lo,
+            "highest": hi,
+            "files": len(with_findings),
+            "files_in_dir": len(corpus_files) if corpus_files is not None else None,
+            # A file that defines no finding is either prose (`early-single-stack.md`, the
+            # pre-numbering phase) or a heading style this extractor stopped matching. The
+            # two look identical in a count, so the names are printed and a reader decides.
+            "files_without_findings": sorted(set(corpus_files or []) - with_findings),
+            "gaps": gaps,
+        },
+        "index": {
+            "population": "`| **NN** |` rows in the eval/FINDINGS.md index, outside fences",
+            "rows": len(rows),
+            "distinct": len(indexed),
+        },
+        "stated": occurrences,
+        "disagreements": disagreements,
+    }
+
+
+def _range_occurrences(text: str) -> list[dict]:
+    """Every unfenced `Findings #A-#B` in one document, with its line number.
+
+    Reported rather than merely checked, because two copies of the sentence in ONE file are
+    invisible to `_check_range_in`: it validates every occurrence it finds, so N identical
+    correct copies are N passes. An evil merge (8fef835, 2026-08-23) duplicated the row in
+    both `AGENTS.md` and `README.md` and `--sweep` stayed green on it for a day.
+    """
+    out = []
+    lines = text.split("\n")
+    fenced = _fence_mask(lines)
+    for i, ln in enumerate(lines):
+        if fenced[i]:
+            continue
+        m = _RANGE_RX.search(ln)
+        if m:
+            out.append({"line": i + 1, "lo": int(m.group(1)), "hi": int(m.group(2))})
+    return out
+
+
+def read_findings_census() -> dict:
+    """`findings_census` over the real repository. Raises FileNotFoundError, never returns 0.
+
+    Refusing beats reporting zero for the reason `census.py` refuses: an empty tree and an
+    unreadable one produce the same number, and that number is in range.
+    """
+    fdir = os.path.join(ROOT, "eval", "findings")
+    index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
+    if not os.path.isdir(fdir):
+        raise FileNotFoundError(f"no findings directory at {fdir} - refusing to report a "
+                                f"count over nothing")
+    bodies = _body_findings(fdir)
+    if not bodies:
+        raise FileNotFoundError(
+            f"{fdir} holds no `## #NN` headings - the heading pattern has changed and this "
+            f"would report 0 findings over a full directory")
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(f"no index at {index_path}")
+    stated, absent = {}, []
+    for rel in RANGE_DOCS:
+        p = os.path.join(ROOT, rel)
+        # A document named as a place the figure is stated, and absent, must be REPORTED.
+        # Skipping it silently is the fail-open shape: the corpus quietly shrinks by one and
+        # the census goes on agreeing with itself (rule 7, and #60 - the address is an input
+        # to the check).
+        if os.path.exists(p):
+            stated[rel] = open(p, encoding="utf-8", errors="replace").read()
+        else:
+            absent.append(f"{rel} is named in RANGE_DOCS as a place the findings count and "
+                          f"range are stated, and it does not exist at {p} - the census "
+                          f"covered one document fewer than it claims to")
+    c = findings_census(
+        bodies, open(index_path, encoding="utf-8", errors="replace").read(), stated,
+        corpus_files=[os.path.basename(p)
+                      for p in sorted(glob.glob(os.path.join(fdir, "*.md")))])
+    c["disagreements"] = absent + c["disagreements"]
+    c["read_on"] = _dt.date.today().isoformat()
+    c["findings_dir"] = fdir
+    c["index_path"] = index_path
+    return c
+
+
+def _findings_summary() -> str:
+    """The count and range, PRINTED by a clean sweep rather than merely asserted.
+
+    A gate that prints only "clean" is indistinguishable from one reading an empty corpus,
+    which is why `_index_row_count` prints its number too. This is the same move for the
+    quantity the documents actually quote.
+    """
+    try:
+        c = read_findings_census()
+    except FileNotFoundError:
+        return "findings count: NOT READ"
+    b = c["bodies"]
+    return (f"{b['count']} findings #{b['lowest']}-#{b['highest']} agreeing with "
+            f"{c['index']['rows']} index rows and with every live document that states "
+            f"either (--findings)")
+
+
+def cmd_findings(as_json: bool = False) -> int:
+    """`--findings`: the producer for any count of the findings log. Exit 1 on disagreement.
+
+    Quote it beside the command, as AGENTS.md requires of every count -- and quote the
+    POPULATION with it, because "113 findings" and "113 index rows" are different claims
+    that happen to be equal today.
+    """
+    try:
+        c = read_findings_census()
+    except FileNotFoundError as exc:
+        print(f"docstat --findings: {exc}", file=sys.stderr)
+        return 2
+    if as_json:
+        print(json.dumps(c, indent=2))
+    else:
+        b, ix = c["bodies"], c["index"]
+        print(f"read on {c['read_on']}")
+        print(f"  bodies   {b['count']} findings, #{b['lowest']}-#{b['highest']}, "
+              f"{len(b['gaps'])} gap(s), across {b['files']} of "
+              f"{b['files_in_dir']} file(s)")
+        print(f"           {b['population']}")
+        print(f"           {c['findings_dir']}")
+        if b["files_without_findings"]:
+            print(f"           defines none: {', '.join(b['files_without_findings'])} "
+                  f"- prose, or a heading style this no longer matches")
+        print(f"  index    {ix['rows']} rows, {ix['distinct']} distinct")
+        print(f"           {ix['population']}")
+        print(f"           {c['index_path']}")
+        for rel, occ in c["stated"].items():
+            where = ", ".join(f"line {o['line']}: #{o['lo']}-#{o['hi']}" for o in occ)
+            print(f"  stated   {rel}: {where or 'states no range'}")
+    if c["disagreements"]:
+        print(f"\n{len(c['disagreements'])} disagreement(s):")
+        for d in c["disagreements"]:
+            print(f"  {d}")
+        return 1
+    print("\nthe two sources agree, and every live document states this count and range.")
+    return 0
 
 
 ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
@@ -1660,6 +1938,113 @@ def _index_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _findings_census_pins(verbose: bool = False) -> list[str]:
+    """Pin `findings_census` in both directions: does the count MOVE when the log does?
+
+    THE QUESTION THIS ANSWERS, and why the range gate does not answer it. `_check_range_in`
+    asks whether three documents name the highest finding. A range is not a count: `#19-#131`
+    is true of a log with 113 entries and of one with 40, so a producer built on it can be
+    green over a corpus it has lost 60% of. These cases move the CORPUS and ask whether the
+    number follows.
+
+    RED, and every one is a way the log has actually changed on a working day:
+    a finding added to the bodies; added to bodies and index with the documents left behind;
+    renumbered; defined twice (six collisions in one day, #94); a document's count one short;
+    a count spelled in words; a range sentence duplicated by a merge.
+
+    GREEN is the half that matters (rule 15). A mutant asks whether the producer can
+    disagree; only a **correct addition** asks whether it can still agree afterwards - and if
+    it cannot, the gate is unusable and gets deleted the first day someone writes a finding.
+
+    Everything is a copy in memory. `eval/findings/` is the archive, and a selftest that
+    plants a finding in it to prove a point is one crash away from having published one.
+    """
+    fdir = os.path.join(ROOT, "eval", "findings")
+    index_path = os.path.join(ROOT, "eval", "FINDINGS.md")
+    if not os.path.isdir(fdir) or not os.path.exists(index_path):
+        return [f"the findings-census pins found no corpus at {fdir} / {index_path}, so "
+                f"the producer is unproven - it cannot be shown to disagree with anything"]
+    bodies = _body_findings(fdir)
+    index = open(index_path, encoding="utf-8", errors="replace").read()
+    rows = _index_rows(index)
+    if len(bodies) < 3 or len(rows) < 3:
+        return [f"the findings-census pins parsed {len(bodies)} bodie(s) and {len(rows)} "
+                f"index row(s) - the patterns have changed and the pins are mutating "
+                f"nothing, so a green census means nothing either"]
+
+    hi, count = max(bodies), len(bodies)
+    mid = sorted(bodies)[len(bodies) // 2]
+    row_of = {n: ln for ln, n in rows}
+
+    def doc(high: int, n: int, extra: str = "") -> dict[str, str]:
+        """A live document stating a range and a count -- the shape README and AGENTS use."""
+        return {"AGENTS.md": f"| `eval/FINDINGS.md` | Findings #19-#{high} |\n"
+                             f"\n{n} numbered findings, and all but a few are one pattern.\n"
+                             f"{extra}"}
+
+    def with_row(after: int, num: int) -> str:
+        """The index with a row for `num` inserted after the row for `after`."""
+        lines = index.split("\n")
+        lines.insert(row_of[after], f"| **{num}** | planted | [x](findings/x.md) |")
+        return "\n".join(lines)
+
+    added = {**bodies, hi + 1: ["certifies-nothing.md"]}
+    renamed = {n: f for n, f in bodies.items() if n != mid}
+    renamed[hi + 1] = bodies[mid]
+    twice = {**bodies, mid: bodies[mid] + ["documentation.md"]}
+
+    cases = [
+        # --- GREEN: the corpus as committed, against documents that state it correctly
+        (f"GREEN: the committed log - {count} findings, #19-#{hi}",
+         (bodies, index, doc(hi, count)), False),
+        # --- RED: the log moves
+        ("a finding added to the bodies only",
+         (added, index, doc(hi, count)), True),
+        ("a finding added to the bodies AND the index, documents left behind",
+         (added, with_row(hi, hi + 1), doc(hi, count)), True),
+        (f"#{mid} renumbered to #{hi + 1} in the bodies",
+         (renamed, index, doc(hi, count)), True),
+        (f"#{mid} defined in two files - the collision that happened six times in a day",
+         (twice, index, doc(hi, count)), True),
+        # --- RED: the documents drift
+        ("a document stating the count one short",
+         (bodies, index, doc(hi, count - 1)), True),
+        ("a document stating the count in words, as README did to #131",
+         (bodies, index, {"README.md": f"Findings #19-#{hi}\n\nThirty-seven numbered "
+                                       f"findings, and all but a few are one pattern."}),
+         True),
+        ("a document stating the range twice - what an evil merge did on 2026-08-23",
+         (bodies, index, {"AGENTS.md": f"| Findings #19-#{hi} |\n| Findings #19-#{hi} |\n"
+                                       f"\n{count} numbered findings.\n"}), True),
+        # --- GREEN: the variants. Can it still agree on inputs it must not fire on?
+        (f"GREEN: a finding added EVERYWHERE - bodies, index and documents at #{hi + 1}",
+         (added, with_row(hi, hi + 1), doc(hi + 1, count + 1)), False),
+        ("GREEN: a stale count inside a ``` fence is an example, not a claim",
+         (bodies, index, doc(hi, count, extra="```\n37 numbered findings\n```\n")), False),
+        ("GREEN: `the numbered findings` - a determiner is not a cardinal",
+         (bodies, index, doc(hi, count, extra="All of the numbered findings resolve.\n")),
+         False),
+    ]
+
+    failed = []
+    for name, (b, ix, st), expect_red in cases:
+        got = findings_census(b, ix, st)["disagreements"]
+        good = bool(got) == expect_red
+        if not good:
+            failed.append(
+                f"findings-census pin came out wrong: `{name}` produced {len(got)} "
+                f"disagreement(s) where {'at least one' if expect_red else 'none'} was "
+                f"expected. The producer is no longer proven to "
+                f"{'notice a change' if expect_red else 'accept a correct log'}, so its "
+                f"count is not evidence.")
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: "
+                  f"{len(got)} disagreement(s), expected {'>=1' if expect_red else '0'}")
+            for g in got:
+                print(f"        {g[:150]}")
+    return failed
+
+
 def _aspect_census_pins(aspects: set[str], verbose: bool = False) -> list[str]:
     """Pin `_check_aspect_census` in both directions, on planted text, every sweep.
 
@@ -1750,6 +2135,8 @@ def cmd_selftest() -> int:
     failed = _index_pins(verbose=True)
     print()
     failed += _aspect_census_pins(_aspect_ids(), verbose=True)
+    print()
+    failed += _findings_census_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -2020,6 +2407,10 @@ def cmd_sweep() -> int:
     # for as long as that split stood; a check whose ability to fail is never exercised is
     # the shape this project keeps finding. In memory, no I/O beyond one re-read.
     problems += _index_pins()
+    # The COUNT of the log, which the range gate above cannot see: `#19-#131` is equally
+    # true of 113 findings and of 40. `--findings` is the producer; these pins are what
+    # stop it being a number that agrees with itself. Same reasoning, same place.
+    problems += _findings_census_pins()
 
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
@@ -2058,7 +2449,8 @@ def cmd_sweep() -> int:
           f"against that set (pinned red and green); structure: {len(skill_files())} SKILL.md "
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "
           f"{_index_row_count()} FINDINGS index rows in ONE table "
-          f"(pinned red and green; --selftest to read the pins); {wsummary}")
+          f"(pinned red and green; --selftest to read the pins); {_findings_summary()}; "
+          f"{wsummary}")
     return 0
 
 
@@ -2074,6 +2466,11 @@ def main() -> int:
     ap.add_argument("--at", default="HEAD", metavar="REV",
                     help="revision --renumbered reads (default HEAD); the positive control "
                          "is a revision where a known-stale citation still stands")
+    ap.add_argument("--findings", action="store_true",
+                    help="the producer for any count of the findings log: bodies, index "
+                         "rows and every live document's statement of the two")
+    ap.add_argument("--json", action="store_true",
+                    help="machine-readable output, where the command supports it")
     ap.add_argument("--selftest", action="store_true",
                     help="pin the FINDINGS-index checks in both directions, in memory")
     ap.add_argument("--all", action="store_true")
@@ -2081,6 +2478,8 @@ def main() -> int:
 
     if a.outline:
         return cmd_outline(a.outline)
+    if a.findings:
+        return cmd_findings(a.json)
     if a.selftest:
         return cmd_selftest()
     if a.renumbered:

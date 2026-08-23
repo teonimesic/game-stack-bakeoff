@@ -193,8 +193,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#131, including retractions. **Read this before trusting any number anywhere.** |
-| `eval/FINDINGS.md` | Findings #19-#131, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#131, including retractions; `python3 eval/tools/docstat.py --findings` is the producer for the count and the range. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -553,7 +552,8 @@ directly comparable**. Recorded in FINDINGS.
 
 ## The one thing this project actually learned
 
-Thirty-seven numbered findings, and all but a few are instances of one pattern:
+113 numbered findings, #19-#131 — `python3 eval/tools/docstat.py --findings` — and all but a
+few are instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**
 

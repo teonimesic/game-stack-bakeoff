@@ -136,6 +136,21 @@
       "declared_in": "README.md, the second notice under the counts table; eval/findings/certifies-nothing.md, finding #126; task 69",
       "replaced_by": "python3 eval/tools/census.py, which now searches at any depth, identifies a run by its path relative to runs/, and prints how many trials/*.json it skipped as agent-authored. 161 records over 23 run directories, $2,466.31; whole-game 90 over 11, $2,312.49; spec-change 71 over 12, $153.82. The whole-game figures are unchanged by the repair - no whole-game run is nested - so only the tree and spec-change rows were ever wrong.",
       "retired_from_live_docs_by": "task 69"
+    },
+    {
+      "id": "WR-readme-findings-count",
+      "withdrawn": "2026-08-23",
+      "kind": "figure",
+      "claim": "the size of the findings log stated as 'Thirty-seven numbered findings', opening README's 'The one thing this project actually learned'",
+      "why": "The log held 113 numbered findings, #19-#131, when this was withdrawn. The figure was written when it was true and nothing in the repository produced it, so nothing could disagree: the range sentence 360 lines above it was gated and correct, and a range is not a count - #19-#131 is equally true of 113 findings and of 40. It was also spelled in WORDS, which is the second reason it survived eleven merges past a table telling every author to run a producer: no check can compare a cardinal it cannot parse. The claim the figure introduces - that all but a few findings are instances of one pattern - is unaffected and stands.",
+      "match": [
+        "[Tt]hirty-seven numbered findings",
+        "one pattern"
+      ],
+      "anchor": "tasks/88-readme-says-thirty-seven-numbered-findings-the-l.md",
+      "declared_in": "task 88; README.md's 'The one thing this project actually learned' section now states the produced count beside its command",
+      "replaced_by": "python3 eval/tools/docstat.py --findings, which counts eval/findings/ and eval/FINDINGS.md independently, prints the population it counted over, exits 2 rather than reporting 0, and exits 1 when the two sources or any live document disagree.",
+      "retired_from_live_docs_by": "task 88"
     }
   ]
 }
