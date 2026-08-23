@@ -462,6 +462,64 @@ def sign_test(diffs: list[float]) -> tuple[int, int, float]:
     return pos, neg, min(1.0, 2 * binom_sf(k, n))
 
 
+def statcheck() -> int:
+    """Pin the three statistics against values computed independently.
+
+    Neither numpy nor scipy is installed on this machine, so `wilson`, `binom_sf` and
+    `sign_test` are hand-rolled -- and a hand-rolled interval that is quietly wrong
+    produces a plausible in-range number, which is the most dangerous shape a broken
+    check can take. Every expected value below is a closed-form result, not a value read
+    back out of this code.
+    """
+    ok = True
+
+    def chk(name, got, want, tol=5e-4):
+        nonlocal ok
+        good = abs(got - want) <= tol
+        print(f"  {'PASS' if good else 'FAIL'}  {name}: got {got:.6f} want {want:.6f}")
+        ok = ok and good
+
+    # Wilson, z=1.96. 10/10 -> [0.72247, 1.0]; 5/10 -> [0.23659, 0.76341].
+    chk("wilson(10,10) lo", wilson(10, 10)[0], 0.722468)
+    chk("wilson(10,10) hi", wilson(10, 10)[1], 1.0)
+    chk("wilson(5,10) lo", wilson(5, 10)[0], 0.236593)
+    chk("wilson(5,10) hi", wilson(5, 10)[1], 0.763407)
+    lo, hi = wilson(0, 0)
+    chk("wilson(0,0) is uninformative", hi - lo, 1.0)
+
+    # Binomial survival. P(X>=10 | n=10, p=.5) = 2^-10.
+    chk("binom_sf(10,10)", binom_sf(10, 10), 1 / 1024)
+    chk("binom_sf(0,10)", binom_sf(0, 10), 1.0)
+    # P(X>=8 | n=10) = (45+10+1)/1024
+    chk("binom_sf(8,10)", binom_sf(8, 10), 56 / 1024)
+
+    # Sign test. Ten improvements and no regressions is p = 2 * 2^-10.
+    pos, neg, p = sign_test([0.1] * 10)
+    chk("sign_test 10 up p", p, 2 / 1024)
+    print(f"  {'PASS' if (pos, neg) == (10, 0) else 'FAIL'}  sign_test counts "
+          f"{pos} up / {neg} down")
+    ok = ok and (pos, neg) == (10, 0)
+    # All ties must not be reported as significant, and must not divide by zero.
+    pos, neg, p = sign_test([0.0] * 8)
+    chk("sign_test all ties p", p, 1.0)
+    # A perfectly balanced split is p = 1.
+    chk("sign_test balanced p", sign_test([0.1, -0.1])[2], 1.0)
+
+    # The bootstrap on a constant sample must collapse to that constant.
+    lo, hi = boot_ci([0.25] * 12, reps=500)
+    chk("boot_ci constant lo", lo, 0.25)
+    chk("boot_ci constant hi", hi, 0.25)
+    # And it must be wide on a split sample rather than silently degenerate.
+    lo, hi = boot_ci([0.0, 1.0] * 6, reps=4000)
+    wide = (hi - lo) > 0.3
+    print(f"  {'PASS' if wide else 'FAIL'}  boot_ci on a split sample is wide: "
+          f"[{lo:.3f}, {hi:.3f}]")
+    ok = ok and wide
+
+    print("\nstatcheck:", "clean" if ok else "FAILED")
+    return 0 if ok else 1
+
+
 def boot_ci(vals: list[float], seed: int = 7, reps: int = 20000) -> tuple[float, float]:
     if not vals:
         return (float("nan"), float("nan"))
@@ -598,6 +656,22 @@ def cmd_regrade(a) -> int:
             print(f"{rec['trial_id']:<12} usable {before['usable']}->{after['usable']}"
                   f"  moved={moved}")
         rec["evaluation"] = after
+        # EVERY checker, including the ones this trial was never given. Two things
+        # depend on it and neither was anticipated when the pool was written:
+        #
+        #   * the ACCIDENTAL-COMPLIANCE FLOOR. If an instruction is satisfied most of
+        #     the time by an agent that was never given it, then "compliance" with it
+        #     is mostly not compliance, and a rate near 1.0 in the given condition says
+        #     nothing about whether the instruction was read. Without this the whole
+        #     experiment could report high compliance that the instructions did not
+        #     cause.
+        #   * a LEAKAGE control on the isolation. If this repository's own AGENTS.md
+        #     were reaching the agent despite the temp work root and
+        #     `--setting-sources project`, agents would spontaneously obey rules they
+        #     were not given -- dated docstrings, UNVERIFIED lines, atomic writes. An
+        #     elevated not-given rate on exactly the project-flavoured instructions is
+        #     what that would look like.
+        rec["evaluation_all"] = poolmod.evaluate(rec["artifact_src"])
         rec["regraded_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
         tmp = p.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(rec, indent=2))
@@ -729,6 +803,33 @@ def cmd_analyse(a) -> int:
     # (rule 4). The pilot measured $0.054 at k1 and $0.322 at k16 -- a 6x spread that a
     # single mean would hide, and anyone pricing a follow-up from that mean would
     # misprice every arm.
+    # ACCIDENTAL COMPLIANCE, and the leakage control. Needs `regrade` to have stored
+    # `evaluation_all`; it is silent rather than wrong when that is absent.
+    have_all = [t for t in trials if t.get("evaluation_all")]
+    if have_all:
+        print(f"\nGIVEN vs NOT GIVEN  (n={len(have_all)} trials re-checked against all "
+              f"16)")
+        print("  an instruction satisfied without being given was not COMPLIED with;")
+        print("  a high not-given rate on project-flavoured rules would mean leakage.")
+        print(f"  {'id':<5}{'cls':<4}{'given':>14}{'not given':>14}{'effect':>9}")
+        eff = []
+        for ins in poolmod.POOL:
+            g = [t for t in have_all if ins.id in t["instructions"]]
+            ng = [t for t in have_all if ins.id not in t["instructions"]]
+            if not g or not ng:
+                continue
+            pg = sum(t["evaluation_all"]["checks"][ins.id]["passed"] for t in g) / len(g)
+            pn = sum(t["evaluation_all"]["checks"][ins.id]["passed"]
+                     for t in ng) / len(ng)
+            eff.append((ins.id, pg - pn))
+            print(f"  {ins.id:<5}{ins.cls:<4}{pg:>9.3f}({len(g):>3}){pn:>9.3f}"
+                  f"({len(ng):>3}){pg - pn:>9.3f}")
+        inert = [i for i, d in eff if d <= 0.05]
+        if inert:
+            print(f"\n  {len(inert)} instruction(s) with effect <= 0.05: {inert}")
+            print("  Those are satisfied by default. Their 'compliance' is not evidence "
+                  "the instruction was read, and a count effect cannot show up in them.")
+
     spend = sum(t["cost_usd"] for t in trials)
     print(f"\nCOST: ${spend:.2f} over {len(trials)} trials, per arm:")
     for arm in ARMS:
@@ -775,6 +876,9 @@ def main() -> int:
     p.add_argument("--limit", type=int)
     p.add_argument("--force", action="store_true")
     p.set_defaults(fn=cmd_build)
+
+    p = sub.add_parser("statcheck", help="pin the hand-rolled statistics")
+    p.set_defaults(fn=lambda a: statcheck())
 
     p = sub.add_parser("regrade", help="re-check stored artifacts offline, spend nothing")
     p.add_argument("--run-dir", required=True)
