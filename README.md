@@ -155,7 +155,7 @@ FINDINGS #49, and the mechanism is in `eval/RUNS.md`.
 | `eval/` | The measurement harness, its findings, and every run's stored results. |
 | `eval/judge/` | Three-tier evaluation: deterministic checks, scripted play-bots, and an LLM judge. |
 | `DECISIONS.md` | Every decision that shaped this work, who made it, and why. **Read this before changing anything methodological.** |
-| `eval/FINDINGS.md` | Findings #19-#96, including retractions. **Read this before trusting any number anywhere.** |
+| `eval/FINDINGS.md` | Findings #19-#97, including retractions. **Read this before trusting any number anywhere.** |
 
 ## Start here
 
@@ -224,6 +224,16 @@ totals: **36 criteria pinned in both directions, 2 variants, 3 session-lock cont
 expectations unmet.** Mutants ask whether a criterion *can fail*; only a variant asks whether
 it *can still pass*, and every false negative this project has adjudicated was of the second
 kind (FINDINGS #46, #48).
+
+**The cost of the capture is now recorded, and nothing scores it.** Nine fields — frame
+geometry, frame count, and the wall/CPU/peak-RSS cost of `just film`, plus the headless probe's
+throughput and start-up — with the same names and units on all four arms, measured from *outside*
+the submission so no arm can fail to fill one (`eval/judge/capability.py`, DECISIONS.md). Swept
+over the 68 stored submissions the gate is clean, and **62 of them captured at exactly the starter
+default of 640x400**. Four of the nine fields turned out to have been written on every submission
+since the first matrix with no reader at all (FINDINGS #95). **There is deliberately no frametime
+or fps field:** the TypeScript arm films on SwiftShader while the other three film on the M3 Max,
+so any render timing would report the backend rather than the stack.
 
 **End-to-end controls, measured 2026-08-14 with audio in the tiers:**
 
@@ -423,8 +433,13 @@ python3 judge/field_sweep.py --run runs/<name> --games g1_pong \
     --aspects idiomatic fun --orders 2 --max-cost 60 --out runs/<name>/judge-sweep
 
 # controls - run these before believing any score
-python3 judge/audio_selftest.py     # 6 audio criteria vs 9 mutants
-python3 judge/bot_mutants.py        # 9 play-bot criteria pinned in both directions
+python3 judge/audio_selftest.py       # 6 audio criteria vs 9 mutants
+python3 judge/bot_mutants.py          # 9 play-bot criteria pinned in both directions
+python3 judge/capability_selftest.py  # the no-stack-gap gate, its mutant and its variant
+python3 judge/rusage_selftest.py      # peak RSS / CPU against a child of known size
+
+# what the pipeline can see about capture cost - reported, scored by nothing
+python3 judge/capability.py --runs runs
 
 # re-grade stored results offline, without re-running agents
 python3 judge/regrade_wholegame.py --run-dir runs/<name>

@@ -359,12 +359,52 @@ manifest line, Bevy and three.js have none at any effort below writing one.
   Under this decision, divergence is the design; a guard that reads it as drift would be wrong
   and would be switched off, which is worse.
 
-**This decision does not license showcasing what cannot be observed.** The evidence pipeline
-currently captures no performance signal at all, and `ux` — the aspect most sensitive to visual
-richness — was retired for correlating +0.53 to +0.73 with distinct-colour count (#59). Prettier
-output moves that metric in the direction that looks like improvement, for the reason it was
-retired. So capability work is gated on making capability observable by a signal that is not
-palette-coupled (task 25), or it cannot be shown to have helped.
+**This decision does not license showcasing what cannot be observed.** `ux` — the aspect most
+sensitive to visual richness — was retired for correlating +0.53 to +0.73 with distinct-colour
+count (#59), so prettier output moves that metric in the direction that looks like improvement,
+for the reason it was retired. What the pipeline *can* now see about capture cost and capture
+geometry is the next section; what it still cannot see, and why, is the `DECLINED` register in
+`judge/capability.py`. **A capability change must name the field that would move if it worked**,
+and if the only candidate is a palette-coupled one, it cannot be shown to have helped.
+
+---
+
+## Performance is measured from outside the submission, and none of it is scored — decided 2026-08-23
+
+**The harness measures the cost of the evidence it collects. The submission is never asked to
+report a number about itself.**
+
+Task 25 proposed extending the probe contract in `starters/_shared/` so each stack reports its own
+performance fields. Rejected, and the reason generalises past this case:
+
+> **A field the subject reports is a field the subject can fail to report, and that failure
+> correlates with stack** — #62, #72, #77, this project's most repeated defect. A field measured
+> by a mechanism identical for all four arms cannot produce a stack-correlated gap; the gap would
+> have to be in the harness, where one repair covers every arm. **Uniformity by construction beats
+> uniformity by instruction.**
+
+Two consequences that made the choice cheap as well as right: no starter changes, so this is **not
+a regime boundary** and every stored run stays in the comparison; and four of the nine fields turn
+out to have been recorded on all 68 stored submissions already, unread (#95).
+
+`judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
+`no_stack_correlated_gap()`, which fails if a declared field is ever absent for any reason other
+than the submission's own capture failing. `judge/capability_selftest.py` carries its mutant and
+its variant.
+
+**No frametime and no fps field, at any point.** The four arms do not render the judged frames on
+comparable hardware: Rust, Unity and Godot draw on the M3 Max, the TypeScript arm draws on
+**SwiftShader, a CPU rasteriser** (`research/10-stack-capability-matrix.md` §3). A frametime field
+would report the renderer backend wearing the costume of a stack result. `just film` is also not a
+real-time loop in any arm — twelve single frames of a deterministic replay — so there is nothing
+steady to time. `DECLINED` in that module records this and the other six candidates, each with the
+measurement that would move it back in.
+
+**Nothing here is a criterion, and `judge/RUBRIC.md` weighs none of it.** Capture is cheap and
+reversible; scoring changes what agents optimise for and is a regime boundary. A criterion
+introduced alongside its own measurement has no baseline to be calibrated against.
+
+Its reversal condition is in the table at the end of this file.
 
 ---
 
@@ -409,6 +449,8 @@ settled question is noise that makes the live ones harder to find.
 | Tier weights 0.31/0.69 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound**. Currently 0 of 10 groups flip, and the one group with both tiers varying is `wg-arena3d`, which `eval/RUNS.md` declares void (#92) |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
+| Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
+| No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
 input and no measurement would overturn them.

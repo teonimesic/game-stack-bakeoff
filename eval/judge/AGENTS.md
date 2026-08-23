@@ -27,6 +27,16 @@ plus `audio.triggered` against a healthy fixture, then against nine mutants each
 one of them red. Run it before believing an audio score. A criterion that cannot fail is worse than
 absent, because it looks like success.
 
+**`capability.py` is captured, not scored, and it is measured from OUTSIDE the submission.** Nine
+fields — capture geometry, frame count, the wall/CPU/peak-RSS cost of `just film`, and the headless
+probe's throughput and start-up — same names, same units, all four arms. Nothing in the submission
+is ever asked to report a number about itself, because **a field the subject reports is a field
+that can go missing in a stack-correlated way** (#62, #72, #77); a harness-side mechanism cannot.
+`no_stack_correlated_gap()` enforces that and `capability_selftest.py` carries its mutant *and* its
+variant. **Do not add a frametime or fps field** — the TS arm films on SwiftShader while the other
+three film on the GPU, so it would rank the backend; `DECLINED` in that module says what would have
+to change first. Adding any of this to the score is a regime boundary and needs its own task.
+
 ## The judge is diagnostic only
 
 It contributes **zero** to `overall` — not a token weight. Two independent reasons, either

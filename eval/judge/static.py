@@ -52,29 +52,122 @@ class Cmd:
     code: int
     seconds: float
     tail: str
+    #: Peak resident set of the largest process in the command's tree, in MiB, and the
+    #: user+system CPU the whole tree consumed, in seconds. `None` when the command
+    #: could not be spawned at all - never 0.0, because a zero here is indistinguishable
+    #: from a process that really used nothing (AGENTS.md rule 3's sibling).
+    peak_rss_mb: float | None = None
+    cpu_seconds: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "argv": self.argv, "exit": self.code,
-                "seconds": round(self.seconds, 1), "tail": self.tail[-4000:]}
+                "seconds": round(self.seconds, 1), "tail": self.tail[-4000:],
+                "peak_rss_mb": self.peak_rss_mb, "cpu_seconds": self.cpu_seconds}
+
+
+#: `ru_maxrss` is BYTES on macOS/BSD and KILOBYTES on Linux. There is no portable
+#: constant for this, and getting it wrong is a factor of 1024 that still produces a
+#: number in a believable range - the most dangerous shape a broken measurement takes.
+#: `judge/rusage_selftest.py` asserts the resulting figure against a child that
+#: allocates a known 400 MiB, so this is checked rather than trusted.
+_MAXRSS_TO_MIB = 1.0 / (1024 * 1024) if sys.platform == "darwin" else 1.0 / 1024
 
 
 def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
         env: dict[str, str] | None = None) -> Cmd:
+    """Run one command and record what it COST as well as what it said.
+
+    `subprocess.run` cannot report resource usage, so the wait is done with `os.wait4`.
+    That matters for scope, not for tidiness: `just film` is never the process that
+    renders anything - it is `just`, then a shell, then cargo/node/Unity/godot - and
+    BSD `wait4` folds a reaped descendant's usage into its parent's, so the figure
+    covers the tree. A measurement of `just` alone would be a near-constant on all four
+    arms and would look exactly like a working one. `judge/rusage_selftest.py` proves
+    the grandchild case rather than asserting it.
+
+    Everything the previous implementation guaranteed is preserved: the child's exit
+    code, stdout followed by stderr, 124 on timeout, 127 when the binary is not there.
+    """
     import os
+    import queue as _queue
+    import signal
+    import threading as _th
 
     e = dict(os.environ)
     if env:
         e.update(env)
     t0 = time.monotonic()
     try:
-        p = subprocess.run(argv, cwd=repo, capture_output=True, text=True,
-                           timeout=timeout_s, env=e)
-        code, out = p.returncode, (p.stdout + p.stderr)
-    except subprocess.TimeoutExpired:
-        code, out = 124, f"TIMEOUT after {timeout_s}s"
+        p = subprocess.Popen(argv, cwd=repo, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, env=e,
+                             start_new_session=True)   # its own group, so it can be killed whole
     except OSError as ex:
-        code, out = 127, f"could not run: {ex}"
-    return Cmd(name, argv, code, time.monotonic() - t0, out)
+        return Cmd(name, argv, 127, time.monotonic() - t0, f"could not run: {ex}")
+
+    bufs: dict[str, str] = {"out": "", "err": ""}
+
+    def drain(key: str, stream: Any) -> None:
+        try:
+            bufs[key] = stream.read() or ""
+        except (OSError, ValueError):        # the pipe died with the process
+            pass
+
+    readers = [_th.Thread(target=drain, args=("out", p.stdout), daemon=True),
+               _th.Thread(target=drain, args=("err", p.stderr), daemon=True)]
+    for r in readers:
+        r.start()
+
+    reaped: "_queue.Queue[tuple[int, Any]]" = _queue.Queue()
+
+    def waiter() -> None:
+        try:
+            _pid, status, ru = os.wait4(p.pid, 0)
+            reaped.put((status, ru))
+        except (ChildProcessError, OSError):
+            reaped.put((0, None))
+
+    _th.Thread(target=waiter, daemon=True).start()
+
+    timed_out = False
+    try:
+        status, ru = reaped.get(timeout=timeout_s)
+    except _queue.Empty:
+        timed_out = True
+        try:
+            os.killpg(p.pid, signal.SIGKILL)   # the whole group, not just `just`
+        except OSError:
+            pass
+        try:
+            status, ru = reaped.get(timeout=60)
+        except _queue.Empty:
+            status, ru = 0, None
+
+    # Tell Popen the child is already reaped, so its own waitpid never runs and cannot
+    # raise or hang in __del__.
+    try:
+        p.returncode = os.waitstatus_to_exitcode(status)
+    except ValueError:
+        p.returncode = -1
+    for r in readers:
+        r.join(timeout=30)
+    for s in (p.stdout, p.stderr):
+        try:
+            if s:
+                s.close()
+        except OSError:
+            pass
+
+    if timed_out:
+        code, out = 124, f"TIMEOUT after {timeout_s}s"
+    else:
+        code, out = p.returncode, (bufs["out"] + bufs["err"])
+
+    peak = cpu = None
+    if ru is not None:
+        peak = round(ru.ru_maxrss * _MAXRSS_TO_MIB, 1)
+        cpu = round(ru.ru_utime + ru.ru_stime, 2)
+    return Cmd(name, argv, code, time.monotonic() - t0, out,
+               peak_rss_mb=peak, cpu_seconds=cpu)
 
 
 # --------------------------------------------------------------------------- #
