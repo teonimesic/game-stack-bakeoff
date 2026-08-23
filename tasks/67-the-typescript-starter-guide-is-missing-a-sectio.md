@@ -1,7 +1,7 @@
 ---
 id: 67
 title: The TypeScript starter guide is missing a section the other three have
-status: open
+status: in_flight
 priority: 3
 refs: eval/judge/starter_parity.py agents_md headings, tasks/49
 done_when: either the ts guide gains the missing section and starter_parity reports the heading sets equal, or the divergence is recorded as deliberate in the capability register with the reason; and verify_blind, starter_parity and starter_gate_control are re-run

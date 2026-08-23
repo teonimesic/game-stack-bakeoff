@@ -1,7 +1,7 @@
 ---
 id: 66
 title: The .codex answer key is still in two runs' stored judge packs, and a re-grade would read it
-status: open
+status: in_flight
 priority: 2
 refs: 'eval/FINDINGS.md #83, eval/judge/field.py build_pack, eval/judge/repack.py, tasks/42'
 done_when: wg-matrix and wg-audio48 either hold packs with no trial-id, work-root or .codex pattern in any file, verified by grep over every pack in both runs, or are marked in eval/RUNS.md as carrying the key with the per-stack counts stated and re-grading them barred

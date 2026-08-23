@@ -1,7 +1,7 @@
 ---
 id: 68
 title: Godot and Bevy differ in what a filmed frame can contain, and no criterion knows it
-status: open
+status: in_flight
 priority: 3
 refs: 'eval/FINDINGS.md #107, eval/starters/godot/view/fx.gd, eval/starters/unity/Assets/View/Fx.cs'
 done_when: either the two capture paths are made equivalent in what accumulated presentation state they can show, verified by a probe that renders state built over N ticks and is caught in both arms, or the asymmetry is recorded in eval/RUNS.md and every frames-reading aspect states that it cannot compare these two arms on accumulated state

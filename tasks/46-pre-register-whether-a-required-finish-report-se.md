@@ -1,10 +1,11 @@
 ---
 id: 46
 title: Pre-register whether a required finish-report section changes what agents disclose
-status: in_flight
+status: done
 priority: 5
 refs: 'AGENTS.md rule 11, eval/IMPROVEMENTS.md axis 2 candidate 5, eval/FINDINGS.md #98'
 done_when: either the experiment has run on a fresh matrix and the pre-registered outcome table has been filled in, or it is closed as declined with the cost argument recorded in eval/RUNS.md
+established_by: 'Baseline measured offline over all 90 stored agent_result.json, read whole via .result. 15 carry no agent-written message (6 null, 9 hold the API quota-error string); the other 75 are all terminal_reason=completed; 31 of 75 = 41.3 percent disclose something unverified or a residual risk, 10 under a dedicated heading. Per stack godot 3/15, rust 13/21, ts 4/23, unity 11/16 - the pre-registered low-and-stack-correlated branch. The correlation dissolves on investigation: 19 of the 31 disclosures concern the live path (11 unity, 7 rust), and agents claiming to have driven the running application number 15 of 23 for TypeScript against 0 of 52 across the other three stacks, so the arms differ in how much is left to disclose rather than in willingness. Extraction pinned in advance on the two wg-g4c godot rows of FINDINGS 98 and the four wg-arena3d rows of AGENTS rule 11; all six came back as predicted, and a mechanical control confirms the 15 no-message rows exactly. DECLINED, with the cost argument recorded in eval/RUNS.md - a fifteenth regime boundary plus two fresh matrices at 421.00 dollars each, to move a number the ticket itself forbids reporting beside any tier-1 or tier-2 figure. Verdict updated in eval/IMPROVEMENTS.md axis 2 row 5; field address and two census traps recorded in eval/AGENTS.md. Branch task-46-preregister-finish-report-disclosure, commit efb940a. docstat.py --sweep exit 0, tasks.py check exit 0.'
 ---
 
 ## What this thing is

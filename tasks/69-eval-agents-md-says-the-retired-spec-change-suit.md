@@ -1,7 +1,7 @@
 ---
 id: 69
 title: eval/AGENTS.md says the retired spec-change suite has 71 stored trials; the tree holds 47 trial JSONs
-status: open
+status: in_flight
 priority: 3
 refs: ''
 done_when: State what population gives 71 and what gives 47, with the command for each, or correct whichever is wrong in every live doc that states it. If 71 is unreproducible from the stored tree, say so and say what evidence would have been needed - a count that cannot be reproduced is the defect task 64 existed to remove, not a smaller version of it.
