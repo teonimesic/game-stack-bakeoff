@@ -680,6 +680,38 @@ class PlatformerBot(Bot):
                 best, bd = e, d
         return best if best is not None else any_best
 
+    #: How far AHEAD an enemy has to be before the traversal loop swings at it. The
+    #: same reach `_combat` attacks from, so the two loops agree about what "in range"
+    #: means and a submission cannot pass one and fail the other on the distance alone.
+    _SWING_WITHIN = 44.0
+
+    @classmethod
+    def _in_the_way(cls, t: Tick) -> dict[str, Any] | None:
+        """The nearest enemy AHEAD, close enough to swing at and at a height that can
+        be hit — or None.
+
+        AHEAD, not nearest. `_nearest` answers "which enemy is this session about",
+        which is the right question when the enemy IS the experiment; here the enemy is
+        an obstacle between the character and the goal, and one behind it — a common
+        state after knockback — must not stop it walking. A traversal loop that swung at
+        the nearest enemy in any direction would attack backwards while the thing
+        blocking it stood still.
+        """
+        px, py = _px(t), _py(t)
+        best, bd = None, float("inf")
+        for e in _list(t, "enemies"):
+            x, y = _f(e, "x"), _f(e, "y")
+            if x is None:
+                continue
+            d = x - px
+            if not (-4.0 <= d <= cls._SWING_WITHIN):
+                continue
+            if y is not None and abs(y - py) > cls._REACH_DY:
+                continue
+            if d < bd:
+                best, bd = e, d
+        return best
+
     @staticmethod
     def _edge_distance(t: Tick, moving_right: bool) -> float | None:
         """How far ahead the ground under the character ends, or None if unknown.
@@ -995,8 +1027,28 @@ class PlatformerBot(Bot):
         except ProbeError as e:
             return unusable_criteria([(cid, self._q(cid))], e, "the bounds session")[0]
 
+    #: Ceiling on how long the traversal loop holds `jump`, so a submission that never
+    #: reports `grounded` cannot make the loop press it forever. The measured sweep
+    #: needed at most 30 ticks to reach the widest arc any of the eight `wg-g4c`
+    #: submissions produces, so this is a guard, not the policy - the policy is "while
+    #: still rising", just below.
+    _JUMP_HOLD_MAX = 30
+
     def _stage(self, repo, env) -> Criterion:
-        """DIAGNOSTIC. Walk right, jump when stuck, and see whether the stage ends."""
+        """DIAGNOSTIC. PURSUE THE GOAL - walk toward it, cross what is in the ground,
+        swing at what stands in the way - and see whether the stage ends.
+
+        This was a fourth copy of "walk right", and the one `_walk_toward` did not
+        reach when task 76 unified the other three. It pressed `move_right` every tick,
+        jumped only when it had already been stuck for 12 ticks, and never attacked. On
+        the eight `wg-g4c` submissions that produced eight fractions of the goal - 14.3%
+        to 29.0% - which `DECISIONS.md` was right to refuse to score: every one of the
+        eight ended `game_over`, having spent its whole health bar falling into the same
+        pit, so the scalar ranked the field on WHERE EACH SUBMISSION PUT ITS FIRST PIT.
+
+        A criterion is only worth scoring if the instrument can pursue the thing it
+        measures. What that took, and what each step was worth, is in `RUBRIC.md`.
+        """
         cid = "stage.completes"
         try:
             with ProbeSession(repo=repo, env=env, seed=7,
@@ -1010,11 +1062,51 @@ class PlatformerBot(Bot):
                 last_x = best
                 stalled = 0
                 cleared = False
+                prev = s.last
+                prev_y = _py(prev)
+                hold = 0
                 for _ in range(4000):
-                    inputs: dict[str, Any] = {"move_right": True}
-                    if stalled > 12:
+                    gap = ((goal - _px(prev)) if goal is not None
+                           else float("inf"))
+                    e = self._in_the_way(prev)
+                    inputs: dict[str, Any]
+                    if e is not None:
+                        # STOP AT SWINGING RANGE, exactly as `_combat` does. Pressing
+                        # attack while still closing walks the character INTO the enemy:
+                        # it is hit, knocked back, walks in again, and bleeds out one
+                        # invulnerability window at a time without the enemy ever dying.
+                        inputs = self._walk_toward(
+                            prev, (_f(e, "x") or _px(prev)) - _px(prev), 26.0)
+                        inputs["attack"] = True
+                    else:
+                        inputs = self._walk_toward(prev, gap, 1.0)
+                        if stalled > 12:
+                            inputs["jump"] = True
+                    # KEEP THE CONTROL DOWN WHILE THE CHARACTER IS STILL RISING.
+                    #
+                    # A variable-height jump is answered by how LONG the control is
+                    # held, and pressing it for one tick asks every submission for its
+                    # shortest possible arc. Measured across the eight `wg-g4c` levels,
+                    # a one-tick press reaches 29.0 to 88.4 units and holding reaches
+                    # 93.5 to 141.8 - and the widest gap any of those levels contains
+                    # is 110. So the single press, and nothing about the levels, is what
+                    # stopped the traversal.
+                    #
+                    # "While rising" rather than a fixed count: the apex is where extra
+                    # hold stops buying height, it is a property of the submission's own
+                    # physics, and a fixed count would be this file picking a number for
+                    # eight different gravities.
+                    if inputs.get("jump"):
+                        hold = self._JUMP_HOLD_MAX
+                    elif (hold > 0 and _player(prev).get("grounded") is not True
+                            and _py(prev) > prev_y):
                         inputs["jump"] = True
+                        hold -= 1
+                    else:
+                        hold = 0
+                    prev_y = _py(prev)
                     t = s.step_raw(inputs)
+                    prev = t
                     x = _px(t)
                     best = max(best, x)
                     stalled = stalled + 1 if x - last_x < 0.3 else 0

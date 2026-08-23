@@ -357,9 +357,40 @@ submission. It passes against the reference; that says the bot can walk one stag
 eight. **To promote it:** show it passing against at least three deliberately awkward
 reference levels (a pit, a staircase, a ceiling gap). Not by argument.
 
-Its stored value is `False` on all 8 `wg-g4c` submissions, so promoting it would lower
-every score in the group by the same amount and separate nothing (#126) — the case for
-fixing the bot stands on its own, and none of it is a case for scoring the criterion now.
+Its value is `False` on all 8 `wg-g4c` submissions — before the traversal repair and
+after it — so promoting it would lower every score in the group by the same amount and
+separate nothing (#128).
+
+**The traversal loop was repaired anyway, and reading its FRACTION was the free pre-test
+the harder-task decision was gated behind (task 83, `DECISIONS.md`).** `_stage` was a
+fourth copy of "walk right" that task 76's unification did not reach: it pressed
+`move_right` every tick, jumped only after being stuck for 12, and never attacked. It now
+walks toward `goal_x` through `_walk_toward`, stands off at swinging range and attacks
+what is in the way, and **holds the jump control while the character is still rising.**
+Each step was measured on all eight work trees:
+
+| bot | fraction of goal reached, 8 submissions | what it added |
+|---|---|---|
+| as shipped | 0.143 – 0.290 | — |
+| + `_walk_toward` | 0.143 – 0.327 | a one-tick edge jump |
+| + swing while closing | 0.143 – 0.509 | attacks, but walks into the enemy |
+| + stand off at 26 to swing | 0.143 – 0.510 | `_combat`'s own reach |
+| **+ hold jump while rising** | **0.274 – 0.803** | the rest of the jump arc |
+
+**The single biggest defect was the length of the key press, not the logic.** A
+variable-height jump answers *how long the control is held*; a one-tick press reaches
+29.0 to 88.4 units across the eight submissions and holding reaches 93.5 to 141.8, against
+a widest gap in any of the eight levels of 110. So no level was uncrossable and every one
+of them stopped the bot.
+
+**It still must not be promoted, and the reason is now measured rather than argued.** 8 of
+8 runs end having taken exactly `hp0` hits with no victory, so the scalar is
+`(health pool × distance per hit taken) ÷ goal_x` — the run length is set by the health
+bar. And the ordering is not the submissions': Spearman ρ between the shipped bot's
+ranking of the eight and the repaired bot's is **0.405**, exact permutation p = 0.163.
+**Improving the instrument reordered the field**, which is what a scalar reporting the
+instrument looks like. To promote it, the three awkward reference levels above **and** a
+bot that does not die of attrition on 8 of 8 real submissions.
 
 **`platform.lands` was repaired after `wg-g4c`, for the same reason one level down.** It
 walked off the opening ledge and asserted a landing, which requires a floor to be under
@@ -394,6 +425,17 @@ green on all 19 scored criteria of the pit level. **`wg-g4c` does not need re-gr
 its eight stored `playbot.json` files already pass all six on all eight submissions after
 the earlier repairs, the one exception being `unity__t0`'s `knockback.applied`, unscored
 for the separate reason in #89. The repair matters for the next gapped submission.
+
+**That "crosses a gap" was crossing the SMALLEST gap the submission would allow, and
+nothing said so** (task 83). `_walk_toward` presses `jump` on one tick and the character is
+airborne on the next, so the guard never re-fires — and eight of eight `wg-g4c` submissions
+implement a variable-height jump, where the arc is a function of how long the control is
+held. Measured on all eight: a one-tick press reaches **29.0 to 88.4** units, holding
+reaches **93.5 to 141.8**, and the widest gap in any of the eight levels is **110**. The
+scored criteria are unaffected — `_combat` and `_hurt` walk to an enemy, not across a
+level, and re-driving all eight with the traversal repair moves **0** scored verdicts — but
+a stated ceiling that is really a ceiling on the key press is the shape #37 keeps
+returning in: the check and its control shared the press.
 
 Three are genre-defining and invisible in a still frame:
 

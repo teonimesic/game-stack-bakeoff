@@ -156,7 +156,7 @@ sixteen false negatives in this project (#29, #34).
 | 15 | `anim.frames_advance` | holds `move_right` 60 ticks | `anim_frame` takes ≥2 distinct values and repeats (it cycles) | `anim_frame` constant |
 | 16 | `score.on_kill` | the kill in #10 | score strictly increased at the `enemy_dead` tick | score never changes |
 | 17 | `gameover.triggers` | stands in an enemy until hp reaches 0 | `game_over` true, `alive` false, and **inputs no longer change the state hash** | `game_over` never set |
-| — | `stage.completes` | walks right, jumps when blocked or at a gap, up to 4000 ticks | reaches `goal_x`, `victory` true, `stage_clear` fires | — |
+| — | `stage.completes` | walks toward `goal_x`, jumps the gaps in the ground **holding the control while still rising**, stands off at swinging range and attacks what is in the way, up to 4000 ticks | reaches `goal_x`, `victory` true, `stage_clear` fires | — |
 | 18 | `determinism.replay` | same seed, same tape | identical hash every tick | unseeded source |
 | 19 | `determinism.seed` | two seeds | traces differ | seed ignored |
 
@@ -172,6 +172,14 @@ honest submission** — which, once averaged, is indistinguishable from a real f
 So it is measured, reported under `diagnostics`, and excluded from the denominator. **To promote
 it:** show it passing against at least three deliberately awkward reference levels (a pit, a
 staircase, a ceiling gap), not by argument.
+
+**That paragraph's prediction was tested on 2026-08-23 and it was right, at both ends** (task 83).
+The reference is traversed by construction — `stage.completes` passes on `ref_platformer` under the
+broken bot *and* the repaired one, so it never carried information about traversal. On the eight
+real `wg-g4c` levels the same bot reached 14.3% to 29.0% of the goal and died every time. Repairing
+it — held jumps, standing off to swing — took the fractions to 27.4% to 80.3%, and **none reached
+the goal**: 8 of 8 now end having taken exactly `hp0` hits. `DECISIONS.md` and `judge/RUBRIC.md`
+carry the numbers and what they decided.
 
 ### Two traps this design is deliberately shaped around
 
