@@ -5138,9 +5138,15 @@ current head**, and refuses a branch behind its base. Proved on the real case be
 trusted — two refusals for #13, clear for #12, both answers known in advance — with 14 pins and a
 mutant that makes the staleness half inert and dies on one row.
 
-GitHub enforces exactly this natively, as `strict` required status checks, and **gates it behind
-a paid plan for a private repository**: rulesets and branch protection both return 403 *"Upgrade
-to GitHub Pro or make this repository public."* So the guard is local and advisory, and it is
-worth knowing that the only thing stopping the next bad merge is somebody running it.
+GitHub enforces exactly this natively, as `strict` required status checks, and **gated it behind
+a paid plan for a private repository**: rulesets and branch protection both returned 403 *"Upgrade
+to GitHub Pro or make this repository public."*
+
+> **Superseded the same day.** The repository was made public on 2026-08-24 and `main` is now
+> protected — required `gates` and `controls`, `strict`, linear history, no force-push, no
+> deletion, conversation resolution required. The paragraph above stands as what was true when
+> the finding was written, and the reason it is worth keeping is that **`enforce_admins` is
+> off**: an admin can still push to `main` directly and merge with `--admin`. For the account
+> that made this mistake, the guard is still local and still advisory.
 
 ---

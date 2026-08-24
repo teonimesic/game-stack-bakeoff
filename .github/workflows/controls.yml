@@ -1,10 +1,14 @@
 # The SLOW tier: the mutant suites, and the two selftests that spend real seconds.
 #
-# Split out of gates.yml for one reason and it is not tidiness: this repository is
-# PRIVATE, so Actions minutes are metered against a monthly account allowance. These
-# five steps are 685s measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s)
-# against the fast tier's 42s, so running them on every event would be an order of
-# magnitude more bill for checks whose inputs are only source.
+# Split out of gates.yml for one reason and it is not tidiness: LATENCY. These five steps
+# are 685s measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s) against the
+# fast tier's 42s, and both are required checks, so running them on every event would put
+# eleven minutes in front of every merge for checks whose inputs are only source.
+#
+# It WAS a billing split: the repository was private and Actions minutes were metered. It
+# went public on 2026-08-24 and Linux minutes are now unlimited, so the cost argument is
+# gone and the wall-clock one is what keeps the tiers apart. `ci_minutes.py` still measures
+# what runs; nothing is charged for it.
 #
 # WHAT THE PATH FILTER IS CLAIMING, so it can be argued with: every check here reads
 # source under eval/, or the skill layout under .agents/ and .claude/, and nothing else.
@@ -79,7 +83,8 @@ jobs:
 
       # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
       # others. Without it a broken run reports one failure per push, and clearing three
-      # takes three pushes on a metered account.
+      # takes three pushes, and a required check cleared one failure at a time is a merge
+      # blocked for as many round trips as it has defects.
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/bot_mutants.py

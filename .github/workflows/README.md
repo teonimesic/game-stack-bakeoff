@@ -72,10 +72,26 @@ head**, and it refuses a branch that is **behind its base**. The second is why i
 each had been tested against a base containing neither and one merged 12 commits behind with no
 run at its final head.
 
-GitHub enforces both natively — required status checks with `strict` — but **rulesets and branch
-protection are gated behind a paid plan on a private repository** (the API returns 403 *"Upgrade
-to GitHub Pro or make this repository public"*). Until this repository is public or on Pro, the
-gate is local and nothing stops a merge but running it.
+**GitHub now enforces both natively.** `main` is protected, and the settings are the two
+questions above plus the ways round them:
+
+| setting | what it stops |
+|---|---|
+| required checks `gates`, `controls` | merging with a red or missing check |
+| `strict: true` | merging a branch behind `main` — the #12/#13 failure |
+| `required_linear_history` | a merge commit on `main`, so squash is the only shape |
+| `allow_force_pushes: false`, `allow_deletions: false` | rewriting or removing `main` |
+| `required_conversation_resolution` | merging over an unresolved review thread |
+
+**`enforce_admins` is OFF, deliberately.** With it on, every change to `main` needs a pull
+request — including the queue commit the dispatch procedure pushes directly, which agents write
+into the main checkout. So an admin can still push straight to `main`, and an admin merging with
+`gh pr merge --admin` still bypasses the checks. The protection covers the ordinary path and not
+the person who broke it last time; `mergeable.py` is what covers that, and it is a step someone
+has to run.
+
+This was gated behind a paid plan while the repository was private (403 *"Upgrade to GitHub Pro
+or make this repository public"*) — going public is what made it available.
 
 ## What is deliberately not in CI
 
@@ -93,13 +109,16 @@ gate is local and nothing stops a merge but running it.
 
 ## Minutes
 
-This repository is **private**, so Actions minutes are metered.
+The repository is **public** since 2026-08-24, so Linux Actions minutes are **free and
+unlimited**. Nothing below is a bill — it is wall-clock in front of a merge, which is what
+`gates` and `controls` being required checks turned it into.
 
 ```bash
 python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
 ```
 
-`controls.yml` on pull requests is the largest single consumer. Its path filter is evaluated
+`controls.yml` is the slow tier and a required check, so it is what a merge waits on. Its path
+filter is evaluated
 against the **whole pull request diff**, not the latest push, so a branch that touches `eval/`
 once pays the slow tier on every later push — including pushes that only edit markdown. Narrowing
 it was measured and rejected: a pull request run tests the *merge*, and a latest-push filter would

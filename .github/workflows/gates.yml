@@ -1,9 +1,10 @@
 # The FAST tier: every gate that reads documents, the queue, or a register.
 #
 # Budget: 42s of gates, measured 2026-08-23 (see .github/workflows/README.md for the
-# table and for what is deliberately NOT here). Nothing waits on this except a review,
-# so completeness matters more than latency -- but the repository is PRIVATE and Actions
-# minutes are metered, which is why the 521s of mutant suites live in controls.yml.
+# table and for what is deliberately NOT here). This tier is a REQUIRED check on main, so
+# a merge waits on it -- which is why the 521s of mutant suites live in controls.yml and
+# this one stays fast. The split was originally about metered minutes on a private
+# repository; the repository is public since 2026-08-24 and Linux minutes are free.
 #
 # EVERY GATE IS ITS OWN STEP. A `run: |` block reports only its last command's exit
 # status (AGENTS.md rule 3), so a multi-command step is a step that can pass while a
@@ -31,7 +32,7 @@ concurrency:
 
 jobs:
   gates:
-    runs-on: ubuntu-latest   # private repo: Linux is 1x, macOS 10x, Windows 2x
+    runs-on: ubuntu-latest   # public repo: Linux minutes are free; keep it off macOS anyway
     steps:
       - uses: actions/checkout@v5
         with:
@@ -59,7 +60,8 @@ jobs:
 
       # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
       # others. Without it a broken run reports one failure per push, and clearing three
-      # takes three pushes on a metered account.
+      # takes three pushes, and a required check cleared one failure at a time is a merge
+      # blocked for as many round trips as it has defects.
 
       # ---- the documentation gates -------------------------------------------------
       - name: docstat --selftest (the sweep's own pins, in both directions)
@@ -129,8 +131,9 @@ jobs:
         run: python3 eval/tools/tokenvalue.py --selftest
       # Main went red on a merge while both contributing pull requests were green: each
       # was tested against a base containing neither, and one was merged 12 commits behind
-      # with no run at its final head. GitHub enforces neither on a private repository
-      # without a paid plan, so the merge gate lives here. Offline half only - the API half
+      # with no run at its final head. GitHub now enforces both natively -- `strict`
+      # required status checks, enabled when the repository went public -- and this stays as
+      # the pre-flight that says WHY a merge is refused. Offline half only: the API half
       # needs `gh` and a live pull request.
       - name: mergeable --selftest (green at a stale head is not mergeable)
         if: ${{ !cancelled() }}

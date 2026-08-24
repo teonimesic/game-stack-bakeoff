@@ -522,7 +522,10 @@ FOREIGN_FLAG_PREFIXES = (
 # `phantom`, so the check reported clean about a line it never read. Plant a name with no
 # exemption word in it. `--zzqnotaflag` turns this red; `--jq-local` turns it red too, which
 # is the pin that the exact match is doing something.
-FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq"})
+# `gh` and `jq`, spelled exactly: these are short enough that a prefix match would
+# swallow flags of ours that merely start the same way. `--admin` is `gh pr merge`'s
+# bypass, which DECISIONS.md and #162 both have to name to say what is not covered.
+FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq", "--admin"})
 
 
 def _check_skill_frontmatter() -> list[str]:

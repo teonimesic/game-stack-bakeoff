@@ -182,10 +182,15 @@ head the merge would produce.
 | a required check is red, running, or **absent at the pull request's current head** | a green run against an earlier push is a statement about a commit nobody is merging. PR #13's final head had **no `gates` or `controls` run at all** — the green run belonged to a commit two pushes earlier |
 | the branch is **behind its base** | PR #13 merged **12 commits behind**, and those 12 commits contained the very lines its own new gate forbids |
 
-GitHub enforces both natively — required status checks with `strict` — and **gates them behind a
-paid plan for private repositories**, which is why the check runs here. If this repository ever
-goes public or onto Pro, turn them on server-side and this becomes a local pre-flight rather than
-the only guard.
+**GitHub enforces both natively since 2026-08-24**, when the repository went public and
+`strict` required status checks became available: `gh pr merge` is refused if a check is red or
+the branch is behind. So `mergeable.py` is now the pre-flight that tells you **why** a merge will
+be refused, before you spend a round trip finding out.
+
+**It is not redundant, because `enforce_admins` is off.** An admin can still push straight to
+`main` and can still merge with `gh pr merge --admin`. The server-side protection covers the
+ordinary path; the person most able to bypass it is the one who broke `main` last time, and
+running the pre-flight is what covers that.
 
 **When it refuses for staleness, the fix is on the branch, never at the merge button:** update
 the branch from `main`, push, and let CI re-run at the head that will actually land. That is also

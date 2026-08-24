@@ -2185,6 +2185,39 @@ check**, which a by-hand pass scores as "caught". The 3 **variants** stay inside
 7, or a fifth stack — both of which change the cluster structure the adjudication turned on.
 
 
+## The repository is public, `main` is protected, and merges are squashed — decided 2026-08-24
+
+**Public.** The project is MIT and its output is evidence meant to be read. Making it public also
+removed the two constraints the CI design had been bending around: branch protection is free on a
+public repository, and Linux Actions minutes are unlimited. Scanned before flipping — 496
+revisions, no credential-shaped strings, no blob over 5MB, nothing sensitive tracked;
+`eval/runs/` was already gitignored and has never been in the history.
+
+**Squash-only.** `allow_merge_commit` and `allow_rebase_merge` are off. A task branch lands as one
+commit; its review rounds stay on the pull request where they were reviewed. PR #13 carried six
+round commits plus a merge into `main`'s history for one change. The squashed commit takes its
+subject from the pull request **title** and its message from the **body**, so the composed record
+of what was established lives inside the reviewed artefact instead of being written locally at
+merge time.
+
+**Protected.** Required `gates` and `controls`; `strict`, so a branch behind `main` cannot merge;
+`required_linear_history`; no force-pushes, no deletions; conversation resolution required.
+
+`strict` is the one that was bought. On 2026-08-23 `main` went red on a merge where **both**
+contributing pull requests were green, each tested against a base containing neither (#162). A
+gate asking only *are the checks green* passes that, and did.
+
+**`enforce_admins` is deliberately OFF, and it is the known hole.** Turning it on would require a
+pull request for every change to `main`, including the queue commit the dispatch procedure pushes
+directly — agents write status into the main checkout, so that path has to stay open. The
+consequence is that an admin can push to `main` and can merge with `gh pr merge --admin`, and the
+account that made the #162 mistake is an admin. `eval/tools/mergeable.py` is what covers that
+path, and it is advisory by construction: a step someone has to run.
+
+**What would re-open it:** if the queue commit stops needing a direct push — or if an admin
+bypass ever lands a red `main` again — `enforce_admins` becomes the cheaper answer and the
+dispatch procedure should change to suit it.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
