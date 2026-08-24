@@ -1,10 +1,11 @@
 ---
 id: 131
 title: controls.yml is a required check with a path filter, so a PR touching neither eval/ nor .agents/ can never merge
-status: in_progress
+status: in_review
 priority: 1
 refs: '#162, .github/workflows/controls.yml, eval/tools/ci_minutes.py, DECISIONS.md'
 done_when: A pull request changing ONLY tasks/ or README.md reports a green `controls` check and is mergeable. `ci_minutes.py --selftest` green, with the one-path-from-one-trigger mutant still dying. `.github/workflows/README.md` states where the filter now lives, and DECISIONS.md records whether `controls` is required.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/16
 ---
 
 A workflow filtered by `paths:` does not run when a pull request matches none of them, and
