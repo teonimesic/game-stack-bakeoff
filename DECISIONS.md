@@ -2227,16 +2227,18 @@ dispatch procedure should change to suit it.
 
 ## The `g1_pong` round-1 judge figure is $13.16, mean $4.39, and cents round half-up — decided 2026-08-24
 
-The three `g1_pong` field calls of 2026-08-16 are the only judge rounds here with **no surviving
-artifact** (task 04). `python3 eval/judge/judge_ledger.py --tree eval/runs/` reads 97 rounds over
-12 directories and none of them is this field, so the figure cannot be re-read and never will be.
-It was published two ways: **$13.16 / mean $4.39** in `eval/RUNS.md` and `eval/AGENTS.md`,
-**$13.15 / mean $4.38** in `eval/judge/JUDGING.md` — which also stated $13.16 fifty lines further
-down the same file. The second pair is now withdrawn, `WR-g1pong-round1-13-15`.
+The 3 `g1_pong` field calls of 2026-08-16 are the only judge rounds here with **no surviving
+artifact**. `python3 eval/judge/judge_ledger.py --tree eval/runs/` reads 97 rounds over 12
+directories and none of them is this field, so the figure **cannot be re-read from any
+currently surviving artifact** — task 04 re-ran `idiomatic` alone into
+`wg-funframes-crossgame/pong/` and recovered the ranking, not these calls or their scores. It
+was published 2 ways: **$13.16 / mean $4.39** in `eval/RUNS.md` and `eval/AGENTS.md`,
+**$13.15 / mean $4.38** in `eval/judge/JUDGING.md` — which also stated $13.16 some 50 lines
+further down the same file. The second pair is now withdrawn, `WR-g1pong-round1-13-15`.
 
 **It was filed as a rounding disagreement and it is not one** (`WR-g1pong-round1-13-15`).
 13.16 / 3 = 4.386667 and 13.15 / 3 = 4.383333, and half-up rounding takes those to 4.39 and 4.38
-respectively, so each document was internally consistent and the two disagreed about the **sum**.
+respectively, so each document was internally consistent and the 2 disagreed about the **sum**.
 That distinction is what makes this decidable: a rounding convention is a preference, and a sum
 is a claim with evidence behind it.
 
@@ -2244,24 +2246,30 @@ is a claim with evidence behind it.
 ledger sum to $33.63, which `judge_ledger.py` still re-derives to the cent from
 `wg-tetris-judge-2026-08-17/pre/`, and the published day total is $46.79: 46.79 - 33.63 = 13.16
 exactly, where $13.15 would require a total of $46.78. **This is coherence with a published
-total, not a re-reading** — $46.79 has no artifact either — but only one of the two candidates
+total, not a re-reading** — $46.79 has no artifact either — but only 1 of the 2 candidates
 contradicts the table it was printed beside. The recorded per-call range $2.82-$5.29
 discriminates neither: the third call is $5.05 under one and $5.04 under the other.
 
-**This is not the move `eval/RUNS.md` refuses for the $118.62/$118.63 pair.** That pair is two
-readings of two different sources — trial records at full precision against a build log rounded
-per line — and adjusting either would destroy a reading. Here there is one quantity, one
-spelling closes the arithmetic of its own table, and the other closes nothing.
+**This is not the move `eval/RUNS.md` refuses for the $118.62/$118.63 pair.** That pair is 2
+readings of 2 different sources — trial records at full precision against a build log rounded
+per line — and adjusting either would destroy a reading. Here there is 1 quantity, 1 spelling
+closes the arithmetic of its own table, and the other closes nothing.
 
 **Cents round half-up, never truncate**, stated once beside the figure in `eval/RUNS.md`'s
-specialist-judge ledger. Anything projected from the figure is derived from the unrounded
-13.16 / 3, not from $4.39: 96 calls are $421.12.
+specialist-judge ledger.
+
+**$13.16 is a historical aggregate and is not a planning basis, and the 2 uses are kept
+separate.** As a record it stands: it is what 3 calls of `architecture` and `idiomatic` on
+`g1_pong` consumed on 2026-08-16. As a rate it is barred by rule 4 — a mean over 2 aspects,
+where per-aspect rates on `g2_tetris3d` span $0.60 to $6.81 a call. `judge_ledger.py` prints no
+per-call mean for that reason, and the 1 projection made from this one came out 1.84x low. So
+every live document that used to project from it now prices per (game, aspect) from
+`eval/RUNS.md`'s ledger rows instead, and `eval/judge/JUDGING.md`'s 96-round figure became a
+range, $58 to $653 for 1 game, rather than a single **~$420** that matched no aspect.
 
 **Withdrawing the figure outright was the alternative and was rejected.** $13.16 is load-bearing
 for the #121 correction — it is the part of $46.79 that is *not* the tetris field — so retiring
-it would take the correction with it. What the figure cannot support is being a planning basis:
-it is a mean over three calls spanning two aspects, which is why `judge_ledger.py` prints no
-per-call mean at all, and the one projection made from it came out 1.84x low.
+it would take the correction with it.
 
 **The losing spelling is declared, not merely corrected.** `$13.15 / $4.38` is register entry
 `WR-g1pong-round1-13-15`, so `docstat.py --withdrawn` now turns red if either reappears in a live
