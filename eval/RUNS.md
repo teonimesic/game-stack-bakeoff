@@ -2153,10 +2153,10 @@ ranking. `assert_poolable` now refuses a barred aspect exactly as it refuses a c
 quoted after**, so the two are not comparable, and the older one is not merely rounder — it is a
 different quantity. Recomputed over the whole stored tree, unpiped:
 
-| directory | before | after |
+| directory | before — **retired**, and stated here only to say what changed | after |
 |---|---|---|
-| `wg-tetris-judge-2026-08-17/pre` | 5 aspects, 10 rounds, `rank`/`pool` 1.9000 / 2.2750 | 4 aspects, 8 rounds, **1.3125 / 2.5625** |
-| `wg-tetris-judge-2026-08-17/post` | 5 aspects, 10 rounds, `rank`/`pool` 2.1000 / 1.9250 | 4 aspects, 8 rounds, **1.8750 / 2.0938** |
+| `wg-tetris-judge-2026-08-17/pre` | 5 aspects, 10 rounds, `rank`/`pool` 1.9000 / 2.2750 — `WR-tier3-pool-pre` | 4 aspects, 8 rounds, **1.3125 / 2.5625** |
+| `wg-tetris-judge-2026-08-17/post` | 5 aspects, 10 rounds, `rank`/`pool` 2.1000 / 1.9250 — `WR-tier3-pool-post` | 4 aspects, 8 rounds, **1.8750 / 2.0938** |
 | `wg-aspect-reliability` | 5 aspects, 25 rounds, `score`/`pool` 0.4000 / 0.2400 | 4 aspects, 20 rounds, **0.5250 / 0.4000** |
 | `wg-funframes-crossgame/arena` | 3 aspects, 8 rounds | 2 aspects, **4** rounds |
 | `wg-funframes-crossgame/platformer` | 5 aspects, 10 rounds | 4 aspects, **8** rounds |
@@ -2164,8 +2164,6 @@ different quantity. Recomputed over the whole stored tree, unpiped:
 | `wg-funframes-crossgame/pong` | **1 aspect — `idiomatic` alone** | **UNMEASURABLE**, exit 1 |
 | `wg-g4c-capgate/out/capped` | **1 aspect — `idiomatic` alone**, `rank`/`pool` 5.2500 / 1.7500 | **UNMEASURABLE**, exit 1 |
 | `wg-g4c-capgate/out/uncapped` | **1 aspect — `idiomatic` alone** | **UNMEASURABLE**, exit 1 |
-The two `before` pairs in the top two rows are declared retired as `WR-tier3-pool-pre` and
-`WR-tier3-pool-post`; they appear here to say what changed, and nowhere else.
 
 **3 of the 9 were the barred reading and nothing else**, printed as a four-row separation table
 at exit 0. The loudest, `capped`, read between three times within — the largest between-over-within

@@ -139,31 +139,43 @@ def assert_poolable(rounds: list[dict]) -> None:
 
     Two shapes are legitimate and everything else is not:
 
-      * every round shares ONE aspect id - the per-aspect case. A control alone is fine, and
-        so is a barred aspect alone; reading either on its own is the entire point of having
-        it. What neither may do is contribute to a figure over several aspects.
+      * every round shares ONE aspect id AND `aspects.py` defines it - the per-aspect case.
+        A control alone is fine, and so is a barred aspect alone; reading either on its own
+        is the entire point of having it. What neither may do is contribute to a figure over
+        several aspects.
       * more than one aspect, ALL of them scored - the cross-aspect case a pooled figure
         is supposed to be.
+
+    AN UNKNOWN ID IS REFUSED EVEN ALONE, and that is why the check on it comes first. The
+    exemption for a lone aspect rests on knowing what that aspect is: a control's figure is
+    read against its treatment, a barred aspect's per-stack means are read within a stack.
+    For an id `aspects.py` does not define, neither is established - so there is no reading
+    its figure has, and returning one would be the same defect the multi-aspect branch
+    refuses, one aspect smaller.
 
     It lives in `figures()` rather than in `report()` on purpose. `report` is one caller;
     the resource being guarded is "a pooled figure", and a guard placed beside one caller
     is a guard the next caller does not have (rule 13).
     """
     ids = {r.get("aspect") for r in rounds}
+    unknown = sorted(str(i) for i in ids if classify(i) == UNKNOWN)
+    if unknown:
+        raise ValueError(
+            f"refusing to compute a figure for {unknown}: no such aspect in aspects.py, so "
+            f"whether it is a control, a barred aspect or a scored opinion cannot be "
+            f"established, and neither can what a figure over it would mean."
+        )
     if len(ids) <= 1:
         return
     bad = sorted(str(i) for i in ids if classify(i) != SCORED)
     if bad:
-        why = {CONTROL: "a control",
-               BARRED: "cross-stack barred",
-               UNKNOWN: "not an aspect aspects.py defines"}
+        why = {CONTROL: "a control", BARRED: "cross-stack barred"}
         named = ", ".join(f"{i} is {why[classify(i)]}" for i in bad)
         raise ValueError(
             f"refusing to pool {len(ids)} aspects together: {named}. "
-            f"A control's scores mean something only against the aspect it controls; a "
-            f"cross-stack-barred aspect's scores mean something only within a stack, and a "
-            f"pooled figure is a between-stack reading; and an aspect id aspects.py does not "
-            f"define cannot be shown to be either. "
+            f"A control's scores mean something only against the aspect it controls; and a "
+            f"cross-stack-barred aspect's scores mean something only within a stack, while a "
+            f"pooled figure is a between-stack reading. "
             f"Pool the scored aspects, or take one aspect at a time."
         )
 
@@ -312,10 +324,17 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
             for order in ORDERS:
                 print(f"\nper aspect, value={value} order={order}")
                 for a in _ids(usable):
+                    # NO ROW OF NUMBERS FOR AN ID aspects.py DOES NOT DEFINE. A figure
+                    # carrying a warning label is still a figure, and this table is where
+                    # a reader comes for one number. `assert_poolable` refuses these, so
+                    # the alternative to skipping the call is a traceback mid-table.
+                    if classify(a) == UNKNOWN:
+                        print(f"   {a:<18} between={'-':>8}  within={'-':>8}"
+                              "  (unknown, unmeasurable)")
+                        continue
                     b, w = figures([r for r in usable if r.get("aspect") == a],
                                    value, order)
-                    tag = {CONTROL: "  (control, excluded above)",
-                           UNKNOWN: "  (unknown, excluded above)"}.get(classify(a), "")
+                    tag = {CONTROL: "  (control, excluded above)"}.get(classify(a), "")
                     # The bar again, on the row itself. A reader who scrolls to this table
                     # for one number must not have to have read the header to know that
                     # this `between` is not a ranking.
@@ -556,6 +575,24 @@ def selftest() -> int:
         rc_only = report([stranger], per_aspect=False)
     check("a directory of nothing poolable exits 1, not 0", rc_only, 1)
     check("and says so", "UNMEASURABLE" in buf.getvalue(), True)
+    # AND IT IS REFUSED EVEN ALONE. The lone-aspect exemption rests on knowing what the
+    # aspect is; for an id aspects.py does not define, nothing is established, so there is
+    # no reading its figure has. Caught by review on PR #24: `--per-aspect` printed a row
+    # of numbers for it three lines under the word UNMEASURABLE.
+    try:
+        figures([stranger], "score", "pool")
+        unmet.append("figures() returned a figure for a lone unknown aspect id")
+        print("  [FAIL] figures() computed a figure for a lone unknown aspect")
+    except ValueError as exc:
+        print(f"  [ok ] a lone unknown aspect is refused: {str(exc)[:60]}...")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        report(rounds + [stranger], per_aspect=True)
+    text = buf.getvalue()
+    check("--per-aspect prints no numbers for it",
+          "retired_aspect_id  between=       -  within=       -" in text, True)
+    check("and the scored rows still carry theirs",
+          f"{_A_SCORED[0]:<18} between=  3.0000" in text, True)
 
     print("14. a cross-stack barred aspect is reported PER STACK, with its reason")
     # `_A_BARRED[0]` is read from `aspects.py`, not spelled here, for the same reason

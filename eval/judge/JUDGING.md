@@ -666,10 +666,10 @@ post-repair field gives **1.8750 against 2.0938** the same way.
 > than within*: it is decided by a choice nobody had made deliberately, and one of the eight
 > readings across the two fields still comes out the other way.
 
-What survives the parameter is the magnitude. **On none of the four readings does the
-between-stack range exceed the within-stack gap by more than 15%** — the maximum across both
-fields is `pre` `score`/`perround`, 1.0000 against 0.8750, a factor of 1.143 — and across the
-eight readings between is strictly smaller on **6**, equal on **1** and larger on **1**. That is
+What survives the parameter is the magnitude. **On none of the eight readings across the two
+fields does the between-stack range exceed the within-stack gap by more than 15%** — the maximum
+is `pre` `score`/`perround`, 1.0000 against 0.8750, a factor of 1.143 — and across those eight
+between is strictly smaller on **6**, equal on **1** and larger on **1**. That is
 against a field the deterministic tiers score identically. A stack effect would have to dwarf
 the within-stack gap. Nothing here does, under any method.
 
@@ -699,11 +699,15 @@ And the ordering is not stable to which aspects are included. Stack means under 
 | the **4** pooled | rust 3.63, unity 4.44, ts 4.88, godot 4.94 |
 | minus `fun` as well | rust 3.58, unity 4.42, godot 4.50, ts 5.33 |
 | `ux` alone | rust 3.00, godot 3.50, unity 5.00, ts 6.50 |
-| `idiomatic` alone — **barred, shown to say what the bar withholds** | rust 1.75, ts 3.50, godot 6.00 = unity 6.00 |
 
 Positions 2 to 4 permute completely: `godot` runs from second to last and `ts` from second to
 last, on subsets of the same 8 submissions. On the `post` field `ux` alone puts `godot` first.
 **There is no ordering here to report.**
+
+**`idiomatic` has no row here and must never be given one**, however labelled: sorting the
+stacks by its mean is the cross-stack ranking the bar withholds, and a warning beside a ranking
+is still a ranking. `field_ranks.py` prints its per-stack means **alphabetically by stack**, and
+that is the only shape it may be read in.
 
 > This table named **no method** until 2026-08-24 and reproduced under none — the failure #113
 > is about, in the section that warns against it. It is now labelled, and its rows come out of

@@ -265,8 +265,10 @@ aspect id `aspects.py` does not define is treated as **unmeasurable rather than 
 **The bar was in prose from #53 and in code from task 135, and the pooled figure ignored both
 until `tasks/146`.** A live document stating an aspect may not be ranked across stacks, beside a
 number that ranked it across stacks, is a disagreement no consistency check can see — the two
-statements are about different things. Excluding it **strengthened every published claim** and
-retired none: across the 9 stored directories that produced a pooled figure, 3 held nothing but
+statements are about different things. Excluding it **strengthened every published claim and
+retired no conclusion** — the two superseded pooled pairs themselves are retired, as
+`WR-tier3-pool-pre` and `WR-tier3-pool-post`. Across the 9 stored directories that produced a
+pooled figure, 3 held nothing but
 barred rounds and now report `UNMEASURABLE` instead of a full separation table (the loudest,
 `wg-g4c-capgate/out/capped`, read `rank`/`pool` **5.2500 against 1.7500** — the largest
 between-over-within this tool produces anywhere in the stored tree, and a pure barred reading),
