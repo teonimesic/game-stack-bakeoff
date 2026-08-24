@@ -623,6 +623,11 @@ UNKNOWN_TASK = "unknown"
 
 
 def _task_classes() -> dict[str, str]:
+    """Every task id the suites define, mapped to its class. Imported once, then cached.
+
+    The import is deferred to the first call so that reading a dataclass out of this
+    module does not drag `eval/suites/` in behind it.
+    """
     global _TASK_CLASSES
     if _TASK_CLASSES is None:
         suites = Path(__file__).resolve().parent.parent / "suites"

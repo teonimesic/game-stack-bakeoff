@@ -1163,6 +1163,26 @@ SCHEMA = {
 def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
               max_turns: int = 120, budget: float = 12.0,
               timeout_s: int = 3600) -> dict[str, Any]:
+    """Judge one built pack on one aspect, and return the round.
+
+    THE SPENDER. Everything above it plans; this is the call that consumes account
+    capacity, so it is also the last place a wrong field can be stopped -- and it stops
+    one by returning `{"usable": False, "error": ...}` rather than by raising, because a
+    refusal that is a stored record can be read afterwards and a traceback cannot.
+
+    The guards run in this order, and each is here because the alternative produced a
+    confident answer to a question nobody asked:
+
+      1. the identity mapping must not be inside the pack, or the judge is not blind (#32);
+      2. the aspect must be one this module defines, and must belong to the task class
+         the pack was built for -- `applicability()`, ahead of `ASPECTS[aspect_id]`;
+      3. the pack must have been built for this aspect's evidence (`sees`);
+      4. the pack must RECORD whether it is complete. A missing key read as falsy would
+         assert completeness about a pack nothing on disk describes (#62).
+
+    Returns the parsed judge output with `usable: True`, or a refusal naming which of
+    those failed.
+    """
     mapping = json.loads(mapping_path(pack).read_text())
     stray = sorted(q.name for q in pack.rglob("*")
                    if q.is_file() and "MAPPING" in q.name)
