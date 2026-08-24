@@ -1,7 +1,7 @@
 ---
 id: 140
 title: tasks.py check reports ORPHANED for every squash-merged branch, and the repository merges by squash
-status: todo
+status: in_progress
 priority: 2
 refs: eval/tools/tasks.py landed_status, DECISIONS.md "A closed ticket is checked against the tree", .agents/skills/dispatch/SKILL.md merging section, tasks/122
 done_when: landed_status distinguishes a branch that was squash-merged from one that was never merged, with the three-valued contract preserved and NOT_CHECKED still never a pass; a control pins it red on a genuinely orphaned branch and green on a squash-merged one, using real refs in this repository; and tasks.py check is green on the queue as it stands or names only tickets whose work really is absent from the tree
