@@ -329,16 +329,31 @@ def emit_scope(event: str | None = None,
     return 0
 
 
-def _parse_workflow(text: str, label: str) -> tuple[dict, list[str]]:
+def _import_yaml():
+    import yaml
+    return yaml
+
+
+def _parse_workflow(text: str, label: str, import_yaml=_import_yaml) -> tuple[dict, list[str]]:
     """Parse one workflow into a mapping. NEVER RAISES; returns what went wrong instead.
 
     Every caller here is a check, and a check that raises produces no verdict at all --
     its caller sees a traceback where it expected a list of problems, which is strictly
-    worse than a red row. There are 3 ways the parse can fail to give a mapping and each
-    used to raise from a different line: unparseable YAML, an empty document, and a root
-    that is a scalar or a list.
+    worse than a red row. There are 4 ways the parse can fail to give a mapping and each
+    used to raise from a different line: pyyaml not installed, unparseable YAML, an empty
+    document, and a root that is a scalar or a list. The pyyaml one was handled in
+    `filter_problems` and nowhere else, so `--gates` tracebacked past it -- the refusal
+    belongs at the address the parse happens, not at one of its callers (rule 12).
+
+    `import_yaml` is an injection point for the selftest and nothing in production passes
+    it; it is a callable rather than a patched module attribute so the control states its
+    own expectation instead of importing it from the subject.
     """
-    import yaml
+    try:
+        yaml = import_yaml()
+    except ImportError:
+        return {}, [f"pyyaml is missing, so {label} could not be parsed. "
+                    f"That is a refusal, not a passing check"]
     try:
         doc = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -383,7 +398,8 @@ def _job_steps(job: object) -> tuple[list[dict], str | None]:
     return [s for s in raw if isinstance(s, dict)], None
 
 
-def filter_problems(controls_text: str, gates_text: str | None = None) -> list[str]:
+def filter_problems(controls_text: str, gates_text: str | None = None,
+                    import_yaml=_import_yaml) -> list[str]:
     """Is `controls.yml` still wired so that it ALWAYS reports, and never runs nothing?
 
     Two properties, and they pull in opposite directions -- which is why both are gated:
@@ -414,14 +430,6 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     has no need to touch a file at all.
     """
     problems: list[str] = []
-    try:
-        import yaml  # noqa: F401  -- imported for the failure mode, used via _parse_workflow
-    except ImportError:  # pragma: no cover - pyyaml is installed in CI and locally
-        return problems + [
-            ("pyyaml is missing, so the workflows could not be parsed. "
-             "That is a refusal, not a passing check.")
-        ]
-
     # EVERY `jobs.*.runs-on`, not `"ubuntu-latest" in text`. The substring form passes a
     # workflow holding one ubuntu job and one macOS job -- and macOS bills at 10x, Windows
     # at 2x, so the whole 1x multiplier under this tool's total would be wrong while the
@@ -432,7 +440,7 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
         if text is None:
             continue
-        doc, bad = _parse_workflow(text, label)
+        doc, bad = _parse_workflow(text, label, import_yaml)
         problems += bad
         if not bad:
             parsed[label] = doc
@@ -523,7 +531,8 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     return problems
 
 
-def gate_census(texts: dict[str, str] | None = None) -> dict[str, dict]:
+def gate_census(texts: dict[str, str] | None = None,
+                import_yaml=_import_yaml) -> dict[str, dict]:
     """How many CHECKS each workflow runs, as a count with a producer behind it.
 
     `.github/workflows/README.md` opened with a hand-written "32 documentation, queue and
@@ -564,7 +573,7 @@ def gate_census(texts: dict[str, str] | None = None) -> dict[str, dict]:
             text = texts.get(label, "")
         else:
             text = (ROOT / ".github" / "workflows" / label).read_text(encoding="utf-8")
-        doc, malformed = _parse_workflow(text, label)
+        doc, malformed = _parse_workflow(text, label, import_yaml)
         jobs, no_jobs = (({}, None) if malformed else _workflow_jobs(doc))
         if no_jobs:
             malformed.append(f"{label} {no_jobs}")
@@ -839,6 +848,45 @@ def _selftest() -> int:
             if _as_json and "malformed" not in _sink():
                 failures.append("the --json payload does not carry `malformed`, so a "
                                 "consumer cannot see what was unreadable")
+    # PYYAML NOT INSTALLED. It is the 4th way the parse fails to give a mapping, it was
+    # handled in `filter_problems` and nowhere else, and `--gates` tracebacked straight
+    # past it. `_no_yaml` is an independent statement of the failure, not the subject's own
+    # (rule 12's addendum), and it is injected rather than patched onto the module.
+    def _no_yaml():
+        raise ImportError("No module named 'yaml'")
+
+    try:
+        _doc, _why = _parse_workflow("jobs:\n  controls:\n", "controls.yml", _no_yaml)
+    except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+        failures.append(f"_parse_workflow RAISED without pyyaml: {_exc!r}. The refusal "
+                        f"belongs where the parse happens, not at one of its callers")
+        _doc, _why = {}, []
+    else:
+        check("without pyyaml the parse refuses", (_doc, len(_why)), ({}, 1))
+        check("and says pyyaml is what is missing",
+              "pyyaml is missing" in (_why[0] if _why else ""), True)
+    try:
+        _cen_noyaml = gate_census({"controls.yml": "jobs:\n", "gates.yml": "jobs:\n"},
+                                  _no_yaml)
+    except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+        failures.append(f"gate_census RAISED without pyyaml: {_exc!r}")
+        _cen_noyaml = None
+    if _cen_noyaml is not None:
+        check("the census reports it rather than counting 0 gates",
+              (bool(_cen_noyaml["controls"]["malformed"]), _cen_noyaml["controls"]["gates"]),
+              (True, 0))
+        for _as_json in (False, True):
+            with contextlib_redirect_all():
+                _code = gates_report(_cen_noyaml, as_json=_as_json)
+            if _code != 2:
+                failures.append(f"gates_report(as_json={_as_json}) returned {_code} with "
+                                f"pyyaml missing; --gates must refuse, not traceback")
+    try:
+        _fp = filter_problems("jobs:\n  controls:\n", "jobs:\n", _no_yaml)
+        check("filter_problems refuses without pyyaml too", len(_fp) >= 1, True)
+    except Exception as _exc:  # noqa: BLE001
+        failures.append(f"filter_problems RAISED without pyyaml: {_exc!r}")
+
     # VARIANT: a clean census must still be published, and exit 0, in both modes.
     for _as_json in (False, True):
         with contextlib_redirect_all():
