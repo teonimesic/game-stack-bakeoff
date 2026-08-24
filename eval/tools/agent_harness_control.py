@@ -370,7 +370,7 @@ def rows(mod) -> list[Row]:
     # claude by provenance.
     out.append(_eq("VARIANT", "harness_of: an absent field is absent, not malformed",
                    (mod.harness_of({}), mod.harness_of({"agent": {"cost_usd": 1.0}}),
-                    mod.harness_of({"agent": {"harness": None}})),
+                    mod.harness_of({"agent": {}, "trial_id": "x"})),
                    ("claude", "claude", "claude")))
     # VARIANT: a field that is PRESENT and unusable. Falling through to the claude default
     # would put an unreadable record inside the tokval sum; returning the value itself -
@@ -389,8 +389,12 @@ def rows(mod) -> list[Row]:
                        # the claude default and therefore in the tokval sum.
                        {"agent": None},
                        {"agent": "not an object"},
-                       {"agent": {}, "harness": None})],
-                   ["invalid-provenance"] * 9))
+                       {"agent": {}, "harness": None},
+                       # A key that is PRESENT and null. `dict.get` cannot tell this from
+                       # a missing key, and they are different records.
+                       {"agent": {"harness": None}},
+                       {"harness": {"name": None}})],
+                   ["invalid-provenance"] * 11))
     out.append(_eq("PRISTINE", "TOKVAL_HARNESS", mod.TOKVAL_HARNESS, "claude"))
     # VARIANT: the two provenance fields DISAGREE. One writer sets both, so this is a
     # corrupted or hand-edited record and the honest answer is that the provenance is
@@ -533,6 +537,9 @@ MUTANTS: list[tuple[str, str, str]] = [
      "    return INVALID_PROVENANCE",
      "    if isinstance(value, str) and value:\n        return value\n"
      "    return None"),
+    ("a null field is read as an absent one - the `dict.get` conflation",
+     "    if field not in holder:\n        return None\n    value = holder[field]",
+     "    value = holder.get(field)\n    if value is None:\n        return None"),
     ("a present block that is not an object is read as silence",
      "    if not isinstance(holder, dict):\n        return INVALID_PROVENANCE",
      "    if not isinstance(holder, dict):\n        return None"),

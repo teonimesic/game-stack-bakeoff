@@ -124,6 +124,13 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CensusError(f"{path}: {exc}") from exc
+        # A TRIAL FILE THAT IS NOT AN OBJECT FAILS BY NAME TOO, and it must be asked
+        # FIRST: `"agent" in data` on a JSON string is a SUBSTRING test, so a file
+        # holding `"agent"` answers True and `data["agent"]` then raises `TypeError`
+        # naming no path. Every reader below assumes a mapping.
+        if not isinstance(data, dict):
+            raise CensusError(f"{path}: the record is {type(data).__name__}, not an "
+                              f"object — a trial file is a JSON object")
         # A RECORD WHOSE `agent` BLOCK IS PRESENT AND IS NOT AN OBJECT FAILS BY NAME.
         # `_terminal` and `_cost` both call `.get` on it, so `"agent": null` used to end
         # the census with an `AttributeError` several frames away, naming no file — loud,
@@ -498,6 +505,18 @@ def selftest() -> int:
         check("a record with unreadable provenance is not claude",
               c8["harness"].get("invalid-provenance"), 1)
         check("and its cost reached no total", c8["agent_cost_usd"], 6.0)
+
+        # Direction 9a: a trial file that is not an object at all. `"agent" in data` is
+        # a SUBSTRING test on a string, so this file answers True to it and used to raise
+        # `TypeError` naming nothing.
+        (runs / "wg-a" / "trials" / "g1__ts__t11.json").write_text('"agent"')
+        try:
+            census(runs)
+            failures.append("a non-object record: returned a census instead of raising")
+        except CensusError as exc:
+            if "g1__ts__t11.json" not in str(exc):
+                failures.append(f"the non-object refusal does not name its file: {exc}")
+        (runs / "wg-a" / "trials" / "g1__ts__t11.json").unlink()
 
         # Direction 9: an `agent` block that is present and is not an object fails by
         # NAME. `_terminal` and `_cost` both call `.get` on it, so this used to end the

@@ -159,6 +159,16 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Pat
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CostCensusError(f"{path}: {exc}") from exc
+        # THE RECORD'S SHAPE, before anything reads a field out of it. The population
+        # test in `cost_census()` is `WHOLEGAME_KEY not in d`, which on a JSON STRING is
+        # a substring test: a file holding `"a game"` would be read as a whole-game
+        # record and every `.get` below it would raise `AttributeError` naming no path,
+        # while a file holding `"agent"` would be classified as the retired suite's and
+        # dropped — a record lost from a census that reports no skip.
+        if not isinstance(data, dict):
+            raise CostCensusError(
+                f"{path}: the record is {type(data).__name__}, not an object — a trial "
+                f"file is a JSON object")
         out.append((str(path.parent.parent.relative_to(runs_dir)), path, data))
     if not out:
         raise CostCensusError(
@@ -1385,6 +1395,27 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         except Exception as exc:  # noqa: BLE001 - any other class is also a failure
             failures.append(f"malformed record: raised {type(exc).__name__}, "
                             f"not CostCensusError: {exc}")
+
+        # Direction 11b: a record that PARSES and is not an object. The population test
+        # is `WHOLEGAME_KEY not in d`, a SUBSTRING test on a string — so `"a game"` would
+        # be read as a whole-game record and raise `AttributeError` naming nothing, while
+        # `"agent"` would be filed as the retired suite's and dropped without a skip.
+        (runs / "run-a" / "trials" / "broken.json").unlink()
+        for literal in ('"a game"', '"agent"', "[1, 2]"):
+            (runs / "run-a" / "trials" / "notanobject.json").write_text(literal)
+            try:
+                cost_census(runs)
+                failures.append(f"a non-object record ({literal}): returned a result "
+                                f"instead of raising")
+            except CostCensusError as exc:
+                if "notanobject.json" not in str(exc):
+                    failures.append(f"non-object record ({literal}): error does not name "
+                                    f"the file: {exc}")
+            except Exception as exc:  # noqa: BLE001 - any other class is also a failure
+                failures.append(f"non-object record ({literal}): raised "
+                                f"{type(exc).__name__}, not CostCensusError: {exc}")
+        (runs / "run-a" / "trials" / "notanobject.json").unlink()
+        (runs / "run-a" / "trials" / "broken.json").write_text("{not json")
 
         # ---- VARIANTS. A mutant asks whether the check CAN fail; only a variant asks
         # whether it can still PASS on an input it mishandles (AGENTS.md rule 15). Every

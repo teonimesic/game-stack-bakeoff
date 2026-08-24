@@ -172,38 +172,35 @@ CONFLICT_PREFIX = "conflict:"
 INVALID_PROVENANCE = "invalid-provenance"
 
 
-def _provenance(value: Any) -> str | None:
-    """One harness name out of one field: a signal, no signal, or malformed.
-
-    `None` means the field said nothing. `INVALID_PROVENANCE` means it said something
-    unusable — `[]`, `0`, `""`, an object — and that is NOT the same as silence: falling
-    through to the `claude` default on a field that is present and broken would put an
-    unreadable record inside the tokval sum. A truthy non-string is the worse half: it
-    would be RETURNED, breaking this function's `str` contract, and a dict then raises
-    `TypeError` in the `collections.Counter` that partitions on it.
-    """
-    if value is None:
-        return None
-    if isinstance(value, str) and value:
-        return value
-    return INVALID_PROVENANCE
-
-
 def _at(record: dict[str, Any], block: str, field: str) -> str | None:
     """One provenance address: the `field` inside the `block`, or why it cannot be read.
 
-    **Only ABSENCE is silence.** A block that is present and is not an object — `"agent":
-    null` in a truncated or hand-edited record — cannot answer the question, and reading
-    it as silence puts it in the `claude` default and therefore in the tokval sum. The
-    same record makes `census._terminal` raise on the very next line, which is loud; being
-    quietly wrong here first is not.
+    **Only ABSENCE is silence, at every level.** One rule, applied to the block and to the
+    field alike: a key that is not there says nothing, and a key that IS there says either
+    a name or `INVALID_PROVENANCE`.
+
+    The distinction is the whole point, and `dict.get` cannot make it — it answers `None`
+    for a key that is missing and for a key whose value is `null`, which are different
+    records. `"agent": null`, or `"harness": null` inside it, is a truncated or
+    hand-edited record; read as silence it falls through to the `claude` default and
+    lands inside the tokval sum. A truthy non-string is the worse half: it would be
+    RETURNED, breaking this function's `str` contract, and a dict then raises `TypeError`
+    inside the `collections.Counter` that partitions on the value.
+
+    The population this protects is the stored corpus: 161 records carry an `agent` block
+    with **no `harness` key in it**, and every one of them must stay `claude`.
     """
     if block not in record:
         return None
     holder = record[block]
     if not isinstance(holder, dict):
         return INVALID_PROVENANCE
-    return _provenance(holder.get(field))
+    if field not in holder:
+        return None
+    value = holder[field]
+    if isinstance(value, str) and value:
+        return value
+    return INVALID_PROVENANCE
 
 
 def harness_of(record: dict[str, Any]) -> str:
