@@ -324,11 +324,17 @@ takes. `UNRESOLVED` is not a tie and must not be written as one.
 
 **At affordable N it can detect an ordering but cannot statistically prove a tie.** A Wilson 95%
 half-width at p=0.5 is 0.186 at n=24 and 0.098 at n=96 — so a ±0.10 statistical tie needs about
-**96 rounds per aspect**. At the measured mean of $4.38 per field call that is **~$420** of
-token valuation (96 x 4.38 = 420.48) and, more to the point, 96 sequential calls against one
-account's rate limit. This line said *$1,150* until 2026-08-23: that is 96 calls priced at the
-**$12 per-call ceiling**, not at anything measured, and the RESULT section 190 lines below had
-already corrected it to $420 while this paragraph went on stating the old figure.
+**96 rounds per aspect**. Priced **per aspect**, from the `g2_tetris3d` rows of `eval/RUNS.md`'s
+specialist-judge ledger, 96 rounds run from **$58** (`audio`, $0.60 a call) to **$653**
+(`architecture`, $6.81 a call) of token valuation on 1 game — an 11x spread, and each rate is 2
+calls, so read it as a lower bound rather than an estimate. More to the point at either end, it
+is 96 sequential calls against 1 account's rate limit.
+
+**Do not price this from a per-call mean.** This line said **~$420** until 2026-08-24, which is
+96 x the 2026-08-16 `g1_pong` mean of $4.39 — an average over `architecture` and `idiomatic`
+that describes no aspect and lands inside the range above while matching none of it (AGENTS.md
+rule 4). Before that it said *$1,150*, which is 96 calls at the **$12 per-call ceiling** and was
+never measured at all.
 
 The honest claims available at n=24 are therefore *"no ordering was found, ±0.19"* or *"the judge
 never separated this pair at all"*. `n_for_statistical_tie` is reported so the size of the
@@ -513,13 +519,18 @@ Unchanged. `verify_blind.py`, unpiped, after any starter or fixture change.
 
 ## First run on real submissions — 2026-08-16
 
-**Three calls, $13.15, then halted** so the deterministic result could be read without the
-subjective layer alongside it. **Measured cost: $2.82-$5.29 per field call (mean $4.38),
-450-572 s wall.** That is the number to plan with; every earlier figure here was an estimate.
-At the mean, 3 games x 5 aspects x 2 orders is about **$130**, and the ~96 rounds per aspect a
-statistical tie would need is about **$420 per aspect** — 96 calls at the measured $4.38 mean.
-The figure quoted before this measurement was $1,150, which is the same 96 calls priced at the
-$12 per-call ceiling.
+**3 calls, $13.16, then halted** so the deterministic result could be read without the
+subjective layer alongside it. **Measured: $2.82-$5.29 per field call, 450-572 s wall**, over
+`architecture` and `idiomatic` on 1 game.
+
+**Its mean, $4.39, is a retrospective aggregate and is not a planning basis.** It averages 2
+aspects, and per-aspect rates on `g2_tetris3d` span $0.60 to $6.81 a call, so a mean across them
+describes no aspect (AGENTS.md rule 4). Price a sweep from a (game, aspect) row of
+`eval/RUNS.md`'s ledger instead — that is where the figure and its rounding rule are defined, and
+why the sum is $13.16. Nothing in this file re-derives it: `judge_ledger.py --tree runs/` cannot
+see this field at all. This paragraph read *$13.15, mean $4.38* until 2026-08-24 — withdrawn,
+`WR-g1pong-round1-13-15`, which records why the 2 spellings were a disagreement about the sum
+rather than about rounding.
 
 **Gate 1, ceiling — PASSES, narrowly, on both aspects measured.**
 
