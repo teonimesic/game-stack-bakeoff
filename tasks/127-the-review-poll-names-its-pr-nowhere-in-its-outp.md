@@ -70,3 +70,25 @@ about `git commit -m`; the flag was different so the rule did not match, in the 
 pull request, it can name the wrong commit, its timeout is 4m26s too short on a 4-file diff, and
 its reply path corrupts text. Consider whether the `done_when` should be widened to "the recipe is
 rewritten and controlled as a whole" rather than repaired one clause at a time.
+
+## note 2026-08-24
+
+## note 2026-08-24 (later) — the stakes changed today, and so did what "done" is worth
+
+`main` is now protected with **`required_conversation_resolution`**, so an unresolved review thread
+**blocks the merge**. This recipe is no longer advisory: what it reports decides whether work can
+land, and its two false-positive modes (#165 reporting LANDED at a stale head, and reporting a
+clean review that has not happened) now translate directly into merging on a review nobody read.
+
+Both merges today needed a review round the recipe had already declared finished or absent.
+
+## Do not verify this recipe with this recipe
+
+The obvious test — run the fixed poll and see whether it reports correctly — shares every
+assumption with its subject. That is #37's shape and this project has paid for it twice. Build the
+expectation independently: a pull request whose review state you know in advance from the API by a
+different route, ideally one you set up deliberately (a thread left unresolved, a head pushed and
+polled immediately, a body containing backticks whose round trip you compare byte for byte).
+
+The `gh api -f body=` corruption (#166) is the easiest to control and the easiest to get wrong:
+compare what you sent with what the API stored, not with what you meant to send.
