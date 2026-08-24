@@ -215,7 +215,7 @@ sweep() {  # $1 = the exit status this control must produce
 plant() {  # $1 = the text to append, with \n escapes
   printf '%b' "$1" >> judge/JUDGING.md && return 0
   echo "PLANT FAILED"
-  git restore --source=HEAD --worktree -- judge/JUDGING.md
+  git restore --source=HEAD --worktree -- judge/JUDGING.md || { echo "RESTORE FAILED"; return 1; }
   return 1
 }
 
