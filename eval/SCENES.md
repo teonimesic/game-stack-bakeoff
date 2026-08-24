@@ -83,7 +83,7 @@ that decided it.
 | tier | games | scenes |
 |---|---|---|
 | 1 | builds, lints — a **gate** | unchanged |
-| 2 | play-bot drives the game | **scene probe**: criteria computed from frames + telemetry. Carries the weight |
+| 2 | play-bot drives the game | **scene probe** — `judge/scene_probe.py`: criteria computed from frames + telemetry. Carries the weight |
 | 3 | LLM judge | LLM judge, different aspects (below) |
 
 The play-bot tier carries the whole weight for games because it is the only tier that is both
@@ -97,23 +97,59 @@ Telemetry is what the submission says it did; the image is what it did. A criter
 only telemetry is gradeable by a submission that lies, and the cheapest lie is the one an agent
 writes without meaning to.
 
+### What the probe is, and what it is not yet
+
+`judge/scene_probe.py` implements every criterion below; `judge/scene_mutants.py` pins each one
+against a mutant that removes the behaviour it names and against correct scenes the reference
+does not resemble, and both run in `controls.yml`. The two reference scenes are
+`judge/fixtures/ref_parallax` and `judge/fixtures/ref_glass`.
+
+**No criterion has ever met a submission.** No scene has been built or graded, so every threshold
+was chosen against fixtures written by the same hand as the criterion, and the probe's first real
+run is also its first real test. `python3 judge/scene_mutants.py --census` reports what each
+criterion separated in the population that exists, and says in as many words that the population
+is fixtures. Do not read a scene result without reading that line.
+
+**One instrument error is already measured**, so the first run does not have to rediscover it:
+the image-side shift estimator misses 3 of 88 frame pairs, all on the band holding a large object
+that is stationary on screen. `scene_probe.py`'s docstring holds the detail.
+
 ## `s1_parallax` — 2D, a car on a road
 
 A side-on car driving a looping road, with a layered background, running for a fixed number of
 ticks and passing through a lighting transition.
 
-| criterion | the naive implementation it catches |
-|---|---|
-| layers scroll at **distinct rates ordered by declared depth** | one flat background image scrolled as a unit |
-| the same ordering is visible **in the image** — horizontal bands at different heights shift at different rates | telemetry that reports parallax the renderer does not draw |
-| the loop **wraps seamlessly** — no outlier in the per-frame difference series at the wrap tick | a background that visibly jumps when it repeats |
-| wheel angular velocity **matches ground speed** | wheels spun at a constant rate unrelated to motion |
-| a foreground element **occludes** the car at a known tick | everything drawn in one z-layer |
-| the lighting transition ramps **monotonically** across its window | an instant cut between two palettes |
-| same seed → **identical frame hashes** | anything wall-clock or unseeded |
+| criterion | id in `judge/scene_probe.py` | reads | the naive implementation it catches |
+|---|---|---|---|
+| the contracted state shape, with finite numbers | `state.shape` | telemetry | a scene that answers a different contract |
+| layers scroll at **distinct rates ordered by declared depth** | `layers.depth_ordered` | telemetry | one flat background image scrolled as a unit |
+| the same ordering is visible **in the image** — horizontal bands at different heights shift at different rates | `layers.image_parallax` | **image** | telemetry that reports parallax the renderer does not draw |
+| the loop **wraps seamlessly** — the drawn shift at a wrap continues the scroll the layer keeps elsewhere | `loop.seamless` | both | a background that visibly jumps when it repeats |
+| wheel angular velocity **matches ground speed** | `wheels.match_speed` | telemetry | wheels spun at a constant rate unrelated to motion |
+| a foreground element **occludes** the car at a known tick | `front.occludes` | telemetry | everything drawn in one z-layer |
+| the lighting transition ramps **monotonically** across its window | `light.monotonic` | both | an instant cut between two palettes |
+| same seed identical **and** different seeds different | `seed.pair` | both | anything wall-clock or unseeded, and anything canned |
 
 Two of these — the image-side parallax check and the wrap check — are what make the scene about
 rendering rather than about arithmetic.
+
+**`front.occludes` is telemetry-only and cannot be otherwise.** The contract gives the car's world
+position and each foreground thing's world position, and no screen box for the car — so there is
+no way to ask the pixels whether one covered the other. Adding `car.screen` to the trace contract
+would make it measurable twice, and that is a prompt change, which is a regime boundary.
+
+**Two of these are implemented differently from the shape first proposed here, and both
+differences are what makes them measurable at 12 frames.**
+
+- `loop.seamless` does **not** look for an outlier in a per-frame difference series. Consecutive
+  captures are 60 ticks apart, so every consecutive pair already differs enormously and a seam is
+  a few columns inside that — the outlier would be swamped. Instead it estimates each band's
+  drawn displacement between frames, divides by the offset that band reports, and asks whether
+  the crossing keeps the ratio the band holds everywhere else. A layer that snaps at its repeat
+  breaks the ratio at exactly that pair and nowhere else.
+- `seed.pair` compares the captured PNG **bytes**, not a frame hash. A hash a submission computes
+  about its own frames is another field it can get wrong or quietly stop updating; the files on
+  disk are not.
 
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks
 
@@ -121,14 +157,24 @@ A transparent glass holds water. The water drains slowly. The glass tilts, then 
 ground and shatters into irregular pieces. After a pause the sequence runs backwards: pieces
 reassemble, water returns, the glass rises.
 
-| criterion | the naive implementation it catches |
-|---|---|
-| the **water surface stays world-horizontal while the glass tilts** | water modelled as a child of the cup, so it tilts with it |
-| water volume **decreases monotonically** and agrees with the drip count (mass balance) | a water mesh that is merely scaled down |
-| the region seen through the glass is a **distorted** version of a known backdrop, not a flat tint | alpha transparency with no refraction |
-| shatter yields **≥ N pieces**, all resting **on** the ground plane, not through it | a single mesh swapped for a "broken" texture; pieces that sink |
-| **different seeds → different piece transforms; same seed → identical** | a canned pre-fractured mesh played back |
-| reversal returns to the initial state within tolerance, in **both** telemetry and frame distance | a reversal that fades out instead of inverting |
+| criterion | id in `judge/scene_probe.py` | reads | the naive implementation it catches |
+|---|---|---|---|
+| the contracted state shape, with finite numbers | `state.shape` | telemetry | a scene that answers a different contract |
+| the **water surface stays world-horizontal while the glass tilts** | `water.level_under_tilt` | telemetry | water modelled as a child of the cup, so it tilts with it |
+| water volume **decreases monotonically** and agrees with the drips (mass balance) | `water.volume_conserved` | telemetry | a water mesh that is merely scaled down |
+| the region seen through the glass is a **distorted** version of a known backdrop, not a flat tint | `glass.refracts` | **image** | alpha transparency with no refraction |
+| shatter yields **≥ 8 pieces**, all coming to rest on a common surface rather than sinking through it | `shatter.pieces_rest` | telemetry | a single mesh swapped for a "broken" texture; pieces that sink |
+| **different seeds → different piece transforms; same seed → identical** | `seed.pair` | both | a canned pre-fractured mesh played back |
+| reversal returns to the initial state within tolerance, in **both** telemetry and frame distance | `reversal.inverts` | both | a reversal that fades out instead of inverting |
+
+**`shatter.pieces_rest` does not use `table.y` as the ground plane, and that is a decision rather
+than an omission.** The contract calls `table.y` *"the height of the surface everything stands on"* and
+the scene has two surfaces: the glass stands on a table and its fragments come to rest on
+whatever is below it. A submission may reasonably report either. So the criterion asks the two
+questions that need no plane at all — a settled fragment must not go on descending, and the
+settled fragments must lie within a band rather than being scattered through the world — and uses
+`table.y` only as the SCALE, `max |glass.y − table.y|` over the run, which is what makes every
+tolerance here a share of the drop rather than a number in somebody's world units.
 
 The tilt criterion is the one worth building the scene for: the water surface is the single place
 where "looks about right" and "is actually simulated" separate, and the wrong implementation is

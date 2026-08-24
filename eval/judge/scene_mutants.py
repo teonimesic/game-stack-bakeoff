@@ -1,0 +1,838 @@
+#!/usr/bin/env python3
+"""Mutation and variant tests for the scene probe. Run: `python3 judge/scene_mutants.py`.
+
+THE POINT OF THIS FILE, and it is the same point as `bot_mutants.py` and
+`audio_selftest.py`: a criterion validated only against good input is indistinguishable
+from a criterion that cannot fail, and it reads as success in every report.
+
+So every criterion in `scene_probe.py` is pinned in BOTH directions:
+
+    the healthy reference fixture                  -> must PASS, and PASS SCORED
+    the fixture with that behaviour removed        -> must FAIL, and FAIL SCORED
+    a CORRECT fixture the reference does not resemble -> must still PASS
+
+The third is not decoration. **A mutant asks whether a check can fail; only a variant
+asks whether it can still pass on an input it mishandles**, and every false negative ever
+adjudicated in this project has been of the second kind - sixteen in one sweep (#46).
+A mutant removes the mechanism the criterion names; it cannot manufacture an input the
+criterion gets wrong.
+
+A mutant that comes back UNSCORED has escaped, not been caught: `scored=False` is the
+honest verdict for "the instrument could not measure this", and the scene probe has two
+ways to reach it (a lock conflict, and a precondition the captured material does not
+contain). Both are reported as unmet expectations.
+
+Mutants are made by copying a fixture to a temp directory and patching one file by exact
+string replacement, so nothing here modifies a fixture in place and every patch asserts
+its target appears exactly once - a mutation test that silently fails to mutate is worse
+than none.
+
+    python3 judge/scene_mutants.py                 # both scenes, both directions
+    python3 judge/scene_mutants.py --only s2_glass
+    python3 judge/scene_mutants.py --census        # what each criterion separated
+    python3 judge/scene_mutants.py --census --runs-root <main checkout>/eval/runs
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import sys
+import tempfile
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+import scene_probe  # noqa: E402
+
+FIXTURES = HERE / "fixtures"
+FIXTURE_FOR = {"s1_parallax": "ref_parallax", "s2_glass": "ref_glass"}
+
+
+@dataclass(frozen=True)
+class Patch:
+    file: str
+    old: str
+    new: str
+
+
+@dataclass(frozen=True)
+class Mutant:
+    criterion: str
+    scene: str
+    label: str
+    patches: tuple[Patch, ...]
+    #: other criteria this mutant is EXPECTED to disturb, so the report can separate
+    #: "the mutant worked" from "the mutant broke the whole scene".
+    collateral: tuple[str, ...] = ()
+    notes: str = ""
+
+
+@dataclass(frozen=True)
+class Variant:
+    scene: str
+    label: str
+    patches: tuple[Patch, ...]
+    #: the criteria this variant exists to exercise; ALL criteria must still pass.
+    exercises: tuple[str, ...]
+    #: Criteria this variant legitimately makes UNMEASURABLE, with the reason in
+    #: `notes`. This is the one field in the suite where a failure is allowed not to
+    #: count, and AGENTS.md rule 7 says every such channel is one a real bug can widen -
+    #: so a tolerance that never fires is reported as dead.
+    tolerates: tuple[str, ...] = ()
+    notes: str = ""
+
+
+# --------------------------------------------------------------------------- #
+# s1_parallax
+# --------------------------------------------------------------------------- #
+
+P_SHAPE = Patch("game.py",
+                '            "light": {"phase": _r(ph),',
+                '            "lighting": {"phase": _r(ph),  # MUTANT: the contracted '
+                'key is misspelled')
+
+P_FLAT = Patch("game.py",
+               '    """How fast a layer at `depth` scrolls, as a fraction of the car\'s '
+               'travel."""\n    return 1.0 / (1.0 + depth)',
+               '    """How fast a layer at `depth` scrolls, as a fraction of the car\'s '
+               'travel."""\n    return 0.5  # MUTANT: one flat background, scrolled as '
+               'a unit')
+
+#: The telemetry keeps four distinct offsets; the renderer draws every band with the
+#: nearest one. This is the mutant no telemetry-side check can find, and it is why the
+#: image half exists.
+P_DRAWN_FLAT = Patch("film.py",
+                     '        phase = (layer["offset"] * SCALE) % span',
+                     '        phase = (st["layers"][-1]["offset"] * SCALE) % span'
+                     '  # MUTANT: every band is drawn at the nearest layer\'s offset')
+
+P_JUMPY_WRAP = Patch("film.py",
+                     '        phase = (layer["offset"] * SCALE) % span',
+                     '        _o = layer["offset"] * SCALE  # MUTANT: the loop jumps\n'
+                     '        phase = (_o % span) - 26.0 * SCALE * int(_o // span)')
+
+P_FREE_WHEELS = Patch("game.py",
+                      "        self.wheel_angle += travel / WHEEL_RADIUS",
+                      "        self.wheel_angle += BASE_SPEED * DT / WHEEL_RADIUS  "
+                      "# MUTANT: spun at the mean rate, not by the ground")
+
+P_NOTHING_IN_FRONT = Patch("game.py",
+                           "            x += self.rng.between(140.0, 260.0)",
+                           "            x += self.rng.between(2140.0, 2260.0)  # MUTANT:"
+                           " nothing the car reaches, so nothing covers it")
+
+P_LIGHT_CUT = Patch(
+    "game.py",
+    """        if self.tick <= LIGHT_BEGIN:
+            return 0.0
+        if self.tick >= LIGHT_END:
+            return 1.0
+        u = (self.tick - LIGHT_BEGIN) / float(LIGHT_END - LIGHT_BEGIN)
+        # smoothstep: still strictly increasing, so the ramp is monotonic either way
+        return u * u * (3.0 - 2.0 * u)""",
+    """        return 0.0 if self.tick < LIGHT_END else 1.0  # MUTANT: an instant cut""")
+
+#: The capture geometry changes half way through the run. Nothing in the trace notices,
+#: and every image measure compares one rectangle of one frame against the same rectangle
+#: of another - so without `SceneRun.one_geometry` the comparison would run to the shorter
+#: of two lists and return a truncated answer instead of refusing. Exercises the
+#: fail-CLOSED half of the docstring's table: broken capture is a fact about the
+#: submission, so an image-only criterion goes red rather than unscored.
+P_MIXED_SIZES = (
+    Patch("film.py",
+          "def main(argv: list) -> int:\n    if len(argv) < 4:",
+          "def main(argv: list) -> int:\n    global WIDTH, HEIGHT  # MUTANT\n"
+          "    if len(argv) < 4:"),
+    Patch("film.py",
+          """        if t in wanted:
+            write_rgb(os.path.join(outdir, "frame_%04d.png" % index), WIDTH, HEIGHT,
+                      render(sim))
+            index += 1""",
+          """        if t in wanted:
+            write_rgb(os.path.join(outdir, "frame_%04d.png" % index), WIDTH, HEIGHT,
+                      render(sim))
+            index += 1
+            if index == 6:  # MUTANT: the capture geometry changes mid-run
+                WIDTH, HEIGHT = 520, 300"""),
+)
+
+P_SEED_IGNORED = Patch("game.py",
+                       "        self.rng = Rng(self.seed ^ 0x5CE7E)",
+                       "        self.rng = Rng(0x5CE7E)  # MUTANT: the seed is ignored")
+
+P_WALLCLOCK = Patch("game.py", "import math\nimport struct",
+                    "import math\nimport os\nimport struct\nimport time")
+P_WALLCLOCK_SEED = Patch("game.py",
+                         "        self.seed = int(seed) & _M64",
+                         "        self.seed = (int(seed) ^ os.getpid()\n"
+                         "                     ^ time.time_ns()) & _M64  # MUTANT")
+
+# -- variants: correct scenes the reference does not resemble ---------------- #
+
+V_CONSTANT_SPEED = Patch("game.py", "SPEED_WOBBLE = 0.18",
+                         "SPEED_WOBBLE = 0.0  # VARIANT: a car that holds one speed")
+
+#: The reference numbers its layers from the furthest to the nearest, so a criterion
+#: that read `layers[0]` as "the sky" would agree with it by accident. Here the ids run
+#: the other way and the scene is otherwise identical - still sorted by id, as the
+#: contract requires.
+V_REVERSED_IDS = (
+    Patch("game.py",
+          "LAYERS = ((1, 8.0, 120.0), (2, 4.0, 160.0), (3, 2.0, 220.0), "
+          "(4, 1.0, 260.0))",
+          "LAYERS = ((1, 1.0, 260.0), (2, 2.0, 220.0), (3, 4.0, 160.0), "
+          "(4, 8.0, 120.0))  # VARIANT: id 1 is the NEAREST layer"),
+    Patch("game.py",
+          "BANDS = {1: (0.00, 0.30), 2: (0.30, 0.52), 3: (0.52, 0.66), "
+          "4: (0.66, 1.00)}",
+          "BANDS = {4: (0.00, 0.30), 3: (0.30, 0.52), 2: (0.52, 0.66), "
+          "1: (0.66, 1.00)}"),
+)
+
+#: A 30-tick ramp is a hasty but legal reading of "it changes gradually" - every shade
+#: is still passed through, tick by tick. What it removes is the IMAGE half: at most one
+#: captured frame lands inside a ramp that short, so `light.monotonic` must fall back to
+#: telemetry and still pass rather than failing a correct scene for being quick.
+V_SHORT_RAMP = (Patch("game.py", "LIGHT_BEGIN = 240", "LIGHT_BEGIN = 590  # VARIANT"),
+                Patch("game.py", "LIGHT_END = 540", "LIGHT_END = 620  # VARIANT"))
+
+#: THE GEOMETRY VARIANT, and it is a measurement rather than a promise. Submissions
+#: choose their own capture size - only one starter's `film` recipe passes an explicit
+#: resolution - so a criterion that counted raw pixels would rank the resolution (#59).
+#: `judge/static.py` states that rule for the game tiers and gates it by registry; here
+#: the same claim is checked by filming the identical scene 1.5x larger and requiring
+#: every verdict to be unchanged.
+V_BIGGER_FRAMES = (Patch("film.py", "WIDTH = 640", "WIDTH = 960  # VARIANT"),
+                   Patch("film.py", "HEIGHT = 360", "HEIGHT = 540  # VARIANT"))
+
+
+# --------------------------------------------------------------------------- #
+# s2_glass
+# --------------------------------------------------------------------------- #
+
+G_SHAPE = Patch("game.py",
+                '            "water": {"volume": _r(f["water"]), "up": [0.0, 1.0, 0.0],',
+                '            "liquid": {"volume": _r(f["water"]), "up": [0.0, 1.0, 0.0],'
+                '  # MUTANT: the contracted key is renamed')
+
+#: THE ONE-LINE CHANGE THE WHOLE SCENE EXISTS TO CATCH. Parenting the water to the cup
+#: is what a hurried agent reaches for first, and it is invisible to anything that does
+#: not compare the water's own surface normal against world up.
+G_WATER_PARENTED = Patch(
+    "game.py",
+    '            "water": {"volume": _r(f["water"]), "up": [0.0, 1.0, 0.0],',
+    '            "water": {"volume": _r(f["water"]),\n'
+    '                      "up": [_r(v) for v in _up_from_angle(f["angle"])],  # MUTANT:'
+    ' the water is a child of the cup')
+
+G_SCALED_MESH = Patch(
+    "game.py",
+    '            "drips": {"count": int(f["drained"] / DRIP_UNIT),\n'
+    '                      "volume": _r(f["drained"])},',
+    '            "drips": {"count": 0, "volume": 0.0},  # MUTANT: the water mesh is '
+    'merely scaled down; nothing ever leaves')
+
+G_ALPHA_ONLY = Patch(
+    "film.py",
+    """            bend = CURVE_PX * u * (1.0 - 0.35 * v * v)
+            src = backdrop.get(int(px + bend), int(py + 5.0 * u * u))""",
+    """            src = backdrop.get(px, py)  # MUTANT: alpha transparency, no """
+    """refraction""")
+
+#: Half the contracted captures. Every starter's `just film` writes 12 evenly spaced
+#: frames, so with any other count no frame can be attached to a tick and every image
+#: measure loses its clock. The image-only criterion goes red; the criteria with a
+#: telemetry half fall back to it, which is the row above this one in the docstring's
+#: table and the one a variant cannot reach.
+G_HALF_THE_FRAMES = Patch("film.py", "MAX_FRAMES = 12",
+                          "MAX_FRAMES = 6  # MUTANT: half the contracted captures")
+
+G_FLAT_TINT = Patch(
+    "film.py",
+    """            bend = CURVE_PX * u * (1.0 - 0.35 * v * v)
+            src = backdrop.get(int(px + bend), int(py + 5.0 * u * u))""",
+    """            src = (150, 168, 172)  # MUTANT: a flat tint; nothing is seen """
+    """through it""")
+
+G_ONE_PIECE = (Patch("game.py", "PIECES_MIN = 9", "PIECES_MIN = 1  # MUTANT"),
+               Patch("game.py", "PIECES_MAX = 16", "PIECES_MAX = 1  # MUTANT: a single "
+                                                   "mesh swapped for a broken one"))
+
+G_PIECES_SINK = Patch(
+    "game.py",
+    "        settled = s >= land + rest_delay",
+    "        settled = s >= land + rest_delay\n"
+    "        if settled:\n"
+    "            y -= 40.0 * (s - land - rest_delay)  # MUTANT: settled pieces go on "
+    "sinking through the floor")
+
+#: THE FIRST VERSION OF THIS MUTANT DID NOT BITE, and that is worth keeping. It replaced
+#: only the rewind window's index arithmetic and left `if tick >= WHOLE_AT: return 0`
+#: standing, so the scene still snapped back to its opening state for the closing 20
+#: ticks - and the criterion, which reads the LAST tick, correctly passed. A mutant must
+#: remove the mechanism the criterion names, not a mechanism next to it.
+G_NO_REVERSAL = Patch(
+    "game.py",
+    """        if tick >= WHOLE_AT:
+            return 0
+        span = WHOLE_AT - 1 - REWIND_AT
+        u = (WHOLE_AT - 1 - tick) / float(span)
+        return int(round(u * (FORWARD_END - 1)))""",
+    """        return FORWARD_END - 1  # MUTANT: the rewind holds on the broken state""")
+
+#: The backdrop stays seeded, so the hash chains and the frames still differ between
+#: seeds - only the FRAGMENTS are canned. That is the point: *different seeds differ*
+#: alone is satisfied by anything random, and this mutant satisfies it.
+G_CANNED_FRACTURE = Patch(
+    "game.py",
+    """        self.piece_count = PIECES_MIN + rng.below(PIECES_MAX - PIECES_MIN + 1)
+        self.piece_plan = []
+        for i in range(self.piece_count):
+            self.piece_plan.append({
+                "id": i + 1,
+                "vx": rng.between(-52.0, 52.0),
+                "vy": rng.between(24.0, 78.0),
+                "vz": rng.between(-18.0, 18.0),
+                "spin": rng.between(-7.0, 7.0),
+                "size": rng.between(0.18, 0.44),
+                "rest": rng.between(0.0, 5.0),
+                "phase0": rng.between(0.0, 6.28318),
+            })""",
+    """        canned = Rng(0x91A55)  # MUTANT: a canned pre-fractured mesh
+        self.piece_count = PIECES_MIN + canned.below(PIECES_MAX - PIECES_MIN + 1)
+        self.piece_plan = []
+        for i in range(self.piece_count):
+            self.piece_plan.append({
+                "id": i + 1,
+                "vx": canned.between(-52.0, 52.0),
+                "vy": canned.between(24.0, 78.0),
+                "vz": canned.between(-18.0, 18.0),
+                "spin": canned.between(-7.0, 7.0),
+                "size": canned.between(0.18, 0.44),
+                "rest": canned.between(0.0, 5.0),
+                "phase0": canned.between(0.0, 6.28318),
+            })""")
+
+# -- variants ---------------------------------------------------------------- #
+
+#: The reference leans one way. Nothing in the criteria may depend on which - an angle
+#: to world up is unsigned, and a check that compared a component instead of an angle
+#: would pass the reference and fail this.
+V_TIPS_THE_OTHER_WAY = Patch("game.py", "TILT_MAX = 1.05",
+                             "TILT_MAX = -1.05  # VARIANT: it tips the other way")
+
+#: `up` is "the direction the arrow points" and the contract never says it is unit
+#: length. A check that read `up[1]` as a cosine would pass the reference and fail this.
+V_UNNORMALISED_UP = Patch(
+    "game.py",
+    """def _up_from_angle(a: float) -> tuple:
+    \"\"\"The direction the glass's own 'up' arrow points after leaning by `a` radians.\"\"\"
+    return (math.sin(a), math.cos(a), 0.0)""",
+    """def _up_from_angle(a: float) -> tuple:
+    \"\"\"The direction the glass's own 'up' arrow points after leaning by `a` radians.\"\"\"
+    return (3.0 * math.sin(a), 3.0 * math.cos(a), 0.0)  # VARIANT: not unit length""")
+
+#: The glass empties COMPLETELY before it leans. Legal - the prompt says it empties -
+#: and it drives the remaining volume to exactly zero, which is where a check that
+#: divides by the current volume rather than the opening one comes apart.
+V_EMPTIES_FULLY = Patch("game.py", "DRAINED_BY_TILT = 0.85",
+                        "DRAINED_BY_TILT = 1.0  # VARIANT: it empties completely")
+
+#: The same geometry variant for the glass. Its camera lives in `game.py` so that
+#: `glass.screen` and the renderer cannot disagree, which means the view size, the scale
+#: and the origin move together - the scene is pixel-for-pixel the same picture, 1.5x
+#: larger, and every verdict must be unchanged.
+V_BIGGER_VIEW = (Patch("game.py", "VIEW_W = 640", "VIEW_W = 960  # VARIANT"),
+                 Patch("game.py", "VIEW_H = 400", "VIEW_H = 600  # VARIANT"),
+                 Patch("game.py", "SCALE = 2.2", "SCALE = 3.3  # VARIANT"),
+                 Patch("game.py", "ORIGIN_X = 300.0", "ORIGIN_X = 450.0  # VARIANT"),
+                 Patch("game.py", "ORIGIN_Y = 210.0", "ORIGIN_Y = 315.0  # VARIANT"))
+
+
+MUTANTS: list[Mutant] = [
+    Mutant("state.shape", "s1_parallax", "the `light` block is renamed", (P_SHAPE,),
+           collateral=("layers.depth_ordered", "layers.image_parallax",
+                       "loop.seamless", "wheels.match_speed", "front.occludes",
+                       "light.monotonic", "seed.pair"),
+           notes="the shape gate fails closed and everything downstream reports why"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "every layer scrolls at the same rate", (P_FLAT,),
+           collateral=("layers.image_parallax",),
+           notes="one flat background scrolled as a unit - the naive implementation "
+                 "`eval/SCENES.md` names"),
+    Mutant("layers.image_parallax", "s1_parallax",
+           "the telemetry reports parallax the renderer does not draw", (P_DRAWN_FLAT,),
+           notes="THE MUTANT NO TELEMETRY-SIDE CHECK CAN FIND. Every offset the "
+                 "submission reports is still distinct and still ordered by depth; only "
+                 "the pixels disagree"),
+    Mutant("layers.image_parallax", "s1_parallax",
+           "the capture geometry changes half way through the run", P_MIXED_SIZES,
+           notes="the fail-CLOSED half of the module docstring's table: a broken capture "
+                 "is a fact about the submission, so the image-only criterion goes red "
+                 "rather than unscored. Without `SceneRun.one_geometry` the two frames "
+                 "would be compared to the shorter of the two"),
+    Mutant("loop.seamless", "s1_parallax",
+           "the background jumps 26px every time it repeats", (P_JUMPY_WRAP,),
+           collateral=("layers.image_parallax",),
+           notes="the wrap ticks are unchanged in the telemetry, so only comparing the "
+                 "drawn shift against the reported offset finds it"),
+    Mutant("wheels.match_speed", "s1_parallax",
+           "the wheels are spun at the mean rate", (P_FREE_WHEELS,),
+           notes="chosen to be the MEAN rate on purpose: the arc-to-travel ratio still "
+                 "sits at 1.0 across the run, so only splitting the run by the car's "
+                 "own speed separates a rolling wheel from a spun one"),
+    Mutant("front.occludes", "s1_parallax",
+           "nothing the car reaches passes in front of it", (P_NOTHING_IN_FRONT,)),
+    Mutant("light.monotonic", "s1_parallax",
+           "the light cuts between two palettes", (P_LIGHT_CUT,),
+           notes="an instant cut has no shade between the two and no frame between "
+                 "them either, so both halves see it"),
+    Mutant("seed.pair", "s1_parallax", "the seed argument is ignored",
+           (P_SEED_IGNORED,),
+           notes="satisfies *same seed matches* perfectly; only the other side of the "
+                 "pair rejects it"),
+    Mutant("seed.pair", "s1_parallax", "the scene is seeded from the wall clock",
+           (P_WALLCLOCK, P_WALLCLOCK_SEED),
+           notes="satisfies *different seeds differ* perfectly; only the other side of "
+                 "the pair rejects it"),
+
+    Mutant("state.shape", "s2_glass", "the `water` block is renamed", (G_SHAPE,),
+           collateral=("water.level_under_tilt", "water.volume_conserved",
+                       "glass.refracts", "shatter.pieces_rest", "reversal.inverts",
+                       "seed.pair")),
+    Mutant("water.level_under_tilt", "s2_glass",
+           "the water is parented to the cup", (G_WATER_PARENTED,)),
+    Mutant("water.volume_conserved", "s2_glass",
+           "the water mesh is merely scaled down", (G_SCALED_MESH,)),
+    Mutant("glass.refracts", "s2_glass",
+           "alpha transparency with no refraction", (G_ALPHA_ONLY,),
+           notes="the backdrop is still visible through the glass and still tinted; "
+                 "what is missing is the displacement"),
+    Mutant("glass.refracts", "s2_glass", "a flat tint, nothing seen through it",
+           (G_FLAT_TINT,),
+           notes="the other half of the same criterion: this one keeps no structure "
+                 "at all, where the alpha mutant keeps all of it"),
+    Mutant("glass.refracts", "s2_glass", "half the contracted captures",
+           (G_HALF_THE_FRAMES,),
+           notes="the image-only criterion goes red while `reversal.inverts` and "
+                 "`seed.pair` fall back to their telemetry halves and stay green - one "
+                 "broken recipe deducting once rather than once per criterion"),
+    Mutant("shatter.pieces_rest", "s2_glass",
+           "a single mesh swapped for a broken one", G_ONE_PIECE),
+    Mutant("shatter.pieces_rest", "s2_glass",
+           "settled fragments go on sinking through the floor", (G_PIECES_SINK,),
+           notes="`settled` is reported true throughout, so only tracking each "
+                 "fragment's height after it settles finds it"),
+    Mutant("reversal.inverts", "s2_glass",
+           "the rewind holds on the broken state", (G_NO_REVERSAL,),
+           collateral=("seed.pair",),
+           notes="`phase` still reaches `whole` and both events still fire"),
+    Mutant("seed.pair", "s2_glass", "a canned pre-fractured mesh", (G_CANNED_FRACTURE,),
+           notes="the backdrop stays seeded, so the hash chains and the frames still "
+                 "differ between seeds. Only the fragments are canned, which is exactly "
+                 "the implementation *different seeds differ* alone would accept"),
+]
+
+
+VARIANTS: list[Variant] = [
+    Variant("s1_parallax", "the car holds one speed for the whole run",
+            (V_CONSTANT_SPEED,), ("wheels.match_speed",),
+            notes="a constant speed is a legal reading of `it never stops`, and it is "
+                  "the input on which a wheel spun at a constant rate and a wheel "
+                  "driven by the ground are the same thing. The criterion must ask the "
+                  "rolling ratio and say it could not ask the rest"),
+    Variant("s1_parallax", "the layers are numbered nearest-first",
+            V_REVERSED_IDS, ("layers.depth_ordered", "layers.image_parallax",
+                             "loop.seamless"),
+            notes="the same scene with its ids the other way round. A criterion that "
+                  "read layer order out of the id instead of out of the declared depth "
+                  "would pass the reference and fail this"),
+    Variant("s1_parallax", "the light ramps over 30 ticks instead of 300",
+            V_SHORT_RAMP, ("light.monotonic",),
+            notes="hasty but legal: every shade is still passed through. At most one "
+                  "captured frame lands inside a ramp that short, so the image half "
+                  "cannot be established and the criterion must fall back rather than "
+                  "fail a correct scene for being quick"),
+    Variant("s1_parallax", "the same scene filmed 1.5x larger", V_BIGGER_FRAMES,
+            ("layers.image_parallax", "loop.seamless", "light.monotonic"),
+            notes="submissions choose their own capture geometry, so every image-side "
+                  "measure has to be a density, a fraction or a ratio of two "
+                  "measurements of the same frame (#59). This checks that claim rather "
+                  "than restating it: the identical scene, 960x540 instead of 640x360, "
+                  "every verdict unchanged"),
+    Variant("s2_glass", "the glass tips the other way",
+            (V_TIPS_THE_OTHER_WAY,), ("water.level_under_tilt",),
+            notes="a check that compared a vector COMPONENT instead of an angle would "
+                  "pass the reference and fail this"),
+    Variant("s2_glass", "`up` is reported at three times unit length",
+            (V_UNNORMALISED_UP,), ("water.level_under_tilt", "reversal.inverts"),
+            notes="the contract says `up` is a direction and never says it is unit "
+                  "length. A check that read `up[1]` as a cosine would pass the "
+                  "reference and fail this"),
+    Variant("s2_glass", "the glass empties completely before it leans",
+            (V_EMPTIES_FULLY,), ("water.volume_conserved",),
+            notes="drives the remaining volume to exactly zero, which is where a mass "
+                  "balance that divides by the CURRENT volume rather than the opening "
+                  "one comes apart"),
+    Variant("s2_glass", "the same scene rendered 1.5x larger", V_BIGGER_VIEW,
+            ("glass.refracts", "reversal.inverts"),
+            notes="the geometry half of #59 for the glass: `glass.refracts` locates its "
+                  "two rectangles from fractions and compares densities, so 960x600 "
+                  "must return the same verdicts as 640x400"),
+]
+
+
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Verdicts:
+    passed: dict[str, bool] = field(default_factory=dict)
+    scored: dict[str, bool] = field(default_factory=dict)
+    evidence: dict[str, str] = field(default_factory=dict)
+    wall_s: float = 0.0
+
+
+def copy_fixture(scene: str, dest: Path) -> Path:
+    shutil.copytree(FIXTURES / FIXTURE_FOR[scene], dest,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    return dest
+
+
+def apply_patches(repo: Path, patches: tuple[Patch, ...], label: str) -> None:
+    for p in patches:
+        target = repo / p.file
+        text = target.read_text()
+        n = text.count(p.old)
+        if n != 1:
+            raise SystemExit(
+                f"{label!r}: its target appears {n} times in {target}, expected exactly "
+                f"1. The fixture has changed and this patch no longer bites; a mutation "
+                f"test that silently fails to mutate is worse than none.\n"
+                f"--- target ---\n{p.old}")
+        target.write_text(text.replace(p.old, p.new))
+
+
+def run_probe(repo: Path, scene: str) -> Verdicts:
+    t0 = time.monotonic()
+    out = scene_probe.drive(scene_probe.SCENES[scene](), repo)
+    v = Verdicts(wall_s=round(time.monotonic() - t0, 1))
+    for c in out["criteria"]:
+        v.passed[c["id"]] = bool(c["passed"])
+        v.scored[c["id"]] = bool(c["scored"])
+        v.evidence[c["id"]] = c.get("evidence", "")
+    return v
+
+
+def _cell(passed: bool | None, scored: bool | None) -> str:
+    if passed is None:
+        return "absent"
+    if not scored:
+        return ("PASS" if passed else "FAIL") + "/unscored"
+    return "PASS" if passed else "FAIL"
+
+
+# --------------------------------------------------------------------------- #
+# The census
+# --------------------------------------------------------------------------- #
+
+
+def stored_scene_gradings(runs_root: Path | None) -> tuple[int, list[str]]:
+    """How many SCENE gradings exist on disk, and where.
+
+    Zero is not a result about the criteria and must never be printed as one - it is
+    `NOT ASKED`. A census that reports "0 submissions separated" from an empty tree is
+    the shape AGENTS.md rule 12 is about: a sound method aimed at an address holding
+    nothing.
+    """
+    if runs_root is None:
+        return -1, []
+    if not runs_root.is_dir():
+        return -1, [f"{runs_root} is not a directory"]
+    found = []
+    for path in runs_root.rglob("*.json"):
+        try:
+            text = path.read_text()
+        except OSError:
+            continue
+        if '"tier": "scene_probe"' in text or '"tier":"scene_probe"' in text:
+            found.append(str(path))
+    return len(found), found
+
+
+def census(rows: list[tuple[str, str, str, dict[str, bool], dict[str, bool]]],
+           runs_root: Path | None) -> int:
+    """What each criterion separated, over the population that exists.
+
+    **The population here is FIXTURES, not submissions.** No scene has been built or
+    graded, so this answers *can this criterion take both values, and on what* - never
+    *does it separate real work*. A criterion is discriminating on a corpus it has met;
+    every criterion in `scene_probe.py` has met none.
+    """
+    by_scene: dict[str, list] = {}
+    for scene, kind, label, passed, scored in rows:
+        by_scene.setdefault(scene, []).append((kind, label, passed, scored))
+    problems = 0
+    for scene in sorted(by_scene):
+        pop = by_scene[scene]
+        cls = scene_probe.SCENES[scene]
+        print(f"\n{scene}: {len(pop)} fixture-derived subjects "
+              f"(1 reference, {sum(1 for k, *_ in pop if k == 'mutant')} mutants, "
+              f"{sum(1 for k, *_ in pop if k == 'variant')} variants)")
+        w = max(len(cid) for cid, _ in cls.criteria)
+        print(f"{'criterion':<{w}}  {'pass':>5} {'fail':>5} {'unsc':>5}  separated")
+        print("-" * (w + 40))
+        for cid, _ in cls.criteria:
+            p = sum(1 for _, _, ps, sc in pop if sc.get(cid) and ps.get(cid) is True)
+            f = sum(1 for _, _, ps, sc in pop if sc.get(cid) and ps.get(cid) is False)
+            u = sum(1 for _, _, _, sc in pop if sc.get(cid) is False)
+            sep = "yes" if p and f else "NO - AN OPEN QUESTION"
+            if not (p and f):
+                problems += 1
+            print(f"{cid:<{w}}  {p:>5} {f:>5} {u:>5}  {sep}")
+    print("\nTHE POPULATION ABOVE IS FIXTURES, NOT SUBMISSIONS. It answers whether a "
+          "criterion\nCAN take both values on material this repository wrote, which is "
+          "not the same question\nas whether it separates work an agent produced.")
+    n, where = stored_scene_gradings(runs_root)
+    if n < 0:
+        print("Stored scene gradings: NOT ASKED - pass --runs-root <main checkout>/"
+              "eval/runs to look.")
+    elif n == 0:
+        print("Stored scene gradings: NOT ASKED - 0 scene gradings on disk. No scene "
+              "has been\nbuilt or graded, so no criterion here has ever met a "
+              "submission. This is not\n'separated nothing'; it is a question that has "
+              "not been put.")
+    else:
+        print(f"Stored scene gradings: {n} found - {where[:3]}. Extend this census to "
+              f"read them\nrather than reporting the fixture population as if it were "
+              f"the corpus.")
+    if problems:
+        print(f"\n{problems} criterion/scene rows separated nothing in the fixture "
+              f"population. Each is\nan open question about the CRITERION: it is either "
+              f"pinned in only one direction or\nmeasuring something the fixtures cannot "
+              f"vary (#92, #123).")
+    return problems
+
+
+# --------------------------------------------------------------------------- #
+
+
+def census_selftest() -> int:
+    """Can the census say NO?
+
+    A census that reports `yes` on every row it has ever been shown is indistinguishable
+    from one that cannot report anything else, and it would read as a clean bill of
+    health for a criterion that never fired. So drive it over a population built here,
+    where the answers are stated before it runs.
+    """
+    scene = "s2_glass"
+    ids = [cid for cid, _ in scene_probe.SCENES[scene].criteria]
+    stuck, varies = ids[0], ids[1]
+    pop = []
+    for i in range(4):
+        passed = {cid: True for cid in ids}
+        scored = {cid: True for cid in ids}
+        passed[varies] = i % 2 == 0          # this one takes both values
+        pop.append((scene, "mutant", f"synthetic {i}", passed, scored))
+    # A third criterion is measured on nothing at all: always unscored.
+    for _, _, _, passed, scored in pop:
+        scored[ids[2]] = False
+
+    import io
+    import contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        problems = census(pop, None)
+    text = buf.getvalue()
+    checks = [
+        (f"`{stuck}` never fails and is named an open question",
+         f"{stuck}" in text and "NO - AN OPEN QUESTION" in text),
+        (f"`{varies}` takes both values and is named separated",
+         any(line.startswith(varies) and line.rstrip().endswith("yes")
+             for line in text.splitlines())),
+        (f"`{ids[2]}` is unscored on every subject and is not called separated",
+         any(line.startswith(ids[2]) and "NO - AN OPEN QUESTION" in line
+             for line in text.splitlines())),
+        ("an all-yes population is not what this returns",
+         problems >= 2),
+        ("a missing --runs-root reads as NOT ASKED, never as zero",
+         "NOT ASKED" in text and "0 submissions" not in text),
+    ]
+    bad = [name for name, ok in checks if not ok]
+    for name, ok in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+    if bad:
+        print(f"census selftest: {len(bad)} unmet -- the census cannot be trusted to "
+              f"report a criterion that separated nothing")
+        print(text)
+        return 1
+    print(f"census selftest: {len(checks)} expectations met")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--verbose", "-v", action="store_true",
+                    help="print the evidence behind every verdict")
+    ap.add_argument("--only", default=None,
+                    help="run only this scene, or only mutants for this criterion id")
+    ap.add_argument("--census", action="store_true",
+                    help="report what each criterion separated in this population")
+    ap.add_argument("--runs-root", type=Path, default=None,
+                    help="a main checkout's eval/runs, for the stored-grading census")
+    ap.add_argument("--census-selftest", action="store_true",
+                    help="prove the census can report a criterion that separated "
+                         "nothing; needs no fixtures and no toolchain")
+    args = ap.parse_args(argv)
+
+    if args.census_selftest:
+        return census_selftest()
+
+    wanted = [m for m in MUTANTS
+              if args.only in (None, m.scene, m.criterion)]
+    variants = [v for v in VARIANTS if args.only in (None, v.scene)]
+    if not wanted:
+        print(f"no mutant for {args.only!r}", file=sys.stderr)
+        return 2
+    if shutil.which("just") is None:
+        print("`just` is not on PATH; these tests cannot run", file=sys.stderr)
+        return 2
+
+    rows: list[tuple[str, str, str, str, str, bool]] = []
+    variant_rows: list[tuple[str, str, str]] = []
+    census_rows: list[tuple[str, str, str, dict[str, bool], dict[str, bool]]] = []
+    problems: list[str] = []
+
+    with tempfile.TemporaryDirectory(prefix="scene-mutants-") as td:
+        tmp = Path(td)
+
+        # -- POSITIVE CONTROL: one healthy run per scene --------------------- #
+        healthy: dict[str, Verdicts] = {}
+        for scene in sorted({m.scene for m in wanted} | {v.scene for v in variants}):
+            repo = copy_fixture(scene, tmp / f"healthy-{scene}")
+            healthy[scene] = run_probe(repo, scene)
+            census_rows.append((scene, "reference", "the reference fixture",
+                                healthy[scene].passed, healthy[scene].scored))
+            red = sorted(c for c, ok in healthy[scene].passed.items() if not ok)
+            print(f"healthy {scene:<12} {healthy[scene].wall_s:>5.1f}s"
+                  f"{'' if not red else '   RED: ' + str(red)}", flush=True)
+            if red:
+                problems.append(
+                    f"{scene}: the HEALTHY reference failed {red} -- "
+                    f"{'; '.join(healthy[scene].evidence[c][:200] for c in red[:2])}")
+
+        # -- one mutant per criterion ---------------------------------------- #
+        for i, m in enumerate(wanted):
+            repo = copy_fixture(m.scene, tmp / f"mutant-{i}")
+            apply_patches(repo, m.patches, m.label)
+            got = run_probe(repo, m.scene)
+            h = healthy[m.scene]
+            census_rows.append((m.scene, "mutant", m.label, got.passed, got.scored))
+
+            h_pass, h_scored = h.passed.get(m.criterion), h.scored.get(m.criterion)
+            g_pass, g_scored = got.passed.get(m.criterion), got.scored.get(m.criterion)
+            ok = (h_pass is True and h_scored is True
+                  and g_pass is False and g_scored is True)
+            if h_pass is not True:
+                problems.append(f"{m.criterion}: HEALTHY {m.scene} did not pass "
+                                f"(passed={h_pass}) -- "
+                                f"{h.evidence.get(m.criterion, '')[:300]}")
+            elif h_scored is not True:
+                problems.append(f"{m.criterion}: HEALTHY {m.scene} passed but was not "
+                                f"scored -- {h.evidence.get(m.criterion, '')[:300]}")
+            if g_pass is not False:
+                problems.append(f"{m.criterion}: MUTANT '{m.label}' did not go red "
+                                f"(passed={g_pass}) -- "
+                                f"{got.evidence.get(m.criterion, '')[:300]}")
+            elif g_scored is not True:
+                problems.append(
+                    f"{m.criterion}: MUTANT '{m.label}' came back UNSCORED rather than "
+                    f"failed. An excluded criterion is not a caught defect -- "
+                    f"{got.evidence.get(m.criterion, '')[:300]}")
+
+            rows.append((m.criterion, m.scene, m.label,
+                         _cell(h_pass, h_scored), _cell(g_pass, g_scored), ok))
+            extra = sorted(cid for cid in got.passed
+                           if cid != m.criterion
+                           and got.passed[cid] != h.passed.get(cid)
+                           and cid not in m.collateral)
+            if extra:
+                print(f"  note: mutant '{m.label}' also flipped {extra}", flush=True)
+            if args.verbose:
+                print(f"  healthy: {h.evidence.get(m.criterion, '')[:400]}")
+                print(f"  mutant : {got.evidence.get(m.criterion, '')[:400]}")
+            print(f"  {m.criterion:<24} {got.wall_s:>5.1f}s "
+                  f"{'ok' if ok else 'UNMET'}", flush=True)
+
+        # -- VARIANTS: correct scenes the reference does not resemble --------- #
+        for i, v in enumerate(variants):
+            repo = copy_fixture(v.scene, tmp / f"variant-{i}")
+            apply_patches(repo, v.patches, v.label)
+            got = run_probe(repo, v.scene)
+            census_rows.append((v.scene, "variant", v.label, got.passed, got.scored))
+            # A criterion the scene declares `diagnostic_only` reports scored=False BY
+            # DESIGN. Read the design intent out of the scene rather than letting a
+            # variant waive it, or the one field allowed to excuse failures starts
+            # hiding harness bugs (rule 7).
+            diagnostic = scene_probe.SCENES[v.scene].diagnostic_only
+            waived = set(v.tolerates) | set(diagnostic)
+            failed = sorted(c for c, ok in got.passed.items()
+                            if not ok and c not in waived)
+            unscored = sorted(c for c, sc in got.scored.items()
+                              if not sc and c not in waived)
+            bad = failed + unscored
+            used = sorted(c for c in v.tolerates
+                          if not got.passed.get(c, True) or not got.scored.get(c, True))
+            if v.tolerates:
+                print(f"  note: variant '{v.label}' tolerates {list(v.tolerates)}; "
+                      f"fired for {used or 'NOTHING - the tolerance is dead'}",
+                      flush=True)
+            variant_rows.append((v.label, ", ".join(v.exercises),
+                                 "ok" if not bad else f"UNMET: {bad}"))
+            if bad:
+                problems.append(
+                    f"variant '{v.label}' is a CORRECT scene and the probe failed "
+                    f"{bad} on it -- "
+                    f"{'; '.join(got.evidence.get(c, '')[:200] for c in bad[:2])}")
+            print(f"  variant {v.label[:46]:<46} {got.wall_s:>5.1f}s "
+                  f"{'ok' if not bad else 'UNMET'}", flush=True)
+
+    w = max(len(r[0]) for r in rows)
+    print(f"\n{'criterion':<{w}}  {'scene':<12}  {'healthy':<9}  {'mutant':<9}  "
+          f"mutant applied")
+    print("-" * (w + 64))
+    for cid, scene, label, hcell, gcell, ok in rows:
+        print(f"{cid:<{w}}  {scene:<12}  {hcell:<9}  {gcell:<9}  "
+              f"{label}{'' if ok else '   <-- UNMET'}")
+    if variant_rows:
+        n = max(len(r[0]) for r in variant_rows)
+        print(f"\nvariants - CORRECT scenes the reference does not resemble; every "
+              f"criterion must still pass\n{'variant':<{n}}  exercises")
+        print("-" * (n + 44))
+        for label, exercises, verdict in variant_rows:
+            print(f"{label:<{n}}  {exercises:<46}  {verdict}")
+
+    covered = {(m.scene, m.criterion) for m in wanted}
+    missing = sorted((s, cid) for s in {m.scene for m in wanted}
+                     for cid, _ in scene_probe.SCENES[s].criteria
+                     if (s, cid) not in covered)
+    if missing and args.only is None:
+        problems.append(f"no mutant pins {missing} - a criterion with no mutant has "
+                        f"never been shown able to fail")
+    print(f"\n{len(rows)} mutants over {len(covered)} criteria, "
+          f"{len(variant_rows)} variants, {len(problems)} expectation(s) unmet")
+    for p in problems:
+        print(f"  FAIL {p}")
+
+    if args.census:
+        census(census_rows, args.runs_root)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

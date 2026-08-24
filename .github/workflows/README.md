@@ -8,9 +8,9 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 39 documentation, queue and selftest gates | 5 mutant and control suites |
+| checks | 39 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **57s** | **669s** |
+| takes | **57s** | **669s plus the 2 scene steps** |
 
 **Both counts have a producer** — `python3 eval/tools/ci_minutes.py --gates`, which reads the
 workflows and counts steps invoking something under `eval/`. It is pinned in
@@ -20,7 +20,10 @@ workflows and counts steps invoking something under `eval/`. It is pinned in
 `41488aa` on 2026-08-23 — `gates` [run 32670423986](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423986),
 `controls` [run 32670423981](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423981) —
 and `gh pr checks <n>` prints them for any pull request. They move whenever a step is added, so
-re-read them rather than carrying them forward.
+re-read them rather than carrying them forward. **`controls`'s figure predates the 2 scene steps
+added on 2026-08-24 and is therefore a floor, not the time** — `scene_mutants.py` is 22.0s and
+`--census-selftest` is under a second, both measured on the operator's machine and both slower on
+a runner. Re-read the row from a run rather than adding the two numbers.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
@@ -29,7 +32,8 @@ control, and every other `*_control.py` and `*_selftest.py` that runs on Python 
 sigil, and no sweep is bounded by a figure nobody is charged (#159).
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
-`tasks_mutants`, `audio_selftest`, `rusage_selftest`, `skill_layout_control`.
+`scene_mutants` and its `--census-selftest`, `tasks_mutants`, `audio_selftest`,
+`rusage_selftest`, `skill_layout_control`.
 
 ### Where `controls.yml`'s filter lives, and why it is not in `on:`
 

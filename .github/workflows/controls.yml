@@ -111,6 +111,19 @@ jobs:
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/bot_mutants.py
+      # The scene probe's own both-directions suite: every criterion in
+      # judge/scene_probe.py against its reference, against a mutant that removes the
+      # behaviour it names, and against correct scenes the reference does not resemble.
+      # `just` is again only the recipe runner - the two scene fixtures run python3.
+      - name: judge/scene_mutants (the scene probe, both directions)
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/scene_mutants.py
+      # Can the census say NO? It reads no fixture and needs no toolchain, so it runs
+      # even when the suite above cannot: a census that has only ever printed `yes` is
+      # indistinguishable from one that cannot print anything else.
+      - name: judge/scene_mutants --census-selftest
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/scene_mutants.py --census-selftest
       # NOT a count. This said "the five mutants" while there were 21, and task 122 made it
       # 25 -- a cardinal in a step name has no producer and cannot be checked, which is the
       # failure AGENTS.md's counts rule is about. `tasks_mutants.py --list` is the producer.

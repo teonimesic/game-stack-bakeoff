@@ -14,6 +14,41 @@ Three tiers. The building agent must see none of them.
 
 `evaluate.py` runs all three. `regrade_wholegame.py` recomputes scores from stored tier files.
 
+## Scenes are the second task class, and tier 2 is a different instrument
+
+A scene has no player, so `bot_*.py` has no referent. **`scene_probe.py` replaces it** and
+carries the same weight, because it is the same kind of thing: binary criteria computed
+deterministically, every one reported, nothing asked of a model. It reads the per-tick telemetry
+AND the captured frames, and each criterion says which halves it has.
+
+```
+python3 judge/scene_probe.py s1_parallax <submission>   # drive one submission
+python3 judge/scene_mutants.py                          # both directions, ~22s
+python3 judge/scene_mutants.py --census                 # what each criterion separated
+python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
+```
+
+Four things to know before you touch any of it:
+
+- **No criterion here has ever met a submission.** No scene has been built or graded, so every
+  threshold was chosen against fixtures written by the same hand as the criterion. The probe's
+  first real run is also its first real test, and #46 - sixteen false negatives in one sweep of
+  criteria that were green on their reference - is the reasonable prior. Say so wherever a scene
+  score is reported.
+- **`--census` reports over FIXTURES and says so.** It answers whether a criterion can take both
+  values on material this repository wrote. `--runs-root` looks for stored scene gradings and
+  prints `NOT ASKED` when there are none, never `0 separated` - the two are different claims
+  (rule 12).
+- **An absent image half and an unestablished experiment are not the same thing**, and
+  `scene_probe.py`'s docstring holds the table. A film recipe that produced no frames is a fact
+  about the submission; a run in which no captured frame lands inside the light ramp is an
+  experiment that could not be set up, and comes back `scored=False`.
+- **The image-side shift estimator misses 3 of 88 measured frame pairs**, all on the band holding
+  a large object that is stationary on screen. It is named in `ParallaxScene._reliable` and
+  counted by the wrap check's `blind` figure rather than being absorbed silently. Three
+  alternative estimators were measured against the same 88 pairs and every one was worse, which
+  is why the robustness lives in the criteria rather than in the estimator.
+
 **What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
 both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a
 worktree's copy is empty and either would report a confident, uniform "nothing ever failed"), and
