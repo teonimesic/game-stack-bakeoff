@@ -7,7 +7,7 @@ repository already had; the workflows are what make them run without being remem
 
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
-| runs on | every push and every pull request | pushes and pull requests **touching `eval/`, `.agents/`, `.github/`**, plus nightly at 06:17 UTC and on demand |
+| runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 36 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **57s** | **669s** |
@@ -30,6 +30,35 @@ sigil, and no sweep is bounded by a figure nobody is charged (#159).
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `tasks_mutants`, `audio_selftest`, `rusage_selftest`, `skill_layout_control`.
+
+### Where `controls.yml`'s filter lives, and why it is not in `on:`
+
+**The filter is a step, not a `paths:` trigger.** A workflow whose `paths:` do not match
+produces **no check at all**, not a passing one — and `controls` is a required check, so a pull
+request touching only `tasks/` or a root document waited on a check that could never arrive, and
+updating the branch could not help. Measured at PR #14's head: two `gates` check runs, **zero**
+`controls`.
+
+So `controls.yml` triggers on every pull request and asks the question inside the job. Its first
+step runs `python3 eval/tools/ci_minutes.py --scope`, which diffs the pull request against its
+base, matches the result against `FILTER_PREFIXES`/`FILTER_EXACT` — the **single** place the
+filter is spelled — and writes `relevant=true|false`. Every step below it is guarded on that.
+
+| | |
+|---|---|
+| the guard is `!= 'false'`, never `== 'true'` | an output the scope step never wrote reads as the empty string. `!= 'false'` runs the suites on it; `== 'true'` would skip them and report a green `controls` that executed no gate |
+| every unknown runs the whole suite | an unreadable diff, an empty diff, and any event that is not `pull_request`. A state where the answer is unknown must never read as "nothing to do" |
+| `push` to `main`, `schedule` and `workflow_dispatch` are never filtered | nothing is waiting on those, so latency is not a cost there — and running unconditionally is what **checks the filter's claim**. A filter that is wrong is wrong for at most one merge rather than indefinitely |
+| the scope step prints what it read | the filter, the changed paths and the verdict go into the run log, so a skipped `controls` is auditable afterwards |
+
+`python3 eval/tools/ci_minutes.py --selftest` pins the wiring in both directions, and **its
+closing line is the producer for how many** — `12 mutants died, 5 variants passed` when this was
+written. The mutants are a `paths:` filter back on either trigger, the scope step deleted, its id
+renamed, its command replaced, one gate losing its guard, the guard flipped to `== 'true'`, a
+guarded step placed above the step whose output it reads, and four ways off `ubuntu-latest`. The
+variants — inputs the check must **not** redden — are a re-spaced and double-quoted guard, two
+gates swapped, an unguarded `uses:` step, a comment in the job, and an extra flag on the scope
+step.
 
 Both pin `ubuntu-latest`, run with `contents: read`, and check out with `fetch-depth: 0` —
 several controls read historical blobs and report `NOT CHECKED` rows in a shallow clone.
@@ -78,14 +107,6 @@ questions above plus the ways round them:
 | setting | what it stops |
 |---|---|
 | required checks `gates`, `controls` | merging with a red or missing check |
-
-> **`controls` is required AND path-filtered, and those two do not compose — task 131.**
-> A workflow that does not match `paths:` produces **no check**, not a passing one, so a
-> pull request touching only `tasks/`, `README.md` or `DECISIONS.md` waits forever on a
-> `controls` that will never report. Measured on control PR #14. Until it is fixed, such a
-> pull request needs the requirement narrowed to `gates`, or an admin merge.
-> `gates` alone would still have caught #162 — the step that went red lives there.
-
 | `strict: true` | merging a branch behind `main` — the #12/#13 failure |
 | `required_linear_history` | a merge commit on `main`, so squash is the only shape |
 | `allow_force_pushes: false`, `allow_deletions: false` | rewriting or removing `main` |
@@ -125,12 +146,14 @@ unlimited**. Nothing below is a bill — it is wall-clock in front of a merge, w
 python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
 ```
 
-`controls.yml` is the slow tier and a required check, so it is what a merge waits on. Its path
-filter is evaluated
-against the **whole pull request diff**, not the latest push, so a branch that touches `eval/`
-once pays the slow tier on every later push — including pushes that only edit markdown. Narrowing
-it was measured and rejected: a pull request run tests the *merge*, and a latest-push filter would
-have skipped runs where `main` had moved underneath in a filtered path.
+`controls.yml` is the slow tier and a required check, so it is what a merge waits on. Its filter
+is evaluated against the **whole pull request diff**, not the latest push, so a branch that
+touches `eval/` once pays the slow tier on every later push — including pushes that only edit
+markdown. Narrowing it to the latest push was measured and rejected: a pull request run tests the
+*merge*, and a latest-push filter would have skipped runs where `main` had moved underneath in a
+filtered path. Moving the filter from `on: paths:` into a step kept that population identical —
+the diff taken is the merge commit's first-parent diff, which is what `paths:` was matched
+against.
 
 **Do not read `billable.UBUNTU.total_ms` from the API.** It returns `0`. Use the producer above.
 

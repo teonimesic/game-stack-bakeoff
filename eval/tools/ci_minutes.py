@@ -44,20 +44,36 @@ pull request, did the LATEST PUSH touch one of the workflow's filter paths, or w
 bought by the accumulated whole-PR diff? The reasoning it feeds is in
 `.github/workflows/README.md`.
 
---selftest pins both directions offline, in ~0.06s and without touching a file. **8 mutants**
-that must be caught: truncation instead of rounding up; 4 ways `controls.yml`'s filter can
-lose a path; and 3 ways a workflow can leave `ubuntu-latest` while the file still contains
-the string -- a second job on macOS, a stale comment beside a changed `runs-on`, and a list
-form carrying a non-ubuntu label. Plus a compare list at the endpoint's 300-file cap, which
-must be refused rather than scored. **4 variants** that must still PASS: an in-flight job, a
-job of exactly 60s, a 22s job, a filename that merely starts with a filtered directory's
-letters, and a reordered, re-quoted or commented filter. The variants are not decoration --
-the substring check this replaced went red on a re-quote, which is a gate firing where
-nothing is wrong.
+--scope IS `controls.yml`'s path filter, and it lives here rather than in `on: paths:`
+because a workflow that does not match its filter produces NO check, not a passing one --
+and `controls` is a required check, so a pull request touching only `tasks/` or a root
+document waited on a check that could never arrive (measured at PR #14's head: two `gates`
+check runs, zero `controls`). The job now runs on every pull request and this decides,
+inside it, whether the slow suites have anything to read. Its verdict is written as
+`relevant=true|false` to `$GITHUB_OUTPUT`, and every step below the scope step is guarded
+on `!= 'false'` -- never `== 'true'`, because an output nothing wrote reads as the empty
+string, and skipping on it would report a green `controls` that executed no gate. Every
+state in which the answer is unknown -- an unreadable diff, an empty one, a non-pull-request
+event -- runs the whole suite.
+
+--selftest pins both directions offline, in ~0.1s and without touching a file, and its
+closing line is the producer for how many workflow mutants and variants it carries. What it
+must catch: truncation instead of rounding up; a compare list at the endpoint's 300-file cap,
+which must be refused rather than scored; the ways a workflow can leave `ubuntu-latest` while
+the file still contains the string; a filter entry no pin depends on; and the ways the scope
+guard can break -- a `paths:` filter back on either trigger, the scope step deleted, its id
+renamed, its command replaced, one gate losing its guard, the guard flipped to the fail-open
+`== 'true'`, and a guarded step placed above the step whose output it reads. What must still
+PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
+filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
+unguarded `uses:` step, a comment in the job, and an extra flag on the scope step. The
+variants are not decoration -- the substring check this replaced went red on a re-quote,
+which is a gate firing where nothing is wrong.
 
 Usage:
     python3 eval/tools/ci_minutes.py                 # the census, from the API
     python3 eval/tools/ci_minutes.py --path-filter   # the path-filter audit
+    python3 eval/tools/ci_minutes.py --scope         # controls.yml's filter, in-job
     python3 eval/tools/ci_minutes.py --cache DIR     # also write the raw JSON it consumed
     python3 eval/tools/ci_minutes.py --selftest      # controls, both directions, offline
 
@@ -158,26 +174,181 @@ def census(jobs: list[dict], runs: list[dict]) -> dict:
 # ---------------------------------------------------------------- the path-filter audit
 
 
-def matches_filter(path: str) -> bool:
+def matches_filter(path: str,
+                   prefixes: tuple[str, ...] = FILTER_PREFIXES,
+                   exact: tuple[str, ...] = FILTER_EXACT) -> bool:
     """Does one changed path satisfy controls.yml's filter?
 
     The prefixes carry their trailing slash, so `evaluation.md` is not `eval/**` -- a
     filename that merely starts with a filtered directory's letters is the variant this
     would otherwise mishandle.
+
+    `prefixes`/`exact` are parameters so `--selftest` can delete one entry and ask whether
+    any pinned path notices. Nothing in production passes them.
     """
-    return path.startswith(FILTER_PREFIXES) or path in FILTER_EXACT
+    return path.startswith(prefixes) or path in exact
+
+
+# --------------------------------------------------------------------- the scope guard
+
+# `controls.yml` declares NO `paths:` on its triggers. It runs on every pull request and
+# decides INSIDE the job whether its suites have anything to look at, because a filtered
+# workflow that does not match produces no check at all rather than a passing one -- and
+# `controls` is a required check, so a pull request touching only `tasks/` or a root
+# document waited on a check that could never arrive. Measured at PR #14's head: two
+# `gates` check runs, zero `controls`.
+SCOPE_STEP_ID = "scope"
+SCOPE_INVOCATION = "ci_minutes.py --scope"
+
+# `!= 'false'` and NOT `== 'true'`, and that single choice is the safety argument for the
+# whole shape. A step output that was never written reads as the empty string, so
+# `== 'true'` would skip every suite and report a green `controls` that executed nothing --
+# the one pattern this project exists to catch, and the recorded objection to step-gating.
+# `!= 'false'` runs them instead: the only way to skip is for the scope step to have run
+# and said so.
+GUARD_EXPR = "steps.scope.outputs.relevant != 'false'"
+
+
+def _norm_expr(text: object) -> str:
+    """Whitespace- and quote-insensitive form of a workflow `if:` expression.
+
+    A re-spacing or a re-quote is a VARIANT, not a mutant. The substring form of the
+    filter check this replaced went red on exactly that for `paths:`, and a gate firing
+    where nothing is wrong spends the attention a real firing needs.
+    """
+    return "".join(str(text or "").split()).replace('"', "'")
+
+
+def scope_decision(event: str, changed: list[str] | None) -> tuple[bool, str]:
+    """Do this event's changed paths give the slow suites anything to read?
+
+    THREE INPUTS FOR `changed`, NOT TWO, and the third is what keeps this fail-closed.
+    `None` means the set could not be determined, and an unknown must never read as
+    "nothing to do" -- it runs the suites. An EMPTY list is treated the same way: no pull
+    request changes zero files, so an empty diff is a broken computation wearing the shape
+    of a result, which is the shape rule 12 is about.
+    """
+    if event != "pull_request":
+        return True, (
+            f"event={event or '(unset)'}: the filter narrows pull requests only. push, "
+            f"schedule and workflow_dispatch run the whole suite, and that is what checks "
+            f"the filter's claim")
+    if changed is None:
+        return True, ("the changed-path set could not be determined; running the whole "
+                      "suite, because an unknown is not 'nothing to do'")
+    if not changed:
+        return True, ("the changed-path set came back EMPTY, which no pull request can be; "
+                      "treating it as undetermined and running the whole suite")
+    hit = sorted(p for p in changed if matches_filter(p))
+    if hit:
+        return True, (f"{len(hit)} of {len(changed)} changed paths are read by these "
+                      f"suites, first few: {hit[:8]}")
+    return False, f"0 of {len(changed)} changed paths are read by these suites"
+
+
+def _git(*args: str) -> str:
+    proc = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise DataError(
+            f"git {' '.join(args)}: exit {proc.returncode}: {proc.stderr.strip()}")
+    return proc.stdout
+
+
+def pull_request_changed_paths(git=_git, base_ref: str | None = None) -> list[str] | None:
+    """This pull request's accumulated diff against its base, or None if undeterminable.
+
+    THE ACCUMULATED DIFF, deliberately. That is the population `on: paths:` was evaluated
+    over, and task 124 measured that narrowing it to the latest push would have been
+    fail-open on every opportunity it had -- `main` moves in a filtered path inside the
+    window. Keeping the population identical is what makes this a move of the filter
+    rather than a change to it.
+
+    On a `pull_request` event GitHub checks out its own merge commit, whose FIRST parent is
+    the base tip and whose second is the pull request head. `diff <parent1> HEAD` is that
+    population exactly, with no extra fetch and no API call -- and so no 300-file compare
+    cap to walk past. The `merge-base` arm is the fallback for a checkout that is not the
+    merge commit.
+
+    Returns None rather than raising: every failure here means "run everything"
+    (`scope_decision`), never "nothing to do".
+    """
+    if base_ref is None:
+        base_ref = os.environ.get("GITHUB_BASE_REF", "")
+    try:
+        fields = git("rev-list", "--parents", "-n", "1", "HEAD").split()
+        if len(fields) >= 3:
+            base = fields[1]
+        elif base_ref:
+            base = git("merge-base", f"origin/{base_ref}", "HEAD").strip()
+        else:
+            return None
+        if not base:
+            return None
+        out = git("diff", "--name-only", base, "HEAD")
+    except DataError:
+        return None
+    return [ln for ln in out.splitlines() if ln.strip()]
+
+
+def emit_scope(event: str | None = None,
+               changed: list[str] | None = None,
+               output_path: str | None = None) -> int:
+    """Decide, print what was read, and write `relevant=` where the workflow can see it.
+
+    It prints the filter and the changed paths as well as the verdict, because what the
+    instrument consumed is worth more than the verdict it produced -- a skipped `controls`
+    run has to be auditable after the fact, or it is exactly the green-and-measured-nothing
+    run the guard exists to avoid.
+    """
+    if event is None:
+        event = os.environ.get("GITHUB_EVENT_NAME", "")
+    if changed is None and event == "pull_request":
+        changed = pull_request_changed_paths()
+    relevant, why = scope_decision(event, changed)
+    word = "true" if relevant else "false"
+    print(f"controls scope: relevant={word}")
+    print(f"  filter:  {' '.join(list(FILTER_PREFIXES) + list(FILTER_EXACT))}")
+    print(f"  because: {why}")
+    if changed is not None:
+        print(f"  changed: {len(changed)} paths")
+        for p in changed[:40]:
+            print(f"    {p}")
+        if len(changed) > 40:
+            print(f"    ... and {len(changed) - 40} more")
+    if output_path is None:
+        output_path = os.environ.get("GITHUB_OUTPUT")
+    if output_path:
+        # Unwritable is an ERROR, not a false: an unwritten output reads as the empty
+        # string, which the `!= 'false'` guard runs, and the non-zero exit reddens the job.
+        with open(output_path, "a", encoding="utf-8") as fh:
+            fh.write(f"relevant={word}\n")
+    return 0
 
 
 def filter_problems(controls_text: str, gates_text: str | None = None) -> list[str]:
-    """Does `controls.yml` still declare, per EVENT, every path `FILTER_*` claims?
+    """Is `controls.yml` still wired so that it ALWAYS reports, and never runs nothing?
 
-    PURE, and parsed rather than substring-matched, for one measured reason: the first
-    version asked `if "'.claude/**'" not in text` over the whole file, and the mutant that
-    deletes `.claude/**` from the `pull_request` filter alone SURVIVED it -- the string was
-    still there under `push`. A check that reads a two-filter file as one flat blob cannot
-    see which filter a path fell out of, which is exactly the drift worth gating. Parsing
-    also stops the check false-positiving on a re-quote or a reorder, which the substring
-    version did.
+    Two properties, and they pull in opposite directions -- which is why both are gated:
+
+      1. NEITHER `pull_request` NOR `push` MAY DECLARE `paths:`. A filtered workflow whose
+         paths do not match produces no check rather than a passing one, and `controls` is
+         required, so a trigger-level filter is a permanent merge block on any pull request
+         touching none of those paths. This check used to assert the opposite.
+      2. EVERY `run:` STEP AFTER THE SCOPE STEP CARRIES THE GUARD, spelled `!= 'false'`.
+         That is what stops the fix from becoming the failure this project exists to catch:
+         a green run that executed no gate. An output the scope step never wrote is the
+         empty string, which `!= 'false'` runs and `== 'true'` would skip.
+
+    PARSED, never substring-matched, for a reason the version this replaced measured: its
+    first form asked `if "'.claude/**'" not in text` over the whole file, and the mutant
+    deleting that path from one of two filters survived, because the string was still there
+    under the other. Both halves of that lesson are still live -- the per-step walk is what
+    sees WHICH step lost its guard, and `_norm_expr` is what keeps a re-spaced or re-quoted
+    guard from reddening a correct file.
+
+    The filter's CONTENT is no longer checked here, because it is no longer spelled here:
+    `FILTER_PREFIXES`/`FILTER_EXACT` are the single address, and `--selftest` gates them by
+    deleting each entry and asserting some pinned path notices.
 
     Pure so the mutants can be planted on a STRING. Planting them on the real workflow
     file works and is what `skill_layout_control.py` does, but a control that rewrites
@@ -223,19 +394,47 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     if not isinstance(triggers, dict):
         return problems + ["controls.yml has no parseable `on:` block"]
 
-    want = {f"{p}**" for p in FILTER_PREFIXES} | set(FILTER_EXACT)
     for event in ("pull_request", "push"):
         cfg = triggers.get(event)
-        if not isinstance(cfg, dict) or not cfg.get("paths"):
+        if isinstance(cfg, dict) and cfg.get("paths"):
             problems.append(
-                f"controls.yml's `{event}` trigger declares no `paths:`. An absent filter "
-                f"is not an empty one -- it runs on every event")
+                f"controls.yml's `{event}` trigger declares `paths: "
+                f"{sorted(cfg['paths'])}`. A workflow that does not match its filter "
+                f"produces NO check, not a passing one, and `controls` is a required "
+                f"check -- so this blocks every pull request touching none of them "
+                f"(measured on PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
+
+    jobs = doc.get("jobs") or {}
+    steps = (list(jobs.values())[0].get("steps") or []) if jobs else []
+    steps = [s for s in steps if isinstance(s, dict)]
+    scoped = [i for i, s in enumerate(steps) if s.get("id") == SCOPE_STEP_ID]
+    if len(scoped) != 1:
+        return problems + [
+            f"controls.yml has {len(scoped)} steps with `id: {SCOPE_STEP_ID}`, not 1. "
+            f"Without exactly one, every `if:` below references an output nothing writes "
+            f"and the guard's meaning cannot be checked at all"]
+    at = scoped[0]
+    if SCOPE_INVOCATION not in " ".join(str(steps[at].get("run") or "").split()):
+        problems.append(
+            f"controls.yml's `{SCOPE_STEP_ID}` step does not run `{SCOPE_INVOCATION}`, so "
+            f"whatever writes `relevant` is no longer this tool and is not gated by it")
+
+    guard = _norm_expr(GUARD_EXPR)
+    for i, step in enumerate(steps):
+        if "run" not in step or i == at:
             continue
-        missing = want - set(cfg["paths"])
-        if missing:
+        label = step.get("name") or str(step["run"]).strip().splitlines()[0][:60]
+        if i < at:
             problems.append(
-                f"controls.yml's `{event}` filter is missing {sorted(missing)}; FILTER_* in "
-                f"this tool and the workflow have drifted apart")
+                f"controls.yml step `{label}` runs BEFORE the `{SCOPE_STEP_ID}` step, so "
+                f"its guard reads an output that does not exist yet")
+        if guard not in _norm_expr(step.get("if")):
+            problems.append(
+                f"controls.yml step `{label}` is not guarded by `{GUARD_EXPR}`. Unguarded, "
+                f"it runs on a pull request whose toolchain steps were skipped and fails "
+                f"there -- which is the merge block this shape exists to remove; guarded "
+                f"the other way round (`== 'true'`) it skips on an unwritten output and "
+                f"reports a green `controls` that executed nothing")
     return problems
 
 
@@ -250,6 +449,12 @@ def gate_census() -> dict[str, dict]:
     A step is a GATE if its `run:` invokes something under `eval/` - that is what makes it
     this repository's check rather than toolchain setup. Classifying on the step NAME would
     read "install ffmpeg (judge/audio.py's measuring instrument)" as a gate; it is apt-get.
+
+    THE SCOPE STEP IS NEITHER, and it is excluded by its `id` rather than left to fall on
+    one side. It runs `eval/tools/ci_minutes.py`, so the `eval/` test would score it a
+    sixth gate in `controls.yml` while it checks nothing about the repository -- it decides
+    whether the five below have anything to read. It is reported in its own bucket, because
+    a step silently dropped from a census is how a count starts lying.
     """
     import yaml
     out: dict[str, dict] = {}
@@ -258,11 +463,15 @@ def gate_census() -> dict[str, dict]:
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         jobs = doc.get("jobs") or {}
         job = list(jobs.values())[0] if jobs else {}
-        steps = [s for s in (job.get("steps") or []) if isinstance(s, dict) and "run" in s]
+        run_steps = [s for s in (job.get("steps") or [])
+                     if isinstance(s, dict) and "run" in s]
+        scope = [s for s in run_steps if s.get("id") == SCOPE_STEP_ID]
+        steps = [s for s in run_steps if s.get("id") != SCOPE_STEP_ID]
         gates = [s for s in steps if "eval/" in s["run"]]
         out[wf] = {
             "gates": len(gates),
             "setup": len(steps) - len(gates),
+            "scope": len(scope),
             "names": [(s.get("name") or s["run"].strip().splitlines()[0])[:80]
                       for s in gates],
         }
@@ -278,18 +487,19 @@ def path_filter_audit(runs: list[dict], compare) -> dict:
     construction and is reported in its own bucket rather than counted as evidence either
     way.
 
-    IT DELIBERATELY DOES NOT COMPUTE THE ACCUMULATED PULL-REQUEST DIFF, and a `no-match`
-    row is still evidence about it. The inference has two halves, and only one of them is
-    a measurement:
+    IT REPORTS ONE MEASUREMENT AND NO LONGER DRAWS AN INFERENCE FROM IT. Until 2026-08-24
+    a `no-match` row meant "this run was bought by the accumulated diff", and that reading
+    rested on the run's mere existence: GitHub dispatched a `pull_request` workflow only
+    when its `paths:` filter matched. **`controls.yml` declares no `paths:` any more** --
+    it runs on every pull request and decides inside the job -- so the run existing says
+    nothing about any diff, and the old conclusion would now be drawn from a premise that
+    is false. What survives is exactly the half that was ever measured here: whether the
+    LATEST PUSH touched a path the suites read.
 
-      1. the run EXISTS, with `event: pull_request`. GitHub dispatches a `pull_request`
-         workflow only when its `paths:` filter matches, and that filter is defined over
-         the accumulated diff. So the accumulated diff matched -- observed, not computed.
-      2. the latest push's own diff matched NOTHING filtered -- measured here.
-
-    Together: the run was bought by something other than the push that triggered it, and
-    the only thing that can buy it is the accumulated diff. Computing that diff as well
-    would re-derive half of what the run's existence already states.
+    For runs from 2026-08-24 onward the question this was built to answer is answered
+    directly by the run itself: the scope step prints the filter, the changed paths and
+    its verdict into the log. This is the historical instrument, and its rows about earlier
+    runs stand.
 
     THE RANGE IS ONE PUSH ONLY BECAUSE `controls` RAN ON EVERY PUSH, which is checked
     rather than assumed: `gates` carries no path filter, and its run count equals
@@ -433,6 +643,9 @@ def compare_via_api(base: str, head: str) -> list[str]:
 
 def _selftest() -> int:
     failures: list[str] = []
+    # The producer for "how many mutants does this gate carry". `.github/workflows/README.md`
+    # states those counts, and a count with no producer goes stale forever.
+    counts = {"mutants": 0, "variants": 0}
 
     def check(name: str, got, want):
         if got != want:
@@ -455,6 +668,11 @@ def _selftest() -> int:
     # VARIANT: a step whose NAME mentions eval/ but whose body is apt-get must not count.
     check("no gate name is an apt-get line",
           [n for n in _cen["controls"]["names"] if "apt-get" in n], [])
+    # VARIANT: the scope step runs `eval/tools/ci_minutes.py`, so the `eval/` test would
+    # score it a sixth gate. It is one step, in its own bucket, and in neither of the two.
+    check("the scope step is counted as itself", _cen["controls"]["scope"], 1)
+    check("and not as a gate", [n for n in _cen["controls"]["names"] if "scope" in n], [])
+    check("gates.yml has no scope step", _cen["gates"]["scope"], 0)
 
     check("22s bills a whole minute", billable_minutes(22), 1)
     check("60s is exactly 1", billable_minutes(60), 1)
@@ -518,18 +736,51 @@ def _selftest() -> int:
         def drop(text, needle, count=1):
             return text.replace(needle, "", count)
 
+        scope_block = (
+            "      - name: scope (does this pull request touch anything these suites"
+            " read?)\n        id: scope\n"
+            "        run: python3 eval/tools/ci_minutes.py --scope\n")
+        gate_guard = ("        if: ${{ !cancelled() && steps.scope.outputs.relevant"
+                      " != 'false' }}\n")
+        version_step = ("      - name: just --version\n"
+                        "        if: ${{ success() && steps.scope.outputs.relevant"
+                        " != 'false' }}\n        run: just --version\n")
+        audio_block = ("      - name: judge/audio_selftest\n" + gate_guard
+                       + "        run: python3 eval/judge/audio_selftest.py\n")
+        rusage_block = ("      - name: judge/rusage_selftest\n" + gate_guard
+                        + "        run: python3 eval/judge/rusage_selftest.py\n")
+        for _needle in (scope_block, gate_guard, version_step, audio_block, rusage_block):
+            if _needle not in live:
+                failures.append(
+                    "a mutant's needle is not in controls.yml, so every mutant built on "
+                    f"it is void rather than caught: {_needle.strip().splitlines()[0]!r}")
+
         mutants = {
-            ".claude/** gone from pull_request only":
-                drop(live, "      - '.claude/**'\n"),
-            "eval/** gone from pull_request only":
-                drop(live, "      - 'eval/**'\n"),
-            "the controls.yml self-reference gone":
-                drop(live, "      - '.github/workflows/controls.yml'\n"),
-            "the whole pull_request paths: block gone":
-                live.replace(
-                    "  pull_request:\n    paths:\n      - 'eval/**'\n      - '.agents/**'\n"
-                    "      - '.claude/**'\n      - '.github/workflows/controls.yml'\n",
-                    "  pull_request:\n"),
+            # THE DEFECT THIS SHAPE EXISTS TO PREVENT, one trigger at a time. A `paths:`
+            # filter that does not match produces no check, and `controls` is required.
+            "a paths: filter back on pull_request":
+                live.replace("  pull_request:\n",
+                             "  pull_request:\n    paths:\n      - 'eval/**'\n", 1),
+            "a paths: filter back on push":
+                live.replace("  push:\n    branches: [main, 'ci-control-**']\n",
+                             "  push:\n    branches: [main, 'ci-control-**']\n"
+                             "    paths:\n      - 'eval/**'\n", 1),
+            # THE OPPOSITE DEFECT: the guard stops meaning anything, and the job reports
+            # green having executed no gate.
+            "the scope step deleted": drop(live, scope_block),
+            "the scope step's id renamed": live.replace("        id: scope\n",
+                                                        "        id: whence\n", 1),
+            "the scope step no longer runs --scope":
+                live.replace("        run: python3 eval/tools/ci_minutes.py --scope\n",
+                             '        run: echo "relevant=false" >> "$GITHUB_OUTPUT"\n', 1),
+            "one gate loses its guard": drop(live, gate_guard),
+            # The fail-OPEN spelling: an output the scope step never wrote is the empty
+            # string, so `== 'true'` skips every suite on a step that did not run.
+            "the guard flipped to == 'true'":
+                live.replace("steps.scope.outputs.relevant != 'false'",
+                             "steps.scope.outputs.relevant == 'true'"),
+            "a guarded run: step placed before the scope step":
+                live.replace(scope_block, version_step + scope_block, 1),
             "the runner moved off ubuntu-latest":
                 live.replace("runs-on: ubuntu-latest", "runs-on: macos-latest"),
             # The two the substring form passed. A mixed workflow still CONTAINS
@@ -546,16 +797,25 @@ def _selftest() -> int:
                              "runs-on: [ubuntu-latest, self-hosted]"),
         }
         variants = {
-            "the paths are reordered": live.replace(
-                "    paths:\n      - 'eval/**'\n      - '.agents/**'\n      - '.claude/**'\n",
-                "    paths:\n      - '.claude/**'\n      - 'eval/**'\n      - '.agents/**'\n",
+            # The re-spacing and re-quoting one is not decoration: the substring form of
+            # the check this replaced went red on a re-quote, and a gate firing where
+            # nothing is wrong spends exactly the attention a real firing needs.
+            "the guard re-spaced and double-quoted": live.replace(
+                "steps.scope.outputs.relevant != 'false'",
+                'steps.scope.outputs.relevant   !=   "false"'),
+            "two gates swapped": live.replace(audio_block + rusage_block,
+                                              rusage_block + audio_block, 1),
+            "an unguarded `uses:` step, which needs no guard": live.replace(
+                "      - uses: actions/setup-python@v6\n",
+                "      - uses: actions/checkout@v5\n      - uses: actions/setup-python@v6\n",
                 1),
-            "an extra path this tool does not name": live.replace(
-                "      - 'eval/**'\n", "      - 'eval/**'\n      - 'scripts/**'\n", 1),
-            "a comment inside the filter": live.replace(
-                "    paths:\n", "    paths:\n      # a note\n", 1),
-            "the paths are double-quoted": live.replace("- 'eval/**'", '- "eval/**"'),
+            "a comment inside the job": live.replace(
+                "    steps:\n", "    steps:\n      # a note\n", 1),
+            "the scope step given an extra flag": live.replace(
+                "ci_minutes.py --scope\n", "ci_minutes.py --scope --json\n", 1),
         }
+        counts["mutants"] = len(mutants)
+        counts["variants"] = len(variants)
         for name, text in mutants.items():
             if text == live:
                 failures.append(f"mutant '{name}' changed nothing; it is void, not caught")
@@ -567,14 +827,111 @@ def _selftest() -> int:
             elif filter_problems(text, gates_yml.read_text()):
                 failures.append(f"FALSE POSITIVE on variant: {name}")
 
-    check("eval/ source matches", matches_filter("eval/tools/tasks.py"), True)
-    check("a skill matches", matches_filter(".claude/skills/work/SKILL.md"), True)
-    check("the workflow itself matches", matches_filter(".github/workflows/controls.yml"), True)
-    check("its README does NOT match", matches_filter(".github/workflows/README.md"), False)
-    check("a task file does NOT match", matches_filter("tasks/124-ci-path-filter.md"), False)
-    check("a root doc does NOT match", matches_filter("README.md"), False)
-    # The variant: a filename that merely begins with a filtered directory's letters.
-    check("evaluation.md is not eval/", matches_filter("evaluation.md"), False)
+    # -- the filter's CONTENT, now that it is spelled once, in this file ----------------
+    # It used to be spelled twice -- here and in the workflow's `paths:` -- and the gate
+    # was that the two agree. With the filter moved into the scope step there is one
+    # address, so the check that replaces it asks the FACT instead of the spelling: does
+    # this path match, and is every entry load-bearing for some pinned path?
+    pinned = {
+        "eval/tools/tasks.py": True,
+        ".agents/skills/work/SKILL.md": True,
+        ".claude/skills/work/SKILL.md": True,
+        ".github/workflows/controls.yml": True,
+        ".github/workflows/README.md": False,
+        "tasks/124-ci-path-filter.md": False,
+        "README.md": False,
+        # The variant: a filename that merely begins with a filtered directory's letters.
+        "evaluation.md": False,
+    }
+    for path, want in pinned.items():
+        check(f"{path} matches the filter" if want else f"{path} does NOT match",
+              matches_filter(path), want)
+
+    # Deleting one entry from FILTER_* is the mutant the workflow-drift check used to
+    # catch. It has to die somewhere, so: every entry must be the reason some pinned path
+    # matches. An entry no pin depends on could be dropped with the suite still green,
+    # and the suites would then skip a change that does affect them.
+    for entry in list(FILTER_PREFIXES) + list(FILTER_EXACT):
+        without_p = tuple(x for x in FILTER_PREFIXES if x != entry)
+        without_e = tuple(x for x in FILTER_EXACT if x != entry)
+        depends = [p for p, want in pinned.items()
+                   if want and not matches_filter(p, without_p, without_e)]
+        if not depends:
+            failures.append(
+                f"deleting {entry!r} from the filter reddens no pin above -- that entry "
+                f"is ungated, and dropping it would silently skip the suites")
+
+    # -- the scope decision, and the three ways it must refuse to say "nothing to do" ---
+    check("a doc-only pull request skips the suites",
+          scope_decision("pull_request", ["README.md", "tasks/9-x.md"])[0], False)
+    check("one filtered path is enough to run them",
+          scope_decision("pull_request", ["README.md", "eval/judge/bots.py"])[0], True)
+    # The three fail-CLOSED arms. Each of these is a state in which the honest answer is
+    # "I do not know", and the dangerous reading of it is "nothing to do".
+    check("an undetermined diff runs everything",
+          scope_decision("pull_request", None)[0], True)
+    check("an EMPTY diff is undetermined, not empty",
+          scope_decision("pull_request", [])[0], True)
+    check("push runs everything", scope_decision("push", ["README.md"])[0], True)
+    check("schedule runs everything", scope_decision("schedule", None)[0], True)
+    check("an unset event runs everything", scope_decision("", ["README.md"])[0], True)
+
+    # `pull_request_changed_paths` against a stubbed git, both arms and the refusal.
+    merge_head = "m" * 40 + " " + "b" * 40 + " " + "h" * 40
+
+    def git_merge(*args):
+        if args[0] == "rev-list":
+            return merge_head + "\n"
+        if args[0] == "diff":
+            check("the diff is taken against the merge's FIRST parent", args[2], "b" * 40)
+            return "README.md\neval/x.py\n\n"
+        raise AssertionError(args)
+
+    check("a merge checkout diffs parent1..HEAD",
+          pull_request_changed_paths(git_merge, "main"), ["README.md", "eval/x.py"])
+
+    def git_plain(*args):
+        if args[0] == "rev-list":
+            return "s" * 40 + "\n"
+        if args[0] == "merge-base":
+            check("the fallback asks origin/<base>", args[1], "origin/main")
+            return "b" * 40 + "\n"
+        if args[0] == "diff":
+            return "tasks/1.md\n"
+        raise AssertionError(args)
+
+    check("a non-merge checkout falls back to merge-base",
+          pull_request_changed_paths(git_plain, "main"), ["tasks/1.md"])
+
+    def git_broken(*args):
+        raise DataError("no such ref")
+
+    check("a git failure is None, never an empty list",
+          pull_request_changed_paths(git_broken, "main"), None)
+    check("and with no base ref either, still None",
+          pull_request_changed_paths(git_plain, ""), None)
+
+    # The output file is the whole interface to the workflow, so pin what lands in it --
+    # and pin the LOG too, because a skipped `controls` run is only auditable afterwards
+    # if the step said what it read.
+    import contextlib
+    import io
+    import tempfile
+    with tempfile.TemporaryDirectory() as _d:
+        _out = os.path.join(_d, "gh_output")
+        _log = io.StringIO()
+        with contextlib.redirect_stdout(_log):
+            emit_scope("pull_request", ["README.md"], _out)
+            emit_scope("pull_request", ["eval/x.py"], _out)
+            emit_scope("schedule", None, _out)
+        with open(_out, encoding="utf-8") as fh:
+            wrote = fh.read().split()
+        check("the output file carries one relevant= per call",
+              wrote, ["relevant=false", "relevant=true", "relevant=true"])
+        _text = _log.getvalue()
+        check("the log names the filter it applied", "eval/ .agents/ .claude/" in _text, True)
+        check("the log names the path it skipped on", "README.md" in _text, True)
+        check("the log states the verdict", _text.count("controls scope: relevant="), 3)
 
     # -- the audit, both directions, with a stubbed compare ------------------------------
     audit_runs = [
@@ -631,7 +988,8 @@ def _selftest() -> int:
             print(f"  {f}")
         return 1
     print("ci_minutes --selftest: ok "
-          "(billing arithmetic, the third value, the filter, the audit)")
+          "(billing arithmetic, the third value, the scope guard, the audit); "
+          f"{counts['mutants']} mutants died, {counts['variants']} variants passed")
     return 0
 
 
@@ -677,15 +1035,17 @@ def _print_census(rep: dict, billable_field: dict[int, int] | None) -> None:
 
 
 def _print_audit(aud: dict) -> None:
-    print("controls.yml's path filter: was each run bought by the LATEST PUSH, or by the "
-          "whole-PR diff?")
+    print("controls.yml runs: did the LATEST PUSH touch a path the slow suites read?")
+    print("  HISTORICAL. controls.yml carried a trigger-level `paths:` filter until "
+          "2026-08-24;")
+    print("  since then it runs on every pull request and its scope step logs this "
+          "verdict itself.")
     print(f"  controls runs on pull_request : {aud['controls_pr_runs']}")
     print("  first-on-branch (no predecessor push; matches by construction): "
           f"{aud['first_on_branch']}")
     print(f"  analysed                      : {aud['analysed']}")
     print(f"    latest push touched a filter path   : {aud['match']}")
-    print(f"    latest push touched NOTHING filtered: {aud['no_match']}  "
-          "<-- bought by the accumulated diff")
+    print(f"    latest push touched NOTHING filtered: {aud['no_match']}")
     print(f"    same sha as the previous run        : {aud['same_sha']}")
     print()
     for row in aud["rows"]:
@@ -700,6 +1060,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--selftest", action="store_true",
                     help="controls, both directions, offline")
     ap.add_argument("--path-filter", action="store_true", help="the path-filter audit")
+    ap.add_argument("--scope", action="store_true",
+                    help="controls.yml's own filter: decide whether the slow suites have "
+                         "anything to read, and write `relevant=` to $GITHUB_OUTPUT")
     ap.add_argument("--gates", action="store_true",
                     help="how many checks each workflow runs (offline; no API)")
     ap.add_argument("--no-timing", action="store_true",
@@ -712,13 +1075,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.selftest:
         return _selftest()
 
+    if args.scope:
+        return emit_scope()
+
     if args.gates:
         cen = gate_census()
         if args.json:
             print(json.dumps(cen, indent=2))
             return 0
         for wf, got in cen.items():
-            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps")
+            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps, "
+                  f"{got['scope']} scope steps")
         print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
         return 0
 
