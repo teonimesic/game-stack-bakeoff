@@ -2367,6 +2367,53 @@ with every copy of itself and no consistency check can see it (#113, #119).
 readable and could contradict either candidate; or the $46.79 day total being shown wrong, which
 is the only ground this choice rests on.
 
+## Scene prompts live in their own module, and the rubric trigger is a curated list — decided 2026-08-24
+
+`eval/suites/scene_prompts.py` renders `s1_parallax` and `s2_glass` for all four stacks.
+`eval/SCENES.md` is the design authority; that module renders it and nothing else.
+
+**A separate module from `wholegame_prompts.py`, not a 5th and 6th entry in `TASKS`.** 2 reasons,
+both mechanical. `wholegame.py` defaults `--games` to every key of `TASKS`, so a scene
+added there would be launched by the standing matrix command against a probe that does not exist
+yet. And a scene needs preamble text a game does not — no player, no controls, no sound, a fixed
+run length — so under 1 shared preamble every scene edit would reach 4 game prompts, which is #41
+with a different subject. The isolation is **measured, not asserted**: editing the scene
+preamble moves 8 rendered prompts and no game; editing the game preamble moves 16 and no scene
+(`eval/tools/prompt_guard_control.py`). The vocabulary dicts are **imported** rather than copied,
+so 1 concept is still said in 4 languages in 1 place.
+
+**The rubric check is a curated list of measurement vocabulary, chosen over a derived property on
+the live false-positive count.** `eval/SCENES.md` states each scene criterion, and a prompt
+repeating one teaches to the test. The obvious trigger — every content word of the criterion
+columns — was built first: 85 words, **31 hits over the 24 rendered prompts, 0 of them a real
+leak**, because `water`, `glass`, `layers`, `seed` and `tick` are the scene's own subject and its
+capture contract. That is the census-trigger failure below, in a new place: an open class of
+English words is an enumeration in disguise. What is closed here is the vocabulary of
+**measurement** — terms naming how a thing will be checked — plus English bound expressions,
+which is what a threshold is. Shipped, both lists are at **0** false positives on the 8 scene
+prompts; `probe` came off the first list for hitting all 8 with no true positive, because it is
+the name of a starter recipe every prompt must state.
+
+**The check is addressed at SCENE prompts, and that is an address rather than a convenience.**
+The same lists over the 16 rendered game prompts hit all 4 games with no true positive: a game
+legitimately says `score`, and `at least three kinds of enemy` is `g3_arena`'s own rule. The
+criteria in `eval/SCENES.md` grade scenes, so scene prompts are where the question is asked.
+`variant-game-prompt-untouched` is the row that says so in code.
+
+**2 anti-drift guards, because a list is the thing that rots.** Every term on the criterion
+list must appear in `eval/SCENES.md` itself, asserted at run time against a copy with markdown
+emphasis and line wrapping removed — so the list cannot drift into words the authority never
+used, and a term that is only ever wrapped or emphasised there is not silently dropped from the
+guard. And the rendered prompts are **checked in** at `eval/suites/rendered/`, with `gates.yml`
+running `--diff` against them: none of the three assertions can see a shared-preamble edit,
+because it leaves every rule identical across stacks and names no engine. A deliberate prompt
+edit re-records the snapshot in the same commit.
+
+**To re-open:** a scene prompt that cannot be written without a term on either list — which would
+mean the term is functional spec and belongs off it, the way `probe` did; a false positive on a
+correct prompt, which is how a gate gets switched off; or a real leak that ships past both lists,
+which would say the closed class was drawn too narrow.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).

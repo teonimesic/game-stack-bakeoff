@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 39 documentation, queue and selftest gates | 5 mutant and control suites |
+| checks | 41 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **103s** | **635s** |
 
@@ -24,9 +24,10 @@ re-read them rather than carrying them forward: the row above said **57s** for a
 had since gained 2 steps.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
-`linkcheck`, the queue lint, syntax-only lint, and every `*_control.py`, `*_selftest.py` and
-mutant sweep that runs on Python alone — `cost_census_mutants` and `pr_review_state_mutants` are
-both offline and about 1 second each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
+`linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
+control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that runs on Python
+alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
+each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
 sigil, and no sweep is bounded by a figure nobody is charged (#159).
 

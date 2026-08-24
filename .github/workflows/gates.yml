@@ -106,9 +106,19 @@ jobs:
         run: python3 eval/tools/ci_minutes.py --selftest
 
       # ---- the prompts and the packs -----------------------------------------------
-      - name: prompt_guard (no engine names in game bodies, rules identical per stack)
+      - name: prompt_guard (engine names, per-stack rules, scene rubric vocabulary)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/prompt_guard.py
+      # The three assertions above cannot see a shared-preamble edit -- it leaves every
+      # rule identical across stacks and names no engine, which is exactly #41. Only the
+      # rendered text against a stored copy catches it, so the snapshot is checked in and
+      # this diffs against it. Regenerate deliberately: --snapshot eval/suites/rendered.
+      - name: prompt_guard --diff (rendered prompts match the checked-in snapshot)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/prompt_guard.py --diff eval/suites/rendered
+      - name: prompt_guard_control (can the prompt guard fail, and still pass?)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/prompt_guard_control.py
       - name: manifest_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/tools/manifest_selftest.py
