@@ -239,18 +239,53 @@ performance pass that assumes caps exist until that ticket reports.**
 ## Tier 3 aspects for scenes
 
 Games are judged on `architecture`, `idiomatic`, `fun`, `fun_frames`, `ux`, `audio`. Scenes have
-no player, so `fun` has no referent. Proposed:
+no player, so `fun` has no referent, `fun_frames` controls a question nobody asks and `audio` has
+nothing to hear. Three aspects replace those six, and they are defined in `judge/aspects.py`
+alongside the game ones:
 
-| aspect | sees | asks |
-|---|---|---|
-| `fidelity` | frames | does this look like the thing that was described? |
-| `motion` | frames | is the movement weighted and eased, or linear and floaty? |
-| `framework_fluency` | code | did it use the engine's facilities, or hand-roll around them? |
+| aspect | sees | asks | across stacks? |
+|---|---|---|---|
+| `fidelity` | frames | does this read as the scene it was asked for? | yes |
+| `motion` | frames | does what moves move as though it had mass, or slide at one unchanging rate? | yes |
+| `framework_fluency` | code | did it reach for the engine's facilities, or hand-roll around them? | **no — per stack** |
+
+**An aspect is asked only of its own task class, and that is a guard rather than a convention.**
+`aspects.applicability()` refuses every cross pairing and refuses a task id it cannot classify,
+at `judge/field.py pack`, at `field.run_field` and at `field_sweep.py` — three paths, because
+the resource is *a judge field run against a task* and a guard placed beside one caller is a
+guard the next caller does not have. `judge/aspects_selftest.py` pins it with a mutant and a
+variant.
 
 **`framework_fluency` cannot be blinded and must never enter a blind comparison.** The whole
 question is which engine's APIs appear in the source, so naming the stack *is* the measurement.
 Report it per stack, never as a cross-stack ranking. This is the same wall the judge field hit:
-`idiomatic` is structurally unblindable for the identical reason.
+`idiomatic` is structurally unblindable for the identical reason. Both now carry the bar in
+`Aspect.cross_stack_bar`, which `judge/field_ranks.py` prints — with that aspect's per-stack
+means, alphabetically by stack — beside every figure it produces for them.
+
+**Two different gates, and they answer different questions.** `judge/verify_blind.py` scans the
+*trial tree* and is about the building agent: it holds unchanged here, because an aspect id is
+not a criterion id and the scene aspects added none to `RUBRIC.md` (81 before, 81 after, and the
+tool was pinned red on a planted canary plus a planted criterion id at the same address on
+2026-08-24). What the *judge* is told is `judge/aspects_selftest.py`'s question, and that is the
+one `fidelity` and `motion` have to pass: no stack name, no arm count, and the frames-channel
+blind spot carried verbatim.
+
+**Weight 0.00, and it ships that way on a measurement rather than on caution.**
+`judge/weight_sensitivity.py` found **10 groups, every one a game**: there are 0 scene gradings
+in the stored tree because no scene has been built. It also sweeps `w1` over `(tier 1, tier 2)`,
+and the scene tier-3 question is `w3` over `(tier 2, tier 3)` — so the honest answer is **NOT
+ASKED**, not "no effect". Its `--selftest` passes, which is what makes that a statement about
+the population rather than about the instrument. `judge/RUBRIC.md` holds the commands, and
+`tasks/145` asks the question once a scene matrix exists.
+
+**`fidelity` asks less than its one-line summary suggests.** "Looks like the thing that was
+described" needs the description, and no pack carries one — the rendered scene prompt exists per
+stack, so handing a judge one would name the arm in its evidence. Until a stack-neutral statement
+of each scene is packed (`tasks/144`), the aspect recovers the subject from the field of eight and
+scores how completely each realises it: it can find a submission that omits what seven others
+drew, and it cannot find one where all eight missed the same requirement. Say so wherever its
+number appears.
 
 ## What scenes are for — the questions, stated so they can come out against us
 

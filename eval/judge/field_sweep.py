@@ -48,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
 import field  # noqa: E402
 import tokenvalue  # noqa: E402
-from aspects import ASPECTS  # noqa: E402
+from aspects import ASPECTS, applicability  # noqa: E402
 from judge_ledger import SUMMARY_STEMS, field_cost_usd, is_summary  # noqa: E402
 from sequential import MAX_RUNS, Sampler  # noqa: E402
 
@@ -515,6 +515,19 @@ def main() -> int:
               "protect what is scarce and could only cut evidence short (FINDINGS #159). "
               "Bound the sweep with --max-rounds or --max-wall-min instead.",
               file=sys.stderr)
+        return 2
+    # EVERY (task, aspect) PAIR, BEFORE ANY MODE RUNS. A sweep is the largest spender
+    # here, and all three of its modes plan the same cross product, so the pairing is
+    # checked once at the top rather than inside whichever loop is in front of the
+    # author. `run_field` refuses the same pair again; this is the one that refuses
+    # before a single round starts.
+    wrong = [r for g in a.games for asp in a.aspects
+             if (r := applicability(asp, g)) is not None]
+    if wrong:
+        print(f"refusing the sweep: {len(wrong)} (task, aspect) pair(s) do not go "
+              f"together.", file=sys.stderr)
+        for r in wrong:
+            print(f"  {r}", file=sys.stderr)
         return 2
     if a.repeats:
         return repeats_main(a)

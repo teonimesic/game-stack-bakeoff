@@ -29,7 +29,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from anonymise import neutralise  # noqa: E402
-from aspects import ASPECTS, Aspect  # noqa: E402
+from aspects import ASPECTS, Aspect, applicability  # noqa: E402
 
 LABELS = "ABCDEFGH"
 DEFAULT_MODEL = "sonnet"
@@ -1171,6 +1171,18 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         return {"usable": False,
                 "error": f"refusing to judge: the identity mapping is inside the pack "
                          f"({stray}), so the judge would not be blind"}
+    # THE TASK CLASS, and it is the same argument as the `sees` check below one level
+    # up: a scene has no player, so `fun` over a scene field would return eight
+    # confident scores about pacing nobody asked for, and `fidelity` over a game field
+    # would score a strip against a subject the field was never given. Scene and game
+    # scores are never pooled (`eval/SCENES.md`), so this is not a preference.
+    #
+    # CHECKED HERE AS WELL AS AT BOTH CLIs, because the resource is "a judge field run
+    # against a task" and this is the function that spends it (rule 13). It refuses an
+    # id it cannot classify rather than assuming a game.
+    refusal = applicability(aspect_id, mapping.get("game") or "")
+    if refusal:
+        return {"usable": False, "error": f"refusing to judge: {refusal}"}
     # A pack built for one aspect does not carry another aspect's evidence. Judging
     # `fun` over a code-only pack would produce eight confident scores derived from
     # nothing that was asked about.
@@ -1736,6 +1748,13 @@ def main() -> int:
 
     a = ap.parse_args()
     if a.cmd == "pack":
+        # THE TASK CLASS, refused before anything is packed. `run_field` refuses the
+        # same pairing again; this is the earlier of the two, so a wrong pairing costs
+        # no pack rather than costing one and then being thrown away.
+        refusal = applicability(a.aspect, a.game)
+        if refusal:
+            print(f"refusing to pack: {refusal}", file=sys.stderr)
+            return 2
         # BOTH aspect properties, not one. This read `sees` and not `blind_language`
         # until 2026-08-23, so a pack built through the CLI - the path the module
         # docstring tells a human to type - was not blinded AT ALL: files kept their

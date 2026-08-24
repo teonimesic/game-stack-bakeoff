@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 42 documentation, queue and selftest gates | 7 mutant and control suites |
+| checks | 44 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **95s** | **677s** — a floor, see below |
 
@@ -32,7 +32,9 @@ control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that r
 alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
 each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
-sigil, and no sweep is bounded by a figure nobody is charged (#159).
+sigil, and no sweep is bounded by a figure nobody is charged (#159). `field_ranks --selftest`
+and `weight_sensitivity --selftest` joined it on 2026-08-24 — both offline, both under 0.1 s
+locally, and neither gated nor recorded as excluded before then.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `scene_mutants` and its `--census-selftest`, `tasks_mutants`, `audio_selftest`,
