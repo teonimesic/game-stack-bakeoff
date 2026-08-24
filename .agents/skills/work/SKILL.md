@@ -105,8 +105,22 @@ In the same session as the work:
 - Run the gates unpiped: `docstat.py --sweep`, `tasks.py check`, and whatever the area's own
   `AGENTS.md` names.
 
-> **Run them against what you are about to push, not against your worktree, and prove the two
-> agree with `git status --short`.** A gate reads the files on disk; a commit records the index,
+> **Run them against what you are about to push, not against your worktree — which means STAGING
+> FIRST, not looking at a status line.**
+>
+> ```bash
+> git add -A                       # or the paths you mean; the point is that nothing is left out
+> git status --porcelain           # MUST be empty of ` M`/`??` rows before you continue
+> <run the gates>
+> git status --porcelain           # MUST still be empty: a gate that rewrote a file un-stages it
+> ```
+>
+> Reading a status line proves nothing on its own — `git status` reports a difference, it does not
+> make the gate read the index. The second check is the one people skip and it is not optional: a
+> formatter or a producer that rewrites a file during the gate run leaves the fix unstaged, which
+> is the same defect one step later.
+>
+> A gate reads the files on disk; a commit records the index,
 > and those are the same thing only until they are not. Merging `main` and then repairing what
 > the merge broke is where they part: `git commit --no-edit` finishes the merge from the **index**
 > and silently leaves any edit made after the conflict resolution behind. That happened on this
