@@ -269,8 +269,8 @@ statements are about different things. Excluding it **strengthened every publish
 retired no conclusion** — the two superseded pooled pairs themselves are retired, as
 `WR-tier3-pool-pre` and `WR-tier3-pool-post`. Across the 9 stored directories that produced a
 pooled figure, 3 held nothing but barred rounds and now report `UNMEASURABLE` instead of a full
-separation table — one of them carried the widest between-over-within reading the tool had ever
-returned anywhere in the stored tree, and it was a pure barred reading. On
+separation table — **1** of them carried the widest between-over-within reading the tool had
+ever returned anywhere in the stored tree, and it was a pure barred reading. On
 `wg-tetris-judge-2026-08-17` **3 of the 8 readings flip**, every one of them from
 *between exceeds within* to *no separation*. `eval/RUNS.md`'s comparability note for
 2026-08-24 holds the before-and-after figures; they are stated there and nowhere else.

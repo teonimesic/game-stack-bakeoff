@@ -2166,9 +2166,9 @@ different quantity. Recomputed over the whole stored tree, unpiped:
 | `wg-g4c-capgate/out/uncapped` | **1 aspect — `idiomatic` alone** | **UNMEASURABLE**, exit 1 |
 
 **3 of the 9 were the barred reading and nothing else**, printed as a four-row separation table
-at exit 0. The loudest, `capped`, read between at three times within — the widest
-between-over-within the tool ever returned anywhere in the stored tree, and it was a ranking of
-the one aspect that may not be ranked. Those `before` figures are retired; the tool now answers
+at exit 0. `capped` was the widest between-over-within the tool ever returned anywhere in the
+stored tree: its between-stack range was **3 times** its within-stack gap. That was a ranking of
+an aspect that may not be ranked. Those `before` figures are retired; the tool now answers
 `UNMEASURABLE` on all 3 directories.
 
 **The published result did not move; it got stronger.** On `wg-tetris-judge-2026-08-17`, **3 of
