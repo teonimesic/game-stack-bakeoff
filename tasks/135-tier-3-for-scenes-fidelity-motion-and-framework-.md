@@ -1,10 +1,11 @@
 ---
 id: 135
 title: 'Tier 3 for scenes: fidelity, motion and framework_fluency, with the unblindable one marked as such'
-status: todo
+status: in_review
 priority: 2
 refs: 'eval/SCENES.md, eval/judge/RUBRIC.md, eval/judge/aspects.py, eval/judge/verify_blind.py, eval/judge/weight_sensitivity.py, tasks/134, #21, #92'
 done_when: The three aspects exist and are asked only of scenes; verify_blind.py passes for fidelity and motion; framework_fluency is marked unblindable in RUBRIC.md and in every place its number is published, and is reported per stack rather than ranked across stacks; the scene tier 3 ships at weight 0.00 with weight_sensitivity.py run over the open interval and its result recorded. BLOCKED BEHIND 134.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/22
 ---
 
 Games are judged on `architecture`, `idiomatic`, `fun`, `fun_frames`, `ux`, `audio`. A scene has
