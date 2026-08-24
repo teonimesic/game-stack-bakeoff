@@ -1,12 +1,12 @@
 ---
 id: 131
 title: controls.yml is a required check with a path filter, so a PR touching neither eval/ nor .agents/ can never merge
-status: in_testing
+status: done
 priority: 1
 refs: '#162, .github/workflows/controls.yml, eval/tools/ci_minutes.py, DECISIONS.md'
 done_when: A pull request changing ONLY tasks/ or README.md reports a green `controls` check and is mergeable. `ci_minutes.py --selftest` green, with the one-path-from-one-trigger mutant still dying. `.github/workflows/README.md` states where the filter now lives, and DECISIONS.md records whether `controls` is required.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/16
-established_by: 'PR #16 green and mergeable at 0ee9167; control PR #17 proves the done_when case - pull_request run 32727349980 reports controls SUCCESS with all 5 suites skipped on a one-line CLEANUP-LOG.md diff, while the push run of the same commit ran all 5. Broken state established first at PR #14 head bb3a775: 2 gates check runs, 0 controls. ci_minutes --selftest: 18 mutants died, 5 variants passed. 5 review rounds, 9 real findings, all fixed.'
+established_by: 'PR #16 squash-merged. Verified independently: controls.yml declares no paths on any trigger; the guard is != ''false'' so an unwritten output runs the suites; --scope with no event defaults to relevant=true; selftest 18 mutants died, 5 variants passed; PR #17 proved both directions on one commit (pull_request skipped 5 suites in 7s, push ran all 5 in 627s). Merge conflict in the CI register composed, not sided, and the gate count verified against its producer on the merged tree.'
 ---
 
 A workflow filtered by `paths:` does not run when a pull request matches none of them, and
