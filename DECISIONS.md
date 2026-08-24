@@ -2447,15 +2447,29 @@ rather than being scattered through the world. `table.y` is used only for the SC
 `max |glass.y − table.y|`, which is what makes every distance tolerance a share of the drop.
 
 **The image-side shift estimator was chosen on a measured hit rate, and its robustness lives in
-the criteria rather than in the estimator.** 4 candidates were run over the same 88 frame pairs —
-the reference and its nearest-first variant, which are the same scene with the seeded textures
-dealt to different bands. SAD over normalised horizontal gradients: **43/44 and 39/44**. Normalised
-cross-correlation: 41 and 34. Sign-of-gradient: 37 and 20. Clipping the profile at 3x its mean, the
-principled-sounding fix, made it **worse** (37 and 39). So the estimator stands and 2 gates absorb
-its error: a band is measured only when its own drawn-to-reported ratio agrees with itself on 80%
-of its pairs, and a wrap crossing measured at zero displacement while the band's own model predicts
-a large one is counted as unreadable rather than as a jump. Every miss in 88 pairs was that exact
-shape, on the band holding a car the camera follows.
+the criteria rather than in the estimator.** 5 candidates, all over the same 88 frame pairs — the
+reference and its nearest-first variant, which are the same scene with the seeded textures dealt
+to different bands, 44 pairs each:
+
+| candidate | reference | nearest-first | total |
+|---|---|---|---|
+| **SAD over normalised horizontal gradients, growing overlap — SHIPPED** | 43/44 | 39/44 | **82/88** |
+| the same, over a fixed central window | 43/44 | 39/44 | 82/88 |
+| the same, with the profile clipped at 3x its own mean | 40/44 | 33/44 | 73/88 |
+| normalised cross-correlation | 41/44 | 34/44 | 75/88 |
+| SAD on the SIGN of the gradient | 37/44 | 20/44 | 57/88 |
+
+**Clipping is the result worth keeping.** It is the textbook robustification for exactly the
+failure being repaired — one very strong edge dominating a sum — and it is 9 pairs worse than
+doing nothing. *Choose between candidates on the live-corpus count, never on which one sounds
+more principled.*
+
+So the estimator stands and 2 gates absorb its error: a band is measured only when its own
+drawn-to-reported ratio agrees with itself on 80% of its pairs, and a wrap crossing measured at
+zero displacement while the band's own model predicts a large one is counted as unreadable rather
+than as a jump. **The shipped estimator misses 8 of the 132 pairs in the 3 fixtures — 1 of 44 on
+the reference, 5 of 44 on the nearest-first variant, 2 of 44 on the 1.5x variant — and every one
+of the 8 is the same shape**, on the band holding a car the camera follows.
 
 **No criterion has met a submission, and that is stated wherever a scene score is reported.** The
 thresholds were chosen against fixtures written by the same hand as the criteria.

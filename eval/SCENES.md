@@ -111,8 +111,11 @@ criterion separated in the population that exists, and says in as many words tha
 is fixtures. Do not read a scene result without reading that line.
 
 **One instrument error is already measured**, so the first run does not have to rediscover it:
-the image-side shift estimator misses 3 of 88 frame pairs, all on the band holding a large object
-that is stationary on screen. `scene_probe.py`'s docstring holds the detail.
+across the 3 parallax fixtures the image-side shift estimator misses **8 of 132 frame pairs** — 1
+of 44 on the reference, 5 of 44 on the `numbered nearest-first` variant, 2 of 44 on the `1.5x
+larger` one — and every one of the 8 is on the band holding a large object that is stationary on
+screen. `scene_probe.py`'s docstring holds the detail and `DECISIONS.md` the comparison that
+chose the estimator.
 
 ## `s1_parallax` — 2D, a car on a road
 

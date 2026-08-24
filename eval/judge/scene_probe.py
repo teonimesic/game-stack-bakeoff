@@ -34,11 +34,13 @@ sweep of criteria that were green on their reference; the same is the reasonable
 here. `scene_mutants.py --census` is what reports which criteria ever separated anything.
 
 THE ONE INSTRUMENT ERROR ALREADY MEASURED, so the first real run does not have to
-rediscover it: the image-side shift estimator misses **3 of 88** frame pairs across the
-reference and its 1.5x variant, every miss on the band holding the car, and every miss of
-the same shape - a large object that is stationary on screen offers a competing match at
-zero displacement. `ParallaxScene._reliable` and the wrap check's `blind` counter both
-name it. Expect the rate to be worse on a submission that fills its foreground.
+rediscover it: the image-side shift estimator misses **8 of the 132 frame pairs in the 3
+parallax fixtures** - 1 of 44 on the reference, 5 of 44 on the `numbered nearest-first`
+variant, 2 of 44 on the `1.5x larger` one - and every one of the 8 is the same shape, on
+the band holding the car: a large object that is stationary on screen offers a competing
+match at zero displacement. `ParallaxScene._reliable` and the wrap check's `blind` counter
+both name it, and `DECISIONS.md` holds the 5-candidate comparison that decided the
+estimator. Expect the rate to be worse on a submission that fills its foreground.
 """
 
 from __future__ import annotations
@@ -149,9 +151,9 @@ def band_profile(img: png.Image, top: float, bottom: float,
     Both are load-bearing. A scene that ramps from day to night changes every level in
     the frame, so a level-based match reads the LIGHT and not the motion; measured
     against the reference, a level-based estimator got 4 of 11 frame pairs wrong on the
-    band that darkens most, and this one gets 43 of 44 right across all four bands. A
+    band that darkens most, and this one gets 43 of 44 right across all 4 bands. A
     gradient is also blind to a large static object's INTERIOR - the car covers 12% of
-    the road band's columns and contributes two of them here.
+    the road band's columns and contributes 2 of them here.
 
     Returns None when the band carries no horizontal structure at all, which is not a
     verdict: it is the one input this estimator cannot answer for.
@@ -379,6 +381,18 @@ class Scene:
     both_halves: frozenset[str] = frozenset()
     diagnostic_only: frozenset[str] = frozenset()
 
+    def __init__(self) -> None:
+        #: Which criteria's IMAGE half produced a measurement on this run. Recorded by
+        #: the criterion that made it, never inferred from its evidence string: the
+        #: first version of `measured_twice` matched a phrase only one of the three
+        #: criteria writes, so an unscored `loop.seamless` was reported as measured
+        #: twice while sitting in `unscored` at the same time. This is the one field a
+        #: reader uses to check what was actually measured rather than designed.
+        self.image_measured: set[str] = set()
+
+    def image_ran(self, cid: str) -> None:
+        self.image_measured.add(cid)
+
     def question(self, cid: str) -> str:
         for i, q in self.criteria:
             if i == cid:
@@ -448,16 +462,19 @@ class ParallaxScene(Scene):
     #: happens to carry. Measured over the reference and over the `numbered
     #: nearest-first` variant, which are the same scene with the seeded layer textures
     #: dealt to different bands: 43 of 44 frame pairs correct in the first, 39 of 44 in
-    #: the second, and every miss in the bottom band, where the car is. Three other
-    #: estimators were measured against the same 88 pairs and all three were worse
-    #: (`ncc` 41/34, sign-of-gradient 37/20, fixed-window SAD 43/39), so the estimator
-    #: stays and the ROBUSTNESS lives here instead.
+    #: the second, and every miss in the bottom band, where the car is. 4 other
+    #: estimators were measured against the same 88 pairs and none beat it, so the
+    #: estimator stays and the ROBUSTNESS lives here instead. `DECISIONS.md` has the
+    #: table; the one worth knowing without opening it is that clipping the profile at
+    #: 3x its own mean - the textbook fix for one strong edge dominating a sum - came
+    #: back 9 pairs WORSE than doing nothing.
     #:
     #: A layer is measurable when its per-pair ratio of drawn pixels to reported offset
     #: AGREES WITH ITSELF: at least this share of its pairs within `K_TOLERANCE` of the
     #: layer's own median. That is a statement about repeatability, derived from the
     #: measurements and not from the answer expected of them - a band whose estimates do
     #: not agree with each other cannot support a conclusion drawn from one of them.
+    #: `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
     K_AGREEMENT = 0.8
     K_TOLERANCE = 0.15
     MIN_PAIRS_PER_LAYER = 4
@@ -680,10 +697,22 @@ class ParallaxScene(Scene):
         if not r.frames_usable:
             # The telemetry half alone: a layer whose offset never crosses its span has
             # not looped at all, which the criterion CAN answer without the image.
-            looped = sum(1 for rows in shifts.values() if any(x["wrapped"] for x in rows))
+            #
+            # READ IT OUT OF THE TRACE, not out of `shifts`. `run` hands this method an
+            # empty `shifts` whenever the frames are unusable, so a count taken from
+            # there is 0 by construction - a number in the evidence that cannot be
+            # anything else, which is this repository's most-repeated defect.
+            looped = 0
+            for row in self._layers(r.trace_a[0].state):
+                span = num(row, "span")
+                offset = num(self._layer_by_id(r.trace_a[-1].state, row.get("id")),
+                             "offset")
+                if span and span > 0 and offset is not None and abs(offset) >= span:
+                    looped += 1
             return self.ok(cid, wraps_fired > 0,
                            f"{r.why_frames_unusable()}; scored on telemetry alone: "
-                           f"{wraps_fired} `wrap` events, {looped} layers looped")
+                           f"{wraps_fired} `wrap` events, and {looped} layers whose "
+                           f"offset passed their own span")
         reliable, skipped = self._reliable(shifts)
         width = r.frames_a[0].width
         bad, checked, blind, notes = 0, 0, 0, []
@@ -726,6 +755,7 @@ class ParallaxScene(Scene):
                      f"({wraps_fired} `wrap` events fired in the trace; {blind} "
                      f"crossings landed on a band that could not be read at that pair; "
                      f"{skipped})")
+        self.image_ran(cid)
         return self.ok(cid, bad == 0 and wraps_fired > 0,
                        f"{checked} wrap crossings measured in the frames, {bad} of them "
                        f"a visible jump, {blind} unreadable; {wraps_fired} `wrap` "
@@ -767,9 +797,24 @@ class ParallaxScene(Scene):
                            f"car's speed varies by only {swing:.1%}, so a wheel spun at "
                            f"the mean rate is indistinguishable from a rolling one and "
                            f"only the ratio is asked")
-        pairs = list(zip(samples, speeds))
-        fast = statistics.median(s for s, v in pairs if v >= statistics.median(speeds))
-        slow = statistics.median(s for s, v in pairs if v < statistics.median(speeds))
+        # BOTH HALVES ARE GUARDED, and not out of defensiveness. `speeds` can swing
+        # widely and still hold nothing strictly below its own median - [1, 1, 1, 5]
+        # swings 80% and its slow half is empty - so an unguarded `median` raises
+        # `StatisticsError`, `drive` catches it, and one degenerate speed distribution
+        # scores EVERY criterion false with an exception in the evidence. That is a
+        # published wrong number rather than a crash, which is the worse of the 2.
+        pairs = list(zip(samples, speeds, strict=True))
+        mid = statistics.median(speeds)
+        fast_half = [s for s, v in pairs if v >= mid]
+        slow_half = [s for s, v in pairs if v < mid]
+        if not fast_half or not slow_half:
+            return self.ok(cid, rolls,
+                           f"arc/travel ratio {ratio:.3f} over {len(samples)} ticks; the "
+                           f"car's speed swings {swing:.1%} but nothing lies "
+                           f"{'above' if not fast_half else 'below'} its median "
+                           f"{mid:.3f}, so the fast/slow split could not be made and "
+                           f"only the ratio is asked")
+        fast, slow = statistics.median(fast_half), statistics.median(slow_half)
         tracks = abs(fast - slow) < 0.12
         return self.ok(cid, rolls and tracks,
                        f"arc/travel ratio {ratio:.3f} over {len(samples)} ticks "
@@ -845,6 +890,7 @@ class ParallaxScene(Scene):
                            if min(lum[0], lum[-1]) + abs(total) * 0.05 < v
                            < max(lum[0], lum[-1]) - abs(total) * 0.05)
         image_ok = intermediate >= 1 and reversal <= 0.20
+        self.image_ran(cid)
         return self.ok(cid, telemetry_ok and image_ok,
                        f"{detail}. In the {len(inside)} frames inside ticks {lo}..{hi} "
                        f"mean brightness moves {total:+.1f} of 255 with {intermediate} "
@@ -1043,7 +1089,13 @@ class GlassScene(Scene):
         for i, tick in enumerate(r.frame_ticks):
             st = r.state_at(tick)
             if st.get("glass", {}).get("intact") is True:
-                box = clip_box(st["glass"]["screen"], r.frames_a[i], shrink=0.75)
+                # `.get`, not `[...]`: a trace that reports `glass` without `screen` on
+                # some later tick would raise here, and `drive` turns that into every
+                # criterion false. A missing field is one criterion's problem.
+                screen = st.get("glass", {}).get("screen")
+                if not isinstance(screen, dict):
+                    continue
+                box = clip_box(screen, r.frames_a[i], shrink=0.75)
                 if box is not None:
                     here = (i, box)
                     break
@@ -1174,6 +1226,7 @@ class GlassScene(Scene):
                            f"{detail}. {r.why_frames_unusable()}, so this is the "
                            f"telemetry half alone")
         diff = r.frames_a[-1].differs_from(r.frames_a[0])
+        self.image_ran(cid)
         image_ok = diff <= self.RETURN_FRAME_DIFF
         return self.ok(cid, telemetry_ok and image_ok,
                        f"{detail}; the closing frame differs from the opening one in "
@@ -1236,6 +1289,11 @@ def seed_pair_criterion(scene: Scene, r: SceneRun,
         parts.append(("the captured frames on a different seed", r.bytes_a != r.bytes_b,
                       "differ" if r.bytes_a != r.bytes_b
                       else "BYTE-IDENTICAL across two seeds"))
+    # Both film comparisons, or neither: one of them alone is the half of the pair the
+    # other half exists to reject, and reporting that as "measured twice" would name a
+    # comparison this run did not make.
+    if r.bytes_a and r.bytes_a2 and r.bytes_b:
+        scene.image_ran(cid)
     if extra is not None:
         parts.append(extra)
     ok = all(p[1] for p in parts)
@@ -1293,11 +1351,12 @@ def drive(scene: Scene, repo: Path, seed_a: int = 7, seed_b: int = 99,
         "score": passed / len(scored) if scored else 0.0,
         # WHICH CRITERIA WERE ACTUALLY MEASURED TWICE, not which ones the design says
         # have two halves. An image half that did not run is the difference between the
-        # two, and it is the thing a reader must be able to see.
+        # two, and it is the thing a reader must be able to see - so it is RECORDED by
+        # the criterion that made the measurement, never inferred from its prose.
         "measured_twice": sorted(
             cid for cid in scene.both_halves
-            if run.frames_usable and "was not established" not in
-            next((c.evidence for c in crits if c.id == cid), "")),
+            if cid in scene.image_measured
+            and next((c.scored for c in crits if c.id == cid), False)),
         "image_only": sorted(scene.image_only),
         "unscored": {c.id: c.evidence[:200] for c in crits if not c.scored},
         "wall_s": round(time.monotonic() - t0, 1),

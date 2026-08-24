@@ -166,7 +166,7 @@ class Scene:
                 "vz": rng.between(-18.0, 18.0),
                 "spin": rng.between(-7.0, 7.0),
                 "size": rng.between(0.18, 0.44),
-                "rest": rng.between(0.0, 5.0),
+                "tumble": rng.between(0.6, 1.6),
                 "phase0": rng.between(0.0, 6.28318),
             })
         # The backdrop's pattern, so the thing behind the glass is seeded too. It is a
@@ -247,15 +247,17 @@ class Scene:
         """One fragment, `t` of the way through the broken window (0..1).
 
         Ballistic until it reaches the floor, then still. `settled` is true from the
-        moment it stops, and a settled fragment never moves again - which is what
-        `shatter.pieces_rest` reads.
+        moment it stops - THE SAME MOMENT its position stops changing, which is the
+        whole content of the field. An earlier version held `settled` false for a few
+        further ticks while the fragment was already stationary, so the reference itself
+        reported a resting fragment as unsettled and `shatter.pieces_rest`, which reads
+        exactly that field, was validated against a fixture that disagreed with it.
         """
         # Time in seconds since the impact, over the window's 60 ticks.
         s = t * ((FORWARD_END - FALL_END) * DT)
         g = 320.0
         # When this piece lands: solve vy*s - g*s^2/2 = 0 for s > 0, then it rests.
         land = 2.0 * plan["vy"] / g
-        rest_delay = plan["rest"] * DT
         live = min(s, land)
         # A bigger fragment's centroid comes to rest higher above the floor, so the
         # settled pieces occupy a BAND rather than a single value - which is what a real
@@ -265,8 +267,8 @@ class Scene:
         y = FLOOR_Y + rest_h + plan["vy"] * live - 0.5 * g * live * live
         x = SLIDE_X * (1.0 - math.cos(TILT_MAX)) + 26.0 + plan["vx"] * live
         z = plan["vz"] * live
-        settled = s >= land + rest_delay
-        spin = plan["phase0"] + plan["spin"] * live
+        settled = s >= land
+        spin = plan["phase0"] + plan["spin"] * plan["tumble"] * live
         return {"id": plan["id"], "x": x, "y": y, "z": z,
                 "up": _up_from_angle(spin), "settled": settled}
 

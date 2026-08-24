@@ -36,6 +36,7 @@ than none.
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 import tempfile
@@ -264,11 +265,11 @@ G_ONE_PIECE = (Patch("game.py", "PIECES_MIN = 9", "PIECES_MIN = 1  # MUTANT"),
 
 G_PIECES_SINK = Patch(
     "game.py",
-    "        settled = s >= land + rest_delay",
-    "        settled = s >= land + rest_delay\n"
+    "        settled = s >= land\n",
+    "        settled = s >= land\n"
     "        if settled:\n"
-    "            y -= 40.0 * (s - land - rest_delay)  # MUTANT: settled pieces go on "
-    "sinking through the floor")
+    "            y -= 40.0 * (s - land)  # MUTANT: settled pieces go on sinking through "
+    "the floor\n")
 
 #: THE FIRST VERSION OF THIS MUTANT DID NOT BITE, and that is worth keeping. It replaced
 #: only the rewind window's index arithmetic and left `if tick >= WHOLE_AT: return 0`
@@ -299,7 +300,7 @@ G_CANNED_FRACTURE = Patch(
                 "vz": rng.between(-18.0, 18.0),
                 "spin": rng.between(-7.0, 7.0),
                 "size": rng.between(0.18, 0.44),
-                "rest": rng.between(0.0, 5.0),
+                "tumble": rng.between(0.6, 1.6),
                 "phase0": rng.between(0.0, 6.28318),
             })""",
     """        canned = Rng(0x91A55)  # MUTANT: a canned pre-fractured mesh
@@ -313,7 +314,7 @@ G_CANNED_FRACTURE = Patch(
                 "vz": canned.between(-18.0, 18.0),
                 "spin": canned.between(-7.0, 7.0),
                 "size": canned.between(0.18, 0.44),
-                "rest": canned.between(0.0, 5.0),
+                "tumble": canned.between(0.6, 1.6),
                 "phase0": canned.between(0.0, 6.28318),
             })""")
 
@@ -553,13 +554,18 @@ def stored_scene_gradings(runs_root: Path | None) -> tuple[int, list[str]]:
         return -1, []
     if not runs_root.is_dir():
         return -1, [f"{runs_root} is not a directory"]
+    # PARSE IT. Matching `'"tier": "scene_probe"'` and its unspaced twin is an
+    # enumeration of 2 serialisations out of an open set - any other spacing, or an
+    # indented writer, counts zero, and the caller then prints "0 scene gradings on
+    # disk. No scene has been built or graded", which is a claim about the world drawn
+    # from a matcher that can only under-count.
     found = []
     for path in runs_root.rglob("*.json"):
         try:
-            text = path.read_text()
-        except OSError:
+            doc = json.loads(path.read_text())
+        except (OSError, ValueError):
             continue
-        if '"tier": "scene_probe"' in text or '"tier":"scene_probe"' in text:
+        if isinstance(doc, dict) and doc.get("tier") == "scene_probe":
             found.append(str(path))
     return len(found), found
 
@@ -639,18 +645,23 @@ def census_selftest() -> int:
         passed[varies] = i % 2 == 0          # this one takes both values
         pop.append((scene, "mutant", f"synthetic {i}", passed, scored))
     # A third criterion is measured on nothing at all: always unscored.
-    for _, _, _, passed, scored in pop:
+    for _scene, _kind, _label, _passed, scored in pop:
         scored[ids[2]] = False
 
-    import io
     import contextlib
+    import io
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         problems = census(pop, None)
     text = buf.getvalue()
     checks = [
+        # PER LINE, like the other two. `stuck in text and "NO ..." in text` is two
+        # independent whole-text searches - `stuck` is in the table by construction and
+        # the third criterion's row supplies the verdict string - so it stayed green
+        # even when `stuck`'s own row read `yes`.
         (f"`{stuck}` never fails and is named an open question",
-         f"{stuck}" in text and "NO - AN OPEN QUESTION" in text),
+         any(line.startswith(stuck) and "NO - AN OPEN QUESTION" in line
+             for line in text.splitlines())),
         (f"`{varies}` takes both values and is named separated",
          any(line.startswith(varies) and line.rstrip().endswith("yes")
              for line in text.splitlines())),

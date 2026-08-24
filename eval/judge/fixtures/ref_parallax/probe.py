@@ -11,6 +11,7 @@ tick, and they exist only to advance the clock.
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 from game import Game
@@ -72,10 +73,14 @@ def run_file(seed: int, ticks: int, script: str, dest: str) -> int:
     for i in range(ticks):
         events = scene.step(scripted[i] if i < len(scripted) else {})
         lines.append(trace_line(scene.tick, scene, events))
-    with open(dest, "w", encoding="utf-8") as fh:
+    # Atomic: a partly written trace at `dest` parses as a shorter run rather than as a
+    # failure, which is the shape a reader cannot tell from a real one.
+    tmp = dest + ".part"
+    with open(tmp, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
         if lines:
             fh.write("\n")
+    os.replace(tmp, dest)
     return 0
 
 

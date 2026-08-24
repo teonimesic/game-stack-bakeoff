@@ -10,7 +10,7 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 41 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **95s** | **677s plus the 2 scene steps** |
+| takes | **95s** | **677s** — a floor, see below |
 
 **Both counts have a producer** — `python3 eval/tools/ci_minutes.py --gates`, which reads the
 workflows and counts steps invoking something under `eval/`. It is pinned in
@@ -22,9 +22,9 @@ workflows and counts steps invoking something under `eval/`. It is pinned in
 and `gh pr checks <n>` prints them for any pull request. They move whenever a step is added, so
 re-read them rather than carrying them forward: this row said **57s** for a `gates.yml` that had
 since gained 4 steps from 2 branches at once. **`controls`'s 677s predates the 2 scene steps added
-on 2026-08-24 and is therefore a floor, not the time** — `scene_mutants.py` is 22.0s and
-`--census-selftest` is under a second, both on the operator's machine and both slower on a runner.
-Re-read the row from a run rather than adding the two numbers.
+on 2026-08-24, so it is a floor.** Re-read it from a run rather than adding step times: locally
+`scene_mutants.py` takes 22.0s and `--census-selftest` under a second, and both are slower on a
+runner.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
