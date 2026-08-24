@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#166 from building and running this evaluator. **Check whether a
+Findings #19-#167 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -242,6 +242,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **164** | A loop that built its command from a variable ran nothing under zsh and returned an exit code small enough to read as a gate verdict | [documentation](findings/documentation.md) |
 | **165** | The review poll reported a review LANDED at a head the API had not caught up to — a read-after-write race, in the fail-open direction | [certifies-nothing](findings/certifies-nothing.md) |
 | **166** | A rule about backticks in `git commit -m` was broken through `gh api -f`, in the file that documents the rule | [certifies-nothing](findings/certifies-nothing.md) |
+| **167** | The textbook robustness fix, applied where its named failure mode really occurs, measured 9 pairs worse than doing nothing — candidates must be chosen on the number, not on the argument | [documentation](findings/documentation.md) |
 
 ---
 
