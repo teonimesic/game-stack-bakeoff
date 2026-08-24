@@ -525,7 +525,11 @@ FOREIGN_FLAG_PREFIXES = (
 # `gh` and `jq`, spelled exactly: these are short enough that a prefix match would
 # swallow flags of ours that merely start the same way. `--admin` is `gh pr merge`'s
 # bypass, which DECISIONS.md and #162 both have to name to say what is not covered.
-FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq", "--admin"})
+# The last four are `prime-agent`'s, named by the ticket that adds it as a second agent
+# harness. EXACT and not a prefix on purpose: `--print` and `--cwd` are generic enough
+# that a prefix would swallow a flag of ours that merely starts the same way.
+FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq", "--admin",
+                                 "--print", "--cwd", "--provider", "--thinking"})
 
 
 def _check_skill_frontmatter() -> list[str]:

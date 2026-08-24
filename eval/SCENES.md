@@ -83,6 +83,55 @@ The seed pair is deliberately two-sided. *Different seeds differ* alone is satis
 random, including a scene that ignores the seed and uses wall-clock noise; *same seed matches*
 alone is satisfied by a canned animation. Only the pair distinguishes seeded procedural fracture.
 
+## Ambition: specify the RESULT, never the technique
+
+Scenes should push each stack as far as it goes — ray-traced or path-traced lighting, real
+refraction and caustics through the glass, GPU particle systems in the thousands, post-processing.
+But **the prompt must ask for the visible result, not the technique.**
+
+Saying *"use ray tracing"* prescribes the implementation and destroys the most interesting
+measurement: which facility the agent reached for. Saying *"the caustics cast by the glass onto
+the table must move as the glass tilts"* asks for something that is hard to fake, leaves the
+method open, and turns the method into a **finding** — that is what `framework_fluency` reads.
+
+The same applies to the fragment count. Ask for *"the glass breaks into many small irregular
+pieces, each moving independently"*; do not name a number. A number in the prompt is a threshold,
+and thresholds are rubric.
+
+## Performance is a SECOND pass, and it is not the correctness pass
+
+The correctness criteria above require deterministic, headless, tick-indexed capture with no
+wall-clock anywhere. Frame rate is the opposite measurement: real-time, wall-clock, GPU-bound.
+**Running one pass cannot produce the other**, and a scene that captures deterministically is
+expected to be slower than real time. Two passes, two records, never one number.
+
+**Raw FPS is not comparable across submissions, because the workload is not fixed.** An agent that
+renders 200 particles at 240 fps has not beaten one rendering 200,000 at 60. Reporting FPS alone
+would rank the least ambitious submission first — a metric that rewards doing less is worse than
+no metric.
+
+The comparable form is a **ramp**: the scene exposes a complexity level, the harness raises it
+until median frame time exceeds a fixed budget, and the score is the highest level sustained.
+That asks *how much can this stack do before it runs out*, which is the question worth asking, and
+it is one number per submission.
+
+### What a performance pass needs before it means anything
+
+- **Hold the machine, per arm, and prove it.** A perf number is far more machine-sensitive than a
+  correctness one. AGENTS.md rule 10 was bought by a system daemon that gated `execve` for ten
+  days and split a run's results by whether the arm linked new binaries (#49). Capture machine
+  state per trial rather than assuming it held.
+- **Interleave the arms.** A laptop thermally throttles, so a run that does all of stack A then all
+  of stack B measures the ORDER as much as the stacks. Randomise or interleave, and record when
+  each trial ran — no aggregate here has ever been partitioned by time, and this is the first
+  measurement where it would obviously matter.
+- **Report the ramp with its budget and resolution.** A level number without them is not a
+  quantity anyone can compare later.
+
+Resource capping — bounding CPU, RAM and ideally GPU so the ramp measures the stack rather than
+the machine — is an open problem, not a setting. `tasks/137` explores it. **Do not build a
+performance pass that assumes caps exist until that ticket reports.**
+
 ## Tier 3 aspects for scenes
 
 Games are judged on `architecture`, `idiomatic`, `fun`, `fun_frames`, `ux`, `audio`. Scenes have
