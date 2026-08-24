@@ -48,3 +48,59 @@ in any artifact.
 Do not launch a scene run and a harness run as the same experiment. Scenes (133/134) are one new
 variable and the harness is another; each cell differing in two ways is the failure this project
 has paid for twice. Cross them deliberately as a factorial design, or sequence them.
+
+## note 2026-08-24
+
+## note 2026-08-24 — prime-agent probed headless. Measured, not assumed.
+
+Ran once in an empty scratch directory, exit 0:
+
+    prime-agent -p --mode json --no-session "Reply with exactly: PROBE_OK"
+
+It answered `PROBE_OK` on **`gpt-5.6-sol`**, provider `openai-codex`, api `openai-codex-responses`
+— the configuration the operator described. So the arm is feasible. Four shape differences from the
+claude CLI, each of which breaks a naive port:
+
+1. **It emits JSONL, not one JSON object.** `claude -p --output-format json` gives a single object
+   and `parse_agent_result` does `json.loads(stdout)`. prime-agent streams events — `session`,
+   `agent_start`, `turn_start`, `message_start`, many `message_update`, `message_end`, `turn_end`,
+   `agent_end`. **Read the terminal `agent_end` event**, which carries the full message list. A
+   `json.loads` of the whole stdout raises, and a `json.loads` of the FIRST line silently returns
+   the session header with no usage in it — the quiet wrong answer.
+2. **Usage keys differ.** prime-agent: `message.usage.{input, output, cacheRead, cacheWrite,
+   totalTokens}`. Claude: `modelUsage[*].{inputTokens, outputTokens, cacheReadInputTokens}`. The
+   normaliser must map names, and **an absent key is a `None` to report, never a 0 to sum** (#36).
+3. **`usage` is per-message, and appears repeatedly during streaming with zeros.** The probe's
+   `message_start` carried `totalTokens: 0` and only the final `message_end`/`turn_end` carried
+   `3912 / 7 / 3919`. Summing every event double-counts; reading the first gives zero. Take the
+   terminal event, the same discipline `agent_usage`'s docstring already records for `modelUsage`.
+4. **`stopReason`** is the terminal-reason field — `"stop"` on the probe. Map it into the shared
+   enumeration, and surface anything unrecognised as unknown rather than bucketing it (#31).
+
+**The baseline system prompt is ~3912 input tokens** for a one-line prompt, measured. That is the
+floor to subtract before comparing per-trial input tokens across harnesses, and it is a reason the
+comparison must be on tokens with the floor stated rather than on raw totals.
+
+**It reports `cost` in USD too**, per message and per turn. That is OpenAI list price on a ChatGPT
+subscription — the same defect as #159 with a second vendor, and the reason this ticket says
+normalise on tokens. Do not add it to any total.
+
+### Flags that map
+
+| claude CLI | prime-agent |
+|---|---|
+| `--max-turns` | `--autonomous-max-turns` (with `--autonomous`) |
+| `--allowedTools` | `-t, --tools <list>` |
+| `--model` | `--model`, plus `--provider` |
+| working directory | `--cwd` |
+| `--output-format json` | `--mode json` |
+
+**No `--permission-mode` equivalent was found in `--help`.** Establish how it behaves on a trial
+that must write files unattended BEFORE running a matrix, and if there is no way to pre-authorise,
+say so — that is a finding about whether the arm is runnable at all, not a detail.
+
+**No isolation equivalents were found either** for `--setting-sources project` or
+`--strict-mcp-config`. The claude arm uses both to keep the operator's global `CLAUDE.md` and MCP
+servers out of the experiment. Find prime-agent's equivalents or record that there are none and
+what that costs the comparison — an uncontrolled config difference between arms is exactly the
+confound rule 8 names, and it will not appear in any artifact.
