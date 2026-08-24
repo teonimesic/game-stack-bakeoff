@@ -28,6 +28,7 @@ makes a mutant necessary rather than merely tidy:
 | `pool_terminal` | the `terminal_reason` partition | one mean over `completed`, `api_error` and `max_turns` together (rule 4) |
 | `pool_specchange` | the whole-game / spec-change partition | the retired suite's trials inside a whole-game floor |
 | `pool_games` | the game half of the group key | two games of one run averaged into a single floor |
+| `pool_harness` | the harness partition | another vendor's list price inside a tokval floor. One foreign record moves the fixture's within-cell floor from **10.5 to 130.5** |
 | `min_gap_floor` | the floor being the MEAN of the cell gaps | the floor becomes the tightest cell — **the exact error #63 measured at 7.2x, and 33.0x over the stored corpus** |
 | `first_two_only` | reading every trial in a cell | a 3-trial cell's gap taken off the first two |
 | `r_zero` | Pearson returning `None` where undefined | `r = 0.0`, which reads as *no relationship* rather than *not computable* |
@@ -138,6 +139,9 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "pool_games": (
         '        by_group[(run, d["game"])][d["stack"]].append(d)',
         '        by_group[(run, "ALL")][d["stack"]].append(d)'),
+    "pool_harness": (
+        "        if harness_of(d) != TOKVAL_HARNESS:",
+        "        if False:"),
 
     # ---- the measures themselves
     "min_gap_floor": (

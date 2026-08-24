@@ -56,6 +56,7 @@ import argparse
 import collections
 import datetime as _dt
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -147,17 +148,28 @@ def _priced(record: dict) -> bool:
     OpenAI tokens, and neither was paid (#159). Summing them adds two vendors' price
     lists.
 
-    **And a record of the right harness with no figure is unpriced too.** It used to pass
-    this test, contribute `0.0` through `_cost`, and appear in no exclusion count — so the
-    note beside the total understated what the total left out. A `claude` record with no
-    `cost_usd` is not hypothetical: `ClaudeHarness.timeout_record` produces one. An absent
-    count is reported, never summed as zero (#36), and `True` is an `int`, so a boolean is
-    refused rather than averaged as 1.00.
+    **And a record of the right harness with no USABLE figure is unpriced too.** It used
+    to pass this test on the harness alone, contribute `0.0` through `_cost`, and appear
+    in no exclusion count — so the note beside the total understated what the total left
+    out. A `claude` record with no `cost_usd` is not hypothetical:
+    `ClaudeHarness.timeout_record` produces one. An absent count is reported, never summed
+    as zero (#36).
+
+    Three shapes are refused rather than summed, and each turns a total into a number that
+    looks like a measurement:
+
+    | | |
+    |---|---|
+    | `None`, or absent | the figure was never measured |
+    | `True` | a bool IS an `int` in Python, so it would average as 1.00 |
+    | `NaN`, `inf`, `-inf` | `json.loads` produces all three, and **one of them makes the whole total `NaN`** — an aggregate that is wrong about every record because of one |
     """
     if harness_of(record) != TOKVAL_HARNESS:
         return False
     cost = record.get("agent", {}).get("cost_usd")
-    return isinstance(cost, (int, float)) and not isinstance(cost, bool)
+    if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+        return False
+    return math.isfinite(cost)
 
 
 def _terminal(record: dict) -> str:
@@ -388,28 +400,53 @@ def selftest() -> int:
                {"game": "g2", "stack": "ts", "trial": 0,
                 "agent": {"terminal_reason": "harness_timeout", "cost_usd": None}})
 
+        # Direction 7: THREE cost shapes that are numbers to a reader and not to an
+        # aggregate. `json.loads` produces all three of NaN/Infinity/-Infinity from a
+        # stored record, and ONE NaN makes the whole total NaN — an aggregate that is
+        # wrong about every record because of one. A bool passes `isinstance(x, int)` and
+        # would average as 1.00. Each must be excluded AND counted.
+        for i, literal in enumerate(("NaN", "Infinity", "-Infinity", "true")):
+            (runs / "wg-a" / "trials" / f"g1__rust__t{i + 5}.json").write_text(
+                '{"game": "g1", "stack": "rust", "agent": '
+                '{"terminal_reason": "completed", "cost_usd": %s}}' % literal)
+
         c = census(runs)
         wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
-        check("wholegame.trial_records", wg["trial_records"], 5)
+        check("wholegame.trial_records", wg["trial_records"], 9)
         check("wholegame.run_directories", wg["run_directories"], 3)
-        check("wholegame.games", wg["games"], {"g1": 3, "g2": 2})
-        check("wholegame.stacks", wg["stacks"], {"rust": 3, "ts": 2})
+        check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})
+        check("wholegame.stacks", wg["stacks"], {"rust": 7, "ts": 2})
         check("wholegame.cells", wg["cells"], 4)
         check("wholegame.terminal_reason", wg["terminal_reason"],
-              {"absent": 1, "api_error": 1, "completed": 2, "harness_timeout": 1})
+              {"absent": 1, "api_error": 1, "completed": 6, "harness_timeout": 1})
         check("wholegame.agent_cost_usd", wg["agent_cost_usd"], 6.0)
         # Direction 5, both halves: the other harness's record is COUNTED as a record and
         # its vendor USD reaches no total. A partition that silently dropped the record
         # and a sum that silently included 77.0 are both wrong, and only asking for both
         # numbers separates them.
-        check("wholegame.harness", wg["harness"], {"claude": 4, "prime-agent": 1})
-        # 2 unpriced for 2 different reasons — a foreign harness, and our own harness with
-        # no readable figure. One counter, because the question a reader asks of the note
-        # is "how many records is this total NOT over".
-        check("wholegame.cost_unpriced_records", wg["cost_unpriced_records"], 2)
-        check("a claude record with no cost_usd is not summed as zero",
-              wg["agent_cost_usd"], 6.0)
-        check("tree.harness", tree["harness"], {"claude": 6, "prime-agent": 1})
+        check("wholegame.harness", wg["harness"], {"claude": 8, "prime-agent": 1})
+        # 6 unpriced for 3 different reasons — a foreign harness, our own harness with no
+        # readable figure, and 4 figures that are numbers to a reader but not to an
+        # aggregate. One counter, because the question a reader asks of the note is "how
+        # many records is this total NOT over".
+        check("wholegame.cost_unpriced_records", wg["cost_unpriced_records"], 6)
+        # THE TOTAL IS UNMOVED AND STILL FINITE. A single NaN admitted here would make it
+        # NaN, and `6.0 != nan` would be the only way anyone found out.
+        check("no unusable figure reached the total", wg["agent_cost_usd"], 6.0)
+        check("the total is finite", math.isfinite(wg["agent_cost_usd"]), True)
+        check("tree.harness", tree["harness"], {"claude": 10, "prime-agent": 1})
+        # A record whose two provenance fields DISAGREE is neither of them: it is excluded
+        # from every priced sum by the same test that excludes a foreign harness, and it
+        # shows up in the partition where a reader cannot miss it. Picking one silently is
+        # what must not happen — the record would land in the tokval sum on the strength
+        # of a field the other one contradicts.
+        check("a conflicting record is neither harness",
+              harness_of({"agent": {"harness": "claude"},
+                          "harness": {"name": "prime-agent"}}),
+              "conflict:claude|prime-agent")
+        check("and it is therefore unpriced",
+              _priced({"agent": {"harness": "claude", "cost_usd": 5.0},
+                       "harness": {"name": "prime-agent"}}), False)
         check("prime-agent vendor USD reached no total",
               77.0 not in (wg["agent_cost_usd"], tree["agent_cost_usd"],
                            sc["agent_cost_usd"]), True)
@@ -420,7 +457,7 @@ def selftest() -> int:
         check("specchange.trial_records", sc["trial_records"], 2)
         check("specchange.run_directories", sc["run_directories"], 2)
         check("specchange.agent_cost_usd", sc["agent_cost_usd"], 9.0)
-        check("tree.trial_records", tree["trial_records"], 7)
+        check("tree.trial_records", tree["trial_records"], 11)
         check("tree.run_directories", tree["run_directories"], 5)
         check("tree.agent_cost_usd", tree["agent_cost_usd"], 15.0)
         check("largest matrix is wg-a", max(

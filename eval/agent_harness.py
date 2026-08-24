@@ -134,9 +134,16 @@ def _map_reason(raw: Any, table: dict[str, str], *, native: bool = False) -> Any
     reason on a harness where nothing measured it — the bucketing this module refuses,
     landing in the field every aggregate partitions on (#31). A collision is not a
     measurement; it goes through the harness's own table or it comes out `unknown:<raw>`.
+
+    A raw value that is not a string is `unknown:<raw>` and never reaches a membership
+    test: a `stopReason` arrives out of JSON this project does not control, and a list or
+    an object there raises `TypeError` on `in` — killing a trial record after the build
+    that produced it was already paid for.
     """
     if raw is None:
         return None
+    if not isinstance(raw, str):
+        return unknown_reason(raw)
     if native and raw in TERMINAL_REASONS:
         return raw
     if raw in table:
@@ -154,21 +161,35 @@ def _map_reason(raw: Any, table: dict[str, str], *, native: bool = False) -> Any
 TOKVAL_HARNESS = CLAUDE_NAME = "claude"
 
 
+#: What `harness_of` returns when a record's two provenance fields DISAGREE. It is a
+#: value, not an exception, and it is deliberately not the name of any harness: it can
+#: never equal `TOKVAL_HARNESS`, so the record is excluded from every priced sum by the
+#: same test that excludes a foreign one, and it appears in the harness partition where a
+#: reader cannot miss it. An exception here would abandon a whole census over one record;
+#: picking one of the two silently is the thing that must not happen.
+CONFLICT_PREFIX = "conflict:"
+
+
 def harness_of(record: dict[str, Any]) -> str:
     """Which harness built a stored trial record.
 
     Two addresses, because the record carries the name in two places: `agent.harness` from
-    the normaliser, and `harness.name` from the launch. **Absent is read as `claude`**, and
-    that is provenance rather than a default — every record stored before 2026-08-24 was
-    built by that CLI, because there was no other.
+    the normaliser, and `harness.name` from the launch. One writer sets both, so they
+    disagree only in a record that was corrupted or hand-edited — and then the honest
+    answer is that the provenance is unknown, never one of the two chosen by precedence.
+    A record read as `claude` on the strength of a field that disagrees with the other one
+    lands in the tokval sum, which is the outcome this whole partition exists to prevent.
+
+    **Absent is read as `claude`**, and that is provenance rather than a default — every
+    record stored before 2026-08-24 was built by that CLI, because there was no other.
     """
     agent = record.get("agent")
-    if isinstance(agent, dict) and agent.get("harness"):
-        return agent["harness"]
+    from_agent = agent.get("harness") if isinstance(agent, dict) else None
     launched = record.get("harness")
-    if isinstance(launched, dict) and launched.get("name"):
-        return launched["name"]
-    return TOKVAL_HARNESS
+    from_launch = launched.get("name") if isinstance(launched, dict) else None
+    if from_agent and from_launch and from_agent != from_launch:
+        return f"{CONFLICT_PREFIX}{from_agent}|{from_launch}"
+    return from_agent or from_launch or TOKVAL_HARNESS
 
 
 class Harness:

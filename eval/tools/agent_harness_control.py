@@ -369,6 +369,26 @@ def rows(mod) -> list[Row]:
                     mod.harness_of({"harness": "a string, not an object"})),
                    ("claude", "claude", "claude")))
     out.append(_eq("PRISTINE", "TOKVAL_HARNESS", mod.TOKVAL_HARNESS, "claude"))
+    # VARIANT: the two provenance fields DISAGREE. One writer sets both, so this is a
+    # corrupted or hand-edited record and the honest answer is that the provenance is
+    # unknown - never one of the two, chosen by precedence. Picking `agent.harness` would
+    # put the record in the tokval sum on the strength of a field the other contradicts.
+    out.append(_eq("VARIANT", "harness_of refuses to pick between two provenances",
+                   mod.harness_of({"agent": {"harness": "claude"},
+                                   "harness": {"name": "prime-agent"}}),
+                   "conflict:claude|prime-agent"))
+    out.append(_eq("VARIANT", "agreeing provenances are not a conflict",
+                   mod.harness_of({"agent": {"harness": "prime-agent"},
+                                   "harness": {"name": "prime-agent"}}), "prime-agent"))
+    # VARIANT: a `stopReason` that is not a string. It arrives out of JSON this project
+    # does not control, and a list or an object raises TypeError on `in` - killing the
+    # record of a build already paid for.
+    for raw, want in (([1, 2], "unknown:[1, 2]"), ({"a": 1}, "unknown:{'a': 1}"),
+                      (7, "unknown:7")):
+        got = prime.normalise(prime.parse(prime_stream(
+            [dict(PRIME_ASSISTANT_2, stopReason=raw)]), 0), "")
+        out.append(_eq("VARIANT", f"prime, a non-string stopReason ({type(raw).__name__})",
+                       got["terminal_reason"], want))
 
     # ------------------------------------------------------------------- env_for
     env = {"STARTER_HOOK_LOG": "/somewhere/hook_log.tsv", "PATH": "/usr/bin"}
@@ -470,14 +490,23 @@ MUTANTS: list[tuple[str, str, str]] = [
     ("claude normalise loses the session-limit split",
      'if raw == "api_error" and "session limit" in (parsed.get("result") or "").lower():',
      "if False:"),
+    # Anchored with the line above it: `return unknown_reason(raw)` appears twice, and an
+    # ambiguous anchor is reported UNPLANTABLE rather than planted in the wrong place.
     ("unrecognised reasons are bucketed as completed",
-     "    return unknown_reason(raw)", '    return "completed"'),
+     "    if raw in table:\n        return table[raw]\n    return unknown_reason(raw)",
+     '    if raw in table:\n        return table[raw]\n    return "completed"'),
     ("the enumeration shortcut applies to every harness",
      "    if native and raw in TERMINAL_REASONS:", "    if raw in TERMINAL_REASONS:"),
     ("harness_of defaults an unstamped record to the other harness",
-     "    return TOKVAL_HARNESS\n", '    return "prime-agent"\n'),
+     "    return from_agent or from_launch or TOKVAL_HARNESS",
+     '    return from_agent or from_launch or "prime-agent"'),
     ("harness_of stops reading the launch record",
-     "    launched = record.get(\"harness\")", "    launched = None"),
+     '    launched = record.get("harness")', "    launched = None"),
+    ("harness_of picks a side when the two provenances disagree",
+     "    if from_agent and from_launch and from_agent != from_launch:",
+     "    if False:"),
+    ("a non-string terminal reason reaches the membership test",
+     "    if not isinstance(raw, str):\n        return unknown_reason(raw)\n", ""),
     ("prime reads only the terminal message",
      "        for m in assistants:", "        for m in assistants[-1:]:"),
     ("prime treats a missing usage block as zero",
