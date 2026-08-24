@@ -47,8 +47,8 @@ bought by the accumulated whole-PR diff? The reasoning it feeds is in
 --scope IS `controls.yml`'s path filter, and it lives here rather than in `on: paths:`
 because a workflow that does not match its filter produces NO check, not a passing one --
 and `controls` is a required check, so a pull request touching only `tasks/` or a root
-document waited on a check that could never arrive (measured at PR #14's head: two `gates`
-check runs, zero `controls`). The job now runs on every pull request and this decides,
+document waited on a check that could never arrive (measured at PR #14's head: 2 `gates`
+check runs, 0 `controls`). The job now runs on every pull request and this decides,
 inside it, whether the slow suites have anything to read. Its verdict is written as
 `relevant=true|false` to `$GITHUB_OUTPUT`, and every step below the scope step is guarded
 on `!= 'false'` -- never `== 'true'`, because an output nothing wrote reads as the empty
@@ -61,9 +61,11 @@ closing line is the producer for how many workflow mutants and variants it carri
 must catch: truncation instead of rounding up; a compare list at the endpoint's 300-file cap,
 which must be refused rather than scored; the ways a workflow can leave `ubuntu-latest` while
 the file still contains the string; a filter entry no pin depends on; and the ways the scope
-guard can break -- a `paths:` filter back on either trigger, the scope step deleted, its id
-renamed, its command replaced, one gate losing its guard, the guard flipped to the fail-open
-`== 'true'`, and a guarded step placed above the step whose output it reads. What must still
+guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, the scope step
+deleted, its id renamed, its command replaced, one gate losing its guard, the guard flipped to
+the fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed
+above the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate,
+a scalar `steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
 unguarded `uses:` step, a comment in the job, and an extra flag on the scope step. The
@@ -83,7 +85,9 @@ Exit 0 on success, 1 if --selftest fails, 2 if the data could not be read. Read 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import io
 import json
 import math
 import os
@@ -196,7 +200,7 @@ def matches_filter(path: str,
 # workflow that does not match produces no check at all rather than a passing one -- and
 # `controls` is a required check, so a pull request touching only `tasks/` or a root
 # document waited on a check that could never arrive. Measured at PR #14's head: two
-# `gates` check runs, zero `controls`.
+# `gates` check runs, 0 `controls`.
 SCOPE_STEP_ID = "scope"
 SCOPE_INVOCATION = "ci_minutes.py --scope"
 
@@ -208,6 +212,25 @@ SCOPE_INVOCATION = "ci_minutes.py --scope"
 # and said so.
 GUARD_EXPR = "steps.scope.outputs.relevant != 'false'"
 
+# THE WHOLE GUARD, not a substring of it. Containment accepts
+# `${{ steps.scope.outputs.relevant != 'false' && false }}`, which skips every gate and
+# reports a green `controls` -- the very thing the guard exists to prevent, wearing the
+# guard's own text. Raised by CodeRabbit on PR #16.
+#
+# An enumeration is the right shape HERE and the wrong shape as a trigger: this is the
+# closed set of expressions a step may carry, so an unlisted one is a change to a
+# load-bearing guard and should have to be read. AGENTS.md's warning is about triggers
+# written as lists of the instances you happened to see; a whitelist is the other
+# direction, and the error names the accepted set so the reader is not left guessing.
+#
+# `success()` is what a setup step carries -- it must not run after an earlier failure --
+# and `!cancelled()` is what a gate carries, so one red gate cannot hide the verdict of
+# the others. Compared after `_norm_expr`, so a re-spacing or a re-quote still passes.
+ALLOWED_GUARDS = (
+    f"${{{{ success() && {GUARD_EXPR} }}}}",
+    f"${{{{ !cancelled() && {GUARD_EXPR} }}}}",
+)
+
 
 def _norm_expr(text: object) -> str:
     """Whitespace- and quote-insensitive form of a workflow `if:` expression.
@@ -217,6 +240,9 @@ def _norm_expr(text: object) -> str:
     where nothing is wrong spends the attention a real firing needs.
     """
     return "".join(str(text or "").split()).replace('"', "'")
+
+
+_ALLOWED_GUARDS = frozenset(_norm_expr(g) for g in ALLOWED_GUARDS)
 
 
 def scope_decision(event: str, changed: list[str] | None) -> tuple[bool, str]:
@@ -325,7 +351,77 @@ def emit_scope(event: str | None = None,
     return 0
 
 
-def filter_problems(controls_text: str, gates_text: str | None = None) -> list[str]:
+def _import_yaml():
+    import yaml
+    return yaml
+
+
+def _parse_workflow(text: str, label: str, import_yaml=_import_yaml) -> tuple[dict, list[str]]:
+    """Parse one workflow into a mapping. NEVER RAISES; returns what went wrong instead.
+
+    Every caller here is a check, and a check that raises produces no verdict at all --
+    its caller sees a traceback where it expected a list of problems, which is strictly
+    worse than a red row. There are 4 ways the parse can fail to give a mapping and each
+    used to raise from a different line: pyyaml not installed, unparseable YAML, an empty
+    document, and a root that is a scalar or a list. The pyyaml one was handled in
+    `filter_problems` and nowhere else, so `--gates` tracebacked past it -- the refusal
+    belongs at the address the parse happens, not at one of its callers (rule 12).
+
+    `import_yaml` is an injection point for the selftest and nothing in production passes
+    it; it is a callable rather than a patched module attribute so the control states its
+    own expectation instead of importing it from the subject.
+    """
+    try:
+        yaml = import_yaml()
+    except ImportError:
+        return {}, [f"pyyaml is missing, so {label} could not be parsed. "
+                    f"That is a refusal, not a passing check"]
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        return {}, [f"{label} does not parse as YAML: {exc.__class__.__name__}. "
+                    f"Nothing that reads it could be checked"]
+    if doc is None:
+        return {}, [f"{label} is empty, so it declares no workflow at all"]
+    if not isinstance(doc, dict):
+        return {}, [f"{label}'s root is {type(doc).__name__}, not a mapping"]
+    return doc, []
+
+
+def _workflow_jobs(doc: dict) -> tuple[dict, str | None]:
+    """(the jobs mapping, or a reason there is not one).
+
+    IT RETURNS A REASON RATHER THAN AN EMPTY MAPPING, and that is the difference between a
+    refusal and a confident zero. `jobs: 1`, `jobs: []` and a missing `jobs:` block all
+    collapse to "no jobs" if you only ask `isinstance(..., dict)`, and a census over no
+    jobs publishes `0 gates` at exit 0 -- a number, in range, and wrong, which is the one
+    pattern this repository exists to catch. Raised by CodeRabbit on PR #16.
+    """
+    jobs = doc.get("jobs")
+    if jobs is None:
+        return {}, "declares no `jobs:` block at all"
+    if not isinstance(jobs, dict):
+        return {}, f"`jobs:` is {type(jobs).__name__}, not a mapping"
+    if not jobs:
+        return {}, "`jobs:` is an empty mapping"
+    return jobs, None
+
+
+def _job_steps(job: object) -> tuple[list[dict], str | None]:
+    """(the step mappings of one job, or a reason the `steps:` block is unusable)."""
+    if not isinstance(job, dict):
+        return [], f"the job is {type(job).__name__}, not a mapping"
+    raw = job.get("steps")
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return [], (f"`steps: {raw!r}` is {type(raw).__name__}, not a list. Iterating it "
+                    f"raises instead of reporting")
+    return [s for s in raw if isinstance(s, dict)], None
+
+
+def filter_problems(controls_text: str, gates_text: str | None = None,
+                    import_yaml=_import_yaml) -> list[str]:
     """Is `controls.yml` still wired so that it ALWAYS reports, and never runs nothing?
 
     Two properties, and they pull in opposite directions -- which is why both are gated:
@@ -356,27 +452,27 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     has no need to touch a file at all.
     """
     problems: list[str] = []
-    try:
-        import yaml
-    except ImportError:  # pragma: no cover - pyyaml is installed in CI and locally
-        return problems + [
-            ("pyyaml is missing, so the workflows could not be parsed. "
-             "That is a refusal, not a passing check.")
-        ]
-
     # EVERY `jobs.*.runs-on`, not `"ubuntu-latest" in text`. The substring form passes a
     # workflow holding one ubuntu job and one macOS job -- and macOS bills at 10x, Windows
     # at 2x, so the whole 1x multiplier under this tool's total would be wrong while the
     # check stayed green. It also passes on a stale COMMENT mentioning ubuntu-latest next
     # to a `runs-on: macos-latest`. Raised by CodeRabbit on PR #10; it is the same
-    # substring-versus-parse defect already fixed for `paths:` below, one check away.
+    # substring-versus-parse defect the filter check was repaired for, one field away.
+    parsed: dict[str, dict] = {}
     for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
         if text is None:
             continue
-        wf = yaml.safe_load(text) or {}
-        jobs = wf.get("jobs")
-        if not isinstance(jobs, dict) or not jobs:
-            problems.append(f"{label} declares no parseable `jobs:`")
+        doc, bad = _parse_workflow(text, label, import_yaml)
+        problems += bad
+        if not bad:
+            parsed[label] = doc
+    if "controls.yml" not in parsed:
+        return problems
+
+    for label, wf in parsed.items():
+        jobs, no_jobs = _workflow_jobs(wf)
+        if no_jobs:
+            problems.append(f"{label} {no_jobs}")
             continue
         for job_name, job in jobs.items():
             runs_on = job.get("runs-on") if isinstance(job, dict) else None
@@ -387,26 +483,53 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
                     f"macOS bills at 10x and Windows at 2x, so the 1x multiplier this tool "
                     f"applies would be wrong")
 
-    doc = yaml.safe_load(controls_text) or {}
+    doc = parsed["controls.yml"]
     # YAML 1.1 resolves a bare `on:` key to the boolean True, so `doc["on"]` is a KeyError
     # and `doc.get("on", {})` would silently check nothing at all.
     triggers = doc.get(True, doc.get("on"))
     if not isinstance(triggers, dict):
         return problems + ["controls.yml has no parseable `on:` block"]
 
+    # BOTH KEYS. `paths-ignore:` is the same deadlock spelled the other way round -- a
+    # pull request whose every changed path matches it dispatches nothing, and a required
+    # check that never reports blocks the merge exactly as hard. Raised by CodeRabbit on
+    # PR #16; checking only `paths:` was an enumeration of the instance that happened to
+    # be there, which is the failure AGENTS.md's rule audit is about.
     for event in ("pull_request", "push"):
         cfg = triggers.get(event)
-        if isinstance(cfg, dict) and cfg.get("paths"):
-            problems.append(
-                f"controls.yml's `{event}` trigger declares `paths: "
-                f"{sorted(cfg['paths'])}`. A workflow that does not match its filter "
-                f"produces NO check, not a passing one, and `controls` is a required "
-                f"check -- so this blocks every pull request touching none of them "
-                f"(measured on PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
+        if not isinstance(cfg, dict):
+            continue
+        for key in ("paths", "paths-ignore"):
+            if cfg.get(key):
+                problems.append(
+                    f"controls.yml's `{event}` trigger declares `{key}: "
+                    f"{sorted(cfg[key])}`. A workflow that does not dispatch produces NO "
+                    f"check, not a passing one, and `controls` is a required check -- so "
+                    f"this blocks every pull request the filter excludes (measured on "
+                    f"PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
 
-    jobs = doc.get("jobs") or {}
-    steps = (list(jobs.values())[0].get("steps") or []) if jobs else []
-    steps = [s for s in steps if isinstance(s, dict)]
+    # ONE JOB, and the walk below is over ITS steps. Reading only the first of several
+    # would be fail-open in the direction that matters: a second `ubuntu-latest` job
+    # carrying an unguarded `run:` step passes every check here while executing controls
+    # work with no scope output behind it. Raised by CodeRabbit on PR #16, and the same
+    # first-entry defect the `runs-on` loop above was repaired for on PR #10.
+    #
+    # Refusing a second job rather than validating each is the stricter reading, and it is
+    # the one the design supports: the guard is per-job -- `steps.scope.outputs.relevant`
+    # names a step in the SAME job -- so a second job would need its own scope step, and it
+    # would also be a second required check that can be absent, which is why `DECISIONS.md`
+    # rejects the two-job form.
+    jobs, no_jobs = _workflow_jobs(doc)
+    if no_jobs:
+        return problems + [f"controls.yml {no_jobs}"]
+    if len(jobs) != 1:
+        return problems + [
+            f"controls.yml declares {len(jobs)} jobs, not 1. The scope guard is per-JOB -- "
+            f"`steps.scope.outputs.relevant` reads a step in the same job -- so a second "
+            f"job runs unguarded, and it is also a second check that can be absent"]
+    steps, bad_steps = _job_steps(next(iter(jobs.values())))
+    if bad_steps:
+        return problems + [f"controls.yml's job: {bad_steps}"]
     scoped = [i for i, s in enumerate(steps) if s.get("id") == SCOPE_STEP_ID]
     if len(scoped) != 1:
         return problems + [
@@ -419,7 +542,6 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
             f"controls.yml's `{SCOPE_STEP_ID}` step does not run `{SCOPE_INVOCATION}`, so "
             f"whatever writes `relevant` is no longer this tool and is not gated by it")
 
-    guard = _norm_expr(GUARD_EXPR)
     for i, step in enumerate(steps):
         if "run" not in step or i == at:
             continue
@@ -428,17 +550,24 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
             problems.append(
                 f"controls.yml step `{label}` runs BEFORE the `{SCOPE_STEP_ID}` step, so "
                 f"its guard reads an output that does not exist yet")
-        if guard not in _norm_expr(step.get("if")):
+        if _norm_expr(step.get("if")) not in _ALLOWED_GUARDS:
             problems.append(
-                f"controls.yml step `{label}` is not guarded by `{GUARD_EXPR}`. Unguarded, "
-                f"it runs on a pull request whose toolchain steps were skipped and fails "
-                f"there -- which is the merge block this shape exists to remove; guarded "
-                f"the other way round (`== 'true'`) it skips on an unwritten output and "
-                f"reports a green `controls` that executed nothing")
+                f"controls.yml step `{label}` carries `if: {step.get('if')!r}`, which is "
+                f"not one of the {len(ALLOWED_GUARDS)} accepted guards: "
+                f"{list(ALLOWED_GUARDS)}. Unguarded, it runs on a pull request whose "
+                f"toolchain steps were skipped and fails there -- the merge block this "
+                f"shape exists to remove. Guarded the other way round (`== 'true'`) it "
+                f"skips on an unwritten output and reports a green `controls` that "
+                f"executed nothing")
     return problems
 
 
-def gate_census() -> dict[str, dict]:
+def _read_workflow(label: str) -> str:
+    return (ROOT / ".github" / "workflows" / label).read_text(encoding="utf-8")
+
+
+def gate_census(texts: dict[str, str] | None = None,
+                import_yaml=_import_yaml, read=_read_workflow) -> dict[str, dict]:
     """How many CHECKS each workflow runs, as a count with a producer behind it.
 
     `.github/workflows/README.md` opened with a hand-written "32 documentation, queue and
@@ -455,24 +584,59 @@ def gate_census() -> dict[str, dict]:
     sixth gate in `controls.yml` while it checks nothing about the repository -- it decides
     whether the five below have anything to read. It is reported in its own bucket, because
     a step silently dropped from a census is how a count starts lying.
+
+    EVERY job, not the first. Both workflows declare one today and `filter_problems`
+    refuses a second in `controls.yml`, but a census that reads one job of several reports
+    a count lower than the truth while staying green -- and a published count that can only
+    go wrong downwards is the worst direction for this one.
+
+    IT NEVER RAISES, and that is not tidiness either. `_selftest` calls this BEFORE
+    `filter_problems`, so a live `controls.yml` that does not parse, or whose `steps:` is a
+    scalar, used to produce a traceback here -- ahead of the diagnostics written for
+    exactly those shapes, which never ran. What it cannot read it records in `malformed`
+    and counts as nothing; `--gates` prints that list and `--selftest` asserts it is empty.
+    Raised by CodeRabbit on PR #16, and it shares its loader with `filter_problems` so the
+    two cannot disagree about what a workflow is.
+
+    `texts` overrides the files, so the malformed shapes can be driven from a STRING and no
+    control ever rewrites `.github/workflows/`.
     """
-    import yaml
     out: dict[str, dict] = {}
     for wf in ("gates", "controls"):
-        path = ROOT / ".github" / "workflows" / f"{wf}.yml"
-        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        jobs = doc.get("jobs") or {}
-        job = list(jobs.values())[0] if jobs else {}
-        run_steps = [s for s in (job.get("steps") or [])
-                     if isinstance(s, dict) and "run" in s]
+        label = f"{wf}.yml"
+        # THE READ IS PART OF THE CHECK. A deleted, renamed or unreadable workflow raised
+        # `OSError` here, one line before the loader that exists so nothing raises -- so
+        # the address that matters most (rule 12: a check aimed at a path nobody verified)
+        # was the one place that could still traceback. Raised by CodeRabbit on PR #16.
+        if texts is not None:
+            text = texts.get(label, "")
+        else:
+            try:
+                text = read(label)
+            except OSError as exc:
+                out[wf] = {"gates": 0, "setup": 0, "scope": 0, "names": [],
+                           "malformed": [f"{label} could not be read: "
+                                         f"{exc.__class__.__name__}: {exc}"]}
+                continue
+        doc, malformed = _parse_workflow(text, label, import_yaml)
+        jobs, no_jobs = (({}, None) if malformed else _workflow_jobs(doc))
+        if no_jobs:
+            malformed.append(f"{label} {no_jobs}")
+        run_steps: list[dict] = []
+        for job_name, job in jobs.items():
+            steps, bad = _job_steps(job)
+            if bad:
+                malformed.append(f"{label}: job `{job_name}`: {bad}")
+            run_steps += [s for s in steps if "run" in s]
         scope = [s for s in run_steps if s.get("id") == SCOPE_STEP_ID]
         steps = [s for s in run_steps if s.get("id") != SCOPE_STEP_ID]
-        gates = [s for s in steps if "eval/" in s["run"]]
+        gates = [s for s in steps if "eval/" in str(s["run"])]
         out[wf] = {
             "gates": len(gates),
             "setup": len(steps) - len(gates),
             "scope": len(scope),
-            "names": [(s.get("name") or s["run"].strip().splitlines()[0])[:80]
+            "malformed": malformed,
+            "names": [(s.get("name") or str(s["run"]).strip().splitlines()[0])[:80]
                       for s in gates],
         }
     return out
@@ -641,6 +805,18 @@ def compare_via_api(base: str, head: str) -> list[str]:
 # ---------------------------------------------------------------- the controls
 
 
+@contextlib.contextmanager
+def contextlib_redirect_all():
+    """Capture stdout and stderr together, and hand back a reader for what was written.
+
+    `gates_report` writes its refusal to stderr and its payload to stdout, and a selftest
+    that let either through would bury its own verdict under the fixtures' output.
+    """
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        yield buf.getvalue
+
+
 def _selftest() -> int:
     failures: list[str] = []
     # The producer for "how many mutants does this gate carry". `.github/workflows/README.md`
@@ -673,6 +849,128 @@ def _selftest() -> int:
     check("the scope step is counted as itself", _cen["controls"]["scope"], 1)
     check("and not as a gate", [n for n in _cen["controls"]["names"] if "scope" in n], [])
     check("gates.yml has no scope step", _cen["gates"]["scope"], 0)
+    # The live files must be well-formed, and this is the check that says so rather than
+    # the census raising on its way past. It runs BEFORE filter_problems, so without it a
+    # malformed live workflow produces a traceback ahead of every diagnostic written for
+    # that shape (CodeRabbit, PR #16).
+    check("neither live workflow is malformed",
+          _cen["gates"]["malformed"] + _cen["controls"]["malformed"], [])
+    # And the census itself must REPORT each malformed shape rather than raise. A mutant
+    # here is a whole workflow text, and the assertion is that the call returns at all.
+    _malformed = {
+        "unparseable YAML": "jobs:\n  controls:\n\tbad: [\n",
+        "a scalar root": "just a string\n",
+        "an empty document": "",
+        "a list root": "- one\n- two\n",
+        "steps: given as a scalar": "jobs:\n  controls:\n    steps: 1\n",
+        "a job that is not a mapping": "jobs:\n  controls: 7\n",
+        # The 3 shapes that used to collapse to "no jobs" and publish a confident 0.
+        "jobs: given as a scalar": "name: x\njobs: 1\n",
+        "jobs: given as a list": "name: x\njobs: []\n",
+        "no jobs: block at all": "name: x\non:\n  push:\n",
+    }
+    for _name, _text in _malformed.items():
+        try:
+            _got = gate_census({"controls.yml": _text, "gates.yml": _text})
+        except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+            failures.append(f"gate_census RAISED on {_name}: {_exc!r}. A census that "
+                            f"raises reports nothing, and it runs before every diagnostic")
+            continue
+        if not _got["controls"]["malformed"]:
+            failures.append(f"gate_census did not report {_name} as malformed -- it "
+                            f"published 0 gates at exit 0, which is a confident zero")
+        if _got["controls"]["gates"]:
+            failures.append(f"gate_census counted {_got['controls']['gates']} gates in a "
+                            f"workflow it could not read ({_name})")
+        # BOTH OUTPUT MODES. The refusal lived in the text branch alone, so `--json`
+        # returned 0 over a census that had already said it could not read the file.
+        for _as_json in (False, True):
+            with contextlib_redirect_all() as _sink:
+                _code = gates_report(_got, as_json=_as_json)
+            if _code != 2:
+                failures.append(f"gates_report(as_json={_as_json}) returned {_code} on "
+                                f"{_name}; a malformed census must refuse in BOTH modes")
+            if _as_json and "malformed" not in _sink():
+                failures.append("the --json payload does not carry `malformed`, so a "
+                                "consumer cannot see what was unreadable")
+    # PYYAML NOT INSTALLED. It is the 4th way the parse fails to give a mapping, it was
+    # handled in `filter_problems` and nowhere else, and `--gates` tracebacked straight
+    # past it. `_no_yaml` is an independent statement of the failure, not the subject's own
+    # (rule 12's addendum), and it is injected rather than patched onto the module.
+    def _no_yaml():
+        raise ImportError("No module named 'yaml'")
+
+    try:
+        _doc, _why = _parse_workflow("jobs:\n  controls:\n", "controls.yml", _no_yaml)
+    except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+        failures.append(f"_parse_workflow RAISED without pyyaml: {_exc!r}. The refusal "
+                        f"belongs where the parse happens, not at one of its callers")
+        _doc, _why = {}, []
+    else:
+        check("without pyyaml the parse refuses", (_doc, len(_why)), ({}, 1))
+        check("and says pyyaml is what is missing",
+              "pyyaml is missing" in (_why[0] if _why else ""), True)
+    try:
+        _cen_noyaml = gate_census({"controls.yml": "jobs:\n", "gates.yml": "jobs:\n"},
+                                  _no_yaml)
+    except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+        failures.append(f"gate_census RAISED without pyyaml: {_exc!r}")
+        _cen_noyaml = None
+    if _cen_noyaml is not None:
+        check("the census reports it rather than counting 0 gates",
+              (bool(_cen_noyaml["controls"]["malformed"]), _cen_noyaml["controls"]["gates"]),
+              (True, 0))
+        for _as_json in (False, True):
+            with contextlib_redirect_all():
+                _code = gates_report(_cen_noyaml, as_json=_as_json)
+            if _code != 2:
+                failures.append(f"gates_report(as_json={_as_json}) returned {_code} with "
+                                f"pyyaml missing; --gates must refuse, not traceback")
+    try:
+        _fp = filter_problems("jobs:\n  controls:\n", "jobs:\n", _no_yaml)
+        check("filter_problems refuses without pyyaml too", len(_fp) >= 1, True)
+    except Exception as _exc:  # noqa: BLE001
+        failures.append(f"filter_problems RAISED without pyyaml: {_exc!r}")
+
+    # THE READ ITSELF. A deleted, renamed or unreadable workflow raised `OSError` one line
+    # before the loader that exists so nothing raises -- the address that matters most was
+    # the one place left that could traceback.
+    def _unreadable(_label):
+        raise FileNotFoundError(2, "No such file or directory", "/nowhere/controls.yml")
+
+    try:
+        _cen_noread = gate_census(None, _import_yaml, _unreadable)
+    except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+        failures.append(f"gate_census RAISED on an unreadable workflow: {_exc!r}")
+        _cen_noread = None
+    if _cen_noread is not None:
+        check("an unreadable workflow is reported, not counted",
+              (bool(_cen_noread["controls"]["malformed"]),
+               _cen_noread["controls"]["gates"], _cen_noread["gates"]["gates"]),
+              (True, 0, 0))
+        for _as_json in (False, True):
+            with contextlib_redirect_all():
+                _code = gates_report(_cen_noread, as_json=_as_json)
+            if _code != 2:
+                failures.append(f"gates_report(as_json={_as_json}) returned {_code} on an "
+                                f"unreadable workflow; --gates must refuse, not traceback")
+    # VARIANT: the injected reader must not have replaced the real one -- a default that
+    # no longer reads the files would make every pin above vacuous.
+    check("the default reader still reads the real workflows",
+          gate_census(None, _import_yaml)["controls"]["gates"], 5)
+
+    # VARIANT: a clean census must still be published, and exit 0, in both modes.
+    for _as_json in (False, True):
+        with contextlib_redirect_all():
+            _code = gates_report(_cen, as_json=_as_json)
+        if _code != 0:
+            failures.append(f"gates_report(as_json={_as_json}) refused a CLEAN census "
+                            f"({_code}) -- the refusal fires where nothing is wrong")
+    # VARIANT: the real files must still come back with an empty `malformed` and the counts
+    # above -- the tolerance must not have made the census tolerant of a real workflow.
+    _live = {f"{w}.yml": (WORKFLOW_DIR / f"{w}.yml").read_text() for w in ("gates", "controls")}
+    check("driving the census from text matches reading the files",
+          gate_census(_live), _cen)
 
     check("22s bills a whole minute", billable_minutes(22), 1)
     check("60s is exactly 1", billable_minutes(60), 1)
@@ -761,6 +1059,21 @@ def _selftest() -> int:
             "a paths: filter back on pull_request":
                 live.replace("  pull_request:\n",
                              "  pull_request:\n    paths:\n      - 'eval/**'\n", 1),
+            # The SAME deadlock spelled the other way round: a `paths-ignore:` matching
+            # every changed path dispatches nothing, and a required check that never
+            # reports blocks the merge just as hard.
+            "a paths-ignore: filter on pull_request":
+                live.replace("  pull_request:\n",
+                             "  pull_request:\n    paths-ignore:\n      - '**.md'\n", 1),
+            "a paths-ignore: filter on push":
+                live.replace("  push:\n    branches: [main, 'ci-control-**']\n",
+                             "  push:\n    branches: [main, 'ci-control-**']\n"
+                             "    paths-ignore:\n      - '**.md'\n", 1),
+            # CONTAINMENT IS NOT VALIDATION: this carries the guard's exact text and
+            # skips every gate, which is the outcome the guard exists to prevent.
+            "the guard conjoined with a constant false":
+                live.replace("steps.scope.outputs.relevant != 'false' }}",
+                             "steps.scope.outputs.relevant != 'false' && false }}"),
             "a paths: filter back on push":
                 live.replace("  push:\n    branches: [main, 'ci-control-**']\n",
                              "  push:\n    branches: [main, 'ci-control-**']\n"
@@ -781,6 +1094,20 @@ def _selftest() -> int:
                              "steps.scope.outputs.relevant == 'true'"),
             "a guarded run: step placed before the scope step":
                 live.replace(scope_block, version_step + scope_block, 1),
+            # The first-entry defect, and the runs-on check CANNOT see this one: the second
+            # job is ubuntu, so only the job-count refusal catches it. Raised on PR #16.
+            "a second UBUNTU job carrying an unguarded gate":
+                live.replace("jobs:\n  controls:\n    runs-on: ubuntu-latest",
+                             "jobs:\n  extra:\n    runs-on: ubuntu-latest\n    steps:\n"
+                             "      - run: python3 eval/judge/audio_selftest.py\n"
+                             "  controls:\n    runs-on: ubuntu-latest"),
+            # A scalar `steps:` used to raise TypeError rather than report, and a file that
+            # does not parse used to raise ScannerError. A check that RAISES has no verdict
+            # at all, which is not the same as a check that says no.
+            "steps: given as a scalar":
+                live.split("    steps:\n")[0] + "    steps: 1\n",
+            "controls.yml no longer parses as YAML":
+                live.replace("jobs:\n  controls:\n", "jobs:\n  controls:\n\tbad: [\n", 1),
             "the runner moved off ubuntu-latest":
                 live.replace("runs-on: ubuntu-latest", "runs-on: macos-latest"),
             # The two the substring form passed. A mixed workflow still CONTAINS
@@ -816,15 +1143,27 @@ def _selftest() -> int:
         }
         counts["mutants"] = len(mutants)
         counts["variants"] = len(variants)
+        # A RAISE IS NOT A VERDICT, and reporting it as one is the difference between
+        # "MUTANT SURVIVED: x" and a traceback whose reader has to work out which row it
+        # came from. Several of the mutants below are deliberately malformed workflows,
+        # which is exactly the input a check is most likely to raise on.
+        def problems_of(text, name):
+            try:
+                return filter_problems(text, gates_yml.read_text())
+            except Exception as exc:  # noqa: BLE001 - the point is that nothing escapes
+                failures.append(f"filter_problems RAISED on '{name}': {exc!r}. A check "
+                                f"that raises returns no verdict at all")
+                return ["raised"]
+
         for name, text in mutants.items():
             if text == live:
                 failures.append(f"mutant '{name}' changed nothing; it is void, not caught")
-            elif not filter_problems(text, gates_yml.read_text()):
+            elif not problems_of(text, name):
                 failures.append(f"MUTANT SURVIVED: {name}")
         for name, text in variants.items():
             if text == live:
                 failures.append(f"variant '{name}' changed nothing; it is void, not passed")
-            elif filter_problems(text, gates_yml.read_text()):
+            elif problems_of(text, name):
                 failures.append(f"FALSE POSITIVE on variant: {name}")
 
     # -- the filter's CONTENT, now that it is spelled once, in this file ----------------
@@ -914,8 +1253,6 @@ def _selftest() -> int:
     # The output file is the whole interface to the workflow, so pin what lands in it --
     # and pin the LOG too, because a skipped `controls` run is only auditable afterwards
     # if the step said what it read.
-    import contextlib
-    import io
     import tempfile
     with tempfile.TemporaryDirectory() as _d:
         _out = os.path.join(_d, "gh_output")
@@ -1055,6 +1392,34 @@ def _print_audit(aud: dict) -> None:
                 print(f"              {f}")
 
 
+def gates_report(cen: dict[str, dict], as_json: bool = False) -> int:
+    """Print the gate census and decide the exit status. ONE decision, both output modes.
+
+    The refusal used to live only in the text branch, so `--gates --json` returned 0 over a
+    workflow the census could not read -- the same confident zero the census itself was
+    repaired for, one branch away. Both modes now go through here, and `--selftest` drives
+    it with a malformed census in each. Raised by CodeRabbit on PR #16.
+    """
+    bad = [m for got in cen.values() for m in got["malformed"]]
+    if as_json:
+        print(json.dumps(cen, indent=2))
+    else:
+        for wf, got in cen.items():
+            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps, "
+                  f"{got['scope']} scope steps")
+    for m in bad:
+        print(f"  MALFORMED: {m}", file=sys.stderr)
+    if bad:
+        # Exit 2, the same refusal an unreadable endpoint gets. A count published over a
+        # workflow this could not read is a number, in range, and wrong.
+        print("ci_minutes: refusing to publish a gate count over a workflow it could "
+              "not read.", file=sys.stderr)
+        return 2
+    if not as_json:
+        print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("--selftest", action="store_true",
@@ -1079,15 +1444,7 @@ def main(argv: list[str] | None = None) -> int:
         return emit_scope()
 
     if args.gates:
-        cen = gate_census()
-        if args.json:
-            print(json.dumps(cen, indent=2))
-            return 0
-        for wf, got in cen.items():
-            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps, "
-                  f"{got['scope']} scope steps")
-        print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
-        return 0
+        return gates_report(gate_census(), as_json=args.json)
 
     try:
         runs = fetch_runs()

@@ -36,7 +36,7 @@ sigil, and no sweep is bounded by a figure nobody is charged (#159).
 **The filter is a step, not a `paths:` trigger.** A workflow whose `paths:` do not match
 produces **no check at all**, not a passing one — and `controls` is a required check, so a pull
 request touching only `tasks/` or a root document waited on a check that could never arrive, and
-updating the branch could not help. Measured at PR #14's head: two `gates` check runs, **zero**
+updating the branch could not help. Measured at PR #14's head: 2 `gates` check runs, **0**
 `controls`.
 
 So `controls.yml` triggers on every pull request and asks the question inside the job. Its first
@@ -52,13 +52,24 @@ filter is spelled — and writes `relevant=true|false`. Every step below it is g
 | the scope step prints what it read | the filter, the changed paths and the verdict go into the run log, so a skipped `controls` is auditable afterwards |
 
 `python3 eval/tools/ci_minutes.py --selftest` pins the wiring in both directions, and **its
-closing line is the producer for how many** — `12 mutants died, 5 variants passed` when this was
-written. The mutants are a `paths:` filter back on either trigger, the scope step deleted, its id
-renamed, its command replaced, one gate losing its guard, the guard flipped to `== 'true'`, a
-guarded step placed above the step whose output it reads, and four ways off `ubuntu-latest`. The
-variants — inputs the check must **not** redden — are a re-spaced and double-quoted guard, two
-gates swapped, an unguarded `uses:` step, a comment in the job, and an extra flag on the scope
-step.
+closing line is the producer for how many** — `18 mutants died, 5 variants passed` when this was
+written. The mutants are a `paths:` or `paths-ignore:` filter back on either trigger, the scope
+step deleted, its id renamed, its command replaced, one gate losing its guard, the guard flipped
+to `== 'true'`, the guard conjoined with a constant false, a guarded step placed above the step
+whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`,
+a file that does not parse, and 4 ways off `ubuntu-latest`. The variants — inputs the check must
+**not** redden — are a re-spaced and double-quoted guard, two gates swapped, an unguarded `uses:`
+step, a comment in the job, and an extra flag on the scope step.
+
+**The guard is matched WHOLE, against a closed set of 2 accepted expressions**, not by
+containment. `${{ ... relevant != 'false' && false }}` contains the guard's exact text and skips
+every gate, which is the outcome the guard exists to prevent. `success() && …` is what a setup
+step carries and `!cancelled() && …` is what a gate carries; anything else has to be read.
+
+**`controls.yml` must declare exactly 1 job, and the check refuses a second.** The guard is
+per-job — `steps.scope.outputs.relevant` names a step in the same job — so a second job would run
+unguarded, and it would also be a second check that can be absent, which is why `DECISIONS.md`
+rejects the two-job form.
 
 Both pin `ubuntu-latest`, run with `contents: read`, and check out with `fetch-depth: 0` —
 several controls read historical blobs and report `NOT CHECKED` rows in a shallow clone.
