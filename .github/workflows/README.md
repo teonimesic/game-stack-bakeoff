@@ -52,14 +52,19 @@ filter is spelled — and writes `relevant=true|false`. Every step below it is g
 | the scope step prints what it read | the filter, the changed paths and the verdict go into the run log, so a skipped `controls` is auditable afterwards |
 
 `python3 eval/tools/ci_minutes.py --selftest` pins the wiring in both directions, and **its
-closing line is the producer for how many** — `15 mutants died, 5 variants passed` when this was
-written. The mutants are a `paths:` filter back on either trigger, the scope step deleted, its id
-renamed, its command replaced, one gate losing its guard, the guard flipped to `== 'true'`, a
-guarded step placed above the step whose output it reads, a second `ubuntu-latest` job carrying an
-unguarded gate, a scalar `steps:`, a file that does not parse, and 4 ways off `ubuntu-latest`. The
-variants — inputs the check must **not** redden — are a re-spaced and double-quoted guard, two
-gates swapped, an unguarded `uses:` step, a comment in the job, and an extra flag on the scope
-step.
+closing line is the producer for how many** — `18 mutants died, 5 variants passed` when this was
+written. The mutants are a `paths:` or `paths-ignore:` filter back on either trigger, the scope
+step deleted, its id renamed, its command replaced, one gate losing its guard, the guard flipped
+to `== 'true'`, the guard conjoined with a constant false, a guarded step placed above the step
+whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`,
+a file that does not parse, and 4 ways off `ubuntu-latest`. The variants — inputs the check must
+**not** redden — are a re-spaced and double-quoted guard, two gates swapped, an unguarded `uses:`
+step, a comment in the job, and an extra flag on the scope step.
+
+**The guard is matched WHOLE, against a closed set of 2 accepted expressions**, not by
+containment. `${{ ... relevant != 'false' && false }}` contains the guard's exact text and skips
+every gate, which is the outcome the guard exists to prevent. `success() && …` is what a setup
+step carries and `!cancelled() && …` is what a gate carries; anything else has to be read.
 
 **`controls.yml` must declare exactly 1 job, and the check refuses a second.** The guard is
 per-job — `steps.scope.outputs.relevant` names a step in the same job — so a second job would run

@@ -61,11 +61,11 @@ closing line is the producer for how many workflow mutants and variants it carri
 must catch: truncation instead of rounding up; a compare list at the endpoint's 300-file cap,
 which must be refused rather than scored; the ways a workflow can leave `ubuntu-latest` while
 the file still contains the string; a filter entry no pin depends on; and the ways the scope
-guard can break -- a `paths:` filter back on either trigger, the scope step deleted, its id
-renamed, its command replaced, one gate losing its guard, the guard flipped to the fail-open
-`== 'true'`, a guarded step placed above the step whose output it reads, a second
-`ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`, and a file that does not
-parse at all -- the last 3 being shapes that used to RAISE rather than report. What must still
+guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, the scope step
+deleted, its id renamed, its command replaced, one gate losing its guard, the guard flipped to
+the fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed
+above the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate,
+a scalar `steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
 unguarded `uses:` step, a comment in the job, and an extra flag on the scope step. The
@@ -212,6 +212,25 @@ SCOPE_INVOCATION = "ci_minutes.py --scope"
 # and said so.
 GUARD_EXPR = "steps.scope.outputs.relevant != 'false'"
 
+# THE WHOLE GUARD, not a substring of it. Containment accepts
+# `${{ steps.scope.outputs.relevant != 'false' && false }}`, which skips every gate and
+# reports a green `controls` -- the very thing the guard exists to prevent, wearing the
+# guard's own text. Raised by CodeRabbit on PR #16.
+#
+# An enumeration is the right shape HERE and the wrong shape as a trigger: this is the
+# closed set of expressions a step may carry, so an unlisted one is a change to a
+# load-bearing guard and should have to be read. AGENTS.md's warning is about triggers
+# written as lists of the instances you happened to see; a whitelist is the other
+# direction, and the error names the accepted set so the reader is not left guessing.
+#
+# `success()` is what a setup step carries -- it must not run after an earlier failure --
+# and `!cancelled()` is what a gate carries, so one red gate cannot hide the verdict of
+# the others. Compared after `_norm_expr`, so a re-spacing or a re-quote still passes.
+ALLOWED_GUARDS = (
+    f"${{{{ success() && {GUARD_EXPR} }}}}",
+    f"${{{{ !cancelled() && {GUARD_EXPR} }}}}",
+)
+
 
 def _norm_expr(text: object) -> str:
     """Whitespace- and quote-insensitive form of a workflow `if:` expression.
@@ -221,6 +240,9 @@ def _norm_expr(text: object) -> str:
     where nothing is wrong spends the attention a real firing needs.
     """
     return "".join(str(text or "").split()).replace('"', "'")
+
+
+_ALLOWED_GUARDS = frozenset(_norm_expr(g) for g in ALLOWED_GUARDS)
 
 
 def scope_decision(event: str, changed: list[str] | None) -> tuple[bool, str]:
@@ -468,15 +490,23 @@ def filter_problems(controls_text: str, gates_text: str | None = None,
     if not isinstance(triggers, dict):
         return problems + ["controls.yml has no parseable `on:` block"]
 
+    # BOTH KEYS. `paths-ignore:` is the same deadlock spelled the other way round -- a
+    # pull request whose every changed path matches it dispatches nothing, and a required
+    # check that never reports blocks the merge exactly as hard. Raised by CodeRabbit on
+    # PR #16; checking only `paths:` was an enumeration of the instance that happened to
+    # be there, which is the failure AGENTS.md's rule audit is about.
     for event in ("pull_request", "push"):
         cfg = triggers.get(event)
-        if isinstance(cfg, dict) and cfg.get("paths"):
-            problems.append(
-                f"controls.yml's `{event}` trigger declares `paths: "
-                f"{sorted(cfg['paths'])}`. A workflow that does not match its filter "
-                f"produces NO check, not a passing one, and `controls` is a required "
-                f"check -- so this blocks every pull request touching none of them "
-                f"(measured on PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
+        if not isinstance(cfg, dict):
+            continue
+        for key in ("paths", "paths-ignore"):
+            if cfg.get(key):
+                problems.append(
+                    f"controls.yml's `{event}` trigger declares `{key}: "
+                    f"{sorted(cfg[key])}`. A workflow that does not dispatch produces NO "
+                    f"check, not a passing one, and `controls` is a required check -- so "
+                    f"this blocks every pull request the filter excludes (measured on "
+                    f"PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
 
     # ONE JOB, and the walk below is over ITS steps. Reading only the first of several
     # would be fail-open in the direction that matters: a second `ubuntu-latest` job
@@ -512,7 +542,6 @@ def filter_problems(controls_text: str, gates_text: str | None = None,
             f"controls.yml's `{SCOPE_STEP_ID}` step does not run `{SCOPE_INVOCATION}`, so "
             f"whatever writes `relevant` is no longer this tool and is not gated by it")
 
-    guard = _norm_expr(GUARD_EXPR)
     for i, step in enumerate(steps):
         if "run" not in step or i == at:
             continue
@@ -521,18 +550,24 @@ def filter_problems(controls_text: str, gates_text: str | None = None,
             problems.append(
                 f"controls.yml step `{label}` runs BEFORE the `{SCOPE_STEP_ID}` step, so "
                 f"its guard reads an output that does not exist yet")
-        if guard not in _norm_expr(step.get("if")):
+        if _norm_expr(step.get("if")) not in _ALLOWED_GUARDS:
             problems.append(
-                f"controls.yml step `{label}` is not guarded by `{GUARD_EXPR}`. Unguarded, "
-                f"it runs on a pull request whose toolchain steps were skipped and fails "
-                f"there -- which is the merge block this shape exists to remove; guarded "
-                f"the other way round (`== 'true'`) it skips on an unwritten output and "
-                f"reports a green `controls` that executed nothing")
+                f"controls.yml step `{label}` carries `if: {step.get('if')!r}`, which is "
+                f"not one of the {len(ALLOWED_GUARDS)} accepted guards: "
+                f"{list(ALLOWED_GUARDS)}. Unguarded, it runs on a pull request whose "
+                f"toolchain steps were skipped and fails there -- the merge block this "
+                f"shape exists to remove. Guarded the other way round (`== 'true'`) it "
+                f"skips on an unwritten output and reports a green `controls` that "
+                f"executed nothing")
     return problems
 
 
+def _read_workflow(label: str) -> str:
+    return (ROOT / ".github" / "workflows" / label).read_text(encoding="utf-8")
+
+
 def gate_census(texts: dict[str, str] | None = None,
-                import_yaml=_import_yaml) -> dict[str, dict]:
+                import_yaml=_import_yaml, read=_read_workflow) -> dict[str, dict]:
     """How many CHECKS each workflow runs, as a count with a producer behind it.
 
     `.github/workflows/README.md` opened with a hand-written "32 documentation, queue and
@@ -569,10 +604,20 @@ def gate_census(texts: dict[str, str] | None = None,
     out: dict[str, dict] = {}
     for wf in ("gates", "controls"):
         label = f"{wf}.yml"
+        # THE READ IS PART OF THE CHECK. A deleted, renamed or unreadable workflow raised
+        # `OSError` here, one line before the loader that exists so nothing raises -- so
+        # the address that matters most (rule 12: a check aimed at a path nobody verified)
+        # was the one place that could still traceback. Raised by CodeRabbit on PR #16.
         if texts is not None:
             text = texts.get(label, "")
         else:
-            text = (ROOT / ".github" / "workflows" / label).read_text(encoding="utf-8")
+            try:
+                text = read(label)
+            except OSError as exc:
+                out[wf] = {"gates": 0, "setup": 0, "scope": 0, "names": [],
+                           "malformed": [f"{label} could not be read: "
+                                         f"{exc.__class__.__name__}: {exc}"]}
+                continue
         doc, malformed = _parse_workflow(text, label, import_yaml)
         jobs, no_jobs = (({}, None) if malformed else _workflow_jobs(doc))
         if no_jobs:
@@ -887,6 +932,33 @@ def _selftest() -> int:
     except Exception as _exc:  # noqa: BLE001
         failures.append(f"filter_problems RAISED without pyyaml: {_exc!r}")
 
+    # THE READ ITSELF. A deleted, renamed or unreadable workflow raised `OSError` one line
+    # before the loader that exists so nothing raises -- the address that matters most was
+    # the one place left that could traceback.
+    def _unreadable(_label):
+        raise FileNotFoundError(2, "No such file or directory", "/nowhere/controls.yml")
+
+    try:
+        _cen_noread = gate_census(None, _import_yaml, _unreadable)
+    except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+        failures.append(f"gate_census RAISED on an unreadable workflow: {_exc!r}")
+        _cen_noread = None
+    if _cen_noread is not None:
+        check("an unreadable workflow is reported, not counted",
+              (bool(_cen_noread["controls"]["malformed"]),
+               _cen_noread["controls"]["gates"], _cen_noread["gates"]["gates"]),
+              (True, 0, 0))
+        for _as_json in (False, True):
+            with contextlib_redirect_all():
+                _code = gates_report(_cen_noread, as_json=_as_json)
+            if _code != 2:
+                failures.append(f"gates_report(as_json={_as_json}) returned {_code} on an "
+                                f"unreadable workflow; --gates must refuse, not traceback")
+    # VARIANT: the injected reader must not have replaced the real one -- a default that
+    # no longer reads the files would make every pin above vacuous.
+    check("the default reader still reads the real workflows",
+          gate_census(None, _import_yaml)["controls"]["gates"], 5)
+
     # VARIANT: a clean census must still be published, and exit 0, in both modes.
     for _as_json in (False, True):
         with contextlib_redirect_all():
@@ -987,6 +1059,21 @@ def _selftest() -> int:
             "a paths: filter back on pull_request":
                 live.replace("  pull_request:\n",
                              "  pull_request:\n    paths:\n      - 'eval/**'\n", 1),
+            # The SAME deadlock spelled the other way round: a `paths-ignore:` matching
+            # every changed path dispatches nothing, and a required check that never
+            # reports blocks the merge just as hard.
+            "a paths-ignore: filter on pull_request":
+                live.replace("  pull_request:\n",
+                             "  pull_request:\n    paths-ignore:\n      - '**.md'\n", 1),
+            "a paths-ignore: filter on push":
+                live.replace("  push:\n    branches: [main, 'ci-control-**']\n",
+                             "  push:\n    branches: [main, 'ci-control-**']\n"
+                             "    paths-ignore:\n      - '**.md'\n", 1),
+            # CONTAINMENT IS NOT VALIDATION: this carries the guard's exact text and
+            # skips every gate, which is the outcome the guard exists to prevent.
+            "the guard conjoined with a constant false":
+                live.replace("steps.scope.outputs.relevant != 'false' }}",
+                             "steps.scope.outputs.relevant != 'false' && false }}"),
             "a paths: filter back on push":
                 live.replace("  push:\n    branches: [main, 'ci-control-**']\n",
                              "  push:\n    branches: [main, 'ci-control-**']\n"
