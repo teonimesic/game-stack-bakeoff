@@ -124,6 +124,16 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CensusError(f"{path}: {exc}") from exc
+        # A RECORD WHOSE `agent` BLOCK IS PRESENT AND IS NOT AN OBJECT FAILS BY NAME.
+        # `_terminal` and `_cost` both call `.get` on it, so `"agent": null` used to end
+        # the census with an `AttributeError` several frames away, naming no file — loud,
+        # and useless. This is the same refusal `cost_census._validate_wholegame` already
+        # makes, and it keeps the promise this module's docstring makes about failing
+        # rather than reporting a count it cannot stand behind. An ABSENT `agent` key is
+        # not this: it reads as `absent` and always has.
+        if "agent" in data and not isinstance(data["agent"], dict):
+            raise CensusError(f"{path}: `agent` is {data['agent']!r}, not an object — "
+                              f"nothing can be read from it")
         out.append((str(path.parent.parent.relative_to(runs_dir)), path.name, data))
     if not out:
         raise CensusError(f"{runs_dir} holds no **/trials/*.json — refusing to report 0 "
@@ -476,6 +486,31 @@ def selftest() -> int:
         check("skip is reported", tree["skipped_agent_authored"], 1)
         check("agent-authored record did not reach the cost total",
               999.0 not in [_cost(d) for _, _, d in load_records(runs)[0]], True)
+
+        # Direction 8, both halves: a record whose provenance is present and unreadable
+        # is EXCLUDED from the priced total and VISIBLE in the partition — never quietly
+        # inside the claude bucket, which is where the default used to put it.
+        _write(runs / "wg-a" / "trials" / "g1__ts__t9.json",
+               {"game": "g1", "stack": "ts",
+                "agent": {"terminal_reason": "completed", "harness": [],
+                          "cost_usd": 500.0}})
+        c8 = census(runs)["wholegame"]
+        check("a record with unreadable provenance is not claude",
+              c8["harness"].get("invalid-provenance"), 1)
+        check("and its cost reached no total", c8["agent_cost_usd"], 6.0)
+
+        # Direction 9: an `agent` block that is present and is not an object fails by
+        # NAME. `_terminal` and `_cost` both call `.get` on it, so this used to end the
+        # census with an AttributeError several frames away, naming no file.
+        _write(runs / "wg-a" / "trials" / "g1__ts__t10.json",
+               {"game": "g1", "stack": "ts", "agent": None})
+        try:
+            census(runs)
+            failures.append("a null `agent` block: returned a census instead of raising")
+        except CensusError as exc:
+            if "g1__ts__t10.json" not in str(exc):
+                failures.append(f"the null-`agent` refusal does not name its file: {exc}")
+        (runs / "wg-a" / "trials" / "g1__ts__t10.json").unlink()
 
         # Direction 3: a record that is malformed must fail loudly, naming its file.
         (runs / "wg-b" / "trials" / "broken.json").write_text("{not json")

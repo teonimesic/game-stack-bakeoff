@@ -189,6 +189,23 @@ def _provenance(value: Any) -> str | None:
     return INVALID_PROVENANCE
 
 
+def _at(record: dict[str, Any], block: str, field: str) -> str | None:
+    """One provenance address: the `field` inside the `block`, or why it cannot be read.
+
+    **Only ABSENCE is silence.** A block that is present and is not an object — `"agent":
+    null` in a truncated or hand-edited record — cannot answer the question, and reading
+    it as silence puts it in the `claude` default and therefore in the tokval sum. The
+    same record makes `census._terminal` raise on the very next line, which is loud; being
+    quietly wrong here first is not.
+    """
+    if block not in record:
+        return None
+    holder = record[block]
+    if not isinstance(holder, dict):
+        return INVALID_PROVENANCE
+    return _provenance(holder.get(field))
+
+
 def harness_of(record: dict[str, Any]) -> str:
     """Which harness built a stored trial record.
 
@@ -204,15 +221,8 @@ def harness_of(record: dict[str, Any]) -> str:
     Absent means the field is not there; a field that is there and unreadable is
     `INVALID_PROVENANCE`.
     """
-    agent = record.get("agent")
-    from_agent = _provenance(agent.get("harness")) if isinstance(agent, dict) else None
-    launched = record.get("harness")
-    if launched is None:
-        from_launch = None
-    elif isinstance(launched, dict):
-        from_launch = _provenance(launched.get("name"))
-    else:
-        from_launch = INVALID_PROVENANCE
+    from_agent = _at(record, "agent", "harness")
+    from_launch = _at(record, "harness", "name")
     if INVALID_PROVENANCE in (from_agent, from_launch):
         return INVALID_PROVENANCE
     if from_agent and from_launch and from_agent != from_launch:

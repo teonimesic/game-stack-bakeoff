@@ -364,9 +364,13 @@ def rows(mod) -> list[Row]:
     # claude CLI because there was no other one.
     out.append(_eq("VARIANT", "harness_of: an unstamped record is claude",
                    mod.harness_of({"agent": {"cost_usd": 1.0}}), "claude"))
+    # VARIANT, and the population this one protects is the whole stored corpus: 161
+    # records written before the harness existed carry an `agent` block with no `harness`
+    # key in it and no `harness` block at all. An ABSENT key is silence, and silence is
+    # claude by provenance.
     out.append(_eq("VARIANT", "harness_of: an absent field is absent, not malformed",
-                   (mod.harness_of({}), mod.harness_of({"agent": None}),
-                    mod.harness_of({"agent": {}, "harness": None})),
+                   (mod.harness_of({}), mod.harness_of({"agent": {"cost_usd": 1.0}}),
+                    mod.harness_of({"agent": {"harness": None}})),
                    ("claude", "claude", "claude")))
     # VARIANT: a field that is PRESENT and unusable. Falling through to the claude default
     # would put an unreadable record inside the tokval sum; returning the value itself -
@@ -379,8 +383,14 @@ def rows(mod) -> list[Row]:
                        {"agent": {"harness": ""}},
                        {"agent": {"harness": {"name": "prime-agent"}}},
                        {"harness": "a string, not an object"},
-                       {"harness": {"name": 7}})],
-                   ["invalid-provenance"] * 6))
+                       {"harness": {"name": 7}},
+                       # The BLOCK present and not an object. `agent: null` is a
+                       # truncated or hand-edited record; read as silence it lands in
+                       # the claude default and therefore in the tokval sum.
+                       {"agent": None},
+                       {"agent": "not an object"},
+                       {"agent": {}, "harness": None})],
+                   ["invalid-provenance"] * 9))
     out.append(_eq("PRISTINE", "TOKVAL_HARNESS", mod.TOKVAL_HARNESS, "claude"))
     # VARIANT: the two provenance fields DISAGREE. One writer sets both, so this is a
     # corrupted or hand-edited record and the honest answer is that the provenance is
@@ -514,7 +524,7 @@ MUTANTS: list[tuple[str, str, str]] = [
      "    return from_agent or from_launch or TOKVAL_HARNESS",
      '    return from_agent or from_launch or "prime-agent"'),
     ("harness_of stops reading the launch record",
-     '    launched = record.get("harness")', "    launched = None"),
+     '    from_launch = _at(record, "harness", "name")', "    from_launch = None"),
     ("harness_of picks a side when the two provenances disagree",
      "    if from_agent and from_launch and from_agent != from_launch:",
      "    if False:"),
@@ -523,8 +533,12 @@ MUTANTS: list[tuple[str, str, str]] = [
      "    return INVALID_PROVENANCE",
      "    if isinstance(value, str) and value:\n        return value\n"
      "    return None"),
-    ("a non-object `harness` field is read as silence",
-     "        from_launch = INVALID_PROVENANCE", "        from_launch = None"),
+    ("a present block that is not an object is read as silence",
+     "    if not isinstance(holder, dict):\n        return INVALID_PROVENANCE",
+     "    if not isinstance(holder, dict):\n        return None"),
+    ("a present block is not distinguished from an absent one",
+     '    if block not in record:\n        return None',
+     '    if record.get(block) is None:\n        return None'),
     ("a non-string terminal reason reaches the membership test",
      "    if not isinstance(raw, str):\n        return unknown_reason(raw)\n", ""),
     ("prime reads only the terminal message",
