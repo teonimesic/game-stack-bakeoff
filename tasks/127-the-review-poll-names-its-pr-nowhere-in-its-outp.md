@@ -8,3 +8,36 @@ done_when: .claude/skills/work/SKILL.md section 6's recipe either asserts the br
 ---
 
 Measured during task 123 on 2026-08-23. The work skill's section 6 poll recipe hardcodes PR=<n> and prints only the head sha, so the PR being polled appears in NO line of output. I wrote the recipe to scratchpad/pollreview.sh - a generic name in a directory shared with every concurrent session - and an agent working task 124 wrote its own copy to the same path with PR=10. My background loop calls the script by path each iteration, so it silently switched to polling PR #10 (task-124-ci-path-filter-and-minutes) and kept reporting 'not yet' at exit 0. Nothing in 16 polls of output could have shown it. This is AGENTS.md rule 12 - a correct method aimed at an address nobody re-verified - in a variant its own five-instance table does not contain: a SHARED MUTABLE address, where the address was right when written and wrong later. The failure direction is the dangerous one: had PR 10's review landed, my loop would have reported LANDED for a review of someone else's diff, and the next step in the procedure is to read that review and act on it. The repair used in task 123 is in scratchpad/task123-poll-pr9.sh and is two lines: name the script for the ticket AND the PR, and assert headRefName equals the expected branch before believing any answer, exiting 1 with 'WRONG PR' otherwise. Controls both directions: PR=9 returns 'not yet (... head=55a0901)' exit 0; the same script with PR=10 returns "WRONG PR: #10 is 'task-124-ci-path-filter-and-minutes'" exit 1.
+
+## note 2026-08-24
+
+## note 2026-08-24 — the WAIT BOUND is measured wrong, and here is the number
+
+Not this ticket's `done_when`, but the same recipe, so it is recorded here rather than lost.
+
+Task 130's agent polled PR #15 **29 times over a 15-minute bound**, reported *"no review object,
+no summary comment naming the sha"*, and handed back saying the review had not landed. It had not
+— **yet**. Measured from the GitHub API afterwards:
+
+| event | time (UTC) |
+|---|---|
+| head `8adba4a` pushed | 11:06:52 |
+| 15-minute bound expires | ~11:21:52 |
+| CodeRabbit review submitted | **11:26:18** |
+
+**19m26s on a 4-file documentation diff**, so the bound missed by 4m26s. The agent flagged the
+bound as suspect in its own hand-back ("15 min is 2.4x the slowest previously measured round"),
+which is the right instinct and the wrong conclusion — the slowest previously measured round was
+not the population.
+
+The consequence was not a wasted wait. The work was handed back as ready, and the review contained
+**four threads, one Major**, naming a real AGENTS.md rule-4 violation. `required_conversation_
+resolution` on `main` is what stopped it merging; without that setting it would have merged
+unreviewed on a green tick.
+
+**Do not just raise the number.** A fixed bound derived from a handful of observations is the same
+defect at a larger value. What the recipe cannot currently do is distinguish *not finished* from
+*never coming*, and the agent noted the alert-heading extractor returns empty for both. Either find
+a signal that says a round is in flight — the summary comment's in-progress marker was present and
+observed, so that signal exists — and wait on THAT rather than on a clock, or make the timeout a
+loud unresolved outcome rather than a quiet "no review".
