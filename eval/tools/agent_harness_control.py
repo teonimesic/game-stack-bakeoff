@@ -364,10 +364,23 @@ def rows(mod) -> list[Row]:
     # claude CLI because there was no other one.
     out.append(_eq("VARIANT", "harness_of: an unstamped record is claude",
                    mod.harness_of({"agent": {"cost_usd": 1.0}}), "claude"))
-    out.append(_eq("VARIANT", "harness_of survives a malformed record",
+    out.append(_eq("VARIANT", "harness_of: an absent field is absent, not malformed",
                    (mod.harness_of({}), mod.harness_of({"agent": None}),
-                    mod.harness_of({"harness": "a string, not an object"})),
+                    mod.harness_of({"agent": {}, "harness": None})),
                    ("claude", "claude", "claude")))
+    # VARIANT: a field that is PRESENT and unusable. Falling through to the claude default
+    # would put an unreadable record inside the tokval sum; returning the value itself -
+    # which a truthy non-string would do - breaks the `str` contract, and a dict then
+    # raises TypeError inside the Counter that partitions on it.
+    out.append(_eq("VARIANT", "harness_of: a present but unusable field is neither",
+                   [mod.harness_of(r) for r in (
+                       {"agent": {"harness": []}},
+                       {"agent": {"harness": 0}},
+                       {"agent": {"harness": ""}},
+                       {"agent": {"harness": {"name": "prime-agent"}}},
+                       {"harness": "a string, not an object"},
+                       {"harness": {"name": 7}})],
+                   ["invalid-provenance"] * 6))
     out.append(_eq("PRISTINE", "TOKVAL_HARNESS", mod.TOKVAL_HARNESS, "claude"))
     # VARIANT: the two provenance fields DISAGREE. One writer sets both, so this is a
     # corrupted or hand-edited record and the honest answer is that the provenance is
@@ -505,6 +518,13 @@ MUTANTS: list[tuple[str, str, str]] = [
     ("harness_of picks a side when the two provenances disagree",
      "    if from_agent and from_launch and from_agent != from_launch:",
      "    if False:"),
+    ("a present but unusable provenance field falls through to claude",
+     "    if isinstance(value, str) and value:\n        return value\n"
+     "    return INVALID_PROVENANCE",
+     "    if isinstance(value, str) and value:\n        return value\n"
+     "    return None"),
+    ("a non-object `harness` field is read as silence",
+     "        from_launch = INVALID_PROVENANCE", "        from_launch = None"),
     ("a non-string terminal reason reaches the membership test",
      "    if not isinstance(raw, str):\n        return unknown_reason(raw)\n", ""),
     ("prime reads only the terminal message",

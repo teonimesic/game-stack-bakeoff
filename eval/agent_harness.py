@@ -161,13 +161,32 @@ def _map_reason(raw: Any, table: dict[str, str], *, native: bool = False) -> Any
 TOKVAL_HARNESS = CLAUDE_NAME = "claude"
 
 
-#: What `harness_of` returns when a record's two provenance fields DISAGREE. It is a
-#: value, not an exception, and it is deliberately not the name of any harness: it can
-#: never equal `TOKVAL_HARNESS`, so the record is excluded from every priced sum by the
-#: same test that excludes a foreign one, and it appears in the harness partition where a
-#: reader cannot miss it. An exception here would abandon a whole census over one record;
-#: picking one of the two silently is the thing that must not happen.
+#: What `harness_of` returns when a record's two provenance fields DISAGREE, and when a
+#: field is present but is not a usable name. Both are VALUES, not exceptions, and neither
+#: is the name of any harness: they can never equal `TOKVAL_HARNESS`, so such a record is
+#: excluded from every priced sum by the same test that excludes a foreign one, and it
+#: appears in the harness partition where a reader cannot miss it. An exception here would
+#: abandon a whole census over one record; picking one of the two silently, or falling
+#: through to `claude`, is the thing that must not happen.
 CONFLICT_PREFIX = "conflict:"
+INVALID_PROVENANCE = "invalid-provenance"
+
+
+def _provenance(value: Any) -> str | None:
+    """One harness name out of one field: a signal, no signal, or malformed.
+
+    `None` means the field said nothing. `INVALID_PROVENANCE` means it said something
+    unusable — `[]`, `0`, `""`, an object — and that is NOT the same as silence: falling
+    through to the `claude` default on a field that is present and broken would put an
+    unreadable record inside the tokval sum. A truthy non-string is the worse half: it
+    would be RETURNED, breaking this function's `str` contract, and a dict then raises
+    `TypeError` in the `collections.Counter` that partitions on it.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str) and value:
+        return value
+    return INVALID_PROVENANCE
 
 
 def harness_of(record: dict[str, Any]) -> str:
@@ -182,11 +201,20 @@ def harness_of(record: dict[str, Any]) -> str:
 
     **Absent is read as `claude`**, and that is provenance rather than a default — every
     record stored before 2026-08-24 was built by that CLI, because there was no other.
+    Absent means the field is not there; a field that is there and unreadable is
+    `INVALID_PROVENANCE`.
     """
     agent = record.get("agent")
-    from_agent = agent.get("harness") if isinstance(agent, dict) else None
+    from_agent = _provenance(agent.get("harness")) if isinstance(agent, dict) else None
     launched = record.get("harness")
-    from_launch = launched.get("name") if isinstance(launched, dict) else None
+    if launched is None:
+        from_launch = None
+    elif isinstance(launched, dict):
+        from_launch = _provenance(launched.get("name"))
+    else:
+        from_launch = INVALID_PROVENANCE
+    if INVALID_PROVENANCE in (from_agent, from_launch):
+        return INVALID_PROVENANCE
     if from_agent and from_launch and from_agent != from_launch:
         return f"{CONFLICT_PREFIX}{from_agent}|{from_launch}"
     return from_agent or from_launch or TOKVAL_HARNESS

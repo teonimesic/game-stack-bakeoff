@@ -405,10 +405,14 @@ def selftest() -> int:
         # stored record, and ONE NaN makes the whole total NaN — an aggregate that is
         # wrong about every record because of one. A bool passes `isinstance(x, int)` and
         # would average as 1.00. Each must be excluded AND counted.
-        for i, literal in enumerate(("NaN", "Infinity", "-Infinity", "true")):
-            (runs / "wg-a" / "trials" / f"g1__rust__t{i + 5}.json").write_text(
-                '{"game": "g1", "stack": "rust", "agent": '
-                '{"terminal_reason": "completed", "cost_usd": %s}}' % literal)
+        # Through `_write`, the one fixture writer, rather than a second one alongside it.
+        # `json.dumps` emits the bare tokens `NaN`, `Infinity` and `-Infinity` for these
+        # floats, so the bytes on disk — and therefore the parse path `load_records`
+        # takes — are exactly a stored record's.
+        for i, value in enumerate((float("nan"), float("inf"), float("-inf"), True)):
+            _write(runs / "wg-a" / "trials" / f"g1__rust__t{i + 5}.json",
+                   {"game": "g1", "stack": "rust",
+                    "agent": {"terminal_reason": "completed", "cost_usd": value}})
 
         c = census(runs)
         wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
