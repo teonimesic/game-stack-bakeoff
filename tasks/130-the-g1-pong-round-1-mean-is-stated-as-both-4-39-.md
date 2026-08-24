@@ -1,12 +1,12 @@
 ---
 id: 130
 title: The g1_pong round-1 mean is stated as both 4.39 and 4.38, on a figure with no artifact behind it
-status: in_review
+status: in_testing
 priority: 3
 refs: eval/judge/JUDGING.md, eval/RUNS.md, tasks/04, eval/judge/judge_ledger.py, eval/withdrawn.json
 done_when: every live statement of the three-call figure agrees to the digit, the rounding rule is stated once where the figure is defined, and the fact that these rounds have no artifact is said beside it - or the figure is withdrawn into eval/withdrawn.json and the live documents repaired as docstat.py --withdrawn names them
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/15
-established_by: 'PR #15, gates+controls green at 8adba4a. Live statements of the three-call figure now all read $13.16 / $4.39; WR-g1pong-round1-13-15 registered, docstat.py --withdrawn exit 1 before the citations and exit 0 after, variant planted in README.md red then green. CodeRabbit: 29 polls over 15 min, no review at the head, no deadlock heading.'
+established_by: 'PR #15 at fcc8c64: gates, controls and CodeRabbit all pass, mergeState=CLEAN, 0 behind main. Review loop closed at 4 rounds, all 5 threads resolved - 5 findings acted on, 1 declined with evidence (register diff vs origin/main removes 0 lines; squash-only merge). Figure settled at 13.16/4.39 by the ledger table''s own arithmetic; WR-g1pong-round1-13-15 pinned red-then-green. Filed task 139: .coderabbit.yaml has failed validation since 2026-08-23, so every review ran on defaults.'
 ---
 
 eval/judge/JUDGING.md and eval/RUNS.md state the same three-call mean as 4.39 in one place and 4.38 in another, and the same sum as 13.16 and 13.15. It is 13.16/3 = 4.38667 rounded up in one document and truncated in the other. The three g1_pong calls of 2026-08-16 are the only judge rounds in this project with no surviving artifact (task 04), so neither figure can be re-read from source and judge_ledger.py --tree runs/ does not see them at all - it reads 97 rounds over 12 directories and none is that field. Raised by the CodeRabbit review of PR #13 and deliberately not fixed there: quietly adjusting one to match the other is the move eval/RUNS.md already refuses for the 118.62/118.63 pair, so which way it goes is a decision rather than an edit.
@@ -114,3 +114,151 @@ exit 0. CI `gates` and `controls` both pass on the PR.
   generalisable claim is: *two figures that look like a rounding disagreement may be a
   disagreement about the input. Round the other candidate too before concluding the tie is
   undecidable, then ask which candidate closes the arithmetic of the table it is printed in.*
+
+## note 2026-08-24
+
+## Review round 1 (2026-08-24) — 4 threads, all acted on, none declined
+
+The review landed **19m26s** after the push, past the skill's 15-minute bound; the hand-back that
+said "no review" was correct at the time and wrong by 4m26s. That measurement is written up in
+`tasks/127`, which also says the fix is to wait on the in-progress SIGNAL rather than on a clock.
+Round 2 was polled that way — see `scratchpad/task130-poll-pr15.sh`, which asserts `headRefName`
+before believing any answer and reports whether a round is still in flight when its cap expires.
+
+### The Major finding was right, and the diff refuted itself
+
+The block I added to `eval/RUNS.md` said *"the mean spans two aspects, which is why
+`judge_ledger.py` prints no per-call mean at all"* and then, 3 lines above, priced 96 per-aspect
+rounds from that same mean. **AGENTS.md rule 4 with the violation and its own refutation two
+sentences apart.** `eval/judge/JUDGING.md` carried the same error at 2 sites.
+
+The repair is not a relabel. The 96-round estimate is now priced **per (game, aspect)** off the
+`g2_tetris3d` rows of the very ledger table the disputed figure sits in — each row is 1 aspect on
+1 game, so each rate is over a homogeneous population:
+
+| aspect | per call | x 96 rounds |
+|---|---|---|
+| `audio` | $0.60 | **$57.60** |
+| `ux` | $1.37 | $131.04 |
+| `fun` | $1.51 | $144.48 |
+| `idiomatic` | $6.54 | $627.84 |
+| `architecture` | $6.81 | **$653.28** |
+
+**$58 to $653 for 1 game — an 11x spread, and the retired ~$420 lands inside it while matching no
+aspect.** Each rate is 2 calls, so it is a lower bound, and that is stated beside it. The argument
+the paragraph exists to make — a statistical tie is unaffordable — is unchanged and holds at both
+ends; the binding constraint is still 96 sequential calls against 1 account's rate limit.
+
+Removed rather than restated: *"That is the number to plan with"* and the
+`3 games x 5 aspects x 2 orders ~ $130` projection, both of which came off the same mixed mean.
+
+### Task 04 does not recover these calls, and the ledger said it did
+
+*"task 04, closed by re-running them into `wg-funframes-crossgame/pong/` for $17.66"* was wrong on
+3 counts, checked against `tasks/04-g1-pong-s-judge-outputs-are-missing.md`:
+
+- it re-ran **`idiomatic` alone**, not `architecture` — so not "them";
+- **4 ordered rounds**, not these 3 calls (`judge_ledger.py --tree runs/` shows
+  `wg-funframes-crossgame/pong  4  17.66`);
+- its own result is that #53's pong row **reproduces as a RANKING and not as SCORES** — ordering
+  repeats exactly, every value ~0.6 lower.
+
+This strengthens the ticket's claim rather than weakening it: $13.16 stays unreadable, and the
+document now says why the obvious candidate for recovering it does not.
+
+### The other 2
+
+- *"cannot be re-read and never will be"* contradicted this section's own reversal clause 44 lines
+  below. Now *"cannot be re-read from any currently surviving artifact"*.
+- **Counts in digits.** `.coderabbit.yaml` 204-205 and `AGENTS.md` 344, unqualified. Converted
+  every cardinal in the changed prose. Left alone deliberately: `one`/`the other` as pronouns and
+  the ordinal *"the third call"* — not cardinal counts, and digitising them makes the sentence
+  worse without making anything checkable.
+
+## note 2026-08-24
+
+## Round 2 clean, and a defect found in the reviewer itself
+
+Round 2 landed by the **summary-comment arm** — CodeRabbit finished with **0 new threads**, all 4
+round-1 threads resolved, and its check reads *pass / Review completed*. Loop closed at 2 rounds
+against a ceiling of 5.
+
+**The round-2 poll waited on the in-progress SIGNAL, not on a clock**, which is what `tasks/127`
+asks for after the 15-minute bound missed by 4m26s here. `scratchpad/task130-poll-pr15.sh` prints
+`inflight=N` on every line from the summary comment's in-progress marker, and distinguishes
+*not finished* from *never coming* at its cap. It also asserts `headRefName` before believing any
+answer — pinned both directions: aimed at PR #13 it exits 1 with
+`WRONG PR: #13 is 'task-128-token-valuations-not-money'`.
+
+### `.coderabbit.yaml` has been INERT since 2026-08-23 — filed as task 139
+
+CodeRabbit's summary comment on this PR carries, inside a collapsed `<details>`:
+
+    > [!WARNING]
+    > ### `.coderabbit.yaml` has a parsing error
+    > ... default settings were used instead.
+    > Validation error: Too big: expected string to have <=250 characters at "tone_instructions"
+
+Measured: `tone_instructions` is **894 characters against a 250 limit**, and one bad field
+discards the **whole file**. Traced through every commit that touched it — introduced at 894 in
+`7d87e13` (2026-08-23); every earlier revision has the field absent. So every review since then,
+including PR #13, #14 and #15, ran on defaults.
+
+**Why nobody noticed is the part worth keeping.** The reviews still looked right: CodeRabbit reads
+`AGENTS.md` by default, so round 1 here cited *"As per coding guidelines"* for the digits rule and
+for rule 4 — both of which live in `AGENTS.md` as well as in the dead yaml. **A mechanism that
+runs, reports success, and measures nothing, whose output is indistinguishable from the working
+one.** What is actually inert is everything the yaml adds over the defaults: the path-scoped
+instructions, the exclusion list, and the prose-readability instructions that
+`.agents/skills/work/SKILL.md` section 6 tells agents to act on.
+
+Not fixed here — which instructions survive a 250-character budget is a decision about the
+instrument that reviews every pull request. Task 139 carries it, and its `done_when` requires a
+check that goes red on an invalid config, pinned both directions, because this failed silently for
+a day across 3 pull requests.
+
+## note 2026-08-24
+
+## Review loop closed at 4 rounds, mergeState CLEAN
+
+| round | landed | outcome |
+|---|---|---|
+| 1 | review object, 19m26s after push | 4 threads, 1 Major — all acted on, none declined |
+| 2 | summary comment | 0 new threads |
+| 3 | review object | 1 thread, 2 findings — 1 acted on, 1 declined with evidence |
+| 4 | summary comment | 0 new threads |
+
+**All 5 threads resolved.** `gates`, `controls` and `CodeRabbit` all **pass** at `fcc8c64`;
+`mergeState=CLEAN`; 0 commits behind `origin/main`.
+
+### The one thing declined, and the evidence
+
+Round 3 called it an append-only violation to revise `WR-g1pong-round1-13-15`'s `replaced_by`.
+Declined, because the change **this pull request makes to the register is purely additive**:
+
+    git diff origin/main -- eval/withdrawn.json | grep "^-" | grep -v "^---" | wc -l   ->  0
+
+0 lines removed, 1 entry added. The revision the comment points at is *between commits inside the
+branch*, and the repository is squash-only (`allow_squash_merge=true`, `allow_merge_commit=false`,
+`allow_rebase_merge=false`, read from the API), so `main` only ever sees one value of the field.
+The register's own rationale is the deciding text — *"a consumer that applied it must keep being
+able to"* — and no version of this entry has ever been published, so none was ever applied.
+
+**Complying would have made the record worse**, which is the part worth keeping: the text to be
+preserved was the one round 1's own Major finding condemned, advising `96 calls are $421.12` off a
+2-aspect mean. An amendment would have left that retired guidance permanently in the register.
+CodeRabbit did not contest the decline and round 4 came back clean.
+
+**A general point for the next agent:** if append-only bound intra-branch edits, no register entry
+could ever be revised in response to a review. The rule protects **published** entries.
+
+### Two more corrections found by re-reading my own round-1 result
+
+- `eval/RUNS.md` said *"the rows below show what that hides"* about the `g2_tetris3d` per-aspect
+  rows, which sit **above** that note in the same table.
+- The register's `replaced_by` still advised the `$421.12` projection round 1 had removed from
+  every live document — the register would have recommended what the documents forbid.
+
+Both are the same failure: a cross-reference that was true when written and was invalidated by the
+edit two paragraphs away. Re-read the *whole* block after a review round, not only the lines the
+comment names.
