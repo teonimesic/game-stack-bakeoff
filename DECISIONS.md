@@ -1896,11 +1896,10 @@ an interval with none.
 ---
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23, second test added 2026-08-24
 
-> **This entry's own reversal condition fired: the repository became squash-only.** Ancestry
-> alone then reads `ORPHANED` for every merged ticket whose ref survives — observed on 3 of them,
-> 2026-08-24. It is not removed, because it is still the whole answer for the `git merge --no-ff`
-> refs already stored; a second test sits beside it, and the row below says what would re-open
-> that one.
+> **This entry's reversal condition has fired: the repository is squash-only.** Ancestry alone
+> reads `ORPHANED` for every merged ticket whose ref survives, so a second test sits beside it.
+> Ancestry stays, because it is still the whole answer for the `git merge --no-ff` refs already
+> stored.
 
 **Decided [agent], on measurement, after task 70 sat at `done` over 678 insertions across 5 files
 that `main` had never seen** — including `eval/judge/paired_verdicts.py` at 458 lines, which
@@ -2001,23 +2000,22 @@ computing the census without printing it, de-duplicating the bases by name, read
 foreign repository, never asking the squash arm, claiming every ref has landed, reading a git
 error in the squash arm as a clean "no", swallowing the third value in the composition, reading
 `patch-id`'s commit-id column instead of its patch-id column, dropping `rev` from the cache key,
-and caching a failure. **1 survived first time,
-and twice for different reasons.** In 2026-08-23's round it was the error-branch mutant, because
-the rows pinned `landed_status`'s handling of a `None` and never ran `_is_ancestor` itself — a
-consumer pinned without its producer, the `tasks/106` shape, which is why that row now calls the
-function against a real repository where a missing ref exits 128. In 2026-08-24's it was
-`squash_git_error_is_false`, and the cause was the `kills` list rather than the rows: it named
-`_is_landed passes the None through`, which the mutant **cannot reach**, because for a ref git
-cannot resolve the ancestry arm returns `None` too and `_is_landed` degrades on that instead. A
-`kills` entry naming a row the mutant cannot make red reports the mutant as surviving, which is
-the harness working, and it is why the composition carries its own mutant.
+and caching a failure.
 
-**`patch_cache_key_drops_the_rev` survived for a third reason, and it was the FIXTURE.** The
-row meant to catch it compared one fork point against two different bases — under which
-`merge-base` moves too, so both halves of the key change together and dropping one is
-invisible. It now advances `main` instead, which leaves the fork point fixed and moves only
-what it is compared against. **A variant that moves two things at once cannot say which one
-the check is reading** (rule 8, inside a control).
+Three constraints on the rows and the `kills` lists, each of which a mutant walked through
+before it held:
+
+- **Every arm is called at its own address, not only through its consumer.** A row handing
+  `landed_status` a lambda never runs `_is_ancestor`, so the error-branch mutant is invisible to
+  it — the `tasks/106` shape. The producer rows run against a real repository where a missing
+  ref exits 128.
+- **A `kills` entry must name a row the mutant can reach.** Where two arms degrade the same way
+  — for a ref git cannot resolve, both return `None` — a mutation of one is invisible one level
+  up, so the composition carries its own mutant rather than borrowing the arms'.
+- **A variant that moves two things at once cannot say which one the check is reading**
+  (rule 8, inside a control). The cache-key row advances `main`, holding the fork point fixed;
+  comparing one fork point against two bases moves `merge-base` as well, and both halves of the
+  key change together.
 
 | Would re-open this | The observation |
 |---|---|
