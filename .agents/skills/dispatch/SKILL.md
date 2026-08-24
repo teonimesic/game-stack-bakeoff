@@ -142,14 +142,37 @@ python3 eval/tools/mergeable.py <n>   # exit 1 = do not merge. Read the reasons
 ```
 
 ```bash
+python3 eval/tools/mergeable.py <n>         # exit 1 = do not merge. Read the reasons
+gh pr merge <n> --squash --auto --delete-branch   # --auto: lands itself when checks pass
+# ... only once it has MERGED:
+git pull                                    # bring the squashed commit down
 git add tasks/ && git commit -m "Queue: agents' status writes through the shared queue"
-git push                        # the queue commit reaches main BEFORE the merge
-git worktree remove --force <path>          # BEFORE --delete-branch, not after
-gh pr merge <n> --squash --delete-branch    # squash: the branch is one commit on main
-git pull                        # bring the squashed commit into the local checkout
-git branch -D task-<id>-<slug>  # -D, not -d: see below
+git push
+git worktree remove --force <path>
+git branch -D task-<id>-<slug>              # -D, not -d: see below
 python3 eval/tools/tasks.py done <id> "what you verified, and how"
 ```
+
+> **The queue commit goes AFTER the merge, and this reversed on 2026-08-24.** It used to go first,
+> because agents write status into the main checkout and an uncommitted `tasks/` blocked a local
+> merge. Under `strict` required checks that ordering is actively wrong: **any push to `main`
+> puts every open pull request out of date**, so pushing the queue commit between verifying
+> `mergeable.py` and merging invalidates the very thing you just verified. It did exactly that
+> here — `mergeable.py` said *behind by 0*, the queue push landed, and `gh pr merge` came back
+> *"the head branch is not up to date"* seconds later.
+>
+> The local merge that made the old order necessary is gone, so nothing needs `tasks/` committed
+> first any more.
+
+**Use `--auto`.** With `strict` on and several pull requests open, the branch you verified goes
+stale whenever anything else lands, and `controls` is 685s, so the window between *green* and
+*merged* is minutes wide and someone else's merge closes it. `--auto` merges the moment the
+requirements are met instead of asking you to win a race. It needs `allow_auto_merge` on the
+repository, which is set.
+
+**While a pull request is waiting on `--auto`, do not push to `main`.** Every push restarts its
+checks from behind. Batch your own commits and land them after the queue drains, or accept that
+each push costs another `controls` round trip per open pull request.
 
 **The repository is squash-only** — `allow_merge_commit` and `allow_rebase_merge` are both off,
 so `--merge` and `--rebase` now fail rather than silently doing something else. A task branch
@@ -235,8 +258,9 @@ is the only thing that ever builds the combination.
 
 Three orderings in those six lines, and each one was paid for:
 
-- **The queue commit first**, because agents write status into the **main** checkout and an
-  uncommitted `tasks/` blocks everything after it.
+- **The queue commit LAST**, because any push to `main` puts every open pull request behind its
+  base under `strict`. This was the opposite until 2026-08-24; see the note above for what
+  reversed it.
 - **`git worktree remove` before `--delete-branch`.** `gh pr merge --delete-branch` deletes the
   remote branch and then fails on the local one while an agent worktree still holds it
   (`tasks/108`) — so you are left having half-cleaned up, with the remote gone and the local
