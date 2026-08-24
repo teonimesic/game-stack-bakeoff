@@ -151,6 +151,21 @@
       "declared_in": "task 88; README.md's 'The one thing this project actually learned' section now states the produced count beside its command",
       "replaced_by": "python3 eval/tools/docstat.py --findings, which counts eval/findings/ and eval/FINDINGS.md independently, prints the population it counted over, exits 2 rather than reporting 0, and exits 1 when the two sources or any live document disagree.",
       "retired_from_live_docs_by": "task 88"
+    },
+    {
+      "id": "WR-g1pong-round1-13-15",
+      "withdrawn": "2026-08-24",
+      "kind": "figure",
+      "claim": "the three g1_pong round-1 judge calls of 2026-08-16 stated as '$13.15, mean $4.38 per field call'",
+      "why": "It is the losing half of a two-way disagreement about ONE quantity, and not a rounding difference: 13.15/3 rounds to 4.38 and 13.16/3 rounds to 4.39, so each document was internally consistent and the two disagreed about the SUM. Neither can be re-read - these are the only judge rounds in the project with no surviving artifact (task 04), and judge_ledger.py --tree runs/ reads 97 rounds over 12 directories with none of them this field. The tie is decided anyway, by the ledger table that prints the figure: its g2_tetris3d rows sum to $33.63, which judge_ledger.py still re-derives to the cent from wg-tetris-judge-2026-08-17/pre/, and 46.79 - 33.63 = 13.16 exactly, where $13.15 would require a day total of $46.78. That is coherence with a published total rather than a re-reading, since $46.79 has no artifact either - but only $13.15 contradicts the table it was printed beside. The recorded per-call range $2.82-$5.29 discriminates neither: the third call is $5.05 under one and $5.04 under the other.",
+      "match": [
+        "(?<![0-9.])13\\.15(?![0-9])",
+        "(?<![0-9.])4\\.38(?![0-9])"
+      ],
+      "anchor": "tasks/130-the-g1-pong-round-1-mean-is-stated-as-both-4-39-.md",
+      "declared_in": "eval/RUNS.md, the note under the specialist-judge ledger table; DECISIONS.md, 'The g1_pong round-1 judge figure is $13.16, mean $4.39'; task 130",
+      "replaced_by": "$13.16 for the 3 calls and $4.39 for the mean, defined once in eval/RUNS.md's specialist-judge ledger together with the rounding rule - cents round half-up, never truncate. These 3 calls of 2026-08-16 cannot be reconstructed - their artifacts are gone - so no producer can re-derive THIS figure; that is a statement about these calls, not about judge costs in general, which judge_ledger.py produces from every round still on disk. The mean is a RETROSPECTIVE AGGREGATE and not a rate: it averages architecture and idiomatic over 3 calls, and per-aspect rates on g2_tetris3d span $0.60 to $6.81 a call, so nothing may be projected from it (AGENTS.md rule 4) - price a sweep from a (game, aspect) row of that same table instead, treating 2 calls as a lower bound. judge_ledger.py prints no per-call mean for this reason, and the 1 projection made from this one came out 1.84x low.",
+      "retired_from_live_docs_by": "task 130"
     }
   ]
 }

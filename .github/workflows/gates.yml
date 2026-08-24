@@ -129,6 +129,13 @@ jobs:
       - name: tokenvalue --selftest (no producer prints a money sigil)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/tokenvalue.py --selftest
+      # `.coderabbit.yaml` carried 894 characters in a field the schema caps at 250, from
+      # 2026-08-23, and every check was green: --schema audits `reviews.tools` and nothing
+      # else. This walks the scalar constraints against a CACHED schema, so it is offline and
+      # can gate. --schema refreshes the cache; this fails closed if the cache is missing.
+      - name: coderabbit_config --constraints (an over-long field can void the whole file)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/coderabbit_config.py --constraints
       # Main went red on a merge while both contributing pull requests were green: each
       # was tested against a base containing neither, and one was merged 12 commits behind
       # with no run at its final head. GitHub now enforces both natively -- `strict`

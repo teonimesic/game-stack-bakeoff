@@ -24,22 +24,9 @@ early_access: false
 
 # How to comment. Applies to every review in this repository.
 tone_instructions: |
-  Every comment must be worth the time it takes to read.
-
-  Before posting one, check it against these and drop it if it fails:
-    - Does it change what someone should DO? An observation that leads to no action is noise.
-    - Is it specific to a real consequence, not to a detail that happens to be visible? Do not
-      comment on a value, a wording or a style choice unless it has an effect you can name.
-    - Is it as short as it can be? Say the problem and the fix. No preamble, no restating the
-      diff, no explaining why review matters.
-    - Would a reader without this project's context understand it?
-
-  Do not raise the same point twice on one pull request, and do not re-raise a point the author
-  has answered with a measurement - reply to their answer or drop it.
-
-  Prefer few good comments over many. A review of three real problems is more useful than one of
-  fifteen where twelve are nitpicks.
-
+  Prefer few good comments over many. Post a comment only if it changes what someone should DO,
+  and say the problem and the fix with no preamble. Never raise the same point twice, or re-raise
+  one the author answered with a measurement.
 reviews:
   # `assertive`. Most of this repository is markdown, and the documentation is the part most
   # in need of review, so the reviewer is set to say more rather than less.
@@ -222,6 +209,23 @@ reviews:
         belongs in its authoritative document — that turns the skill into a second source of
         truth, which is a failure this project has already recorded.
 
+    # Comment quality, everywhere. This is the long form of `tone_instructions`, which the
+    # schema caps at 250 characters - a cap that silently invalidated this whole file once.
+    - path: "**"
+      instructions: |
+        Every comment must be worth the time it takes to read. Before posting one, check it
+        against these and drop it if it fails:
+          - Does it change what someone should DO? An observation leading to no action is noise.
+          - Is it specific to a real consequence, not to a detail that happens to be visible?
+            Do not comment on a value, a wording or a style choice unless it has an effect you
+            can name.
+          - Is it as short as it can be? Say the problem and the fix. No preamble, no restating
+            the diff, no explaining why review matters.
+          - Would a reader without this project's context understand it?
+        Do not raise the same point twice on one pull request, and do not re-raise a point the
+        author has answered with a measurement - reply to their answer or drop it.
+        A review of three real problems is more useful than one of fifteen where twelve are
+        nitpicks.
     - path: "**/*.md"
       instructions: |
         Review these documents for READABILITY as well as correctness. A reader arriving with no

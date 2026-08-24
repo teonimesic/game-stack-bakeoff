@@ -202,6 +202,78 @@ def control(config: dict, paths: list[str]) -> int:
     return 1 if failures else 0
 
 
+#: Where the fetched schema is cached, so the constraint walk can run with no network and
+#: therefore in CI. `--schema` refreshes it; `--constraints` reads it and FAILS CLOSED if it
+#: is absent, because a constraint check that skips itself is the vacuous pass this module
+#: exists to prevent.
+SCHEMA_CACHE = Path(__file__).resolve().parent / "coderabbit_schema.json"
+
+
+def constraint_problems(config: dict, schema: dict) -> list[str]:
+    """Scalar constraints the schema declares, checked against what we actually wrote.
+
+    THE DEFECT THIS WAS BOUGHT WITH: `tone_instructions` has `maxLength: 250` and this
+    repository wrote 894 characters into it on 2026-08-23. `schema_audit` was green
+    throughout, because it audits `reviews.tools` and nothing else. Nothing else asked.
+
+    Only `maxLength`, `enum` and scalar `type` are checked, and only for keys the schema
+    declares. That is deliberate: those three are unambiguous, and a checker that guesses at
+    the rest would fire on correct input, which is how a gate gets disabled.
+    """
+    problems: list[str] = []
+
+    def walk(node: dict, sub: dict, path: str) -> None:
+        props = (sub or {}).get("properties") or {}
+        for key, value in (node or {}).items():
+            spec = props.get(key)
+            if not isinstance(spec, dict):
+                continue                      # undeclared: schema_audit's question, not this one
+            where = f"{path}.{key}" if path else key
+            if isinstance(value, str):
+                cap = spec.get("maxLength")
+                if isinstance(cap, int) and len(value) > cap:
+                    problems.append(
+                        f"{where}: {len(value)} characters against the schema's maxLength "
+                        f"{cap}. An over-long field can invalidate the file, and an invalid "
+                        f"file is reviewed as though it were absent")
+                allowed = spec.get("enum")
+                if allowed and value not in allowed:
+                    problems.append(f"{where}: {value!r} is not one of {sorted(allowed)}")
+            want = spec.get("type")
+            if want == "string" and not isinstance(value, str):
+                problems.append(f"{where}: schema says string, we wrote {type(value).__name__}")
+            if want == "boolean" and not isinstance(value, bool):
+                problems.append(f"{where}: schema says boolean, we wrote {type(value).__name__}")
+            if isinstance(value, dict):
+                walk(value, spec, where)
+            if isinstance(value, list):
+                items = spec.get("items") or {}
+                for i, entry in enumerate(value):
+                    if isinstance(entry, dict):
+                        walk(entry, items, f"{where}[{i}]")
+
+    walk(config, schema, "")
+    return problems
+
+
+def constraint_audit(config: dict) -> int:
+    """`constraint_problems` against the CACHED schema. OFFLINE, so this one can gate."""
+    if not SCHEMA_CACHE.exists():
+        print(f"  RED  no cached schema at {SCHEMA_CACHE.name}. Run --schema to fetch it. "
+              f"Refusing to report a clean constraint audit against nothing.")
+        return 1
+    schema = json.loads(SCHEMA_CACHE.read_text(encoding="utf-8"))
+    problems = constraint_problems(config, schema)
+    for p in problems:
+        print(f"  RED  {p}")
+    if problems:
+        return 1
+    declared = len((schema.get("properties") or {}))
+    print(f"  ok   scalar constraints clean against {declared} declared top-level properties "
+          f"(cached schema, offline)")
+    return 0
+
+
 def schema_audit(config: dict) -> int:
     """Every key under `reviews.tools` against the published schema. NETWORK.
 
@@ -225,6 +297,14 @@ def schema_audit(config: dict) -> int:
         return 1
     schema = json.loads(body)
     print(f"  ok   {len(body)} bytes, {schema.get('$schema')}")
+    # Cache it so the constraint walk can run offline, and therefore in CI.
+    SCHEMA_CACHE.write_text(json.dumps(schema, indent=1, sort_keys=True), encoding="utf-8")
+    print(f"  ok   cached to {SCHEMA_CACHE.name} for the offline --constraints audit")
+    cp = constraint_problems(config, schema)
+    for problem in cp:
+        print(f"  RED  {problem}")
+    if not cp:
+        print("  ok   scalar constraints (maxLength, enum, type) clean against the live schema")
 
     try:
         tools_node = schema["properties"]["reviews"]["properties"]["tools"]
@@ -310,7 +390,10 @@ def main() -> int:
     )
     ap.add_argument("--control", action="store_true", help="pin the gate red and green")
     ap.add_argument("--schema", action="store_true",
-                    help="NETWORK: audit reviews.tools keys against the published schema")
+                    help="NETWORK: audit reviews.tools keys against the published schema, "
+                         "validate scalar constraints, and refresh the cached schema")
+    ap.add_argument("--constraints", action="store_true",
+                    help="OFFLINE: scalar constraints against the CACHED schema. Gateable")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
@@ -322,6 +405,10 @@ def main() -> int:
     if args.schema:
         print(f"{config_path}\n")
         return schema_control(config) if args.control else schema_audit(config)
+
+    if args.constraints:
+        print(f"{config_path}\n")
+        return constraint_audit(config)
 
     paths = tracked_files(root)
     print(f"{config_path} against {len(paths)} tracked files in {root}\n")
