@@ -1,7 +1,7 @@
 ---
 id: 130
 title: The g1_pong round-1 mean is stated as both 4.39 and 4.38, on a figure with no artifact behind it
-status: in_testing
+status: in_review
 priority: 3
 refs: eval/judge/JUDGING.md, eval/RUNS.md, tasks/04, eval/judge/judge_ledger.py, eval/withdrawn.json
 done_when: every live statement of the three-call figure agrees to the digit, the rounding rule is stated once where the figure is defined, and the fact that these rounds have no artifact is said beside it - or the figure is withdrawn into eval/withdrawn.json and the live documents repaired as docstat.py --withdrawn names them
