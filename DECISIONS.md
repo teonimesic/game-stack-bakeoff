@@ -2203,6 +2203,13 @@ merge time.
 **Protected.** Required `gates` and `controls`; `strict`, so a branch behind `main` cannot merge;
 `required_linear_history`; no force-pushes, no deletions; conversation resolution required.
 
+**Requiring `controls` is provisionally wrong and task 131 owns it.** It is path-filtered, and a
+filtered workflow that does not match produces no check rather than a passing one — so a pull
+request touching only `tasks/` or a root document can never satisfy it. Found by the control that
+proved `strict` works (PR #14, closed). The interim narrowing to `gates` alone is the operator's
+to apply; `gates` is where the step that went red in #162 lives, so the guarantee that motivated
+all of this survives the narrowing.
+
 `strict` is the one that was bought. On 2026-08-23 `main` went red on a merge where **both**
 contributing pull requests were green, each tested against a base containing neither (#162). A
 gate asking only *are the checks green* passes that, and did.

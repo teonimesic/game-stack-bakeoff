@@ -78,6 +78,14 @@ questions above plus the ways round them:
 | setting | what it stops |
 |---|---|
 | required checks `gates`, `controls` | merging with a red or missing check |
+
+> **`controls` is required AND path-filtered, and those two do not compose — task 131.**
+> A workflow that does not match `paths:` produces **no check**, not a passing one, so a
+> pull request touching only `tasks/`, `README.md` or `DECISIONS.md` waits forever on a
+> `controls` that will never report. Measured on control PR #14. Until it is fixed, such a
+> pull request needs the requirement narrowed to `gates`, or an admin merge.
+> `gates` alone would still have caught #162 — the step that went red lives there.
+
 | `strict: true` | merging a branch behind `main` — the #12/#13 failure |
 | `required_linear_history` | a merge commit on `main`, so squash is the only shape |
 | `allow_force_pushes: false`, `allow_deletions: false` | rewriting or removing `main` |
