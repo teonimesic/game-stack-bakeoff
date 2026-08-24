@@ -324,11 +324,12 @@ takes. `UNRESOLVED` is not a tie and must not be written as one.
 
 **At affordable N it can detect an ordering but cannot statistically prove a tie.** A Wilson 95%
 half-width at p=0.5 is 0.186 at n=24 and 0.098 at n=96 — so a ±0.10 statistical tie needs about
-**96 rounds per aspect**. At the measured mean of $4.38 per field call that is **~$420** of
-token valuation (96 x 4.38 = 420.48) and, more to the point, 96 sequential calls against one
-account's rate limit. This line said *$1,150* until 2026-08-23: that is 96 calls priced at the
-**$12 per-call ceiling**, not at anything measured, and the RESULT section 190 lines below had
-already corrected it to $420 while this paragraph went on stating the old figure.
+**96 rounds per aspect**. At the measured mean of $4.39 per field call that is **~$420** of
+token valuation — 96 x 13.16/3 = 421.12, projected from the unrounded sum rather than from the
+rounded mean — and, more to the point, 96 sequential calls against one account's rate limit.
+This line said *$1,150* until 2026-08-23: that is 96 calls priced at the **$12 per-call
+ceiling**, not at anything measured, and the RESULT section 190 lines below had already
+corrected it to $420 while this paragraph went on stating the old figure.
 
 The honest claims available at n=24 are therefore *"no ordering was found, ±0.19"* or *"the judge
 never separated this pair at all"*. `n_for_statistical_tie` is reported so the size of the
@@ -513,13 +514,20 @@ Unchanged. `verify_blind.py`, unpiped, after any starter or fixture change.
 
 ## First run on real submissions — 2026-08-16
 
-**Three calls, $13.15, then halted** so the deterministic result could be read without the
-subjective layer alongside it. **Measured cost: $2.82-$5.29 per field call (mean $4.38),
+**Three calls, $13.16, then halted** so the deterministic result could be read without the
+subjective layer alongside it. **Measured cost: $2.82-$5.29 per field call (mean $4.39),
 450-572 s wall.** That is the number to plan with; every earlier figure here was an estimate.
 At the mean, 3 games x 5 aspects x 2 orders is about **$130**, and the ~96 rounds per aspect a
-statistical tie would need is about **$420 per aspect** — 96 calls at the measured $4.38 mean.
-The figure quoted before this measurement was $1,150, which is the same 96 calls priced at the
-$12 per-call ceiling.
+statistical tie would need is about **$420 per aspect** — 96 x 13.16/3 = 421.12. The figure
+quoted before this measurement was $1,150, which is the same 96 calls priced at the $12 per-call
+ceiling.
+
+**These three rounds are the only ones here with no surviving artifact, and the figure is
+defined in `eval/RUNS.md`'s specialist-judge ledger** — with its rounding rule, and with why the
+sum is $13.16. Nothing in this file re-derives it: `judge_ledger.py --tree runs/` cannot see this
+field at all. This paragraph read *$13.15, mean $4.38* until 2026-08-24 — withdrawn,
+`WR-g1pong-round1-13-15`, which records why the two spellings were a disagreement about the sum
+rather than about rounding.
 
 **Gate 1, ceiling — PASSES, narrowly, on both aspects measured.**
 

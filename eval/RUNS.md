@@ -1274,8 +1274,25 @@ stored result files on 2026-08-16.
 >
 > The 3 `g1_pong` calls are also the only judge rounds in this project with **no surviving
 > artifact** — no `g1_pong__*__seed*.json` from 2026-08-16 exists anywhere (task 04, closed by
-> re-running them into `wg-funframes-crossgame/pong/` for $17.66). So $13.16 is in this ledger
-> and in no round file, and every other figure below is read from round files.
+> re-running them into `wg-funframes-crossgame/pong/` for $17.66). `python3
+> judge/judge_ledger.py --tree runs/` reads 97 rounds over 12 directories and none of them is
+> this field, so $13.16 is in this ledger and in no round file and nothing derived from it can
+> be re-read from source. Every other figure below is read from round files.
+>
+> **This row defines the three-call figure: $13.16, mean $4.39.** Cents here round half-up and
+> never truncate, so the mean is 13.16 / 3 = 4.386667 -> $4.39; project from the unrounded
+> 13.16 / 3, which makes 96 calls $421.12. `JUDGING.md` carried $13.15 and $4.38 until
+> 2026-08-24 — withdrawn, `WR-g1pong-round1-13-15` — and that was a disagreement about the
+> **sum**, not about rounding, because 13.15 / 3 rounds to 4.38 just as cleanly. This table
+> settles it without a preference: its `g2_tetris3d` rows sum to $33.63, which
+> `judge_ledger.py` still re-derives to the cent from `pre/`, and $46.79 - $33.63 = $13.16
+> exactly, where $13.15 would need a day total of $46.78. That is coherence with a published
+> total rather than a re-reading — $46.79 has no artifact either — but only $13.15 contradicts
+> the table it was printed beside. The per-call range $2.82-$5.29 discriminates neither.
+>
+> **The mean spans two aspects**, `architecture` and `idiomatic`, which is why
+> `judge_ledger.py` prints no per-call mean at all — and why the projection made from it came
+> out 1.84x low (below). `DECISIONS.md` holds the derivation and what would re-open it.
 
 **Round 2 — the repaired instrument, 2026-08-17.** Same five aspects, same game, both orders,
 after the `fun` telemetry repair, `architecture`'s extension-blind packs and the adjudicator

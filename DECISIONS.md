@@ -2225,6 +2225,54 @@ path, and it is advisory by construction: a step someone has to run.
 bypass ever lands a red `main` again — `enforce_admins` becomes the cheaper answer and the
 dispatch procedure should change to suit it.
 
+## The `g1_pong` round-1 judge figure is $13.16, mean $4.39, and cents round half-up — decided 2026-08-24
+
+The three `g1_pong` field calls of 2026-08-16 are the only judge rounds here with **no surviving
+artifact** (task 04). `python3 eval/judge/judge_ledger.py --tree eval/runs/` reads 97 rounds over
+12 directories and none of them is this field, so the figure cannot be re-read and never will be.
+It was published two ways: **$13.16 / mean $4.39** in `eval/RUNS.md` and `eval/AGENTS.md`,
+**$13.15 / mean $4.38** in `eval/judge/JUDGING.md` — which also stated $13.16 fifty lines further
+down the same file. The second pair is now withdrawn, `WR-g1pong-round1-13-15`.
+
+**It was filed as a rounding disagreement and it is not one** (`WR-g1pong-round1-13-15`).
+13.16 / 3 = 4.386667 and 13.15 / 3 = 4.383333, and half-up rounding takes those to 4.39 and 4.38
+respectively, so each document was internally consistent and the two disagreed about the **sum**.
+That distinction is what makes this decidable: a rounding convention is a preference, and a sum
+is a claim with evidence behind it.
+
+**$13.16 wins on the arithmetic of the table that prints it.** The `g2_tetris3d` rows of that
+ledger sum to $33.63, which `judge_ledger.py` still re-derives to the cent from
+`wg-tetris-judge-2026-08-17/pre/`, and the published day total is $46.79: 46.79 - 33.63 = 13.16
+exactly, where $13.15 would require a total of $46.78. **This is coherence with a published
+total, not a re-reading** — $46.79 has no artifact either — but only one of the two candidates
+contradicts the table it was printed beside. The recorded per-call range $2.82-$5.29
+discriminates neither: the third call is $5.05 under one and $5.04 under the other.
+
+**This is not the move `eval/RUNS.md` refuses for the $118.62/$118.63 pair.** That pair is two
+readings of two different sources — trial records at full precision against a build log rounded
+per line — and adjusting either would destroy a reading. Here there is one quantity, one
+spelling closes the arithmetic of its own table, and the other closes nothing.
+
+**Cents round half-up, never truncate**, stated once beside the figure in `eval/RUNS.md`'s
+specialist-judge ledger. Anything projected from the figure is derived from the unrounded
+13.16 / 3, not from $4.39: 96 calls are $421.12.
+
+**Withdrawing the figure outright was the alternative and was rejected.** $13.16 is load-bearing
+for the #121 correction — it is the part of $46.79 that is *not* the tetris field — so retiring
+it would take the correction with it. What the figure cannot support is being a planning basis:
+it is a mean over three calls spanning two aspects, which is why `judge_ledger.py` prints no
+per-call mean at all, and the one projection made from it came out 1.84x low.
+
+**The losing spelling is declared, not merely corrected.** `$13.15 / $4.38` is register entry
+`WR-g1pong-round1-13-15`, so `docstat.py --withdrawn` now turns red if either reappears in a live
+document outside a block citing that id. Before the entry existed the check was green with
+`JUDGING.md` stating the retired pair, which is the point of the register: a stale figure agrees
+with every copy of itself and no consistency check can see it (#113, #119).
+
+**To re-open:** a `g1_pong` round file from 2026-08-16 turning up, which would make the figure
+readable and could contradict either candidate; or the $46.79 day total being shown wrong, which
+is the only ground this choice rests on.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
