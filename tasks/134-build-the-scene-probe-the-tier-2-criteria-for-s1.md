@@ -1,11 +1,12 @@
 ---
 id: 134
 title: 'Build the scene probe: the tier-2 criteria for s1_parallax and s2_glass, each with a mutant and a variant'
-status: in_review
+status: in_testing
 priority: 1
 refs: 'eval/SCENES.md, eval/judge/bot_mutants.py, eval/judge/RUBRIC.md, tasks/133, #45, #46, #92, #123'
 done_when: Every criterion in eval/SCENES.md is implemented, binary, and reported per-criterion; each has a mutant that dies and a variant that probes an input the check could mishandle, both run by a single command in CI; the seed pair is scored as ONE criterion; the criteria that can be are measured from BOTH telemetry and pixels with the two compared; and a census reports how many submissions each criterion separated, with any criterion that separated none named as an open question rather than shipped quietly. BLOCKED BEHIND 133.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/20
+established_by: 20 mutants over 15 criteria and 8 variants pass in CI, 0 unmet; census reports 15 of 15 separated over 30 fixture subjects and NOT ASKED on 0 stored gradings; both red required checks are the tasks/136 sweep defect on main, reproduced against origin/main's own copy of that file
 ---
 
 Scenes have no player, so the play-bot tier has no referent. Its replacement is a **scene probe**:
@@ -92,3 +93,87 @@ have none, and none is coming until a matrix runs. So every criterion is written
 Do not tune a criterion until the fixtures pass. That is fitting the instrument to the only data
 it has. If a criterion cannot be made to work on a fixture whose answer you stated in advance,
 that is a finding about the criterion, and reporting it is a complete outcome.
+
+## note 2026-08-24
+
+The scene probe is `eval/judge/scene_probe.py`; `eval/judge/scene_mutants.py` pins it in
+both directions and both run in `controls.yml`. Two reference fixtures were written for
+it: `eval/judge/fixtures/ref_parallax` and `ref_glass`, on the `ref_arena` model.
+
+## What the next agent should not re-derive
+
+**The seed pair is one criterion and `table.y` is not a floor.** `DECISIONS.md` holds
+both, with the reasoning. The `table.y` reading disagrees with this ticket's own note:
+the contract calls it *"the height of the surface everything stands on"* and the scene
+has two surfaces, so a floor test on that field fails correct work. It is used for the
+SCALE — `max |glass.y - table.y|` — which is what makes every distance tolerance a share
+of the drop rather than a number in somebody's world units.
+
+**`front.occludes` is telemetry-only and cannot be otherwise.** The trace contract gives
+the car's world position and each foreground thing's world position and no screen box for
+the car, so the pixels cannot be asked whether one covered the other. Adding `car.screen`
+to the contract would make it measurable twice — and that is a prompt change, which is a
+regime boundary. Do not "fix" it inside the judge.
+
+**The image-side shift estimator was chosen on measured counts, and the obvious
+robustification is worse.** 5 candidates over the same 88 frame pairs; clipping the
+profile at 3x its own mean — the textbook fix for one strong edge dominating a sum — is
+9 pairs worse than doing nothing. The table is in `DECISIONS.md`. The shipped estimator
+misses 8 of the 132 pairs in the 3 parallax fixtures and every miss is one shape: a band
+holding an object that is stationary on screen. Two gates absorb it —
+`ParallaxScene._reliable`'s 80% self-agreement, and the wrap check's `blind` counter.
+**Do not go looking for a better estimator without re-running that comparison**; the
+scratch harness that produced it is gone, but the 5 candidates are named in
+`DECISIONS.md` and the fixtures reproduce them.
+
+**Not wired into `judge/evaluate.py`, deliberately.** Nothing launches a scene, so the
+wiring would be an unexercised path through the evaluator that every game trial runs. It
+is a separate change and it needs its own regime note in `eval/RUNS.md`.
+
+## What the census does and does not say
+
+`scene_mutants.py --census` reports over **fixtures**, and says so in its own output.
+`--runs-root <main>/eval/runs` prints `NOT ASKED - 0 scene gradings on disk`, never
+`0 separated`. `--census-selftest` proves the census can print `NO - AN OPEN QUESTION`;
+without it a census that has only ever printed `yes` is indistinguishable from one that
+cannot print anything else.
+
+All 15 criteria read `yes` over the 30 fixture-derived subjects. **That is not a result
+about the criteria.** No scene has been built or graded, every threshold was chosen
+against fixtures written by the same hand as the criterion, and #46 — sixteen false
+negatives in one sweep of criteria that were green on their reference — is the honest
+prior. Say so wherever a scene score is reported; four documents already do.
+
+## Three things the suite found that I had expected to pass
+
+1. A mutant that did not bite: `the rewind holds on the broken state` left the closing
+   snap-back in place, so the criterion correctly passed. A mutant must remove the
+   mechanism the criterion names, not one next to it.
+2. A variant found a real false negative — the reversed-id scene, which is the same
+   scene with its textures dealt to different bands. That is what produced the estimator
+   comparison above.
+3. The geometry variant found a fixture defect: `ref_parallax`'s renderer had no camera
+   scale, so a bigger frame was a wider window rather than a zoom. `the same scene filmed
+   1.5x larger` is now a real measurement of the #59 claim rather than a restatement.
+
+## What the review found, and it was all real
+
+Three rounds, the third clean. A published number was wrong — `DECISIONS.md` and
+`scene_probe.py` named two different fourth estimator candidates and the pair attributed
+to clipping belonged to neither (it is 40/44 and 33/44). Six ways the probe could publish
+a wrong number rather than crash, the worst being `_wheels` raising `StatisticsError` on
+a speed distribution with an empty slow half, which `drive` turned into every criterion
+FALSE. And `ref_glass` reported a stationary fragment as unsettled for several ticks,
+while `shatter.pieces_rest` reads exactly that field.
+
+`judge/png.py` now writes atomically and is the single writer for all 6 fixtures; run
+`bot_mutants.py` after touching it.
+
+## Needs a finding number
+
+The estimator measurement — 5 candidates over 88 frame pairs, with the textbook
+robustification measurably worse than the thing it was meant to fix, and an independently
+rebuilt fixed-window variant landing on the identical 82/88 as the shipped one. It is
+another instance of *choose between candidates on the live-corpus count, never on which
+one sounds more principled*, this time against an image estimator rather than a regex.
+Allocate it against `main` at merge.

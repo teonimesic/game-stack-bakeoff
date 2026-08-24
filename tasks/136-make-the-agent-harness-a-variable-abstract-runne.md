@@ -1,10 +1,11 @@
 ---
 id: 136
 title: 'Make the agent harness a variable: abstract runner.py off the claude CLI and add a prime-agent arm'
-status: todo
+status: in_review
 priority: 2
 refs: 'eval/runner.py, eval/RUNS.md, eval/PROTOCOL.md, eval/tools/tokenvalue.py, #159, #36, #31, eval/SCENES.md'
 done_when: run_agent is split into per-harness argv/parse/normalise with the claude arm producing byte-identical argv to today (assert it, do not eyeball it); a prime-agent arm runs one real trial end to end and stores a record whose token counts and turns are populated and whose terminal reason maps to the shared enumeration; no cross-harness dollar comparison is produced anywhere; the isolation flags for prime-agent are established or their absence recorded with what it costs; and eval/RUNS.md gains the harness as a recorded arm dimension.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/21
 ---
 
 `eval/runner.py`'s `run_agent()` hardcodes the `claude` CLI in its argv, and `parse_agent_result`

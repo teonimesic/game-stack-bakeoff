@@ -259,6 +259,30 @@ The test before you save: **could someone who has never worked on this project s
 know when to stop?** If not, it is a note to yourself, and notes to yourself do not survive the
 session that wrote them.
 
+## A ticket is a document, and the doc gates read it
+
+**Run `python3 eval/tools/docstat.py --sweep` after every `tasks.py add` and every `tasks.py note`,
+before you push.** `tasks/` is inside the sweep's population, so a ticket is held to the same
+standard as `README.md`: every flag, path and name it spells must resolve.
+
+This is not hypothetical tidiness. On 2026-08-24 the orchestrator reddened `main` **twice in one
+day** by exactly this route — a ticket describing a second agent harness named that tool's flags
+(`--print`, `--cwd`, `--provider`, `--thinking`, then `--autonomous`, `--autonomous-max-turns`),
+and the sweep cannot tell a foreign tool's flag from a phantom one of ours. Both times the ticket
+was correct and useful; both times the push went out unswept, and the second one **blocked every
+open pull request**, because a red required gate on `main` is inherited by every branch that
+merges it.
+
+Two shapes to expect, and they need opposite fixes:
+
+| the ticket names | fix |
+|---|---|
+| a flag belonging to **another tool** — `gh`, `jq`, `prime-agent`, the `claude` CLI | add it to `FOREIGN_FLAGS_EXACT`, or to `FOREIGN_FLAG_PREFIXES` if it is a distinctive family. Never widen the trigger to a word class |
+| a flag **this repository will define**, in the pull request the ticket is about | leave it. It resolves when that branch merges, and until then the red is telling the truth: the name does not exist yet |
+
+The second is worth recognising on sight, because the instinct is to allowlist it — which would
+permanently disarm the check for a name that is about to become real.
+
 ## When the heartbeat fires
 
 The heartbeat's measurement is `eval/tools/heartbeat.py` — a file, so it can be corrected when
