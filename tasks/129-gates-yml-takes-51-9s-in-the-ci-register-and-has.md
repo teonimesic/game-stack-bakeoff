@@ -120,3 +120,16 @@ the first note stays withdrawn.
 
 **Three figures for one step inside one day — 47s, 10s, 19s — all correct when read.**
 That is the ticket's own subject, and the reason a producer beats a number in a file.
+
+## note 2026-08-24
+
+## BLOCKED behind task 131 — file conflict, not a dependency of reasoning
+
+131 edits `eval/tools/ci_minutes.py` (moving `controls.yml`'s path filter out of `on:` and into a
+step, which changes `filter_problems()`) and `.github/workflows/README.md`. Those are the two
+files this ticket exists to change. Do not start until 131 has merged, then re-read both — the
+register's structure and `ci_minutes.py`'s surface will have moved under this ticket's assumptions.
+
+Also note: the repository went public on 2026-08-24, so the register's "Minutes" section no longer
+describes a bill. If both duration figures survive, they are wall-clock in front of a merge, which
+is a stronger reason to produce them properly than metering ever was.
