@@ -396,28 +396,135 @@ def _is_ancestor(ref: str, bases: "list[tuple[str, str]] | None" = None) -> bool
     return None if unknown else False
 
 
-def landed_status(tid: str, refs: list[str] | None, is_ancestor) -> tuple[str, list[str]]:
-    """Is a closed ticket's work reachable from `main`? THREE values, never two.
+#: DIFF OPTIONS SHARED BY BOTH SIDES OF THE PATCH-ID COMPARISON, and they have to be the same
+#: options or the comparison is between two different renderings of the same change. `patch-id`
+#: hashes the diff TEXT, so rename detection -- on by default, and a function of how much of the
+#: tree each side is asked about -- can give one side a `rename from/to` pair where the other has
+#: a delete and an add. `--no-renames` removes the only option whose value differs between a
+#: two-tree diff and a per-commit one.
+_PATCH_DIFF = ("--no-color", "--no-renames", "--full-index")
 
-    `LANDED` at least one `task-<id>-*` ref is an ancestor of `main`.
-    `ORPHANED` such a ref exists and NONE of them is. This is the defect: a queue entry
-                 reading `done` over work `main` has never seen. Task 70 sat like that with
-                 458 lines of `eval/judge/paired_verdicts.py` reachable from nowhere else,
-                 and nothing in the repository compared a closed ticket against the tree.
+
+def _patch_id(diff: str) -> str | None:
+    """The patch-id of one diff, or None if there is nothing to identify."""
+    if not diff.strip():
+        return None
+    try:
+        r = subprocess.run(["git", "-C", str(TASKS.parent), "patch-id", "--stable"],
+                           input=diff, capture_output=True, text=True, check=False)
+    except (FileNotFoundError, OSError):
+        return None
+    fields = r.stdout.split()
+    return fields[0] if r.returncode == 0 and fields else None
+
+
+def _squash_landed(ref: str, bases: "list[tuple[str, str]]") -> bool | None:
+    """Did `ref`'s CHANGES land, as a commit that is not `ref`? True / False / **None**.
+
+    THE ANCESTRY TEST IS THE WRONG ONE UNDER SQUASH MERGES, and this repository squashes.
+    `gh pr merge --squash` writes a commit with ONE parent and a tree of its own, so the
+    branch tip it landed is an ancestor of nothing and never will be -- `git branch -d`
+    refuses such a branch for exactly that reason and is correct. Measured on this
+    repository: PR #16's tip `58df942` is an ancestor of nothing, while its squash commit
+    `399280e` is an ancestor of `main`.
+
+    So this asks the question ancestry was standing in for: is the branch's combined change
+    already present on the base? `merge-base .. ref` rendered as one diff has the same
+    patch-id as the squash commit GitHub wrote, because they are the same change. An empty
+    diff is True -- a branch introducing nothing is a branch with nothing to lose.
+
+    THREE-VALUED FOR THE SAME REASON `_is_ancestor` IS. A git failure is not a "no", and a
+    ticket whose content this could not read must degrade to NOT_CHECKED rather than become
+    an accusation (AGENTS.md rule 2).
+
+    WHAT IT CANNOT SEE. A squash whose diff differs from the branch's own -- because the base
+    moved under a file the branch also edited, and the merge resolved the overlap -- has a
+    different patch-id and reads False. That is fail-closed: it costs attention, never
+    evidence, and it is the direction rule 7 asks for.
+    """
+    unknown = False
+    for _label, rev in bases:
+        try:
+            mb = subprocess.run(["git", "-C", str(TASKS.parent), "merge-base", ref, rev],
+                                capture_output=True, text=True, check=False)
+            if mb.returncode != 0:
+                unknown = True
+                continue
+            base_sha = mb.stdout.strip()
+            d = subprocess.run(["git", "-C", str(TASKS.parent), "diff", *_PATCH_DIFF,
+                                base_sha, ref], capture_output=True, text=True,
+                               check=False)
+            if d.returncode != 0:
+                unknown = True
+                continue
+            if not d.stdout.strip():
+                return True
+            want = _patch_id(d.stdout)
+            if want is None:
+                unknown = True
+                continue
+            log = subprocess.run(["git", "-C", str(TASKS.parent), "log", *_PATCH_DIFF,
+                                  "-p", "--no-merges", f"{base_sha}..{rev}"],
+                                 capture_output=True, text=True, check=False)
+            if log.returncode != 0:
+                unknown = True
+                continue
+            ids = subprocess.run(["git", "-C", str(TASKS.parent), "patch-id", "--stable"],
+                                 input=log.stdout, capture_output=True, text=True,
+                                 check=False)
+            if ids.returncode != 0:
+                unknown = True
+                continue
+            if any(ln.split()[:1] == [want] for ln in ids.stdout.splitlines()):
+                return True
+        except (FileNotFoundError, OSError):
+            return None
+    return None if unknown else False
+
+
+def _is_landed(ref: str, bases: "list[tuple[str, str]] | None" = None) -> bool | None:
+    """Is `ref`'s work on the base, by REACHABILITY or by CONTENT? True / False / None.
+
+    Two tests, because this repository has used two merge flows and the stored refs of both
+    are still around. `git merge --no-ff` leaves the tip reachable; `gh pr merge --squash`
+    leaves the content and not the tip. Either one landing is landed.
+
+    The three values compose the only way they safely can: a True from either test wins, and
+    an unanswered test outranks a False -- a ref neither test could read is NOT_CHECKED, never
+    ORPHANED.
+    """
+    b = _resolved_bases() if bases is None else bases
+    anc = _is_ancestor(ref, b)
+    if anc is True:
+        return True
+    sq = _squash_landed(ref, b)
+    if sq is True:
+        return True
+    if anc is None or sq is None:
+        return None
+    return False
+
+
+def landed_status(tid: str, refs: list[str] | None, is_landed) -> tuple[str, list[str]]:
+    """Has a closed ticket's work reached `main`? THREE values, never two.
+
+    `LANDED` at least one `task-<id>-*` ref has landed -- its tip is an ancestor of the
+                 base, OR its change is on the base as a squash commit. `_is_landed` is the
+                 predicate `check` passes, and both flows count: the repository has used
+                 both, and refs from each survive.
+    `ORPHANED` such a ref exists and NONE of them has landed by either test. This is the
+                 defect: a queue entry reading `done` over work `main` has never seen. Task
+                 70 sat like that with 458 lines of `eval/judge/paired_verdicts.py` reachable
+                 from nowhere else, and nothing compared a closed ticket against the tree.
     `NOT_CHECKED` no such ref exists -- the usual case, because a merged branch is normally
                  deleted. **It is not a pass.** `total=0 passed=0` is indistinguishable from
                  correct failure (rule 1), and a two-valued version of this check would
                  report 112 of 119 closed tickets as verified while verifying nothing.
 
-    WHAT IT ASKS IS REACHABILITY, NOT CONTENT. A branch merged with `-s ours`, or one whose
-    changes a later commit reverted, reads `LANDED` here and its work is absent. That is the
-    variant this cannot see (rule 15), and it is why the failure message says *read the
-    diff* rather than *merge it*.
-
-    THE KNOWN FALSE POSITIVE IS A SQUASH MERGE, which lands the content and leaves the tip
-    unreachable. 0 of the 7 tickets with a surviving branch were squashed when this shipped;
-    if the repository starts squashing, this trigger stops being the right one rather than
-    needing a wider tolerance.
+    WHAT IT ASKS IS ARRIVAL, NOT SURVIVAL. A branch merged with `-s ours`, or one whose
+    changes a later commit reverted, reads `LANDED` here and its work is absent from the tree
+    today. That is the variant this cannot see (rule 15), and it is why the failure message
+    says *read the diff* rather than *merge it*.
 
     A VERDICT IS RELATIVE TO THE REFS THE CALLER CAN SEE, AND CI CAN SEE FEWER. Measured on
     the same commit, the same day: the operator's checkout read `7 LANDED / 112 NOT_CHECKED`
@@ -433,11 +540,11 @@ def landed_status(tid: str, refs: list[str] | None, is_ancestor) -> tuple[str, l
     cand = sorted(r for r in refs if pat.match(r))
     if not cand:
         return "NOT_CHECKED", []
-    # `is_ancestor` is THREE-VALUED: None means git could not answer (a ref that vanished
+    # `is_landed` is THREE-VALUED: None means git could not answer (a ref that vanished
     # between the listing and here, a corrupt object). An unanswered ref is not a
     # negative one, so it degrades the ticket to NOT_CHECKED. Accusing on a failed read
     # is rule 2 -- inferring a state from something that is not a report of it.
-    verdicts = [is_ancestor(r) for r in cand]
+    verdicts = [is_landed(r) for r in cand]
     if any(v is True for v in verdicts):
         return "LANDED", cand
     if any(v is None for v in verdicts):
@@ -1218,13 +1325,17 @@ def cmd_check() -> int:
             print(f"  {w}")
         print()
 
-    # A `done` TICKET WHOSE BRANCH IS NOT AN ANCESTOR OF `main`. See `landed_status` for what
+    # A `done` TICKET WHOSE BRANCH HAS NOT REACHED `main`. See `landed_status` for what
     # the three values mean and what this cannot see. Measured on the live queue of 121
     # tickets before it shipped: 119 `done`, of which 6 LANDED, 1 ORPHANED -- task 70, the
     # true positive that caused this check to be written -- and 112 NOT_CHECKED. **0 false
     # positives.** The counts are printed rather than remembered: the population moves
     # every time a branch is deleted AND every time a peer closes a ticket in the shared
     # queue -- it was 120 done / 8 LANDED within the hour, before this had merged.
+    #
+    # THAT 0 DID NOT SURVIVE THE MERGE FLOW CHANGING. Once the repository became squash-only,
+    # ancestry alone accused every merged ticket whose ref outlived the merge -- tasks 130,
+    # 131 and 133, measured 2026-08-24 -- which is why `_is_landed` asks a second question.
     refs = _all_refs()
     bases = _resolved_bases()
     if not bases:
@@ -1234,16 +1345,16 @@ def cmd_check() -> int:
         if t.get("status") != "done":
             continue
         verdict, cand = landed_status(str(t.get("id")), refs,
-                                      lambda r: _is_ancestor(r, bases))
+                                      lambda r: _is_landed(r, bases))
         if verdict == "LANDED":
             landed += 1
         elif verdict == "NOT_CHECKED":
             notchecked += 1
         else:
-            bad.append(f"{t.get('id')}: status done, but {', '.join(cand)} is not an "
-                       f"ancestor of main - the queue says this work is merged and the "
-                       f"tree has never seen it. Read the branch diff before believing "
-                       f"either side")
+            bad.append(f"{t.get('id')}: status done, but {', '.join(cand)} has not "
+                       f"landed on main - neither an ancestor of it nor a change already "
+                       f"on it. The queue says this work is merged and the tree has never "
+                       f"seen it. Read the branch diff before believing either side")
     print(f"branches of `done` tickets: {landed} reachable from "
           f"{' / '.join(lbl for lbl, _ in bases) or '-'}, "
           f"{notchecked} NOT CHECKED (no `task-<id>-*` ref survives - not a pass)"

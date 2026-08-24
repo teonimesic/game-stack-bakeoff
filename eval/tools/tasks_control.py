@@ -1324,16 +1324,29 @@ LANDED_UNKNOWN_CASES = (
      "70", ["refs/heads/task-70-stray"], lambda r: False, "ORPHANED"),
 )
 
+#: A REAL SQUASH MERGE IN THIS REPOSITORY, named by sha, so direction 11c says something about
+#: git's behaviour here and not only about a fixture built to agree with it. PR #16 merged
+#: 2026-08-24: `_REAL_SQUASH_TIP` is the branch tip and is an ancestor of NOTHING, while
+#: `_REAL_SQUASH_COMMIT` carries the same change and is an ancestor of `main`.
+#:
+#: BOTH ARE UNREACHABLE OBJECTS -- the remote branch was deleted on merge -- so a fresh clone
+#: and a CI checkout do not have them, and the rows built on them report NOT CHECKED there
+#: rather than passing. `_REAL_SQUASH_COMMIT`'s own ancestry is asserted first: it is the row
+#: whose answer is known in advance, without which the pair proves only that git ran.
+_REAL_SQUASH_TIP = "58df942db5fae6a6537c26b40096c2894b1f3c90"
+_REAL_SQUASH_COMMIT = "399280e7f059aaf694fa517c331f83f875a5cfb8"
+
 
 # --------------------------------------------------------------------------- direction 11
-def landed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+def landed_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[str]]:
     """11: can `check` see a `done` ticket whose branch never reached `main`?
 
     11a pins the PREDICATE in process, with a stated `_ANCESTORS` set standing in for git, so
     every row is deterministic and the id-boundary variants can be asked at all. 11b runs
     `check` end to end in a real scratch repository, because 4c measured what happens when a
     predicate is correct and nothing reports it: `if False:` left 34 green rows and a gate
-    that printed nothing (`tasks/106`).
+    that printed nothing (`tasks/106`). 11b's merge is `--no-ff`, which is the flow this
+    repository has abandoned; `_squash_rows` is 11c and covers the one it uses.
 
     WHAT 11b DOES NOT DO is assert the live queue's numbers. The population moves whenever a
     branch is deleted, so the figure that mattered -- 119 `done`, 6 LANDED, 1 ORPHANED, 112
@@ -1446,7 +1459,165 @@ def landed_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
                  rc2, rc2 == 0 and "1 NOT CHECKED" in out2,
                  f"exit {rc2}: "
                  f"{next((ln for ln in out2.splitlines() if 'done` tickets' in ln), out2[:80])}"))
-    return rows, []
+
+    rows_c, unchecked_c = _squash_rows(tmp, live_refs)
+    return rows + rows_c, unchecked_c
+
+
+# --------------------------------------------------------------------------- direction 11c
+def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[str]]:
+    """11c: the SQUASH flow, which is the one this repository merges by.
+
+    `gh pr merge --squash` writes a commit with ONE parent and a tree of its own, so the tip
+    it landed is an ancestor of nothing and never will be -- `git branch -d` refuses such a
+    branch and is right to. Ancestry alone therefore read every merged ticket as ORPHANED
+    (task 140), which is fail-closed and still fatal: the count grows by one per merge, and a
+    gate red for reasons unrelated to the change in front of you is a gate that gets bypassed.
+
+    FOUR REFS, BECAUSE THE DEFECT HAS TWO FACES AND EACH NEEDS BOTH DIRECTIONS. A
+    remote-tracking ref disappears on the next `fetch --prune`, so that face heals itself and
+    an investigator arriving after a prune finds nothing; a LOCAL branch survives until
+    somebody deletes it by hand, so that face never heals. A fixture carrying only one of them
+    proves less than it looks.
+
+    The scratch half performs a real `merge --squash` and runs anywhere. One live row runs
+    anywhere too -- a real squash commit on this repository's `main` has ONE parent, which is
+    the property that breaks ancestry, and it is reachable from `main` in every clone. The
+    deleted branch tip is behind `--live-squash-refs`; see the comment at that block.
+    """
+    rows: list[tuple] = []
+    unchecked: list[str] = []
+
+    sq, _ = _scratch_pair(tmp / "squash")
+    shutil.copy(TASKS_PY, sq / "eval/tools/tasks.py")
+
+    def g(*a):
+        return subprocess.run(["git", "-C", str(sq), *a], check=True,
+                              capture_output=True, text=True)
+
+    def squashed(tid: str, name: str, keep_local: bool) -> str:
+        """Branch, commit, `merge --squash` onto main, and leave ONE of the two faces."""
+        g("checkout", "-q", "-b", f"task-{tid}-{name}")
+        (sq / f"{name}.txt").write_text(f"work for {tid}\n")
+        g("add", "-A"); g("commit", "-qm", f"work {tid}")
+        tip = g("rev-parse", "HEAD").stdout.strip()
+        g("checkout", "-q", "main")
+        g("merge", "-q", "--squash", f"task-{tid}-{name}")
+        g("commit", "-qm", f"Task {tid}: {name} (#{tid})")
+        if not keep_local:
+            g("branch", "-qD", f"task-{tid}-{name}")
+            g("update-ref", f"refs/remotes/origin/task-{tid}-{name}", tip)
+        return tip
+
+    def unmerged(tid: str, name: str, keep_local: bool) -> str:
+        g("checkout", "-q", "-b", f"task-{tid}-{name}")
+        (sq / f"{name}.txt").write_text(f"work for {tid} that never landed\n")
+        g("add", "-A"); g("commit", "-qm", f"work {tid}")
+        tip = g("rev-parse", "HEAD").stdout.strip()
+        g("checkout", "-q", "main")
+        if not keep_local:
+            g("branch", "-qD", f"task-{tid}-{name}")
+            g("update-ref", f"refs/remotes/origin/task-{tid}-{name}", tip)
+        return tip
+
+    squashed("70", "squashed-local", keep_local=True)
+    squashed("72", "squashed-remote", keep_local=False)
+    unmerged("71", "orphan-local", keep_local=True)
+    unmerged("73", "orphan-remote", keep_local=False)
+    for tid in ("70", "71", "72", "73"):
+        (sq / "tasks" / f"{tid}-a.md").write_text(_task_file(tid, status="done"))
+
+    rc, out = _run_tool(sq / "eval/tools/tasks.py", "check")
+    named = sorted(ln.split(":")[0].strip() for ln in out.splitlines()
+                   if "status done" in ln)
+    rows.append(("SQUASH end to end: exit 1, naming ONLY the two that never landed", rc,
+                 rc == 1 and named == ["71", "73"], f"exit {rc}, named {named}"))
+    census = next((ln for ln in out.splitlines() if "done` tickets" in ln), "(absent)")
+    rows.append(("...and both squash-merged faces count as LANDED, local and remote", rc,
+                 "2 reachable from" in census, census))
+
+    # THE PREDICATE, at the live repository's own address rather than through `check`. The
+    # rows above cannot reach the third value: a set of four refs that all resolve has no
+    # way to make git fail, and a consumer pinned without its producer is the `tasks/106`
+    # shape that let an error-branch mutant survive direction 11 the first time.
+    base = [("main", g("rev-parse", "main").stdout.strip())]
+    saved = T.TASKS
+    try:
+        T.TASKS = sq / "tasks"
+        got_sq = T._squash_landed("refs/heads/task-70-squashed-local", base)
+        got_orphan = T._squash_landed("refs/heads/task-71-orphan-local", base)
+        got_missing = T._squash_landed("refs/heads/no-such-branch-here", base)
+        landed_orphan = T._is_landed("refs/heads/task-71-orphan-local", base)
+        landed_missing = T._is_landed("refs/heads/no-such-branch-here", base)
+    finally:
+        T.TASKS = saved
+    rows.append(("_squash_landed is True for a squash-merged tip", 0, got_sq is True,
+                 f"got {got_sq!r}"))
+    rows.append(("VARIANT: _squash_landed is False for work that never landed", 0,
+                 got_orphan is False, f"got {got_orphan!r}"))
+    rows.append(("_squash_landed returns None (not False) when git cannot answer", 0,
+                 got_missing is None, f"got {got_missing!r} for a nonexistent ref"))
+    rows.append(("_is_landed passes the None through - unreadable is NOT_CHECKED", 0,
+                 landed_missing is None, f"got {landed_missing!r}"))
+    rows.append(("VARIANT: _is_landed still returns False on a genuine orphan", 0,
+                 landed_orphan is False, f"got {landed_orphan!r}"))
+
+    def here(rev: str) -> bool:
+        return subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "-q",
+                               f"{rev}^{{commit}}"], capture_output=True,
+                              check=False).returncode == 0
+
+    # THE LIVE ROW THAT RUNS EVERYWHERE, and it is the one whose answer is known in advance.
+    # `_REAL_SQUASH_COMMIT` is a real `gh pr merge --squash` on this repository's `main`, so
+    # it is reachable from `main` in every clone -- and it has exactly ONE parent, which is
+    # the whole reason the tip it landed is an ancestor of nothing. If this repository ever
+    # went back to `git merge --no-ff` this row would not notice, but the fixture above does
+    # not depend on it: the fixture squashes for real.
+    parents = subprocess.run(["git", "-C", str(ROOT), "rev-list", "--parents", "-n", "1",
+                              _REAL_SQUASH_COMMIT], capture_output=True, text=True,
+                             check=False)
+    n_parents = len(parents.stdout.split()) - 1 if parents.returncode == 0 else -1
+    rows.append(("a real squash merge on this repository's main has ONE parent - why a "
+                 "landed tip is an ancestor of nothing", 0, n_parents == 1,
+                 f"{_REAL_SQUASH_COMMIT[:9]}: {n_parents} parent(s), tip "
+                 f"{_REAL_SQUASH_TIP[:9]} in this clone: {here(_REAL_SQUASH_TIP)}"))
+
+    # THE DELETED TIP, WHICH ONLY THE MACHINE THAT MERGED IT STILL HAS. `delete_branch_on_merge`
+    # removes the branch, so `58df942` is reachable from nothing and no clone that did not
+    # perform the merge can fetch it -- CI included. Making these rows unconditional would
+    # report NOT CHECKED (exit 3) on every machine but one, turning a correct CI run red for a
+    # reason unrelated to the change in front of it, which is this ticket's own defect one
+    # level up. So the flag is opt-in, the row above states whether the object is here, and
+    # asking for it when it is absent is NOT CHECKED rather than a quiet pass.
+    if not live_refs:
+        return rows, unchecked
+    main_sha = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "main"],
+                              capture_output=True, text=True, check=False)
+    if not (here(_REAL_SQUASH_TIP) and here(_REAL_SQUASH_COMMIT)
+            and main_sha.returncode == 0):
+        unchecked.append("--live-squash-refs asked for PR #16's pair and this clone does "
+                         "not have it: the merged branch was deleted upstream, so only the "
+                         "checkout that performed the merge still holds the tip")
+        return rows, unchecked
+    real_base = [("main", main_sha.stdout.strip())]
+    saved = T.TASKS
+    try:
+        T.TASKS = ROOT / "tasks"
+        known = T._is_ancestor(_REAL_SQUASH_COMMIT, real_base)
+        anc = T._is_ancestor(_REAL_SQUASH_TIP, real_base)
+        content = T._squash_landed(_REAL_SQUASH_TIP, real_base)
+        verdict = T._is_landed(_REAL_SQUASH_TIP, real_base)
+    finally:
+        T.TASKS = saved
+    rows.append(("live: PR #16's SQUASH COMMIT is an ancestor of main", 0, known is True,
+                 f"{_REAL_SQUASH_COMMIT[:9]}: got {known!r}"))
+    rows.append(("live: PR #16's BRANCH TIP is an ancestor of nothing - the defect", 0,
+                 anc is False, f"{_REAL_SQUASH_TIP[:9]}: got {anc!r}"))
+    rows.append(("live: ...while its CHANGE is on main - the same real ref, both directions",
+                 0, content is True, f"{_REAL_SQUASH_TIP[:9]}: got {content!r}"))
+    rows.append(("live: ...so `check` reads PR #16's ticket LANDED, not ORPHANED", 0,
+                 verdict is True, f"{_REAL_SQUASH_TIP[:9]}: got {verdict!r}"))
+    return rows, unchecked
 
 
 def main(argv: list[str]) -> int:
@@ -1456,6 +1627,12 @@ def main(argv: list[str]) -> int:
                     help="skip the positive controls in directions 2 and 8 (each needs a "
                          "pre-fix blob from git). Every arm they cover is then reported "
                          "NOT CHECKED.")
+    ap.add_argument("--live-squash-refs", action="store_true",
+                    help="additionally grade direction 11c against PR #16's real objects. "
+                         "Off by default because the merged branch was deleted upstream: "
+                         "only the checkout that performed the merge still has the tip, so "
+                         "everywhere else this reports NOT CHECKED (exit 3) rather than a "
+                         "pass. Direction 11c's fixture squashes for real and needs no flag.")
     ap.add_argument("--tasks-py", metavar="PATH",
                     help="grade this copy of tasks.py instead of the repository's. Used by "
                          "tasks_mutants.py, which writes a MUTATED copy into a tempdir; "
@@ -1489,7 +1666,7 @@ def main(argv: list[str]) -> int:
                    lambda: coverage_rows(),
                    lambda: status_rows(tmp),
                    lambda: evidence_rows(tmp, a.skip_prefix),
-                   lambda: landed_rows(tmp)):
+                   lambda: landed_rows(tmp, a.live_squash_refs)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)
