@@ -263,15 +263,32 @@ def identity() -> int:
 # Snapshot and diff
 # --------------------------------------------------------------------------- #
 
+def _write_atomic(path: str, text: str) -> None:
+    """Write through a temporary file in the same directory, then `os.replace`.
+
+    A snapshot is the durable record of what a run was configured to be, and an artifact
+    caught mid-write is indistinguishable from one never written (AGENTS.md rule 2). A
+    partial `.txt` reads to `--diff` as drift and a truncated `index.json` aborts it
+    before it can report any, so neither may exist even for an instant.
+    """
+    tmp = f"{path}.tmp.{os.getpid()}"
+    with open(tmp, "w") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
 def snapshot(path: str) -> int:
     os.makedirs(path, exist_ok=True)
     idx = {}
     for task, render in ALL_TASKS.items():
         for s in STACKS:
             t = render(s)
-            open(os.path.join(path, f"{task}__{s}.txt"), "w").write(t)
+            _write_atomic(os.path.join(path, f"{task}__{s}.txt"), t)
             idx[f"{task}__{s}"] = hashlib.sha256(t.encode()).hexdigest()[:16]
-    json.dump(idx, open(os.path.join(path, "index.json"), "w"), indent=2, sort_keys=True)
+    # index.json LAST, and it is the commit marker: `--diff` refuses a directory without
+    # one rather than reporting a snapshot it only partly has.
+    _write_atomic(os.path.join(path, "index.json"),
+                  json.dumps(idx, indent=2, sort_keys=True))
     print(f"snapshot: {len(idx)} rendered prompts -> {path}")
     return 0
 

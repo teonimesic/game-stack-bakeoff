@@ -30,7 +30,7 @@ did until 2026-08-23, agreeing to the digit with a `RUNS.md` figure produced the
 > `judge/tier1_census.py` (68 submissions before and after, over **84** gradings on disk).
 > Any new walker over `runs/` gets the same treatment and a fixture with a nested run in it.
 
-**There are two TASK CLASSES and they are graded separately.** `suites/wholegame_prompts.py`
+**There are 2 TASK CLASSES and they are graded separately.** `suites/wholegame_prompts.py`
 holds the games; `suites/scene_prompts.py` holds the scenes — timed sequences with no player,
 designed in `SCENES.md`, which is the authority for them. Never pool a scene score with a game
 score. Nothing launches a scene yet: the prompts and the capture contract exist, the probe that

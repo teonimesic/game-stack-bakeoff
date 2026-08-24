@@ -7,13 +7,14 @@ argument-hint: [game-id]
 
 # Adding a task or a criterion
 
-Authoritative references: `eval/suites/wholegame_prompts.py` (its module docstring holds
-the prompt rules), `eval/judge/RUBRIC.md`, `eval/G4-PLATFORMER.md` (a worked design).
+Authoritative files: `eval/suites/wholegame_prompts.py` (its module docstring holds the
+prompt rules), `eval/suites/scene_prompts.py`, `eval/SCENES.md`, `eval/judge/RUBRIC.md`,
+`eval/G4-PLATFORMER.md` (a worked design). **If any of them disagrees with this skill, it
+wins and this skill is the bug.**
 
-**Two task classes, two modules.** Games are in `eval/suites/wholegame_prompts.py`; scenes
-— timed sequences with no player — are in `eval/suites/scene_prompts.py`, and
-`eval/SCENES.md` is their design authority. The split is deliberate: each class has its own
-preamble, so an edit for one cannot reach the other. Everything below applies to both.
+**2 task classes, 2 modules.** Games are in `eval/suites/wholegame_prompts.py`; scenes —
+timed sequences with no player — are in `eval/suites/scene_prompts.py`. Each class has its
+own preamble, so an edit for one cannot reach the other. Everything below applies to both.
 
 ## The prompt
 
@@ -48,29 +49,29 @@ python3 tools/prompt_guard_control.py               # can the guard fail? can it
 ```
 
 The prompts are **one template per task rendered per stack** — `gN_*(stack)` and
-`sN_*(stack)` functions over vocabulary dicts, no per-stack copies. The identity is
-structural, not maintained by hand: across all 24 rendered prompts **97.3% of lines and
-90.9% of characters** are shared by all four stacks, and the differences are only "where
-things go" and "how to make sound". **Quote the unit** — the two figures differ by six
-points because a substituted line is a long one — and quote `--identity`, which is the
-producer for both.
+`sN_*(stack)` functions over vocabulary dicts, no per-stack copies. Most of every prompt is
+byte-identical across the stacks and the differences are only "where things go" and "how to
+make sound"; the identity is structural, not maintained by hand. **Never quote a share from
+memory or from here — run `--identity` and quote its number with its unit.** It prints
+lines and characters separately because they differ by 6 points, and `eval/SCENES.md`
+carries the current table.
 
-Three ways that structure breaks silently. All three are asserted:
+3 ways that structure breaks silently. All 3 are asserted:
 
-**Stack axis — an engine name in a task body.** Writing `Bevy` or `AudioStreamPlayer` into
-the task's own text instead of a vocabulary dict hands one stack its own vocabulary. The
-first bake-off did this with byte-identical prompts and cost a full run; turn counts
-reversed after the fix (rust 32→49, ts 50→43).
+**Stack axis — an engine name in a task body.** `Bevy` or `AudioStreamPlayer` in the task's
+own text instead of a vocabulary dict hands one stack its own vocabulary. Protects the
+comparison itself: a prompt written in one stack's words is not the same task for the other
+3.
 
 **Task axis — a preamble is shared by every task in its class.** An edit aimed at one task
-reaches all of them, correctly where aimed and invisibly everywhere else. A mouse-aiming
-clause written for the 3D arena landed in Pong, Tetris and the platformer, and would have
-contaminated the one experiment whose entire design was a single variable (#41).
+reaches all of them, correctly where aimed and invisibly everywhere else. Protects
+single-variable experiments (#41).
 
 **Rubric axis — a scene prompt stating a scene criterion.** `eval/SCENES.md` is for us; a
-prompt repeating one of its criteria, thresholds or tolerances is teaching to the test. The
-guard greps the **rendered** scene prompts, because a leak arriving through a vocabulary
-dict leaves the body looking clean.
+prompt repeating one of its criteria, thresholds or tolerances is teaching to the test.
+Protects the discriminating power of every scene criterion. The guard greps the **rendered**
+scene prompts, because a leak arriving through a vocabulary dict leaves the body looking
+clean.
 
 > **Snapshot the rendered prompts at the start of every run, and diff before any
 > comparison.** Diff the rendered inputs, not the source that renders them — a shared
@@ -79,14 +80,15 @@ dict leaves the body looking clean.
 > **a deliberate prompt edit must re-record it in the same commit**:
 > `python3 eval/tools/prompt_guard.py --snapshot eval/suites/rendered`.
 
-All three are pinned in both directions by `tools/prompt_guard_control.py`, which applies
-one edit per row to a temp copy of the guard and its inputs and compares against what the
-row declared in advance. Run it after any change to the guard; a red row there is the guard
+All 3 are pinned in both directions by `tools/prompt_guard_control.py`, which applies one
+edit per row to a temp copy of the guard and its inputs and compares against what the row
+declared in advance. Run it after any change to the guard; a red row there is the guard
 losing an ability, not a prompt problem.
 
 A guard that only ever prints "ok" has not been shown to be capable of anything else — and
-a guard that reddens on correct input is one somebody switches off. `probe` was on the
-rubric term list and came off it for hitting all 8 scene prompts with no true positive.
+a guard that reddens on correct input is one somebody switches off. A term that fires on
+the functional contract comes off the rubric list; `DECISIONS.md` records how that choice
+is made.
 
 ## Criteria are experiments, not observations
 

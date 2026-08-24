@@ -23,29 +23,28 @@ So a scene submission must:
 Determinism is not a nicety here. It is what lets every criterion below be computed by a script
 instead of by an opinion, and what makes the same-seed / different-seed pair a real control.
 
-**The claim above was checked per stack rather than assumed, because the whole estimate rests on
-it.** All four starters ship `just film SEED TICKS SCRIPT OUTDIR`, all four capture at most **12**
-frames evenly spaced over `0..=TICKS` with both ends included, and all four compute the same tick
-list, `floor(i * TICKS / 11)` for `i` in `0..11` — `crates/game/src/bin/film.rs`,
-`scripts/film.ts`, `tools/film.gd`, `Assets/Editor/Probe.cs`. So the fixed list of tick indices a
-scene needs is already a pure function of the tick count, and every starter carries a
-`rendering is reproducible across runs` test that asserts the frames for a seed are unchanged
-from one run to the next. **No starter change is needed for scenes** — which matters, because a
-starter edit is a regime boundary.
+**The fixed list of tick indices already exists and is the same in all 4 starters.**
+`just film SEED TICKS SCRIPT OUTDIR` captures at most **12** frames evenly spaced over `0..=TICKS`
+with both ends included, at ticks `floor(i * TICKS / 11)` for `i` in `0..11` —
+`crates/game/src/bin/film.rs`, `scripts/film.ts`, `tools/film.gd`, `Assets/Editor/Probe.cs`. So
+the tick list is a pure function of the tick count, and each starter carries a
+`rendering is reproducible across runs` test asserting the frames for a seed are unchanged from
+one run to the next. **No starter change is needed for scenes** — which matters, because a starter
+edit is a regime boundary.
 
 ## The prompts
 
-`eval/suites/scene_prompts.py` renders both scenes for all four stacks: one template per scene
-over vocabulary dicts, the same structure the games use, and **deliberately a separate module**
-from `wholegame_prompts.py`. The scenes need preamble text the games do not (no player, no
-controls, no sound, a fixed-length run), and a preamble shared across task classes is #41 with a
-different subject. The isolation is measured rather than asserted: editing the scene preamble
-moves **8** rendered prompts and no game; editing the game preamble moves **16** and no scene
-(`tools/prompt_guard_control.py`, the two `diff-sees-*-preamble-edit` rows).
+`eval/suites/scene_prompts.py` renders the 2 scenes for all 4 stacks: 1 template per scene over
+vocabulary dicts, the same structure the games use, and **a separate module** from
+`wholegame_prompts.py` because the scenes need preamble text the games do not — no player, no
+controls, no sound, a fixed-length run. Editing the scene preamble moves **8** rendered prompts
+and no game; editing the game preamble moves **16** and no scene
+(`tools/prompt_guard_control.py`, the 2 `diff-sees-*-preamble-edit` rows). Under 1 shared
+preamble either would move 24, which is #41. `DECISIONS.md` holds the derivation.
 
 How much of a prompt is the same in every stack:
 
-| | lines shared across all four stacks | characters |
+| | lines shared across all 4 stacks | characters |
 |---|---|---|
 | the 4 games | 97.3–98.4% | 90.4–95.0% |
 | `s1_parallax` | 96.3% | 88.5% |
@@ -54,10 +53,8 @@ How much of a prompt is the same in every stack:
 
     python3 eval/tools/prompt_guard.py --identity
 
-**Both units, because they differ by six points and only one of them is what the documents
-quote.** A substituted line is a long one — a whole vocabulary paragraph on a single line — so the
-line share runs well above the character share. `.agents/skills/add-game/SKILL.md`'s figure is the
-line share.
+**Quote the unit.** The 2 differ by 6 points, because a substituted line is a long one — a whole
+vocabulary paragraph on 1 line — so the line share runs well above the character share.
 
 ### The prompt is not the rubric, and that is checked mechanically
 
@@ -72,17 +69,13 @@ measure. The two sharpest omissions are deliberate and look like oversights:
   the scene exists for.
 
 `python3 eval/tools/prompt_guard.py` greps the **rendered** scene prompts — not the templates,
-because a leak can arrive through a vocabulary dict and leave the body looking clean — against two
+because a leak can arrive through a vocabulary dict and leave the body looking clean — against 2
 closed lists in `tools/prompt_guard.py`: the measurement vocabulary this file uses to state a
 criterion, and English bound expressions, which is what a threshold is. Every term on the first
 list must appear in this file, so the list cannot drift into words this file never used.
-
-> **The obvious trigger was built first and was strictly worse.** Taking every content word of the
-> criterion columns above gives 85 words and **31 hits across the 24 rendered prompts, none of
-> them a real leak** — `water`, `glass`, `layers`, `seed` and `tick` are the scene's own subject
-> and its capture contract. An open class of English words is an enumeration in disguise. The
-> shipped lists are at **0** false positives on the scene prompts, and `probe` came off the first
-> list for hitting all 8 of them with no true positive.
+`tools/prompt_guard_control.py` pins both directions, and `DECISIONS.md` records why the lists are
+curated rather than derived from this file's criterion columns, with the false-positive counts
+that decided it.
 
 ## Grading: what replaces the play-bot
 

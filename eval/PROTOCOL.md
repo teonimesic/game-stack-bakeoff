@@ -683,10 +683,10 @@ price. Keep at least one warm tree per stack when reclaiming any run.
   | one line changed in the scene preamble | **exit 1**, `8 rendered prompt(s) differ` — every scene, every stack, no game |
   | a task added to a registry | **exit 1**, naming the 4 renderings not in the snapshot |
 
-  The middle rows are #41 reproducing on demand: **a single preamble line moves every prompt
-  of its task class at once**, which is why the guard is a diff of the RENDERED output and not
-  a review of the source that renders it. They also measure the isolation between the two
-  classes — 16 and 8, never 24.
+  The middle rows are #41 reproducing on demand: **1 preamble line moves every prompt of its
+  task class at once**, which is why the guard is a diff of the RENDERED output and not a
+  review of the source that renders it. They also measure the isolation between the 2 classes
+  — 16 and 8, never 24.
 
   **The snapshot must live at `runs/<run>/prompts`** — durable, inside the run. A snapshot in
   `$TMPDIR` is the artifact-lifetime defect of #45: it can be gone before the diff that needs
