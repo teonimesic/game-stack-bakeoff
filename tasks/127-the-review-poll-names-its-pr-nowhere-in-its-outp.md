@@ -1,11 +1,12 @@
 ---
 id: 127
 title: The review poll names its PR nowhere in its output, and a shared scratchpad repointed one at another agent's pull request mid-run
-status: in_review
+status: done
 priority: 2
 refs: .claude/skills/work/SKILL.md section 6, AGENTS.md rule 12, DECISIONS.md 'An agent hands back a pull request', tasks/123, tasks/108
 done_when: .claude/skills/work/SKILL.md section 6's recipe either asserts the branch it is polling or prints the PR and branch on every poll line - decide which and say why on the property, not on the instance; the choice is pinned by a control that goes red when the recipe is aimed at a PR that is not the agent's own branch; the same question is asked of every other recipe in .claude/skills/ that writes to a fixed scratchpad path, with the ones that are safe named and why; and if AGENTS.md rule 12's instance table gains a row it is written as the PROPERTY - an address that can change after it is written - not as 'the scratchpad'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/18
+established_by: 'PR #18 squash-merged. Verified independently on real subjects: --pr 9 --branch task-123 returns LANDED_REVIEW exit 0 and --pr 10 with that same branch returns ''WRONG PR ... you are polling somebody else''s pull request'' exit 1, with the PR, branch and head named in the output the old recipe printed none of. 64 selftest checks (9 variants), 32 mutants all caught, gate count 41 agreeing with its producer on the merged tree. I adjudicated the last review thread myself: the staged-content guidance said ''prove'' via git status and proving is what it did not do; now stage, assert porcelain empty, run gates, assert empty again.'
 ---
 
 Measured during task 123 on 2026-08-23. The work skill's section 6 poll recipe hardcodes PR=<n> and prints only the head sha, so the PR being polled appears in NO line of output. I wrote the recipe to scratchpad/pollreview.sh - a generic name in a directory shared with every concurrent session - and an agent working task 124 wrote its own copy to the same path with PR=10. My background loop calls the script by path each iteration, so it silently switched to polling PR #10 (task-124-ci-path-filter-and-minutes) and kept reporting 'not yet' at exit 0. Nothing in 16 polls of output could have shown it. This is AGENTS.md rule 12 - a correct method aimed at an address nobody re-verified - in a variant its own five-instance table does not contain: a SHARED MUTABLE address, where the address was right when written and wrong later. The failure direction is the dangerous one: had PR 10's review landed, my loop would have reported LANDED for a review of someone else's diff, and the next step in the procedure is to read that review and act on it. The repair used in task 123 is in scratchpad/task123-poll-pr9.sh and is two lines: name the script for the ticket AND the PR, and assert headRefName equals the expected branch before believing any answer, exiting 1 with 'WRONG PR' otherwise. Controls both directions: PR=9 returns 'not yet (... head=55a0901)' exit 0; the same script with PR=10 returns "WRONG PR: #10 is 'task-124-ci-path-filter-and-minutes'" exit 1.
@@ -207,3 +208,33 @@ with `git status --short`. It is rule 12 with the worktree as the wrong address.
   a parameter chosen by judgement that nothing here can measure, and the failure it would
   introduce (missing a real pause) is worse than the one it removes (1 review from the shared pool
   spent on an unnecessary `@coderabbitai review`).
+
+## note 2026-08-24
+
+## note 2026-08-24 (hand-back) — the round budget, and what the last 2 rounds were for
+
+**6 review rounds, over the ceiling of 5, and here is why that is not the ticket being bigger
+than it was filed as.** Round 5 came back **clean** — `LANDED_COMMENT`, *"No actionable comments
+were generated"* — which is where the procedure says to stop. What followed was not another fix
+iteration:
+
+| after round 5 | why it needed a push |
+|---|---|
+| merge from `main` | `main` moved 4 commits and its task 133 added 2 gates to `gates.yml` while this branch adds 2. Both sides pinned 39; the merged workflow has 41. `mergeable.py` refuses a branch behind its base |
+| the pin the merge left unstaged | `git commit --no-edit` finishes a merge from the index. Green locally, red in CI, same second |
+| `--ignore-notice` | found by using the tool: a notice outlives the pause it describes, so the poll started **after** acting on one stops at `elapsed=1s` for ever |
+
+Round 6 then found 2 real things in that work, both taken. If the budget matters, the honest
+count is **5 rounds of review on the deliverable and 1 on the merge**.
+
+**Final state.** Head `c84adc6`, `gates` **1m27s** pass, `controls` **10m15s** pass, CodeRabbit
+pass. 13 threads over 6 rounds, **0 declined outright** — the only partial decline was round 2's
+request to name a shell producer for `AGENTS.md` rule 12's row counts, where the population is the
+table 1 line below and `docstat.py --sweep` already reads adjacent counts green; the numbers now
+name that population instead.
+
+**Producers for every count in the pull request body:**
+
+    python3 eval/tools/pr_review_state.py --selftest        # 64 checks, 9 variants
+    python3 eval/tools/pr_review_state_mutants.py           # 32 mutants
+    python3 eval/tools/ci_minutes.py --gates                # 41 gates.yml gates
