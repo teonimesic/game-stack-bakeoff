@@ -322,3 +322,54 @@ that rambles, a section that is dense evidence in table form, and a whole file t
 heading to split on. Only one of the fourteen was actually a reader problem (the skill), and one
 more was misfiled evidence rather than excess evidence. **~24,000 of the 27,212 tokens are earned**,
 and the honest output of this task is the per-section reasoning above rather than the 1,640 saved.
+
+## 2026-08-24 — refs, on-disk weight, and what today's changes falsified
+
+Area chosen because every previous pass covered documents, `tasks/` or linters, and **nobody had
+looked at the repository's own refs or its disk**.
+
+### Cleared
+
+- **109 stray `worktree-agent-*` local branches, deleted.** Left behind by the Agent tool's
+  worktree isolation, one per dispatched agent since the project started. Each was checked
+  individually before deletion — `git rev-list --count main..<branch>` — and **all 109 returned 0**,
+  so none carried a commit absent from `main`. Deleted under that guard rather than by pattern, and
+  the guard printed what it skipped: nothing.
+- **2 merged task branches, deleted with `-D`.** The guard *correctly refused* these two: their
+  commits are not ancestors of `main` because the pull requests were **squash**-merged, so the
+  content is on `main` and the commits are not. That is the trap now written into the dispatch
+  skill, and it is worth knowing that the obvious guard reports a squash-merged branch as
+  unmerged. Verified by the authoritative signal instead — both pull requests `MERGED`, both remote
+  branches already gone — then removed.
+- `refs/heads` is now **`main` alone**, and `git gc --prune=now` leaves `.git` at **5.3 MiB**.
+
+### Examined and judged sound — do not redo these
+
+- **Disk is not a problem and needs no ticket.** `eval/runs/` is **4.5G** against the operator's
+  100G cap. The working tree is 4.9G total and `.git` is 5.3M of it, so nothing is in git.
+- **`eval/starters/` is 377M on disk and 4.3M tracked** across 232 files. The remainder is
+  `ts/node_modules` (173M), `unity/build` (96M) and `unity/Library` (70M) — all gitignored, all
+  regenerable, and `node_modules` is **load-bearing**: `parity_selftest` exits 1 without it
+  (`.github/workflows/README.md`). Deleting the Unity pair would reclaim ~166M against 332Gi free.
+  Not worth doing.
+- **`eval/instrfollow/` is live, not dead weight.** 968K tracked, referenced from `README.md`,
+  `DECISIONS.md`, `docstat.py`, `tokenvalue.py` and `tasks/39`, carries its own `DESIGN.md` and
+  `RESULT.md`, and was touched on 2026-08-23. Checked because nothing in this log had ever
+  mentioned it.
+- **`README.md`'s "bounded contribution of 0.10"** (the judge-weight argument) is correct as
+  written. It is the bound the argument uses — *even at the 0.10 it briefly carried* — not a claim
+  that the current weight is 0.10, which the same file states as 0.00 twenty lines above.
+
+### Found and fixed
+
+- **`README.md` described `.coderabbit.yaml` as "exclusion-only".** False since the review
+  configuration was rewritten on 2026-08-23 at the operator's request: it is `profile: assertive`
+  with **9 path instructions that direct review**, including reviewing the starter trees and the
+  readability of prose. Corrected in place. **Nothing could have caught this** — the sweep checks
+  that names resolve, not that a description still matches the thing it describes.
+
+### A note on method, since it happened twice in this pass
+
+`grep -rln "x" --include=*.py` returns *"no matches found"* under **zsh**, which tries to glob the
+unquoted pattern. Same family as #164, met twice within the hour of writing it. Quote every glob
+passed to a tool that does its own matching.

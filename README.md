@@ -182,7 +182,7 @@ survives any particular value ([#144]). Design, result and controls:
 | How does subjective judging work, and what is changing? | [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md) |
 | What is not done yet? | [`tasks/`](tasks/), via `python3 eval/tools/tasks.py next` |
 | What are the always-loaded rules? | [`AGENTS.md`](AGENTS.md) |
-| What is a pull request here reviewed for? | [`.coderabbit.yaml`](.coderabbit.yaml) — exclusion-only; [`DECISIONS.md`](DECISIONS.md) holds the reasoning and what would re-open it |
+| What is a pull request here reviewed for? | [`.coderabbit.yaml`](.coderabbit.yaml) — an assertive review with per-directory instructions, including the readability of prose; [`DECISIONS.md`](DECISIONS.md) holds the reasoning and what would re-open it |
 
 Two directories are worth knowing about before you open anything:
 
