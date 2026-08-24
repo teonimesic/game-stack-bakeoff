@@ -1163,7 +1163,6 @@ SCHEMA = {
 def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
               max_turns: int = 120, budget: float = 12.0,
               timeout_s: int = 3600) -> dict[str, Any]:
-    aspect = ASPECTS[aspect_id]
     mapping = json.loads(mapping_path(pack).read_text())
     stray = sorted(q.name for q in pack.rglob("*")
                    if q.is_file() and "MAPPING" in q.name)
@@ -1180,9 +1179,16 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
     # CHECKED HERE AS WELL AS AT BOTH CLIs, because the resource is "a judge field run
     # against a task" and this is the function that spends it (rule 13). It refuses an
     # id it cannot classify rather than assuming a game.
+    #
+    # BEFORE `ASPECTS[aspect_id]`, and that ordering is the guard. `field.py run` takes
+    # `--aspect` with no `choices`, so an id this module does not define reached the
+    # subscript and raised `KeyError` -- an uncaught traceback where every other refusal
+    # here is a stored `usable: False` record saying what was wrong. `applicability`
+    # answers for an unknown aspect id as well as for a wrong pairing.
     refusal = applicability(aspect_id, mapping.get("game") or "")
     if refusal:
         return {"usable": False, "error": f"refusing to judge: {refusal}"}
+    aspect = ASPECTS[aspect_id]
     # A pack built for one aspect does not carry another aspect's evidence. Judging
     # `fun` over a code-only pack would produce eight confident scores derived from
     # nothing that was asked about.

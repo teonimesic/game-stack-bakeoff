@@ -560,6 +560,32 @@ def main() -> int:
                f"not say whether it is complete; it must refuse rather than let the "
                f"brief guess")
 
+        # -------------------------------------------------------------------
+        # 10. EVERY REFUSAL IS A STORED RECORD, including the one for an aspect id
+        #     this module does not define. `field.py run` takes `--aspect` with no
+        #     `choices`, so an unknown id used to reach `ASPECTS[aspect_id]` and raise
+        #     KeyError - an uncaught traceback where every sibling refusal is a
+        #     `usable: False` saying what was wrong. The positive half is next to it:
+        #     a REAL aspect must not be refused for this reason, or the check would
+        #     pass by refusing everything.
+        #
+        #     Both calls go to `stripped`, the pack with no recorded completeness
+        #     state, so each one stops at a guard rather than spawning a judge. A
+        #     positive half aimed at a healthy pack would run the model.
+        # -------------------------------------------------------------------
+        res = field.run_field(stripped, "no_such_aspect")
+        expect("refuses-an-unknown-aspect-id-as-a-record",
+               res.get("usable") is False and "is not an aspect" in
+               (res.get("error") or ""),
+               f"run_field returned {str(res)[:160]!r} for an aspect id aspects.py "
+               f"does not define; it must refuse in the same shape as its siblings "
+               f"rather than raising")
+        res = field.run_field(stripped, a0.id)
+        expect("a-real-aspect-is-not-refused-as-unknown",
+               "is not an aspect" not in (res.get("error") or ""),
+               f"run_field refused the real aspect {a0.id!r} as unknown, so check 10 "
+               f"passes by refusing everything")
+
     if FAILS:
         print(f"BLURB SELFTEST: {len(FAILS)} unmet expectation(s)\n")
         for f in FAILS:

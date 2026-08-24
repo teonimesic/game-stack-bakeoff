@@ -126,9 +126,9 @@ that would score every submission zero for a thing nobody asked for.
 Implemented in `aspects.py` (the questions), `field.py` (packing, running, gates) and
 `field_sweep.py` (a whole matrix with a measured cost ceiling).
 
-**Nine aspects exist, and all nine are runnable.** Six are asked of games and three of
-scenes; `aspects.applicability()` refuses every other pairing, at `field.py pack`, at
-`field.run_field` and at `field_sweep.py`. Of the six game aspects, five are opinions and
+**9 aspects exist, and all 9 are runnable.** 6 are asked of games and 3 of scenes;
+`aspects.applicability()` refuses every other pairing, at `field.py pack`, at
+`field.run_field` and at `field_sweep.py`. Of the 6 game aspects, 5 are opinions and
 `fun_frames` is `fun`'s control, listed last for that reason and not because it is optional.
 The count is `len(ASPECTS)` and `docstat.py --sweep` fails on any live doc that claims to name
 them all and does not — this table said five for as long as `ASPECTS` held six.
@@ -145,7 +145,7 @@ them all and does not — this table said five for as long as `ASPECTS` held six
 | `motion` | scene | frames | the same 12 frames |
 | `framework_fluency` | scene | source | anonymised source + `CHANGED.txt`, **extensions kept** — see the cross-stack bar below |
 
-**The three scene aspects have never met a submission.** No scene has been built, so no scene
+**The 3 scene aspects have never met a submission.** No scene has been built, so no scene
 field has been packed and no round has been run; every word about them is design, not result.
 `eval/SCENES.md` is the authority for the class and states what each one is for.
 

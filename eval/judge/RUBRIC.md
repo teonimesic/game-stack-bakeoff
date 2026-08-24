@@ -525,9 +525,9 @@ The old split was 10 code / 3 visual. That is backwards for the question being a
 The deterministic tiers already prove the code works; what they cannot see is whether
 the result is a game anyone would want to play.
 
-**These nine aspects exist.** The ids are the ones `aspects.py` defines and
+**These 9 aspects exist.** The ids are the ones `aspects.py` defines and
 `field_sweep.py --aspects` accepts; re-read from `ASPECTS` 2026-08-24. Nothing else is
-runnable, whatever any design table says. Six are asked of games and three of scenes, and
+runnable, whatever any design table says. 6 are asked of games and 3 of scenes, and
 `aspects.applicability()` refuses every other pairing — a scene has no player, so `fun` has
 no referent, and a game field carries no scene to be faithful to.
 
@@ -576,8 +576,8 @@ Do not name them in a command; `--aspects feel` is rejected by `choices=sorted(A
 
 `eval/SCENES.md` is the authority for the scene class; this section is what a grader needs.
 A scene is a timed sequence with no player, so `fun`, `fun_frames` and `audio` have nothing
-to be about, and tier 2 is `scene_probe.py` rather than a play-bot. Three aspects replace the
-six, and they ask what the probe cannot compute:
+to be about, and tier 2 is `scene_probe.py` rather than a play-bot. 3 aspects replace the
+6, and they ask what the probe cannot compute:
 
 | aspect id | asks | `sees` | may be ranked across stacks? |
 |---|---|---|---|
@@ -625,9 +625,10 @@ requirement.**
 **What the weight sweep can and cannot say — measured 2026-08-24, and the answer is NOT
 ASKED rather than "no effect".** Two independent reasons, either sufficient:
 
-    python3 judge/weight_sensitivity.py --selftest        # SELFTEST PASSED, 12 controls
-    python3 judge/weight_sensitivity.py runs/*            # groups: 10  FLIPS=0  STABLE=3
-                                                          #   UNIDENTIFIABLE=7
+```bash
+python3 judge/weight_sensitivity.py --selftest    # SELFTEST PASSED, 12 controls
+python3 judge/weight_sensitivity.py runs/*        # groups: 10  FLIPS=0  STABLE=3  UNIDENTIFIABLE=7
+```
 
 1. **The population is empty.** All 10 groups the sweep found are games — 25 `g1_pong`,
    19 `g2_tetris3d`, 16 `g3_arena` and 24 `g4_platformer` stored gradings, and **0** scene

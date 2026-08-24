@@ -56,18 +56,12 @@ Two distinct defects, and a mutant suite only catches the first:
 
 ## 3. The subjective layer, gates in order
 
-The nine aspects that exist are **`fun`, `ux`, `audio`, `idiomatic`, `architecture`** and
-**`fun_frames`** for games, and **`fidelity`, `motion`** and **`framework_fluency`** for
-scenes. Anything else named in prose is a candidate, not a judge; `--aspects feel` is
-rejected, and so is a scene aspect asked of a game or the reverse — `field_sweep.py` refuses
-the whole sweep before a round starts. `--aspects fun_frames` is **accepted** — it is `fun`
-with the telemetry withheld, and it is `fun`'s control rather than a sixth opinion. Run it
-when you need to know whether `fun`'s pacing claim is reading the telemetry or the pictures;
-never pool it with the other five, and read `RUBRIC.md` before you report it.
-
-**`idiomatic` and `framework_fluency` may not be ranked across stacks.** Both judges are told
-which stack they are looking at by the evidence itself, so report their grades per stack;
-`field_ranks.py` prints the reason and the per-stack means for you.
+**Read `RUBRIC.md`'s aspect table before choosing `--aspects`, and `JUDGING.md` before
+reporting any of them.** Which aspects exist, which task class each is asked of, which is a
+control and which may not be ranked across stacks are stated there; this file does not
+restate them, because a second copy is the one nobody edits (#38). The tools refuse what the
+table forbids — `--aspects feel` is rejected, a scene aspect asked of a game is refused
+before a round starts, and `field_ranks.py` prints each bar with the per-stack means.
 
 Verify the judges **actually executed and produced non-empty packs per aspect**. A green
 exit is not evidence — making the legacy judge opt-in once silently removed the source
