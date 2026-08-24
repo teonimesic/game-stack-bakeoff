@@ -1,12 +1,12 @@
 ---
 id: 136
 title: 'Make the agent harness a variable: abstract runner.py off the claude CLI and add a prime-agent arm'
-status: in_testing
+status: done
 priority: 2
 refs: 'eval/runner.py, eval/RUNS.md, eval/PROTOCOL.md, eval/tools/tokenvalue.py, #159, #36, #31, eval/SCENES.md'
 done_when: run_agent is split into per-harness argv/parse/normalise with the claude arm producing byte-identical argv to today (assert it, do not eyeball it); a prime-agent arm runs one real trial end to end and stores a record whose token counts and turns are populated and whose terminal reason maps to the shared enumeration; no cross-harness dollar comparison is produced anywhere; the isolation flags for prime-agent are established or their absence recorded with what it costs; and eval/RUNS.md gains the harness as a recorded arm dimension.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/21
-established_by: 'PR 21 at ad85657: gates+controls green; claude argv byte-identical vs HEAD:eval/wholegame.py in 3 configs with a mutated-argv control; one real prime-agent trial stored at eval/runs/wg-harness-probe-primeagent-2026-08-24 (2 turns, 8342 in/254 out, completed, cost_usd null); agent_harness_control 52 rows 21 mutants; cost_census_mutants 41/41; 5 review rounds worked, the 6th expired UNRESOLVED (39 polls, 1207s, never in flight)'
+established_by: 'PR #21 squash-merged. Verified independently: the stored prime-agent trial reads 2 turns, 8342 in / 254 out / 6656 cache-read, terminal_reason=completed from stopReason=stop, cost_usd=None, model gpt-5.6-sol; the raw event stream shows per-message input falling 7367 to 975, which proves usage is NOT cumulative and refutes the instruction I put in this ticket (now FINDINGS #168); agent_harness_control passes with every mutant caught; and the review tool reports ''Reviews paused'' at the final head rather than silence, so the last round''s absence is pool exhaustion and is stated in the PR thread.'
 ---
 
 `eval/runner.py`'s `run_agent()` hardcodes the `claude` CLI in its argv, and `parse_agent_result`
