@@ -40,6 +40,7 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `flight_bound_is_quiet` | the longer bound once a round has been seen | the 15-minute-clock defect at a different constant: a review that lands at 40 minutes is handed back as "no review" |
 | `latch_not_sticky` | the latch on `seen_in_flight` | CodeRabbit rewrites the summary during a round, so the marker comes and goes; recomputing from the last poll expires at the quiet bound mid-round |
 | `notice_does_not_stop` | `NOTICE` ending the wait | a paused or limit-reached review is waited out in full instead of being acted on, and the remedy is in the comment the tool already read |
+| `cli_drops_ignore_notice` | the CLI **forwarding** the flag it parses | the flag is accepted and does nothing. Every `wait_for` row calls the function directly, so they all stay green — a mutant that only a `main([...])` control can see |
 | `notice_always_stops` | `--ignore-notice` | the notice comment outlives the pause it describes, so the poll you start **after** acting on one stops at `elapsed=1s` — every time, for ever. Measured on this tool's own pull request |
 | `census_skips_address_check` | the address assertion inside `--census` | `pr list` and `pr view` are two reads and can disagree; the known-answer proof stops being one |
 | `render_drops_the_branch` | the branch from the output line | the audit trail loses the thing the assertion is about — and printing was one of the two things `tasks/127` asked for |
@@ -181,6 +182,10 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
         '            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")',
         '        stop = ("LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")'),
+
+    "cli_drops_ignore_notice": (
+        "flight_timeout=args.flight_timeout, ignore_notice=args.ignore_notice)",
+        "flight_timeout=args.flight_timeout, ignore_notice=False)"),
 
     # ---- the census, which is the known-answer proof of the extraction
     "census_skips_address_check": (

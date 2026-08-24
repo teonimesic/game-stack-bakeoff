@@ -715,6 +715,26 @@ def selftest() -> int:
         ran[0] += 1
         fails.append(f"H2 census raised instead of reporting a REFUSED row: {exc}")
 
+    # --- the CLI forwards the flag it parses. Every `wait_for` row above calls the
+    # function DIRECTLY, so replacing `ignore_notice=args.ignore_notice` with a constant
+    # leaves all of them green while the flag does nothing.
+    real_wait = wait_for
+    forwarded: list = []
+
+    def fake_wait(_poll_fn, **kw):
+        forwarded.append(kw.get("ignore_notice"))
+        return {"pr": 18, "branch": "b", "head": HEAD_A, "verdict": "LANDED_COMMENT",
+                "by_review": 0, "by_comment": 1, "in_flight": 0, "headings": [],
+                "polls": 1, "elapsed": 0.0, "seen_in_flight": False}
+
+    globals()["wait_for"] = fake_wait
+    try:
+        main(["--pr", "18", "--branch", "b", "--wait"])
+        main(["--pr", "18", "--branch", "b", "--wait", "--ignore-notice"])
+    finally:
+        globals()["wait_for"] = real_wait
+    check("I1 the CLI forwards --ignore-notice, both ways", forwarded, [False, True])
+
     # --- the drift guard: a field the rows above read, by name.
     r = classify(HEAD_A, [_review(commit=HEAD_A)], [])
     for field in ("verdict", "by_review", "by_comment", "in_flight", "headings"):
