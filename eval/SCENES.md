@@ -53,8 +53,9 @@ How much of a prompt is the same in every stack:
 
     python3 eval/tools/prompt_guard.py --identity
 
-**Quote the unit.** The 2 differ by 6 points, because a substituted line is a long one — a whole
-vocabulary paragraph on 1 line — so the line share runs well above the character share.
+**Quote the unit.** In the aggregate the line share and the character share differ by about 6
+percentage points, because a substituted line is a long one — a whole vocabulary paragraph on 1
+line — so a share counted in lines runs well above the same prompt counted in characters.
 
 ### The prompt is not the rubric, and that is checked mechanically
 

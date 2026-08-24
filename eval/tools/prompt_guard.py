@@ -33,7 +33,7 @@ rubric assertion in both directions.
 """
 from __future__ import annotations
 
-import argparse, difflib, hashlib, json, os, re, sys
+import argparse, difflib, hashlib, json, os, re, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EVAL = os.path.dirname(HERE)
@@ -270,11 +270,39 @@ def _write_atomic(path: str, text: str) -> None:
     caught mid-write is indistinguishable from one never written (AGENTS.md rule 2). A
     partial `.txt` reads to `--diff` as drift and a truncated `index.json` aborts it
     before it can report any, so neither may exist even for an instant.
+
+    `mkstemp` rather than a name built from the pid: 2 processes get 2 pids, but 2
+    overlapping calls inside 1 process get the same name and each would publish over the
+    other's temporary file. `mkstemp` creates with `O_EXCL`, so no naming scheme can
+    collide. It also creates at 0600, which `os.replace` would then publish - a snapshot
+    should be as readable as any other file in the tree, so the mode is set back to what
+    a plain `open(..., "w")` here would have produced.
     """
-    tmp = f"{path}.tmp.{os.getpid()}"
-    with open(tmp, "w") as fh:
-        fh.write(text)
-    os.replace(tmp, path)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp",
+                               dir=os.path.dirname(path) or ".")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(text)
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def _stale_in(path: str, idx: dict) -> list[str]:
+    """`.txt` files in a snapshot directory that its index does not name.
+
+    A snapshot written over an older one leaves the `.txt` of any task since removed,
+    while `index.json` stops naming it. Nothing reading the index can see that file, and
+    a reader opening `<run>/prompts/g5_gone__rust.txt` would believe that prompt was sent.
+    """
+    wanted = {f"{k}.txt" for k in idx}
+    return sorted(n for n in os.listdir(path)
+                  if n.endswith(".txt") and n not in wanted)
 
 
 def snapshot(path: str) -> int:
@@ -290,6 +318,14 @@ def snapshot(path: str) -> int:
     _write_atomic(os.path.join(path, "index.json"),
                   json.dumps(idx, indent=2, sort_keys=True))
     print(f"snapshot: {len(idx)} rendered prompts -> {path}")
+    # NAMED, NOT DELETED. A run's prompt directory is append-only (#93) and this tool
+    # cannot tell a leftover from something a person put there on purpose. Saying so here
+    # and turning `--diff` red is what forces the decision instead of making it.
+    stale = _stale_in(path, idx)
+    if stale:
+        print(f"WARNING: {len(stale)} .txt file(s) here are not in the index and were not "
+              f"written by this snapshot: {', '.join(stale)}")
+        print("  --diff will refuse this directory until they are removed or explained.")
     return 0
 
 
@@ -316,13 +352,20 @@ def diff(path: str) -> int:
             changed.append(f"{key}: {len(d)} lines changed\n      " + "\n      ".join(d[:4]))
     missing = sorted(f"{t}__{s}" for t in ALL_TASKS for s in STACKS
                      if f"{t}__{s}" not in old)
-    if changed or missing:
+    # A `.txt` the index does not name is invisible to every loop above, and it reads to
+    # anyone opening the directory as a prompt that was sent. Refuse the directory.
+    stale = _stale_in(path, old)
+    if changed or missing or stale:
         if changed:
             print(f"{len(changed)} rendered prompt(s) differ from the snapshot:\n")
             for c in changed: print(f"  {c}")
         if missing:
             print(f"\n{len(missing)} rendered prompt(s) exist now and are not in the "
                   f"snapshot: {', '.join(missing)}")
+        if stale:
+            print(f"\n{len(stale)} file(s) in the snapshot are named by no index entry, "
+                  f"so nothing reading the index can see them, and a reader opening one "
+                  f"would take it for a prompt that was sent: {', '.join(stale)}")
         print("\nAny run compared against the snapshotted trials is now cross-regime.")
         print(f"If the change is intended, re-record it in the SAME commit:\n"
               f"  python3 eval/tools/prompt_guard.py --snapshot {path}")

@@ -37,6 +37,14 @@ THE FOUR KINDS OF ROW, AND WHY THE LAST TWO ARE NOT OPTIONAL
              failure task 113 recorded, where a control that shares state with its subject
              reports SURVIVED because the mutant edited the check.
 
+  FSPIN      one row that reads the FILESYSTEM rather than the guard's output, because the 2
+             ways `_write_atomic` can go wrong are invisible to every row above: `mkstemp`
+             creates at 0600 and `os.replace` would publish that, and a temporary file left
+             behind is a file in the snapshot directory nothing owns. Both directions were
+             checked against the shipped code — dropping the `chmod` gives 25 unreadable
+             files, and swapping `os.replace` for a copy gives 50 files of which 25 are
+             temporaries. The row goes red on either.
+
 Run it unpiped and read its own exit code:
 
     python3 eval/tools/prompt_guard_control.py
@@ -169,6 +177,21 @@ ROWS: list[tuple] = [
      [(GAMES, "Keep the harness.", "Keep the harness, please.")],
      1, ("16 rendered prompt(s) differ", "g1_pong__rust", "g4_platformer__godot",
          "cross-regime"), DIFF),
+    # A `.txt` the index does not name is invisible to every loop `--diff` runs, and it
+    # reads to anyone opening the directory as a prompt that was sent. This is the shape a
+    # snapshot re-recorded over an older one leaves behind when a task is removed.
+    ("diff-refuses-unindexed-txt", "MUTANT",
+     [(RENDERED + "/g9_ghost__rust.txt", None, "a prompt no index entry names\n")],
+     1, ("named by no index entry", "g9_ghost__rust.txt"), DIFF),
+    # VARIANT: the scope is prompt files. A note left in the directory is not one, and a
+    # check that reddens on it is a check somebody moves the note out of.
+    ("variant-non-prompt-file-in-snapshot", "VARIANT",
+     [(RENDERED + "/NOTES.md", None, "why this snapshot exists\n")],
+     0, ("all 24 rendered prompts match the snapshot",), DIFF),
+    ("disarmed-stale-check", "DISARMED",
+     [(GUARD, "    wanted = {f\"{k}.txt\" for k in idx}", "    return []\n    wanted = {}"),
+      (RENDERED + "/g9_ghost__rust.txt", None, "a prompt no index entry names\n")],
+     0, ("all 24 rendered prompts match the snapshot",), DIFF),
     ("diff-sees-a-new-task", "MUTANT",
      [(SCENES, '    "s2_glass": s2_glass,',
        '    "s2_glass": s2_glass,\n    "s3_extra": s1_parallax,')],
@@ -187,9 +210,20 @@ def _build(dest: str) -> None:
     shutil.copy(os.path.join(EVAL, "SCENES.md"), os.path.join(dest, "SCENES.md"))
 
 
-def _apply(dest: str, edits: list[tuple[str, str, str]]) -> str | None:
+def _apply(dest: str, edits: list[tuple[str, str | None, str]]) -> str | None:
+    """Apply one row's edits. `anchor is None` CREATES `rel` with `replacement` as its body.
+
+    The anchor count is checked rather than assumed: an anchor that stopped matching would
+    turn a MUTANT row into a run against an unedited tree, which passes as a VARIANT and
+    reports nothing.
+    """
     for rel, anchor, replacement in edits:
         path = os.path.join(dest, rel)
+        if anchor is None:
+            if os.path.exists(path):
+                return f"{rel} already exists; this row means to create it"
+            open(path, "w").write(replacement)
+            continue
         src = open(path).read()
         n = src.count(anchor)
         if n != 1:
@@ -225,6 +259,25 @@ def main() -> int:
             print(f"  {kind:8} {rid:30} {'ok  ' if ok else 'FAIL'} "
                   f"exit={r.returncode} {first[:70]}")
 
+    # The 2 things `_write_atomic` can get wrong that no row above can see: `mkstemp`
+    # creates at 0600 and `os.replace` would publish that, and a temporary file left
+    # behind is a file in the snapshot directory nothing owns.
+    with tempfile.TemporaryDirectory() as tmp:
+        _build(tmp)
+        dest = os.path.join(tmp, "fresh")
+        r = subprocess.run([sys.executable, os.path.join(tmp, GUARD), "--snapshot", dest],
+                           capture_output=True, text=True)
+        names = sorted(os.listdir(dest)) if os.path.isdir(dest) else []
+        leftovers = [n for n in names if ".tmp" in n]
+        unreadable = [n for n in names if not os.stat(os.path.join(dest, n)).st_mode & 0o044]
+        ok = r.returncode == 0 and len(names) == 25 and not leftovers and not unreadable
+        if not ok:
+            failures.append(f"snapshot-publishes-cleanly: exit {r.returncode}, "
+                            f"{len(names)} file(s), leftovers={leftovers}, "
+                            f"unreadable={unreadable}")
+        print(f"  {'FSPIN':8} {'snapshot-publishes-cleanly':30} {'ok  ' if ok else 'FAIL'} "
+              f"exit={r.returncode} {len(names)} files, 0 temporaries, all readable")
+
     print()
     if failures:
         print(f"{len(failures)} control(s) failed:")
@@ -233,9 +286,10 @@ def main() -> int:
         return 1
     kinds = {k: sum(1 for r in ROWS if r[1] == k) for k in ("MUTANT", "VARIANT",
                                                             "DISARMED", "PRISTINE")}
-    print(f"all {len(ROWS)} rows as declared: {kinds['MUTANT']} mutants red, "
+    print(f"all {len(ROWS) + 1} rows as declared: {kinds['MUTANT']} mutants red, "
           f"{kinds['VARIANT']} variants green, {kinds['DISARMED']} disarmed green, "
-          f"{kinds['PRISTINE']} pristine green")
+          f"{kinds['PRISTINE']} pristine green, 1 filesystem pin on what --snapshot "
+          f"publishes")
     return 0
 
 
