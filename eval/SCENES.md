@@ -23,6 +23,61 @@ So a scene submission must:
 Determinism is not a nicety here. It is what lets every criterion below be computed by a script
 instead of by an opinion, and what makes the same-seed / different-seed pair a real control.
 
+**The fixed list of tick indices already exists and is the same in all 4 starters.**
+`just film SEED TICKS SCRIPT OUTDIR` captures at most **12** frames evenly spaced over `0..=TICKS`
+with both ends included, at ticks `floor(i * TICKS / 11)` for `i` in `0..11` —
+`crates/game/src/bin/film.rs`, `scripts/film.ts`, `tools/film.gd`, `Assets/Editor/Probe.cs`. So
+the tick list is a pure function of the tick count, and each starter carries a
+`rendering is reproducible across runs` test asserting the frames for a seed are unchanged from
+one run to the next. **No starter change is needed for scenes** — which matters, because a starter
+edit is a regime boundary.
+
+## The prompts
+
+`eval/suites/scene_prompts.py` renders the 2 scenes for all 4 stacks: 1 template per scene over
+vocabulary dicts, the same structure the games use, and **a separate module** from
+`wholegame_prompts.py` because the scenes need preamble text the games do not — no player, no
+controls, no sound, a fixed-length run. Editing the scene preamble moves **8** rendered prompts
+and no game; editing the game preamble moves **16** and no scene
+(`tools/prompt_guard_control.py`, the 2 `diff-sees-*-preamble-edit` rows). Under 1 shared
+preamble either would move 24, which is #41. `DECISIONS.md` holds the derivation.
+
+How much of a prompt is the same in every stack:
+
+| | lines shared across all 4 stacks | characters |
+|---|---|---|
+| the 4 games | 97.3–98.4% | 90.4–95.0% |
+| `s1_parallax` | 96.3% | 88.5% |
+| `s2_glass` | 96.8% | 88.2% |
+| all 24 rendered prompts | 97.3% | 90.9% |
+
+    python3 eval/tools/prompt_guard.py --identity
+
+**Quote the unit.** In the aggregate the line share and the character share differ by about 6
+percentage points, because a substituted line is a long one — a whole vocabulary paragraph on 1
+line — so a share counted in lines runs well above the same prompt counted in characters.
+
+### The prompt is not the rubric, and that is checked mechanically
+
+Nothing on this page may appear in a prompt. Not the criteria, not the naive implementations they
+catch, not a threshold, not a tolerance. Writing *"make sure the water stays level"* because a
+criterion checks it converts the measurement into an instruction and there is nothing left to
+measure. The two sharpest omissions are deliberate and look like oversights:
+
+- **s1 does not say the layers scroll at rates ordered by depth.** It asks for a background with
+  real distance in it and lets the trace contract carry `layers[].depth`.
+- **s2 does not say the water surface stays level while the glass tilts.** That is the criterion
+  the scene exists for.
+
+`python3 eval/tools/prompt_guard.py` greps the **rendered** scene prompts — not the templates,
+because a leak can arrive through a vocabulary dict and leave the body looking clean — against 2
+closed lists in `tools/prompt_guard.py`: the measurement vocabulary this file uses to state a
+criterion, and English bound expressions, which is what a threshold is. Every term on the first
+list must appear in this file, so the list cannot drift into words this file never used.
+`tools/prompt_guard_control.py` pins both directions, and `DECISIONS.md` records why the lists are
+curated rather than derived from this file's criterion columns, with the false-positive counts
+that decided it.
+
 ## Grading: what replaces the play-bot
 
 | tier | games | scenes |
