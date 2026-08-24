@@ -322,3 +322,5 @@ that rambles, a section that is dense evidence in table form, and a whole file t
 heading to split on. Only one of the fourteen was actually a reader problem (the skill), and one
 more was misfiled evidence rather than excess evidence. **~24,000 of the 27,212 tokens are earned**,
 and the honest output of this task is the per-section reasoning above rather than the 1,640 saved.
+
+<!-- CONTROL for task 131: a pull request touching no filtered path. Delete with the branch. -->
