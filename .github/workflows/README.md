@@ -10,17 +10,18 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 39 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **57s** | **669s** |
+| takes | **103s** | **635s** |
 
 **Both counts have a producer** — `python3 eval/tools/ci_minutes.py --gates`, which reads the
 workflows and counts steps invoking something under `eval/`. It is pinned in
 `ci_minutes --selftest`, because this row said **32** for long enough to be wrong by three.
 
 **The two timings are read from a run, not remembered.** Both are from the pull-request runs of
-`41488aa` on 2026-08-23 — `gates` [run 32670423986](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423986),
-`controls` [run 32670423981](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423981) —
+`810172b` on 2026-08-24 — `gates` [run 32744893855](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32744893855),
+`controls` [run 32744894243](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32744894243) —
 and `gh pr checks <n>` prints them for any pull request. They move whenever a step is added, so
-re-read them rather than carrying them forward.
+re-read them rather than carrying them forward: the row above said **57s** for a `gates.yml` that
+had since gained 2 steps.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, and every `*_control.py`, `*_selftest.py` and

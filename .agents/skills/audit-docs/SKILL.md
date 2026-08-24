@@ -190,18 +190,18 @@ separated them.
 Or you have not changed it — you have replaced it with something that agrees with you:
 
 ```
-# NO BACKUP FILE. The shared resource is judge/JUDGING.md itself, not a copy of it: a
-# unique backup stops 2 passes restoring each other's file and does nothing about 2
-# passes mutating the document. So the controls plant into the real file and restore it
-# from HEAD - the 1 source no other session can rewrite. Interleave 2 passes anyway and
-# the loser reads the other's phantom and goes RED, which is loud; the document cannot
-# end up holding one.
+# judge/JUDGING.md is the shared resource. These controls plant phantoms into that file
+# itself. There is no backup copy: a unique backup stops 2 passes overwriting each other's
+# copy and does nothing about 2 passes editing the document.
 #
-# `sweep` is what makes that safe, and it does 2 things a bare command cannot:
-#   - it ASSERTS the status. `docstat.py --sweep ; echo "expect exit 1"` asserts nothing,
-#     and `set -e` cannot help because half these controls are SUPPOSED to exit 1.
-#   - it restores on EVERY path, the failing one included. A control that aborts before
-#     its restore leaves a planted phantom in a tracked document.
+# Every control restores the file from HEAD, on the failing path as well as the passing one.
+#
+# 2 passes running at once will sometimes read each other's phantom. That shows up as the
+# wrong exit status, which `sweep` reports - so interference is loud, and the document is
+# restored either way.
+#
+# `sweep` asserts the status because `docstat.py --sweep ; echo "expect exit 1"` asserts
+# nothing. `set -e` cannot do the job instead: half of these controls are SUPPOSED to exit 1.
 sweep() {  # $1 = the exit status this control must produce
   python3 tools/docstat.py --sweep > /dev/null; got=$?
   git restore --source=HEAD --worktree -- judge/JUDGING.md || { echo "RESTORE FAILED"; return 1; }
@@ -209,33 +209,43 @@ sweep() {  # $1 = the exit status this control must produce
   echo "expected exit $1, got $got"; return 1
 }
 
+# `plant` exists because a FAILED append is the one way a control here can go green having
+# tested nothing: the corpus stays clean, and the `sweep 0` half then passes for the wrong
+# reason.
+plant() {  # $1 = the text to append, with \n escapes
+  printf '%b' "$1" >> judge/JUDGING.md && return 0
+  echo "PLANT FAILED"
+  git restore --source=HEAD --worktree -- judge/JUDGING.md
+  return 1
+}
+
 # `git diff --quiet HEAD`, not `git diff --quiet`: the second ignores STAGED edits, so a
 # staged change passes the guard and the restore then writes the index over the document.
 git diff --quiet HEAD -- judge/JUDGING.md || { echo "JUDGING.md is not at HEAD - commit or stash first"; exit 1; }
 
 # negative: clean corpus -> exit 0
-sweep 0
+sweep 0 || exit 1
 
 # positive: plant a phantom aspect -> exit 1
-printf '\nIf `feel` and `tuning` rank alike they are one judge.\n' >> judge/JUDGING.md
-sweep 1
+plant '\nIf `feel` and `tuning` rank alike they are one judge.\n' || exit 1
+sweep 1 || exit 1
 
 # positive: plant a fake FLAG -> exit 1, and its exemption -> exit 0.
 # Both halves, or you have shown only that the check can fail, not that it can still pass.
 # The trailing `# phantom` exempts THIS line; the sentence it plants carries no exemption
 # word, which is the whole point - a control that plants a self-exempting line tests nothing.
-printf '\nPass `--no-such-flag-x` to judge/runner.py.\n' >> judge/JUDGING.md  # phantom
-sweep 1
-printf '\nWe planted `--no-such-flag-x` next to judge/runner.py.\n' >> judge/JUDGING.md  # phantom
-sweep 0   # the planted line exempts itself
+plant '\nPass `--no-such-flag-x` to judge/runner.py.\n' || exit 1  # phantom
+sweep 1 || exit 1
+plant '\nWe planted `--no-such-flag-x` next to judge/runner.py.\n' || exit 1  # phantom
+sweep 0 || exit 1   # the planted line exempts itself
 
 # positive: a BARE phantom flag on a FENCED command line -> exit 1. This is the half that
 # did not exist before task 89, and the one a reader copies and pastes. Its green partner
 # is the line below it: real flags of ours, written bare in the same position.
-printf '\n```\npython3 judge/runner.py --no-such-flag-bare1\n```\n' >> judge/JUDGING.md  # phantom
-sweep 1
-printf '\n```\npython3 judge/runner.py --run-dir runs/x --rounds 3\n```\n' >> judge/JUDGING.md
-sweep 0   # both flags resolve
+plant '\n```\npython3 judge/runner.py --no-such-flag-bare1\n```\n' || exit 1  # phantom
+sweep 1 || exit 1
+plant '\n```\npython3 judge/runner.py --run-dir runs/x --rounds 3\n```\n' || exit 1
+sweep 0 || exit 1   # both flags resolve
 
 # positive: unquote a skill description so it contains ": " -> exit 1
 # positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
