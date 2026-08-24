@@ -327,6 +327,46 @@ def emit_scope(event: str | None = None,
     return 0
 
 
+def _parse_workflow(text: str, label: str) -> tuple[dict, list[str]]:
+    """Parse one workflow into a mapping. NEVER RAISES; returns what went wrong instead.
+
+    Every caller here is a check, and a check that raises produces no verdict at all --
+    its caller sees a traceback where it expected a list of problems, which is strictly
+    worse than a red row. There are 3 ways the parse can fail to give a mapping and each
+    used to raise from a different line: unparseable YAML, an empty document, and a root
+    that is a scalar or a list.
+    """
+    import yaml
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        return {}, [f"{label} does not parse as YAML: {exc.__class__.__name__}. "
+                    f"Nothing that reads it could be checked"]
+    if doc is None:
+        return {}, [f"{label} is empty, so it declares no workflow at all"]
+    if not isinstance(doc, dict):
+        return {}, [f"{label}'s root is {type(doc).__name__}, not a mapping"]
+    return doc, []
+
+
+def _workflow_jobs(doc: dict) -> dict:
+    jobs = doc.get("jobs")
+    return jobs if isinstance(jobs, dict) else {}
+
+
+def _job_steps(job: object) -> tuple[list[dict], str | None]:
+    """(the step mappings of one job, or a reason the `steps:` block is unusable)."""
+    if not isinstance(job, dict):
+        return [], f"the job is {type(job).__name__}, not a mapping"
+    raw = job.get("steps")
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return [], (f"`steps: {raw!r}` is {type(raw).__name__}, not a list. Iterating it "
+                    f"raises instead of reporting")
+    return [s for s in raw if isinstance(s, dict)], None
+
+
 def filter_problems(controls_text: str, gates_text: str | None = None) -> list[str]:
     """Is `controls.yml` still wired so that it ALWAYS reports, and never runs nothing?
 
@@ -359,7 +399,7 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     """
     problems: list[str] = []
     try:
-        import yaml
+        import yaml  # noqa: F401  -- imported for the failure mode, used via _parse_workflow
     except ImportError:  # pragma: no cover - pyyaml is installed in CI and locally
         return problems + [
             ("pyyaml is missing, so the workflows could not be parsed. "
@@ -372,23 +412,20 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     # check stayed green. It also passes on a stale COMMENT mentioning ubuntu-latest next
     # to a `runs-on: macos-latest`. Raised by CodeRabbit on PR #10; it is the same
     # substring-versus-parse defect the filter check was repaired for, one field away.
-    # A file that does not parse must be REPORTED, not raised through. A check that raises
-    # produces no verdict, and its caller sees a traceback where it expected a list.
     parsed: dict[str, dict] = {}
     for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
         if text is None:
             continue
-        try:
-            parsed[label] = yaml.safe_load(text) or {}
-        except yaml.YAMLError as exc:
-            problems.append(f"{label} does not parse as YAML: {exc.__class__.__name__}. "
-                            f"Nothing below could be checked")
+        doc, bad = _parse_workflow(text, label)
+        problems += bad
+        if not bad:
+            parsed[label] = doc
     if "controls.yml" not in parsed:
         return problems
 
     for label, wf in parsed.items():
-        jobs = wf.get("jobs")
-        if not isinstance(jobs, dict) or not jobs:
+        jobs = _workflow_jobs(wf)
+        if not jobs:
             problems.append(f"{label} declares no parseable `jobs:`")
             continue
         for job_name, job in jobs.items():
@@ -428,20 +465,15 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     # names a step in the SAME job -- so a second job would need its own scope step, and it
     # would also be a second required check that can be absent, which is why `DECISIONS.md`
     # rejects the two-job form.
-    jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
+    jobs = _workflow_jobs(doc)
     if len(jobs) != 1:
         return problems + [
             f"controls.yml declares {len(jobs)} jobs, not 1. The scope guard is per-JOB -- "
             f"`steps.scope.outputs.relevant` reads a step in the same job -- so a second "
             f"job runs unguarded, and it is also a second check that can be absent"]
-    first = next(iter(jobs.values()))
-    raw = first.get("steps") if isinstance(first, dict) else None
-    if raw is not None and not isinstance(raw, list):
-        return problems + [
-            f"controls.yml's job declares `steps: {raw!r}`, which is not a list. Iterating "
-            f"it raises instead of reporting, and a check that raises is a check whose "
-            f"verdict nobody reads"]
-    steps = [s for s in (raw or []) if isinstance(s, dict)]
+    steps, bad_steps = _job_steps(next(iter(jobs.values())))
+    if bad_steps:
+        return problems + [f"controls.yml's job: {bad_steps}"]
     scoped = [i for i, s in enumerate(steps) if s.get("id") == SCOPE_STEP_ID]
     if len(scoped) != 1:
         return problems + [
@@ -473,7 +505,7 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     return problems
 
 
-def gate_census() -> dict[str, dict]:
+def gate_census(texts: dict[str, str] | None = None) -> dict[str, dict]:
     """How many CHECKS each workflow runs, as a count with a producer behind it.
 
     `.github/workflows/README.md` opened with a hand-written "32 documentation, queue and
@@ -495,26 +527,41 @@ def gate_census() -> dict[str, dict]:
     refuses a second in `controls.yml`, but a census that reads one job of several reports
     a count lower than the truth while staying green -- and a published count that can only
     go wrong downwards is the worst direction for this one.
+
+    IT NEVER RAISES, and that is not tidiness either. `_selftest` calls this BEFORE
+    `filter_problems`, so a live `controls.yml` that does not parse, or whose `steps:` is a
+    scalar, used to produce a traceback here -- ahead of the diagnostics written for
+    exactly those shapes, which never ran. What it cannot read it records in `malformed`
+    and counts as nothing; `--gates` prints that list and `--selftest` asserts it is empty.
+    Raised by CodeRabbit on PR #16, and it shares its loader with `filter_problems` so the
+    two cannot disagree about what a workflow is.
+
+    `texts` overrides the files, so the malformed shapes can be driven from a STRING and no
+    control ever rewrites `.github/workflows/`.
     """
-    import yaml
     out: dict[str, dict] = {}
     for wf in ("gates", "controls"):
-        path = ROOT / ".github" / "workflows" / f"{wf}.yml"
-        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        jobs = doc.get("jobs")
-        jobs = jobs if isinstance(jobs, dict) else {}
-        run_steps = [s
-                     for job in jobs.values() if isinstance(job, dict)
-                     for s in (job.get("steps") or [])
-                     if isinstance(s, dict) and "run" in s]
+        label = f"{wf}.yml"
+        if texts is not None:
+            text = texts.get(label, "")
+        else:
+            text = (ROOT / ".github" / "workflows" / label).read_text(encoding="utf-8")
+        doc, malformed = _parse_workflow(text, label)
+        run_steps: list[dict] = []
+        for job_name, job in _workflow_jobs(doc).items():
+            steps, bad = _job_steps(job)
+            if bad:
+                malformed.append(f"{label}: job `{job_name}`: {bad}")
+            run_steps += [s for s in steps if "run" in s]
         scope = [s for s in run_steps if s.get("id") == SCOPE_STEP_ID]
         steps = [s for s in run_steps if s.get("id") != SCOPE_STEP_ID]
-        gates = [s for s in steps if "eval/" in s["run"]]
+        gates = [s for s in steps if "eval/" in str(s["run"])]
         out[wf] = {
             "gates": len(gates),
             "setup": len(steps) - len(gates),
             "scope": len(scope),
-            "names": [(s.get("name") or s["run"].strip().splitlines()[0])[:80]
+            "malformed": malformed,
+            "names": [(s.get("name") or str(s["run"]).strip().splitlines()[0])[:80]
                       for s in gates],
         }
     return out
@@ -715,6 +762,38 @@ def _selftest() -> int:
     check("the scope step is counted as itself", _cen["controls"]["scope"], 1)
     check("and not as a gate", [n for n in _cen["controls"]["names"] if "scope" in n], [])
     check("gates.yml has no scope step", _cen["gates"]["scope"], 0)
+    # The live files must be well-formed, and this is the check that says so rather than
+    # the census raising on its way past. It runs BEFORE filter_problems, so without it a
+    # malformed live workflow produces a traceback ahead of every diagnostic written for
+    # that shape (CodeRabbit, PR #16).
+    check("neither live workflow is malformed",
+          _cen["gates"]["malformed"] + _cen["controls"]["malformed"], [])
+    # And the census itself must REPORT each malformed shape rather than raise. A mutant
+    # here is a whole workflow text, and the assertion is that the call returns at all.
+    for _name, _text in {
+        "unparseable YAML": "jobs:\n  controls:\n\tbad: [\n",
+        "a scalar root": "just a string\n",
+        "an empty document": "",
+        "a list root": "- one\n- two\n",
+        "steps: given as a scalar": "jobs:\n  controls:\n    steps: 1\n",
+        "a job that is not a mapping": "jobs:\n  controls: 7\n",
+    }.items():
+        try:
+            _got = gate_census({"controls.yml": _text, "gates.yml": _text})
+        except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
+            failures.append(f"gate_census RAISED on {_name}: {_exc!r}. A census that "
+                            f"raises reports nothing, and it runs before every diagnostic")
+            continue
+        if not _got["controls"]["malformed"]:
+            failures.append(f"gate_census did not report {_name} as malformed")
+        if _got["controls"]["gates"]:
+            failures.append(f"gate_census counted {_got['controls']['gates']} gates in a "
+                            f"workflow it could not read ({_name})")
+    # VARIANT: the real files must still come back with an empty `malformed` and the counts
+    # above -- the tolerance must not have made the census tolerant of a real workflow.
+    _live = {f"{w}.yml": (WORKFLOW_DIR / f"{w}.yml").read_text() for w in ("gates", "controls")}
+    check("driving the census from text matches reading the files",
+          gate_census(_live), _cen)
 
     check("22s bills a whole minute", billable_minutes(22), 1)
     check("60s is exactly 1", billable_minutes(60), 1)
@@ -872,15 +951,27 @@ def _selftest() -> int:
         }
         counts["mutants"] = len(mutants)
         counts["variants"] = len(variants)
+        # A RAISE IS NOT A VERDICT, and reporting it as one is the difference between
+        # "MUTANT SURVIVED: x" and a traceback whose reader has to work out which row it
+        # came from. Several of the mutants below are deliberately malformed workflows,
+        # which is exactly the input a check is most likely to raise on.
+        def problems_of(text, name):
+            try:
+                return filter_problems(text, gates_yml.read_text())
+            except Exception as exc:  # noqa: BLE001 - the point is that nothing escapes
+                failures.append(f"filter_problems RAISED on '{name}': {exc!r}. A check "
+                                f"that raises returns no verdict at all")
+                return ["raised"]
+
         for name, text in mutants.items():
             if text == live:
                 failures.append(f"mutant '{name}' changed nothing; it is void, not caught")
-            elif not filter_problems(text, gates_yml.read_text()):
+            elif not problems_of(text, name):
                 failures.append(f"MUTANT SURVIVED: {name}")
         for name, text in variants.items():
             if text == live:
                 failures.append(f"variant '{name}' changed nothing; it is void, not passed")
-            elif filter_problems(text, gates_yml.read_text()):
+            elif problems_of(text, name):
                 failures.append(f"FALSE POSITIVE on variant: {name}")
 
     # -- the filter's CONTENT, now that it is spelled once, in this file ----------------
@@ -1139,9 +1230,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps(cen, indent=2))
             return 0
+        bad = [m for got in cen.values() for m in got["malformed"]]
         for wf, got in cen.items():
             print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps, "
                   f"{got['scope']} scope steps")
+        for m in bad:
+            print(f"  MALFORMED: {m}", file=sys.stderr)
+        if bad:
+            # Exit 2, the same refusal an unreadable endpoint gets. A count printed over a
+            # workflow this could not read is a number, in range, and wrong.
+            print("ci_minutes: refusing to publish a gate count over a workflow it could "
+                  "not read.", file=sys.stderr)
+            return 2
         print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
         return 0
 
