@@ -1,10 +1,11 @@
 ---
 id: 134
 title: 'Build the scene probe: the tier-2 criteria for s1_parallax and s2_glass, each with a mutant and a variant'
-status: in_progress
+status: in_review
 priority: 1
 refs: 'eval/SCENES.md, eval/judge/bot_mutants.py, eval/judge/RUBRIC.md, tasks/133, #45, #46, #92, #123'
 done_when: Every criterion in eval/SCENES.md is implemented, binary, and reported per-criterion; each has a mutant that dies and a variant that probes an input the check could mishandle, both run by a single command in CI; the seed pair is scored as ONE criterion; the criteria that can be are measured from BOTH telemetry and pixels with the two compared; and a census reports how many submissions each criterion separated, with any criterion that separated none named as an open question rather than shipped quietly. BLOCKED BEHIND 133.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/20
 ---
 
 Scenes have no player, so the play-bot tier has no referent. Its replacement is a **scene probe**:
