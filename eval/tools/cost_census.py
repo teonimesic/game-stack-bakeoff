@@ -669,7 +669,7 @@ def ordering_test(census: dict) -> dict:
                "margin_exceeds_floor": None}
         # The RANK decides who leads, never `means[0]`. `means` sorts on (mean, stack), so
         # two stacks at the same mean are separated by their NAME — and the one that wins
-        # that tiebreak was recorded as leading the group by $0.00, while `times_cheapest`
+        # that tiebreak was recorded as leading the group by 0.00 tokval, while `times_cheapest`
         # counted the same group for nobody. One tied group made the tool say "leads 1 of 1"
         # and "cheapest in 0 of 1" at once.
         if row["leads"] and len(means) > 1:
@@ -1641,7 +1641,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               got["times_cheapest"], {"godot": 0, "rust": 0, "ts": 0, "unity": 0})
         # ... and it leads nothing either. These two counts are the same claim, and they
         # disagreed: `means` sorts on (mean, stack), so `ts` won the tie on its NAME and was
-        # recorded as leading the group by $0.00 while being cheapest in none of it.
+        # recorded as leading the group by 0.00 tokval while being cheapest in none of it.
         tied_margin = first_margin("O5 tied cheapest", got)
         check("O5 a tie leads nothing, by the same count",
               (got["groups_led"], tied_margin["leads"], tied_margin["margin_usd"]),
@@ -1649,8 +1649,8 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
 
         # ---- O6. The leader's MARGIN is a different claim from its consistency, and the
         # comparison is against the group's own floor, not against zero. Here ts leads by
-        # $4.00 over a floor of $8.00: it is the cheapest arm and its lead is inside the
-        # noise, which is the shape the stored corpus turns out to have.
+        # 4.00 tokval over a floor of 8.00 tokval: it is the cheapest arm and its lead is inside
+        # the noise, which is the shape the stored corpus turns out to have.
         o6 = base / "o6"
         narrow = {"ts": (10.0, 30.0), "unity": (22.0, 26.0),
                   "godot": (40.0, 44.0), "rust": (60.0, 64.0)}
