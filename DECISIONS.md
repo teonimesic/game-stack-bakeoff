@@ -2414,6 +2414,75 @@ mean the term is functional spec and belongs off it, the way `probe` did; a fals
 correct prompt, which is how a gate gets switched off; or a real leak that ships past both lists,
 which would say the closed class was drawn too narrow.
 
+## The scene probe reads telemetry and pixels, and an absent half is not an excused one — decided 2026-08-24
+
+`eval/judge/scene_probe.py` is tier 2 for scenes: 8 criteria for `s1_parallax`, 7 for `s2_glass`,
+every one binary, equally weighted and always reported. `eval/SCENES.md` is the design authority
+and holds the per-criterion table; the decisions the implementation had to make are here.
+
+**The seed pair is 1 criterion, not 2.** *Different seeds differ* alone is satisfied by anything
+random, including a scene seeded from the wall clock; *same seed matches* alone is satisfied by a
+canned animation. Splitting them would award half a mark to each of the 2 implementations the
+criterion exists to reject. `scene_mutants.py` carries one mutant for each half — a scene that
+ignores its seed, and one seeded from `time.time_ns()` — plus a canned fracture that satisfies
+*different seeds differ* perfectly while the fragments never change.
+
+**An absent image half and an unestablished experiment are different, and are scored
+differently.** A `just film` that produced no frames, the wrong number of frames, or frames of
+2 different sizes is a fact about the SUBMISSION: an image-only criterion goes red. A criterion
+that also has a telemetry half is scored on it, because one broken recipe must deduct once rather
+than once per criterion, and the fallback is recorded in the evidence. A run in which no captured
+MOMENT satisfies a precondition — no frame inside the light ramp, no layer wrapping between two
+frames, the glass never leaving its opening box — is an experiment that could not be set up, and
+comes back `scored=False`, counted in `unscored`. Both directions are pinned: 2 mutants break the
+capture (half the frames, and the geometry changing mid-run) and a variant ramps the light over 30
+ticks so the image half genuinely cannot be established.
+
+**`shatter.pieces_rest` does not read `table.y` as the ground plane.** The contract calls it *"the
+height of the surface everything stands on"* while the scene has 2 surfaces — the glass stands on
+a table and its fragments rest on what is below it — so a submission may reasonably report either
+and a floor test on that field would fail correct work. The criterion asks instead what needs no
+plane: a settled fragment must not go on descending, and the settled fragments must lie in a band
+rather than being scattered through the world. `table.y` is used only for the SCALE,
+`max |glass.y − table.y|`, which is what makes every distance tolerance a share of the drop.
+
+**The image-side shift estimator was chosen on a measured hit rate, and its robustness lives in
+the criteria rather than in the estimator.** 5 candidates, all over the same 88 frame pairs — the
+reference and its nearest-first variant, which are the same scene with the seeded textures dealt
+to different bands, 44 pairs each:
+
+| candidate | reference | nearest-first | total |
+|---|---|---|---|
+| **SAD over normalised horizontal gradients, growing overlap — SHIPPED** | 43/44 | 39/44 | **82/88** |
+| the same, over a fixed central window | 43/44 | 39/44 | 82/88 |
+| the same, with the profile clipped at 3x its own mean | 40/44 | 33/44 | 73/88 |
+| normalised cross-correlation | 41/44 | 34/44 | 75/88 |
+| SAD on the SIGN of the gradient | 37/44 | 20/44 | 57/88 |
+
+**Clipping is the result worth keeping.** It is the textbook robustification for exactly the
+failure being repaired — one very strong edge dominating a sum — and it is 9 pairs worse than
+doing nothing. *Choose between candidates on the live-corpus count, never on which one sounds
+more principled.*
+
+So the estimator stands and 2 gates absorb its error: a band is measured only when its own
+drawn-to-reported ratio agrees with itself on 80% of its pairs, and a wrap crossing measured at
+zero displacement while the band's own model predicts a large one is counted as unreadable rather
+than as a jump. **The shipped estimator misses 8 of the 132 pairs in the 3 fixtures — 1 of 44 on
+the reference, 5 of 44 on the nearest-first variant, 2 of 44 on the 1.5x variant — and every one
+of the 8 is the same shape**, on the band holding a car the camera follows.
+
+**No criterion has met a submission, and that is stated wherever a scene score is reported.** The
+thresholds were chosen against fixtures written by the same hand as the criteria.
+`scene_mutants.py --census` reports what each criterion separated and says in as many words that
+the population is fixtures; `--runs-root` prints `NOT ASKED` on an empty tree rather than
+`0 separated`, and `--census-selftest` proves the census can say NO.
+
+**To re-open:** a real submission that any criterion fails for a reason that is not about the
+submission — which is #46's shape and the honest prior here; an estimator miss that is not the
+stationary-object shape, which would mean the 2 gates are aimed at the wrong property; or a
+contract change adding `car.screen`, which is the one field that would let `front.occludes` be
+measured twice instead of once.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).

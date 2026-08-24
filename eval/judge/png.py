@@ -9,6 +9,8 @@ kind any of the four render harnesses emits) and nothing else.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import struct
 import zlib
 from dataclasses import dataclass
@@ -84,8 +86,12 @@ class Image:
 def write_rgb(path: str | Path, width: int, height: int, pixels: bytes) -> None:
     """Write an 8-bit RGB PNG. `pixels` is width*height*3 bytes, row-major, top-down.
 
-    Only used by the reference fixtures, which need to produce frames without pulling
-    in an image library.
+    Used by every reference fixture, which need to produce frames without pulling in an
+    image library. **Atomic** - a temporary sibling, then `os.replace` - so a kill
+    part-way through leaves no half-written frame at the final path for a reader to open
+    and misread (`eval/AGENTS.md`, one writer per artifact path). This is the single
+    write for all 6 fixtures; each carries a fallback copy for use outside the judge
+    tree, and those are atomic too.
     """
     if len(pixels) != width * height * 3:
         raise PngError(f"expected {width * height * 3} bytes, got {len(pixels)}")
@@ -98,12 +104,24 @@ def write_rgb(path: str | Path, width: int, height: int, pixels: bytes) -> None:
         return (struct.pack(">I", len(body)) + tag + body
                 + struct.pack(">I", zlib.crc32(tag + body) & 0xFFFFFFFF))
 
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_bytes(
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
-        + chunk(b"IEND", b""))
+    dest = Path(path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".part")
+    try:
+        tmp.write_bytes(
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
+            + chunk(b"IEND", b""))
+        os.replace(tmp, dest)
+    except BaseException:
+        # The original error is what the caller needs; the half-written sibling is
+        # litter in a directory something will glob. Take it away and re-raise - and
+        # SUPPRESS the removal's own failure, because a cleanup that raises replaces the
+        # error it was tidying up after with one about the tidying.
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
 
 
 def read(path: str | Path) -> Image:

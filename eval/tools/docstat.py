@@ -462,6 +462,11 @@ def _project_root_for(doc: str) -> list[str]:
 # false positives on the first run of this sweep — a checker nobody trusts is a checker
 # nobody runs.
 FOREIGN_FLAG_PREFIXES = (
+    # `prime-agent`'s autonomous family, named by the ticket that adds it as a second agent
+    # harness. A PREFIX because it is a family -- `--autonomous`, `--autonomous-max-turns`,
+    # `--autonomous-gate`, `--autonomous-gate-retries`, `--autonomous-max-continuations` --
+    # and distinctive enough that it cannot swallow a flag of ours.
+    "--autonomous",
     "--max-turns", "--max-budget", "--permission-mode", "--setting-sources",
     "--strict-mcp", "--exclude-dynamic", "--append-system-prompt", "--system-prompt",
     "--json-schema", "--include-partial", "--fallback-model", "--no-session",
