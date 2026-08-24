@@ -21,7 +21,7 @@ have a within-cell gap at all, under **one** `terminal_reason`. Per group:
 
 | quantity | how |
 |---|---|
-| per-stack low / high / spread / gap / mean | over `agent.cost_usd` |
+| per-stack low / high / spread / gap / mean | over `agent.cost_usd`, **`claude`-harness records only** |
 | **within-cell noise floor** | the mean of the per-cell gaps |
 | **between-stack range** | max stack mean minus min stack mean |
 | **range as a percentage of the floor** | the headline ratio |
@@ -104,8 +104,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import tokenvalue  # noqa: E402
+
+# ONE definition, shared with `census.py`. These two tools decide which records may be
+# summed; restating the rule in both, with nothing asserting they agree, is how one tree
+# comes to have two totals and neither reports a disagreement (rule 12).
+from agent_harness import TOKVAL_HARNESS, harness_of  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
@@ -153,6 +159,16 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Pat
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CostCensusError(f"{path}: {exc}") from exc
+        # THE RECORD'S SHAPE, before anything reads a field out of it. The population
+        # test in `cost_census()` is `WHOLEGAME_KEY not in d`, which on a JSON STRING is
+        # a substring test: a file holding `"a game"` would be read as a whole-game
+        # record and every `.get` below it would raise `AttributeError` naming no path,
+        # while a file holding `"agent"` would be classified as the retired suite's and
+        # dropped — a record lost from a census that reports no skip.
+        if not isinstance(data, dict):
+            raise CostCensusError(
+                f"{path}: the record is {type(data).__name__}, not an object — a trial "
+                f"file is a JSON object")
         out.append((str(path.parent.parent.relative_to(runs_dir)), path, data))
     if not out:
         raise CostCensusError(
@@ -163,6 +179,7 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Pat
 
 def _terminal(record: dict) -> str:
     return record.get("agent", {}).get("terminal_reason") or "absent"
+
 
 
 # ------------------------------------------------------------------------------ measures
@@ -335,6 +352,14 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
     for run, d in wholegame:
         if _terminal(d) != terminal_reason:
             excluded[_terminal(d)] += 1
+            continue
+        # ANOTHER HARNESS IS ANOTHER UNIT, not another sample. Every figure below - the
+        # within-cell noise floor, the between-stack range, their ratio - is arithmetic
+        # ON cost_usd, and two vendors' list prices are not addable (#159). Excluded
+        # before any of it, and counted, because a reason not to count that nothing
+        # reports is a channel a bug can widen (rule 7).
+        if harness_of(d) != TOKVAL_HARNESS:
+            excluded[f"harness {harness_of(d)}"] += 1
             continue
         if d.get("agent", {}).get("cost_usd") is None:
             excluded["no cost_usd"] += 1
@@ -1371,6 +1396,27 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
             failures.append(f"malformed record: raised {type(exc).__name__}, "
                             f"not CostCensusError: {exc}")
 
+        # Direction 11b: a record that PARSES and is not an object. The population test
+        # is `WHOLEGAME_KEY not in d`, a SUBSTRING test on a string — so `"a game"` would
+        # be read as a whole-game record and raise `AttributeError` naming nothing, while
+        # `"agent"` would be filed as the retired suite's and dropped without a skip.
+        (runs / "run-a" / "trials" / "broken.json").unlink()
+        for literal in ('"a game"', '"agent"', "[1, 2]"):
+            (runs / "run-a" / "trials" / "notanobject.json").write_text(literal)
+            try:
+                cost_census(runs)
+                failures.append(f"a non-object record ({literal}): returned a result "
+                                f"instead of raising")
+            except CostCensusError as exc:
+                if "notanobject.json" not in str(exc):
+                    failures.append(f"non-object record ({literal}): error does not name "
+                                    f"the file: {exc}")
+            except Exception as exc:  # noqa: BLE001 - any other class is also a failure
+                failures.append(f"non-object record ({literal}): raised "
+                                f"{type(exc).__name__}, not CostCensusError: {exc}")
+        (runs / "run-a" / "trials" / "notanobject.json").unlink()
+        (runs / "run-a" / "trials" / "broken.json").write_text("{not json")
+
         # ---- VARIANTS. A mutant asks whether the check CAN fail; only a variant asks
         # whether it can still PASS on an input it mishandles (AGENTS.md rule 15). Every
         # false negative adjudicated in this project has been of the second kind.
@@ -1406,6 +1452,24 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               cv["excluded_by_terminal_reason"], {"no cost_usd": 1})
         check("and the group is otherwise unchanged",
               _round(only_group("no-cost-field variant", cv)["within_cell_floor_usd"], 4),
+              _round((10 + 10 + 10 + 12) / 4, 4))
+
+        # Variant B2: a record from ANOTHER HARNESS, carrying a cost figure. Its USD is
+        # another vendor's list price for another vendor's tokens; adding it to a floor or
+        # a range is arithmetic on two price lists. It must be excluded under a label that
+        # names the harness, and no group figure may move. The cost is POPULATED on
+        # purpose: a guard that only holds because the other harness's normaliser wrote
+        # `None` is not a guard, it is the same check twice.
+        _write(var / "run-v" / "trials" / "gV__ts__t3.json",
+               {"game": "gV", "stack": "ts", "harness": {"name": "prime-agent"},
+                "agent": {"terminal_reason": "completed", "num_turns": 40,
+                          "harness": "prime-agent", "cost_usd": 500.0}})
+        cv2 = measure("other-harness variant", var)
+        check("a record from another harness is excluded, named by harness",
+              cv2["excluded_by_terminal_reason"],
+              {"no cost_usd": 1, "harness prime-agent": 1})
+        check("and no group figure moved",
+              _round(only_group("other-harness variant", cv2)["within_cell_floor_usd"], 4),
               _round((10 + 10 + 10 + 12) / 4, 4))
 
         # Variant C: an UNEVEN cell — 3 trials in one stack, 2 in the others. The gap is

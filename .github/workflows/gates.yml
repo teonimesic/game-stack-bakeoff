@@ -199,6 +199,15 @@ jobs:
       - name: hook_audit_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/hook_audit_control.py
+      # The agent CLI became a variable on 2026-08-24, and nothing in a stored artifact
+      # records which command line built a trial. This pins the claude arm's argv against a
+      # literal in three configurations, and carries 12 mutants over the parsing and
+      # normalisation both arms share -- including the one the commissioning ticket got
+      # wrong: prime-agent's per-message usage is not cumulative, so reading the terminal
+      # event under-reports every multi-turn trial. Offline, ~1 s.
+      - name: agent_harness_control (the argv, and the readers of what comes back)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/agent_harness_control.py
 
       # ---- the judge's cheap selftests ---------------------------------------------
       - name: judge/aspects_selftest

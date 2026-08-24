@@ -509,7 +509,11 @@ def check_build_trial() -> list[str]:
 
         seen: dict[str, str] = {}
 
-        def fake_run_agent(work, prompt, env, turn_limit=None):
+        # `**kw` because `build_trial` now passes the resolved harness object
+        # through. A stand-in with a fixed signature would raise a TypeError the
+        # moment the real call gains an argument, and this file is the only reader
+        # of that line.
+        def fake_run_agent(work, prompt, env, turn_limit=None, **kw):
             seen["log"] = env.get("STARTER_HOOK_LOG", "")
             seen["marker"] = str((work / "MARKER.txt").exists())
             if seen["log"]:
@@ -633,7 +637,8 @@ def live_check() -> list[str]:
         # `json.loads(...).get("total_cost_usd")` reads an array and comes back with
         # nothing. The harness already owns the one correct reader; do not write a second.
         try:
-            _tv = _wholegame().parse_agent(p.stdout).get("total_cost_usd")
+            _tv = _wholegame().agent_harness.CLAUDE.parse(
+                p.stdout, 0).get("total_cost_usd")
             out.append(f"live   tokens  {tokenvalue.tag(_tv)}")
         except Exception as e:  # noqa: BLE001 - a cost we cannot read is reported, not hidden
             out.append(f"live   cost     UNREAD ({e}); stdout head: {p.stdout[:120]!r}")

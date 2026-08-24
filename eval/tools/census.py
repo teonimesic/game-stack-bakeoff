@@ -28,6 +28,13 @@ the count cannot be wrong about where it looked. Directories holding agent-autho
 (`work/`, `artifacts/`, `targets/`) are excluded and the number excluded is reported, because
 a skip nobody counts is the defect this replaces.
 
+**A THIRD partition, and it is a partition of the UNIT: which agent CLI built the record.**
+`agent.harness` names it, and every record stored before 2026-08-24 has no such field
+because there was only one — so an absent field reads as `claude`. The record COUNTS are
+over every harness; the `agent.cost_usd` sums are over `claude` alone, and each prints how
+many records it could not price. tokval is a list price for one vendor's tokens (#159);
+adding another vendor's figure to it produces a number in no unit at all.
+
 **This tool fails rather than returning zero.** A missing runs directory and an empty one
 both exit 2. An agent worktree has no `eval/runs/` — it is gitignored — so the honest
 answer there is a refusal, not `0 records`, which is the shape rule 3 forbids. The
@@ -49,12 +56,20 @@ import argparse
 import collections
 import datetime as _dt
 import json
+import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import tokenvalue  # noqa: E402
+
+# ONE definition of which harness a record came from and which one is priced in tokval,
+# imported rather than restated. It was spelled out here and again in `cost_census.py` —
+# the two producers that decide which records may be summed — with nothing asserting the
+# two agreed, which is rule 12 with a dollar figure attached.
+from agent_harness import TOKVAL_HARNESS, harness_of  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
@@ -109,6 +124,23 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
             data = json.loads(path.read_text())
         except json.JSONDecodeError as exc:
             raise CensusError(f"{path}: {exc}") from exc
+        # A TRIAL FILE THAT IS NOT AN OBJECT FAILS BY NAME TOO, and it must be asked
+        # FIRST: `"agent" in data` on a JSON string is a SUBSTRING test, so a file
+        # holding `"agent"` answers True and `data["agent"]` then raises `TypeError`
+        # naming no path. Every reader below assumes a mapping.
+        if not isinstance(data, dict):
+            raise CensusError(f"{path}: the record is {type(data).__name__}, not an "
+                              f"object — a trial file is a JSON object")
+        # A RECORD WHOSE `agent` BLOCK IS PRESENT AND IS NOT AN OBJECT FAILS BY NAME.
+        # `_terminal` and `_cost` both call `.get` on it, so `"agent": null` used to end
+        # the census with an `AttributeError` several frames away, naming no file — loud,
+        # and useless. This is the same refusal `cost_census._validate_wholegame` already
+        # makes, and it keeps the promise this module's docstring makes about failing
+        # rather than reporting a count it cannot stand behind. An ABSENT `agent` key is
+        # not this: it reads as `absent` and always has.
+        if "agent" in data and not isinstance(data["agent"], dict):
+            raise CensusError(f"{path}: `agent` is {data['agent']!r}, not an object — "
+                              f"nothing can be read from it")
         out.append((str(path.parent.parent.relative_to(runs_dir)), path.name, data))
     if not out:
         raise CensusError(f"{runs_dir} holds no **/trials/*.json — refusing to report 0 "
@@ -117,7 +149,44 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
 
 
 def _cost(record: dict) -> float:
+    """A record's tokval, or 0 for a record that HAS no tokval.
+
+    Callers must filter with `_priced` first; this returns 0 for an unpriced record so a
+    partial sum cannot raise, and `cost_unpriced_records` reports how many were left out.
+    """
     return record.get("agent", {}).get("cost_usd") or 0.0
+
+
+def _priced(record: dict) -> bool:
+    """Whether this record's cost may enter a tokval sum. TWO ways to fail it.
+
+    **A dollar figure is per harness and the harnesses are not addable.** `tokval` is a
+    list price for Anthropic tokens; prime-agent's figure is OpenAI's list price for
+    OpenAI tokens, and neither was paid (#159). Summing them adds two vendors' price
+    lists.
+
+    **And a record of the right harness with no USABLE figure is unpriced too.** It used
+    to pass this test on the harness alone, contribute `0.0` through `_cost`, and appear
+    in no exclusion count — so the note beside the total understated what the total left
+    out. A `claude` record with no `cost_usd` is not hypothetical:
+    `ClaudeHarness.timeout_record` produces one. An absent count is reported, never summed
+    as zero (#36).
+
+    Three shapes are refused rather than summed, and each turns a total into a number that
+    looks like a measurement:
+
+    | | |
+    |---|---|
+    | `None`, or absent | the figure was never measured |
+    | `True` | a bool IS an `int` in Python, so it would average as 1.00 |
+    | `NaN`, `inf`, `-inf` | `json.loads` produces all three, and **one of them makes the whole total `NaN`** — an aggregate that is wrong about every record because of one |
+    """
+    if harness_of(record) != TOKVAL_HARNESS:
+        return False
+    cost = record.get("agent", {}).get("cost_usd")
+    if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+        return False
+    return math.isfinite(cost)
 
 
 def _terminal(record: dict) -> str:
@@ -141,6 +210,8 @@ def census(runs_dir: Path) -> dict:
                 set(collections.Counter((d["game"], d["stack"]) for d in rows).values())),
             "terminal_reason": dict(
                 sorted(collections.Counter(_terminal(d) for d in rows).items())),
+            "harness": dict(
+                sorted(collections.Counter(harness_of(d) for d in rows).items())),
         }
 
     return {
@@ -149,7 +220,12 @@ def census(runs_dir: Path) -> dict:
         "tree": {
             "trial_records": len(records),
             "run_directories": len({r for r, _, _ in records}),
-            "agent_cost_usd": round(sum(_cost(d) for _, _, d in records), 2),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in records if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in records if not _priced(d)),
+            "harness": dict(sorted(collections.Counter(
+                harness_of(d) for _, _, d in records).items())),
             "skipped_agent_authored": len(skipped),
         },
         "wholegame": {
@@ -165,20 +241,43 @@ def census(runs_dir: Path) -> dict:
             "trials_per_cell_max": max(cells.values()) if cells else 0,
             "terminal_reason": dict(sorted(collections.Counter(
                 _terminal(d) for _, _, d in wholegame).items())),
-            "agent_cost_usd": round(sum(_cost(d) for _, _, d in wholegame), 2),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in wholegame if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in wholegame if not _priced(d)),
+            "harness": dict(sorted(collections.Counter(
+                harness_of(d) for _, _, d in wholegame).items())),
             "per_run": per_run,
         },
         "specchange": {
             "population": "stored trial records with no `game` field — the retired suite",
             "trial_records": len(specchange),
             "run_directories": len({r for r, _, _ in specchange}),
-            "agent_cost_usd": round(sum(_cost(d) for _, _, d in specchange), 2),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in specchange if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in specchange if not _priced(d)),
         },
     }
 
 
 def _fmt_counter(counter: dict) -> str:
     return ", ".join(f"{k} {v}" for k, v in counter.items())
+
+
+def _unpriced_note(n: int) -> str:
+    """What the tokval line LEFT OUT, printed on the line itself.
+
+    A sum over one harness, presented beside a record count over all of them, is a
+    figure whose population is not the one the reader is looking at. The two vendors'
+    price lists are not addable and neither was paid (#159), so the sum stays
+    single-harness and says how many records it could not price.
+    """
+    if not n:
+        return ""
+    return (f"  ({n} record(s) EXCLUDED: another harness, whose USD figure is "
+            f"another vendor's price list and is not addable to this one — or a "
+            f"record of this harness carrying no readable cost_usd)")
 
 
 def render(c: dict) -> str:
@@ -196,7 +295,9 @@ def render(c: dict) -> str:
         f"({wg['trials_per_cell_min']}-{wg['trials_per_cell_max']} trials each, pooled "
         f"across runs — NOT a per-cell replicate count)",
         f"  terminal_reason    {_fmt_counter(wg['terminal_reason'])}",
-        f"  agent.cost_usd     {wg['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
+        f"  harness            {_fmt_counter(wg['harness'])}",
+        f"  agent.cost_usd     {wg['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+        + _unpriced_note(wg['cost_unpriced_records']),
     ]
     if biggest:
         name, info = biggest
@@ -212,12 +313,14 @@ def render(c: dict) -> str:
         f"SPEC-CHANGE — population: {sc['population']}",
         f"  trial records      {sc['trial_records']}",
         f"  run directories    {sc['run_directories']}",
-        f"  agent.cost_usd     {sc['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
+        f"  agent.cost_usd     {sc['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+        + _unpriced_note(sc['cost_unpriced_records']),
         "",
         "WHOLE TREE — both populations, summed only where a sum is meaningful",
         f"  trial records      {tree['trial_records']} across "
         f"{tree['run_directories']} run directories, found at any depth",
-        f"  agent.cost_usd     {tree['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
+        f"  agent.cost_usd     {tree['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+        + _unpriced_note(tree['cost_unpriced_records']),
         f"  skipped            {tree['skipped_agent_authored']} trials/*.json under "
         f"{'/, '.join(sorted(NOT_A_RUN))}/ — agent-authored, not harness records",
         "",
@@ -290,24 +393,93 @@ def selftest() -> int:
         # counted, and the skip must be reported rather than silent.
         _write(runs / "wg-a" / "work" / "someagent" / "trials" / "notours.json",
                {"game": "g9", "stack": "rust", "agent": {"cost_usd": 999.0}})
+        # Direction 5: a record from ANOTHER HARNESS is counted as a record and excluded
+        # from the tokval sums. Its own vendor's USD figure is carried in the record - the
+        # row below proves a sum cannot reach it even when it is right there, because the
+        # danger is not an absent number, it is a plausible one.
+        _write(runs / "wg-c" / "trials" / "g1__rust__t0.json",
+               {"game": "g1", "stack": "rust", "trial": 0,
+                "harness": {"name": "prime-agent"},
+                # `cost_usd` POPULATED, deliberately. The shipped normaliser writes
+                # `None` here, and a guard that only works because the other harness
+                # behaved is not a guard - it is the same check twice. This row asks
+                # whether the SUM can reach a foreign figure that is sitting in the field
+                # it reads.
+                "agent": {"harness": "prime-agent", "terminal_reason": "completed",
+                          "cost_usd": 77.0, "input_tokens": 4573}})
+
+        # Direction 6: a record of OUR harness carrying no `cost_usd`. It passed the
+        # harness test, contributed 0.0 to the total and appeared in no exclusion count
+        # until pull request 21 — a figure that was never measured, summed as though it
+        # were zero, with the note beside the total understating what it left out (#36).
+        # `ClaudeHarness.timeout_record` produces exactly this shape.
+        _write(runs / "wg-b" / "trials" / "g2__ts__t0.json",
+               {"game": "g2", "stack": "ts", "trial": 0,
+                "agent": {"terminal_reason": "harness_timeout", "cost_usd": None}})
+
+        # Direction 7: THREE cost shapes that are numbers to a reader and not to an
+        # aggregate. `json.loads` produces all three of NaN/Infinity/-Infinity from a
+        # stored record, and ONE NaN makes the whole total NaN — an aggregate that is
+        # wrong about every record because of one. A bool passes `isinstance(x, int)` and
+        # would average as 1.00. Each must be excluded AND counted.
+        # Through `_write`, the one fixture writer, rather than a second one alongside it.
+        # `json.dumps` emits the bare tokens `NaN`, `Infinity` and `-Infinity` for these
+        # floats, so the bytes on disk — and therefore the parse path `load_records`
+        # takes — are exactly a stored record's.
+        for i, value in enumerate((float("nan"), float("inf"), float("-inf"), True)):
+            _write(runs / "wg-a" / "trials" / f"g1__rust__t{i + 5}.json",
+                   {"game": "g1", "stack": "rust",
+                    "agent": {"terminal_reason": "completed", "cost_usd": value}})
 
         c = census(runs)
         wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
-        check("wholegame.trial_records", wg["trial_records"], 3)
-        check("wholegame.run_directories", wg["run_directories"], 2)
-        check("wholegame.games", wg["games"], {"g1": 2, "g2": 1})
-        check("wholegame.stacks", wg["stacks"], {"rust": 2, "ts": 1})
-        check("wholegame.cells", wg["cells"], 3)
+        check("wholegame.trial_records", wg["trial_records"], 9)
+        check("wholegame.run_directories", wg["run_directories"], 3)
+        check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})
+        check("wholegame.stacks", wg["stacks"], {"rust": 7, "ts": 2})
+        check("wholegame.cells", wg["cells"], 4)
         check("wholegame.terminal_reason", wg["terminal_reason"],
-              {"absent": 1, "api_error": 1, "completed": 1})
+              {"absent": 1, "api_error": 1, "completed": 6, "harness_timeout": 1})
         check("wholegame.agent_cost_usd", wg["agent_cost_usd"], 6.0)
+        # Direction 5, both halves: the other harness's record is COUNTED as a record and
+        # its vendor USD reaches no total. A partition that silently dropped the record
+        # and a sum that silently included 77.0 are both wrong, and only asking for both
+        # numbers separates them.
+        check("wholegame.harness", wg["harness"], {"claude": 8, "prime-agent": 1})
+        # 6 unpriced for 3 different reasons — a foreign harness, our own harness with no
+        # readable figure, and 4 figures that are numbers to a reader but not to an
+        # aggregate. One counter, because the question a reader asks of the note is "how
+        # many records is this total NOT over".
+        check("wholegame.cost_unpriced_records", wg["cost_unpriced_records"], 6)
+        # THE TOTAL IS UNMOVED AND STILL FINITE. A single NaN admitted here would make it
+        # NaN, and `6.0 != nan` would be the only way anyone found out.
+        check("no unusable figure reached the total", wg["agent_cost_usd"], 6.0)
+        check("the total is finite", math.isfinite(wg["agent_cost_usd"]), True)
+        check("tree.harness", tree["harness"], {"claude": 10, "prime-agent": 1})
+        # A record whose two provenance fields DISAGREE is neither of them: it is excluded
+        # from every priced sum by the same test that excludes a foreign harness, and it
+        # shows up in the partition where a reader cannot miss it. Picking one silently is
+        # what must not happen — the record would land in the tokval sum on the strength
+        # of a field the other one contradicts.
+        check("a conflicting record is neither harness",
+              harness_of({"agent": {"harness": "claude"},
+                          "harness": {"name": "prime-agent"}}),
+              "conflict:claude|prime-agent")
+        check("and it is therefore unpriced",
+              _priced({"agent": {"harness": "claude", "cost_usd": 5.0},
+                       "harness": {"name": "prime-agent"}}), False)
+        check("prime-agent vendor USD reached no total",
+              77.0 not in (wg["agent_cost_usd"], tree["agent_cost_usd"],
+                           sc["agent_cost_usd"]), True)
+        check("an unstamped record is read as claude",
+              harness_of({"agent": {"cost_usd": 1.0}}), "claude")
         # The spec-change records must NOT be counted as whole-game, and must be counted
         # — including the one nested inside the archive wrapper.
         check("specchange.trial_records", sc["trial_records"], 2)
         check("specchange.run_directories", sc["run_directories"], 2)
         check("specchange.agent_cost_usd", sc["agent_cost_usd"], 9.0)
-        check("tree.trial_records", tree["trial_records"], 5)
-        check("tree.run_directories", tree["run_directories"], 4)
+        check("tree.trial_records", tree["trial_records"], 11)
+        check("tree.run_directories", tree["run_directories"], 5)
         check("tree.agent_cost_usd", tree["agent_cost_usd"], 15.0)
         check("largest matrix is wg-a", max(
             wg["per_run"].items(), key=lambda kv: kv[1]["records"])[0], "wg-a")
@@ -315,12 +487,49 @@ def selftest() -> int:
         counted, skipped = trial_paths(runs)
         check("nested run identified by relative path",
               sorted({str(Path(p).parent.parent.relative_to(runs)) for p in counted}),
-              ["archive-x/core-y", "core-x", "wg-a", "wg-b"])
+              ["archive-x/core-y", "core-x", "wg-a", "wg-b", "wg-c"])
         # 4b, both halves: excluded from the counts AND reported.
         check("agent-authored trials/ skipped", len(skipped), 1)
         check("skip is reported", tree["skipped_agent_authored"], 1)
         check("agent-authored record did not reach the cost total",
               999.0 not in [_cost(d) for _, _, d in load_records(runs)[0]], True)
+
+        # Direction 8, both halves: a record whose provenance is present and unreadable
+        # is EXCLUDED from the priced total and VISIBLE in the partition — never quietly
+        # inside the claude bucket, which is where the default used to put it.
+        _write(runs / "wg-a" / "trials" / "g1__ts__t9.json",
+               {"game": "g1", "stack": "ts",
+                "agent": {"terminal_reason": "completed", "harness": [],
+                          "cost_usd": 500.0}})
+        c8 = census(runs)["wholegame"]
+        check("a record with unreadable provenance is not claude",
+              c8["harness"].get("invalid-provenance"), 1)
+        check("and its cost reached no total", c8["agent_cost_usd"], 6.0)
+
+        # Direction 9a: a trial file that is not an object at all. `"agent" in data` is
+        # a SUBSTRING test on a string, so this file answers True to it and used to raise
+        # `TypeError` naming nothing.
+        (runs / "wg-a" / "trials" / "g1__ts__t11.json").write_text('"agent"')
+        try:
+            census(runs)
+            failures.append("a non-object record: returned a census instead of raising")
+        except CensusError as exc:
+            if "g1__ts__t11.json" not in str(exc):
+                failures.append(f"the non-object refusal does not name its file: {exc}")
+        (runs / "wg-a" / "trials" / "g1__ts__t11.json").unlink()
+
+        # Direction 9: an `agent` block that is present and is not an object fails by
+        # NAME. `_terminal` and `_cost` both call `.get` on it, so this used to end the
+        # census with an AttributeError several frames away, naming no file.
+        _write(runs / "wg-a" / "trials" / "g1__ts__t10.json",
+               {"game": "g1", "stack": "ts", "agent": None})
+        try:
+            census(runs)
+            failures.append("a null `agent` block: returned a census instead of raising")
+        except CensusError as exc:
+            if "g1__ts__t10.json" not in str(exc):
+                failures.append(f"the null-`agent` refusal does not name its file: {exc}")
+        (runs / "wg-a" / "trials" / "g1__ts__t10.json").unlink()
 
         # Direction 3: a record that is malformed must fail loudly, naming its file.
         (runs / "wg-b" / "trials" / "broken.json").write_text("{not json")
