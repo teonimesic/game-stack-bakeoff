@@ -241,6 +241,12 @@ learn from that comment.
 | **Review limit reached** — *"you've used all N included reviews currently available"* | the org's allowance is spent; the body says how long until one frees up | wait out the stated interval, post `@coderabbitai review`, poll again — **do not restart the round budget** |
 | **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask |
 
+**Poll again with `--ignore-notice`.** The notice is a comment, and CodeRabbit leaves it in
+place until it next rewrites the summary — so a wait that stops on a notice stops at
+`elapsed=1s`, every time, and the `@coderabbitai review` you just posted can never be observed to
+have worked. The flag still prints the notice on every line; it only stops treating it as a stop
+condition, and a pause that is never lifted then costs the quiet bound and ends `UNRESOLVED`.
+
 **A notice is a diagnostic, and it is stale the moment anything changes.** CodeRabbit edits its
 comments in place, so a heading can outlive the state it described — PR #6's *Review limit
 reached* was measured on 2026-08-23 and is no longer extractable from PR #6 at all. That is why

@@ -343,13 +343,22 @@ def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.
              sleep_fn: Callable[[float], None] = time.sleep,
              emit: Callable[[str], None] = _emit,
              poll_seconds: int = POLL_SECONDS, quiet_timeout: int = QUIET_TIMEOUT,
-             flight_timeout: int = FLIGHT_TIMEOUT) -> dict:
+             flight_timeout: int = FLIGHT_TIMEOUT, ignore_notice: bool = False) -> dict:
     """Poll until the round resolves, or until SILENCE — not elapsed time — runs out.
 
     `seen_in_flight` LATCHES. CodeRabbit rewrites the summary comment during a round, so
     the marker can appear and disappear while the round is still running; a bound
     recomputed from the latest poll alone would expire at the quiet timeout on exactly the
     case this design exists for.
+
+    `ignore_notice` is for the poll you start AFTER acting on a notice. A deadlock notice
+    is a comment, and CodeRabbit leaves it in place until it next rewrites the summary — so
+    a wait that stops on it stops instantly, every time, and the remedy you just applied can
+    never be observed to have worked. Measured on this tool's own pull request: `--wait`
+    returned `NOTICE` at `elapsed=1s` on a pause that had already been answered with
+    `@coderabbitai review`. With the flag the notice is still printed on every line; it just
+    stops being a stop condition, and a genuinely new pause then costs the quiet bound —
+    loud, not silent.
     """
     started = now_fn()
     seen_in_flight = False
@@ -360,7 +369,9 @@ def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.
         polls += 1
         elapsed = now_fn() - started
         emit(render(last, elapsed))
-        if last["verdict"] in ("LANDED_REVIEW", "LANDED_COMMENT", "NOTICE"):
+        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (
+            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")
+        if last["verdict"] in stop:
             return {**last, "polls": polls, "elapsed": elapsed,
                     "seen_in_flight": seen_in_flight}
         if last["verdict"] == "IN_FLIGHT":
@@ -632,6 +643,15 @@ def selftest() -> int:
     out = run_wait([(60, "NOTICE")])
     check("F5 notice stops the wait", out["verdict"], "NOTICE")
     check("F5 stopped at once", int(out["elapsed"]), 60)
+    # F6: the SAME timeline once the notice has been acted on. The notice comment outlives
+    # the pause it described, so without this the wait stops instantly, for ever.
+    out = run_wait([(60, "NOTICE"), (900, "LANDED_REVIEW")], ignore_notice=True)
+    check("F6 an answered notice does not stop the wait", out["verdict"], "LANDED_REVIEW")
+    # Variant H: --ignore-notice must not become "wait for ever". A pause that is never
+    # answered still expires, loudly, on the quiet bound.
+    out = run_wait([(60, "NOTICE")], ignore_notice=True)
+    check("F7 variant — an ignored notice still expires loudly", out["verdict"], "UNRESOLVED")
+    check("F7 on the quiet bound", int(out["elapsed"]), QUIET_TIMEOUT)
 
     # --- the poll line reaches the reader while the wait is still running
     class Recorder:
@@ -727,6 +747,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     help="seconds of never having seen a round in flight")
     ap.add_argument("--flight-timeout", type=int, default=FLIGHT_TIMEOUT,
                     help="seconds once a round HAS been seen in flight")
+    ap.add_argument("--ignore-notice", action="store_true",
+                    help="do not stop --wait on a deadlock notice. Use it for the poll you "
+                         "start after acting on one: the notice comment outlives the state "
+                         "it described, so it would stop every wait instantly")
     ap.add_argument("--census", action="store_true",
                     help="every pull request, and which arm fires at its head")
     ap.add_argument("--selftest", action="store_true")
@@ -749,7 +773,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             out = wait_for(
                 lambda: poll(args.pr, args.branch, args.expect_head, repo=args.repo),
                 poll_seconds=args.poll_seconds, quiet_timeout=args.quiet_timeout,
-                flight_timeout=args.flight_timeout)
+                flight_timeout=args.flight_timeout, ignore_notice=args.ignore_notice)
             if out["verdict"] == "UNRESOLVED":
                 print(f"UNRESOLVED: #{args.pr} {args.branch} head={out['head']} — "
                       f"{out['polls']} polls over {int(out['elapsed'])}s, budget "

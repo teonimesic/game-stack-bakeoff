@@ -40,6 +40,7 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `flight_bound_is_quiet` | the longer bound once a round has been seen | the 15-minute-clock defect at a different constant: a review that lands at 40 minutes is handed back as "no review" |
 | `latch_not_sticky` | the latch on `seen_in_flight` | CodeRabbit rewrites the summary during a round, so the marker comes and goes; recomputing from the last poll expires at the quiet bound mid-round |
 | `notice_does_not_stop` | `NOTICE` ending the wait | a paused or limit-reached review is waited out in full instead of being acted on, and the remedy is in the comment the tool already read |
+| `notice_always_stops` | `--ignore-notice` | the notice comment outlives the pause it describes, so the poll you start **after** acting on one stops at `elapsed=1s` — every time, for ever. Measured on this tool's own pull request |
 | `census_skips_address_check` | the address assertion inside `--census` | `pr list` and `pr view` are two reads and can disagree; the known-answer proof stops being one |
 | `render_drops_the_branch` | the branch from the output line | the audit trail loses the thing the assertion is about — and printing was one of the two things `tasks/127` asked for |
 | `emit_not_flushed` | the `flush=True` on the poll line | Python block-buffers stdout when it is not a terminal, so a `--wait` under a harness prints **0 bytes** for the whole round and the lines arrive after the answer does. Measured on this pull request's own first round |
@@ -173,8 +174,13 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '        budget = (flight_timeout if last["verdict"] == "IN_FLIGHT"'
         "                  else quiet_timeout)"),
     "notice_does_not_stop": (
-        '        if last["verdict"] in ("LANDED_REVIEW", "LANDED_COMMENT", "NOTICE"):',
-        '        if last["verdict"] in ("LANDED_REVIEW", "LANDED_COMMENT"):'),
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")',
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT")'),
+    "notice_always_stops": (
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")',
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")'),
 
     # ---- the census, which is the known-answer proof of the extraction
     "census_skips_address_check": (
