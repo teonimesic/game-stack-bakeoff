@@ -1319,6 +1319,11 @@ def drive(scene: Scene, repo: Path, seed_a: int = 7, seed_b: int = 99,
     """
     t0 = time.monotonic()
     run = SceneRun()
+    # PER CALL, not per instance. `Scene` is an ordinary object and nothing stops one
+    # being driven twice; a set carried over from the previous run would report an image
+    # half that this run's frames never supported, which is the exact claim
+    # `measured_twice` exists to make honestly.
+    scene.image_measured.clear()
     try:
         run = gather(scene, repo, seed_a, seed_b, env)
         crits = scene.run(run)

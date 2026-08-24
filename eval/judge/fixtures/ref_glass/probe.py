@@ -76,11 +76,16 @@ def run_file(seed: int, ticks: int, script: str, dest: str) -> int:
     # Atomic: a partly written trace at `dest` parses as a shorter run rather than as a
     # failure, which is the shape a reader cannot tell from a real one.
     tmp = dest + ".part"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines))
-        if lines:
-            fh.write("\n")
-    os.replace(tmp, dest)
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+            if lines:
+                fh.write("\n")
+        os.replace(tmp, dest)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
     return 0
 
 

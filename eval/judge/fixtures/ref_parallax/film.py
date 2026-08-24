@@ -79,12 +79,17 @@ except Exception:  # pragma: no cover - only used when run outside the judge tre
         # Atomic, like the judge's own writer: a partial frame at the final path is
         # indistinguishable from a complete one until something opens it.
         tmp = path + ".part"
-        with open(tmp, "wb") as fh:
-            fh.write(b"\x89PNG\r\n\x1a\n"
-                     + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-                     + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
-                     + chunk(b"IEND", b""))
-        os.replace(tmp, path)
+        try:
+            with open(tmp, "wb") as fh:
+                fh.write(b"\x89PNG\r\n\x1a\n"
+                         + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+                         + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
+                         + chunk(b"IEND", b""))
+            os.replace(tmp, path)
+        except BaseException:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise
 
 
 def _byte(v: float) -> int:

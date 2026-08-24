@@ -106,12 +106,18 @@ def write_rgb(path: str | Path, width: int, height: int, pixels: bytes) -> None:
     dest = Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
-    tmp.write_bytes(
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
-        + chunk(b"IEND", b""))
-    os.replace(tmp, dest)
+    try:
+        tmp.write_bytes(
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
+            + chunk(b"IEND", b""))
+        os.replace(tmp, dest)
+    except BaseException:
+        # The original error is what the caller needs; the half-written sibling is
+        # litter in a directory something will glob. Take it away and re-raise.
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def read(path: str | Path) -> Image:
