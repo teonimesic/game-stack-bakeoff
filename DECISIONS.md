@@ -2002,7 +2002,7 @@ error in the squash arm as a clean "no", swallowing the third value in the compo
 `patch-id`'s commit-id column instead of its patch-id column, dropping `rev` from the cache key,
 and caching a failure.
 
-Three constraints on the rows and the `kills` lists, each of which a mutant walked through
+3 constraints on the rows and the `kills` lists, each of which a mutant walked through
 before it held:
 
 - **Every arm is called at its own address, not only through its consumer.** A row handing
