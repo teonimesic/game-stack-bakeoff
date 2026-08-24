@@ -663,12 +663,12 @@ post-repair field gives **1.8750 against 2.0938** the same way.
 > direction.** A previous version of this section read a two-row table, 1.70 and 2.05, with no
 > field and no method; it matches none of the four and was **withdrawn** — FINDINGS #113,
 > register entry `WR-tier3-pair`. Do not restore an argument of the form *between is smaller
-> than within*: it is decided by a choice nobody had made deliberately, and one of the eight
-> readings across the two fields still comes out the other way.
+> than within*: it is decided by a choice nobody had made deliberately, and **1** of the **8**
+> readings across the 2 fields still comes out the other way.
 
-What survives the parameter is the magnitude. **On none of the eight readings across the two
+What survives the parameter is the magnitude. **On none of the 8 readings across the 2
 fields does the between-stack range exceed the within-stack gap by more than 15%** — the maximum
-is `pre` `score`/`perround`, 1.0000 against 0.8750, a factor of 1.143 — and across those eight
+is `pre` `score`/`perround`, 1.0000 against 0.8750, a factor of 1.143 — and across those 8
 between is strictly smaller on **6**, equal on **1** and larger on **1**. That is
 against a field the deterministic tiers score identically. A stack effect would have to dwarf
 the within-stack gap. Nothing here does, under any method.

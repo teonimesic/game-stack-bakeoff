@@ -560,7 +560,7 @@ each pooled figure is over plus every round it excluded. Until then the rule liv
 comment claiming an `Aspect.diagnostic_only` guard that was never set and read by no code, and
 `runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control. That directory today
 pools **20** rounds over 4 scored aspects, giving `score`/`pool` **0.5250/0.4000** with the
-between-exceeds-within verdict unchanged in all four readings, and it names both the control and
+between-exceeds-within verdict unchanged in all 4 readings, and it names both the control and
 `idiomatic` as excluded (task 90, `tasks/146`).
 
 > **A control that does not declare itself to code is a control by convention.** The field

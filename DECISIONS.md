@@ -250,7 +250,7 @@ without its method names one of four quantities, which is how a pair matching no
 to be published in four documents at once (#113).
 
 **There is a third parameter and it is the POPULATION.** A directory of rounds is not one
-population, and **two** different properties put a round outside it. Decided 2026-08-23 (task
+population, and **2** different properties put a round outside it. Decided 2026-08-23 (task
 90) and extended 2026-08-24 (`tasks/146`): both properties **declare themselves to code** in
 `eval/judge/aspects.py`, a pooled figure covers what is left, and `field_ranks` names the
 aspects each figure is over — and every aspect it excluded, with the reason — in its own output.
@@ -965,14 +965,14 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   decision never rested on it (#54, register `WR-arch-ux-redundancy`). And
   **no aspect separates the stacks at a magnitude that could matter**: recomputed by
   `eval/judge/field_ranks.py` over both stored fields of `wg-tetris-judge-2026-08-17`, the
-  between-stack range **never exceeds the within-stack gap by more than 15%** across the eight
+  between-stack range **never exceeds the within-stack gap by more than 15%** across the **8**
   readings, on a field the deterministic tiers score identically. Reported pair, `rank`+`pool`:
   **1.3125 against 2.5625** pre-repair, **1.8750 against 2.0938** post-repair. Both are over the
   **4** poolable aspects; `idiomatic` is cross-stack barred and no longer enters a pooled figure
   (`tasks/146`, and the population row under "Grading" above).
   **This is a magnitude, not a direction, and the change matters.** The bullet used to read
   *"its between-stack range is smaller than its within-stack spread"* — an inequality that
-  **reverses in one of the eight readings**, and reversed in four of the eight while the barred
+  **reverses in 1 of the 8 readings**, and reversed in 4 of the 8 while the barred
   aspect was in the pool. That argument is retired rather than restated with better
   numbers: a comparison whose sign is decided by a free method parameter cannot license a
   conclusion in either direction, and honouring the bar moved the sign on 3 readings without
