@@ -47,8 +47,8 @@ bought by the accumulated whole-PR diff? The reasoning it feeds is in
 --scope IS `controls.yml`'s path filter, and it lives here rather than in `on: paths:`
 because a workflow that does not match its filter produces NO check, not a passing one --
 and `controls` is a required check, so a pull request touching only `tasks/` or a root
-document waited on a check that could never arrive (measured at PR #14's head: two `gates`
-check runs, zero `controls`). The job now runs on every pull request and this decides,
+document waited on a check that could never arrive (measured at PR #14's head: 2 `gates`
+check runs, 0 `controls`). The job now runs on every pull request and this decides,
 inside it, whether the slow suites have anything to read. Its verdict is written as
 `relevant=true|false` to `$GITHUB_OUTPUT`, and every step below the scope step is guarded
 on `!= 'false'` -- never `== 'true'`, because an output nothing wrote reads as the empty
@@ -63,7 +63,9 @@ which must be refused rather than scored; the ways a workflow can leave `ubuntu-
 the file still contains the string; a filter entry no pin depends on; and the ways the scope
 guard can break -- a `paths:` filter back on either trigger, the scope step deleted, its id
 renamed, its command replaced, one gate losing its guard, the guard flipped to the fail-open
-`== 'true'`, and a guarded step placed above the step whose output it reads. What must still
+`== 'true'`, a guarded step placed above the step whose output it reads, a second
+`ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`, and a file that does not
+parse at all -- the last 3 being shapes that used to RAISE rather than report. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
 unguarded `uses:` step, a comment in the job, and an extra flag on the scope step. The
@@ -196,7 +198,7 @@ def matches_filter(path: str,
 # workflow that does not match produces no check at all rather than a passing one -- and
 # `controls` is a required check, so a pull request touching only `tasks/` or a root
 # document waited on a check that could never arrive. Measured at PR #14's head: two
-# `gates` check runs, zero `controls`.
+# `gates` check runs, 0 `controls`.
 SCOPE_STEP_ID = "scope"
 SCOPE_INVOCATION = "ci_minutes.py --scope"
 
@@ -370,10 +372,21 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     # check stayed green. It also passes on a stale COMMENT mentioning ubuntu-latest next
     # to a `runs-on: macos-latest`. Raised by CodeRabbit on PR #10; it is the same
     # substring-versus-parse defect the filter check was repaired for, one field away.
+    # A file that does not parse must be REPORTED, not raised through. A check that raises
+    # produces no verdict, and its caller sees a traceback where it expected a list.
+    parsed: dict[str, dict] = {}
     for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
         if text is None:
             continue
-        wf = yaml.safe_load(text) or {}
+        try:
+            parsed[label] = yaml.safe_load(text) or {}
+        except yaml.YAMLError as exc:
+            problems.append(f"{label} does not parse as YAML: {exc.__class__.__name__}. "
+                            f"Nothing below could be checked")
+    if "controls.yml" not in parsed:
+        return problems
+
+    for label, wf in parsed.items():
         jobs = wf.get("jobs")
         if not isinstance(jobs, dict) or not jobs:
             problems.append(f"{label} declares no parseable `jobs:`")
@@ -387,7 +400,7 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
                     f"macOS bills at 10x and Windows at 2x, so the 1x multiplier this tool "
                     f"applies would be wrong")
 
-    doc = yaml.safe_load(controls_text) or {}
+    doc = parsed["controls.yml"]
     # YAML 1.1 resolves a bare `on:` key to the boolean True, so `doc["on"]` is a KeyError
     # and `doc.get("on", {})` would silently check nothing at all.
     triggers = doc.get(True, doc.get("on"))
@@ -404,10 +417,31 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
                 f"check -- so this blocks every pull request touching none of them "
                 f"(measured on PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
 
+    # ONE JOB, and the walk below is over ITS steps. Reading only the first of several
+    # would be fail-open in the direction that matters: a second `ubuntu-latest` job
+    # carrying an unguarded `run:` step passes every check here while executing controls
+    # work with no scope output behind it. Raised by CodeRabbit on PR #16, and the same
+    # first-entry defect the `runs-on` loop above was repaired for on PR #10.
+    #
+    # Refusing a second job rather than validating each is the stricter reading, and it is
+    # the one the design supports: the guard is per-job -- `steps.scope.outputs.relevant`
+    # names a step in the SAME job -- so a second job would need its own scope step, and it
+    # would also be a second required check that can be absent, which is why `DECISIONS.md`
+    # rejects the two-job form.
     jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
-    first = next(iter(jobs.values()), None) if jobs else None
-    steps = (first.get("steps") or []) if isinstance(first, dict) else []
-    steps = [s for s in steps if isinstance(s, dict)]
+    if len(jobs) != 1:
+        return problems + [
+            f"controls.yml declares {len(jobs)} jobs, not 1. The scope guard is per-JOB -- "
+            f"`steps.scope.outputs.relevant` reads a step in the same job -- so a second "
+            f"job runs unguarded, and it is also a second check that can be absent"]
+    first = next(iter(jobs.values()))
+    raw = first.get("steps") if isinstance(first, dict) else None
+    if raw is not None and not isinstance(raw, list):
+        return problems + [
+            f"controls.yml's job declares `steps: {raw!r}`, which is not a list. Iterating "
+            f"it raises instead of reporting, and a check that raises is a check whose "
+            f"verdict nobody reads"]
+    steps = [s for s in (raw or []) if isinstance(s, dict)]
     scoped = [i for i, s in enumerate(steps) if s.get("id") == SCOPE_STEP_ID]
     if len(scoped) != 1:
         return problems + [
@@ -456,15 +490,22 @@ def gate_census() -> dict[str, dict]:
     sixth gate in `controls.yml` while it checks nothing about the repository -- it decides
     whether the five below have anything to read. It is reported in its own bucket, because
     a step silently dropped from a census is how a count starts lying.
+
+    EVERY job, not the first. Both workflows declare one today and `filter_problems`
+    refuses a second in `controls.yml`, but a census that reads one job of several reports
+    a count lower than the truth while staying green -- and a published count that can only
+    go wrong downwards is the worst direction for this one.
     """
     import yaml
     out: dict[str, dict] = {}
     for wf in ("gates", "controls"):
         path = ROOT / ".github" / "workflows" / f"{wf}.yml"
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        jobs = doc.get("jobs") or {}
-        job = list(jobs.values())[0] if jobs else {}
-        run_steps = [s for s in (job.get("steps") or [])
+        jobs = doc.get("jobs")
+        jobs = jobs if isinstance(jobs, dict) else {}
+        run_steps = [s
+                     for job in jobs.values() if isinstance(job, dict)
+                     for s in (job.get("steps") or [])
                      if isinstance(s, dict) and "run" in s]
         scope = [s for s in run_steps if s.get("id") == SCOPE_STEP_ID]
         steps = [s for s in run_steps if s.get("id") != SCOPE_STEP_ID]
@@ -782,6 +823,20 @@ def _selftest() -> int:
                              "steps.scope.outputs.relevant == 'true'"),
             "a guarded run: step placed before the scope step":
                 live.replace(scope_block, version_step + scope_block, 1),
+            # The first-entry defect, and the runs-on check CANNOT see this one: the second
+            # job is ubuntu, so only the job-count refusal catches it. Raised on PR #16.
+            "a second UBUNTU job carrying an unguarded gate":
+                live.replace("jobs:\n  controls:\n    runs-on: ubuntu-latest",
+                             "jobs:\n  extra:\n    runs-on: ubuntu-latest\n    steps:\n"
+                             "      - run: python3 eval/judge/audio_selftest.py\n"
+                             "  controls:\n    runs-on: ubuntu-latest"),
+            # A scalar `steps:` used to raise TypeError rather than report, and a file that
+            # does not parse used to raise ScannerError. A check that RAISES has no verdict
+            # at all, which is not the same as a check that says no.
+            "steps: given as a scalar":
+                live.split("    steps:\n")[0] + "    steps: 1\n",
+            "controls.yml no longer parses as YAML":
+                live.replace("jobs:\n  controls:\n", "jobs:\n  controls:\n\tbad: [\n", 1),
             "the runner moved off ubuntu-latest":
                 live.replace("runs-on: ubuntu-latest", "runs-on: macos-latest"),
             # The two the substring form passed. A mixed workflow still CONTAINS

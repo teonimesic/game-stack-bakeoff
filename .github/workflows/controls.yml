@@ -13,7 +13,7 @@
 # THE FILTER IS NOT IN `on:`, AND THAT IS THE WHOLE POINT OF THIS SHAPE. A workflow whose
 # `paths:` do not match produces NO check, not a passing one, and `controls` is a required
 # check -- so a pull request touching only `tasks/` or a root document waited on a check
-# that could never arrive. Measured at PR #14's head: two `gates` runs, zero `controls`.
+# that could never arrive. Measured at PR #14's head: 2 `gates` runs, 0 `controls`.
 # The job now runs on every pull request, decides in its FIRST step whether its suites have
 # anything to read, and skips the rest when they do not. The check therefore always reports.
 #

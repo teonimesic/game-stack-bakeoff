@@ -1419,7 +1419,7 @@ is exactly what `paths:` matched against — and writes `relevant=true|false` fo
 
 **This supersedes the step-gating form rejected the day before, and the objection to it was
 right.** That form buys its saving with a green `controls` run that executed no gate, which is the
-one pattern this project exists to catch. Three things answer it, and none of them is the saving:
+one pattern this project exists to catch. 3 things answer it, and none of them is the saving:
 
 1. **The guard is `!= 'false'`, never `== 'true'`.** An output the scope step never wrote reads
    as the empty string; `== 'true'` skips on it, `!= 'false'` runs. The only way to skip is for
