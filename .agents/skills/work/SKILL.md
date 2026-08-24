@@ -105,6 +105,15 @@ In the same session as the work:
 - Run the gates unpiped: `docstat.py --sweep`, `tasks.py check`, and whatever the area's own
   `AGENTS.md` names.
 
+> **Run them against what you are about to push, not against your worktree, and prove the two
+> agree with `git status --short`.** A gate reads the files on disk; a commit records the index,
+> and those are the same thing only until they are not. Merging `main` and then repairing what
+> the merge broke is where they part: `git commit --no-edit` finishes the merge from the **index**
+> and silently leaves any edit made after the conflict resolution behind. That happened on this
+> branch — `ci_minutes --selftest` was green locally and red in CI on the same second, because
+> the fix it was reading had never been staged. It is `AGENTS.md` rule 12 with the worktree as
+> the wrong address.
+
 **Commit on `task-<id>-<slug>`.** Use `git commit -F` with a file: backticks in `-m` are executed
 by the shell and silently strip text (#80).
 
