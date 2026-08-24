@@ -1297,7 +1297,7 @@ stored result files on 2026-08-16.
 > discriminates neither.
 >
 > **$4.39 is a retrospective aggregate and nothing may be projected from it.** It averages
-> `architecture` and `idiomatic` over 3 calls, and the rows below show what that hides: on
+> `architecture` and `idiomatic` over 3 calls, and the rows above show what that hides: on
 > `g2_tetris3d` a call costs $6.81 for `architecture` and $0.60 for `audio`, an 11x spread. So
 > the mean is not a per-aspect rate, `judge_ledger.py` prints no per-call mean for that reason,
 > and the 1 projection made from this one came out 1.84x low (below). **Price from a
