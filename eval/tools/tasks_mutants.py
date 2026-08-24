@@ -308,7 +308,7 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # and total, and reads as a clean queue.
     # THE SQUASH ARM NEVER ASKED, which is what shipped and is task 140: ancestry alone is
     # the right test for `merge --no-ff` and the wrong one for `merge --squash`, where the
-    # tip is an ancestor of nothing. Under this mutant every merged ticket whose ref survives
+    # tip is not an ancestor of it. Under this mutant every merged ticket whose ref survives
     # reads ORPHANED -- fail-closed, one new red row per merge, and a gate bypassed as habit.
     #
     # ONLY THE CONSUMER ROWS CAN SEE IT. `_squash_landed` is untouched, so the row calling it

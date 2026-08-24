@@ -1470,8 +1470,8 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
     """11c: the SQUASH flow, which is the one this repository merges by.
 
     `gh pr merge --squash` writes a commit with ONE parent and a tree of its own, so the tip
-    it landed is an ancestor of nothing and never will be -- `git branch -d` refuses such a
-    branch and is right to. Ancestry alone therefore read every merged ticket as ORPHANED
+    it landed is NOT an ancestor of it -- `git branch -d` refuses such a branch and is right
+    to. Ancestry alone therefore read every merged ticket as ORPHANED
     (task 140), which is fail-closed and still fatal: the count grows by one per merge, and a
     gate red for reasons unrelated to the change in front of you is a gate that gets bypassed.
 
@@ -1483,7 +1483,8 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
 
     The scratch half performs a real `merge --squash` and runs anywhere. One live row runs
     anywhere too -- a real squash commit on this repository's `main` has ONE parent, which is
-    the property that breaks ancestry, and it is reachable from `main` in every clone. The
+    the property that breaks ancestry, and it is on `main` so any clone with the history has
+    it -- a shallow one reports NOT CHECKED. The
     deleted branch tip is behind `--live-squash-refs`; see the comment at that block.
     """
     rows: list[tuple] = []
@@ -1623,8 +1624,8 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
 
     # THE LIVE ROW THAT RUNS EVERYWHERE, and it is the one whose answer is known in advance.
     # `_REAL_SQUASH_COMMIT` is a real `gh pr merge --squash` on this repository's `main`, so
-    # it is reachable from `main` in every clone -- and it has exactly ONE parent, which is
-    # the whole reason the tip it landed is an ancestor of nothing. If this repository ever
+    # any clone with the history has it -- and it has exactly ONE parent, which is the whole
+    # reason the tip it landed is not an ancestor of it. If this repository ever
     # went back to `git merge --no-ff` this row would not notice, but the fixture above does
     # not depend on it: the fixture squashes for real.
     parents = subprocess.run(["git", "-C", str(ROOT), "rev-list", "--parents", "-n", "1",
@@ -1639,7 +1640,7 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
     else:
         n_parents = len(parents.stdout.split()) - 1
         rows.append(("a real squash merge on this repository's main has ONE parent - why a "
-                     "landed tip is an ancestor of nothing", 0, n_parents == 1,
+                     "landed tip is not an ancestor of it", 0, n_parents == 1,
                      f"{_REAL_SQUASH_COMMIT[:9]}: {n_parents} parent(s), tip "
                      f"{_REAL_SQUASH_TIP[:9]} in this clone: {here(_REAL_SQUASH_TIP)}"))
 
@@ -1672,7 +1673,8 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
         T.TASKS = saved
     rows.append(("live: PR #16's SQUASH COMMIT is an ancestor of main", 0, known is True,
                  f"{_REAL_SQUASH_COMMIT[:9]}: got {known!r}"))
-    rows.append(("live: PR #16's BRANCH TIP is an ancestor of nothing - the defect", 0,
+    rows.append(("live: PR #16's BRANCH TIP is an ancestor of no commit on main - the "
+                 "defect", 0,
                  anc is False, f"{_REAL_SQUASH_TIP[:9]}: got {anc!r}"))
     rows.append(("live: ...while its CHANGE is on main - the same real ref, both directions",
                  0, content is True, f"{_REAL_SQUASH_TIP[:9]}: got {content!r}"))

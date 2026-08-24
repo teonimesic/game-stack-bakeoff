@@ -1920,8 +1920,9 @@ the tree. `landed_status` returns **three values**:
 **Two tests, because the repository has used two merge flows and refs from both survive.**
 `_is_landed` asks `_is_ancestor` first, which is the whole answer under `git merge --no-ff`, and
 then `_squash_landed`, which is the whole answer under `gh pr merge --squash`: a squash writes a
-commit with one parent and a tree of its own, so the tip it landed is an ancestor of **nothing**
-and never will be. `_squash_landed` renders `merge-base..ref` as one diff and asks whether its
+commit with one parent and a tree of its own, so **the tip it landed is not an ancestor of it**,
+and nothing a later squash does changes that. `_squash_landed` renders `merge-base..ref` as one
+diff and asks whether its
 `git patch-id` is among the patch-ids of the commits the base gained since — which is the same
 question ancestry was standing in for, asked about the change rather than about the commit.
 
@@ -1984,7 +1985,8 @@ one transient error into every later ref's verdict, which is rule 7's fail-open 
 
 **And one row says something about this repository, not only about a fixture built to agree with
 it:** `399280e`, a real squash merge on `main`, has exactly **one** parent — which is why the tip
-it landed is an ancestor of nothing — and it is reachable from `main` in every clone.
+it landed is not an ancestor of it — and it is on `main`, so any clone with the history has it.
+A shallow one does not, and the row says NOT CHECKED there rather than passing.
 
 **The deleted tip is opt-in, and the reason is this ticket's own defect one level up.**
 `--live-squash-refs` adds 4 rows against PR #16's actual objects: `58df942` is an ancestor of

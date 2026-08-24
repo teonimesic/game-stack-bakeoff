@@ -459,10 +459,14 @@ def _squash_landed(ref: str, bases: "list[tuple[str, str]]",
 
     THE ANCESTRY TEST IS THE WRONG ONE UNDER SQUASH MERGES, and this repository squashes.
     `gh pr merge --squash` writes a commit with ONE parent and a tree of its own, so the
-    branch tip it landed is an ancestor of nothing and never will be -- `git branch -d`
-    refuses such a branch for exactly that reason and is correct. Measured on this
-    repository: PR #16's tip `58df942` is an ancestor of nothing, while its squash commit
-    `399280e` is an ancestor of `main`.
+    branch tip it landed is NOT an ancestor of it -- `git branch -d` refuses such a branch
+    for exactly that reason and is correct. Measured on this repository: PR #16's tip
+    `58df942` is an ancestor of nothing on `main` today, while its squash commit `399280e`
+    is an ancestor of `main`.
+
+    NOT "an ancestor of nothing, ever". A later `git merge --no-ff` of a descendant of that
+    tip would make it reachable again, and this arm would then be answering a question the
+    ancestry arm has already answered True. That order is why the arms compose as they do.
 
     So this asks the question ancestry was standing in for: is the branch's combined change
     already present on the base? `merge-base .. ref` rendered as one diff has the same
