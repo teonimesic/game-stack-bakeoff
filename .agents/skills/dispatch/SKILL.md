@@ -130,7 +130,7 @@ The evidence says which bound expired: `seen_in_flight=False` means no round eve
 is a reviewer problem (check for a deadlock notice on the pull request); `seen_in_flight=True`
 means one started and ran past an hour. Merge on your own verification as you would have before
 the flow existed, and if it happens twice in a row that is evidence about the reviewer — a task,
-with the two PR numbers in it.
+with the 2 PR numbers in it.
 
 ### Merging
 

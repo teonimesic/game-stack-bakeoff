@@ -566,7 +566,7 @@ Two refinements that pattern does not cover:
     a comment promising they match is not a defence.
 
     **The corollary, measured over one session on 2026-08-23: rule 12 fires far more often
-    against a person than against a tool, and it always looks like a result.** Seven instances
+    against a person than against a tool, and it always looks like a result.** 7 instances
     in two days, each a sound method aimed at an address nobody had verified:
 
     | what was aimed | at what | what it returned |
@@ -579,7 +579,7 @@ Two refinements that pattern does not cover:
     | `select(.user.login=="coderabbitai")` over a pull request's comments | the App's real login, `coderabbitai[bot]` | **empty on every pull request**, read as "no configuration warning exists" while the warning sat in the comment it filtered out |
     | a review-poll loop, by the path of the file holding its target | an address a second writer could overwrite **after** it was written | 16 polls of `not yet` at exit 0 about **another agent's** pull request, with nothing in any line naming which one |
 
-    Four of the seven returned **the same wrong answer for every subject**, which is what made
+    4 of the 7 returned **the same wrong answer for every subject**, which is what made
     them look like findings rather than bugs — rule 9 pointed at your own instrument. One was
     committed while CHECKING another: an agent reported a configuration warning, the check for
     it was aimed at a login missing its `[bot]` suffix, and the empty result became a confident

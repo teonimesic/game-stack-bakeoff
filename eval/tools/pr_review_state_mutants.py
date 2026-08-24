@@ -33,20 +33,26 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `notice_before_landed` | the precedence of a real review over a notice | a stale `Review limit reached` — CodeRabbit edits comments in place, and PR #6's is already gone — outranks the review sitting next to it |
 | `inflight_before_review` | the precedence of a review object over a running round | a landed review is reported as still in flight, and the wait runs to its bound with the answer already on the page |
 | `gh_exit_ignored` | the `gh` returncode check | a failing API becomes a poll result (rule 2), and empty stdout parses as "no reviews" |
+| `gh_no_timeout` | the `timeout=` argument itself | a hung `gh` never returns, so `wait_for` never reaches the line that checks its budget. **The silence bound becomes unreachable on the one failure it exists to bound** |
+| `gh_timeout_ignored` | the `TimeoutExpired` conversion | the same hang surfaces as an uncaught exception rather than a named refusal, so `--wait` dies where it should have reported |
+| `census_cap_ignored` | the refusal when `gh pr list` returns a full page | `--limit` is honoured silently, so a repository past the cap gives a census of the cap. **The census is the known-answer proof; a truncated one still agrees with every row it kept** |
 | `first_page_only` | page aggregation | the review at the head sha is the NEWEST and the first to fall off page 1. gh 2.98 merges pages, older versions concatenate — so this is invisible on the version you happen to have |
 | `flight_bound_is_quiet` | the longer bound once a round has been seen | the 15-minute-clock defect at a different constant: a review that lands at 40 minutes is handed back as "no review" |
 | `latch_not_sticky` | the latch on `seen_in_flight` | CodeRabbit rewrites the summary during a round, so the marker comes and goes; recomputing from the last poll expires at the quiet bound mid-round |
 | `notice_does_not_stop` | `NOTICE` ending the wait | a paused or limit-reached review is waited out in full instead of being acted on, and the remedy is in the comment the tool already read |
 | `census_skips_address_check` | the address assertion inside `--census` | `pr list` and `pr view` are two reads and can disagree; the known-answer proof stops being one |
 | `render_drops_the_branch` | the branch from the output line | the audit trail loses the thing the assertion is about — and printing was one of the two things `tasks/127` asked for |
-| `drop_field` | a field the selftest reads, renamed | the selftest dying on a KeyError instead of reddening its row |
+| `emit_not_flushed` | the `flush=True` on the poll line | Python block-buffers stdout when it is not a terminal, so a `--wait` under a harness prints **0 bytes** for the whole round and the lines arrive after the answer does. Measured on this pull request's own first round |
+| `wait_emits_through_print` | `wait_for` using the flushing emitter | the same silence, reached through the default argument instead of through the function |
+| `drop_field` | a field the selftest reads, renamed | a row silently reading a field that is no longer there. **It must redden a named row, not raise** — a mutant that only crashes exits non-zero without saying which check it defeated, so the harness rejects a mutant that produced no red row |
 
 WHAT THIS DOES NOT DO
 ---------------------
 A mutant asks whether a check **can** fail. Only a **variant** asks whether it can still
 **pass** on an input it mishandles (`AGENTS.md` rule 15). The variants live in
-`pr_review_state.selftest`, because a variant must pass. There are 8, each paired with the
-mutant that proves its row can go red:
+`pr_review_state.selftest`, because a variant must pass. **The count is the closing line of
+`pr_review_state.py --selftest`**, which counts the rows labelled `variant` rather than
+restating a number here. Each is paired with the mutant that proves its row can go red:
 
 | variant, by its label in the selftest | the input it must still handle | proved reddenable by |
 |---|---|---|
@@ -145,6 +151,15 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "gh_exit_ignored": (
         "    if proc.returncode != 0:",
         "    if False:"),
+    "gh_no_timeout": (
+        "                      timeout=GH_TIMEOUT)",
+        "                      )"),
+    "gh_timeout_ignored": (
+        "    except subprocess.TimeoutExpired as exc:",
+        "    except ValueError as exc:"),
+    "census_cap_ignored": (
+        "    if len(listing) >= CENSUS_LIMIT:",
+        "    if False:"),
     "first_page_only": (
         "        if isinstance(value, list):\n            out.extend(value)",
         "        if isinstance(value, list):\n            return value"),
@@ -167,6 +182,12 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "        refusal = None"),
 
     # ---- the audit trail, and the selftest's own drift guard
+    "emit_not_flushed": (
+        "    print(line, flush=True)",
+        "    print(line)"),
+    "wait_emits_through_print": (
+        "             emit: Callable[[str], None] = _emit,",
+        "             emit: Callable[[str], None] = print,"),
     "render_drops_the_branch": (
         "    line = (f\"#{result['pr']} {result['branch']} head={result['head']} \"",
         "    line = (f\"#{result['pr']} head={result['head']} \""),
@@ -234,10 +255,14 @@ def main() -> int:
                 for ln in red[:3]:
                     print(f"        {ln}")
                 if not red:
-                    # Non-zero with no red row is a TRACEBACK, not a measurement. Both
-                    # exit non-zero, and only one of them says what broke.
+                    # NOT caught. Non-zero with no red row is a TRACEBACK, and a traceback
+                    # is the selftest dying rather than the selftest disagreeing: it tells
+                    # you nothing about which check the mutant defeated, and a mutant whose
+                    # only effect is a crash would score green on a check that no longer
+                    # exists. Both exit non-zero; only one of them is a measurement.
                     tail = (proc.stderr.strip().splitlines() or ["<no stderr>"])[-1]
-                    print(f"        (no red row — died with: {tail})")
+                    print(f"        NOT CAUGHT — no red row, died with: {tail}")
+                    problems.append(f"{name}: crashed without a red row")
 
     print()
     if problems:

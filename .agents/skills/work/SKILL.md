@@ -161,17 +161,17 @@ that will actually land.
 
 ### Waiting for the review
 
-**One command, and the address is an argument to it.** From the worktree whose branch it is:
+**1 command, and the address is an argument to it.** From the worktree whose branch it is:
 
 ```bash
 python3 eval/tools/pr_review_state.py --pr <n> --branch task-<id>-<slug> \
     --expect-head "$(git rev-parse HEAD)" --wait
 ```
 
-It prints one line per poll, and every line names the pull request, the branch and the full head
+It prints 1 line per poll, and every line names the pull request, the branch and the full head
 sha:
 
-    #18 task-127-poll-names-its-pr head=<40 hex> verdict=IN_FLIGHT by_review=0 by_comment=0 in_flight=1 elapsed=90s
+    #18 task-127-poll-asserts-its-branch head=<40 hex> verdict=IN_FLIGHT by_review=0 by_comment=0 in_flight=1 elapsed=90s
 
 **Read the word.** `DECISIONS.md`, *An agent hands back a pull request*, is the authority on what
 counts as reviewed and holds the per-pull-request evidence; the tool's docstring states every
@@ -190,7 +190,7 @@ guard and why it is there. If they disagree, `DECISIONS.md` wins.
 > copied into a scratchpad file under a generic name in a directory shared with every concurrent
 > session. A second agent wrote its own copy over the same path, and the first loop spent 16
 > polls reporting `not yet` at exit 0 about the second agent's pull request. Run against those
-> same two pull requests today, the old recipe answers `LANDED by review object at <sha>` for
+> same 2 pull requests today, the old recipe answers `LANDED by review object at <sha>` for
 > **both** #9 and #10, with nothing in either line to tell them apart; the tool answers
 > `WRONG PR: #10 is on branch 'task-124-ci-path-filter-and-minutes'` at exit 1.
 >
@@ -208,7 +208,7 @@ guard and why it is there. If they disagree, `DECISIONS.md` wins.
 
 **The wait is bounded on silence, not on a clock.** A fixed 15-minute bound was measured wrong:
 task 130's agent polled 29 times, handed the work back as ready, and the review arrived at
-**19m26s** on a 4-file diff carrying four threads and a Major. Raising the constant is the same
+**19m26s** on a 4-file diff carrying 4 threads and a Major. Raising the constant is the same
 defect at a larger value, so the bound is on the in-progress marker instead — 20 minutes while no
 round has ever been seen in flight, 60 minutes once one has, and the observation latches because
 CodeRabbit rewrites the summary comment mid-round. Expiry is `UNRESOLVED` and loud. **A no-review
@@ -283,7 +283,7 @@ the orchestrator would have to re-derive your reasoning from the diff.
 
 > **Compose the reply in a file and send it as JSON, then read back what the API stored (#166).**
 > `gh api -f body="…"` is an argument, so backticks in it are command substitution and the words
-> between them vanish silently — a reply lost three words that way. `#80` is about `git commit
+> between them vanish silently — a reply lost 3 words that way. `#80` is about `git commit
 > -m`; the flag was different, so the rule did not match, in the file that documents `#80`.
 >
 > ```bash

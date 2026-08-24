@@ -25,7 +25,7 @@ re-read them rather than carrying them forward.
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, and every `*_control.py`, `*_selftest.py` and
 mutant sweep that runs on Python alone — `cost_census_mutants` and `pr_review_state_mutants` are
-both offline and about a second each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
+both offline and about 1 second each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
 sigil, and no sweep is bounded by a figure nobody is charged (#159).
 

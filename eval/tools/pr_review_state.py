@@ -72,11 +72,11 @@ silence to mistake for one.
 USE
 ---
     # one poll, from the worktree whose branch it is about
-    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-names-its-pr \\
+    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-asserts-its-branch \\
         --expect-head "$(git rev-parse HEAD)"
 
     # wait for the round, printing a line every 30s
-    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-names-its-pr \\
+    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-asserts-its-branch \\
         --expect-head "$(git rev-parse HEAD)" --wait
 
     python3 eval/tools/pr_review_state.py --census      # every PR, which arm fires
@@ -91,6 +91,7 @@ use, and a printed line is only as good as the reader who happens to look at it.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import subprocess
@@ -117,6 +118,16 @@ QUIET_TIMEOUT = 20 * 60
 FLIGHT_TIMEOUT = 60 * 60
 POLL_SECONDS = 30
 
+# Every `gh` call is bounded. A hung `gh` never returns, so `wait_for` never reaches the
+# line that checks its budget: the silence bound would be unreachable and `--wait` would
+# hang forever on the one failure mode it exists to bound. 60s is 2x the poll interval,
+# so a call that overruns it has already lost its slot.
+GH_TIMEOUT = 60
+
+# `gh pr list` takes a --limit and silently returns that many. A census that stops at the
+# cap is a census reporting the cap, so the cap is high and reaching it is a REFUSAL.
+CENSUS_LIMIT = 1000
+
 EXIT = {
     "LANDED_REVIEW": 0,
     "LANDED_COMMENT": 0,
@@ -134,13 +145,18 @@ class PrReviewStateError(Exception):
 # --------------------------------------------------------------------------- gh access
 
 def _gh(args: Sequence[str], runner: Callable[..., Any] = subprocess.run) -> str:
-    """Run `gh` and return stdout. A non-zero exit RAISES.
+    """Run `gh` and return stdout, bounded by `GH_TIMEOUT`. A non-zero exit RAISES.
 
     Without the returncode check a failing API becomes a poll result: the loop reports a
     review state inferred from a command that did not run (rule 2), and an empty stdout
     then parses as "no reviews", which is a plausible in-range answer rather than a crash.
     """
-    proc = runner(["gh", *args], capture_output=True, text=True, check=False)
+    try:
+        proc = runner(["gh", *args], capture_output=True, text=True, check=False,
+                      timeout=GH_TIMEOUT)
+    except subprocess.TimeoutExpired as exc:
+        raise PrReviewStateError(
+            f"gh {' '.join(args)} did not return within {GH_TIMEOUT}s") from exc
     if proc.returncode != 0:
         raise PrReviewStateError(
             f"gh {' '.join(args)} exited {proc.returncode}: "
@@ -312,9 +328,20 @@ def render(result: dict, elapsed: float | None = None) -> str:
 
 # ----------------------------------------------------------------------------- waiting
 
+def _emit(line: str) -> None:
+    """Print a poll line and FLUSH it.
+
+    Python block-buffers stdout when it is not a terminal, so a `--wait` running under a
+    harness that captures its output shows nothing at all until the loop exits — measured,
+    0 bytes through a live round. An audit trail that only appears once the answer is
+    already known is not an audit trail.
+    """
+    print(line, flush=True)
+
+
 def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.monotonic,
              sleep_fn: Callable[[float], None] = time.sleep,
-             emit: Callable[[str], None] = print,
+             emit: Callable[[str], None] = _emit,
              poll_seconds: int = POLL_SECONDS, quiet_timeout: int = QUIET_TIMEOUT,
              flight_timeout: int = FLIGHT_TIMEOUT) -> dict:
     """Poll until the round resolves, or until SILENCE — not elapsed time — runs out.
@@ -354,10 +381,16 @@ def census(repo: str = REPO, runner: Callable[..., Any] = subprocess.run) -> lis
     before this tool existed and independently of it. Running this and comparing is the
     single known-good row rule 12 asks for before believing a census.
     """
-    raw = _gh(["pr", "list", "--repo", repo, "--state", "all", "--limit", "100",
-               "--json", "number,headRefName"], runner=runner)
+    raw = _gh(["pr", "list", "--repo", repo, "--state", "all",
+               "--limit", str(CENSUS_LIMIT), "--json", "number,headRefName"], runner=runner)
+    listing = json.loads(raw)
+    if len(listing) >= CENSUS_LIMIT:
+        raise PrReviewStateError(
+            f"gh pr list returned {len(listing)} rows at a --limit of {CENSUS_LIMIT}: the "
+            "listing is capped and this census would be reporting the cap, not the "
+            "repository. Raise CENSUS_LIMIT.")
     rows = []
-    for pr in sorted(json.loads(raw), key=lambda d: d["number"]):
+    for pr in sorted(listing, key=lambda d: d["number"]):
         n, branch = pr["number"], pr["headRefName"]
         view = fetch_view(n, repo=repo, runner=runner)
         refusal = check_address(n, view, branch)
@@ -396,17 +429,43 @@ def selftest() -> int:
     """Table-driven, offline, no network. Rows marked `variant` must PASS."""
     fails: list[str] = []
     ran = [0]
+    variants = [0]
 
     def check(label: str, got: Any, want: Any) -> None:
         ran[0] += 1
+        # A row labelled `variant` must PASS on an input the check might mishandle. It is
+        # counted here so the figure has a producer rather than a sentence in a docstring.
+        variants[0] += "variant" in label
         if got != want:
             fails.append(f"{label}: got {got!r}, want {want!r}")
 
+    def attempt(fn: Callable[[], Any]) -> Any:
+        """Run a row's expression, turning a CRASH into a red value.
+
+        A row that dies takes the whole suite with it, and a mutant whose only effect is
+        a traceback exits non-zero with no FAIL line — which the mutant harness scores as
+        caught while telling nobody what broke. Every field read below goes through here
+        so drift reddens one named row.
+        """
+        try:
+            return fn()
+        except Exception as exc:  # a crash is a RESULT here, not an abort
+            return f"<raised {type(exc).__name__}: {exc}>"
+
     def raises(label: str, fn: Callable[[], Any]) -> None:
+        """The row passes only on a NAMED refusal.
+
+        Any other exception is a red row rather than an abort: a refusal the tool never
+        converted reaches the caller as a stray traceback, which is a different defect
+        from not refusing at all and must say which.
+        """
         ran[0] += 1
         try:
             fn()
         except PrReviewStateError:
+            return
+        except Exception as exc:
+            fails.append(f"{label}: raised {type(exc).__name__} instead of a named refusal")
             return
         fails.append(f"{label}: no refusal was raised")
 
@@ -457,14 +516,14 @@ def selftest() -> int:
           v([_review(body="", commit=HEAD_A)], []), "NOT_YET")
     check("B3 summary comment naming head, finished",
           v([], [_comment(body=SUMMARY_DONE)]), "LANDED_COMMENT")
-    check("B3 counted as one finished summary",
-          classify(HEAD_A, [], [_comment(body=SUMMARY_DONE)])["by_comment"], 1)
+    check("B3 counted as 1 finished summary",
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=SUMMARY_DONE)])["by_comment"]), 1)
     check("B4 summary comment naming head, still running",
           v([], [_comment(body=SUMMARY_RUNNING)]), "IN_FLIGHT")
     # The running summary must not be COUNTED as a finished one. Verdict order already
     # puts IN_FLIGHT first, so the count is the only place this exclusion can be seen.
     check("B4 not counted as a finished summary",
-          classify(HEAD_A, [], [_comment(body=SUMMARY_RUNNING)])["by_comment"], 0)
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=SUMMARY_RUNNING)])["by_comment"]), 0)
     # Variant D: the agent's own comment, quoting both the sha and the marker.
     check("B5 variant — a human comment naming the head and the marker",
           v([], [_comment(login="teonimesic",
@@ -498,11 +557,27 @@ def selftest() -> int:
     check("D2 concatenated arrays",
           [r["id"] for r in parse_pages('[{"id":1}]\n[{"id":2}]')], [1, 2])
 
-    # --- gh failure is not a poll result
+    # --- gh failure is not a poll result, and neither is gh not returning at all
     def failing(_args, **_kw):
         return subprocess.CompletedProcess(_args, 1, "", "HTTP 502")
     raises("E1 a non-zero gh exit is not a poll result",
            lambda: _gh(["api", "x"], runner=failing))
+
+    def hanging(_args, **_kw):
+        raise subprocess.TimeoutExpired(cmd="gh", timeout=_kw.get("timeout", 0))
+    raises("E1b a gh that never returns is not a poll result",
+           lambda: _gh(["api", "x"], runner=hanging))
+
+    seen_kw: dict = {}
+
+    def recording(argv, **kw):
+        seen_kw.update(kw)
+        return subprocess.CompletedProcess(argv, 0, "[]", "")
+    _gh(["api", "x"], runner=recording)
+    # Handling a timeout is not the same as ASKING for one: without this row the
+    # conversion above is unreachable and every gh call still blocks forever.
+    check("E1c every gh call carries a finite timeout",
+          isinstance(seen_kw.get("timeout"), (int, float)) and seen_kw["timeout"] > 0, True)
 
     # --- the wait. The timeline is task 130's, measured from the GitHub API.
     def timeline(events: list[tuple[float, str]]) -> tuple[Any, Any, Any]:
@@ -558,6 +633,28 @@ def selftest() -> int:
     check("F5 notice stops the wait", out["verdict"], "NOTICE")
     check("F5 stopped at once", int(out["elapsed"]), 60)
 
+    # --- the poll line reaches the reader while the wait is still running
+    class Recorder:
+        def __init__(self) -> None:
+            self.wrote: list[str] = []
+            self.flushed = 0
+
+        def write(self, text: str) -> int:
+            self.wrote.append(text)
+            return len(text)
+
+        def flush(self) -> None:
+            self.flushed += 1
+
+    rec = Recorder()
+    with contextlib.redirect_stdout(rec):  # type: ignore[arg-type]
+        _emit("#18 task-127 head=x verdict=NOT_YET")
+    check("E2 the poll line is written", "".join(rec.wrote).strip(),
+          "#18 task-127 head=x verdict=NOT_YET")
+    check("E3 and flushed, so a captured --wait is not silent", rec.flushed >= 1, True)
+    check("E4 wait_for emits through it by default",
+          wait_for.__kwdefaults__["emit"], _emit)
+
     # --- the census, and its refusal when the two API reads disagree about the branch
     def fake_gh(branch_from_view: str):
         def runner(argv, **_kw):
@@ -572,6 +669,20 @@ def selftest() -> int:
                 body = json.dumps([])
             return subprocess.CompletedProcess(argv, 0, body, "")
         return runner
+
+    def capped_gh(argv, **_kw):
+        args = argv[1:]
+        if args[:2] == ["pr", "list"]:
+            limit = int(args[args.index("--limit") + 1])
+            body = json.dumps([{"number": n, "headRefName": f"b{n}"}
+                               for n in range(1, limit + 1)])
+        else:
+            body = json.dumps([])
+        return subprocess.CompletedProcess(argv, 0, body, "")
+
+    # `gh pr list` honours --limit silently, so a full page means TRUNCATED, not complete.
+    raises("H0 a census that hits its own listing cap refuses",
+           lambda: census(runner=capped_gh))
 
     rows = census(runner=fake_gh("task-121-x"))
     check("H1 census reads the arm", [r["verdict"] for r in rows], ["LANDED_REVIEW"])
@@ -588,15 +699,16 @@ def selftest() -> int:
     r = classify(HEAD_A, [_review(commit=HEAD_A)], [])
     for field in ("verdict", "by_review", "by_comment", "in_flight", "headings"):
         check(f"G1 classify still returns {field!r}", field in r, True)
-    line = render({**r, "pr": 18, "branch": "task-127-poll", "head": HEAD_A})
+    line = attempt(lambda: render({**r, "pr": 18, "branch": "task-127-poll", "head": HEAD_A}))
     for token in ("#18", "task-127-poll", HEAD_A):
-        check(f"G2 render still names {token!r}", token in line, True)
+        check(f"G2 render still names {token!r}", token in str(line), True)
 
     for f in fails:
         print(f"FAIL {f}")
     # The count is what ran, never a constant beside it: a suite that reports a number it
     # did not derive is the shape this repository exists to distrust.
-    print(f"{'ok' if not fails else 'FAILED'} ({len(fails)} failures, {ran[0]} checks)")
+    print(f"{'ok' if not fails else 'FAILED'} ({len(fails)} failures, {ran[0]} checks, "
+          f"{variants[0]} of them variants)")
     return 1 if fails else 0
 
 

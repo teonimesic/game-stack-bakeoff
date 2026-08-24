@@ -194,15 +194,16 @@ Or you have not changed it — you have replaced it with something that agrees w
 python3 tools/docstat.py --sweep
 
 # positive: plant a phantom aspect -> exit 1
-# A PRIVATE address. A fixed name under the system temp directory is one
-# every concurrent session can write, and the restore below writes back into
-# the REPOSITORY - so two audit passes at once restore each other's copy,
-# and one of them may still carry a planted phantom. mktemp cannot collide.
-BAK=$(mktemp) || exit 1
-cp judge/JUDGING.md "$BAK"
+# NO BACKUP FILE. The shared resource is judge/JUDGING.md itself, not the copy: a
+# unique backup stops 2 passes restoring each other's file and does nothing about 2
+# passes mutating the document. So the control demands a PRISTINE file, plants into
+# it, and restores from git - the 1 source no other session can rewrite. Interleave
+# 2 passes anyway and the loser reads the other's phantom and goes RED, which is
+# loud and fail-closed; the file cannot end up holding one.
+git diff --quiet -- judge/JUDGING.md || { echo "JUDGING.md is modified - commit or stash first"; exit 1; }
 printf '\nIf `feel` and `tuning` rank alike they are one judge.\n' >> judge/JUDGING.md
 python3 tools/docstat.py --sweep ; echo "expect exit 1"
-cp "$BAK" judge/JUDGING.md
+git checkout -- judge/JUDGING.md
 
 # positive: plant a fake FLAG -> exit 1, and its exemption -> exit 0.
 # Both halves, or you have shown only that the check can fail, not that it can still pass.
@@ -210,20 +211,20 @@ cp "$BAK" judge/JUDGING.md
 # word, which is the whole point - a control that plants a self-exempting line tests nothing.
 printf '\nPass `--no-such-flag-x` to judge/runner.py.\n' >> judge/JUDGING.md  # phantom
 python3 tools/docstat.py --sweep ; echo "expect exit 1"
-cp "$BAK" judge/JUDGING.md
+git checkout -- judge/JUDGING.md
 printf '\nWe planted `--no-such-flag-x` next to judge/runner.py.\n' >> judge/JUDGING.md  # phantom
 python3 tools/docstat.py --sweep ; echo "expect exit 0 - the planted line exempts itself"
-cp "$BAK" judge/JUDGING.md
+git checkout -- judge/JUDGING.md
 
 # positive: a BARE phantom flag on a FENCED command line -> exit 1. This is the half that
 # did not exist before task 89, and the one a reader copies and pastes. Its green partner
 # is the line below it: real flags of ours, written bare in the same position.
 printf '\n```\npython3 judge/runner.py --no-such-flag-bare1\n```\n' >> judge/JUDGING.md  # phantom
 python3 tools/docstat.py --sweep ; echo "expect exit 1"
-cp "$BAK" judge/JUDGING.md
+git checkout -- judge/JUDGING.md
 printf '\n```\npython3 judge/runner.py --run-dir runs/x --rounds 3\n```\n' >> judge/JUDGING.md
 python3 tools/docstat.py --sweep ; echo "expect exit 0 - both flags resolve"
-cp "$BAK" judge/JUDGING.md
+git checkout -- judge/JUDGING.md
 
 # positive: unquote a skill description so it contains ": " -> exit 1
 # positive: append "10. x", a 4-space line, a blank, then a 3-space line -> exit 1
