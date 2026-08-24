@@ -42,3 +42,37 @@ measured rather than tuning the weight.
 
 Do not give the scene tier 3 a non-zero weight in the same change that introduces it. Ship it at
 0.00, reported alongside, and let the sweep decide in a later ticket on real data.
+
+## note 2026-08-24
+
+## note 2026-08-24 — 134 has landed, so tier 2 exists and this is the layer above it
+
+`eval/judge/scene_probe.py` is merged: 15 criteria, 20 mutants, 8 variants. Read it before
+proposing aspects — the point of tier 3 here is what the probe **cannot** reach, and the probe now
+reaches further than `eval/SCENES.md` assumed when this ticket was written.
+
+## The measurement this ticket is actually for
+
+Tier 3 sits at weight 0.00 because it could not reorder anything. Scenes are the first honest
+chance to ask whether that should ever change, and the answer must come from
+`weight_sensitivity.py` over the **open** interval, not from an argument that aesthetics matter.
+
+**Read #92 before acting on a null.** If the sweep says the weight cannot act, the correct next
+move is to ask what the tier has ever *measured* — not to tune the weight. Reweighting an inert
+term is the move that looks like a fix and changes nothing, and that mistake has already been made
+once here.
+
+**There is no scene corpus yet**, so the sweep has nothing to run over. That is not a blocker for
+shipping the aspects at 0.00; it IS a blocker for proposing any other weight, and the ticket should
+close saying so rather than guessing.
+
+## `framework_fluency` — say it is unblindable at the point of proposal
+
+The whole question is which engine's APIs appear in the source, so naming the stack IS the
+measurement rather than a leak of it. Mark it in `RUBRIC.md` and anywhere its number is published,
+report it per stack, and never rank stacks with it.
+
+This is not a new wall: the blind judge field of 2026-08-23 found `architecture` opened **zero**
+arm-naming files and the judge still identified every stack from code content alone. `idiomatic`
+is structurally unblindable for the same reason. `verify_blind.py` must still pass for the two
+frame-seeing aspects.
