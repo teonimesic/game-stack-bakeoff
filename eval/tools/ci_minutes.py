@@ -239,6 +239,36 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     return problems
 
 
+def gate_census() -> dict[str, dict]:
+    """How many CHECKS each workflow runs, as a count with a producer behind it.
+
+    `.github/workflows/README.md` opened with a hand-written "32 documentation, queue and
+    selftest gates" that was stale by 3 and that nothing could disagree with, which is the
+    shape AGENTS.md names: a count with a producer goes stale for an hour, a count with
+    none goes stale forever.
+
+    A step is a GATE if its `run:` invokes something under `eval/` - that is what makes it
+    this repository's check rather than toolchain setup. Classifying on the step NAME would
+    read "install ffmpeg (judge/audio.py's measuring instrument)" as a gate; it is apt-get.
+    """
+    import yaml
+    out: dict[str, dict] = {}
+    for wf in ("gates", "controls"):
+        path = ROOT / ".github" / "workflows" / f"{wf}.yml"
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        jobs = doc.get("jobs") or {}
+        job = list(jobs.values())[0] if jobs else {}
+        steps = [s for s in (job.get("steps") or []) if isinstance(s, dict) and "run" in s]
+        gates = [s for s in steps if "eval/" in s["run"]]
+        out[wf] = {
+            "gates": len(gates),
+            "setup": len(steps) - len(gates),
+            "names": [(s.get("name") or s["run"].strip().splitlines()[0])[:80]
+                      for s in gates],
+        }
+    return out
+
+
 def path_filter_audit(runs: list[dict], compare) -> dict:
     """For each `controls` PR run after the first on its branch, did the LATEST PUSH touch
     a filter path?
@@ -412,6 +442,20 @@ def _selftest() -> int:
     # Truncation is the plausible wrong implementation, and it is what this tool was first
     # written with on purpose. The 22s and 61s rows are what separate it from ceil; a
     # fixture set of whole minutes only would let that mutant survive.
+    # -- the gate census, and what it must not count ------------------------------------
+    # The count `.github/workflows/README.md` publishes. Pinned so the register cannot
+    # drift from the workflows again: it said 32 for long enough to be wrong by 3.
+    _cen = gate_census()
+    check("gates.yml gate count", _cen["gates"]["gates"], 36)
+    check("controls.yml gate count", _cen["controls"]["gates"], 5)
+    # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
+    # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
+    check("controls.yml setup is not counted", _cen["controls"]["setup"], 5)
+    check("gates.yml has one setup step", _cen["gates"]["setup"], 1)
+    # VARIANT: a step whose NAME mentions eval/ but whose body is apt-get must not count.
+    check("no gate name is an apt-get line",
+          [n for n in _cen["controls"]["names"] if "apt-get" in n], [])
+
     check("22s bills a whole minute", billable_minutes(22), 1)
     check("60s is exactly 1", billable_minutes(60), 1)
     check("61s rounds up to 2", billable_minutes(61), 2)
@@ -656,6 +700,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--selftest", action="store_true",
                     help="controls, both directions, offline")
     ap.add_argument("--path-filter", action="store_true", help="the path-filter audit")
+    ap.add_argument("--gates", action="store_true",
+                    help="how many checks each workflow runs (offline; no API)")
     ap.add_argument("--no-timing", action="store_true",
                     help="skip the per-run /timing read (one extra API call per run)")
     ap.add_argument("--cache", metavar="DIR",
@@ -665,6 +711,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.selftest:
         return _selftest()
+
+    if args.gates:
+        cen = gate_census()
+        if args.json:
+            print(json.dumps(cen, indent=2))
+            return 0
+        for wf, got in cen.items():
+            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps")
+        print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
+        return 0
 
     try:
         runs = fetch_runs()

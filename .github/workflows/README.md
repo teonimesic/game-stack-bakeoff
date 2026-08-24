@@ -8,9 +8,13 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | pushes and pull requests **touching `eval/`, `.agents/`, `.github/`**, plus nightly at 06:17 UTC and on demand |
-| checks | 32 documentation, queue and selftest gates | 5 mutant and control suites |
+| checks | 36 documentation, queue and selftest gates | 5 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **57s** | **669s** |
+
+**Both counts have a producer** — `python3 eval/tools/ci_minutes.py --gates`, which reads the
+workflows and counts steps invoking something under `eval/`. It is pinned in
+`ci_minutes --selftest`, because this row said **32** for long enough to be wrong by three.
 
 **The two timings are read from a run, not remembered.** Both are from the pull-request runs of
 `41488aa` on 2026-08-23 — `gates` [run 32670423986](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32670423986),
@@ -49,6 +53,29 @@ Bypass either with `git commit --no-verify` / `git push --no-verify`.
 **The queue lint blocks in a real checkout and only warns in a linked worktree.** `tasks.py`
 resolves the queue to the main checkout, so from a worktree it reads state your commit does not
 contain — a peer's in-flight status change would block a commit that has nothing to do with it.
+
+## Merging
+
+The repository is **squash-only**: `allow_merge_commit` and `allow_rebase_merge` are off, and the
+squashed commit takes its subject from the pull request **title** and its message from the pull
+request **body**. A task branch lands as one commit; its review rounds stay on the pull request.
+
+**A green pull request is not a mergeable one.** Run the gate before merging:
+
+```bash
+python3 eval/tools/mergeable.py <pr>     # exit 1 = do not merge
+```
+
+It refuses a required check that is red, still running, or **absent at the pull request's current
+head**, and it refuses a branch that is **behind its base**. The second is why it exists: on
+2026-08-23 `main` went red on a merge where both contributing pull requests were green, because
+each had been tested against a base containing neither and one merged 12 commits behind with no
+run at its final head.
+
+GitHub enforces both natively — required status checks with `strict` — but **rulesets and branch
+protection are gated behind a paid plan on a private repository** (the API returns 403 *"Upgrade
+to GitHub Pro or make this repository public"*). Until this repository is public or on Pro, the
+gate is local and nothing stops a merge but running it.
 
 ## What is deliberately not in CI
 

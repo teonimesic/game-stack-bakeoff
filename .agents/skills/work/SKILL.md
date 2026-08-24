@@ -141,6 +141,19 @@ what you established with the numbers, and the control in both directions. The r
 configured to read `tasks/`, so it can check the diff against the brief — but only if the PR says
 which ticket it is.
 
+> **The title and body you write here BECOME the commit message on `main`.** The repository is
+> squash-only and takes the squashed commit's subject from the pull request title and its body
+> from the pull request body. Your review-round commits do not survive the merge; this text does,
+> and it is what `git log` will show for the whole task. Write it as the permanent record of what
+> was established and what it cost — not as a note to the reviewer — and re-edit it with
+> `gh pr edit <n> --body-file <file>` if the review changed what you established.
+
+**Keep the branch current with `main`.** A pull request that is behind its base was tested against
+a head nobody will merge, and the orchestrator's `mergeable.py` refuses it — two changes can each
+be correct and jointly red, which is exactly how `main` broke on 2026-08-23. If `main` moves while
+you are in the review loop, merge it into your branch, push, and let the checks re-run at the head
+that will actually land.
+
 ### Waiting for the review
 
 **Bounded, and pinned on cases whose answer you already know.** The address is the full

@@ -127,6 +127,14 @@ jobs:
       - name: tokenvalue --selftest (no producer prints a money sigil)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/tokenvalue.py --selftest
+      # Main went red on a merge while both contributing pull requests were green: each
+      # was tested against a base containing neither, and one was merged 12 commits behind
+      # with no run at its final head. GitHub enforces neither on a private repository
+      # without a paid plan, so the merge gate lives here. Offline half only - the API half
+      # needs `gh` and a live pull request.
+      - name: mergeable --selftest (green at a stale head is not mergeable)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/mergeable.py --selftest
       # The judge sweep's bounds. Python-only: it drives no CLI, it exercises the Bounds
       # object directly and reads field_sweep.py's tokenised source.
       - name: sweep_bounds_control (the sweep still stops, and not on a money figure)

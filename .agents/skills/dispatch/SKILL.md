@@ -135,14 +135,62 @@ is evidence about the reviewer — a task, with the two PR numbers in it.
 of what was reviewed and what was declined, and a local merge closes it as *"merged"* by
 inference rather than by fact.
 
+**Check the merge is safe before you make it — green is not the question that failed.**
+
+```bash
+python3 eval/tools/mergeable.py <n>   # exit 1 = do not merge. Read the reasons
+```
+
 ```bash
 git add tasks/ && git commit -m "Queue: agents' status writes through the shared queue"
 git push                        # the queue commit reaches main BEFORE the merge
 git worktree remove --force <path>          # BEFORE --delete-branch, not after
-gh pr merge <n> --merge --delete-branch     # --merge, not --squash: --no-ff's semantics
-git pull                        # bring the merge commit back into the local checkout
+gh pr merge <n> --squash --delete-branch    # squash: the branch is one commit on main
+git pull                        # bring the squashed commit into the local checkout
+git branch -D task-<id>-<slug>  # -D, not -d: see below
 python3 eval/tools/tasks.py done <id> "what you verified, and how"
 ```
+
+**The repository is squash-only** — `allow_merge_commit` and `allow_rebase_merge` are both off,
+so `--merge` and `--rebase` now fail rather than silently doing something else. A task branch
+arrives as **one commit on `main`**, which is what the six review-round commits of PR #13 argued
+for: the rounds are the reviewed record and they live on the pull request, not in `main`'s history.
+
+Two consequences, both of which bite the first time:
+
+- **The squashed commit's message is the pull request's TITLE and BODY**, by repository setting
+  (`PR_TITLE` / `PR_BODY`). Nothing you write locally reaches it. So the PR body is now the merge
+  message, and it must record **what was established and what it cost** — the standard this skill
+  has always applied to a merge message applies there instead. Edit it before merging with
+  `gh pr edit <n> --body-file <file>` if the agent's body does not carry that.
+- **`git branch -d` refuses a squash-merged branch.** Its commits are not ancestors of `main` —
+  the content is, the commits are not — so git reports it unmerged and is correct. Use `-D`, and
+  only after `mergeable.py` and the merge have both succeeded.
+
+### The merge gate, and why green was not the question
+
+On 2026-08-23 `main` went red on the merge of PR #13 while **#12 and #13 were both green**.
+Both were tested against a base that contained neither. #12 added three comments to
+`cost_census.py` spelling token valuations with a `$`; #13 added the gate forbidding exactly
+that in a producer. Individually correct, jointly red — and no run anywhere had ever built the
+head the merge would produce.
+
+`mergeable.py` therefore asks two questions, and the second is the one that caught it:
+
+| it refuses when | because |
+|---|---|
+| a required check is red, running, or **absent at the pull request's current head** | a green run against an earlier push is a statement about a commit nobody is merging. PR #13's final head had **no `gates` or `controls` run at all** — the green run belonged to a commit two pushes earlier |
+| the branch is **behind its base** | PR #13 merged **12 commits behind**, and those 12 commits contained the very lines its own new gate forbids |
+
+GitHub enforces both natively — required status checks with `strict` — and **gates them behind a
+paid plan for private repositories**, which is why the check runs here. If this repository ever
+goes public or onto Pro, turn them on server-side and this becomes a local pre-flight rather than
+the only guard.
+
+**When it refuses for staleness, the fix is on the branch, never at the merge button:** update
+the branch from `main`, push, and let CI re-run at the head that will actually land. That is also
+what makes the re-run meaningful — it builds the combination, which is the thing that was never
+built.
 
 > **When you do merge locally — a conflict the PR cannot resolve, or a branch never pushed —
 > `git merge --no-ff -m "<placeholder>"` AUTO-COMMITS if there is no conflict.** A message written
@@ -217,9 +265,11 @@ the bodies moved. Renumbering means the heading, the index row, **and** every ci
 Then, unpiped: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`. Renumbering
 creates stale citations that still *resolve* — `--renumbered` is what finds them.
 
-Whatever you write as a merge or resolution message records **what was established and what it
-cost**, not what was changed — and, being composed prose, goes in through `git commit -F` with a
-file for the reason given under *Merging* above.
+Whatever records **what was established and what it cost** — not what was changed — is now the
+**pull request body**, because that is what the squash lands as the commit message. Resolution
+commits made on the branch still go in through `git commit -F` with a file, for the reason given
+under *Merging* above: composed prose carries paths and identifiers, and backticks in a
+double-quoted `-m` are command substitution that strips text silently (#80).
 
 ## 5. Go back to step 1 before you report
 
