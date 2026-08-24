@@ -8,11 +8,22 @@ question that saturated at 13/13 on 15 of 24 submissions in the first rubric.
 Every aspect here must state a question whose answer could plausibly differ
 across the field. An aspect that cannot separate a competent field is inert and
 should be retired rather than re-tuned; see `JUDGING.md`.
+
+TWO TASK CLASSES, ONE REGISTRY. Games and scenes are graded separately and their
+scores are never pooled (`eval/SCENES.md`), so every aspect declares the class it
+may be asked of in `Aspect.task_class`. The registry stays one dict because a
+second dict is a second place a reader has to know about, and `docstat.py`'s
+aspect census parses this one; `GAME_ASPECTS` and `SCENE_ASPECTS` are DERIVED from
+it, never listed by hand. `applicability()` is the guard, and `field.run_field`,
+`field.py pack` and `field_sweep.py` all call it before anything is spent.
 """
 
 from __future__ import annotations
 
+import re
+import sys
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -52,6 +63,40 @@ class Aspect:
     #: comment to claim a guard that did not exist, and for a `grep diagnostic_only` to
     #: return twenty hits that all belonged to the other mechanism (task 90).
     control_for: str = ""
+    #: `"game"` or `"scene"` - the TASK CLASS this aspect may be asked of.
+    #:
+    #: A scene has no player, so `fun` has no referent and `fun_frames` controls a
+    #: question nothing asks; a game has no scene brief, so `fidelity` and `motion`
+    #: have nothing to be faithful to. Scene and game scores are never pooled
+    #: (`eval/SCENES.md`), and an aspect run against the wrong class produces eight
+    #: confident numbers about a question that was not asked - the same shape as
+    #: judging `fun` over a code-only pack, which `run_field` already refuses.
+    #:
+    #: `applicability()` is the guard. It is called from `field.run_field`,
+    #: `field.py pack` and `field_sweep.main`, because the resource being protected is
+    #: "a judge field run against a task" and that resource is reached by three paths.
+    task_class: str = "game"
+    #: WHY A CROSS-STACK RANKING OF THIS ASPECT IS MEANINGLESS; `""` if there is none.
+    #:
+    #: Not a boolean, for `control_for`'s reason: a flag says a bar exists and a reader
+    #: still has to go and find out why, so the reason travels with the fact and is
+    #: printed beside every figure `field_ranks.py` produces for the aspect.
+    #:
+    #: Two aspects carry one, for the SAME structural reason and not by coincidence:
+    #: the judge can tell which stack it is looking at, so the ordering it returns is
+    #: partly a statement about the stacks rather than about the submissions.
+    #: `idiomatic` was barred on measurement (#53) and the bar has lived in prose in
+    #: `JUDGING.md` and `RUBRIC.md` ever since; `framework_fluency` is barred by
+    #: construction, because the question IS which engine's facilities appear in the
+    #: source and naming the stack is therefore the measurement rather than a leak of it.
+    #:
+    #: WHAT THIS FIELD DOES AND DOES NOT DO TODAY. It is a declaration that
+    #: `field_ranks.report` reads, so every figure it prints for a barred aspect carries
+    #: the reason and is accompanied by the per-stack means. It does NOT change which
+    #: rounds are pooled: `idiomatic` is inside the pooled between-stack figure that
+    #: three live documents quote, and removing it there re-analyses published game
+    #: results, which is a separate ticket rather than a side effect of this one.
+    cross_stack_bar: str = ""
 
 
 # The scale is shared. It deliberately places "competent, works, unremarkable"
@@ -77,6 +122,13 @@ IDIOMATIC = Aspect(
     evidence_rule=(
         "Cite specific file paths and constructs. Name the idiom that was used "
         "well, or the one that was available and was not used."
+    ),
+    cross_stack_bar=(
+        "the pack keeps its real file extensions, because you cannot ask whether a "
+        "language was written like itself with the language taken out -- so this judge "
+        "is told which stack each submission is. Measured consequence: its per-stack "
+        "means were identical across two entirely different games (#53). Report the "
+        "grades per stack; never read a rank across them."
     ),
     notes=(
         "Score each submission against the idioms of ITS OWN stack, never against "
@@ -338,7 +390,186 @@ FUN_FRAMES = replace(
     ),
 )
 
-ASPECTS = {a.id: a for a in (IDIOMATIC, ARCHITECTURE, FUN, FUN_FRAMES, AUDIO, UX)}
+# =============================================================================
+# SCENES. A second task class, `eval/SCENES.md`, and a different set of questions.
+#
+# A scene is a timed sequence with no player, so `fun` has no referent, `fun_frames`
+# controls a question nothing asks, and `audio` has nothing to hear -- the scene
+# prompts state in as many words that the scene has no sound. What is left that a
+# script cannot already answer is what these three ask.
+#
+# `scene_probe.py` is tier 2 and carries the weight. Read its criteria before adding
+# anything here: a tier-3 aspect that re-asks a question the probe answers
+# deterministically is worse than absent, because it dresses a script's answer up as
+# an opinion. The probe already measures parallax ordering, seam continuity, wheel
+# speed, occlusion, the light ramp, water level under tilt, mass balance, refraction,
+# fragment count and rest, seed pairing and reversal. None of the three below is one
+# of those.
+#
+# NONE OF THEM HAS EVER MET A SUBMISSION. No scene has been built, so no scene field
+# has been packed and no round has been run. They ship at tier-3 weight 0.00 like
+# every other aspect, and `RUBRIC.md` records what would have to be measured before
+# that could change.
+# =============================================================================
+
+
+# The scale for a scene's RESULT. Same shape and the same reason as `PLAY_SCALE`:
+# "it works and is unremarkable" sits at 2, so a field where every submission
+# renders something spreads instead of piling at the top. It differs from
+# `PLAY_SCALE` only in having no player in it -- nobody plays a scene, so
+# "would you want another go" is not a question that can be asked of one.
+SCENE_SCALE = {
+    0: "does not read as the sequence it was asked for -- what should be there is "
+       "absent, or nothing about it changes across the strip",
+    1: "the elements are present and the sequence happens, but it reads as a diagram "
+       "of the idea rather than a rendering of it",
+    2: "competent and unremarkable -- a working version of this scene",
+    3: "convincing -- the parts hold together and the sequence is legible without "
+       "being told what to look for",
+    4: "you would show it to someone -- the craft is the point, not an afterthought",
+}
+
+
+#: WHAT `fidelity` IS NOT ASKING, and why the question is weaker than it first looks.
+#:
+#: "Does this look like the thing that was described?" needs the description, and the
+#: pack does not carry one. The rendered scene prompt exists per stack
+#: (`eval/suites/rendered/s1_parallax__*.txt`), and handing a judge one of those would
+#: name the arm in the evidence -- the leak `blind_extensions` and `neutralise` exist to
+#: close. A stack-neutral statement of each scene could be written and packed, and until
+#: it is, this aspect asks the strongest question the pack can support: all eight
+#: submissions are attempting one subject, so read the subject out of the field and
+#: judge how completely each realises it.
+#:
+#: That is a real narrowing and it belongs beside the number: it can find a submission
+#: that omits what seven others drew, and it CANNOT find one where all eight missed the
+#: same requirement. `eval/SCENES.md` and `RUBRIC.md` say so where the aspect is
+#: published, and `tasks/144` packs a neutral statement.
+FIDELITY = Aspect(
+    id="fidelity",
+    task_class="scene",
+    title="Fidelity to the scene",
+    question=(
+        "Does this read as the scene it was asked for? Every submission in this field "
+        "is attempting the SAME subject, so work out what that subject is from the "
+        "field itself, then judge how completely and how convincingly each one "
+        "realises it."
+    ),
+    anchors=SCENE_SCALE,
+    sees="frames",
+    evidence_rule=(
+        "Name the frame and the region of it you are describing, and name the element "
+        "you are looking for. 'Frame 0 shows no horizon anywhere, and six others do' "
+        "is evidence; 'this one looks unfinished' is not."
+    ),
+    notes=(
+        "You are looking at PNGs sampled at even intervals across one run: the first "
+        "is the opening state, the last is late in the run. You are NOT given the "
+        "written brief. Recover the subject by reading all eight strips first and "
+        "asking what they are evidently all trying to depict, then score each against "
+        "that. An element seven strips show and one does not is the signal; an element "
+        "no strip shows is not evidence about any of them.\n"
+        "Ask, in order: are the things the field is evidently depicting present at "
+        "all; do they hold together as one scene rather than as separate objects "
+        "sharing a frame; does the sequence go somewhere between the first frame and "
+        "the last, or is the strip a set of views of one unchanging moment.\n"
+        "Do not reward decoration and do not reward ambition you cannot see. A plain "
+        "strip that clearly depicts the subject beats an elaborate one that does not. "
+        "And do not infer from an absent frame: if the run produced fewer frames than "
+        "the others, say the evidence is missing rather than scoring it down for it.\n"
+        + FRAMES_BLIND_SPOT
+    ),
+)
+
+
+MOTION = Aspect(
+    id="motion",
+    task_class="scene",
+    title="Weight and easing of the motion",
+    question=(
+        "Does what moves in this strip move as though it had mass -- gathering speed, "
+        "easing off, settling, overshooting and coming back -- or does it travel at "
+        "one unchanging rate and stop dead?"
+    ),
+    anchors=SCENE_SCALE,
+    sees="frames",
+    evidence_rule=(
+        "The frames are sampled at EVEN intervals, so the spacing between successive "
+        "positions is the speed. Cite the frames you compared and say how the spacing "
+        "changed across them. A claim about weight with no positions behind it is an "
+        "opinion."
+    ),
+    notes=(
+        "You have one kind of evidence: a strip of PNGs sampled at even intervals "
+        "across one run. That even spacing is what makes this question answerable at "
+        "all -- equal distance between successive positions is constant speed, "
+        "widening spacing is acceleration, narrowing spacing is a slow-down, and a "
+        "position that goes past its resting place and comes back is an overshoot.\n"
+        "Judge the SHAPE of the movement, not its amount. A thing that crosses the "
+        "frame quickly is not better than one that crosses it slowly; a thing that "
+        "starts and stops abruptly at one unchanging rate is what this aspect is "
+        "for.\n"
+        "Where a strip cannot answer the question -- too few distinct positions, or "
+        "nothing in it moves far enough to measure -- SAY SO and score on what you "
+        "can see. An invented trajectory is worse than an absent one.\n"
+        + FRAMES_BLIND_SPOT
+    ),
+)
+
+
+#: THE UNBLINDABLE ONE, and it is unblindable BY CONSTRUCTION rather than by an
+#: unclosed leak. The question is which of an engine's own facilities appear in the
+#: source; naming the engine IS the measurement, not a leak of it. So there is nothing
+#: to repair and no rewrite that would help -- `blind_language` here would delete the
+#: evidence the aspect exists to read.
+#:
+#: `cross_stack_bar` below is what says that to code. It is the same wall `idiomatic`
+#: hit and was barred on (#53), reached from the opposite direction: `idiomatic`'s
+#: leak was measured and then declined as unclosable, this one is declared before the
+#: first round is ever run.
+FRAMEWORK_FLUENCY = Aspect(
+    id="framework_fluency",
+    task_class="scene",
+    title="Use of the engine's own facilities",
+    question=(
+        "Did this submission reach for the facilities its engine or library already "
+        "provides -- animation and tweening, physics and collision, particles, "
+        "shaders and materials, the scene graph, post-processing -- or did it "
+        "hand-roll equivalents in general-purpose code and drive them itself?"
+    ),
+    anchors=SCALE,
+    evidence_rule=(
+        "Cite the file and the specific API. Name the facility that was reached for, "
+        "or the one that was available in this stack and was not used, and say what "
+        "was written instead."
+    ),
+    cross_stack_bar=(
+        "the question IS which of one engine's APIs appear in the source, so this "
+        "judge is told which stack it is looking at by the evidence itself. Its "
+        "ordering is therefore partly a statement about the stacks; report the grades "
+        "per stack and never read a rank across them."
+    ),
+    notes=(
+        "Score each submission against the facilities ITS OWN stack offers, never "
+        "against another's. A stack with no built-in tweening is not worse for lacking "
+        "one; what is comparable is HOW FLUENTLY each used what it had.\n"
+        "Hand-rolling is not automatically worse and must not be scored as though it "
+        "were. A facility reached for and misused, or reached for where it does not "
+        "fit, is worse than a small purpose-written routine. What this aspect is "
+        "looking for is a submission that re-implemented, badly and by hand, something "
+        "its own stack already does well -- interpolation written as a per-frame "
+        "position assignment where the engine has a tween, collision written as "
+        "distance comparisons where the engine has a physics body, a particle effect "
+        "written as a list of manually moved objects where the engine has an emitter.\n"
+        "Say plainly where the evidence runs out. A facility can be used through a "
+        "helper you cannot see from this pack, and 'I could not tell' is a better "
+        "answer than a guess."
+    ),
+)
+
+
+ASPECTS = {a.id: a for a in (IDIOMATIC, ARCHITECTURE, FUN, FUN_FRAMES, AUDIO, UX,
+                             FIDELITY, MOTION, FRAMEWORK_FLUENCY)}
 
 #: The scored opinions, and the controls, as two disjoint sets over `ASPECTS`.
 #:
@@ -358,3 +589,99 @@ def is_control(aspect_id: str) -> bool:
     why `field_ranks.assert_poolable` asks about `ASPECTS` membership, not about this.
     """
     return bool(ASPECTS[aspect_id].control_for) if aspect_id in ASPECTS else False
+
+
+#: The two task classes as disjoint sets over `ASPECTS`, and the barred ids, DERIVED.
+#:
+#: Same reason as `SCORED_ASPECTS` above: a hand-written membership list is a second
+#: source of truth that the next aspect silently falsifies (#38). `aspects_selftest.py`
+#: pins that these two partition `ASPECTS` and that every barred id is a real aspect.
+GAME_ASPECTS = tuple(i for i, a in ASPECTS.items() if a.task_class == "game")
+SCENE_ASPECTS = tuple(i for i, a in ASPECTS.items() if a.task_class == "scene")
+CROSS_STACK_BARRED = {i: a.cross_stack_bar for i, a in ASPECTS.items()
+                      if a.cross_stack_bar}
+
+#: Task ids whose class this module can state, read from the suites that define them.
+#:
+#: `wholegame_prompts.TASKS` and `scene_prompts.SCENES` are the only places a task
+#: exists, so they are the address (rule 12). The import is lazy and cached: every
+#: consumer of `ASPECTS` would otherwise take a dependency on `eval/suites/` to read a
+#: dataclass.
+_TASK_CLASSES: dict[str, str] | None = None
+
+#: The id-shape fallback, for a task id the suites do not define.
+#:
+#: Every real task id is `g<N>_name` or `s<N>_name`, and the selftest asserts this
+#: agrees with the suites on all 6 of them -- so it is a CORROBORATED second channel
+#: rather than an invented rule. It exists because the judge fixtures grade a synthetic
+#: `g9_probe` field that no suite defines, and a guard that refuses every fixture is a
+#: guard that gets removed.
+_ID_SHAPE = re.compile(r"^(?P<klass>[gs])\d+_")
+_SHAPE_CLASS = {"g": "game", "s": "scene"}
+
+UNKNOWN_TASK = "unknown"
+
+
+def _task_classes() -> dict[str, str]:
+    """Every task id the suites define, mapped to its class. Imported once, then cached.
+
+    The import is deferred to the first call so that reading a dataclass out of this
+    module does not drag `eval/suites/` in behind it.
+    """
+    global _TASK_CLASSES
+    if _TASK_CLASSES is None:
+        suites = Path(__file__).resolve().parent.parent / "suites"
+        sys.path.insert(0, str(suites))
+        import scene_prompts
+        import wholegame_prompts
+        _TASK_CLASSES = {**{t: "game" for t in wholegame_prompts.TASKS},
+                         **{t: "scene" for t in scene_prompts.SCENES}}
+    return _TASK_CLASSES
+
+
+def task_class(task_id: str) -> str:
+    """`"game"`, `"scene"` or `UNKNOWN_TASK` for one task id.
+
+    Three-valued on purpose. `prompt_guard.py` reads "not a scene" as "a game", which
+    is safe there because it only ever walks ids the suites define; anything guarding a
+    launch has to be able to say it does not know, or an id nobody recognises reads as
+    a game and every scene aspect refuses it for the wrong reason.
+    """
+    known = _task_classes().get(task_id)
+    if known:
+        return known
+    m = _ID_SHAPE.match(task_id or "")
+    return _SHAPE_CLASS[m.group("klass")] if m else UNKNOWN_TASK
+
+
+def applicability(aspect_id: str, task_id: str,
+                  registry: dict[str, Aspect] | None = None) -> str | None:
+    """`None` if this aspect may be asked of this task; otherwise why it may not.
+
+    THE GUARD FOR "asked only of scenes", and it is called from all 3 paths that reach
+    the resource -- `field.py pack`, `field.run_field` and `field_sweep.main` -- rather
+    than from whichever one was in front of the author (rule 13).
+
+    Fails closed on an id it cannot classify: a field is 8 model calls, and "I do not
+    know what this task is" is not a reason to make them.
+
+    `registry` exists so `aspects_selftest.py` can drive this function with a mutated
+    aspect set. Callers in the harness pass nothing and get `ASPECTS`.
+    """
+    registry = ASPECTS if registry is None else registry
+    aspect = registry.get(aspect_id)
+    if aspect is None:
+        return (f"{aspect_id!r} is not an aspect. Known: {sorted(registry)}")
+    klass = task_class(task_id)
+    if klass == UNKNOWN_TASK:
+        return (f"{task_id!r} is in neither eval/suites/wholegame_prompts.py nor "
+                f"eval/suites/scene_prompts.py and is not shaped like a task id, so "
+                f"its class cannot be established. Refusing rather than assuming: "
+                f"{aspect_id!r} is asked only of {aspect.task_class}s.")
+    if klass != aspect.task_class:
+        return (f"{aspect_id!r} is a {aspect.task_class} aspect and {task_id!r} is a "
+                f"{klass}. Scene and game scores are never pooled (eval/SCENES.md), "
+                f"and an aspect asked of the wrong class returns eight confident "
+                f"numbers about a question nobody asked. {aspect.task_class}s here: "
+                f"{sorted(i for i, a in registry.items() if a.task_class == aspect.task_class)}")
+    return None

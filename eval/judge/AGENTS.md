@@ -47,6 +47,25 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   `blind` counter both name it, so the robustness lives in the criteria rather than in the
   estimator. `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
 
+**Tier 3 for scenes is `fidelity`, `motion` and `framework_fluency`**, in the same `ASPECTS`
+registry as the 6 game aspects and at the same weight, 0.00. 2 things govern using them:
+
+- **An aspect is asked only of its own task class, and `aspects.applicability()` refuses the
+  rest** — at `field.py pack`, at `field.run_field` and at `field_sweep.py`, because the
+  resource is *a judge field run against a task* and it is reached by 3 paths. It refuses a
+  task id it cannot classify rather than reading it as a game.
+- **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
+  `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
+  prints the reason and the aspect's per-stack means — alphabetically by stack, never sorted
+  by value — beside every figure it produces for them. The bar does **not** change which
+  rounds are pooled; `idiomatic` is inside the pooled between-stack figure 3 live documents
+  quote, and removing it there re-analyses published results. `tasks/146` settles that either
+  way.
+
+`RUBRIC.md` holds what each scene aspect asks, what `fidelity` cannot see without a
+stack-neutral scene statement in the pack, and why the weight question reads **NOT ASKED**
+rather than "no effect" while there are 0 scene gradings.
+
 **What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
 both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a
 worktree's copy is empty and either would report a confident, uniform "nothing ever failed"), and

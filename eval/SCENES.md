@@ -239,18 +239,49 @@ performance pass that assumes caps exist until that ticket reports.**
 ## Tier 3 aspects for scenes
 
 Games are judged on `architecture`, `idiomatic`, `fun`, `fun_frames`, `ux`, `audio`. Scenes have
-no player, so `fun` has no referent. Proposed:
+no player, so `fun` has no referent, `fun_frames` controls a question nobody asks and `audio` has
+nothing to hear. 3 aspects replace those 6, and they are defined in `judge/aspects.py`
+alongside the game ones:
 
-| aspect | sees | asks |
-|---|---|---|
-| `fidelity` | frames | does this look like the thing that was described? |
-| `motion` | frames | is the movement weighted and eased, or linear and floaty? |
-| `framework_fluency` | code | did it use the engine's facilities, or hand-roll around them? |
+| aspect | sees | asks | across stacks? |
+|---|---|---|---|
+| `fidelity` | frames | does this read as the scene it was asked for? | yes |
+| `motion` | frames | does what moves move as though it had mass, or slide at one unchanging rate? | yes |
+| `framework_fluency` | code | did it reach for the engine's facilities, or hand-roll around them? | **no — per stack** |
+
+**An aspect is asked only of its own task class, and that is a guard rather than a convention.**
+`aspects.applicability()` refuses every cross pairing and refuses a task id it cannot classify,
+at `judge/field.py pack`, at `field.run_field` and at `field_sweep.py` — 3 paths, because
+the resource is *a judge field run against a task* and a guard placed beside one caller is a
+guard the next caller does not have. `judge/aspects_selftest.py` pins it with a mutant and a
+variant.
 
 **`framework_fluency` cannot be blinded and must never enter a blind comparison.** The whole
 question is which engine's APIs appear in the source, so naming the stack *is* the measurement.
 Report it per stack, never as a cross-stack ranking. This is the same wall the judge field hit:
-`idiomatic` is structurally unblindable for the identical reason.
+`idiomatic` is structurally unblindable for the identical reason. Both now carry the bar in
+`Aspect.cross_stack_bar`, which `judge/field_ranks.py` prints — with that aspect's per-stack
+means, alphabetically by stack — beside every figure it produces for them.
+
+**2 gates, and they answer different questions.** `judge/verify_blind.py` scans the *trial
+tree* and is about the building agent; an aspect id is not a criterion id, so adding one moves
+nothing there. What the *judge* is told is `judge/aspects_selftest.py`'s question, and it is
+the one `fidelity` and `motion` have to pass: no stack name, no arm count, and the
+frames-channel blind spot carried verbatim. Run both — `verify_blind.py` against a copy of the
+starters laid out as a trial tree **outside** this repository, or it is red on its own path.
+
+**Scene tier 3 is weight 0.00, and while there are 0 scene gradings the weight question reads
+NOT ASKED rather than "no effect".** Two independent reasons: there is no scene population, and
+`judge/weight_sensitivity.py` sweeps `w1` over `(tier 1, tier 2)` while this question is `w3`
+over `(tier 2, tier 3)`. `judge/RUBRIC.md` holds the commands and the current counts;
+`tasks/145` asks the question on real data. Do not propose a weight from an argument.
+
+**`fidelity` asks less than its one-line summary suggests, and its number has to say so.**
+"Looks like the thing that was described" needs the description, and no pack carries one — the
+rendered scene prompt exists per stack, so handing a judge one names the arm in its evidence.
+While that is true the aspect recovers the subject from the field of eight and scores how
+completely each realises it: it can find a submission that omits what seven others drew, and it
+cannot find one where all eight missed the same requirement. `tasks/144` closes the gap.
 
 ## What scenes are for — the questions, stated so they can come out against us
 

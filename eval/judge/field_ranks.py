@@ -139,13 +139,12 @@ def assert_poolable(rounds: list[dict]) -> None:
         )
 
 
-def _round_stats(rounds: list[dict], value: str) -> tuple[float, float]:
-    """between-stack range and mean within-stack gap over ONE pooled population.
+def _by_stack(rounds: list[dict], value: str) -> dict[str, list[float]]:
+    """Each stack's submission means, keyed by stack, in ALPHABETICAL order.
 
-    Every submission contributes its mean across the rounds given, then a stack is the mean
-    of its submissions. `within` is defined only where a stack has exactly two submissions,
-    which is this project's cell shape; a stack with one is skipped rather than counted as
-    a zero gap, because a gap that cannot be measured is not a gap of zero (#102).
+    Deliberately not sorted by value: this is the shape a CROSS-STACK BARRED aspect is
+    reported in, and sorting it by score would hand the reader the ranking the bar
+    exists to withhold.
     """
     per_sub: dict[str, list[float]] = collections.defaultdict(list)
     stack_of: dict[str, str] = {}
@@ -154,9 +153,21 @@ def _round_stats(rounds: list[dict], value: str) -> tuple[float, float]:
             per_sub[s["submission"]].append(float(s[value]))
             stack_of[s["submission"]] = s["stack"]
     means = {k: statistics.mean(v) for k, v in per_sub.items()}
-    by_stack: dict[str, list[float]] = collections.defaultdict(list)
-    for sub, m in means.items():
-        by_stack[stack_of[sub]].append(m)
+    out: dict[str, list[float]] = {}
+    for sub in sorted(means):
+        out.setdefault(stack_of[sub], []).append(means[sub])
+    return {k: out[k] for k in sorted(out)}
+
+
+def _round_stats(rounds: list[dict], value: str) -> tuple[float, float]:
+    """between-stack range and mean within-stack gap over ONE pooled population.
+
+    Every submission contributes its mean across the rounds given, then a stack is the mean
+    of its submissions. `within` is defined only where a stack has exactly two submissions,
+    which is this project's cell shape; a stack with one is skipped rather than counted as
+    a zero gap, because a gap that cannot be measured is not a gap of zero (#102).
+    """
+    by_stack = _by_stack(rounds, value)
     stack_mean = {st: statistics.mean(v) for st, v in by_stack.items()}
     between = max(stack_mean.values()) - min(stack_mean.values())
     gaps = [abs(v[0] - v[1]) for v in by_stack.values() if len(v) == 2]
@@ -221,6 +232,27 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
         print(f"NOT POOLED: {aspect_id} - no such aspect in aspects.py [{n} rounds]. "
               f"Whether it is a control cannot be established, so it is unmeasurable here.")
 
+    # A CROSS-STACK BARRED ASPECT IS REPORTED PER STACK, HERE, beside every figure this
+    # tool prints for it. The bar is not a refusal to compute: `between` and `within` are
+    # still shown because published tables reproduce from them, and JUDGING.md's own
+    # per-aspect table quotes `idiomatic`'s pair with the bar stated next to it. What was
+    # missing was any way for a reader of THIS output to know, and any way for code to
+    # know at all - the bar lived in two prose documents from #53 onward.
+    #
+    # The per-stack means are printed in ALPHABETICAL order, never sorted by value: a
+    # sorted list is the ranking the bar exists to withhold.
+    for aspect_id in _ids(usable):
+        bar = ASPECTS[aspect_id].cross_stack_bar if aspect_id in ASPECTS else ""
+        if not bar:
+            continue
+        rows = [r for r in usable if r.get("aspect") == aspect_id]
+        print(f"CROSS-STACK BARRED: {aspect_id} - {bar}")
+        for value in VALUES:
+            means = {st: round(statistics.mean(v), 4)
+                     for st, v in _by_stack(rows, value).items()}
+            print(f"    per stack, {value}: " +
+                  "  ".join(f"{st}={m}" for st, m in means.items()))
+
     if not pooled:
         print("\nUNMEASURABLE: no scored-aspect round to pool.")
         return 1
@@ -243,7 +275,12 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
                 b, w = figures([r for r in usable if r.get("aspect") == a], value, order)
                 tag = {CONTROL: "  (control, excluded above)",
                        UNKNOWN: "  (unknown, excluded above)"}.get(classify(a), "")
-                print(f"   {a:<14} between={_fmt(b):>8}  within={_fmt(w):>8}{tag}")
+                # The bar again, on the row itself. A reader who scrolls to this table
+                # for one number must not have to have read the header to know that this
+                # `between` is not a ranking.
+                if a in ASPECTS and ASPECTS[a].cross_stack_bar:
+                    tag += "  (CROSS-STACK BARRED - read per stack, above)"
+                print(f"   {a:<18} between={_fmt(b):>8}  within={_fmt(w):>8}{tag}")
     return 0
 
 
@@ -256,6 +293,7 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
 #: split that matters (rule 12: the address is an input to the check).
 _A_SCORED = sorted(i for i in ASPECTS if not ASPECTS[i].control_for)
 _A_CONTROL = sorted(i for i in ASPECTS if ASPECTS[i].control_for)
+_A_BARRED = sorted(i for i in ASPECTS if ASPECTS[i].cross_stack_bar)
 
 
 def _synth(seed: int, table: dict[str, list[float]], usable: bool = True,
@@ -472,6 +510,55 @@ def selftest() -> int:
         rc_only = report([stranger], per_aspect=False)
     check("a directory of nothing poolable exits 1, not 0", rc_only, 1)
     check("and says so", "UNMEASURABLE" in buf.getvalue(), True)
+
+    print("14. a cross-stack barred aspect is reported PER STACK, with its reason")
+    # `_A_BARRED[0]` is read from `aspects.py`, not spelled here, for the same reason
+    # `_A_SCORED` is: a fixture with an invented id would exercise `UNKNOWN` and prove
+    # nothing about the branch that matters (rule 12).
+    barred_id = _A_BARRED[0]
+    # Stack means 4, 2, 3, 1: distinct, so a per-stack line that printed the same number
+    # for every stack, or dropped one, is visible rather than hidden by ties.
+    barred = _synth(0, {"a": [4, 4], "b": [2, 2], "c": [3, 3], "d": [1, 1]},
+                    aspect=barred_id)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        report([barred], per_aspect=True)
+    text = buf.getvalue()
+    check("the bar is named in the output",
+          f"CROSS-STACK BARRED: {barred_id}" in text, True)
+    check("and carries its reason, not just the label",
+          ASPECTS[barred_id].cross_stack_bar[:40] in text, True)
+    check("the per-stack means are printed, alphabetically",
+          "per stack, score: a=4.0  b=2.0  c=3.0  d=1.0" in text, True)
+    check("the per-aspect row carries the bar too",
+          "(CROSS-STACK BARRED - read per stack, above)" in text, True)
+
+    # MUTANT. Clearing the declaration must remove the whole report, or the output was
+    # not being driven by the field at all. This is the state `idiomatic` was in from
+    # #53 until 2026-08-24: barred in two prose documents and in no line of any output.
+    saved = ASPECTS[barred_id]
+    ASPECTS[barred_id] = dataclasses.replace(saved, cross_stack_bar="")
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report([barred], per_aspect=True)
+        check("MUTANT: with the bar cleared, nothing says so",
+              "CROSS-STACK BARRED" in buf.getvalue(), False)
+    finally:
+        ASPECTS[barred_id] = saved
+    check("the live declaration is restored",
+          bool(ASPECTS[barred_id].cross_stack_bar), True)
+
+    # VARIANT. Not a removal: a field where one stack has ONE submission rather than two.
+    # `within` is undefined there (#102) and `_by_stack` must still report that stack's
+    # mean, because the per-stack report is the thing a barred aspect is read by and
+    # silently dropping an arm from it is worse than an unmeasurable gap.
+    odd = _synth(0, {"a": [4, 4], "b": [2, 2], "c": [3, 3], "d": [1]}, aspect=barred_id)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        report([odd], per_aspect=False)
+    check("VARIANT: a one-submission stack still appears in the per-stack line",
+          "per stack, score: a=4.0  b=2.0  c=3.0  d=1.0" in buf.getvalue(), True)
 
     print(f"\n{len(unmet)} expectations unmet")
     for u_ in unmet:
