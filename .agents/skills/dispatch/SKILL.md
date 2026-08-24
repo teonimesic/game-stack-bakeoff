@@ -192,8 +192,25 @@ the branch from `main`, push, and let CI re-run at the head that will actually l
 what makes the re-run meaningful — it builds the combination, which is the thing that was never
 built.
 
-> **When you do merge locally — a conflict the PR cannot resolve, or a branch never pushed —
-> `git merge --no-ff -m "<placeholder>"` AUTO-COMMITS if there is no conflict.** A message written
+**Never merge the branch into `main` locally. There is no longer an exception.** The rule was
+already here and it did not fire, because the paragraph under it explained *how* to do it well —
+so the local path read as sanctioned, and PR #13 was merged that way with a composed message.
+What that cost is measured: its review rounds **3, 4, 5 and 6 have zero check-runs each**, because
+`push` is narrowed to `main` and a `pull_request` synchronize event only fires while the pull
+request is OPEN. Pushing `main` first closed #13 by inference, and four commits reached `main`
+having never been built anywhere. The green tick the pull request displayed belonged to round 2.
+
+> **A local merge does not merely skip the record — it skips the CI.** A branch merged locally and
+> pushed to `main` arrives as commits nobody tested, and GitHub marks the pull request *merged* one
+> second before the push, so nothing is left in a state that looks wrong.
+
+**Conflicts are resolved on the BRANCH**, which is where the `git merge` guidance below belongs
+and the only direction it now applies in: merge `origin/main` **into** the task branch, push, let
+CI re-run, then merge the pull request. That is also what `mergeable.py` demands, and the re-run
+is the only thing that ever builds the combination.
+
+> **When you merge `main` into the branch, `git merge --no-ff -m "<placeholder>"` AUTO-COMMITS if
+> there is no conflict.** A message written
 > afterwards then has nothing to apply to: `git commit -F` prints *"nothing to commit, working
 > tree clean"* and exits **0**, which reads exactly like success. Five merges on 2026-08-23 landed
 > carrying only a placeholder; three had the real message land as a separate follow-up commit and

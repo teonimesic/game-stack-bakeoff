@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#161 from building and running this evaluator. **Check whether a
+Findings #19-#162 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -237,6 +237,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **159** | Every dollar figure is a list-price valuation of tokens on a subscription account, and a research decision was declined on one | [limits-and-cost](findings/limits-and-cost.md) |
 | **160** | The smallest p-value a design can return is a property of its cluster structure, and here it rules the question out before any data is seen | [limits-and-cost](findings/limits-and-cost.md) |
 | **161** | No stored judge sweep recorded the bound it ran under, so whether any was truncated had to be reconstructed from what it did | [certifies-nothing](findings/certifies-nothing.md) |
+| **162** | Two green pull requests merged to a red `main`, and the one that broke it had no check-run at its head for four pushes — a local merge closed it by inference, so the commits reached `main` untested | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

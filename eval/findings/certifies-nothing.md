@@ -5078,3 +5078,69 @@ all 21 repaired.
 Its control is **history rather than a fixture**: the gate reports 21 against the tree as it stood
 before the repair and 0 at HEAD, verified here in both directions. A pin built from a synthetic
 document would have proved only that the regex matches itself.
+
+## 162. Two green pull requests merged to a red main, and the pull request that broke it had no run at its head for four pushes
+
+`main` went red on the merge of PR #13 while **#12 and #13 were both green**. Neither was wrong.
+
+- #12 added three comments to `cost_census.py` describing tie and margin fixtures in dollars.
+- #13 added the gate forbidding a money sigil in a producer (#159).
+- Each was tested against a base containing neither. The merge was red.
+
+That much is #155's class — the merged state is a state nobody tested — but #155 concluded that
+a `pull_request` trigger *is* the mechanism that tests it. **It tests it as of the run, and the
+run does not expire when the base moves.** PR #13's last run predated #12's merge by fifty
+minutes and went on displaying a green tick the whole time.
+
+### The part that was worse than the class
+
+Reconstructed from the Actions API, not from the pull request page:
+
+| commit | round | check-runs |
+|---|---|---|
+| `41488aa` | opened | 2 |
+| `b40d392a` | 1 | 2 |
+| `64a42a7` | 2 | 2 |
+| `84d97a2` | 3 | **0** |
+| `60d572d` | 4 | **0** |
+| `5d9976e` | 5 | **0** |
+| `7805d4d` | 6, **the merged head** | **0** |
+
+`?head_sha=7805d4d` returns `total_count: 0`: no run of any kind, not a cancelled one. And the
+head was **12 commits behind its base**, those 12 being the ones carrying the lines its own new
+gate forbids. So the pull request was merged with no check at its head, from a base it had never
+seen, and both facts were invisible on a page showing green.
+
+### Why there was no run, and which rule should have caught it
+
+`push` is narrowed to `main` for metered minutes, so a branch is built only by `pull_request` —
+which fires `synchronize` **only while the pull request is open**. PR #13 was merged **locally**
+with a composed message and pushed; GitHub marked it merged at `23:51:33`, one second before the
+`main` push at `23:51:34`. Four commits reached `main` having never been built anywhere.
+
+PR #12, merged through GitHub the same evening, carries the default *"Merge pull request #12
+from…"* subject. The two merge messages are how the difference is still legible.
+
+> **The rule existed.** `.agents/skills/dispatch/SKILL.md` opened with *"Merge through the pull
+> request, not with a local `git merge`."* It did not fire because the paragraph beneath it
+> explained how to merge locally *well* — the auto-commit trap, `-F` versus `-m`, the ordering —
+> and a hazard documented in that much loving detail reads as a sanctioned path. **A rule
+> followed by a competent explanation of how to break it is an explanation, not a rule.**
+
+The stated reason for local merging was to compose a resolution message. Under squash-only that
+reason is gone: the commit message now comes from the pull request body, so the composed prose
+has a home inside the reviewed record instead of outside it.
+
+### What now runs
+
+`eval/tools/mergeable.py` refuses a required check that is red, still running, or **absent at the
+current head**, and refuses a branch behind its base. Proved on the real case before being
+trusted — two refusals for #13, clear for #12, both answers known in advance — with 14 pins and a
+mutant that makes the staleness half inert and dies on one row.
+
+GitHub enforces exactly this natively, as `strict` required status checks, and **gates it behind
+a paid plan for a private repository**: rulesets and branch protection both return 403 *"Upgrade
+to GitHub Pro or make this repository public."* So the guard is local and advisory, and it is
+worth knowing that the only thing stopping the next bad merge is somebody running it.
+
+---
