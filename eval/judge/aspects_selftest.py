@@ -21,6 +21,21 @@ judge's output:
      the exclusion lived only in a prose comment, 5 control rounds went into a pooled
      figure over 30 (task 90).
 
+Two more, about the second task class:
+
+  5. AN ASPECT IS ASKED ONLY OF ITS OWN TASK CLASS. A scene has no player and a game
+     has no scene brief, so `applicability()` refuses the cross pairs -- and it refuses
+     an id it cannot classify rather than reading it as a game. The fallback that lets
+     the judge fixtures' synthetic `g9_probe` through is corroborated here against the
+     suites, not trusted: every task the suites define must get the same class from
+     both channels.
+
+  6. A CROSS-STACK BAR IS DECLARED TO CODE, in `cross_stack_bar`, and carries its
+     reason. `idiomatic`'s bar lived in `JUDGING.md` and `RUBRIC.md` prose from #53
+     onward and no code could read it; `framework_fluency` is barred by construction
+     before its first round. `field_ranks.report` prints the reason beside every figure
+     it produces for a barred aspect.
+
 Each check is run against the live aspects (must pass) AND against a mutant built to
 break exactly that check (must fail). A check that cannot fail is worse than absent.
 
@@ -36,7 +51,28 @@ import re
 import sys
 from dataclasses import replace
 
-from aspects import ASPECTS, FRAMES_BLIND_SPOT, Aspect
+import aspects as aspects_mod
+from aspects import ASPECTS, FRAMES_BLIND_SPOT, Aspect, applicability, task_class
+
+#: THE EXPECTATION, WRITTEN OUT RATHER THAN DERIVED FROM THE THING IT CHECKS.
+#:
+#: Reading `Aspect.task_class` back to decide what `Aspect.task_class` should be is the
+#: shape that made a mutant come back SURVIVED with 0 red rows of 48 (task 113): a
+#: control that imports its expectation from its subject cannot disagree with it. So the
+#: split is stated here, independently, and everything not named is expected to be a
+#: game aspect -- which means adding a scene aspect without stating it here goes RED,
+#: and that is the intended failure rather than a maintenance cost.
+SCENE_ONLY = ("fidelity", "motion", "framework_fluency")
+
+#: The same, for the cross-stack bar, and for the same reason.
+#:
+#: `idiomatic` was barred on measurement (#53) and the bar lived only in `JUDGING.md`
+#: and `RUBRIC.md` prose; `framework_fluency` is barred by construction, because the
+#: question IS which engine's APIs are in the source.
+BARRED_CROSS_STACK = ("idiomatic", "framework_fluency")
+
+#: A bar has to carry a REASON, not a marker. Below this it is a boolean spelled long.
+_MIN_BAR_CHARS = 40
 
 #: Names that would tell a blinded judge which stack it is looking at.
 STACK_WORDS = ("godot", "bevy", "rust", "unity", "typescript", "three.js", "cargo",
@@ -130,12 +166,94 @@ def check_no_stack_or_count_leak(aspects: dict[str, Aspect]) -> list[str]:
     return problems
 
 
+def check_task_class_is_enforced(aspects: dict[str, Aspect]) -> list[str]:
+    """A scene aspect is asked only of scenes, and `applicability` is what says no.
+
+    Three things, and the third is the one a mutant cannot reach on its own:
+
+      * the declared class matches `SCENE_ONLY`, which is stated above rather than read
+        back off the aspect;
+      * `applicability` admits exactly the same-class pairs over the REAL task ids, so
+        the guard agrees with the declaration instead of being a second opinion;
+      * an id it cannot classify is REFUSED. A field is eight model calls, and reading
+        an unrecognised id as a game is the fail-open direction (rule 7).
+    """
+    problems: list[str] = []
+    for identifier, aspect in sorted(aspects.items()):
+        want = "scene" if identifier in SCENE_ONLY else "game"
+        if aspect.task_class != want:
+            problems.append(
+                f"{identifier}: task_class={aspect.task_class!r}, expected {want!r}. "
+                f"Either the aspect moved class or SCENE_ONLY was not updated with it")
+    tasks = sorted(aspects_mod._task_classes())
+    if not tasks:
+        return problems + ["no task ids resolved from eval/suites/, so the guard is "
+                           "being asked about an empty population"]
+    for identifier, aspect in sorted(aspects.items()):
+        for task in tasks:
+            refused = applicability(identifier, task, registry=aspects)
+            same = task_class(task) == aspect.task_class
+            if same and refused:
+                problems.append(f"{identifier} on {task}: same class, refused anyway "
+                                f"({refused[:80]})")
+            if not same and not refused:
+                problems.append(f"{identifier} on {task}: {aspect.task_class} aspect "
+                                f"admitted on a {task_class(task)}")
+        if not applicability(identifier, "an-id-no-suite-defines", registry=aspects):
+            problems.append(f"{identifier}: admitted a task id whose class cannot be "
+                            f"established - the guard fails open")
+    return problems
+
+
+def check_cross_stack_bar_is_declared(aspects: dict[str, Aspect]) -> list[str]:
+    """A bar on ranking stacks must be readable by code, and must carry its reason.
+
+    `field_ranks.report` prints the reason beside every figure it produces for a barred
+    aspect. A bare boolean would make the report say "barred" and send the reader off to
+    find out why, which is how `idiomatic`'s bar stayed in prose from #53 onward.
+    """
+    problems: list[str] = []
+    for identifier, aspect in sorted(aspects.items()):
+        bar = aspect.cross_stack_bar.strip()
+        if identifier in BARRED_CROSS_STACK and not bar:
+            problems.append(f"{identifier}: no cross_stack_bar, so nothing in code "
+                            f"knows its ordering must not be read across stacks")
+        if identifier not in BARRED_CROSS_STACK and bar:
+            problems.append(f"{identifier}: declares a cross-stack bar that "
+                            f"BARRED_CROSS_STACK does not expect - state it there, "
+                            f"where a reader looks for the list")
+        if bar and len(bar) < _MIN_BAR_CHARS:
+            problems.append(f"{identifier}: cross_stack_bar is {len(bar)} chars "
+                            f"({bar!r}) - a bar has to say why, not merely that")
+    return problems
+
+
+def id_shape_agrees(classes: dict[str, str]) -> list[str]:
+    """Does `g<N>_` / `s<N>_` give the same class as the suites that define the tasks?
+
+    `aspects._ID_SHAPE` is the fallback that lets the judge fixtures' synthetic
+    `g9_probe` field through a guard that would otherwise refuse every fixture. A
+    fallback nothing corroborates is a second source of truth; this is the row that
+    compares the two channels rather than making them the same object (rule 12).
+
+    Takes the map as an ARGUMENT so `main` can drive it with a doctored one and prove
+    it can say no.
+    """
+    return [f"{task}: the suites call it a {want}, its id shape says "
+            f"{aspects_mod._SHAPE_CLASS.get((task or ' ')[0], 'nothing')}"
+            for task, want in sorted(classes.items())
+            if aspects_mod._SHAPE_CLASS.get((task or " ")[0]) != want]
+
+
 CHECKS = (
     ("every frames aspect states its blind spot", check_every_frames_aspect_carries_it),
     ("fun and fun_frames are briefed identically", check_control_briefing_is_identical),
     ("no stack name and no arm count", check_no_stack_or_count_leak),
     ("a control is declared to code, and names a real treatment",
      check_control_declaration),
+    ("an aspect is asked only of its own task class", check_task_class_is_enforced),
+    ("a cross-stack bar is declared to code, with its reason",
+     check_cross_stack_bar_is_declared),
 )
 
 
@@ -185,6 +303,33 @@ def mutants() -> list[tuple[str, str, dict[str, Aspect]]]:
     dangling["fun_frames"] = replace(live["fun_frames"], control_for="fun_but_not_really")
     out.append(("a control is declared to code, and names a real treatment",
                 "VARIANT: fun_frames controls an aspect that does not exist", dangling))
+
+    reclassed = dict(live)
+    reclassed["fidelity"] = replace(live["fidelity"], task_class="game")
+    out.append(("an aspect is asked only of its own task class",
+                "fidelity is reclassified as a game aspect", reclassed))
+
+    # A VARIANT for the same check: not a swap between the two classes, which is what a
+    # mutant reaches for, but a THIRD value. Nothing rejects it at construction, the
+    # aspect still declares a class, and `applicability` then refuses every real task -
+    # a guard that has become a wall, which no cross-pair test would notice.
+    third = dict(live)
+    third["motion"] = replace(live["motion"], task_class="either")
+    out.append(("an aspect is asked only of its own task class",
+                "VARIANT: motion declares a class that is neither", third))
+
+    unbarred = dict(live)
+    unbarred["framework_fluency"] = replace(live["framework_fluency"],
+                                            cross_stack_bar="")
+    out.append(("a cross-stack bar is declared to code, with its reason",
+                "framework_fluency stops declaring its bar (the #53 state)", unbarred))
+
+    # A VARIANT: the field IS set, so "is anything marked?" passes, and what it holds
+    # is a marker rather than a reason - the boolean this field exists not to be.
+    marker = dict(live)
+    marker["idiomatic"] = replace(live["idiomatic"], cross_stack_bar="yes")
+    out.append(("a cross-stack bar is declared to code, with its reason",
+                "VARIANT: idiomatic's bar is a marker, not a reason", marker))
     return out
 
 
@@ -208,6 +353,24 @@ def main() -> int:
         if not caught:
             print(f"          '{target}' passed a mutant - the check measures nothing")
         failures += not caught
+
+    # THE ID-SHAPE FALLBACK, corroborated rather than trusted, in both directions. It is
+    # driven from here rather than from CHECKS because its subject is the task map, not
+    # the aspect set, and a mutant of it is a doctored map.
+    print("\nthe id-shape fallback agrees with the suites")
+    live_map = aspects_mod._task_classes()
+    live_problems = id_shape_agrees(live_map)
+    print(f"  {'ok  ' if not live_problems else 'FAIL'}  "
+          f"{len(live_map)} task id(s) classified by both channels")
+    for problem in live_problems:
+        print(f"          {problem}")
+    failures += bool(live_problems)
+
+    doctored = dict(live_map)
+    doctored[sorted(t for t in live_map if t.startswith("s"))[0]] = "game"
+    print(f"  {'ok  ' if id_shape_agrees(doctored) else 'FAIL'}  "
+          f"MUTANT: a scene task the map calls a game is caught")
+    failures += not id_shape_agrees(doctored)
 
     print(f"\n{'PASS' if not failures else f'BROKEN: {failures} failure(s)'}")
     return 1 if failures else 0

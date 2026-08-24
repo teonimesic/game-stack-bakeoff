@@ -1,10 +1,11 @@
 ---
 id: 140
 title: tasks.py check reports ORPHANED for every squash-merged branch, and the repository merges by squash
-status: in_progress
+status: in_review
 priority: 2
 refs: eval/tools/tasks.py landed_status, DECISIONS.md "A closed ticket is checked against the tree", .agents/skills/dispatch/SKILL.md merging section, tasks/122
 done_when: landed_status distinguishes a branch that was squash-merged from one that was never merged, with the three-valued contract preserved and NOT_CHECKED still never a pass; a control pins it red on a genuinely orphaned branch and green on a squash-merged one, using real refs in this repository; and tasks.py check is green on the queue as it stands or names only tickets whose work really is absent from the tree
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/23
 ---
 
 Measured 2026-08-24 from an agent worktree on task 127. tasks.py check exits 1 with: "131: status done, but refs/remotes/origin/task-131-controls-filter-into-a-step is not an ancestor of main", and the same for 130. Both are wrong. PR #16 was merged 2026-08-24T12:55:34Z and its merge commit 399280e7f059aaf694fa517c331f83f875a5cfb8 IS an ancestor of origin/main - but it has ONE parent and a tree of its own, because gh pr merge --squash creates a new commit rather than a merge of the branch. So the branch tip 58df942db5fae6a6537c26b40096c2894b1f3c90 is not an ancestor of anything and never will be. landed_status uses merge-base --is-ancestor on the BRANCH TIP, which is the right test for the git merge --no-ff flow this project abandoned and the wrong test for the squash flow DECISIONS.md now records. The failure direction is fail-closed, which costs attention rather than evidence - but it fires on every merged ticket whose remote ref survives, so the count grows with every merge, and a gate that is red for reasons unrelated to the change in front of you is a gate that gets bypassed as a habit. The pre-push hook already refuses to block on it from a linked worktree, which is a second reason nobody sees it go green. The signal that is actually available is the squash commit: gh pr view <n> --json mergeCommit gives it, and the PR is reachable from the ticket via the pr field that in_review already requires.

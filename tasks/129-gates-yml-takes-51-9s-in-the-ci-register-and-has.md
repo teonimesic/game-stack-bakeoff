@@ -133,3 +133,26 @@ register's structure and `ci_minutes.py`'s surface will have moved under this ti
 Also note: the repository went public on 2026-08-24, so the register's "Minutes" section no longer
 describes a bill. If both duration figures survive, they are wall-clock in front of a merge, which
 is a stronger reason to produce them properly than metering ever was.
+
+## note 2026-08-24
+
+## note 2026-08-24 — fresh evidence, and it argues for DELETING the figures
+
+Task 135's agent measured, incidentally, exactly what this ticket is about: **two consecutive
+`gates.yml` runs one markdown edit apart came back 65s and 102s** — a 57% spread on content that
+did not change, against two steps it had added costing under 0.2s each.
+
+That is a stronger version of what this ticket already recorded (the last 10 successful runs
+spanning 54s to 78s). **Runner variance dwarfs the thing a per-run timing would be read for.**
+
+So of this ticket's two permitted outcomes, the evidence now leans hard toward the second:
+*"both figures are deleted and the register says what it does instead."* A per-run wall-clock
+number in that table cannot support the inference a reader will draw from it — that a step they
+added made CI slower — because the noise is an order of magnitude larger than a step.
+
+If any figure survives, it should be a **per-step** duration over a stated population, since a step
+is what a change moves and the run is what the runner's noise moves. `ci_minutes.py` reads the
+jobs API and already has the per-step data.
+
+**Do not average the noise away and publish the mean as though it were the quantity.** The useful
+statement is the spread, or nothing.

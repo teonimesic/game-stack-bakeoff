@@ -126,19 +126,38 @@ that would score every submission zero for a thing nobody asked for.
 Implemented in `aspects.py` (the questions), `field.py` (packing, running, gates) and
 `field_sweep.py` (a whole matrix with a measured cost ceiling).
 
-**Six aspects exist, and all six are runnable.** Five are opinions; `fun_frames` is `fun`'s
-control and is listed last for that reason, not because it is optional. The count is
-`len(ASPECTS)` and `docstat.py --sweep` fails on any live doc that claims to name them all
-and does not — this table said five for as long as `ASPECTS` held six.
+**9 aspects exist, and all 9 are runnable.** 6 are asked of games and 3 of scenes;
+`aspects.applicability()` refuses every other pairing, at `field.py pack`, at
+`field.run_field` and at `field_sweep.py`. Of the 6 game aspects, 5 are opinions and
+`fun_frames` is `fun`'s control, listed last for that reason and not because it is optional.
+The count is `len(ASPECTS)` and `docstat.py --sweep` fails on any live doc that claims to name
+them all and does not — this table said five for as long as `ASPECTS` held six.
 
-| aspect | sees | evidence in the pack |
-|---|---|---|
-| `idiomatic` | source | anonymised source + `CHANGED.txt` (what the author actually wrote) |
-| `architecture` | source | same |
-| `fun` | frames + telemetry | the 12 filmed frames, and `telemetry.json` measured from the play-bot's own driven run |
-| `ux` | frames | the 12 filmed frames |
-| `audio` | audio | `audio.json`: per-clip duration, RMS, peak, and which clips are the same sound as which |
-| `fun_frames` | frames | the same 12 frames, **with `telemetry.json` withheld** — `fun`'s control, briefed byte-identically to it. See the pre-registration below |
+| aspect | class | sees | evidence in the pack |
+|---|---|---|---|
+| `idiomatic` | game | source | anonymised source + `CHANGED.txt` (what the author actually wrote) |
+| `architecture` | game | source | same |
+| `fun` | game | frames + telemetry | the 12 filmed frames, and `telemetry.json` measured from the play-bot's own driven run |
+| `ux` | game | frames | the 12 filmed frames |
+| `audio` | game | audio | `audio.json`: per-clip duration, RMS, peak, and which clips are the same sound as which |
+| `fun_frames` | game | frames | the same 12 frames, **with `telemetry.json` withheld** — `fun`'s control, briefed byte-identically to it. See the pre-registration below |
+| `fidelity` | scene | frames | the 12 filmed frames |
+| `motion` | scene | frames | the same 12 frames |
+| `framework_fluency` | scene | source | anonymised source + `CHANGED.txt`, **extensions kept** — see the cross-stack bar below |
+
+**The 3 scene aspects have never met a submission.** No scene has been built, so no scene
+field has been packed and no round has been run; every word about them is design, not result.
+`eval/SCENES.md` is the authority for the class and states what each one is for.
+
+**2 aspects are barred from a cross-stack ranking, and the bar is readable by code.**
+`Aspect.cross_stack_bar` holds the reason, and `field_ranks.py` prints it beside every figure
+it produces for the aspect together with that aspect's per-stack means, in alphabetical order
+rather than sorted by value. `idiomatic` is barred on measurement (#53); `framework_fluency` is
+barred by construction, because its question *is* which of one engine's APIs appear in the
+source, so naming the stack is the measurement rather than a leak of it. **The bar does not
+change which rounds are pooled** — `idiomatic` is inside the pooled between-stack figure this
+file quotes, and taking it out re-analyses published results. `tasks/146` settles that either
+way.
 
 It says it is a control **in code**, as `control_for="fun"`, and `field_ranks.assert_poolable`
 raises rather than pooling it with the five opinions. Read it against `fun`, never added to it.

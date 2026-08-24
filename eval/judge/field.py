@@ -29,7 +29,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from anonymise import neutralise  # noqa: E402
-from aspects import ASPECTS, Aspect  # noqa: E402
+from aspects import ASPECTS, Aspect, applicability  # noqa: E402
 
 LABELS = "ABCDEFGH"
 DEFAULT_MODEL = "sonnet"
@@ -1163,7 +1163,26 @@ SCHEMA = {
 def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
               max_turns: int = 120, budget: float = 12.0,
               timeout_s: int = 3600) -> dict[str, Any]:
-    aspect = ASPECTS[aspect_id]
+    """Judge one built pack on one aspect, and return the round.
+
+    THE SPENDER. Everything above it plans; this is the call that consumes account
+    capacity, so it is also the last place a wrong field can be stopped -- and it stops
+    one by returning `{"usable": False, "error": ...}` rather than by raising, because a
+    refusal that is a stored record can be read afterwards and a traceback cannot.
+
+    The guards run in this order, and each is here because the alternative produced a
+    confident answer to a question nobody asked:
+
+      1. the identity mapping must not be inside the pack, or the judge is not blind (#32);
+      2. the aspect must be one this module defines, and must belong to the task class
+         the pack was built for -- `applicability()`, ahead of `ASPECTS[aspect_id]`;
+      3. the pack must have been built for this aspect's evidence (`sees`);
+      4. the pack must RECORD whether it is complete. A missing key read as falsy would
+         assert completeness about a pack nothing on disk describes (#62).
+
+    Returns the parsed judge output with `usable: True`, or a refusal naming which of
+    those failed.
+    """
     mapping = json.loads(mapping_path(pack).read_text())
     stray = sorted(q.name for q in pack.rglob("*")
                    if q.is_file() and "MAPPING" in q.name)
@@ -1171,6 +1190,25 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         return {"usable": False,
                 "error": f"refusing to judge: the identity mapping is inside the pack "
                          f"({stray}), so the judge would not be blind"}
+    # THE TASK CLASS, and it is the same argument as the `sees` check below one level
+    # up: a scene has no player, so `fun` over a scene field would return eight
+    # confident scores about pacing nobody asked for, and `fidelity` over a game field
+    # would score a strip against a subject the field was never given. Scene and game
+    # scores are never pooled (`eval/SCENES.md`), so this is not a preference.
+    #
+    # CHECKED HERE AS WELL AS AT BOTH CLIs, because the resource is "a judge field run
+    # against a task" and this is the function that spends it (rule 13). It refuses an
+    # id it cannot classify rather than assuming a game.
+    #
+    # BEFORE `ASPECTS[aspect_id]`, and that ordering is the guard. `field.py run` takes
+    # `--aspect` with no `choices`, so an id this module does not define reached the
+    # subscript and raised `KeyError` -- an uncaught traceback where every other refusal
+    # here is a stored `usable: False` record saying what was wrong. `applicability`
+    # answers for an unknown aspect id as well as for a wrong pairing.
+    refusal = applicability(aspect_id, mapping.get("game") or "")
+    if refusal:
+        return {"usable": False, "error": f"refusing to judge: {refusal}"}
+    aspect = ASPECTS[aspect_id]
     # A pack built for one aspect does not carry another aspect's evidence. Judging
     # `fun` over a code-only pack would produce eight confident scores derived from
     # nothing that was asked about.
@@ -1736,6 +1774,13 @@ def main() -> int:
 
     a = ap.parse_args()
     if a.cmd == "pack":
+        # THE TASK CLASS, refused before anything is packed. `run_field` refuses the
+        # same pairing again; this is the earlier of the two, so a wrong pairing costs
+        # no pack rather than costing one and then being thrown away.
+        refusal = applicability(a.aspect, a.game)
+        if refusal:
+            print(f"refusing to pack: {refusal}", file=sys.stderr)
+            return 2
         # BOTH aspect properties, not one. This read `sees` and not `blind_language`
         # until 2026-08-23, so a pack built through the CLI - the path the module
         # docstring tells a human to type - was not blinded AT ALL: files kept their

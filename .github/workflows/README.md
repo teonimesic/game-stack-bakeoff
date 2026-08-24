@@ -8,23 +8,28 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 42 documentation, queue and selftest gates | 7 mutant and control suites |
+| checks | 44 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **95s** | **677s** — a floor, see below |
+| takes | **102s** | **685s** |
 
 **Both counts have a producer** — `python3 eval/tools/ci_minutes.py --gates`, which reads the
 workflows and counts steps invoking something under `eval/`. It is pinned in
 `ci_minutes --selftest`, because this row said **32** for long enough to be wrong by three.
 
 **The two timings are read from a run, not remembered.** Both are from the pull-request runs of
-`b6de53d` on 2026-08-24 — `gates` [run 32750324600](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32750324600),
-`controls` [run 32750324526](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32750324526) —
-and `gh pr checks <n>` prints them for any pull request. They move whenever a step is added, so
-re-read them rather than carrying them forward: this row said **57s** for a `gates.yml` that had
-since gained 4 steps from 2 branches at once. **`controls`'s 677s predates the 2 scene steps added
-on 2026-08-24, so it is a floor.** Re-read it from a run rather than adding step times: locally
-`scene_mutants.py` takes 22.0s and `--census-selftest` under a second, and both are slower on a
-runner.
+`d087994` — `gates` [run 32783773446](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32783773446),
+`controls` [run 32783773457](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32783773457) —
+and `gh pr checks <n>` prints them for any pull request. **Re-read them from a run rather than
+carrying them forward, and never estimate one by adding step times.**
+
+**A single timing is one sample of a noisy quantity, and the noise is larger than the thing you
+would be adding.** Measured over 2 consecutive runs of `gates.yml` one markdown edit apart:
+**65s** and **102s**, a 57% spread on content that did not change. The 2 steps this row's count
+grew by cost under 0.2s each locally. So a timing that looks stale usually is not evidence that
+a step was added, and a step that was added is invisible next to the variance — which is why the
+instruction is to re-read rather than to reason about the difference. This row said **57s** for
+a `gates.yml` that had since gained 4 steps from 2 branches at once, and **95s** for one that
+then gained 2 more.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
@@ -32,7 +37,9 @@ control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that r
 alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
 each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
-sigil, and no sweep is bounded by a figure nobody is charged (#159).
+sigil, and no sweep is bounded by a figure nobody is charged (#159). `field_ranks --selftest`
+and `weight_sensitivity --selftest` joined it on 2026-08-24 — both offline, both under 0.1 s
+locally, and neither gated nor recorded as excluded before then.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `scene_mutants` and its `--census-selftest`, `tasks_mutants`, `audio_selftest`,
