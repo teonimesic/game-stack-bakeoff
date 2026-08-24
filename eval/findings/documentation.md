@@ -1300,3 +1300,49 @@ Prefer an explicit array or `eval`, and prove the loop runs at all by making one
 purpose before trusting the ones that pass.
 
 ---
+
+## 167. The textbook robustness fix, applied where its named failure mode really occurs, measured 9 pairs worse than doing nothing
+
+The scene probe's image-side check estimates how far a background band shifted between two frames,
+by minimising a sum of absolute differences over horizontal gradients. It has a known weakness: one
+strong edge — the car, its headlights — can dominate the sum and offer a competing minimum at zero.
+
+**That weakness is real and was measured**, not hypothesised: 43 of 44 frame pairs correct on the
+reference and 39 of 44 on a variant that deals the same seeded textures to different bands, with
+**every miss in the bottom band, where the car is.**
+
+The standard remedy for one strong edge dominating a sum is to clip the profile at a multiple of
+its own mean. Applied here, against the same 88 pairs:
+
+| candidate | reference | nearest-first | total |
+|---|---|---|---|
+| SAD over normalised horizontal gradients, growing overlap — **shipped** | 43/44 | 39/44 | **82/88** |
+| the same, over a fixed central window | 43/44 | 39/44 | 82/88 |
+| the same, **with the profile clipped at 3× its own mean** | 40/44 | 33/44 | **73/88** |
+| normalised cross-correlation | 41/44 | 34/44 | 75/88 |
+| SAD on the **sign** of the gradient | 37/44 | 20/44 | 57/88 |
+
+**The fix aimed at the actual failure mode is the second-worst of the five.** Nothing about the
+diagnosis was wrong — the car does dominate, and the misses are where it is. The remedy simply
+does not help, because clipping discards the same high-gradient information the estimator needs to
+find any minimum at all.
+
+> **Choose between candidate implementations on the measurement, never on which one sounds more
+> principled about the defect you diagnosed.** A correct diagnosis licenses a search; it does not
+> license the first remedy the diagnosis suggests. Both are cheap to run against the same
+> population, and the difference between them here is 9 pairs.
+
+This is the census-trigger lesson (AGENTS.md) arriving in a second domain. There, the property
+that *sounded* more general than an enumeration turned out to redden 31 correct lines with no true
+positive, and the enumeration it was meant to replace was strictly better. Here, the transform that
+sounds more robust than the naive sum is strictly worse. **In both cases the argument was sound and
+the number disagreed**, and in both cases the only thing that could tell them apart was running the
+candidates side by side over one fixed population.
+
+**Where the robustness went instead:** into the criteria. A band is treated as measurable only when
+its per-pair estimates **agree with each other** — a statement about repeatability derived from the
+measurements rather than from the answer expected of them. A band whose estimates disagree cannot
+support a conclusion drawn from one of them, and saying so is cheaper and more honest than a
+transform that pretends the disagreement away.
+
+---

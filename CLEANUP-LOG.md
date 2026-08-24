@@ -373,3 +373,37 @@ looked at the repository's own refs or its disk**.
 `grep -rln "x" --include=*.py` returns *"no matches found"* under **zsh**, which tries to glob the
 unquoted pattern. Same family as #164, met twice within the hour of writing it. Quote every glob
 passed to a tool that does its own matching.
+
+## 2026-08-24 (second pass) — `research/`: 3,400 lines of prior nobody had audited
+
+Chosen because an earlier pass recorded `research/` as having no coverage, and it is the largest
+body of prose here that no pass had read.
+
+### Examined and judged sound — do not redo these
+
+- **`research/` is a LIVE document set, not an archive**, and that is a decision rather than an
+  accident: it is absent from `ARCHIVE_PATHS` in `docstat.py`. So all 13 files are inside
+  `--sweep` (207 docs, green) and inside `--withdrawn` (green) — held to `README.md`'s standard,
+  not `tasks/`'s. This was the pass's main question and the answer is that the discipline already
+  reaches here.
+- **The prior/evidence framing is explicit and consistent.** `research/AGENTS.md` states
+  `DECISION.md` is a prior and not evidence; `README.md` links it as *"the prior — the bake-off is
+  the evidence, and it opens with a retraction"*. A live document that is openly superseded by
+  measurement is not stale prose, and nothing here should be pruned on the grounds that the
+  bake-off overtook it.
+- **The file table in `research/AGENTS.md` is accurate** — twelve briefs `00`–`11` plus
+  `DECISION.md`, and all thirteen exist.
+
+### Found, and recorded rather than fixed
+
+- **85 external URLs across `research/`, and nothing validates any of them.** The exclusion is
+  deliberate and its reason is sound — `linkcheck.py` skips `http(s)` because the repository is
+  offline-gradeable and a network check is a different tool with a different failure mode. **The
+  reason lived only in that docstring**, so a reader asking *"is anything checking these?"* at the
+  register — which exists to answer exactly that — found nothing. Added as a row to
+  `.github/workflows/README.md`'s deliberate-exclusions table with the consequence stated: a rotted
+  source still looks sourced, which is acceptable while `research/` is a prior and would not be if
+  a measurement rested on one.
+
+No tasks filed. Nothing here is dead weight, and the one gap was a missing row rather than a
+missing check.
