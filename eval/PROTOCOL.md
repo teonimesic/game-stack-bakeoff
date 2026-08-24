@@ -41,6 +41,8 @@ Then run every check below. Each has cost trials at least once.
 | **Verify the cap in the live driver's process list**, not in a config file. | `--max-budget-usd` is read at import; editing a file changes nothing for a running process. | one full relaunch |
 | **A running driver holds the PROMPTS it imported, not the ones on disk.** Check a live trial's own `artifacts/<tid>/prompt.txt`. | Same mechanism as the cap. Verified 2026-08-15: the arena prompt was rewritten mid-run and a trial launched 67 minutes later still received the superseded text — which is what makes the archive boundary clean, and would silently split a run into two task definitions if it were not noticed. | would have mixed two specs in one run |
 | **Run `verify_blind.py` unpiped** and read its own exit code. | A piped exit status is `tail`'s. | reported BLIND when it was not |
+| **State the harness, and check the arm it is not.** `--harness` defaults to `claude`; a matrix on any other arm is a different arm, not a repeat. | The permission regime, the Stop gate, the turn ceiling and the token accounting all differ, and none of it is visible in a stored score. `eval/RUNS.md` holds the measured table. | a cross-harness comparison read as a stack result |
+| **On a non-claude arm, let `preflight()` refuse.** Do not work around it. | It is that arm's whole substitute for `--setting-sources project`: prime-agent reads a context file from every ancestor of the trial tree, measured. | the operator's own instructions inside the experiment, in no artifact |
 | **Run `audio_selftest.py` and `bot_mutants`** and read both exit codes. | A criterion that cannot fail is worse than absent. | 15 criteria across 3 matrices |
 | **Confirm starters are untouched since the last blind check.** | Editing a starter changes the thing being measured. | the `determinism.replay` leak |
 | **Snapshot rendered prompts** — `python3 tools/prompt_guard.py --snapshot runs/<run>/prompts` | What the agents actually received, for diffing later. A shared preamble changes every task of its class at once. | one experiment nearly run with two variables (#41) |
@@ -119,6 +121,14 @@ with the most headroom, so treat it as the expensive end and re-read it against 
 
 Record which limit bound each trial. `max_turns` and `budget_exhausted` are different populations
 and both are different from `completed`.
+
+**On the prime-agent arm there is no turn bound at all**, and that is a property of the CLI:
+`--autonomous-max-turns` exists only under `--autonomous`, which appends continuations and
+re-runs gate commands the claude arm never sees, so using it would change the treatment rather
+than the ceiling. That arm is bounded by the 4-hour harness timeout, which lands as
+`harness_timeout` in the shared enumeration. Before committing a matrix there, calibrate what one
+trial does with no turn ceiling — the backstop above is a claude-arm number and says nothing
+about it.
 
 ## While it runs
 

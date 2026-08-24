@@ -21,7 +21,7 @@ have a within-cell gap at all, under **one** `terminal_reason`. Per group:
 
 | quantity | how |
 |---|---|
-| per-stack low / high / spread / gap / mean | over `agent.cost_usd` |
+| per-stack low / high / spread / gap / mean | over `agent.cost_usd`, **`claude`-harness records only** |
 | **within-cell noise floor** | the mean of the per-cell gaps |
 | **between-stack range** | max stack mean minus min stack mean |
 | **range as a percentage of the floor** | the headline ratio |
@@ -163,6 +163,18 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Pat
 
 def _terminal(record: dict) -> str:
     return record.get("agent", {}).get("terminal_reason") or "absent"
+
+
+# The harness whose `cost_usd` is tokval. Same spelling and same reading as census.py:
+# every record stored before the harness became a variable (2026-08-24) was built by this
+# CLI, so an absent field is that CLI rather than an unmeasurable record.
+TOKVAL_HARNESS = "claude"
+
+
+def _harness(record: dict) -> str:
+    return (record.get("agent", {}).get("harness")
+            or (record.get("harness") or {}).get("name")
+            or TOKVAL_HARNESS)
 
 
 # ------------------------------------------------------------------------------ measures
@@ -335,6 +347,14 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
     for run, d in wholegame:
         if _terminal(d) != terminal_reason:
             excluded[_terminal(d)] += 1
+            continue
+        # ANOTHER HARNESS IS ANOTHER UNIT, not another sample. Every figure below - the
+        # within-cell noise floor, the between-stack range, their ratio - is arithmetic
+        # ON cost_usd, and two vendors' list prices are not addable (#159). Excluded
+        # before any of it, and counted, because a reason not to count that nothing
+        # reports is a channel a bug can widen (rule 7).
+        if _harness(d) != TOKVAL_HARNESS:
+            excluded[f"harness {_harness(d)}"] += 1
             continue
         if d.get("agent", {}).get("cost_usd") is None:
             excluded["no cost_usd"] += 1
@@ -1406,6 +1426,24 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
               cv["excluded_by_terminal_reason"], {"no cost_usd": 1})
         check("and the group is otherwise unchanged",
               _round(only_group("no-cost-field variant", cv)["within_cell_floor_usd"], 4),
+              _round((10 + 10 + 10 + 12) / 4, 4))
+
+        # Variant B2: a record from ANOTHER HARNESS, carrying a cost figure. Its USD is
+        # another vendor's list price for another vendor's tokens; adding it to a floor or
+        # a range is arithmetic on two price lists. It must be excluded under a label that
+        # names the harness, and no group figure may move. The cost is POPULATED on
+        # purpose: a guard that only holds because the other harness's normaliser wrote
+        # `None` is not a guard, it is the same check twice.
+        _write(var / "run-v" / "trials" / "gV__ts__t3.json",
+               {"game": "gV", "stack": "ts", "harness": {"name": "prime-agent"},
+                "agent": {"terminal_reason": "completed", "num_turns": 40,
+                          "harness": "prime-agent", "cost_usd": 500.0}})
+        cv2 = measure("other-harness variant", var)
+        check("a record from another harness is excluded, named by harness",
+              cv2["excluded_by_terminal_reason"],
+              {"no cost_usd": 1, "harness prime-agent": 1})
+        check("and no group figure moved",
+              _round(only_group("other-harness variant", cv2)["within_cell_floor_usd"], 4),
               _round((10 + 10 + 10 + 12) / 4, 4))
 
         # Variant C: an UNEVEN cell — 3 trials in one stack, 2 in the others. The gap is

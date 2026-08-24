@@ -45,7 +45,7 @@ disk on 2026-08-15; neither is carried forward from a previous version of this f
 
 | | | source |
 |---|---|---|
-| agent trials, **surviving records** | **$2,466.31** over 161 trials in 23 run directories | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth |
+| agent trials, **surviving records** | **$2,466.31** over 162 trials in 24 run directories, **161 of them priced** | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth, **`claude`-harness records only**: the 162nd is the prime-agent probe and its vendor's USD is not addable to this figure |
 | specialist-judge rounds | **$334.41** over 97 rounds in 12 sweep directories | `judge/judge_ledger.py --tree runs/` |
 
 **Records, not totals, and the gap is real but not summed here.** A retry overwrites the record
@@ -95,7 +95,8 @@ The `wg-audio48` and `archive-arena2d` rows together account for the $616.66 tha
 
 ## What may be compared with what
 
-Four things break comparability, and all four have bitten:
+Five things break comparability. Four have bitten; the fifth is new, and it is the only one
+that is a property of the *instrument* rather than of the configuration:
 
 1. **The task changed — twice.** Audio, presentation and pacing entered every prompt on
    2026-08-14: tier 1 went from 9 criteria to 14, tier 2 gained one. Then on **2026-08-15 the
@@ -115,6 +116,12 @@ Four things break comparability, and all four have bitten:
    budget cap** — a fourth regime, and the first in which nothing communicates a budget to the
    agent. **Its resource use is unmeasured**; calibrate before committing a matrix.
 
+5. **The agent harness is a variable, from 2026-08-24.** Every record before that date was
+   built by the `claude` CLI, and nothing said so — `python3 eval/tools/census.py` prints the
+   partition (`harness claude 90, prime-agent 1` on the day it landed). A harness change is
+   not a configuration change; the arms differ in ways no flag can equalise, and the
+   differences are listed in the section below.
+
 Practically: `wg-matrix` (pre-audio, $25) and `wg-audio48` (audio, $48) are each internally
 consistent and mutually incomparable. `wg-audio` at $25 is a partial third regime. Anything built
 from 2026-08-15 onward is a fourth, and its arena trials answer a different question from every
@@ -123,6 +130,45 @@ arena trial before them.
 **Those two runs are also barred from code-aspect judging**, which is a separate axis from the
 regime boundaries above and applies within each of them: their packs cannot be re-packed and the
 builder already refuses them. See the section on their stored packs, below.
+
+## THE HARNESS IS AN ARM DIMENSION, and the two arms cannot be equalised — measured 2026-08-24
+
+`wholegame.py --harness <name>` chooses the agent CLI; the standing arm is `claude` and
+`prime-agent` 0.7.1 (`openai-codex`, `gpt-5.6-sol`) is the second. **Every difference below was
+measured, not read off `--help`**, and each is a property of the CLIs rather than of a setting
+either of them exposes. `eval/agent_harness.py` holds the evidence for each row and
+`eval/tools/agent_harness_control.py` pins the readers.
+
+| | `claude` | `prime-agent` |
+|---|---|---|
+| **money** | `cost_usd` is `tokval`, Anthropic list price | **`cost_usd` is `None`, always.** Its own USD is OpenAI list price and is stored as `vendor_cost_usd_not_comparable` |
+| **tokens** | `modelUsage`, a running total, read once | `usage` per assistant message, **not cumulative** — summed |
+| **turns** | the CLI's `num_turns`, every turn of its loop | assistant messages in `agent_end`. Different units; every record carries `turns_definition` |
+| **turn ceiling** | `--max-turns 1000`, invisible to the agent | **none.** `--autonomous-max-turns` needs `--autonomous`, which adds continuations and gate re-runs the claude arm never sees. Bounded by the 4-hour harness timeout instead |
+| **permission regime** | a command-pattern allowlist (`Bash(just *)`, …), which costs ~30% of turns to denials | **no equivalent.** `-t/--tools` filters tool NAMES; it runs arbitrary code in an IPython kernel and writes files unattended |
+| **the Stop gate** | wired in every starter's `.claude/settings.json`; refuses to end a turn while `just verify` is red | **not run at all** — no other CLI reads that file. `stop_hook.harness_supports_stop_hook` says so in the record, because `log: absent` alone would read as a silent pass |
+| **the starter's guide** | `CLAUDE.md`, which is `@AGENTS.md` | `AGENTS.md` directly — prime-agent takes the first of `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`. Same text both ways, confirmed in the probe below |
+| **operator isolation** | `--setting-sources project` and `--strict-mcp-config` | **no flag does this.** It reads a context file from every ancestor of the trial tree to `/`, plus its agent directory; `-nc` stops that AND removes the starter's own `AGENTS.md`, so it cannot be used. The guard is an assertion in `preflight()`, whose findings go into every record |
+| **free parameter** | — | `--thinking`, pinned to `high` on the argv. It has no claude counterpart, and `~/.prime/agent/settings.json` would otherwise choose it along with the model |
+
+**Three token comparisons are safe and one is not.** Input, output and cache counts are real
+on both arms; **prime-agent's system prompt floor is ~3,931-4,034 input tokens** on a one-line
+prompt, measured, so subtract a floor before comparing per-trial input. Dollars are not
+comparable at all and the tooling now refuses to pool them: `census.py` sums `claude` records
+only and prints how many it excluded, and `cost_census.py` drops a foreign record before any
+floor or range is computed.
+
+### `wg-harness-probe-primeagent-2026-08-24` — the end-to-end probe. NOT a submission
+
+| | |
+|---|---|
+| what | one trial, `g1_pong__rust__t0`, rust starter, **`--prompt-file`** — a 598-byte probe prompt, not the pong task. `prompt_override: true` in the record |
+| result | `completed` (mapped from `stopReason: stop`), **2 turns, 8,342 in / 254 out / 6,656 cache-read**, 10.3s, 1 file changed, capture exit codes all 0 |
+| money | **none recorded.** `cost_usd: null`; the vendor's own figure, 0.052658 USD of OpenAI list price, is stored under `vendor_cost_usd_not_comparable` and enters no total |
+| what it establishes | the arm runs end to end through the real harness: preflight, argv, the CLI, the parse, the normalise, the artifacts and the stored record. The agent answered `verify command: just verify` and `crates: game, sim` — both true of the rust starter — so the **product channel reaches this arm** |
+
+**Never pool this record with a game population.** It carries `game: g1_pong` because every
+record does, and it was not asked to build pong.
 
 ## THE FRAMES CHANNEL IS NOT EQUIVALENT ACROSS ARMS, and it never has been — measured 2026-08-23
 

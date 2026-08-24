@@ -52,12 +52,16 @@ from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
+# HERE itself, so `agent_harness` resolves when this module is imported by a tool rather
+# than run as a script - sys.path[0] is the CALLER's directory then, not this one.
+sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "suites"))
 sys.path.insert(0, str(HERE / "judge"))
 sys.path.insert(0, str(HERE / "tools"))
 
 import tokenvalue  # noqa: E402
 
+import agent_harness  # noqa: E402
 import wholegame_prompts as P  # noqa: E402
 import disclosure as _disclosure  # noqa: E402
 
@@ -107,7 +111,34 @@ MAX_BUDGET_USD = None
 DEFAULT_WORK_ROOT = Path.home() / "game-research-work"
 TIMEOUT_S = 14_400  # 4 h
 
-MODEL = "opus"       # builders. The judge deliberately runs a different model.
+#: WHICH AGENT CLI BUILDS THE TRIALS. `--harness` overrides it for one build.
+#:
+#: This was a constant spelled into the argv until 2026-08-24, so every result this
+#: project holds is a statement about the `claude` arm and nothing said so. It is a
+#: recorded arm dimension in `eval/RUNS.md` now, and the two arms are NOT comparable on
+#: dollars at all: see `agent_harness.py`.
+HARNESS = "claude"
+
+#: The builders' model, defined by the harness rather than beside it - two spellings of
+#: one value is how `runstat.py` came to glob a work root that had moved (#60, rule 12).
+#: The judge deliberately runs a different model.
+MODEL = agent_harness.CLAUDE.model
+
+#: TARGETED ALLOWLIST, user-ruled. Measured across the published 24-trial bake-off: 302
+#: denials, 12.6 per trial, 29.8% of all turns lost, and the spread across the four stacks
+#: was only 3 percentage points (28.1-31.1%) - a uniform tax rather than a per-stack bias.
+#: In the whole-game calibration trial the agent was denied `just verify` itself and signed
+#: off saying two checks were unrun, while the repo it left behind passed the gate in 5s.
+#:
+#: Deliberately NOT bypassPermissions and deliberately not a catch-all: the sandbox stays
+#: meaningful, only the build and verification commands the template itself tells the agent
+#: to run are permitted.
+#:
+#: IT HAS NO EQUIVALENT ON THE prime-agent ARM, which filters tool NAMES rather than
+#: command patterns and runs arbitrary code through an IPython kernel with nothing to
+#: pre-authorise. That is an uncontrolled difference between the arms, recorded in
+#: `eval/RUNS.md` rather than papered over.
+ALLOWED_TOOLS = ("Bash(just *)", "Bash(cargo *)", "Bash(pnpm *)", "Bash(git *)")
 
 
 # --------------------------------------------------------------------------- #
@@ -222,83 +253,30 @@ def read_hook_log(p: Path) -> dict[str, Any]:
             "verdicts": verdicts, "malformed_lines": malformed}
 
 
-def agent_metrics(agent: dict[str, Any]) -> dict[str, Any]:
-    """Cost and tokens from `modelUsage`, which the SDK docs say to prefer over
-    `usage` - `usage` is the main loop only and excludes subagents."""
-    mu = agent.get("modelUsage") or {}
-    if mu:
-        return {
-            "cost_usd": round(sum((m or {}).get("costUSD", 0) or 0
-                                  for m in mu.values()), 4),
-            "input_tokens": sum((m or {}).get("inputTokens", 0) or 0
-                                for m in mu.values()),
-            "output_tokens": sum((m or {}).get("outputTokens", 0) or 0
-                                 for m in mu.values()),
-            "cache_read": sum((m or {}).get("cacheReadInputTokens", 0) or 0
-                              for m in mu.values()),
-            "models": sorted(mu),
-        }
-    u = agent.get("usage") or {}
-    return {"cost_usd": agent.get("total_cost_usd") or 0,
-            "input_tokens": u.get("input_tokens", 0),
-            "output_tokens": u.get("output_tokens", 0),
-            "cache_read": u.get("cache_read_input_tokens", 0), "models": []}
-
-
-def parse_agent(stdout: str) -> dict[str, Any]:
-    try:
-        data = json.loads(stdout)
-    except json.JSONDecodeError:
-        data = [json.loads(ln) for ln in stdout.splitlines()
-                if ln.strip().startswith("{")] or [{}]
-    if isinstance(data, dict):
-        data = [data]
-    results = [d for d in data if isinstance(d, dict) and d.get("type") == "result"]
-    return results[-1] if results else (data[-1] if data else {})
-
-
 def run_agent(work: Path, prompt: str, env: dict[str, str],
-              turn_limit: int | None = None) -> tuple[dict, str]:
+              turn_limit: int | None = None,
+              harness: agent_harness.Harness | None = None) -> tuple[dict, str]:
+    """Run one agent session under whichever harness this arm uses.
+
+    Argv, parsing and normalisation live in `agent_harness.py`, one object per CLI. The
+    claude arm's argv is unchanged and is pinned byte for byte by
+    `tools/agent_harness_control.py`: a changed command line is a changed experiment, and
+    it would be invisible in every stored artifact.
+    """
+    h = harness or agent_harness.get(HARNESS)
     sid = str(uuid.uuid4())
     turns = MAX_TURNS if turn_limit is None else int(turn_limit)
-    argv = [
-        "claude", "-p", prompt,
-        "--output-format", "json",
-        "--model", MODEL,
-        "--max-turns", str(turns),
-        # Verified necessary: without it the operator's global CLAUDE.md leaks in.
-        "--setting-sources", "project",
-        "--strict-mcp-config",
-        "--exclude-dynamic-system-prompt-sections",
-        "--permission-mode", "acceptEdits",
-        # TARGETED ALLOWLIST, user-ruled. Measured across the published 24-trial
-        # bake-off: 302 denials, 12.6 per trial, 29.8% of all turns lost, and the
-        # spread across the four stacks was only 3 percentage points (28.1-31.1%) -
-        # a uniform tax rather than a per-stack bias. In the whole-game calibration
-        # trial the agent was denied `just verify` itself and signed off saying two
-        # checks were unrun, while the repo it left behind passed the gate in 5s.
-        #
-        # Deliberately NOT bypassPermissions and deliberately not a catch-all: the
-        # sandbox stays meaningful, only the build and verification commands the
-        # template itself tells the agent to run are permitted.
-        "--allowedTools", "Bash(just *)", "Bash(cargo *)", "Bash(pnpm *)",
-        "Bash(git *)",
-        "--session-id", sid,
-    ]
-    # Appended only when set. A budget cap is an instruction to the agent, so the
-    # no-cap regime has to actually OMIT the flag rather than pass a large number.
-    if MAX_BUDGET_USD is not None:
-        argv += ["--max-budget-usd", str(MAX_BUDGET_USD)]
+    argv = h.argv(prompt=prompt, turns=turns, session_id=sid, cwd=work,
+                  allowed_tools=ALLOWED_TOOLS, budget_usd=MAX_BUDGET_USD)
     # check=False: an agent that stops on its budget or turn ceiling exits non-zero and
     # has still produced a submission worth grading. Raising here would throw away the
     # trial we paid for; the terminal reason comes out of the parsed result instead.
     try:
         p = subprocess.run(argv, cwd=work, capture_output=True, text=True,
                            timeout=TIMEOUT_S, env=env, check=False)
-        return parse_agent(p.stdout), p.stderr[-4000:]
+        return h.parse(p.stdout, p.returncode), p.stderr[-4000:]
     except subprocess.TimeoutExpired:
-        return {"is_error": True, "result": "HARNESS TIMEOUT",
-                "terminal_reason": "harness_timeout"}, ""
+        return h.timeout_record(), ""
 
 
 # --------------------------------------------------------------------------- #
@@ -329,7 +307,9 @@ class Caps:
 def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: int,
                 caps: Caps, pristine_target: Path | None,
                 prompt_override: str | None = None,
-                turn_limit: int | None = None) -> dict[str, Any]:
+                turn_limit: int | None = None,
+                harness_name: str | None = None) -> dict[str, Any]:
+    h = agent_harness.get(harness_name or HARNESS)
     tid = f"{game}__{stack}__t{trial}"
     # NAMESPACE THE WORK TREE BY RUN. Trial ids repeat across runs (`g1_pong__rust__t0`
     # is the first trial of every run that includes that cell), and `prepare()` starts
@@ -343,6 +323,8 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     art.mkdir(parents=True, exist_ok=True)
     rec: dict[str, Any] = {"trial_id": tid, "stack": stack, "game": game,
                            "trial": trial, "work": str(work),
+                           "harness": {"name": h.name, "model": h.model,
+                                       "supports_stop_hook": h.supports_stop_hook},
                            "started_at": dt.datetime.now(dt.timezone.utc).isoformat()}
     with caps.hold(stack):
         prepare(STARTERS[stack], work)
@@ -384,9 +366,23 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
         prompt = (prompt_override if prompt_override is not None
                   else P.TASKS[game](stack))
         (art / "prompt.txt").write_text(prompt)
+        # WHETHER THIS RECORD IS A SUBMISSION AT ALL. A `--prompt-file` trial carries a
+        # `game` field like every other record and was not asked to build that game, so
+        # anything counting the game population needs the flag in the record rather than
+        # in the operator's memory. The prompt itself is in `artifacts/<tid>/prompt.txt`.
+        rec["prompt_override"] = prompt_override is not None
+
+        # THE ISOLATION THIS ARM NEEDS, ASSERTED ON THE PATH THAT HOLDS IT, and its audit
+        # trail stored. The claude arm closes the operator's global instructions and MCP
+        # servers off with two flags; prime-agent has no equivalent of either and reads
+        # context files from every ancestor of the trial tree, so its guard is an
+        # assertion over that tree. Recorded per trial rather than reasoned about once:
+        # a check that leaves no trace cannot be told afterwards from one that never ran.
+        rec["harness"]["isolation"] = h.preflight(work)
+        env = agent_harness.env_for(h, env)
 
         t0 = time.monotonic()
-        agent, stderr = run_agent(work, prompt, env, turn_limit)
+        agent, stderr = run_agent(work, prompt, env, turn_limit, harness=h)
         rec["wall_s"] = round(time.monotonic() - t0, 1)
 
     # REAP PROCESSES THE AGENT LEFT BEHIND.
@@ -410,30 +406,12 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
                             check=False)
     rec["reaped_leftover_processes"] = reaped.returncode == 0
 
-    # A SESSION LIMIT IS NOT AN API ERROR.
-    # MEASURED, twice: the CLI reports an account session limit as
-    # terminal_reason="api_error" with the real cause only in the result text
-    # ("You've hit your session limit - resets 11:50pm"). They are different
-    # populations - a genuine API error is a property of the run, a session limit is a
-    # property of the account's day and is RETRYABLE - and merging them means a
-    # partition by terminal_reason cannot tell "this trial failed" from "we ran out of
-    # quota". It cost four trials in the first matrix, the whole 8-trial arena set in
-    # this one, and a calibration trial in between.
-    _final = (agent.get("result") or "")
-    _reason = agent.get("terminal_reason")
-    if _reason == "api_error" and "session limit" in _final.lower():
-        _reason = "session_limit"
-    rec["agent"] = {
-        "is_error": bool(agent.get("is_error")),
-        "subtype": agent.get("subtype"),
-        "terminal_reason": _reason,
-        "terminal_reason_raw": agent.get("terminal_reason"),
-        "num_turns": agent.get("num_turns"),
-        "permission_denials": len(agent.get("permission_denials") or []),
-        "final_text": (agent.get("result") or "")[-3000:],
-        "stderr": stderr[-2000:],
-        **agent_metrics(agent),
-    }
+    # THE SHARED FIELD NAMES, and the per-harness readers behind them. Every mapping the
+    # record depends on - a session limit that reports itself as an api_error, a token
+    # count that is cumulative on one harness and per-message on another, a terminal
+    # reason with no measured equivalent - is in `agent_harness.py` beside the evidence
+    # for it. Read that module before trusting a field across two arms.
+    rec["agent"] = h.normalise(agent, stderr)
     # Artifact capture: everything needed to re-judge offline without re-running agents.
     (art / "agent_result.json").write_text(json.dumps(agent, indent=2)[:2_000_000])
     # RE-JUDGEABILITY. `git diff HEAD` alone is NOT enough to reconstruct a submission:
@@ -483,6 +461,11 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     # not run a green gate, it ran an UNKNOWN gate, and that is the state every trial
     # before this change is permanently in.
     rec["stop_hook"] = read_hook_log(_hook_log)
+    # A FOURTH THING `absent` CAN MEAN, once the harness is a variable: this CLI has no
+    # hooks. The gate is wired in every starter's `.claude/settings.json`, which only the
+    # claude CLI reads, so on any other arm `absent` is structural rather than a finding
+    # about the trial. Stated at the address the reader is already at.
+    rec["stop_hook"]["harness_supports_stop_hook"] = h.supports_stop_hook
     # AND THE CONTROL, run per trial rather than reasoned about once. `hook_log_path`
     # asserts the address before the launch; this asserts the OUTCOME after it, against
     # the same three artifacts a grader reads. They are different questions: a hook is
@@ -504,9 +487,14 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     rec["finished_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
     (run_dir / "trials").mkdir(parents=True, exist_ok=True)
     (run_dir / "trials" / f"{tid}.json").write_text(json.dumps(rec, indent=2))
-    print(f"  [built] {tid}  {rec['wall_s']}s  "
-          f"{tokenvalue.tag(rec['agent']['cost_usd'])}  "
-          f"turns={rec['agent']['num_turns']}  {rec['agent']['terminal_reason']}",
+    # The line carries the HARNESS and the TOKEN counts, not only the valuation: on any
+    # arm but claude the valuation is `n/a` by construction (#159 with a second vendor),
+    # and a line whose only resource figure is absent says nothing about the trial.
+    _a = rec["agent"]
+    print(f"  [built] {tid}  {rec['wall_s']}s  {_a['harness']}  "
+          f"{tokenvalue.tag(_a['cost_usd'])}  "
+          f"in={_a['input_tokens']} out={_a['output_tokens']}  "
+          f"turns={_a['num_turns']}  {_a['terminal_reason']}",
           flush=True)
     return rec
 
@@ -621,8 +609,13 @@ def cmd_build(a: argparse.Namespace) -> int:
     # dataclass - which is luck, not a difference in the loading.
     _sys.modules[_mspec.name] = _manifest
     _mspec.loader.exec_module(_manifest)
+    # THE HARNESS IS PART OF WHAT THE RUN WAS CONFIGURED TO BE, so it goes in the record
+    # that is append-only for exactly that reason. A run directory whose manifest does not
+    # name its harness is a run nobody can place in the ledger's harness dimension.
+    harness = agent_harness.get(getattr(a, "harness", None) or HARNESS)
     _manifest.write_manifest(run_dir, {
-        "stacks": stacks, "games": games, "trials": a.trials, "model": MODEL,
+        "stacks": stacks, "games": games, "trials": a.trials, "model": harness.model,
+        "harness": harness.name,
         "max_turns": MAX_TURNS, "max_budget_usd": MAX_BUDGET_USD,
         "work_root": str(work_root),
         "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -644,7 +637,7 @@ def cmd_build(a: argparse.Namespace) -> int:
         print(f"--prompt-file: sending {len(prompt_override)} bytes verbatim from "
               f"{a.prompt_file}")
     jobs = [(run_dir, work_root, s, g, i, caps, pristine if pristine.exists() else None,
-             prompt_override, getattr(a, "turn_limit", None))
+             prompt_override, getattr(a, "turn_limit", None), harness.name)
             for g in games for s in stacks for i in range(a.trials)]
 
     # `--only` FILTERS, and refuses an id it cannot see. A filter that silently matches
@@ -666,7 +659,9 @@ def cmd_build(a: argparse.Namespace) -> int:
 
     print(f"{len(jobs)} trials = {len(games)} games x {len(stacks)} stacks x "
           f"{a.trials} trials, overall parallelism {a.parallel}, per-stack caps "
-          f"{BUILD_CAP}\nwork root: {work_root}\n")
+          f"{BUILD_CAP}\nwork root: {work_root}\n"
+          f"harness: {harness.name} ({harness.model}) — an arm dimension; "
+          f"eval/RUNS.md says what may be compared with what\n")
 
     # A verbatim prompt describes ONE trial's condition. Fanning it across a selection
     # would send one game's prompt to another game's cell and look like a normal run.
@@ -958,7 +953,12 @@ def cmd_report(a: argparse.Namespace) -> int:
         print(f"{r['stack']:<8} {r['game']:<13} {e['overall']:>8.3f} {gate_txt:>7} "
               f"{regime:>3} "
               f"{ts['programmatic']:>6.2f} {ts['playbot']:>6.2f} {jd:>7.2f} "
-              f"{r['agent']['num_turns'] or 0:>6} {r['agent']['cost_usd']:>7.2f} "
+              f"{r['agent']['num_turns'] or 0:>6} "
+              # `tokenvalue.fmt` rather than a format spec: `cost_usd` is `None` on every
+              # arm whose figure is not tokval, and `:>7.2f` raises TypeError on it. A
+              # report that dies on a valid record is a report nobody can read the run
+              # with, and `0.00` in its place would be worse.
+              f"{tokenvalue.fmt(r['agent'].get('cost_usd'), width=7)} "
               f"{r['wall_s']:>6.0f}s")
 
     # WHAT THE SUBJECT SAID ABOUT ITS OWN WORK, beside the score it was given.
@@ -1188,6 +1188,14 @@ def main() -> int:
                             "Every id must be inside the --stacks/--games/--trials "
                             "selection; an id that is not is an error, not a "
                             "silent no-op.")
+        # WHICH AGENT CLI BUILDS. A second harness is a second arm, never a second
+        # reading of the same one: the two differ in permission regime, in the Stop gate,
+        # in what a turn counts and in whose price list their tokens would carry. Never
+        # cross a harness change with any other change in one run.
+        p.add_argument("--harness", default=HARNESS,
+                       choices=sorted(agent_harness.HARNESSES),
+                       help="the agent CLI to build with (default: %(default)s). It is a "
+                            "recorded arm dimension - see eval/RUNS.md.")
         p.add_argument("--no-judge", action="store_true")
         # The legacy 13-criterion judge is OPT-IN. It is weighted 0.00, cost a measured
         # 1.75 tokval per submission, and across 24 submissions its only firings were

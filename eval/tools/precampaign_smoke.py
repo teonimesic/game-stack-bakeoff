@@ -239,6 +239,13 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
                 ["python3", "runner_capture_selftest.py"], EVAL))
     out.append(("sequential_selftest",
                 ["python3", "judge/sequential_selftest.py"], EVAL))
+    # THE ARGV THE MATRIX IS ABOUT TO LAUNCH WITH, and the readers of what comes back. No
+    # stored artifact records the command line a trial was built with, so a changed argv is
+    # a changed experiment that nothing can see afterwards; this pins the claude arm's
+    # command line against a literal, in three configurations, and carries 12 mutants over
+    # the parsing and normalisation both arms depend on. Offline, ~1 s.
+    out.append(("agent_harness_control (argv byte-identity + 12 mutants, offline)",
+                ["python3", "tools/agent_harness_control.py"], EVAL))
     out.append(("docstat --sweep", ["python3", "tools/docstat.py", "--sweep"], EVAL))
     # The reader of the agents' own closing messages, and its six mutants. Both need the
     # stored corpus: four of the six are caught only by a real message, and the selftest's

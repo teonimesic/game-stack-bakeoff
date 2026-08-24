@@ -28,6 +28,13 @@ the count cannot be wrong about where it looked. Directories holding agent-autho
 (`work/`, `artifacts/`, `targets/`) are excluded and the number excluded is reported, because
 a skip nobody counts is the defect this replaces.
 
+**A THIRD partition, and it is a partition of the UNIT: which agent CLI built the record.**
+`agent.harness` names it, and every record stored before 2026-08-24 has no such field
+because there was only one — so an absent field reads as `claude`. The record COUNTS are
+over every harness; the `agent.cost_usd` sums are over `claude` alone, and each prints how
+many records it could not price. tokval is a list price for one vendor's tokens (#159);
+adding another vendor's figure to it produces a number in no unit at all.
+
 **This tool fails rather than returning zero.** A missing runs directory and an empty one
 both exit 2. An agent worktree has no `eval/runs/` — it is gitignored — so the honest
 answer there is a refusal, not `0 records`, which is the shape rule 3 forbids. The
@@ -116,8 +123,37 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
     return out, skipped
 
 
+#: The harness whose `cost_usd` figures `tokenvalue.py` defines. Every stored record
+#: predating the harness dimension (2026-08-24) was built by this CLI, which is why an
+#: absent field is read as this one rather than as unmeasurable.
+TOKVAL_HARNESS = "claude"
+
+
+def _harness(record: dict) -> str:
+    return (record.get("agent", {}).get("harness")
+            or (record.get("harness") or {}).get("name")
+            or TOKVAL_HARNESS)
+
+
 def _cost(record: dict) -> float:
+    """A record's tokval, or 0 for a record that HAS no tokval.
+
+    Callers must filter with `_priced` first; this returns 0 for an unpriced record so a
+    partial sum cannot raise, and `cost_unpriced_records` reports how many were left out.
+    """
     return record.get("agent", {}).get("cost_usd") or 0.0
+
+
+def _priced(record: dict) -> bool:
+    """Whether this record's cost may enter a tokval sum.
+
+    **A dollar figure is per harness and the harnesses are not addable.** `tokval` is a
+    list price for Anthropic tokens; prime-agent's figure is OpenAI's list price for
+    OpenAI tokens, and neither was paid (#159). Summing them adds two vendors' price
+    lists, and an unpriced record summed as `0` is worse still — it reads as a trial that
+    cost nothing rather than one measured in another unit (#36).
+    """
+    return _harness(record) == TOKVAL_HARNESS
 
 
 def _terminal(record: dict) -> str:
@@ -141,6 +177,8 @@ def census(runs_dir: Path) -> dict:
                 set(collections.Counter((d["game"], d["stack"]) for d in rows).values())),
             "terminal_reason": dict(
                 sorted(collections.Counter(_terminal(d) for d in rows).items())),
+            "harness": dict(
+                sorted(collections.Counter(_harness(d) for d in rows).items())),
         }
 
     return {
@@ -149,7 +187,12 @@ def census(runs_dir: Path) -> dict:
         "tree": {
             "trial_records": len(records),
             "run_directories": len({r for r, _, _ in records}),
-            "agent_cost_usd": round(sum(_cost(d) for _, _, d in records), 2),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in records if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in records if not _priced(d)),
+            "harness": dict(sorted(collections.Counter(
+                _harness(d) for _, _, d in records).items())),
             "skipped_agent_authored": len(skipped),
         },
         "wholegame": {
@@ -165,20 +208,42 @@ def census(runs_dir: Path) -> dict:
             "trials_per_cell_max": max(cells.values()) if cells else 0,
             "terminal_reason": dict(sorted(collections.Counter(
                 _terminal(d) for _, _, d in wholegame).items())),
-            "agent_cost_usd": round(sum(_cost(d) for _, _, d in wholegame), 2),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in wholegame if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in wholegame if not _priced(d)),
+            "harness": dict(sorted(collections.Counter(
+                _harness(d) for _, _, d in wholegame).items())),
             "per_run": per_run,
         },
         "specchange": {
             "population": "stored trial records with no `game` field — the retired suite",
             "trial_records": len(specchange),
             "run_directories": len({r for r, _, _ in specchange}),
-            "agent_cost_usd": round(sum(_cost(d) for _, _, d in specchange), 2),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in specchange if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in specchange if not _priced(d)),
         },
     }
 
 
 def _fmt_counter(counter: dict) -> str:
     return ", ".join(f"{k} {v}" for k, v in counter.items())
+
+
+def _unpriced_note(n: int) -> str:
+    """What the tokval line LEFT OUT, printed on the line itself.
+
+    A sum over one harness, presented beside a record count over all of them, is a
+    figure whose population is not the one the reader is looking at. The two vendors'
+    price lists are not addable and neither was paid (#159), so the sum stays
+    single-harness and says how many records it could not price.
+    """
+    if not n:
+        return ""
+    return (f"  ({n} record(s) EXCLUDED: built by another harness, whose USD figure "
+            f"is another vendor's price list and is not addable to this one)")
 
 
 def render(c: dict) -> str:
@@ -196,7 +261,9 @@ def render(c: dict) -> str:
         f"({wg['trials_per_cell_min']}-{wg['trials_per_cell_max']} trials each, pooled "
         f"across runs — NOT a per-cell replicate count)",
         f"  terminal_reason    {_fmt_counter(wg['terminal_reason'])}",
-        f"  agent.cost_usd     {wg['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
+        f"  harness            {_fmt_counter(wg['harness'])}",
+        f"  agent.cost_usd     {wg['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+        + _unpriced_note(wg['cost_unpriced_records']),
     ]
     if biggest:
         name, info = biggest
@@ -212,12 +279,14 @@ def render(c: dict) -> str:
         f"SPEC-CHANGE — population: {sc['population']}",
         f"  trial records      {sc['trial_records']}",
         f"  run directories    {sc['run_directories']}",
-        f"  agent.cost_usd     {sc['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
+        f"  agent.cost_usd     {sc['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+        + _unpriced_note(sc['cost_unpriced_records']),
         "",
         "WHOLE TREE — both populations, summed only where a sum is meaningful",
         f"  trial records      {tree['trial_records']} across "
         f"{tree['run_directories']} run directories, found at any depth",
-        f"  agent.cost_usd     {tree['agent_cost_usd']:,.2f} {tokenvalue.UNIT}",
+        f"  agent.cost_usd     {tree['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+        + _unpriced_note(tree['cost_unpriced_records']),
         f"  skipped            {tree['skipped_agent_authored']} trials/*.json under "
         f"{'/, '.join(sorted(NOT_A_RUN))}/ — agent-authored, not harness records",
         "",
@@ -290,24 +359,50 @@ def selftest() -> int:
         # counted, and the skip must be reported rather than silent.
         _write(runs / "wg-a" / "work" / "someagent" / "trials" / "notours.json",
                {"game": "g9", "stack": "rust", "agent": {"cost_usd": 999.0}})
+        # Direction 5: a record from ANOTHER HARNESS is counted as a record and excluded
+        # from the tokval sums. Its own vendor's USD figure is carried in the record - the
+        # row below proves a sum cannot reach it even when it is right there, because the
+        # danger is not an absent number, it is a plausible one.
+        _write(runs / "wg-c" / "trials" / "g1__rust__t0.json",
+               {"game": "g1", "stack": "rust", "trial": 0,
+                "harness": {"name": "prime-agent"},
+                # `cost_usd` POPULATED, deliberately. The shipped normaliser writes
+                # `None` here, and a guard that only works because the other harness
+                # behaved is not a guard - it is the same check twice. This row asks
+                # whether the SUM can reach a foreign figure that is sitting in the field
+                # it reads.
+                "agent": {"harness": "prime-agent", "terminal_reason": "completed",
+                          "cost_usd": 77.0, "input_tokens": 4573}})
 
         c = census(runs)
         wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
-        check("wholegame.trial_records", wg["trial_records"], 3)
-        check("wholegame.run_directories", wg["run_directories"], 2)
-        check("wholegame.games", wg["games"], {"g1": 2, "g2": 1})
-        check("wholegame.stacks", wg["stacks"], {"rust": 2, "ts": 1})
+        check("wholegame.trial_records", wg["trial_records"], 4)
+        check("wholegame.run_directories", wg["run_directories"], 3)
+        check("wholegame.games", wg["games"], {"g1": 3, "g2": 1})
+        check("wholegame.stacks", wg["stacks"], {"rust": 3, "ts": 1})
         check("wholegame.cells", wg["cells"], 3)
         check("wholegame.terminal_reason", wg["terminal_reason"],
-              {"absent": 1, "api_error": 1, "completed": 1})
+              {"absent": 1, "api_error": 1, "completed": 2})
         check("wholegame.agent_cost_usd", wg["agent_cost_usd"], 6.0)
+        # Direction 5, both halves: the other harness's record is COUNTED as a record and
+        # its vendor USD reaches no total. A partition that silently dropped the record
+        # and a sum that silently included 77.0 are both wrong, and only asking for both
+        # numbers separates them.
+        check("wholegame.harness", wg["harness"], {"claude": 3, "prime-agent": 1})
+        check("wholegame.cost_unpriced_records", wg["cost_unpriced_records"], 1)
+        check("tree.harness", tree["harness"], {"claude": 5, "prime-agent": 1})
+        check("prime-agent vendor USD reached no total",
+              77.0 not in (wg["agent_cost_usd"], tree["agent_cost_usd"],
+                           sc["agent_cost_usd"]), True)
+        check("an unstamped record is read as claude",
+              _harness({"agent": {"cost_usd": 1.0}}), "claude")
         # The spec-change records must NOT be counted as whole-game, and must be counted
         # — including the one nested inside the archive wrapper.
         check("specchange.trial_records", sc["trial_records"], 2)
         check("specchange.run_directories", sc["run_directories"], 2)
         check("specchange.agent_cost_usd", sc["agent_cost_usd"], 9.0)
-        check("tree.trial_records", tree["trial_records"], 5)
-        check("tree.run_directories", tree["run_directories"], 4)
+        check("tree.trial_records", tree["trial_records"], 6)
+        check("tree.run_directories", tree["run_directories"], 5)
         check("tree.agent_cost_usd", tree["agent_cost_usd"], 15.0)
         check("largest matrix is wg-a", max(
             wg["per_run"].items(), key=lambda kv: kv[1]["records"])[0], "wg-a")
@@ -315,7 +410,7 @@ def selftest() -> int:
         counted, skipped = trial_paths(runs)
         check("nested run identified by relative path",
               sorted({str(Path(p).parent.parent.relative_to(runs)) for p in counted}),
-              ["archive-x/core-y", "core-x", "wg-a", "wg-b"])
+              ["archive-x/core-y", "core-x", "wg-a", "wg-b", "wg-c"])
         # 4b, both halves: excluded from the counts AND reported.
         check("agent-authored trials/ skipped", len(skipped), 1)
         check("skip is reported", tree["skipped_agent_authored"], 1)

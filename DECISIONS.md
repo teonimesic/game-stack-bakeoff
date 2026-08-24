@@ -2527,6 +2527,62 @@ Two things that reading cost, both kept because the next agent would otherwise r
   own population. It filters now, and the variant row proves the identical gap still crosses when
   both trials completed — otherwise the repair would be a deletion.
 
+## The agent harness is an arm dimension, and dollars never cross it — decided 2026-08-24
+
+The `claude` CLI was spelled into the runner's argv, so *which agent built this* was a constant
+and every result the project holds is a statement about one harness with nothing saying so.
+`wholegame.py --harness` now chooses it; `eval/agent_harness.py` holds one object per CLI —
+build argv, parse stdout, normalise, preflight — and the rest of the runner learns no second
+vocabulary.
+
+**The claude arm's argv did not move, and that is asserted rather than believed.** It was
+compared against the argv the pre-change code built, in three configurations, by loading both
+revisions and intercepting the subprocess call: identical, with a deliberately mutated argv as
+the control. `eval/tools/agent_harness_control.py` keeps a literal copy and 12 mutants, and it
+runs in `gates.yml` and in `precampaign_smoke.py`. A changed command line is a changed
+experiment and appears in no stored artifact, so nothing else could ever notice.
+
+**Tokens and wall clock normalise. Dollars do not.** `tokval` is Anthropic's list price for
+Anthropic tokens (#159); prime-agent reports OpenAI's list price for OpenAI tokens. Adding them
+produces a figure in no unit. So `cost_usd` is populated only where `tokenvalue.py`'s definition
+covers it and is `None` — never `0` — elsewhere, the foreign figure is stored under
+`vendor_cost_usd_not_comparable`, and both aggregating producers exclude a foreign record and
+report how many they excluded. A mutant that removes the exclusion moves a stored floor from
+10.5 to 130.5 on one foreign record, which is what makes the guard worth having.
+
+**Turns do not normalise either, and the record says so per row.** The claude CLI counts every
+turn of its loop; prime-agent has no counter, so the module counts assistant messages. Both are
+recorded with a `turns_definition` beside the number rather than a convention nobody can see.
+
+**A terminal reason is mapped, and an unmapped one stays unmapped.** The shared enumeration is
+the claude vocabulary because 161 stored records are written in it. prime-agent's map has ONE
+measured entry (`stop` -> `completed`); anything else becomes `unknown:<raw>`, and an ABSENT
+reason stays absent — killed trials store `null` and that is a third value, not an unknown one.
+
+**Isolation on the second arm is an assertion, not a flag.** prime-agent reads a context file
+from every ancestor of its working directory to `/` and from its agent directory — measured: an
+`AGENTS.md` one level above came back through the model verbatim. Its `-nc` flag stops that and
+also removes the starter's own `AGENTS.md`, which is the product being measured, so it cannot be
+used. `preflight()` refuses to launch when a context file sits above the trial tree or in the
+agent directory, or when that directory holds discoverable skills, extensions, prompts or
+themes; what it checked goes into the trial record. Model, provider and thinking level are
+pinned on the argv because `~/.prime/agent/settings.json` otherwise supplies them and ordinary
+interactive use rewrites it.
+
+**What is NOT claimed:** that the arms are equalisable. They are not. The permission regime, the
+Stop gate, the turn ceiling and the thinking level have no counterpart across the two, and
+`eval/RUNS.md` lists each with what it costs the comparison. A harness change must never be
+crossed with any other change in one run.
+
+**`codex` was considered and declined.** The installed build is 0.46.0 against a current
+0.149.1 — a version gap wide enough that anything measured on it would describe an obsolete
+client rather than the vendor's agent. It becomes a candidate after an upgrade, not before.
+
+**What re-opens this:** per-token billing on either account, which would make the dollar figures
+real and comparable-in-principle (they would still be two vendors' prices for two vendors'
+tokens); or a prime-agent release exposing a project-scoped context flag, which would replace
+`preflight()`'s assertion with the isolation the claude arm has.
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than

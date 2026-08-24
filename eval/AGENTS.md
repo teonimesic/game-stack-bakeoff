@@ -188,14 +188,33 @@ adjudication.
 
 ## Running trials
 
-- Drive the **`claude` CLI directly**, not the SDK.
-- `--setting-sources project` is **mandatory** and empirically verified. Without it the operator's
-  global `~/.claude/CLAUDE.md` leaks into every arm and confounds the comparison.
+- Drive a **CLI directly**, not an SDK. **Which CLI is a variable**: `wholegame.py --harness`
+  chooses it, the standing arm is `claude`, and `prime-agent` is the second. Argv, parsing and
+  normalisation live in `agent_harness.py` — one object per CLI, and **the claude arm's argv is
+  pinned byte for byte** by `tools/agent_harness_control.py`, because no stored artifact records
+  the command line a trial was built with.
+- **A harness is an ARM, never a second reading of the same arm.** The two differ in permission
+  regime, in whether the starters' Stop gate runs at all, in what a turn counts, and in whose
+  price list their tokens would carry. `RUNS.md` holds the measured table; never cross a harness
+  change with any other change in one run.
+- `--setting-sources project` is **mandatory on the claude arm** and empirically verified.
+  Without it the operator's global `~/.claude/CLAUDE.md` leaks into every arm and confounds the
+  comparison. **prime-agent has no equivalent** — it reads a context file from every ancestor of
+  the trial tree, and its one flag that stops that also removes the starter's own `AGENTS.md`, so
+  the guard there is an assertion (`PrimeAgentHarness.preflight`) whose findings are stored in
+  the trial record.
 - The matrix runs with a targeted Bash allowlist (`just`, `cargo`, `pnpm`, `git`). Runs with and
   without it are **not comparable** — without one, ~30% of turns are lost to denials, including
-  agents blocked from running their own verify gate.
+  agents blocked from running their own verify gate. **The allowlist has no prime-agent
+  equivalent either**: that CLI filters tool names, not command patterns.
 - Cost and tokens come from `modelUsage`, not `usage` — `usage` covers the main loop only and
-  excludes subagents.
+  excludes subagents. **`modelUsage` is a running total and prime-agent's per-message `usage` is
+  not**, so the two harnesses need opposite readers: read one, sum the other. A reader that took
+  the terminal event on both was the instruction this project shipped, and it under-reports every
+  multi-turn trial on the second arm.
+- **A `$` figure is per harness and the harnesses are not addable.** `cost_usd` is populated only
+  where `tokenvalue.py`'s definition covers it and is `None` — never `0` — elsewhere;
+  `census.py` and `cost_census.py` both exclude a foreign record and say how many they excluded.
 - Each trial gets a fresh template copy with a baseline commit, so `git diff HEAD` isolates exactly
   what the agent did.
 
