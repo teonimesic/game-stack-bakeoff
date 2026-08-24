@@ -5150,3 +5150,61 @@ to GitHub Pro or make this repository public."*
 > that made this mistake, the guard is still local and still advisory.
 
 ---
+
+## 165. The review poll reported a review LANDED at a head the API had not caught up to, which is the fail-open direction
+
+`work/SKILL.md`'s review loop reads the pull request head once and polls for a review naming it.
+Run immediately after `git push`, `gh pr view` still returns the **previous** head for a few
+seconds. The poll therefore reported:
+
+    LANDED ... at eff4821
+
+while the local `HEAD` was `822f488`. The same race gave a green `check-runs` answer about a
+commit that was no longer the one under review.
+
+This is a read-after-write race against an API with no read-your-writes guarantee, and the
+address it aimed at was **stale rather than wrong** — rule 12 with a clock on it, the same shape
+as #60 but measured in seconds.
+
+> **The direction is what makes it serious.** A poll that times out early reports *not yet* and
+> costs a wait; this one reports **LANDED**, and the next step in the procedure is to read that
+> review and act on it. It is the fail-open case rule 7 names: a fail-closed defect costs you
+> trials, a fail-open one costs you the result.
+
+The repair is not a longer wait. **Pass the expected sha in, and refuse to poll at all until the
+API agrees with it** — an expectation stated independently of the thing it checks, which is the
+distinction task 113 already paid for: a control that derives its expectation from its subject is
+not a control.
+
+Found by the agent working task 131, in the recipe it was following at the time.
+
+---
+
+## 166. A rule about backticks in one flag was broken through a different flag, in the file that documents the rule
+
+`#80` records that backticks inside a double-quoted shell argument are command substitution, and
+that composed prose therefore goes into `git commit -F` with a file rather than `-m`. That rule is
+written down, it is in the skill every dispatched agent follows, and it fired correctly for months.
+
+It was then broken by:
+
+    gh api ... -f body="...`some_tool.py`..."
+
+A reply to a review lost three words, silently. **The flag was different, so the rule did not
+match** — and the file where it happened is the procedure that documents `#80`.
+
+> **This is the rule-audit's own finding, arriving again: a rule whose trigger is an ENUMERATION
+> must be re-derived by every reader who meets an item not on the list.** `#80`'s trigger was
+> `git commit -m`. The property is *any shell argument in double quotes that carries composed
+> prose*, and `-f body=` is an instance nobody had written down.
+
+Both live in the same failure family as `LOCK_HINTS` matching only external lock holders (#30) and
+`"do not run judge or LLM calls"` naming two mechanisms when the resource was session capacity.
+The correction is the same one: state the trigger as the property — **quoting**, not the flag —
+and route composed text through `--input <json>` or `-F <file>`, comparing the round trip.
+
+**A rule that has fired correctly for months is not thereby safe.** It is safe only against the
+instances it enumerates, and the count of those is fixed while the number of ways to pass a string
+to a shell is not.
+
+---

@@ -41,3 +41,32 @@ defect at a larger value. What the recipe cannot currently do is distinguish *no
 a signal that says a round is in flight — the summary comment's in-progress marker was present and
 observed, so that signal exists — and wait on THAT rather than on a clock, or make the timeout a
 loud unresolved outcome rather than a quiet "no review".
+
+## note 2026-08-24
+
+## note 2026-08-24 — two more defects in the same recipe, both now findings
+
+Found by task 131's agent while following `work/SKILL.md` section 6. Both are in scope for this
+ticket, and both have finding numbers allocated against `main`, so cite rather than re-derive.
+
+**[#165] The poll believes a head the API has not caught up to.** The recipe reads the head once.
+Run straight after `git push`, `gh pr view` returns the PREVIOUS head for a few seconds, and the
+poll reported `LANDED ... at eff4821` while local `HEAD` was `822f488`. The same race returned a
+green `check-runs` answer about a commit no longer under review.
+
+This is the **fail-open** direction and it compounds the defect this ticket was filed for: the
+recipe already names no pull request in its output, and now it can also name the wrong commit
+while saying LANDED. The next step in the procedure is to read that review and act on it.
+
+The fix is the same shape as this ticket's: **pass the expected sha in and refuse to poll until
+the API agrees**, an expectation stated independently of the thing it checks. Do not fix it with
+a sleep — a sleep makes the race less likely and leaves it fail-open.
+
+**[#166] `gh api -f body="..."` executes backticks.** A reply lost three words silently. `#80` is
+about `git commit -m`; the flag was different so the rule did not match, in the file documenting
+`#80`. Route composed text through `gh api --input <json>` and compare the round trip.
+
+**Together with the bound measurement above, this recipe now has four known defects**: it names no
+pull request, it can name the wrong commit, its timeout is 4m26s too short on a 4-file diff, and
+its reply path corrupts text. Consider whether the `done_when` should be widened to "the recipe is
+rewritten and controlled as a whole" rather than repaired one clause at a time.
