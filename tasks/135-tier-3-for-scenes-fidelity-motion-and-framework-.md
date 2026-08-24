@@ -1,12 +1,12 @@
 ---
 id: 135
 title: 'Tier 3 for scenes: fidelity, motion and framework_fluency, with the unblindable one marked as such'
-status: in_testing
+status: done
 priority: 2
 refs: 'eval/SCENES.md, eval/judge/RUBRIC.md, eval/judge/aspects.py, eval/judge/verify_blind.py, eval/judge/weight_sensitivity.py, tasks/134, #21, #92'
 done_when: The three aspects exist and are asked only of scenes; verify_blind.py passes for fidelity and motion; framework_fluency is marked unblindable in RUBRIC.md and in every place its number is published, and is reported per stack rather than ranked across stacks; the scene tier 3 ships at weight 0.00 with weight_sensitivity.py run over the open interval and its result recorded. BLOCKED BEHIND 134.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/22
-established_by: 'PR #22, 3 review rounds then 2 clean; gates+controls pass in CI at ba7ff68. aspects_selftest 6 checks / 6 mutants+variants / id-shape corroboration both ways; field_ranks --selftest check 14 with a mutant and a variant; blurb_selftest check 10 pins the run_field KeyError both ways. verify_blind green on out-of-repo starters, red on a planted canary + criterion id, 81 criterion ids before and after. weight_sensitivity --selftest PASSED, 10 groups all games, 0 scene gradings: NOT ASKED. Filed tasks 144, 145, 146.'
+established_by: 'PR #22 squash-merged. Verified independently: GAME_ASPECTS/SCENE_ASPECTS/CROSS_STACK_BARRED are derived from Aspect.task_class, not hand-listed; applicability() refuses fidelity x g1_pong, fun x s1_parallax and motion x g3_arena, allows the correct pairings, and fails CLOSED on an unclassifiable id; gate count 44 agrees with its producer and its pin; ci_minutes, field_ranks and weight_sensitivity selftests all green. My first test of the guard was wrong - I treated ''did not raise'' as allowed when the function RETURNS the reason - which is why the re-test reads the return value.'
 ---
 
 Games are judged on `architecture`, `idiomatic`, `fun`, `fun_frames`, `ux`, `audio`. A scene has
