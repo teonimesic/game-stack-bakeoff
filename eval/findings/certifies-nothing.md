@@ -5208,3 +5208,52 @@ instances it enumerates, and the count of those is fixed while the number of way
 to a shell is not.
 
 ---
+
+## 168. A one-turn probe cannot tell a cumulative total from a per-item one, and the instruction written from it was wrong in the direction that reports a plausible number
+
+Before dispatching the second-harness ticket, the orchestrator probed `prime-agent` once, headless,
+with a one-line prompt. It worked, and the ticket was written from what that run showed — including
+this, stated as an instruction:
+
+> *"Read the terminal `agent_end` event, which carries the full message list."*
+
+It is wrong. `prime-agent` reports `usage` **per assistant message**, not cumulatively. Measured on
+the first real trial, two assistant messages:
+
+| message | input | output | cacheRead |
+|---|---|---|---|
+| 1 | 7367 | 230 | 0 |
+| 2 | **975** | 24 | 6656 |
+| **true total** | **8342** | **254** | **6656** |
+
+`input` falls from 7367 to 975, and **a running total cannot decrease** — one comparison settles it.
+Reading only the terminal message gives `975 / 24`: not an error, not a zero, but a number in the
+right range and roughly a tenth of the truth.
+
+**The claude CLI's `modelUsage` genuinely IS cumulative**, and `agent_usage`'s docstring says so.
+So the instruction was not invented — it was correct for the harness the reader already knew, and
+transplanted onto one where the opposite holds. **The two arms need opposite readers**, which is
+exactly the thing a shared abstraction is tempted to unify.
+
+> **At n=1 the cumulative reading and the per-item reading return the same number.** The probe could
+> not have distinguished them, and it did not fail — it succeeded, and licensed a confident sentence
+> about a property it had no power to observe. **Before generalising from a probe, ask which
+> alternative hypotheses it could have separated**; where the answer is *none*, the probe supports
+> the mechanism working and nothing about its shape.
+
+The cheap defence was available and unused: a **two**-turn probe costs one more exchange and
+distinguishes every reading discussed here.
+
+**It was caught because the agent measured rather than complied.** The ticket is authoritative by
+construction — it is the brief, written by the orchestrator, and `.agents/skills/work/SKILL.md`
+tells an agent to follow it. An agent that had implemented the instruction as given would have
+produced a working arm, green controls, and token counts wrong by an order of magnitude, with the
+one artifact that could contradict them — the raw event stream — already parsed away.
+
+> **A brief is evidence about what its author believed, not about the world.** Where a ticket
+> asserts a property of something external, it is a claim to be checked, and the ticket saying it
+> confidently is not the check. This is the sibling of #163, where a ticket's premise was wrong and
+> the agent working it overturned that too — both on the same day, both written by the same author,
+> and both caught only because the agent treated the brief as falsifiable.
+
+---
