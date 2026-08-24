@@ -526,8 +526,9 @@ The deterministic tiers already prove the code works; what they cannot see is wh
 the result is a game anyone would want to play.
 
 **These 9 aspects exist.** The ids are the ones `aspects.py` defines and
-`field_sweep.py --aspects` accepts; re-read from `ASPECTS` 2026-08-24. Nothing else is
-runnable, whatever any design table says. 6 are asked of games and 3 of scenes, and
+`field_sweep.py --aspects` accepts; `ASPECTS` is the producer, and `docstat.py --sweep`
+fails any live doc that claims to name them all and does not. Nothing else is runnable,
+whatever any design table says. 6 are asked of games and 3 of scenes, and
 `aspects.applicability()` refuses every other pairing — a scene has no player, so `fun` has
 no referent, and a game field carries no scene to be faithful to.
 
@@ -585,12 +586,11 @@ to be about, and tier 2 is `scene_probe.py` rather than a play-bot. 3 aspects re
 | `motion` | does what moves move as though it had mass, or slide at one unchanging rate | `frames` | yes |
 | `framework_fluency` | did it reach for the engine's own facilities, or hand-roll around them | `code` | **no — report per stack** |
 
-**Weight 0.00, like every other tier-3 aspect, and it ships that way deliberately.** Scenes
-have an aesthetic component the probe cannot reach, which makes them the first honest chance
-to ask whether tier 3 should ever weigh anything — but that question is answered by a sweep
-over results, not by an argument, and **there are no scene results**. No scene has been built,
-so no scene field has been packed and no round has been run. What was measured instead, on
-2026-08-24, is stated below under *what the weight sweep can and cannot say*.
+**Scene tier 3 is at weight 0.00, like every other tier-3 aspect.** Scenes have an aesthetic
+component the probe cannot reach, which makes them the first honest chance to ask whether
+tier 3 should ever weigh anything — and that question is answered by a sweep over results,
+not by an argument. **There are no scene results**: no scene has been built, so no scene field
+has been packed and no round has been run.
 
 **`framework_fluency` cannot be blinded, and that is a property of the question rather than an
 unclosed leak.** What it asks *is* which of one engine's APIs appear in the source, so naming
@@ -599,41 +599,39 @@ delete the evidence the aspect exists to read. It is therefore **reported per st
 entered into a cross-stack ranking**, and `Aspect.cross_stack_bar` is what says so to code —
 `field_ranks.py` prints the reason and that aspect's per-stack means, alphabetically by stack,
 beside every figure it produces for it. **The bar does not change what is pooled** —
-`idiomatic` is still inside the pooled between-stack figure this file and `JUDGING.md` quote,
-and taking it out re-analyses published game results. `tasks/146` settles that either way.
+`idiomatic` is inside the pooled between-stack figure this file and `JUDGING.md` quote, and
+taking it out re-analyses published game results. `tasks/146` settles that either way.
 
-This is the wall `idiomatic` already hit, reached from the other side. `idiomatic` keeps its
-file extensions because you cannot ask whether a language was written like itself with the
-language taken out; its per-stack means came back identical across two entirely different
-games (#53) and it has been cross-stack barred ever since — in prose, in this file and in
-`JUDGING.md`, and in no line of code until 2026-08-24. Both now carry the bar as data.
-`architecture` is a third case and is **not** barred: it is blinded, `verify_blind.py` and
-`blind_ext_selftest.py` both hold, and the blind judge field of 2026-08-23 nonetheless found
-it identifying every stack from code content alone — that is a measured weakness of the
-blinding, not a question that names the stack by construction, and it is recorded in
-`JUDGING.md` rather than settled here.
+**`idiomatic` carries the same bar for the same reason, reached from the other side.** It keeps
+its file extensions, because you cannot ask whether a language was written like itself with the
+language taken out, and its per-stack means came back identical across 2 entirely different
+games (#53).
+
+**`architecture` is a third case and is not barred.** It is blinded, `verify_blind.py` and
+`blind_ext_selftest.py` both hold, and a blind judge field still identified every stack from
+code content alone — a measured weakness of the blinding rather than a question that names the
+stack by construction. `JUDGING.md` holds it; it is not settled here.
 
 **`fidelity` asks a weaker question than its one-line summary suggests, and the number has to
 carry that.** "Does this look like the thing that was described" needs the description, and no
 pack carries one: the rendered scene prompt exists per stack, so handing a judge one would
-name the arm in the evidence. Until a stack-neutral statement of each scene is written and
-packed (`tasks/144`), the aspect recovers the subject from the field — all eight submissions
-are attempting it — and scores how completely each realises it. **It can find a submission
-that omits what seven others drew; it cannot find one where all eight missed the same
-requirement.**
+name the arm in the evidence. While that is true the aspect recovers the subject from the field
+— all 8 submissions are attempting it — and scores how completely each realises it. **It can
+find a submission that omits what 7 others drew; it cannot find one where all 8 missed the same
+requirement.** `tasks/144` closes the gap.
 
-**What the weight sweep can and cannot say — measured 2026-08-24, and the answer is NOT
-ASKED rather than "no effect".** Two independent reasons, either sufficient:
+**The weight question reads NOT ASKED rather than "no effect".** 2 independent reasons, either
+sufficient:
 
 ```bash
 python3 judge/weight_sensitivity.py --selftest    # SELFTEST PASSED, 12 controls
 python3 judge/weight_sensitivity.py runs/*        # groups: 10  FLIPS=0  STABLE=3  UNIDENTIFIABLE=7
 ```
 
-1. **The population is empty.** All 10 groups the sweep found are games — 25 `g1_pong`,
+1. **The population is empty.** All 10 groups the sweep finds are games — 25 `g1_pong`,
    19 `g2_tetris3d`, 16 `g3_arena` and 24 `g4_platformer` stored gradings, and **0** scene
-   gradings, because no scene has ever been built. A sweep over no scene is not a null
-   result about scenes.
+   gradings, because no scene has been built. A sweep over no scene is not a null result
+   about scenes.
 2. **It sweeps the wrong parameter for this question.** `weight_sensitivity.py` varies `w1`
    over the pair `(tier 1, tier 2)`. The scene tier-3 weight is `w3` over `(tier 2, tier 3)`,
    which this tool does not sweep and which no stored round could answer anyway.

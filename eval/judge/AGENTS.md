@@ -54,13 +54,13 @@ registry as the 6 game aspects and at the same weight, 0.00. 2 things govern usi
   rest** — at `field.py pack`, at `field.run_field` and at `field_sweep.py`, because the
   resource is *a judge field run against a task* and it is reached by 3 paths. It refuses a
   task id it cannot classify rather than reading it as a game.
-- **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and since
-  2026-08-24 `Aspect.cross_stack_bar` says so to code rather than only to a reader.
-  `field_ranks.py` prints the reason and the aspect's per-stack means — alphabetically by
-  stack, never sorted by value — beside every figure it produces for them. The bar does **not**
-  change which rounds are pooled; `idiomatic` is still inside the pooled between-stack figure
-  three live documents quote, and removing it there re-analyses published results. `tasks/146`
-  settles that either way.
+- **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
+  `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
+  prints the reason and the aspect's per-stack means — alphabetically by stack, never sorted
+  by value — beside every figure it produces for them. The bar does **not** change which
+  rounds are pooled; `idiomatic` is inside the pooled between-stack figure 3 live documents
+  quote, and removing it there re-analyses published results. `tasks/146` settles that either
+  way.
 
 `RUBRIC.md` holds what each scene aspect asks, what `fidelity` cannot see without a
 stack-neutral scene statement in the pack, and why the weight question reads **NOT ASKED**

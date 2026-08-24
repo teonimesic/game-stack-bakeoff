@@ -149,15 +149,15 @@ them all and does not — this table said five for as long as `ASPECTS` held six
 field has been packed and no round has been run; every word about them is design, not result.
 `eval/SCENES.md` is the authority for the class and states what each one is for.
 
-**Two aspects are barred from a cross-stack ranking, and since 2026-08-24 code can read the
-bar.** `Aspect.cross_stack_bar` holds the reason, and `field_ranks.py` prints it beside every
-figure it produces for the aspect together with that aspect's per-stack means, in alphabetical
-order rather than sorted by value. `idiomatic` was barred on measurement (#53) and the bar
-lived only in this file and `RUBRIC.md`; `framework_fluency` is barred by construction, because
-its question *is* which of one engine's APIs appear in the source, so naming the stack is the
-measurement rather than a leak of it. **The bar does not change which rounds are pooled** —
-`idiomatic` is still inside the pooled between-stack figure this file quotes, and taking it out
-re-analyses published results. `tasks/146` settles that either way.
+**2 aspects are barred from a cross-stack ranking, and the bar is readable by code.**
+`Aspect.cross_stack_bar` holds the reason, and `field_ranks.py` prints it beside every figure
+it produces for the aspect together with that aspect's per-stack means, in alphabetical order
+rather than sorted by value. `idiomatic` is barred on measurement (#53); `framework_fluency` is
+barred by construction, because its question *is* which of one engine's APIs appear in the
+source, so naming the stack is the measurement rather than a leak of it. **The bar does not
+change which rounds are pooled** — `idiomatic` is inside the pooled between-stack figure this
+file quotes, and taking it out re-analyses published results. `tasks/146` settles that either
+way.
 
 It says it is a control **in code**, as `control_for="fun"`, and `field_ranks.assert_poolable`
 raises rather than pooling it with the five opinions. Read it against `fun`, never added to it.
