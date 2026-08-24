@@ -1,10 +1,11 @@
 ---
 id: 139
 title: .coderabbit.yaml fails validation, so every review since 2026-08-23 ran on default settings
-status: todo
+status: done
 priority: 1
 refs: '.coderabbit.yaml, .agents/skills/work/SKILL.md section 6, .github/workflows/README.md, PR #15 summary comment'
 done_when: tone_instructions is within CodeRabbit's 250-character limit with the displaced content moved somewhere that has no limit and the choice recorded; CodeRabbit's summary comment on a fresh pull request no longer carries the parsing-error warning; and a check exists that goes red on an invalid .coderabbit.yaml and green on a valid one, pinned in both directions, so the next over-long field does not repeat this
+established_by: 'Closed on evidence, not on the repair. All four done_when clauses hold: tone_instructions is 234 chars against the 250 limit; the displaced checklist is a ''**'' path instruction where the schema''s limit is 20000, with the choice recorded in a comment beside it; and coderabbit_config.py --constraints walks maxLength/enum/type offline against a cached schema, is gated in gates.yml, and FAILS CLOSED when the cache is absent. The control is history rather than a fixture - the real 894-char config restored with ''git show'' is caught by field and by both numbers. The clause that needed a live artifact is now satisfied with a POSITIVE control rather than an absence: PR #20 was reviewed by coderabbitai at 17:52 on 2026-08-24, after the 09:41 repair, producing 16 review threads and ZERO parsing-error warnings. Absence of the warning alone would not have shown this, because a pull request that is never reviewed also carries no warning.'
 ---
 
 `.coderabbit.yaml` fails validation and CodeRabbit has been reviewing this repository on DEFAULT
