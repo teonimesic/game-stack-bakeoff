@@ -43,7 +43,7 @@ Then run every check below. Each has cost trials at least once.
 | **Run `verify_blind.py` unpiped** and read its own exit code. | A piped exit status is `tail`'s. | reported BLIND when it was not |
 | **Run `audio_selftest.py` and `bot_mutants`** and read both exit codes. | A criterion that cannot fail is worse than absent. | 15 criteria across 3 matrices |
 | **Confirm starters are untouched since the last blind check.** | Editing a starter changes the thing being measured. | the `determinism.replay` leak |
-| **Snapshot rendered prompts** — `python3 tools/prompt_guard.py --snapshot runs/<run>/prompts` | What the agents actually received, for diffing later. A shared `_preamble()` changes every game at once. | one experiment nearly run with two variables (#41) |
+| **Snapshot rendered prompts** — `python3 tools/prompt_guard.py --snapshot runs/<run>/prompts` | What the agents actually received, for diffing later. A shared preamble changes every task of its class at once. | one experiment nearly run with two variables (#41) |
 | **Establish the MACHINE is healthy, per stack, and read the exit codes unpiped.** `syspolicyd` CPU-vs-elapsed, load average, and — the two that matter — **compile and exec a trivial NEW binary in each toolchain**, and run `just verify` in each of the four starters — `starter_gate_control.py`, which `precampaign_smoke.py` already runs, now does that part for you and additionally fails if `verify` **rewrote** the pristine tree (#106). | A daemon pegged for ten days gated `execve` of freshly created binaries. Rust and TS link new binaries every build; Unity and Godot run pre-existing ones, so it is invisible on half the arms and looks like a stack difference on the other half. | **half of `wg-arena3d`** — two arms shipped work that had never been compiled or run (#49) |
 | **Sweep for orphaned engine processes**, including `runs/_control/` and any tree no reaper covers. **Check each hit's cwd and ancestry before believing it is yours** — a `jq` that had been running 17 minutes looked like a hung trial and belonged to a different project on the same machine. | A Godot process orphaned to launchd ran 2d 21h through two matrices. | wall-clock validity of two runs |
 
@@ -673,17 +673,20 @@ price. Keep at least one warm tree per stack when reclaiming any run.
   `python3 tools/prompt_guard.py --diff runs/<run>/prompts`, unpiped. The snapshot exists for
   exactly this moment; taking it and never diffing it is the same as not taking it.
 
-  Pinned in both directions 2026-08-17, because a diff that cannot go red certifies nothing:
+  Pinned in both directions, because a diff that cannot go red certifies nothing — and pinned
+  in `tools/prompt_guard_control.py` rather than by hand, so it re-runs on every push:
 
-  | control | expected | got |
-  |---|---|---|
-  | diff immediately after snapshotting | exit 0, all 16 match | **exit 0**, `all 16 rendered prompts match the snapshot` |
-  | one line changed in the shared `_preamble()` | exit 1, naming the games | **exit 1**, `16 rendered prompt(s) differ` — every game, both stacks |
-  | change reverted | exit 0 again | **exit 0** |
+  | control | got |
+  |---|---|
+  | diff immediately after snapshotting | **exit 0**, `all 24 rendered prompts match the snapshot` |
+  | one line changed in the game preamble | **exit 1**, `16 rendered prompt(s) differ` — every game, every stack, no scene |
+  | one line changed in the scene preamble | **exit 1**, `8 rendered prompt(s) differ` — every scene, every stack, no game |
+  | a task added to a registry | **exit 1**, naming the 4 renderings not in the snapshot |
 
-  The middle row is #41 reproducing on demand: **a single line in `_preamble()` moves all
-  sixteen prompts**, which is why the guard is a diff of the RENDERED output and not a review
-  of the source that renders it.
+  The middle rows are #41 reproducing on demand: **a single preamble line moves every prompt
+  of its task class at once**, which is why the guard is a diff of the RENDERED output and not
+  a review of the source that renders it. They also measure the isolation between the two
+  classes — 16 and 8, never 24.
 
   **The snapshot must live at `runs/<run>/prompts`** — durable, inside the run. A snapshot in
   `$TMPDIR` is the artifact-lifetime defect of #45: it can be gone before the diff that needs
