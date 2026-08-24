@@ -1896,12 +1896,11 @@ an interval with none.
 ---
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23, second test added 2026-08-24
 
-> **The reversal condition this entry named fired the next day.** It read *"Ancestry as the test
-> — re-opened by the repository adopting squash merges"*, the repository became squash-only, and
-> `check` then reported `ORPHANED` for **every** merged ticket whose ref survived: measured
-> 2026-08-24 from an agent worktree on tasks 130, 131 and again live on 133's merge. Ancestry is
-> not removed — it is still the whole answer for the `git merge --no-ff` refs already stored — a
-> second test was added beside it. The row below names what would re-open that one.
+> **This entry's own reversal condition fired: the repository became squash-only.** Ancestry
+> alone then reads `ORPHANED` for every merged ticket whose ref survives — observed on 3 of them,
+> 2026-08-24. It is not removed, because it is still the whole answer for the `git merge --no-ff`
+> refs already stored; a second test sits beside it, and the row below says what would re-open
+> that one.
 
 **Decided [agent], on measurement, after task 70 sat at `done` over 678 insertions across 5 files
 that `main` had never seen** — including `eval/judge/paired_verdicts.py` at 458 lines, which
@@ -1971,7 +1970,7 @@ on.
 Pinned in both directions by `tasks_control.py` directions 11 and 11c — predicate rows including
 the `task-7-` / `task-70-` prefix variants in both directions and the three-valued arms, plus
 end-to-end rows on real scratch repositories, one of which runs the tool with its cwd in a
-worktree the file does not live in. **Direction 11c performs a real `merge --squash`** over four
+worktree the file does not live in. **Direction 11c performs a real `merge --squash`** over 4
 refs, because the defect has two faces and each needs both directions: a **local** branch and a
 **remote-tracking** ref, each squash-merged and each genuinely unmerged. Only the remote face
 heals on `fetch --prune`; the local one survives until somebody deletes it by hand, so a fixture
