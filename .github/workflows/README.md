@@ -10,20 +10,26 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 44 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **65s** | **689s** |
+| takes | **102s** | **685s** |
 
 **Both counts have a producer** — `python3 eval/tools/ci_minutes.py --gates`, which reads the
 workflows and counts steps invoking something under `eval/`. It is pinned in
 `ci_minutes --selftest`, because this row said **32** for long enough to be wrong by three.
 
 **The two timings are read from a run, not remembered.** Both are from the pull-request runs of
-`ba7ff68` — `gates` [run 32782585688](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32782585688),
-`controls` [run 32782585541](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32782585541) —
+`d087994` — `gates` [run 32783773446](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32783773446),
+`controls` [run 32783773457](https://github.com/teonimesic/game-stack-bakeoff/actions/runs/32783773457) —
 and `gh pr checks <n>` prints them for any pull request. **Re-read them from a run rather than
-carrying them forward or adding step times**, in both directions: this row said **57s** for a
-`gates.yml` that had since gained 4 steps from 2 branches at once, and it said **95s** for one
-that then gained 2 more and came back **65s**. Runner variance is larger than a cheap step, so a
-timing carried forward is wrong long before the step count explains it.
+carrying them forward, and never estimate one by adding step times.**
+
+**A single timing is one sample of a noisy quantity, and the noise is larger than the thing you
+would be adding.** Measured over 2 consecutive runs of `gates.yml` one markdown edit apart:
+**65s** and **102s**, a 57% spread on content that did not change. The 2 steps this row's count
+grew by cost under 0.2s each locally. So a timing that looks stale usually is not evidence that
+a step was added, and a step that was added is invisible next to the variance — which is why the
+instruction is to re-read rather than to reason about the difference. This row said **57s** for
+a `gates.yml` that had since gained 4 steps from 2 branches at once, and **95s** for one that
+then gained 2 more.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
