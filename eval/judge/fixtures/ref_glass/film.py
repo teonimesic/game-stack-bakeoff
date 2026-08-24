@@ -69,8 +69,12 @@ except Exception:  # pragma: no cover - only used when run outside the judge tre
                          + chunk(b"IEND", b""))
             os.replace(tmp, path)
         except BaseException:
-            if os.path.exists(tmp):
+            # Suppress the removal's own failure: a cleanup that raises replaces the
+            # error it was tidying up after with one about the tidying.
+            try:
                 os.remove(tmp)
+            except OSError:
+                pass
             raise
 
 

@@ -83,8 +83,12 @@ def run_file(seed: int, ticks: int, script: str, dest: str) -> int:
                 fh.write("\n")
         os.replace(tmp, dest)
     except BaseException:
-        if os.path.exists(tmp):
+        # Suppress the removal's own failure: a cleanup that raises replaces the error
+        # it was tidying up after with one about the tidying.
+        try:
             os.remove(tmp)
+        except OSError:
+            pass
         raise
     return 0
 

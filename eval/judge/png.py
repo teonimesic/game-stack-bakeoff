@@ -9,6 +9,7 @@ kind any of the four render harnesses emits) and nothing else.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import struct
 import zlib
@@ -115,8 +116,11 @@ def write_rgb(path: str | Path, width: int, height: int, pixels: bytes) -> None:
         os.replace(tmp, dest)
     except BaseException:
         # The original error is what the caller needs; the half-written sibling is
-        # litter in a directory something will glob. Take it away and re-raise.
-        tmp.unlink(missing_ok=True)
+        # litter in a directory something will glob. Take it away and re-raise - and
+        # SUPPRESS the removal's own failure, because a cleanup that raises replaces the
+        # error it was tidying up after with one about the tidying.
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
         raise
 
 
