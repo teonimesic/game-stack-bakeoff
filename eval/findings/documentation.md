@@ -1223,3 +1223,80 @@ wrong.
 Also recorded, because it is the rule-12 shape wearing an answer:
 `grep -rhno "^## #?[0-9]+" eval/findings/*.md | sort -n | tail -1` returns the highest **line
 number**, not the highest finding. It gave 117 against a true 118.
+
+## 163. A disagreement that looks like rounding may be a disagreement about the input, and rounding the other candidate is what tells them apart
+
+Two live documents stated the same three-call judge figure as **$4.39** and **$4.38**, and the
+same sum as **$13.16** and **$13.15**. The ticket filed for it — written by the orchestrator —
+read the mean disagreement as a rounding convention:
+
+> *13.16 / 3 = 4.38667 rounded up in one document and truncated in the other … neither figure can
+> be re-read from source, so which way it goes is a decision rather than an edit.*
+
+That premise is wrong, and it was wrong in the direction that closes the question:
+
+    13.16 / 3 = 4.386667  ->  4.39
+    13.15 / 3 = 4.383333  ->  4.38
+
+**Half-up rounding takes each sum to the mean printed beside it.** Nothing was truncated; each
+document was internally consistent, and the disagreement was never about rounding at all. It was
+about the **sum** — and a sum, unlike a rounding convention, is a claim with evidence behind it.
+
+$13.16 then wins on arithmetic that still runs: the ledger table's `g2_tetris3d` rows sum to
+**$33.63**, which `judge_ledger.py --tree` re-derives to the cent from
+`wg-tetris-judge-2026-08-17/pre/`, against a published day total of **$46.79**. `46.79 − 33.63 =
+13.16` exactly; $13.15 would need $46.78.
+
+> **Before concluding that a numeric disagreement is undecidable, apply the suspected
+> transformation to the OTHER candidate too.** One derivation was performed on one value and the
+> conclusion — *"one of these was truncated"* — was reached without ever testing it on the second.
+> A tie declared undecidable stops the search; that is what makes the premise expensive rather
+> than merely wrong.
+
+The limit is stated rather than glossed: this is coherence with a published total, not a
+re-reading, and $46.79 has no artifact either. `DECISIONS.md` carries the reversal clause.
+
+**The ticket was the defect, and the agent that worked it overturned it.** A ticket states what is
+believed at filing time; when the belief is load-bearing — here, *"no measurement can break the
+tie"* — it should be written as the thing to attack first, not as the frame the work happens
+inside.
+
+---
+
+## 164. A loop that built its command from a variable ran nothing, and returned an exit code small enough to read as a verdict
+
+Verifying a merge, six gates were run over the combined tree with:
+
+    for c in "docstat.py --sweep" "tasks.py check"; do python3 eval/tools/$c; done
+
+Every one returned **2**, and 2 sat comfortably in the range a gate returns. The reading was
+*"the merged combination fails six gates"*. Run individually, each returned **0**.
+
+The shell is **zsh**, which does not word-split unquoted parameter expansions. `$c` arrived as a
+single argument, so python was asked for a file literally named `docstat.py --sweep` and answered
+`[Errno 2] No such file or directory`. **The gates never ran.** In bash the same line works, which
+is why the habit exists.
+
+> **This is the project's central pattern with a new mechanism: something that runs, reports a
+> number, and measures nothing.** It is not a pipeline status (rule 3) and not `|| echo 0` — it is
+> a shell-dialect difference that suppresses execution while returning a plausible small integer.
+> Exit 2 from a missing file is indistinguishable, to the reader, from exit 2 from a check.
+
+What separated them was not suspicion of the shell. It was that **0 and 2 disagreed for the same
+command depending on how it was invoked**, and the disagreement was chased rather than averaged.
+
+Two things make this survivable rather than lucky:
+
+- The full-gate sweeps used in the same session read their commands with `eval "$cmd"`, which
+  re-parses the string and therefore works. Those results stand, and **CI re-ran the same gates
+  independently and agreed** — a second instrument on a different machine, which is what made the
+  earlier greens more than a claim.
+- The failure direction was fail-closed: it reported red where the truth was green. The dangerous
+  version of this bug reports **green**, and it would if the loop's exit code were ever used as
+  `&& merge`.
+
+**A command assembled from a variable is an address (rule 12), and the shell is part of it.**
+Prefer an explicit array or `eval`, and prove the loop runs at all by making one iteration fail on
+purpose before trusting the ones that pass.
+
+---
