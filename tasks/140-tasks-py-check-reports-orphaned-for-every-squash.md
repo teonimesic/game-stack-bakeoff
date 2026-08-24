@@ -1,12 +1,12 @@
 ---
 id: 140
 title: tasks.py check reports ORPHANED for every squash-merged branch, and the repository merges by squash
-status: in_testing
+status: done
 priority: 2
 refs: eval/tools/tasks.py landed_status, DECISIONS.md "A closed ticket is checked against the tree", .agents/skills/dispatch/SKILL.md merging section, tasks/122
 done_when: landed_status distinguishes a branch that was squash-merged from one that was never merged, with the three-valued contract preserved and NOT_CHECKED still never a pass; a control pins it red on a genuinely orphaned branch and green on a squash-merged one, using real refs in this repository; and tasks.py check is green on the queue as it stands or names only tickets whose work really is absent from the tree
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/23
-established_by: 'tasks_control 100 to 111 rows 0 FAILED 0 NOT CHECKED (115 with --live-squash-refs), tasks_mutants 28 to 35 with 0 surviving, and the fixture reproducing a real merge --squash goes from exit 1 naming all 4 refs on main''s tool to exit 1 naming only the 2 that never landed. PR #23, gates and controls both green at b97291b.'
+established_by: 'PR #23 squash-merged. Verified independently on REAL objects, all three directions: PR #16''s squash commit 399280e has exactly 1 parent and is an ancestor of main; its branch tip 58df942 is an ancestor of nothing on main; and the two patch-ids match at cc2213e. Differential against origin/main''s own code: the old _is_ancestor answers None for that tip while the new _is_landed answers True, and for PR #14 - closed WITHOUT merging - the new predicate answers False, so it does not manufacture a landing. A nonexistent ref answers None on both. tasks_control exit 0, tasks_mutants 35 mutants 0 survived.'
 ---
 
 Measured 2026-08-24 from an agent worktree on task 127. tasks.py check exits 1 with: "131: status done, but refs/remotes/origin/task-131-controls-filter-into-a-step is not an ancestor of main", and the same for 130. Both are wrong. PR #16 was merged 2026-08-24T12:55:34Z and its merge commit 399280e7f059aaf694fa517c331f83f875a5cfb8 IS an ancestor of origin/main - but it has ONE parent and a tree of its own, because gh pr merge --squash creates a new commit rather than a merge of the branch. So the branch tip 58df942db5fae6a6537c26b40096c2894b1f3c90 is not an ancestor of anything and never will be. landed_status uses merge-base --is-ancestor on the BRANCH TIP, which is the right test for the git merge --no-ff flow this project abandoned and the wrong test for the squash flow DECISIONS.md now records. The failure direction is fail-closed, which costs attention rather than evidence - but it fires on every merged ticket whose remote ref survives, so the count grows with every merge, and a gate that is red for reasons unrelated to the change in front of you is a gate that gets bypassed as a habit. The pre-push hook already refuses to block on it from a linked worktree, which is a second reason nobody sees it go green. The signal that is actually available is the squash commit: gh pr view <n> --json mergeCommit gives it, and the PR is reachable from the ticket via the pr field that in_review already requires.
@@ -183,3 +183,19 @@ because those lines arrived with the merge of `main` from task 135 (`c29429a`, #
 `--live-squash-refs`). `tasks_mutants.py` 28 → **35**, 0 survived, `--selftest` green.
 `docstat.py --sweep`, `linkcheck.py`, `skill_layout_control.py`, `tasks.py check`,
 `lint.py --gate --rule invalid-syntax` all exit 0; `lint.py --counts` unchanged at 83.
+
+## note 2026-08-24
+
+## note 2026-08-24 (orchestrator) — the live end-to-end proof the fixture could not give
+
+Your hand-back said the live queue is entirely `NOT_CHECKED`, so the proof is the fixture. One
+became available at merge and it is recorded here because it will not recur:
+
+At the moment ticket 140 was marked `done`, **its own squash-merged branch was still present
+locally** (`task-140-squash-aware-landed-check` at `b97291b`). That is exactly the configuration
+that produced `ORPHANED` under the old predicate — a `done` ticket whose branch tip is an ancestor
+of nothing. `tasks.py check` exited **0** and named nothing.
+
+So the repair is confirmed against the live queue, on the ticket that fixed it, in the state that
+caused the report. The window was accidental — one `git branch -D` later and it would have been
+unreproducible.

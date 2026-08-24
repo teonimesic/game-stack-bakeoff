@@ -539,7 +539,9 @@ FOREIGN_FLAG_PREFIXES = (
 # bounded by wall clock instead.
 FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq", "--admin",
                                  "--print", "--cwd", "--provider", "--thinking",
-                                 "--autonomous", "--autonomous-max-turns"})
+                                 "--autonomous", "--autonomous-max-turns",
+                                 # git's own, named whenever a merge method is discussed in prose
+                                 "--no-ff", "--no-edit", "--porcelain"})
 
 
 def _check_skill_frontmatter() -> list[str]:

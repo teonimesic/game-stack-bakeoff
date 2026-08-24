@@ -5257,3 +5257,46 @@ one artifact that could contradict them — the raw event stream — already par
 > and both caught only because the agent treated the brief as falsifiable.
 
 ---
+
+## 169. The git fact that broke a gate had been written down, correctly, in the same session that broke it — in the skill the gate's own procedure points at
+
+Switching the repository to squash-only merges was decided, and the decision recorded its own
+reversal conditions. In the same session, `.agents/skills/dispatch/SKILL.md` gained this:
+
+> **`git branch -d` refuses a squash-merged branch.** Its commits are not ancestors of `main` —
+> the content is, the commits are not — so git reports it unmerged and is correct.
+
+That sentence is exactly the fact `tasks.py`'s `landed_status` depended on being **false**. Its
+predicate asked whether a ticket's branch tip is an ancestor of `main`, which is the right question
+for `git merge --no-ff` and the wrong one for squash. The next day the gate reported `ORPHANED` for
+every merged ticket whose ref outlived the merge.
+
+**The knowledge that predicts the defect and the defect were written by the same author, on the
+same day, into two files the same procedure names.** Nothing connects a sentence to a predicate,
+so nothing compared them.
+
+> **When you change a process, the invariants of the OLD process are still encoded in code that
+> nobody thinks of as being about the process.** A merge-method change reads as configuration; it
+> silently redefined "has this work landed", which is a question three tools ask and one gate
+> publishes. Before changing how work moves through the repository, grep for the predicates that
+> encode how it used to move.
+
+Two properties made it survive longer than it should have:
+
+- **Fail-closed**, so it cost attention rather than evidence — but it fires on every merged ticket,
+  so the noise grows with every merge, and a gate that is red for reasons unrelated to the change
+  in front of you is a gate that gets bypassed as a habit.
+- **Intermittent, in one of its two faces.** The remote-tracking ref heals on `git fetch --prune`,
+  so an investigator who prunes first finds nothing and concludes the report was wrong. The local
+  branch never heals, and `git branch -d` refuses to remove it — pushing the operator toward `-D`,
+  the flag that also deletes genuinely unmerged work. **A gate whose workaround is more dangerous
+  than the defect is worse than the defect.**
+
+The repair asks a second question rather than replacing the first: ancestry still answers for the
+`--no-ff` refs already stored, and a patch-id comparison answers for squash. Verified on real
+objects — PR #16's squash commit `399280e` has one parent and is an ancestor of `main`, its tip
+`58df942` is an ancestor of nothing, and both diffs carry patch-id `cc2213e`. The direction that
+matters was checked too: PR #14, closed **without** merging, answers `False`, so the new arm does
+not manufacture a landing.
+
+---
