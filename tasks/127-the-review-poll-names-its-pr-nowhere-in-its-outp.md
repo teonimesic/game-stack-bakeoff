@@ -93,3 +93,117 @@ polled immediately, a body containing backticks whose round trip you compare byt
 
 The `gh api -f body=` corruption (#166) is the easiest to control and the easiest to get wrong:
 compare what you sent with what the API stored, not with what you meant to send.
+
+## note 2026-08-24
+
+## note 2026-08-24 — what was built, and what the next agent must not re-derive
+
+**The poll is `eval/tools/pr_review_state.py`.** There is no scratchpad recipe any more, and that
+is the fix rather than an implementation detail of it: the defect was the interval between
+writing an address down and using it, and a tool takes the address as an argument on every
+invocation so there is no interval.
+
+    python3 eval/tools/pr_review_state.py --pr <n> --branch task-<id>-<slug> \
+        --expect-head "$(git rev-parse HEAD)" --wait
+
+`--selftest` is offline — it injects its own `gh` runner and its own clock;
+`eval/tools/pr_review_state_mutants.py` is the other half. Both gate in `gates.yml`.
+
+### The decision, on the property
+
+**Assert, and also print — but the assertion is the guard.** An assertion fails closed at the
+moment of use; a printed line is only as good as the reader who happens to look at it, and the
+consumer of this verdict is the next step of a procedure (*read that review and act on it*), not
+a person reading output. Printing stays as the audit trail. `DECISIONS.md`, *The review poll is a
+tool that asserts its own address*, holds the rejected alternatives.
+
+### Do not re-measure these
+
+| | |
+|---|---|
+| the retired recipe aimed at #9 and #10 | `LANDED by review object at <sha>` at **exit 0 for both**, nothing in either line distinguishing them |
+| the tool aimed at #10 while expecting task 123's branch | `WRONG PR: #10 is on branch 'task-124-…'`, **exit 1** |
+| `--census` against `DECISIONS.md`'s per-pull-request table | agrees on **all 6** rows, including #3 where both arms correctly read false. 3 distinct verdicts over 17 pull requests |
+| squash merges | a merged branch tip is an ancestor of **nothing**. Filed as `tasks/140`, and already landed on `main` as `c2e8f45` |
+
+### 6 things this pull request's own review rounds measured, live
+
+Every one of these came from using the tool on the pull request that adds it, and none could have
+been reached by a fixture:
+
+1. **The in-progress marker vanishes mid-round.** Round 1 went `IN_FLIGHT` → `NOT_YET` →
+   `LANDED_REVIEW` over 12 polls / 345s. That is why `seen_in_flight` **latches** rather than
+   being recomputed from the last poll — variant `F2`, occurring for real.
+2. **A `--wait` under a harness printed 0 bytes** until it exited, because Python block-buffers
+   stdout off a terminal. Fixed with a flushing emitter; without it the per-poll audit trail
+   arrives only after the answer does.
+3. **A deadlock notice outlives the pause it describes.** After `@coderabbitai review` cleared a
+   pause, the next `--wait` returned `NOTICE` at **elapsed=1s** — the notice is a comment, and
+   CodeRabbit leaves it in place until it next rewrites the summary. A stop condition that
+   survives being acted on makes `--wait` a no-op and the remedy unobservable. Hence
+   `--ignore-notice`, which keeps printing the notice and stops treating it as a stop condition;
+   a pause that is never lifted then ends `UNRESOLVED` on the quiet bound, which is loud.
+4. **The clean arm fires.** Round 5 came back `LANDED_COMMENT` — no review object at all, a
+   summary comment instead — with a **stale `Reviews paused` notice sitting beside it**. Had
+   `NOTICE` outranked the landed arms, that would have read as a deadlock on a clean review.
+5. **Replying to a review creates empty review objects stamped with the current head.** 5 replies
+   made 5 such objects at `810172b`; the poll still read `NOT_YET`, because the body guard and the
+   login filter both exclude them.
+6. **`gh api -f body=` really does eat backticks**, and `jq -n --rawfile b f '{body:$b}'` through
+   `--input` round-trips byte for byte. All 11 replies and 2 trigger comments were compared
+   against what the API stored; the only difference each time was a trailing newline the API
+   appends.
+
+Round times, all with the marker observable throughout: **345s**, **411s**, **506s**, **317s**,
+**223s**. The retired 15-minute clock would have expired on the 506s round.
+
+### What the review rounds changed, and they were right every time
+
+11 threads over 4 rounds, 0 declined outright; round 5 came back clean. 6 of the 11 were about
+**one** thing — the `audit-docs` planted-phantom control this ticket's census turned up — and each
+round went a level deeper than the last. Worth carrying forward:
+
+- **The resource, not the copy** (`AGENTS.md` rule 13). Giving the backup a unique name stops 2
+  passes restoring each other's copy and does nothing about 2 passes mutating `judge/JUDGING.md`.
+  The backup is gone.
+- **The reference the guard reads.** `git diff --quiet` compares against the **index**, so a
+  staged edit passes, and `git checkout --` then restores from that same index — guard and restore
+  sharing the wrong reference, agreeing with each other and disagreeing with the document. It is
+  `git diff --quiet HEAD` and `git restore --source=HEAD --worktree` now.
+- **`cmd ; echo "expect exit 1"` asserts nothing**, and `set -e` cannot stand in here because half
+  the controls are *supposed* to exit 1 — it would abort before the restore and leave a phantom in
+  a tracked document. A `sweep <expected>` function asserts and restores on every path.
+- **A failed append is how a control goes green having tested nothing.** The positive halves
+  survive it (`sweep 1` against a clean corpus reddens), the `sweep 0` halves do not. `plant`
+  reports and restores, checks its own restore, and every call is `|| exit 1`.
+- **A mutant that crashes is not a mutant that was caught.** `drop_field` exited non-zero with a
+  `KeyError` and 0 red rows, and the harness scored it green. It now rejects a mutant with no red
+  row — and that rule immediately rejected 1 of the 3 mutants added in the same round. Both halves
+  matter: the harness must reject a crash, **and** the selftest must redden on drift rather than
+  die on it.
+
+### The merge, and a defect in the procedure it exposed
+
+`main` moved 4 commits while this was in review, and its task 133 added **2** gates to `gates.yml`
+while this branch adds **2** of its own — so both sides pinned 39 and the merged workflow has 41.
+Two changes each correct and jointly red, which is what keeping the branch current is for.
+
+**The repair was made in the worktree and the merge commit did not carry it.** `git commit
+--no-edit` finishes a merge from the **index**, so an edit made after the conflict resolution is
+silently left behind: `ci_minutes --selftest` was green locally and red in CI on the same second.
+`work/SKILL.md` §5 now says to run the gates against what is about to be pushed and to prove it
+with `git status --short`. It is rule 12 with the worktree as the wrong address.
+
+### Two observations that are not defects here
+
+- **A push produced no CI runs at all.** `aada0f1` has **0** workflow runs and **0** check runs,
+  measured from the API, while CodeRabbit reviewed it normally. The next 3 pushes triggered
+  normally, so this was a GitHub-side hiccup rather than configuration — but it is the shape
+  `.github/workflows/README.md` warns about (*a workflow that does not match produces no check at
+  all, not a passing one*), and a required check that never arrives blocks a merge silently.
+- **`NOTICE` fires on any bot alert callout the pull request has ever carried**, and CodeRabbit
+  edits comments in place, so a stale notice outlives its state. That is why `NOTICE` ranks
+  **below** both landed arms. A freshness window on the notice was considered and rejected: it is
+  a parameter chosen by judgement that nothing here can measure, and the failure it would
+  introduce (missing a real pause) is worse than the one it removes (1 review from the shared pool
+  spent on an unnecessary `@coderabbitai review`).
