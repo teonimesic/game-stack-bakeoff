@@ -369,7 +369,7 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     # at 2x, so the whole 1x multiplier under this tool's total would be wrong while the
     # check stayed green. It also passes on a stale COMMENT mentioning ubuntu-latest next
     # to a `runs-on: macos-latest`. Raised by CodeRabbit on PR #10; it is the same
-    # substring-versus-parse defect already fixed for `paths:` below, one check away.
+    # substring-versus-parse defect the filter check was repaired for, one field away.
     for label, text in (("controls.yml", controls_text), ("gates.yml", gates_text)):
         if text is None:
             continue
@@ -404,8 +404,9 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
                 f"check -- so this blocks every pull request touching none of them "
                 f"(measured on PR #14). The filter belongs in the `{SCOPE_STEP_ID}` step")
 
-    jobs = doc.get("jobs") or {}
-    steps = (list(jobs.values())[0].get("steps") or []) if jobs else []
+    jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
+    first = next(iter(jobs.values()), None) if jobs else None
+    steps = (first.get("steps") or []) if isinstance(first, dict) else []
     steps = [s for s in steps if isinstance(s, dict)]
     scoped = [i for i, s in enumerate(steps) if s.get("id") == SCOPE_STEP_ID]
     if len(scoped) != 1:
