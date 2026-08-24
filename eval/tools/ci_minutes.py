@@ -85,7 +85,9 @@ Exit 0 on success, 1 if --selftest fails, 2 if the data could not be read. Read 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import io
 import json
 import math
 import os
@@ -349,9 +351,23 @@ def _parse_workflow(text: str, label: str) -> tuple[dict, list[str]]:
     return doc, []
 
 
-def _workflow_jobs(doc: dict) -> dict:
+def _workflow_jobs(doc: dict) -> tuple[dict, str | None]:
+    """(the jobs mapping, or a reason there is not one).
+
+    IT RETURNS A REASON RATHER THAN AN EMPTY MAPPING, and that is the difference between a
+    refusal and a confident zero. `jobs: 1`, `jobs: []` and a missing `jobs:` block all
+    collapse to "no jobs" if you only ask `isinstance(..., dict)`, and a census over no
+    jobs publishes `0 gates` at exit 0 -- a number, in range, and wrong, which is the one
+    pattern this repository exists to catch. Raised by CodeRabbit on PR #16.
+    """
     jobs = doc.get("jobs")
-    return jobs if isinstance(jobs, dict) else {}
+    if jobs is None:
+        return {}, "declares no `jobs:` block at all"
+    if not isinstance(jobs, dict):
+        return {}, f"`jobs:` is {type(jobs).__name__}, not a mapping"
+    if not jobs:
+        return {}, "`jobs:` is an empty mapping"
+    return jobs, None
 
 
 def _job_steps(job: object) -> tuple[list[dict], str | None]:
@@ -424,9 +440,9 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
         return problems
 
     for label, wf in parsed.items():
-        jobs = _workflow_jobs(wf)
-        if not jobs:
-            problems.append(f"{label} declares no parseable `jobs:`")
+        jobs, no_jobs = _workflow_jobs(wf)
+        if no_jobs:
+            problems.append(f"{label} {no_jobs}")
             continue
         for job_name, job in jobs.items():
             runs_on = job.get("runs-on") if isinstance(job, dict) else None
@@ -465,7 +481,9 @@ def filter_problems(controls_text: str, gates_text: str | None = None) -> list[s
     # names a step in the SAME job -- so a second job would need its own scope step, and it
     # would also be a second required check that can be absent, which is why `DECISIONS.md`
     # rejects the two-job form.
-    jobs = _workflow_jobs(doc)
+    jobs, no_jobs = _workflow_jobs(doc)
+    if no_jobs:
+        return problems + [f"controls.yml {no_jobs}"]
     if len(jobs) != 1:
         return problems + [
             f"controls.yml declares {len(jobs)} jobs, not 1. The scope guard is per-JOB -- "
@@ -547,8 +565,11 @@ def gate_census(texts: dict[str, str] | None = None) -> dict[str, dict]:
         else:
             text = (ROOT / ".github" / "workflows" / label).read_text(encoding="utf-8")
         doc, malformed = _parse_workflow(text, label)
+        jobs, no_jobs = (({}, None) if malformed else _workflow_jobs(doc))
+        if no_jobs:
+            malformed.append(f"{label} {no_jobs}")
         run_steps: list[dict] = []
-        for job_name, job in _workflow_jobs(doc).items():
+        for job_name, job in jobs.items():
             steps, bad = _job_steps(job)
             if bad:
                 malformed.append(f"{label}: job `{job_name}`: {bad}")
@@ -730,6 +751,18 @@ def compare_via_api(base: str, head: str) -> list[str]:
 # ---------------------------------------------------------------- the controls
 
 
+@contextlib.contextmanager
+def contextlib_redirect_all():
+    """Capture stdout and stderr together, and hand back a reader for what was written.
+
+    `gates_report` writes its refusal to stderr and its payload to stdout, and a selftest
+    that let either through would bury its own verdict under the fixtures' output.
+    """
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        yield buf.getvalue
+
+
 def _selftest() -> int:
     failures: list[str] = []
     # The producer for "how many mutants does this gate carry". `.github/workflows/README.md`
@@ -770,14 +803,19 @@ def _selftest() -> int:
           _cen["gates"]["malformed"] + _cen["controls"]["malformed"], [])
     # And the census itself must REPORT each malformed shape rather than raise. A mutant
     # here is a whole workflow text, and the assertion is that the call returns at all.
-    for _name, _text in {
+    _malformed = {
         "unparseable YAML": "jobs:\n  controls:\n\tbad: [\n",
         "a scalar root": "just a string\n",
         "an empty document": "",
         "a list root": "- one\n- two\n",
         "steps: given as a scalar": "jobs:\n  controls:\n    steps: 1\n",
         "a job that is not a mapping": "jobs:\n  controls: 7\n",
-    }.items():
+        # The 3 shapes that used to collapse to "no jobs" and publish a confident 0.
+        "jobs: given as a scalar": "name: x\njobs: 1\n",
+        "jobs: given as a list": "name: x\njobs: []\n",
+        "no jobs: block at all": "name: x\non:\n  push:\n",
+    }
+    for _name, _text in _malformed.items():
         try:
             _got = gate_census({"controls.yml": _text, "gates.yml": _text})
         except Exception as _exc:  # noqa: BLE001 - the point is that nothing escapes
@@ -785,10 +823,29 @@ def _selftest() -> int:
                             f"raises reports nothing, and it runs before every diagnostic")
             continue
         if not _got["controls"]["malformed"]:
-            failures.append(f"gate_census did not report {_name} as malformed")
+            failures.append(f"gate_census did not report {_name} as malformed -- it "
+                            f"published 0 gates at exit 0, which is a confident zero")
         if _got["controls"]["gates"]:
             failures.append(f"gate_census counted {_got['controls']['gates']} gates in a "
                             f"workflow it could not read ({_name})")
+        # BOTH OUTPUT MODES. The refusal lived in the text branch alone, so `--json`
+        # returned 0 over a census that had already said it could not read the file.
+        for _as_json in (False, True):
+            with contextlib_redirect_all() as _sink:
+                _code = gates_report(_got, as_json=_as_json)
+            if _code != 2:
+                failures.append(f"gates_report(as_json={_as_json}) returned {_code} on "
+                                f"{_name}; a malformed census must refuse in BOTH modes")
+            if _as_json and "malformed" not in _sink():
+                failures.append("the --json payload does not carry `malformed`, so a "
+                                "consumer cannot see what was unreadable")
+    # VARIANT: a clean census must still be published, and exit 0, in both modes.
+    for _as_json in (False, True):
+        with contextlib_redirect_all():
+            _code = gates_report(_cen, as_json=_as_json)
+        if _code != 0:
+            failures.append(f"gates_report(as_json={_as_json}) refused a CLEAN census "
+                            f"({_code}) -- the refusal fires where nothing is wrong")
     # VARIANT: the real files must still come back with an empty `malformed` and the counts
     # above -- the tolerance must not have made the census tolerant of a real workflow.
     _live = {f"{w}.yml": (WORKFLOW_DIR / f"{w}.yml").read_text() for w in ("gates", "controls")}
@@ -1061,8 +1118,6 @@ def _selftest() -> int:
     # The output file is the whole interface to the workflow, so pin what lands in it --
     # and pin the LOG too, because a skipped `controls` run is only auditable afterwards
     # if the step said what it read.
-    import contextlib
-    import io
     import tempfile
     with tempfile.TemporaryDirectory() as _d:
         _out = os.path.join(_d, "gh_output")
@@ -1202,6 +1257,34 @@ def _print_audit(aud: dict) -> None:
                 print(f"              {f}")
 
 
+def gates_report(cen: dict[str, dict], as_json: bool = False) -> int:
+    """Print the gate census and decide the exit status. ONE decision, both output modes.
+
+    The refusal used to live only in the text branch, so `--gates --json` returned 0 over a
+    workflow the census could not read -- the same confident zero the census itself was
+    repaired for, one branch away. Both modes now go through here, and `--selftest` drives
+    it with a malformed census in each. Raised by CodeRabbit on PR #16.
+    """
+    bad = [m for got in cen.values() for m in got["malformed"]]
+    if as_json:
+        print(json.dumps(cen, indent=2))
+    else:
+        for wf, got in cen.items():
+            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps, "
+                  f"{got['scope']} scope steps")
+    for m in bad:
+        print(f"  MALFORMED: {m}", file=sys.stderr)
+    if bad:
+        # Exit 2, the same refusal an unreadable endpoint gets. A count published over a
+        # workflow this could not read is a number, in range, and wrong.
+        print("ci_minutes: refusing to publish a gate count over a workflow it could "
+              "not read.", file=sys.stderr)
+        return 2
+    if not as_json:
+        print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument("--selftest", action="store_true",
@@ -1226,24 +1309,7 @@ def main(argv: list[str] | None = None) -> int:
         return emit_scope()
 
     if args.gates:
-        cen = gate_census()
-        if args.json:
-            print(json.dumps(cen, indent=2))
-            return 0
-        bad = [m for got in cen.values() for m in got["malformed"]]
-        for wf, got in cen.items():
-            print(f"{wf}.yml: {got['gates']} gates, {got['setup']} setup steps, "
-                  f"{got['scope']} scope steps")
-        for m in bad:
-            print(f"  MALFORMED: {m}", file=sys.stderr)
-        if bad:
-            # Exit 2, the same refusal an unreadable endpoint gets. A count printed over a
-            # workflow this could not read is a number, in range, and wrong.
-            print("ci_minutes: refusing to publish a gate count over a workflow it could "
-                  "not read.", file=sys.stderr)
-            return 2
-        print("\n  producer: python3 eval/tools/ci_minutes.py --gates")
-        return 0
+        return gates_report(gate_census(), as_json=args.json)
 
     try:
         runs = fetch_runs()
