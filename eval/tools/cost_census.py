@@ -104,8 +104,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import tokenvalue  # noqa: E402
+
+# ONE definition, shared with `census.py`. These two tools decide which records may be
+# summed; restating the rule in both, with nothing asserting they agree, is how one tree
+# comes to have two totals and neither reports a disagreement (rule 12).
+from agent_harness import TOKVAL_HARNESS, harness_of  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
@@ -164,17 +170,6 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Pat
 def _terminal(record: dict) -> str:
     return record.get("agent", {}).get("terminal_reason") or "absent"
 
-
-# The harness whose `cost_usd` is tokval. Same spelling and same reading as census.py:
-# every record stored before the harness became a variable (2026-08-24) was built by this
-# CLI, so an absent field is that CLI rather than an unmeasurable record.
-TOKVAL_HARNESS = "claude"
-
-
-def _harness(record: dict) -> str:
-    return (record.get("agent", {}).get("harness")
-            or (record.get("harness") or {}).get("name")
-            or TOKVAL_HARNESS)
 
 
 # ------------------------------------------------------------------------------ measures
@@ -353,8 +348,8 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
         # ON cost_usd, and two vendors' list prices are not addable (#159). Excluded
         # before any of it, and counted, because a reason not to count that nothing
         # reports is a channel a bug can widen (rule 7).
-        if _harness(d) != TOKVAL_HARNESS:
-            excluded[f"harness {_harness(d)}"] += 1
+        if harness_of(d) != TOKVAL_HARNESS:
+            excluded[f"harness {harness_of(d)}"] += 1
             continue
         if d.get("agent", {}).get("cost_usd") is None:
             excluded["no cost_usd"] += 1

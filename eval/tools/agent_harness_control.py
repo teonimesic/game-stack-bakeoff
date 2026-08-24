@@ -246,8 +246,15 @@ def rows(mod) -> list[Row]:
                               budget_usd=48.0), want))
     # VARIANT: a budget figure must NOT reach this argv. Nothing on this arm can be told
     # a dollar ceiling, and passing one would make the record claim a bound it never had.
-    out.append(Row("VARIANT", "prime argv carries no budget",
-                   "--max-budget-usd" not in want and "48.0" not in want))
+    # ASSERTED ON WHAT THE HARNESS RETURNED, not on `want`: the first version of this row
+    # tested `want`, a literal four lines above with no budget flag in it by
+    # construction, so no edit to the module could redden it (rule 1, and CodeRabbit
+    # found it on pull request 21). `budget_usd=48.0` is passed in on purpose.
+    got = prime.argv(prompt="PROMPT TEXT", turns=1000, session_id="SID",
+                     cwd=Path("/w/trial"), allowed_tools=tools, budget_usd=48.0)
+    leaked = [x for x in got if "budget" in x or x == "48.0"]
+    out.append(Row("VARIANT", "prime argv carries no budget", not leaked,
+                   "" if not leaked else f"leaked {leaked!r}"))
 
     # ---------------------------------------------------- prime parse + normalise
     stdout = prime_stream([{"role": "user"}, PRIME_ASSISTANT_1, PRIME_TOOL_RESULT,
@@ -307,6 +314,16 @@ def rows(mod) -> list[Row]:
         [dict(PRIME_ASSISTANT_2, stopReason="length")]), 0), "")
     out.append(_eq("VARIANT", "prime, unmapped stopReason",
                    got["terminal_reason"], "unknown:length"))
+    # VARIANT, and the nastiest one here: a foreign stopReason that COLLIDES with the
+    # shared enumeration by spelling. `TERMINAL_REASONS` is a set of ordinary English
+    # words, so `error` and `completed` would pass a membership test and be stored as
+    # MEASURED reasons on a harness where nothing measured them - in the field every
+    # aggregate partitions on. A collision is not a measurement.
+    for raw in ("error", "completed", "max_turns"):
+        got = prime.normalise(prime.parse(prime_stream(
+            [dict(PRIME_ASSISTANT_2, stopReason=raw)]), 0), "")
+        out.append(_eq("VARIANT", f"prime, `{raw}` is a collision not a measurement",
+                       got["terminal_reason"], f"unknown:{raw}"))
     # VARIANT: the stream stopped before `agent_end`. Not zero turns - unknown turns.
     got = prime.parse(prime_stream([PRIME_ASSISTANT_1], agent_end=False,
                                    trailing_garbage=True), 1)
@@ -333,6 +350,25 @@ def rows(mod) -> list[Row]:
 
     # ----------------------------------------------------------------- preflight
     out.extend(preflight_rows(mod))
+
+    # --------------------------------------------------- who built a stored record
+    # ONE definition, imported by `tools/census.py` and `tools/cost_census.py` - the two
+    # producers that decide which records may be summed. It was spelled out in both until
+    # pull request 21, with nothing asserting they agreed; two readings of one tree with
+    # neither reporting a disagreement is rule 12 with a dollar figure attached.
+    out.append(_eq("PRISTINE", "harness_of reads agent.harness",
+                   mod.harness_of({"agent": {"harness": "prime-agent"}}), "prime-agent"))
+    out.append(_eq("PRISTINE", "harness_of reads the launch record",
+                   mod.harness_of({"harness": {"name": "prime-agent"}}), "prime-agent"))
+    # PROVENANCE, not a default: every record stored before 2026-08-24 was built by the
+    # claude CLI because there was no other one.
+    out.append(_eq("VARIANT", "harness_of: an unstamped record is claude",
+                   mod.harness_of({"agent": {"cost_usd": 1.0}}), "claude"))
+    out.append(_eq("VARIANT", "harness_of survives a malformed record",
+                   (mod.harness_of({}), mod.harness_of({"agent": None}),
+                    mod.harness_of({"harness": "a string, not an object"})),
+                   ("claude", "claude", "claude")))
+    out.append(_eq("PRISTINE", "TOKVAL_HARNESS", mod.TOKVAL_HARNESS, "claude"))
 
     # ------------------------------------------------------------------- env_for
     env = {"STARTER_HOOK_LOG": "/somewhere/hook_log.tsv", "PATH": "/usr/bin"}
@@ -436,6 +472,12 @@ MUTANTS: list[tuple[str, str, str]] = [
      "if False:"),
     ("unrecognised reasons are bucketed as completed",
      "    return unknown_reason(raw)", '    return "completed"'),
+    ("the enumeration shortcut applies to every harness",
+     "    if native and raw in TERMINAL_REASONS:", "    if raw in TERMINAL_REASONS:"),
+    ("harness_of defaults an unstamped record to the other harness",
+     "    return TOKVAL_HARNESS\n", '    return "prime-agent"\n'),
+    ("harness_of stops reading the launch record",
+     "    launched = record.get(\"harness\")", "    launched = None"),
     ("prime reads only the terminal message",
      "        for m in assistants:", "        for m in assistants[-1:]:"),
     ("prime treats a missing usage block as zero",
@@ -444,6 +486,11 @@ MUTANTS: list[tuple[str, str, str]] = [
      '            "cost_usd": None,', '            "cost_usd": round(vendor_usd, 6),'),
     ("prime parse takes the first event as the result",
      "        end = ends[-1] if ends else None", "        end = events[0] if events else None"),
+    # The pin for the budget row above, which was vacuous until pull request 21: it now
+    # reads the argv the harness returned, so a budget flag leaking into it reddens.
+    ("prime argv gains a budget flag",
+     '            "--", prompt,',
+     '            "--max-budget-usd", str(budget_usd), "--", prompt,'),
     ("preflight never refuses", "        if context or resources:", "        if False:"),
     ("preflight ignores ancestors",
      "        current = Path(cwd).resolve().parent",
@@ -491,8 +538,11 @@ def main(argv: list[str] | None = None) -> int:
             red = [f"raised {type(exc).__name__}"]
         finally:
             os.unlink(path)
+        # Up to TWO names, because a mutant is often caught by a row that is not the one
+        # it was written for, and printing only the first hides whether the intended row
+        # fired at all.
         print(f"  MUTANT    {label:<52} "
-              f"{'caught by ' + red[0] if red else 'SURVIVED - nothing checks this'}")
+              f"{'caught by ' + '; '.join(red[:2]) if red else 'SURVIVED - nothing checks this'}")
         if not red:
             failures += 1
     print()

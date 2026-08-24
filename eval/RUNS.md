@@ -118,9 +118,10 @@ that is a property of the *instrument* rather than of the configuration:
 
 5. **The agent harness is a variable, from 2026-08-24.** Every record before that date was
    built by the `claude` CLI, and nothing said so — `python3 eval/tools/census.py` prints the
-   partition (`harness claude 90, prime-agent 1` on the day it landed). A harness change is
-   not a configuration change; the arms differ in ways no flag can equalise, and the
-   differences are listed in the section below.
+   partition, and its **whole-game** population read `harness claude 90, prime-agent 1` on
+   2026-08-24. (The tree total a few rows above counts both populations, so the two figures
+   are not the same denominator.) A harness change is not a configuration change; the arms
+   differ in ways no flag can equalise, and the differences are listed in the section below.
 
 Practically: `wg-matrix` (pre-audio, $25) and `wg-audio48` (audio, $48) are each internally
 consistent and mutually incomparable. `wg-audio` at $25 is a partial third regime. Anything built

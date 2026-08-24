@@ -60,8 +60,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import tokenvalue  # noqa: E402
+
+# ONE definition of which harness a record came from and which one is priced in tokval,
+# imported rather than restated. It was spelled out here and again in `cost_census.py` —
+# the two producers that decide which records may be summed — with nothing asserting the
+# two agreed, which is rule 12 with a dollar figure attached.
+from agent_harness import TOKVAL_HARNESS, harness_of  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
@@ -123,18 +130,6 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
     return out, skipped
 
 
-#: The harness whose `cost_usd` figures `tokenvalue.py` defines. Every stored record
-#: predating the harness dimension (2026-08-24) was built by this CLI, which is why an
-#: absent field is read as this one rather than as unmeasurable.
-TOKVAL_HARNESS = "claude"
-
-
-def _harness(record: dict) -> str:
-    return (record.get("agent", {}).get("harness")
-            or (record.get("harness") or {}).get("name")
-            or TOKVAL_HARNESS)
-
-
 def _cost(record: dict) -> float:
     """A record's tokval, or 0 for a record that HAS no tokval.
 
@@ -145,15 +140,24 @@ def _cost(record: dict) -> float:
 
 
 def _priced(record: dict) -> bool:
-    """Whether this record's cost may enter a tokval sum.
+    """Whether this record's cost may enter a tokval sum. TWO ways to fail it.
 
     **A dollar figure is per harness and the harnesses are not addable.** `tokval` is a
     list price for Anthropic tokens; prime-agent's figure is OpenAI's list price for
     OpenAI tokens, and neither was paid (#159). Summing them adds two vendors' price
-    lists, and an unpriced record summed as `0` is worse still — it reads as a trial that
-    cost nothing rather than one measured in another unit (#36).
+    lists.
+
+    **And a record of the right harness with no figure is unpriced too.** It used to pass
+    this test, contribute `0.0` through `_cost`, and appear in no exclusion count — so the
+    note beside the total understated what the total left out. A `claude` record with no
+    `cost_usd` is not hypothetical: `ClaudeHarness.timeout_record` produces one. An absent
+    count is reported, never summed as zero (#36), and `True` is an `int`, so a boolean is
+    refused rather than averaged as 1.00.
     """
-    return _harness(record) == TOKVAL_HARNESS
+    if harness_of(record) != TOKVAL_HARNESS:
+        return False
+    cost = record.get("agent", {}).get("cost_usd")
+    return isinstance(cost, (int, float)) and not isinstance(cost, bool)
 
 
 def _terminal(record: dict) -> str:
@@ -178,7 +182,7 @@ def census(runs_dir: Path) -> dict:
             "terminal_reason": dict(
                 sorted(collections.Counter(_terminal(d) for d in rows).items())),
             "harness": dict(
-                sorted(collections.Counter(_harness(d) for d in rows).items())),
+                sorted(collections.Counter(harness_of(d) for d in rows).items())),
         }
 
     return {
@@ -192,7 +196,7 @@ def census(runs_dir: Path) -> dict:
             "cost_unpriced_records": sum(
                 1 for _, _, d in records if not _priced(d)),
             "harness": dict(sorted(collections.Counter(
-                _harness(d) for _, _, d in records).items())),
+                harness_of(d) for _, _, d in records).items())),
             "skipped_agent_authored": len(skipped),
         },
         "wholegame": {
@@ -213,7 +217,7 @@ def census(runs_dir: Path) -> dict:
             "cost_unpriced_records": sum(
                 1 for _, _, d in wholegame if not _priced(d)),
             "harness": dict(sorted(collections.Counter(
-                _harness(d) for _, _, d in wholegame).items())),
+                harness_of(d) for _, _, d in wholegame).items())),
             "per_run": per_run,
         },
         "specchange": {
@@ -242,8 +246,9 @@ def _unpriced_note(n: int) -> str:
     """
     if not n:
         return ""
-    return (f"  ({n} record(s) EXCLUDED: built by another harness, whose USD figure "
-            f"is another vendor's price list and is not addable to this one)")
+    return (f"  ({n} record(s) EXCLUDED: another harness, whose USD figure is "
+            f"another vendor's price list and is not addable to this one — or a "
+            f"record of this harness carrying no readable cost_usd)")
 
 
 def render(c: dict) -> str:
@@ -374,34 +379,48 @@ def selftest() -> int:
                 "agent": {"harness": "prime-agent", "terminal_reason": "completed",
                           "cost_usd": 77.0, "input_tokens": 4573}})
 
+        # Direction 6: a record of OUR harness carrying no `cost_usd`. It passed the
+        # harness test, contributed 0.0 to the total and appeared in no exclusion count
+        # until pull request 21 — a figure that was never measured, summed as though it
+        # were zero, with the note beside the total understating what it left out (#36).
+        # `ClaudeHarness.timeout_record` produces exactly this shape.
+        _write(runs / "wg-b" / "trials" / "g2__ts__t0.json",
+               {"game": "g2", "stack": "ts", "trial": 0,
+                "agent": {"terminal_reason": "harness_timeout", "cost_usd": None}})
+
         c = census(runs)
         wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
-        check("wholegame.trial_records", wg["trial_records"], 4)
+        check("wholegame.trial_records", wg["trial_records"], 5)
         check("wholegame.run_directories", wg["run_directories"], 3)
-        check("wholegame.games", wg["games"], {"g1": 3, "g2": 1})
-        check("wholegame.stacks", wg["stacks"], {"rust": 3, "ts": 1})
-        check("wholegame.cells", wg["cells"], 3)
+        check("wholegame.games", wg["games"], {"g1": 3, "g2": 2})
+        check("wholegame.stacks", wg["stacks"], {"rust": 3, "ts": 2})
+        check("wholegame.cells", wg["cells"], 4)
         check("wholegame.terminal_reason", wg["terminal_reason"],
-              {"absent": 1, "api_error": 1, "completed": 2})
+              {"absent": 1, "api_error": 1, "completed": 2, "harness_timeout": 1})
         check("wholegame.agent_cost_usd", wg["agent_cost_usd"], 6.0)
         # Direction 5, both halves: the other harness's record is COUNTED as a record and
         # its vendor USD reaches no total. A partition that silently dropped the record
         # and a sum that silently included 77.0 are both wrong, and only asking for both
         # numbers separates them.
-        check("wholegame.harness", wg["harness"], {"claude": 3, "prime-agent": 1})
-        check("wholegame.cost_unpriced_records", wg["cost_unpriced_records"], 1)
-        check("tree.harness", tree["harness"], {"claude": 5, "prime-agent": 1})
+        check("wholegame.harness", wg["harness"], {"claude": 4, "prime-agent": 1})
+        # 2 unpriced for 2 different reasons — a foreign harness, and our own harness with
+        # no readable figure. One counter, because the question a reader asks of the note
+        # is "how many records is this total NOT over".
+        check("wholegame.cost_unpriced_records", wg["cost_unpriced_records"], 2)
+        check("a claude record with no cost_usd is not summed as zero",
+              wg["agent_cost_usd"], 6.0)
+        check("tree.harness", tree["harness"], {"claude": 6, "prime-agent": 1})
         check("prime-agent vendor USD reached no total",
               77.0 not in (wg["agent_cost_usd"], tree["agent_cost_usd"],
                            sc["agent_cost_usd"]), True)
         check("an unstamped record is read as claude",
-              _harness({"agent": {"cost_usd": 1.0}}), "claude")
+              harness_of({"agent": {"cost_usd": 1.0}}), "claude")
         # The spec-change records must NOT be counted as whole-game, and must be counted
         # — including the one nested inside the archive wrapper.
         check("specchange.trial_records", sc["trial_records"], 2)
         check("specchange.run_directories", sc["run_directories"], 2)
         check("specchange.agent_cost_usd", sc["agent_cost_usd"], 9.0)
-        check("tree.trial_records", tree["trial_records"], 6)
+        check("tree.trial_records", tree["trial_records"], 7)
         check("tree.run_directories", tree["run_directories"], 5)
         check("tree.agent_cost_usd", tree["agent_cost_usd"], 15.0)
         check("largest matrix is wg-a", max(

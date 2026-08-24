@@ -295,6 +295,13 @@ def main() -> int:
         # failing dressed as a clean sweep. The control below is what says so out loud.
         for dep in ("tokenvalue.py",):
             (Path(tmp) / dep).write_text((HERE / dep).read_text())
+        # `agent_harness.py` is a dep too, and it is one directory UP - it owns the one
+        # definition of which harness a record came from, which decides which records may
+        # be summed. Copied from `eval/` rather than from `tools/`, because a dep fetched
+        # from the wrong directory is a ModuleNotFoundError that scores every mutant as
+        # caught, and the control below is the only thing that would say so.
+        (Path(tmp) / "agent_harness.py").write_text(
+            (HERE.parent / "agent_harness.py").read_text())
 
         # THE CONTROL FIRST. An unmutated copy must go GREEN from the same temp directory
         # and the same interpreter the mutants use. Without it, every mutant "failing"

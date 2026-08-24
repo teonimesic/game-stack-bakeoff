@@ -123,15 +123,52 @@ def unknown_reason(raw: Any) -> str:
     return f"{UNKNOWN_PREFIX}{raw}"
 
 
-def _map_reason(raw: Any, table: dict[str, str]) -> Any:
-    """Absent stays absent; measured values map; everything else is `unknown:<raw>`."""
+def _map_reason(raw: Any, table: dict[str, str], *, native: bool = False) -> Any:
+    """Absent stays absent; measured values map; everything else is `unknown:<raw>`.
+
+    `native` says the raw value is drawn from the vocabulary `TERMINAL_REASONS` IS — which
+    is true of exactly one harness, the `claude` CLI whose words the enumeration was
+    copied from. **Off by default, and that default is the point.** The enumeration is a
+    set of English-looking strings, so a foreign harness reporting `error`, `completed` or
+    `max_turns` would land in it by spelling alone and be stored as a measured terminal
+    reason on a harness where nothing measured it — the bucketing this module refuses,
+    landing in the field every aggregate partitions on (#31). A collision is not a
+    measurement; it goes through the harness's own table or it comes out `unknown:<raw>`.
+    """
     if raw is None:
         return None
-    if raw in TERMINAL_REASONS:
+    if native and raw in TERMINAL_REASONS:
         return raw
     if raw in table:
         return table[raw]
     return unknown_reason(raw)
+
+
+#: The harness whose `cost_usd` figures `tokenvalue.py` defines, and the one reader of
+#: which harness a stored record came from. **Defined here, imported by every tool that
+#: partitions on it.** It was spelled out in `tools/census.py` and again in
+#: `tools/cost_census.py`, the two producers that decide which records are priced, with
+#: nothing asserting the two agreed — a path spelled twice with a comment promising they
+#: match is the shape of rule 12, and here it would surface as two totals over one tree
+#: with neither reporting a disagreement.
+TOKVAL_HARNESS = CLAUDE_NAME = "claude"
+
+
+def harness_of(record: dict[str, Any]) -> str:
+    """Which harness built a stored trial record.
+
+    Two addresses, because the record carries the name in two places: `agent.harness` from
+    the normaliser, and `harness.name` from the launch. **Absent is read as `claude`**, and
+    that is provenance rather than a default — every record stored before 2026-08-24 was
+    built by that CLI, because there was no other.
+    """
+    agent = record.get("agent")
+    if isinstance(agent, dict) and agent.get("harness"):
+        return agent["harness"]
+    launched = record.get("harness")
+    if isinstance(launched, dict) and launched.get("name"):
+        return launched["name"]
+    return TOKVAL_HARNESS
 
 
 class Harness:
@@ -270,7 +307,10 @@ class ClaudeHarness(Harness):
         # quota". It cost four trials in the first matrix, the whole 8-trial arena set in
         # another, and a calibration trial in between.
         raw = parsed.get("terminal_reason")
-        reason = _map_reason(raw, {})
+        # `native`: this CLI's vocabulary IS the shared enumeration - it is where the
+        # words came from - so a value already in it is a measured reason here and only
+        # here.
+        reason = _map_reason(raw, {}, native=True)
         if raw == "api_error" and "session limit" in (parsed.get("result") or "").lower():
             reason = "session_limit"
         return {
