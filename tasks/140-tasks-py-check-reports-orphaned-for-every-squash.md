@@ -67,3 +67,29 @@ that state is a function of prune timing. Construct the refs deliberately — a 
 squash-merged branch tip (green) and one pointing at genuinely unmerged work (red) — and do not
 assume a pruned clone proves anything. A control that passes only because the refs happened to be
 absent is the vacuous pass this project keeps paying for.
+
+## note 2026-08-24
+
+## note 2026-08-24 (later) — it has TWO faces, and pruning only clears one
+
+Reproduced live on task 133's merge, immediately after PR #19 squash-merged:
+
+    133: status done, but refs/heads/task-133-scene-prompts,
+         refs/remotes/origin/task-133-scene-prompts is not an ancestor of main
+
+`git fetch --prune` cleared the remote-tracking ref and `check` **stayed red**, because the gate
+names **both** `refs/heads` and `refs/remotes/origin`. Only deleting the local branch turned it
+green. So the earlier note's "prune makes it go green" is true of the remote face only.
+
+That matters for the fix and for the control:
+
+- **The local branch cannot be pruned away.** `delete_branch_on_merge` removes the remote one; the
+  local one survives until somebody deletes it by hand, so this face does **not** heal itself and
+  will accumulate one red row per merged ticket.
+- **`git branch -d` refuses it** — squash-merged, so the tip is an ancestor of nothing. Cleanup
+  needs `-D`, which is the flag that also deletes genuinely unmerged work. **A gate that pushes an
+  operator toward `-D` as routine is a gate with a cost**, and that is an argument for fixing
+  `landed_status` rather than for tidying refs after every merge.
+
+The control therefore needs both faces: a local branch and a remote-tracking ref, each pointing at
+a squash-merged tip (must be GREEN) and each pointing at genuinely unmerged work (must be RED).
