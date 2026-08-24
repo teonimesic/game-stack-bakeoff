@@ -1408,12 +1408,36 @@ would therefore have been fail-open on every measured opportunity, for at most 1
 population up from 13 to 16, it was still 2 — a one-off from the branch that was editing the
 CI's own documentation, so the case for narrowing weakens as the denominator climbs.
 
-Neither implementation is worth having, for different reasons. The two-job form is
-arithmetically worse — GitHub bills a minimum of one minute per job, so gating costs +25 minutes
-to save 16. The step-gating form **does** save ~14 minutes, and buys them with a green `controls`
-run that executed no gate, which is the one pattern this project exists to catch. **The lever if
-minutes ever bind is the slow tier's `pull_request` trigger, which is 141 of 220 minutes**, not
-the path filter, which is 7%. The derivation and the run ids are in
+**The filter moved out of `on: paths:` and into a step on 2026-08-24, task 131 — and the
+population it is evaluated over did not change.** A workflow whose `paths:` do not match produces
+**no check at all**, not a passing one, and `controls` is a required check, so a pull request
+touching only `tasks/` or a root document waited on a check that could never arrive; updating the
+branch could not help, because nothing would ever produce it. Measured at PR #14's head: two
+`gates` check runs, **zero** `controls`. `controls.yml` now triggers on every pull request and
+its first step, `ci_minutes.py --scope`, diffs the merge commit against its first parent — which
+is exactly what `paths:` matched against — and writes `relevant=true|false` for the steps below.
+
+**This supersedes the step-gating form rejected the day before, and the objection to it was
+right.** That form buys its saving with a green `controls` run that executed no gate, which is the
+one pattern this project exists to catch. 3 things answer it, and none of them is the saving:
+
+1. **The guard is `!= 'false'`, never `== 'true'`.** An output the scope step never wrote reads
+   as the empty string; `== 'true'` skips on it, `!= 'false'` runs. The only way to skip is for
+   the scope step to have run and said so. Every unknown — an unreadable diff, an empty diff, a
+   non-`pull_request` event — runs the whole suite.
+2. **`push` to `main`, `schedule` and `workflow_dispatch` are never filtered.** Nothing waits on
+   those, so latency is not a cost there, and running unconditionally is what checks the filter's
+   claim. A wrong filter is therefore wrong for at most one merge rather than indefinitely.
+3. **The step prints what it read** — the filter, the changed paths, the verdict — so a skipped
+   run is auditable afterwards instead of being a silent green.
+
+`ci_minutes.py --selftest` pins the wiring in both directions, and its closing line is the
+producer for how many mutants and variants it carries. The two-job form stays rejected and is now
+rejected twice over: it was arithmetically worse when minutes were metered (+25 to save 16), and
+a second job is a second check that can be absent.
+
+**The lever if latency ever binds is the slow tier's `pull_request` trigger, which was 141 of 220
+minutes**, not the filter, which is 7%. The derivation and the run ids are in
 `.github/workflows/README.md`.
 
 ---
@@ -2203,12 +2227,12 @@ merge time.
 **Protected.** Required `gates` and `controls`; `strict`, so a branch behind `main` cannot merge;
 `required_linear_history`; no force-pushes, no deletions; conversation resolution required.
 
-**Requiring `controls` is provisionally wrong and task 131 owns it.** It is path-filtered, and a
-filtered workflow that does not match produces no check rather than a passing one — so a pull
-request touching only `tasks/` or a root document can never satisfy it. Found by the control that
-proved `strict` works (PR #14, closed). The interim narrowing to `gates` alone is the operator's
-to apply; `gates` is where the step that went red in #162 lives, so the guarantee that motivated
-all of this survives the narrowing.
+**Requiring `controls` is right, and it composes with the filter only because the filter moved.**
+It was path-filtered when the requirement was set, and a filtered workflow that does not match
+produces no check rather than a passing one — so a pull request touching only `tasks/` or a root
+document could never satisfy it. Found by the control that proved `strict` works (PR #14, closed);
+repaired by task 131, which moved the filter into a step so the check always reports. The
+derivation is in the CI section above.
 
 `strict` is the one that was bought. On 2026-08-23 `main` went red on a merge where **both**
 contributing pull requests were green, each tested against a base containing neither (#162). A

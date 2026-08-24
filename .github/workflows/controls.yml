@@ -10,8 +10,15 @@
 # gone and the wall-clock one is what keeps the tiers apart. `ci_minutes.py` still measures
 # what runs; nothing is charged for it.
 #
-# WHAT THE PATH FILTER IS CLAIMING, so it can be argued with: every check here reads
-# source under eval/, or the skill layout under .agents/ and .claude/, and nothing else.
+# THE FILTER IS NOT IN `on:`, AND THAT IS THE WHOLE POINT OF THIS SHAPE. A workflow whose
+# `paths:` do not match produces NO check, not a passing one, and `controls` is a required
+# check -- so a pull request touching only `tasks/` or a root document waited on a check
+# that could never arrive. Measured at PR #14's head: 2 `gates` runs, 0 `controls`.
+# The job now runs on every pull request, decides in its FIRST step whether its suites have
+# anything to read, and skips the rest when they do not. The check therefore always reports.
+#
+# WHAT THE FILTER IS CLAIMING, so it can be argued with: every check here reads source
+# under eval/, or the skill layout under .agents/ and .claude/, and nothing else.
 # bot_mutants mutates judge criteria, tasks_mutants mutates a COPY of eval/tools/tasks.py,
 # audio/rusage are fixture-driven, and skill_layout_control plants and restores five
 # breakages of the symlink. A change to a document or a task file cannot alter their
@@ -19,24 +26,20 @@
 # unconditionally, precisely because a path filter on those would be a gate that is
 # silently absent.
 #
-# The nightly run exists because a path filter is a claim, and the claim is checked by
-# running the suite on main whether or not anything it names moved.
+# The filter itself is spelled ONCE, as FILTER_PREFIXES/FILTER_EXACT in
+# eval/tools/ci_minutes.py, and the scope step prints it into this log on every run. It is
+# deliberately not repeated here: a comment listing paths is a second copy that nothing can
+# disagree with.
+#
+# The claim is checked by running the suite unconditionally wherever nothing is waiting on
+# the result -- every push to main, and nightly. A filter that is wrong is therefore wrong
+# for at most one merge rather than indefinitely.
 name: controls
 
 on:
   pull_request:
-    paths:
-      - 'eval/**'
-      - '.agents/**'
-      - '.claude/**'
-      - '.github/workflows/controls.yml'
   push:
     branches: [main, 'ci-control-**']
-    paths:
-      - 'eval/**'
-      - '.agents/**'
-      - '.claude/**'
-      - '.github/workflows/controls.yml'
   schedule:
     - cron: '17 6 * * *'
   workflow_dispatch:
@@ -55,11 +58,27 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          fetch-depth: 0   # tasks_mutants exits 2 on a shallow clone -- measured
+          # tasks_mutants exits 2 on a shallow clone -- measured. The scope step also needs
+          # this pull request's merge commit to have both its parents.
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
-      - run: python3 -m pip install --disable-pip-version-check pyyaml==6.0.2
+
+      # THE FILTER, evaluated here instead of in `on:`. It writes `relevant=true|false`,
+      # and every step below is guarded on `!= 'false'` -- never `== 'true'`. An output
+      # that was never written is the empty string: `!= 'false'` runs the suites anyway,
+      # while `== 'true'` would skip them all and report a green `controls` that executed
+      # nothing, which is the one pattern this project exists to catch. The only way to
+      # skip is for this step to have run and said so, and it prints what it read.
+      # `ci_minutes.py --selftest` pins the wiring, in both directions.
+      - name: scope (does this pull request touch anything these suites read?)
+        id: scope
+        run: python3 eval/tools/ci_minutes.py --scope
+
+      - name: install pyyaml
+        if: ${{ success() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 -m pip install --disable-pip-version-check pyyaml==6.0.2
 
       # `just` is NOT a stack toolchain here. bot_mutants drives eval/judge/fixtures/*,
       # whose justfiles run `python3` and nothing else -- `just` is only the recipe runner.
@@ -68,10 +87,13 @@ jobs:
       # places. Downloaded to a file rather than piped into tar: a pipeline's exit status
       # is the last stage's (AGENTS.md rule 3).
       - name: fetch just 1.58.0
+        if: ${{ success() && steps.scope.outputs.relevant != 'false' }}
         run: curl -fsSL -o /tmp/just.tar.gz https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz
       - name: install just
+        if: ${{ success() && steps.scope.outputs.relevant != 'false' }}
         run: sudo tar -xzf /tmp/just.tar.gz -C /usr/local/bin just
       - name: just --version
+        if: ${{ success() && steps.scope.outputs.relevant != 'false' }}
         run: just --version
 
       # ffmpeg is what `judge/audio.py` measures loudness and silence with, so
@@ -79,6 +101,7 @@ jobs:
       # had ever named because every machine that ran the judge had it. Not a stack
       # toolchain: no engine, no compiler, no package manager for a submission.
       - name: install ffmpeg (judge/audio.py's measuring instrument)
+        if: ${{ success() && steps.scope.outputs.relevant != 'false' }}
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
 
       # `if: !cancelled()` on every gate: one red gate must not hide the verdict of the
@@ -86,23 +109,23 @@ jobs:
       # takes three pushes, and a required check cleared one failure at a time is a merge
       # blocked for as many round trips as it has defects.
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/bot_mutants.py
       # NOT a count. This said "the five mutants" while there were 21, and task 122 made it
       # 25 -- a cardinal in a step name has no producer and cannot be checked, which is the
       # failure AGENTS.md's counts rule is about. `tasks_mutants.py --list` is the producer.
       - name: tasks_mutants (every mutant tasks_control's rows must catch)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/tools/tasks_mutants.py
       - name: judge/audio_selftest
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/audio_selftest.py
       - name: judge/rusage_selftest
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/rusage_selftest.py
       # 124.7s, and it plants five breakages in the skill layout and restores them. The
       # `.claude/skills` symlink is load-bearing and fails silently, so this is exactly the
       # kind of gate nobody would remember to run.
       - name: skill_layout_control (the .agents/.claude symlink, five ways it can break)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/tools/skill_layout_control.py
