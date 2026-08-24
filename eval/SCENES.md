@@ -261,7 +261,8 @@ question is which engine's APIs appear in the source, so naming the stack *is* t
 Report it per stack, never as a cross-stack ranking. This is the same wall the judge field hit:
 `idiomatic` is structurally unblindable for the identical reason. Both now carry the bar in
 `Aspect.cross_stack_bar`, which `judge/field_ranks.py` prints — with that aspect's per-stack
-means, alphabetically by stack — beside every figure it produces for them.
+means, alphabetically by stack — beside every figure it produces for them, and which keeps
+them out of every pooled figure, a pooled figure being a between-stack range (`tasks/146`).
 
 **2 gates, and they answer different questions.** `judge/verify_blind.py` scans the *trial
 tree* and is about the building agent; an aspect id is not a criterion id, so adding one moves

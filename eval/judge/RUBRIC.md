@@ -553,16 +553,15 @@ neither equality holds, which is the reason `fun` still has a pacing claim. Its 
 byte-identical to `fun`'s **by design**, and `aspects_selftest.py` goes red if the two drift;
 a control briefed differently from its treatment is not a control.
 
-**It must never be pooled with the other five, and since 2026-08-23 code enforces that.**
+**It must never be pooled with the scored aspects, and since 2026-08-23 code enforces that.**
 `aspects.py` marks it `control_for="fun"`, `field_ranks.assert_poolable` raises on any
 population mixing a control with another aspect, and `field_ranks.report` prints the aspects
 each pooled figure is over plus every round it excluded. Until then the rule lived in a prose
 comment claiming an `Aspect.diagnostic_only` guard that was never set and read by no code, and
-`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control — `score`/`pool`
-0.3667/0.2417 polluted against 0.4000/0.2400 over the five scored aspects, with the verdict
-unchanged in all four readings. No published figure was affected: the separation pair
-`README.md` quotes comes from `wg-tetris-judge-2026-08-17/pre` and `/post`, which hold no
-`fun_frames` rounds (task 90).
+`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control. That directory today
+pools **20** rounds over 4 scored aspects, giving `score`/`pool` **0.5250/0.4000** with the
+between-exceeds-within verdict unchanged in all four readings, and it names both the control and
+`idiomatic` as excluded (task 90, `tasks/146`).
 
 > **A control that does not declare itself to code is a control by convention.** The field
 > that was supposed to say so shared a name — `diagnostic_only` — with an unrelated one on
@@ -598,9 +597,9 @@ the stack is the measurement. There is no rewrite that helps: `blind_language` h
 delete the evidence the aspect exists to read. It is therefore **reported per stack and never
 entered into a cross-stack ranking**, and `Aspect.cross_stack_bar` is what says so to code —
 `field_ranks.py` prints the reason and that aspect's per-stack means, alphabetically by stack,
-beside every figure it produces for it. **The bar does not change what is pooled** —
-`idiomatic` is inside the pooled between-stack figure this file and `JUDGING.md` quote, and
-taking it out re-analyses published game results. `tasks/146` settles that either way.
+beside every figure it produces for it. **The bar also decides what is pooled, since
+2026-08-24**: `assert_poolable` refuses a barred aspect exactly as it refuses a control,
+because a pooled figure is itself a between-stack range (`tasks/146`).
 
 **`idiomatic` carries the same bar for the same reason, reached from the other side.** It keeps
 its file extensions, because you cannot ask whether a language was written like itself with the

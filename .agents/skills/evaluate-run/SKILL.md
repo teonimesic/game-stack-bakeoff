@@ -61,7 +61,8 @@ reporting any of them.** Which aspects exist, which task class each is asked of,
 control and which may not be ranked across stacks are stated there; this file does not
 restate them, because a second copy is the one nobody edits (#38). The tools refuse what the
 table forbids — `--aspects feel` is rejected, a scene aspect asked of a game is refused
-before a round starts, and `field_ranks.py` prints each bar with the per-stack means.
+before a round starts, and `field_ranks.py` prints each bar with the per-stack means and
+refuses to pool a barred aspect or a control into a between-stack figure.
 
 Verify the judges **actually executed and produced non-empty packs per aspect**. A green
 exit is not evidence — making the legacy judge opt-in once silently removed the source

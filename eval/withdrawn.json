@@ -166,6 +166,36 @@
       "declared_in": "eval/RUNS.md, the note under the specialist-judge ledger table; DECISIONS.md, 'The g1_pong round-1 judge figure is $13.16, mean $4.39'; task 130",
       "replaced_by": "$13.16 for the 3 calls and $4.39 for the mean, defined once in eval/RUNS.md's specialist-judge ledger together with the rounding rule - cents round half-up, never truncate. These 3 calls of 2026-08-16 cannot be reconstructed - their artifacts are gone - so no producer can re-derive THIS figure; that is a statement about these calls, not about judge costs in general, which judge_ledger.py produces from every round still on disk. The mean is a RETROSPECTIVE AGGREGATE and not a rate: it averages architecture and idiomatic over 3 calls, and per-aspect rates on g2_tetris3d span $0.60 to $6.81 a call, so nothing may be projected from it (AGENTS.md rule 4) - price a sweep from a (game, aspect) row of that same table instead, treating 2 calls as a lower bound. judge_ledger.py prints no per-call mean for this reason, and the 1 projection made from this one came out 1.84x low.",
       "retired_from_live_docs_by": "task 130"
+    },
+    {
+      "id": "WR-tier3-pool-pre",
+      "withdrawn": "2026-08-24",
+      "kind": "figure",
+      "claim": "the tier-3 separation pair on wg-tetris-judge-2026-08-17/pre stated as rank+pool 1.900 against 2.275",
+      "why": "It was pooled over five aspects, one of which - `idiomatic` - has been barred from any cross-stack ranking since #53, and a pooled figure IS a between-stack range. `field_ranks.assert_poolable` now refuses a barred aspect exactly as it refuses a control (tasks/146), so the producer cannot return this pair again. Note that WR-tier3-pair's `replaced_by` field names this superseded population; it is a record of a 2026-08-22 decision and is not edited.",
+      "match": [
+        "(?<![0-9.])1\\.9000?(?![0-9])",
+        "(?<![0-9.])2\\.2750?(?![0-9])"
+      ],
+      "anchor": "tasks/115-readme-is-the-headline-result-still-true-what-wo.md",
+      "declared_in": "eval/RUNS.md, 'THE TIER-3 POOLED POPULATION CHANGED ON 2026-08-24'",
+      "replaced_by": "python3 eval/judge/field_ranks.py --rounds eval/runs/wg-tetris-judge-2026-08-17/pre, value=rank order=pool over the 4 poolable aspects: 1.3125 against 2.5625.",
+      "retired_from_live_docs_by": "task 146"
+    },
+    {
+      "id": "WR-tier3-pool-post",
+      "withdrawn": "2026-08-24",
+      "kind": "figure",
+      "claim": "the tier-3 separation pair on wg-tetris-judge-2026-08-17/post stated as rank+pool 2.100 against 1.925",
+      "why": "Same defect as WR-tier3-pool-pre: pooled over five aspects including the cross-stack-barred `idiomatic`. This pair also carried the only 'between exceeds within' direction the project quoted under its own reporting method; over the 4 poolable aspects the direction reverses.",
+      "match": [
+        "(?<![0-9.])2\\.1000?(?![0-9])",
+        "(?<![0-9.])1\\.9250?(?![0-9])"
+      ],
+      "anchor": "tasks/115-readme-is-the-headline-result-still-true-what-wo.md",
+      "declared_in": "eval/RUNS.md, 'THE TIER-3 POOLED POPULATION CHANGED ON 2026-08-24'",
+      "replaced_by": "python3 eval/judge/field_ranks.py --rounds eval/runs/wg-tetris-judge-2026-08-17/post, value=rank order=pool over the 4 poolable aspects: 1.8750 against 2.0938.",
+      "retired_from_live_docs_by": "task 146"
     }
   ]
 }

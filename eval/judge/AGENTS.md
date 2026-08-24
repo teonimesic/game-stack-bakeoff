@@ -57,10 +57,9 @@ registry as the 6 game aspects and at the same weight, 0.00. 2 things govern usi
 - **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
   `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
   prints the reason and the aspect's per-stack means — alphabetically by stack, never sorted
-  by value — beside every figure it produces for them. The bar does **not** change which
-  rounds are pooled; `idiomatic` is inside the pooled between-stack figure 3 live documents
-  quote, and removing it there re-analyses published results. `tasks/146` settles that either
-  way.
+  by value — beside every figure it produces for them. **A barred aspect is also kept out of
+  every pooled figure**, since 2026-08-24: a pooled figure is a between-stack range, so
+  `assert_poolable` refuses it exactly as it refuses a control (`tasks/146`).
 
 `RUBRIC.md` holds what each scene aspect asks, what `fidelity` cannot see without a
 stack-neutral scene statement in the pack, and why the weight question reads **NOT ASKED**
