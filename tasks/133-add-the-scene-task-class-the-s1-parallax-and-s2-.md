@@ -49,3 +49,28 @@ seed handling. Field names are functional spec; thresholds are not.
 where aimed and invisibly everywhere else — that is #41, which contaminated the one experiment
 designed around a single variable. If scenes need preamble text that games do not, it goes in a
 scene-specific block, and `prompt_guard.py` must still pass.
+
+## note 2026-08-24
+
+## note 2026-08-24 — ambition, and the rule it must not break
+
+The scenes should push each stack as far as it goes: ray-traced or path-traced lighting, real
+refraction and caustics, GPU particle systems in the thousands, post-processing.
+
+**Ask for the visible RESULT, never the technique.** "Use ray tracing" prescribes the
+implementation and destroys the measurement that makes scenes worth having - which facility the
+agent reached for. "The caustics the glass casts on the table move as it tilts" asks for something
+hard to fake, leaves the method open, and turns the method into a finding that
+`framework_fluency` reads.
+
+Same for quantities. "Many small irregular pieces, each moving independently" - never a number. A
+number in a prompt is a threshold, and thresholds are rubric.
+
+`eval/SCENES.md` now has this as its own section; read it before writing either prompt.
+
+## The performance pass is NOT yours
+
+Frame rate is a second, real-time pass and it is deliberately out of scope here (tasks/134 for
+correctness, tasks/137 for whether resources can be bounded at all). Do not add wall-clock timing
+to the capture contract - the correctness pass is deterministic and tick-indexed precisely so no
+wall-clock enters it.
