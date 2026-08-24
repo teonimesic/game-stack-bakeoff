@@ -566,7 +566,7 @@ Two refinements that pattern does not cover:
     a comment promising they match is not a defence.
 
     **The corollary, measured over one session on 2026-08-23: rule 12 fires far more often
-    against a person than against a tool, and it always looks like a result.** Six instances
+    against a person than against a tool, and it always looks like a result.** Seven instances
     in two days, each a sound method aimed at an address nobody had verified:
 
     | what was aimed | at what | what it returned |
@@ -577,13 +577,24 @@ Two refinements that pattern does not cover:
     | `endswith("project.godot")` | an AppleDouble `._` sidecar | "0 of 20 carry the defect" against a true 4 |
     | a monkeypatched module constant | a value already derived at import | linted the real tree while claiming a bad root |
     | `select(.user.login=="coderabbitai")` over a pull request's comments | the App's real login, `coderabbitai[bot]` | **empty on every pull request**, read as "no configuration warning exists" while the warning sat in the comment it filtered out |
+    | a review-poll loop, by the path of the file holding its target | an address a second writer could overwrite **after** it was written | 16 polls of `not yet` at exit 0 about **another agent's** pull request, with nothing in any line naming which one |
 
-    Four of the six returned **the same wrong answer for every subject**, which is what made
-    them look like findings rather than bugs — rule 9 pointed at your own instrument. The
-    sixth was committed while CHECKING one of the others: an agent reported a configuration
-    warning, the check for it was aimed at a login missing its `[bot]` suffix, and the empty
-    result became a confident *"not established"* against a claim that was fully evidenced.
-    **Verifying someone else's finding is not a safer activity than making one.**
+    Four of the seven returned **the same wrong answer for every subject**, which is what made
+    them look like findings rather than bugs — rule 9 pointed at your own instrument. One was
+    committed while CHECKING another: an agent reported a configuration warning, the check for
+    it was aimed at a login missing its `[bot]` suffix, and the empty result became a confident
+    *"not established"* against a claim that was fully evidenced. **Verifying someone else's
+    finding is not a safer activity than making one.**
+
+    > **The last row is a different kind, and the difference is what to do about it. The others
+    > were wrong when they were written; that one was RIGHT when it was written and wrong
+    > later, because something else could write it.** Looking at a shared mutable address
+    > confirms it, and the confirmation expires — so no amount of care at the moment of writing
+    > helps. The defence is to remove the interval: **take the address as an argument at the
+    > moment of use, and assert it against the thing it is meant to identify.**
+    > `eval/tools/pr_review_state.py` requires `--branch` and refuses when the pull request is
+    > on a different one; the shell recipe it replaced carried its target in a file and named it
+    > in no line of its output (`tasks/127`).
 
     > **Before believing a census, prove the extraction on one case you already know the answer
     > to.** Not the whole set: one row whose true value you can state in advance. Every one of

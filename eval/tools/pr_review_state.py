@@ -1,0 +1,658 @@
+#!/usr/bin/env python3
+"""Has CodeRabbit reviewed the head of *this branch's* pull request yet?
+
+This is the producer behind `.agents/skills/work/SKILL.md` section 6. It replaces a shell
+recipe that agents copied into a scratchpad file and ran in a loop.
+
+WHY IT IS A TOOL AND NOT A RECIPE
+---------------------------------
+The recipe hardcoded `PR=<n>` and printed only a head sha, so **the pull request being
+polled appeared in no line of its output**. On 2026-08-23 the agent working task 123 wrote
+its copy to a generic scratchpad name in a directory shared with every concurrent session;
+the agent working task 124 wrote its own copy over the same path with `PR=10`; and the
+first loop silently began polling the second agent's pull request, reporting `not yet` at
+exit 0 for 16 polls (`tasks/127`). Had #10's review landed, the loop would have reported
+`LANDED` for a review of a diff its agent had never written — and the next step in the
+procedure is to read that review and act on it.
+
+`AGENTS.md` rule 12 is *the address is an input to the check*, and its instance table was
+five cases of an address that was **wrong when it was written**. This is the other kind: an
+address that was **right when written and wrong later**, because something else could write
+it. A tool takes the address as an argument on every invocation, so there is no interval
+between writing the address down and using it.
+
+WHAT IT ASSERTS BEFORE IT WILL ANSWER
+-------------------------------------
+Each of these refuses with exit 1. None of them is a poll result:
+
+| guard | what its absence lets through |
+|---|---|
+| `--branch` equals the pull request's `headRefName`, exactly | a verdict about somebody else's pull request, which is the defect above |
+| `--expect-head`, when given, equals `headRefOid` | the API had not caught up to your push, and the poll answers about the previous head (#165) |
+| the head is 40 lowercase hex | `contains("")` is true of every string, so an empty head reports every pull request reviewed — fail-**open** |
+| `gh` exited 0 | a state inferred from a command that did not run (rule 2) |
+
+WHAT COUNTS AS REVIEWED, AND WHY IT IS A DISJUNCTION
+----------------------------------------------------
+`DECISIONS.md`, *An agent hands back a pull request*, holds the derivation and the
+per-pull-request evidence; if it and this file disagree, it wins and this file is the bug.
+In short: a landed review has two shapes, and reading only one of them times out on the
+good outcome. Neither arm alone covers this repository's own pull requests.
+
+| verdict | exit | what fired |
+|---|---|---|
+| `LANDED_REVIEW` | 0 | a `coderabbitai[bot]` review object with a **non-empty body** whose `commit_id` is the head. A reply to a comment also creates a review object, stamped with the current head and with an empty body — without the body guard that is indistinguishable from a review |
+| `LANDED_COMMENT` | 0 | a `coderabbitai[bot]` issue comment naming the head and **not** carrying the review-in-progress marker. This is the clean outcome, and it creates no review object at all |
+| `IN_FLIGHT` | 11 | a `coderabbitai[bot]` comment naming the head **with** the marker. The round is running; the verdict printed below it is the previous round's |
+| `NOTICE` | 12 | a GitHub alert callout heading in a bot comment — `Reviews paused`, `Review limit reached`, `Review skipped`. Read the body; each states its own remedy |
+| `NOT_YET` | 10 | none of the above |
+| — | 1 | a guard refused, or `gh` failed |
+| `UNRESOLVED` | 13 | `--wait` gave up. A loud outcome, never a quiet "no review" |
+
+`LANDED_*` outranks `IN_FLIGHT` outranks `LANDED_COMMENT` outranks `NOTICE`. A notice is
+last because CodeRabbit **edits its comments in place**: PR #6's `Review limit reached`
+heading was measured on 2026-08-23 and is no longer extractable from PR #6 today. A notice
+is a diagnostic; the two landed arms are the authority.
+
+WHY THE WAIT IS NOT A CLOCK
+---------------------------
+A fixed 15-minute bound was measured wrong. Task 130's agent polled PR #15 29 times, said
+no review had landed, and handed the work back as ready; the review was submitted at
+**19m26s** on a 4-file documentation diff, and it carried four threads, one Major, naming a
+real rule-4 violation. Raising the constant is the same defect at a larger value.
+
+So the bound is on **silence**, not on elapsed time. `--quiet-timeout` (default 20 min)
+applies while no round has ever been observed in flight; once one has — the in-progress
+marker is a real, observable signal, and it was present throughout that 19m26s —
+`--flight-timeout` (default 60 min) governs instead, and the observation **latches**,
+because CodeRabbit rewrites the summary comment during a round and the marker can come and
+go. Expiry prints `UNRESOLVED` and exits 13; a timeout is a result to hand back, not a
+silence to mistake for one.
+
+USE
+---
+    # one poll, from the worktree whose branch it is about
+    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-names-its-pr \\
+        --expect-head "$(git rev-parse HEAD)"
+
+    # wait for the round, printing a line every 30s
+    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-names-its-pr \\
+        --expect-head "$(git rev-parse HEAD)" --wait
+
+    python3 eval/tools/pr_review_state.py --census      # every PR, which arm fires
+    python3 eval/tools/pr_review_state.py --selftest    # offline, no network
+
+Every line of output names the pull request, the branch and the full head sha. The
+assertion is the guard; the printing is the audit trail (`AGENTS.md`, *capture what the
+instrument did*). Neither replaces the other: an assertion fails closed at the moment of
+use, and a printed line is only as good as the reader who happens to look at it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from typing import Any, Callable, Iterable, Sequence
+
+REPO = "teonimesic/game-stack-bakeoff"
+BOT = "coderabbitai[bot]"
+
+# The HTML comment CodeRabbit writes above a summary while the round is still running. The
+# "No actionable comments were generated" line sitting below it at that moment belongs to
+# the PREVIOUS round.
+INPROGRESS_MARKER = "auto-generated comment: review in progress by coderabbit.ai"
+
+# GitHub's alert vocabulary is a closed class of five. The deadlock notices are alert
+# callouts with a heading; matching one alert TYPE was measured worse than matching the
+# heading, because the pause notice is a NOTE and the limit notice is a WARNING.
+ALERT_HEADING = re.compile(r"> \[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n> ## ([^\n]*)")
+
+FULL_SHA = re.compile(r"\A[0-9a-f]{40}\Z")
+
+QUIET_TIMEOUT = 20 * 60
+FLIGHT_TIMEOUT = 60 * 60
+POLL_SECONDS = 30
+
+EXIT = {
+    "LANDED_REVIEW": 0,
+    "LANDED_COMMENT": 0,
+    "NOT_YET": 10,
+    "IN_FLIGHT": 11,
+    "NOTICE": 12,
+    "UNRESOLVED": 13,
+}
+
+
+class PrReviewStateError(Exception):
+    """A refusal. Never a poll result — the caller must stop, not poll again."""
+
+
+# --------------------------------------------------------------------------- gh access
+
+def _gh(args: Sequence[str], runner: Callable[..., Any] = subprocess.run) -> str:
+    """Run `gh` and return stdout. A non-zero exit RAISES.
+
+    Without the returncode check a failing API becomes a poll result: the loop reports a
+    review state inferred from a command that did not run (rule 2), and an empty stdout
+    then parses as "no reviews", which is a plausible in-range answer rather than a crash.
+    """
+    proc = runner(["gh", *args], capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise PrReviewStateError(
+            f"gh {' '.join(args)} exited {proc.returncode}: "
+            f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+    return proc.stdout
+
+
+def parse_pages(raw: str) -> list[dict]:
+    """Flatten what `gh api --paginate` prints for an array endpoint.
+
+    gh 2.98 merges the pages into ONE array; older versions concatenate one array per
+    page. Reading only the first decoded value is correct on the first and silently drops
+    every page but one on the second — and the review at the head sha is the NEWEST, so it
+    is the first record to fall off page 1. Measured on PR #6 at `per_page=2`: 2 records
+    read one-page, 10 read paginated.
+    """
+    decoder = json.JSONDecoder()
+    out: list[dict] = []
+    i = 0
+    while i < len(raw):
+        while i < len(raw) and raw[i].isspace():
+            i += 1
+        if i >= len(raw):
+            break
+        value, i = decoder.raw_decode(raw, i)
+        if isinstance(value, list):
+            out.extend(value)
+        else:
+            out.append(value)
+    return out
+
+
+def fetch_view(pr: int, repo: str = REPO, runner: Callable[..., Any] = subprocess.run) -> dict:
+    """The address, read once and in ONE call so branch and sha cannot disagree."""
+    raw = _gh(["pr", "view", str(pr), "--repo", repo, "--json", "headRefOid,headRefName"],
+              runner=runner)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise PrReviewStateError(f"gh pr view #{pr} returned unparseable JSON: {exc}") from exc
+
+
+def fetch_reviews(pr: int, repo: str = REPO,
+                  runner: Callable[..., Any] = subprocess.run) -> list[dict]:
+    return parse_pages(_gh(["api", "--paginate", f"repos/{repo}/pulls/{pr}/reviews"],
+                           runner=runner))
+
+
+def fetch_comments(pr: int, repo: str = REPO,
+                   runner: Callable[..., Any] = subprocess.run) -> list[dict]:
+    return parse_pages(_gh(["api", "--paginate", f"repos/{repo}/issues/{pr}/comments"],
+                           runner=runner))
+
+
+# ------------------------------------------------------------------------- the address
+
+def check_address(pr: int, view: dict, expect_branch: str,
+                  expect_head: str | None = None) -> str | None:
+    """Return a refusal message, or None if this pull request is the one you meant.
+
+    This is the whole point of the tool. Everything below it is the question; this is
+    whether the question is being asked of the right subject.
+    """
+    head = (view or {}).get("headRefOid") or ""
+    branch = (view or {}).get("headRefName") or ""
+
+    if not FULL_SHA.match(head):
+        return (f"NO HEAD SHA: #{pr} gave {head!r}, which is not 40 lowercase hex. "
+                "This is an error, not a poll result.")
+    if not branch:
+        return f"NO BRANCH: #{pr} gave no headRefName. This is an error, not a poll result."
+    if branch != expect_branch:
+        return (f"WRONG PR: #{pr} is on branch {branch!r}, expected {expect_branch!r}. "
+                "You are polling somebody else's pull request.")
+    if expect_head is not None:
+        if not FULL_SHA.match(expect_head):
+            return (f"EXPECTED HEAD NOT A FULL SHA: {expect_head!r}. Pass "
+                    "`$(git rev-parse HEAD)`, never an abbreviation.")
+        if head != expect_head:
+            return (f"STALE HEAD: #{pr} on {branch} reads {head}, you expected "
+                    f"{expect_head}. Either the API has not caught up to your push, or "
+                    "someone else pushed. Do not poll until it agrees.")
+    return None
+
+
+# ------------------------------------------------------------------------ the question
+
+def _by_bot(records: Iterable[dict]) -> list[dict]:
+    """Only the reviewer's own records.
+
+    Without this filter the agent trips the check by following the procedure: §6 tells it
+    to reply to what it declines, and a comment quoting the marker while explaining it
+    already matched once.
+    """
+    return [r for r in records if ((r.get("user") or {}).get("login")) == BOT]
+
+
+def alert_headings(comments: Iterable[dict]) -> list[str]:
+    out: list[str] = []
+    for c in _by_bot(comments):
+        out.extend(ALERT_HEADING.findall(c.get("body") or ""))
+    return out
+
+
+def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> dict:
+    """Decide the verdict at `head`. Raises if `head` is not a full sha.
+
+    The guard is repeated here rather than left to `check_address` because `contains("")`
+    is true of every string: an empty head makes the comment arm report every pull request
+    reviewed, which turns a fail-slow defect into a fail-open one.
+    """
+    if not FULL_SHA.match(head or ""):
+        raise PrReviewStateError(
+            f"classify called with {head!r}, which is not 40 lowercase hex")
+
+    by_review = [r for r in _by_bot(reviews)
+                 if (r.get("body") or "") != "" and r.get("commit_id") == head]
+
+    naming = [c for c in _by_bot(comments) if head in (c.get("body") or "")]
+    in_flight = [c for c in naming if INPROGRESS_MARKER in (c.get("body") or "")]
+    finished = [c for c in naming if INPROGRESS_MARKER not in (c.get("body") or "")]
+    headings = alert_headings(comments)
+
+    if by_review:
+        verdict = "LANDED_REVIEW"
+    elif in_flight:
+        verdict = "IN_FLIGHT"
+    elif finished:
+        verdict = "LANDED_COMMENT"
+    elif headings:
+        verdict = "NOTICE"
+    else:
+        verdict = "NOT_YET"
+
+    return {
+        "verdict": verdict,
+        "by_review": len(by_review),
+        "by_comment": len(finished),
+        "in_flight": len(in_flight),
+        "headings": headings,
+    }
+
+
+def poll(pr: int, expect_branch: str, expect_head: str | None = None, repo: str = REPO,
+         runner: Callable[..., Any] = subprocess.run) -> dict:
+    """One poll: assert the address, then answer. Raises `PrReviewStateError` on refusal."""
+    view = fetch_view(pr, repo=repo, runner=runner)
+    refusal = check_address(pr, view, expect_branch, expect_head)
+    if refusal:
+        raise PrReviewStateError(refusal)
+    head = view["headRefOid"]
+    result = classify(head, fetch_reviews(pr, repo=repo, runner=runner),
+                      fetch_comments(pr, repo=repo, runner=runner))
+    result.update(pr=pr, branch=view["headRefName"], head=head)
+    return result
+
+
+def render(result: dict, elapsed: float | None = None) -> str:
+    """Every line names the pull request, the branch and the full head sha."""
+    line = (f"#{result['pr']} {result['branch']} head={result['head']} "
+            f"verdict={result['verdict']} by_review={result['by_review']} "
+            f"by_comment={result['by_comment']} in_flight={result['in_flight']}")
+    if result.get("headings"):
+        line += " notice=" + " | ".join(result["headings"])
+    if elapsed is not None:
+        line += f" elapsed={int(elapsed)}s"
+    return line
+
+
+# ----------------------------------------------------------------------------- waiting
+
+def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.monotonic,
+             sleep_fn: Callable[[float], None] = time.sleep,
+             emit: Callable[[str], None] = print,
+             poll_seconds: int = POLL_SECONDS, quiet_timeout: int = QUIET_TIMEOUT,
+             flight_timeout: int = FLIGHT_TIMEOUT) -> dict:
+    """Poll until the round resolves, or until SILENCE — not elapsed time — runs out.
+
+    `seen_in_flight` LATCHES. CodeRabbit rewrites the summary comment during a round, so
+    the marker can appear and disappear while the round is still running; a bound
+    recomputed from the latest poll alone would expire at the quiet timeout on exactly the
+    case this design exists for.
+    """
+    started = now_fn()
+    seen_in_flight = False
+    polls = 0
+    last: dict = {}
+    while True:
+        last = poll_fn()
+        polls += 1
+        elapsed = now_fn() - started
+        emit(render(last, elapsed))
+        if last["verdict"] in ("LANDED_REVIEW", "LANDED_COMMENT", "NOTICE"):
+            return {**last, "polls": polls, "elapsed": elapsed,
+                    "seen_in_flight": seen_in_flight}
+        if last["verdict"] == "IN_FLIGHT":
+            seen_in_flight = True
+        budget = flight_timeout if seen_in_flight else quiet_timeout
+        if elapsed >= budget:
+            return {**last, "verdict": "UNRESOLVED", "polls": polls, "elapsed": elapsed,
+                    "seen_in_flight": seen_in_flight, "budget": budget}
+        sleep_fn(poll_seconds)
+
+
+# ------------------------------------------------------------------------------ census
+
+def census(repo: str = REPO, runner: Callable[..., Any] = subprocess.run) -> list[dict]:
+    """Which arm fires at every pull request's head. The extraction's known-answer proof.
+
+    `DECISIONS.md` states, per pull request, which arm fires — an expectation written down
+    before this tool existed and independently of it. Running this and comparing is the
+    single known-good row rule 12 asks for before believing a census.
+    """
+    raw = _gh(["pr", "list", "--repo", repo, "--state", "all", "--limit", "100",
+               "--json", "number,headRefName"], runner=runner)
+    rows = []
+    for pr in sorted(json.loads(raw), key=lambda d: d["number"]):
+        n, branch = pr["number"], pr["headRefName"]
+        view = fetch_view(n, repo=repo, runner=runner)
+        refusal = check_address(n, view, branch)
+        if refusal:
+            rows.append({"pr": n, "branch": branch, "head": "", "verdict": "REFUSED",
+                         "by_review": 0, "by_comment": 0, "in_flight": 0,
+                         "headings": [refusal]})
+            continue
+        rows.append(poll(n, branch, repo=repo, runner=runner))
+    return rows
+
+
+# ---------------------------------------------------------------------------- selftest
+
+def _review(login: str = BOT, body: str = "x" * 3000, commit: str = "") -> dict:
+    return {"user": {"login": login}, "body": body, "commit_id": commit}
+
+
+def _comment(login: str = BOT, body: str = "") -> dict:
+    return {"user": {"login": login}, "body": body}
+
+
+HEAD_A = "a" * 40
+HEAD_B = "b" * 40
+PAUSED = ("> [!NOTE]\n> ## Reviews paused\n>\n> It looks like this branch is under active "
+          "development.\n")
+LIMIT = ("> [!WARNING]\n> ## Review limit reached\n>\n> You've used all 10 included "
+         "reviews currently available.\n")
+SUMMARY_DONE = f"Actionable comments posted: 0\n\n...between base and {HEAD_A}.\n"
+SUMMARY_RUNNING = (f"<!-- This is an {INPROGRESS_MARKER} -->\n"
+                   f"Reviewing files that changed from the base of the PR and between "
+                   f"{HEAD_B} and {HEAD_A}.\nNo actionable comments were generated.\n")
+
+
+def selftest() -> int:
+    """Table-driven, offline, no network. Rows marked `variant` must PASS."""
+    fails: list[str] = []
+    ran = [0]
+
+    def check(label: str, got: Any, want: Any) -> None:
+        ran[0] += 1
+        if got != want:
+            fails.append(f"{label}: got {got!r}, want {want!r}")
+
+    def raises(label: str, fn: Callable[[], Any]) -> None:
+        ran[0] += 1
+        try:
+            fn()
+        except PrReviewStateError:
+            return
+        fails.append(f"{label}: no refusal was raised")
+
+    def firstword(msg: str | None) -> str:
+        return "" if msg is None else msg.split(":")[0]
+
+    view = {"headRefOid": HEAD_A, "headRefName": "task-127-poll"}
+
+    # --- the address. Row A2 is the control this tool was filed for.
+    check("A1 right pull request", check_address(9, view, "task-127-poll"), None)
+    check("A2 WRONG PR — aimed at another agent's branch",
+          firstword(check_address(10, {"headRefOid": HEAD_A,
+                                       "headRefName": "task-124-ci-path-filter-and-minutes"},
+                                  "task-123-cost-result-producer")), "WRONG PR")
+    # Variant A: a branch name that is a PREFIX of the expected one. `in` would pass this.
+    check("A3 variant — prefix is not equality",
+          firstword(check_address(9, {"headRefOid": HEAD_A, "headRefName": "task-127-poll-x"},
+                                  "task-127-poll")), "WRONG PR")
+    check("A4 five-character abbreviation",
+          firstword(check_address(9, {"headRefOid": "55a09", "headRefName": "task-127-poll"},
+                                  "task-127-poll")), "NO HEAD SHA")
+    check("A5 empty head",
+          firstword(check_address(9, {"headRefOid": "", "headRefName": "task-127-poll"},
+                                  "task-127-poll")), "NO HEAD SHA")
+    # Variant B: 40 characters that are not a sha. Length alone accepts this.
+    check("A6 variant — 40 non-hex characters",
+          firstword(check_address(9, {"headRefOid": "Z" * 40, "headRefName": "task-127-poll"},
+                                  "task-127-poll")), "NO HEAD SHA")
+    check("A7 no headRefName",
+          firstword(check_address(9, {"headRefOid": HEAD_A, "headRefName": ""},
+                                  "task-127-poll")), "NO BRANCH")
+    check("A8 STALE HEAD — the API has not caught up (#165)",
+          firstword(check_address(9, view, "task-127-poll", HEAD_B)), "STALE HEAD")
+    check("A9 expected head agrees",
+          check_address(9, view, "task-127-poll", HEAD_A), None)
+    check("A10 expected head abbreviated",
+          firstword(check_address(9, view, "task-127-poll", "55a09")),
+          "EXPECTED HEAD NOT A FULL SHA")
+
+    # --- the question
+    def v(reviews: list[dict], comments: list[dict], head: str = HEAD_A) -> str:
+        return classify(head, reviews, comments)["verdict"]
+
+    check("B1 review object with a body at head",
+          v([_review(commit=HEAD_A)], []), "LANDED_REVIEW")
+    # Variant C: a reply container. GitHub stamps it with the CURRENT head, body empty.
+    check("B2 variant — reply container only",
+          v([_review(body="", commit=HEAD_A)], []), "NOT_YET")
+    check("B3 summary comment naming head, finished",
+          v([], [_comment(body=SUMMARY_DONE)]), "LANDED_COMMENT")
+    check("B3 counted as one finished summary",
+          classify(HEAD_A, [], [_comment(body=SUMMARY_DONE)])["by_comment"], 1)
+    check("B4 summary comment naming head, still running",
+          v([], [_comment(body=SUMMARY_RUNNING)]), "IN_FLIGHT")
+    # The running summary must not be COUNTED as a finished one. Verdict order already
+    # puts IN_FLIGHT first, so the count is the only place this exclusion can be seen.
+    check("B4 not counted as a finished summary",
+          classify(HEAD_A, [], [_comment(body=SUMMARY_RUNNING)])["by_comment"], 0)
+    # Variant D: the agent's own comment, quoting both the sha and the marker.
+    check("B5 variant — a human comment naming the head and the marker",
+          v([], [_comment(login="teonimesic",
+                          body=f"the marker is {INPROGRESS_MARKER} and the head is {HEAD_A}")]),
+          "NOT_YET")
+    check("B6 a human review object at head",
+          v([_review(login="teonimesic", commit=HEAD_A)], []), "NOT_YET")
+    check("B7 a real review of a DIFFERENT commit",
+          v([_review(commit=HEAD_B)], []), "NOT_YET")
+    check("B8 deadlock notice alone", v([], [_comment(body=PAUSED)]), "NOTICE")
+    # Variant E: a stale notice beside a real review. The notice must not win — CodeRabbit
+    # edits comments in place and a notice outlives the state it described.
+    check("B9 variant — stale notice beside a landed review",
+          v([_review(commit=HEAD_A)], [_comment(body=LIMIT)]), "LANDED_REVIEW")
+    check("B10 variant — in-flight comment beside a landed review",
+          v([_review(commit=HEAD_A)], [_comment(body=SUMMARY_RUNNING)]), "LANDED_REVIEW")
+    # Variant F: a round running against a DIFFERENT head, and this head finished.
+    check("B11 variant — in-flight names another head",
+          v([], [_comment(body=SUMMARY_RUNNING.replace(HEAD_A, "c" * 40)),
+                 _comment(body=SUMMARY_DONE)]), "LANDED_COMMENT")
+    raises("B12 classify refuses an empty head",
+           lambda: classify("", [], [_comment(body="anything at all")]))
+
+    check("C1 pause heading", alert_headings([_comment(body=PAUSED)]), ["Reviews paused"])
+    check("C2 limit heading", alert_headings([_comment(body=LIMIT)]), ["Review limit reached"])
+    check("C3 no callout", alert_headings([_comment(body=SUMMARY_DONE)]), [])
+    check("C4 a human's callout", alert_headings([_comment(login="teonimesic", body=PAUSED)]), [])
+
+    # --- pagination. gh 2.98 merges pages; older versions concatenate.
+    check("D1 one merged array", [r["id"] for r in parse_pages('[{"id":1},{"id":2}]')], [1, 2])
+    check("D2 concatenated arrays",
+          [r["id"] for r in parse_pages('[{"id":1}]\n[{"id":2}]')], [1, 2])
+
+    # --- gh failure is not a poll result
+    def failing(_args, **_kw):
+        return subprocess.CompletedProcess(_args, 1, "", "HTTP 502")
+    raises("E1 a non-zero gh exit is not a poll result",
+           lambda: _gh(["api", "x"], runner=failing))
+
+    # --- the wait. The timeline is task 130's, measured from the GitHub API.
+    def timeline(events: list[tuple[float, str]]) -> tuple[Any, Any, Any]:
+        clock = [0.0]
+
+        def now() -> float:
+            return clock[0]
+
+        def sleep(sec: float) -> None:
+            clock[0] += sec
+
+        def poll_fn() -> dict:
+            verdict = "NOT_YET"
+            for at, val in events:
+                if clock[0] >= at:
+                    verdict = val
+            return {"pr": 15, "branch": "task-130", "head": HEAD_A, "verdict": verdict,
+                    "by_review": 0, "by_comment": 0, "in_flight": 0, "headings": []}
+        return poll_fn, now, sleep
+
+    def run_wait(events, **kw):
+        poll_fn, now, sleep = timeline(events)
+        return wait_for(poll_fn, now_fn=now, sleep_fn=sleep, emit=lambda _s: None, **kw)
+
+    # F1: 19m26s, in flight throughout — the exact case a 15-minute clock got wrong.
+    out = run_wait([(60, "IN_FLIGHT"), (1166, "LANDED_REVIEW")])
+    check("F1 review at 19m26s while in flight", out["verdict"], "LANDED_REVIEW")
+    check("F1 elapsed", int(out["elapsed"]), 1170)
+    # F1b: the SAME timeline under the retired 15-minute clock. The red half of the
+    # bound change: the number that was shipped returns UNRESOLVED on a review that landed.
+    out = run_wait([(60, "IN_FLIGHT"), (1166, "LANDED_REVIEW")],
+                   quiet_timeout=900, flight_timeout=900)
+    check("F1b the retired 15-minute clock misses it", out["verdict"], "UNRESOLVED")
+    # F1c: a slower diff. 40 minutes, in flight throughout. The quiet bound alone cannot
+    # reach this; only the latch to the flight bound can.
+    out = run_wait([(60, "IN_FLIGHT"), (2400, "LANDED_REVIEW")])
+    check("F1c review at 40m while in flight", out["verdict"], "LANDED_REVIEW")
+    # Variant G: the marker vanishes mid-round. The latch is what carries the wait past
+    # the quiet bound.
+    out = run_wait([(60, "IN_FLIGHT"), (150, "NOT_YET"), (2400, "LANDED_COMMENT")])
+    check("F2 variant — marker disappears mid-round", out["verdict"], "LANDED_COMMENT")
+    # F3: nothing ever starts. Quiet bound, loud outcome.
+    out = run_wait([])
+    check("F3 silent throughout", out["verdict"], "UNRESOLVED")
+    check("F3 gave up at the quiet bound", int(out["elapsed"]), QUIET_TIMEOUT)
+    check("F3 never saw a round", out["seen_in_flight"], False)
+    # F4: in flight and never lands. The longer bound, still loud.
+    out = run_wait([(60, "IN_FLIGHT")])
+    check("F4 in flight forever", out["verdict"], "UNRESOLVED")
+    check("F4 gave up at the flight bound", int(out["elapsed"]), FLIGHT_TIMEOUT)
+    # F5: a notice returns at once — the agent has something to do.
+    out = run_wait([(60, "NOTICE")])
+    check("F5 notice stops the wait", out["verdict"], "NOTICE")
+    check("F5 stopped at once", int(out["elapsed"]), 60)
+
+    # --- the census, and its refusal when the two API reads disagree about the branch
+    def fake_gh(branch_from_view: str):
+        def runner(argv, **_kw):
+            args = argv[1:]
+            if args[:2] == ["pr", "list"]:
+                body = json.dumps([{"number": 7, "headRefName": "task-121-x"}])
+            elif args[:2] == ["pr", "view"]:
+                body = json.dumps({"headRefOid": HEAD_A, "headRefName": branch_from_view})
+            elif args[-1].endswith("/reviews"):
+                body = json.dumps([_review(commit=HEAD_A)])
+            else:
+                body = json.dumps([])
+            return subprocess.CompletedProcess(argv, 0, body, "")
+        return runner
+
+    rows = census(runner=fake_gh("task-121-x"))
+    check("H1 census reads the arm", [r["verdict"] for r in rows], ["LANDED_REVIEW"])
+    check("H1 census names the branch", rows[0]["branch"], "task-121-x")
+    try:
+        rows = census(runner=fake_gh("task-999-someone-else"))
+        check("H2 census refuses when the two reads disagree",
+              [r["verdict"] for r in rows], ["REFUSED"])
+    except PrReviewStateError as exc:
+        ran[0] += 1
+        fails.append(f"H2 census raised instead of reporting a REFUSED row: {exc}")
+
+    # --- the drift guard: a field the rows above read, by name.
+    r = classify(HEAD_A, [_review(commit=HEAD_A)], [])
+    for field in ("verdict", "by_review", "by_comment", "in_flight", "headings"):
+        check(f"G1 classify still returns {field!r}", field in r, True)
+    line = render({**r, "pr": 18, "branch": "task-127-poll", "head": HEAD_A})
+    for token in ("#18", "task-127-poll", HEAD_A):
+        check(f"G2 render still names {token!r}", token in line, True)
+
+    for f in fails:
+        print(f"FAIL {f}")
+    # The count is what ran, never a constant beside it: a suite that reports a number it
+    # did not derive is the shape this repository exists to distrust.
+    print(f"{'ok' if not fails else 'FAILED'} ({len(fails)} failures, {ran[0]} checks)")
+    return 1 if fails else 0
+
+
+# --------------------------------------------------------------------------------- cli
+
+def main(argv: Sequence[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--pr", type=int, help="the pull request number")
+    ap.add_argument("--branch", help="the branch you believe it is on. Asserted, not assumed")
+    ap.add_argument("--expect-head", help="the full 40-hex sha you pushed. Refuses to poll "
+                                          "until the API agrees")
+    ap.add_argument("--repo", default=REPO)
+    ap.add_argument("--wait", action="store_true", help="poll until the round resolves")
+    ap.add_argument("--poll-seconds", type=int, default=POLL_SECONDS)
+    ap.add_argument("--quiet-timeout", type=int, default=QUIET_TIMEOUT,
+                    help="seconds of never having seen a round in flight")
+    ap.add_argument("--flight-timeout", type=int, default=FLIGHT_TIMEOUT,
+                    help="seconds once a round HAS been seen in flight")
+    ap.add_argument("--census", action="store_true",
+                    help="every pull request, and which arm fires at its head")
+    ap.add_argument("--selftest", action="store_true")
+    args = ap.parse_args(argv)
+
+    if args.selftest:
+        return selftest()
+
+    try:
+        if args.census:
+            for row in census(repo=args.repo):
+                print(render(row))
+            return 0
+
+        if args.pr is None or not args.branch:
+            ap.error("--pr and --branch are both required. The branch is the address this "
+                     "tool exists to assert; there is no default for it")
+
+        if args.wait:
+            out = wait_for(
+                lambda: poll(args.pr, args.branch, args.expect_head, repo=args.repo),
+                poll_seconds=args.poll_seconds, quiet_timeout=args.quiet_timeout,
+                flight_timeout=args.flight_timeout)
+            if out["verdict"] == "UNRESOLVED":
+                print(f"UNRESOLVED: #{args.pr} {args.branch} head={out['head']} — "
+                      f"{out['polls']} polls over {int(out['elapsed'])}s, budget "
+                      f"{out['budget']}s, seen_in_flight={out['seen_in_flight']}. "
+                      "Say so in the pull request thread, set the ticket to in_testing "
+                      "with this fact as the evidence, and hand it back.")
+            return EXIT[out["verdict"]]
+
+        result = poll(args.pr, args.branch, args.expect_head, repo=args.repo)
+        print(render(result))
+        return EXIT[result["verdict"]]
+    except PrReviewStateError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

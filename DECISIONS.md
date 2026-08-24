@@ -1749,8 +1749,9 @@ comparing it against the reviews API's `commit_id` is only half the check: **whe
 nothing actionable it creates no review object at all** and edits its summary issue comment
 instead. So the check is a disjunction — a `coderabbitai[bot]` review object **with a non-empty
 body** at the head sha, **or** a `coderabbitai[bot]` issue comment naming the head sha that does not
-carry the *review in progress* marker — and it reports **which arm fired**. The recipe is in
-`.agents/skills/work/SKILL.md`; this entry is what it has to satisfy.
+carry the *review in progress* marker — and it reports **which arm fired**. This entry is what
+the check has to satisfy; **`eval/tools/pr_review_state.py` is the check**, and
+`.agents/skills/work/SKILL.md` invokes it.
 
 **A review object is not the same thing as a review.** When `coderabbitai[bot]` replies to a
 comment, GitHub creates a review object to hold the reply and stamps it with the pull request's
@@ -1790,7 +1791,7 @@ head sha, 2026-08-23 (`tasks/121`):
 | #6 | **no**, 2 objects and neither at head | yes | comment |
 
 The version that read only the review arm returned `false` on #5 and #6 — 2 of the 5 heads that had
-in fact been reviewed — and would have spent its full 15-minute deadline on each, on the *clean*
+in fact been reviewed — and would have spent its full deadline on each, on the *clean*
 outcome, which is the common one. It also returned `true` on #4, where no review of that head
 exists; the comment arm is what makes that verdict true.
 
@@ -1813,7 +1814,7 @@ one push per round, detects the pause by its own text, and resumes with `@codera
 |---|---|
 | The 5-value vocabulary | An orchestrator finding it still cannot tell whose turn it is, or a state that no ticket ever occupies for more than a moment. `in_review` and `in_testing` are cheap to retire; `todo`/`in_progress` are not |
 | The legacy aliases | Nothing. They cost one dict and they close a class of failure that is invisible until it hits every agent at once |
-| The 15-minute bound on the wait | Two tasks in a row handing back `in_testing` with no review. That is evidence about the reviewer, and the fix is not a longer wait |
+| The bound on the wait | A round that finishes having never been observed in flight, or one still in flight past an hour. Both are evidence about the reviewer, and neither is fixed by a larger constant |
 | Merging through `gh pr merge` | A conflict pattern the PR route makes worse than the local one. Conflicts already resolve locally on the branch and then merge through the PR |
 
 **The flow was run end to end on its own ticket: PR #2**, the first pull request opened by the
@@ -1825,11 +1826,72 @@ a failed `gh pr view` makes the poll answer `false` about a question it never as
 `index("")` is `null`, measured), and `in_testing` was gated for a `pr` in neither the code nor
 the prose while being the state the orchestrator merges from.
 
-**Review time scales with the diff, and one number was not enough to size the wait.** PR #1:
-2 files, acknowledged 31s, reviewed **2m 30s**. PR #2: 17 files and 615 insertions, acknowledged
-49s, reviewed **6m 15s**. The 15-minute bound is 2.4x the slower of the two, not the 6x it was
-first written as; `.claude/skills/work/SKILL.md` carries both points so the next reader can see
-the trend rather than a constant.
+**Review time scales with the diff, and no constant was enough to size the wait.** PR #1: 2
+files, acknowledged 31s, reviewed **2m 30s**. PR #2: 17 files and 615 insertions, acknowledged
+49s, reviewed **6m 15s**. A 15-minute bound was set at 2.4x the slower of those. Task 130's agent
+then polled PR #15 **29 times**, reported no review and handed the work back as ready; the review
+was submitted at **19m26s** on a 4-file documentation diff, carrying four threads and one Major
+naming a real rule-4 violation, and `required_conversation_resolution` on `main` is the only
+reason it did not merge unreviewed on a green tick.
+
+**So the wait is bounded on SILENCE, not on elapsed time.** The in-progress marker is an
+observable signal that a round is running — it was present throughout that 19m26s — so
+`pr_review_state.py --wait` allows **20 minutes** while no round has ever been seen in flight and
+**60 minutes** once one has, and the observation **latches** because CodeRabbit rewrites the
+summary comment mid-round. Expiry is `UNRESOLVED` at exit 13, which is a result to hand back
+rather than a silence to mistake for one.
+
+| Rejected | Why |
+|---|---|
+| Raising the constant | The same defect at a larger value. A bound derived from a handful of observations cannot distinguish *not finished* from *never coming*, which is the question the agent actually has |
+| Recomputing the bound from the latest poll | The marker comes and goes while the round runs, so a non-latching bound expires at the quiet timeout mid-round. `latch_not_sticky` pins it |
+| A quiet timeout long enough to cover a slow review | It is the deadlock detector. Making it generous makes the *paused* and *limit reached* cases slow instead of the slow case fast |
+
+---
+## The review poll is a tool that asserts its own address — decided 2026-08-24
+
+**Decided [agent], `tasks/127`, on measurement.** The poll above was a shell recipe agents copied
+into a scratchpad file. It hardcoded `PR=<n>` and printed only a head sha, so **the pull request
+it was polling appeared in no line of its output.** On 2026-08-23 two concurrent agents wrote
+their copies to the same generic path; the first loop silently began polling the second's pull
+request and reported `not yet` at exit 0 for 16 polls. Had that review landed it would have
+reported `LANDED`, and the next step in the procedure is to read the review and act on it.
+
+Re-measured 2026-08-24, the retired recipe answers `LANDED by review object at <sha>` at exit 0
+for **both** PR #9 and PR #10, with nothing in either line distinguishing them.
+`pr_review_state.py --pr 10 --branch task-123-cost-result-producer` answers `WRONG PR: #10 is on
+branch 'task-124-ci-path-filter-and-minutes'` at exit 1, and the same command against #9 answers
+`LANDED_REVIEW`.
+
+| Decided | Rejected, and why |
+|---|---|
+| A **tool** taking the address as an argument | A better-named scratchpad file. The failure is not a bad name — it is the interval between writing an address down and using it, and a name does not shorten it |
+| **Assert** the branch, *and* print the pull request, branch and full head sha on every line | Printing alone, which `tasks/127` offered as the alternative. An assertion fails closed at the moment of use; a printed line is only as good as the reader who looks at it, and the consumer of this verdict is the next step of a procedure. Printing stays as the audit trail |
+| Exact equality on `headRefName` | Containment. `task-12` is a prefix of `task-127-…`, and task ids here collide that way by construction |
+| `--expect-head`, refusing to poll until `headRefOid` agrees | A `sleep` after `git push`. #165: `gh pr view` returns the previous head for seconds after a push, and a sleep makes that race less likely while leaving it fail-open |
+| `NOTICE` ranked **below** both landed arms | Treating a deadlock heading as authoritative. CodeRabbit edits comments in place: PR #6's `Review limit reached` was measured on 2026-08-23 and is no longer extractable, while PR #9 carries a stale `Reviews paused` beside the review it really has |
+
+**The known-answer proof is the table above, and it was written before the tool existed.**
+`python3 eval/tools/pr_review_state.py --census` prints which arm fires at every pull request's
+head; run 2026-08-24 it agrees with all **6** rows of the per-pull-request table, including #3,
+where both arms correctly read false. It returns **3** distinct verdicts over 17 pull requests —
+6 `LANDED_REVIEW`, 6 `LANDED_COMMENT`, 5 `NOTICE` — so it is discriminating rather than
+reporting the instrument.
+
+`--selftest` is **54** offline checks including **8** variants; `eval/tools/pr_review_state_mutants.py`
+removes **25** mechanisms one at a time and every one goes red. Both counts are `len()` of what
+ran, printed by the tools.
+
+**The same question was asked of every other recipe in `.agents/skills/` that writes a file it
+later reads back.** Only one other had the shared-mutable-address shape:
+`audit-docs/SKILL.md`'s planted-phantom control backed up `judge/JUDGING.md` to a fixed name in
+the system temp directory and restored **into the repository** from it — so two audit passes at
+once restore each other's copy, and one may still carry a planted phantom. It now uses `mktemp`,
+which cannot collide. The rest are safe for a reason worth naming: `git commit -F`,
+`git merge --no-ff -F` and `gh pr create --body-file` all write a file whose **only reader is the
+next command in the same block**, and each is already followed by a read-back of what the command
+actually stored. A short interval with a verification at the end of it is not the same defect as
+an interval with none.
 
 ---
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23

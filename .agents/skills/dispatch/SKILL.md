@@ -101,7 +101,7 @@ filed.
 | `todo` | not dispatched. Step 1 |
 | `in_progress` | the agent is working. Nothing to do |
 | `in_review` | its pull request is open and the review loop is running. Nothing to do — the `pr` field in the ticket is the link, and `check` fails a ticket in this state that has none |
-| `in_testing` | **yours.** The agent has finished. Its evidence says whether a review arrived and what it did with it — a 15-minute wait that expired ends here too |
+| `in_testing` | **yours.** The agent has finished. Its evidence says whether a review arrived and what it did with it — an `UNRESOLVED` wait ends here too |
 | `done` | merged. You set this |
 
 ```bash
@@ -124,10 +124,13 @@ Read the PR thread for one thing beyond that: **comments the agent declined, and
 declined comment naming a rule is the flow working; a declined comment with no reply is a gap in
 the handback.
 
-**An agent may hand back `in_testing` saying no review arrived within its 15-minute bound.** That
-is the outcome the wait is designed to produce and it is not a failure of the task. Merge on your
-own verification as you would have before the flow existed, and if it happens twice in a row that
-is evidence about the reviewer — a task, with the two PR numbers in it.
+**An agent may hand back `in_testing` reporting `UNRESOLVED`** — `pr_review_state.py --wait`
+gave up. That is the outcome the wait is designed to produce and it is not a failure of the task.
+The evidence says which bound expired: `seen_in_flight=False` means no round ever started, which
+is a reviewer problem (check for a deadlock notice on the pull request); `seen_in_flight=True`
+means one started and ran past an hour. Merge on your own verification as you would have before
+the flow existed, and if it happens twice in a row that is evidence about the reviewer — a task,
+with the two PR numbers in it.
 
 ### Merging
 
@@ -185,7 +188,9 @@ Two consequences, both of which bite the first time:
   (`PR_TITLE` / `PR_BODY`). Nothing you write locally reaches it. So the PR body is now the merge
   message, and it must record **what was established and what it cost** — the standard this skill
   has always applied to a merge message applies there instead. Edit it before merging with
-  `gh pr edit <n> --body-file <file>` if the agent's body does not carry that.
+  `gh pr edit <n> --body-file <file>` if the agent's body does not carry that, and read back
+  `gh pr view <n> --json title,body` afterwards — `--body-file` is silent about having picked up
+  the wrong file, and this text is the permanent commit message.
 - **`git branch -d` refuses a squash-merged branch.** Its commits are not ancestors of `main` —
   the content is, the commits are not — so git reports it unmerged and is correct. Use `-D`, and
   only after `mergeable.py` and the merge have both succeeded.

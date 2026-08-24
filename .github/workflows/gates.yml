@@ -123,6 +123,16 @@ jobs:
       - name: cost_census_mutants (can that selftest fail?)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/cost_census_mutants.py
+      # The review poll an agent runs against its own pull request. Both halves are offline:
+      # --selftest injects its own `gh` runner and its own clock, so nothing here touches the
+      # network or the GitHub API. The mutant sweep is the producer for the count DECISIONS.md
+      # publishes, and the whole pair is 1.1s measured.
+      - name: pr_review_state --selftest (the review poll's guards, pinned both ways)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/pr_review_state.py --selftest
+      - name: pr_review_state_mutants (can that selftest fail?)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/pr_review_state_mutants.py
       # Every `$` in this project is a list-price valuation of tokens, not money (#159).
       # This reads all 11 producer sources and fails if any of them formats a figure with a
       # money sigil, and re-derives the producer list from the tree so a new one shows up.
