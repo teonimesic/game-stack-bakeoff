@@ -1900,8 +1900,8 @@ an interval with none.
 > — re-opened by the repository adopting squash merges"*, the repository became squash-only, and
 > `check` then reported `ORPHANED` for **every** merged ticket whose ref survived: measured
 > 2026-08-24 from an agent worktree on tasks 130, 131 and again live on 133's merge. Ancestry is
-> not removed — it is still the whole answer for the `git merge --no-ff` refs already stored — and
-> test was added beside it. The row below now names what would re-open the second one.
+> not removed — it is still the whole answer for the `git merge --no-ff` refs already stored — a
+> second test was added beside it. The row below names what would re-open that one.
 
 **Decided [agent], on measurement, after task 70 sat at `done` over 678 insertions across 5 files
 that `main` had never seen** — including `eval/judge/paired_verdicts.py` at 458 lines, which
@@ -1975,7 +1975,14 @@ worktree the file does not live in. **Direction 11c performs a real `merge --squ
 refs, because the defect has two faces and each needs both directions: a **local** branch and a
 **remote-tracking** ref, each squash-merged and each genuinely unmerged. Only the remote face
 heals on `fetch --prune`; the local one survives until somebody deletes it by hand, so a fixture
-carrying one face proves less than it looks. The control goes 79 rows to 108.
+carrying one face proves less than it looks. The control goes 79 rows to 111.
+
+**The base range is rendered once per `(base_sha, rev)`, not once per ref.** Measured
+2026-08-24 over 12 orphaned refs on a 60-commit range: `check` is 288ms with ancestry alone,
+1070ms with the squash arm, and 720ms once the pair is cached — and unchanged at 1037ms when
+the refs fork from different commits, which is the measurement that says the cache is doing
+what it claims and nothing else. **A git failure is never cached**: a stored `None` would turn
+one transient error into every later ref's verdict, which is rule 7's fail-open channel.
 
 **And one row says something about this repository, not only about a fixture built to agree with
 it:** `399280e`, a real squash merge on `main`, has exactly **one** parent — which is why the tip
@@ -1984,17 +1991,18 @@ it landed is an ancestor of nothing — and it is reachable from `main` in every
 **The deleted tip is opt-in, and the reason is this ticket's own defect one level up.**
 `--live-squash-refs` adds 4 rows against PR #16's actual objects: `58df942` is an ancestor of
 nothing, its change is on `main`, and `_is_landed` therefore reads `LANDED` — measured 2026-08-24,
-112 rows, 0 failed. `delete_branch_on_merge` removed that branch, so no clone that did not perform
+115 rows, 0 failed. `delete_branch_on_merge` removed that branch, so no clone that did not perform
 the merge can fetch the tip, and an unconditional row would report NOT CHECKED — **exit 3** — on
 every machine but one. A gate red for a reason unrelated to the change in front of it is the thing
 that got this defect ignored in the first place.
 
-Twelve mutants in `tasks_mutants.py` cover it: excusing an orphan, accusing a deleted branch,
+14 mutants in `tasks_mutants.py` cover it: excusing an orphan, accusing a deleted branch,
 computing the census without printing it, de-duplicating the bases by name, reading a git error as
 "not an ancestor", asking the caller's HEAD only at the file's address, accepting a base from a
 foreign repository, never asking the squash arm, claiming every ref has landed, reading a git
-error in the squash arm as a clean "no", swallowing the third value in the composition, and
-reading `patch-id`'s commit-id column instead of its patch-id column. **1 survived first time,
+error in the squash arm as a clean "no", swallowing the third value in the composition, reading
+`patch-id`'s commit-id column instead of its patch-id column, dropping `rev` from the cache key,
+and caching a failure. **1 survived first time,
 and twice for different reasons.** In 2026-08-23's round it was the error-branch mutant, because
 the rows pinned `landed_status`'s handling of a `None` and never ran `_is_ancestor` itself — a
 consumer pinned without its producer, the `tasks/106` shape, which is why that row now calls the
@@ -2004,6 +2012,13 @@ function against a real repository where a missing ref exits 128. In 2026-08-24'
 cannot resolve the ancestry arm returns `None` too and `_is_landed` degrades on that instead. A
 `kills` entry naming a row the mutant cannot make red reports the mutant as surviving, which is
 the harness working, and it is why the composition carries its own mutant.
+
+**`patch_cache_key_drops_the_rev` survived for a third reason, and it was the FIXTURE.** The
+row meant to catch it compared one fork point against two different bases — under which
+`merge-base` moves too, so both halves of the key change together and dropping one is
+invisible. It now advances `main` instead, which leaves the fork point fixed and moves only
+what it is compared against. **A variant that moves two things at once cannot say which one
+the check is reading** (rule 8, inside a control).
 
 | Would re-open this | The observation |
 |---|---|

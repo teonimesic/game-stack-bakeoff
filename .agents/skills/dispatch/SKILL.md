@@ -193,10 +193,11 @@ Two consequences, both of which bite the first time:
   the wrong file, and this text is the permanent commit message.
 - **`git branch -d` refuses a squash-merged branch.** Its commits are not ancestors of `main` —
   the content is, the commits are not — so git reports it unmerged and is correct. Use `-D`, and
-  only after `mergeable.py` and the merge have both succeeded. **Leaving the branch is not a
-  failure of the queue gate**: `tasks.py check` reads the change, not only the tip, so a
-  squash-merged branch reads `LANDED` whether or not anyone deletes it (`DECISIONS.md`, *A closed
-  ticket is checked against the tree*).
+  only after `mergeable.py` and the merge have both succeeded. **Leaving the branch behind is not
+  a failure of the queue gate**: `tasks.py check` reads the change, not only the tip, so a
+  squash-merged branch that survives reads `LANDED` rather than `ORPHANED`. A deleted one reads
+  `NOT_CHECKED`, which is not a pass (`DECISIONS.md`, *A closed ticket is checked against the
+  tree*).
 
 ### The merge gate, and why green was not the question
 

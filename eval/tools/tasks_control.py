@@ -1329,10 +1329,11 @@ LANDED_UNKNOWN_CASES = (
 #: 2026-08-24: `_REAL_SQUASH_TIP` is the branch tip and is an ancestor of NOTHING, while
 #: `_REAL_SQUASH_COMMIT` carries the same change and is an ancestor of `main`.
 #:
-#: BOTH ARE UNREACHABLE OBJECTS -- the remote branch was deleted on merge -- so a fresh clone
-#: and a CI checkout do not have them, and the rows built on them report NOT CHECKED there
-#: rather than passing. `_REAL_SQUASH_COMMIT`'s own ancestry is asserted first: it is the row
-#: whose answer is known in advance, without which the pair proves only that git ran.
+#: THE TWO DIFFER IN WHO CAN SEE THEM, and the rows are split along that line.
+#: `_REAL_SQUASH_COMMIT` is on `main`, so every clone with history has it and its row runs
+#: unconditionally. `_REAL_SQUASH_TIP` is the deleted branch's tip, reachable from nothing:
+#: only the checkout that performed the merge still holds it, so its rows are behind
+#: `--live-squash-refs` and report NOT CHECKED when asked for where the object is absent.
 _REAL_SQUASH_TIP = "58df942db5fae6a6537c26b40096c2894b1f3c90"
 _REAL_SQUASH_COMMIT = "399280e7f059aaf694fa517c331f83f875a5cfb8"
 
@@ -1524,6 +1525,15 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
     squashed("72", "squashed-remote", keep_local=False)
     unmerged("71", "orphan-local", keep_local=True)
     unmerged("73", "orphan-remote", keep_local=False)
+    # TWO SIBLINGS OFF ONE COMMIT. `unmerged` branches from wherever `main` is, so 71 and 73
+    # have DIFFERENT merge-bases and cannot exercise the cache at all. These two share one,
+    # which is the only shape a `(base_sha, rev)` cache can collapse.
+    sib_base = g("rev-parse", "main").stdout.strip()
+    for suffix in ("a", "b"):
+        g("checkout", "-q", "-b", f"sibling-{suffix}", sib_base)
+        (sq / f"sib{suffix}.txt").write_text(f"sibling {suffix}\n")
+        g("add", "-A"); g("commit", "-qm", f"sibling {suffix}")
+        g("checkout", "-q", "main")
     for tid in ("70", "71", "72", "73"):
         (sq / "tasks" / f"{tid}-a.md").write_text(_task_file(tid, status="done"))
 
@@ -1562,6 +1572,50 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
     rows.append(("VARIANT: _is_landed still returns False on a genuine orphan", 0,
                  landed_orphan is False, f"got {landed_orphan!r}"))
 
+    # THE CACHE, which is per-invocation and keyed on `(base_sha, rev)`. Rendering a base
+    # range as patches is the expensive half -- 288ms of `check` without the squash arm
+    # against 1070ms with it, on 12 orphaned refs over a 60-commit range -- and every ref
+    # forked from the same commit asks for the identical answer. Three rows: it collapses
+    # what it should, it does NOT collapse what it should not, and it never stores a failure.
+    saved = T.TASKS
+    try:
+        T.TASKS = sq / "tasks"
+        shared: dict = {}
+        v_a = T._squash_landed("refs/heads/sibling-a", base, shared)
+        n_after_one = len(shared)
+        v_b = T._squash_landed("refs/heads/sibling-b", base, shared)
+        n_shared = len(shared)
+        failed: dict = {}
+        bad = T._base_patch_ids("no-such-object-here", base[0][1], failed)
+    finally:
+        T.TASKS = saved
+    # THE HALF OF THE KEY THAT IS EASY TO DROP. Advancing `main` leaves the siblings' FORK
+    # POINT unchanged and changes what they are being compared against, so `base_sha` alone
+    # would answer the new question out of the old entry. A second base with a different
+    # merge-base does not test this -- both halves of the key move together there, which is
+    # how the first version of this row stayed green under the mutant that drops `rev`.
+    (sq / "after.txt").write_text("main moved on\n")
+    g("add", "-A"); g("commit", "-qm", "main advances past the siblings")
+    newer = g("rev-parse", "main").stdout.strip()
+    saved = T.TASKS
+    try:
+        T.TASKS = sq / "tasks"
+        T._squash_landed("refs/heads/sibling-a", [("newer", newer)], shared)
+        n_two_ranges = len(shared)
+    finally:
+        T.TASKS = saved
+    rows.append(("the patch-id cache collapses two refs sharing one base range into 1 "
+                 "entry, verdicts unchanged", 0,
+                 n_after_one == 1 and n_shared == 1 and v_a is False and v_b is False,
+                 f"{n_after_one} entr(y/ies) after one ref, {n_shared} after two; "
+                 f"verdicts {v_a!r}/{v_b!r}"))
+    rows.append(("VARIANT: the same fork point against a MOVED main is a SECOND entry - "
+                 "the key is the pair, not the base", 0, n_two_ranges == 2,
+                 f"{n_two_ranges} entr(y/ies)"))
+    rows.append(("a git failure is NOT cached - one transient error must not become every "
+                 "later ref's verdict", 0, bad is None and not failed,
+                 f"got {bad!r}, cache holds {len(failed)}"))
+
     def here(rev: str) -> bool:
         return subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "-q",
                                f"{rev}^{{commit}}"], capture_output=True,
@@ -1576,11 +1630,18 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
     parents = subprocess.run(["git", "-C", str(ROOT), "rev-list", "--parents", "-n", "1",
                               _REAL_SQUASH_COMMIT], capture_output=True, text=True,
                              check=False)
-    n_parents = len(parents.stdout.split()) - 1 if parents.returncode == 0 else -1
-    rows.append(("a real squash merge on this repository's main has ONE parent - why a "
-                 "landed tip is an ancestor of nothing", 0, n_parents == 1,
-                 f"{_REAL_SQUASH_COMMIT[:9]}: {n_parents} parent(s), tip "
-                 f"{_REAL_SQUASH_TIP[:9]} in this clone: {here(_REAL_SQUASH_TIP)}"))
+    if parents.returncode != 0:
+        # A SHALLOW CLONE IS NOT A FAILING ROW. `gates.yml` sets `fetch-depth: 0` precisely
+        # because depth 1 leaves several controls with no history to read, and reading that
+        # as red would make the gate wrong about the change in front of it.
+        unchecked.append(f"the one-parent row is NOT CHECKED - this clone has no "
+                         f"{_REAL_SQUASH_COMMIT[:9]}. No history to read is not a pass")
+    else:
+        n_parents = len(parents.stdout.split()) - 1
+        rows.append(("a real squash merge on this repository's main has ONE parent - why a "
+                     "landed tip is an ancestor of nothing", 0, n_parents == 1,
+                     f"{_REAL_SQUASH_COMMIT[:9]}: {n_parents} parent(s), tip "
+                     f"{_REAL_SQUASH_TIP[:9]} in this clone: {here(_REAL_SQUASH_TIP)}"))
 
     # THE DELETED TIP, WHICH ONLY THE MACHINE THAT MERGED IT STILL HAS. `delete_branch_on_merge`
     # removes the branch, so `58df942` is reachable from nothing and no clone that did not

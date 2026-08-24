@@ -418,7 +418,43 @@ def _patch_id(diff: str) -> str | None:
     return fields[0] if r.returncode == 0 and fields else None
 
 
-def _squash_landed(ref: str, bases: "list[tuple[str, str]]") -> bool | None:
+def _base_patch_ids(base_sha: str, rev: str,
+                    cache: "dict | None") -> "set[str] | None":
+    """Patch-ids of the commits `rev` gained since `base_sha`, or None if git failed.
+
+    CACHED ON `(base_sha, rev)` BECAUSE THE WORK IS PER-PAIR AND THE CALLS ARE PER-REF.
+    Rendering `base_sha..rev` as patches costs about 65ms per call over a 60-commit range
+    (measured 2026-08-24 on a fixture of 12 orphaned refs: 288ms of `check` without the
+    squash arm, 1070ms with it), and every `task-<id>-*` ref forked from the same commit
+    asks for the identical answer.
+
+    A FAILURE IS NEVER CACHED. A cached `None` would turn one transient git error into a
+    verdict for every remaining ref, which is rule 7's fail-open channel: the second ref's
+    answer would come from the first ref's failure with nothing saying so.
+    """
+    key = (base_sha, rev)
+    if cache is not None and key in cache:
+        return cache[key]
+    try:
+        log = subprocess.run(["git", "-C", str(TASKS.parent), "log", *_PATCH_DIFF,
+                              "-p", "--no-merges", f"{base_sha}..{rev}"],
+                             capture_output=True, text=True, check=False)
+        if log.returncode != 0:
+            return None
+        ids = subprocess.run(["git", "-C", str(TASKS.parent), "patch-id", "--stable"],
+                             input=log.stdout, capture_output=True, text=True, check=False)
+    except (FileNotFoundError, OSError):
+        return None
+    if ids.returncode != 0:
+        return None
+    out = {f[0] for f in (ln.split() for ln in ids.stdout.splitlines()) if f}
+    if cache is not None:
+        cache[key] = out
+    return out
+
+
+def _squash_landed(ref: str, bases: "list[tuple[str, str]]",
+                   cache: "dict | None" = None) -> bool | None:
     """Did `ref`'s CHANGES land, as a commit that is not `ref`? True / False / **None**.
 
     THE ANCESTRY TEST IS THE WRONG ONE UNDER SQUASH MERGES, and this repository squashes.
@@ -463,26 +499,19 @@ def _squash_landed(ref: str, bases: "list[tuple[str, str]]") -> bool | None:
             if want is None:
                 unknown = True
                 continue
-            log = subprocess.run(["git", "-C", str(TASKS.parent), "log", *_PATCH_DIFF,
-                                  "-p", "--no-merges", f"{base_sha}..{rev}"],
-                                 capture_output=True, text=True, check=False)
-            if log.returncode != 0:
+            seen = _base_patch_ids(base_sha, rev, cache)
+            if seen is None:
                 unknown = True
                 continue
-            ids = subprocess.run(["git", "-C", str(TASKS.parent), "patch-id", "--stable"],
-                                 input=log.stdout, capture_output=True, text=True,
-                                 check=False)
-            if ids.returncode != 0:
-                unknown = True
-                continue
-            if any(ln.split()[:1] == [want] for ln in ids.stdout.splitlines()):
+            if want in seen:
                 return True
         except (FileNotFoundError, OSError):
             return None
     return None if unknown else False
 
 
-def _is_landed(ref: str, bases: "list[tuple[str, str]] | None" = None) -> bool | None:
+def _is_landed(ref: str, bases: "list[tuple[str, str]] | None" = None,
+               cache: "dict | None" = None) -> bool | None:
     """Is `ref`'s work on the base, by REACHABILITY or by CONTENT? True / False / None.
 
     Two tests, because this repository has used two merge flows and the stored refs of both
@@ -492,12 +521,15 @@ def _is_landed(ref: str, bases: "list[tuple[str, str]] | None" = None) -> bool |
     The three values compose the only way they safely can: a True from either test wins, and
     an unanswered test outranks a False -- a ref neither test could read is NOT_CHECKED, never
     ORPHANED.
+
+    `cache` is the caller's dict, shared across refs for one invocation. See
+    `_base_patch_ids` for what it holds and what it deliberately does not.
     """
     b = _resolved_bases() if bases is None else bases
     anc = _is_ancestor(ref, b)
     if anc is True:
         return True
-    sq = _squash_landed(ref, b)
+    sq = _squash_landed(ref, b, cache)
     if sq is True:
         return True
     if anc is None or sq is None:
@@ -1341,11 +1373,12 @@ def cmd_check() -> int:
     if not bases:
         refs = None                      # nothing to compare against is NOT CHECKED, not a pass
     landed = notchecked = 0
+    pid_cache: dict = {}          # one per invocation; see `_base_patch_ids`
     for t in _load():
         if t.get("status") != "done":
             continue
         verdict, cand = landed_status(str(t.get("id")), refs,
-                                      lambda r: _is_landed(r, bases))
+                                      lambda r: _is_landed(r, bases, pid_cache))
         if verdict == "LANDED":
             landed += 1
         elif verdict == "NOT_CHECKED":

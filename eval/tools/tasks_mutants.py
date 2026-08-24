@@ -315,7 +315,7 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # directly stays green; naming that row here left this mutant reported as SURVIVING, which
     # is the harness refusing a `kills` entry the mutant cannot reach.
     "squash_arm_never_asked": (
-        "    sq = _squash_landed(ref, b)\n"
+        "    sq = _squash_landed(ref, b, cache)\n"
         "    if sq is True:\n"
         "        return True",
         "    sq = False  # MUTANT: only ancestry is asked, as before task 140",
@@ -364,12 +364,29 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # code still looks like it is comparing patch-ids. A wrong answer that is uniform across
     # the population is rule 12's tell.
     "patch_id_reads_the_wrong_column": (
-        "            if any(ln.split()[:1] == [want] for ln in ids.stdout.splitlines()):",
-        "            if any(ln.split()[1:2] == [want] for ln in ids.stdout.splitlines()):"
-        "  # MUTANT: the commit-id column",
+        "    out = {f[0] for f in (ln.split() for ln in ids.stdout.splitlines()) if f}",
+        "    out = {f[1] for f in (ln.split() for ln in ids.stdout.splitlines())"
+        " if len(f) > 1}  # MUTANT: the commit-id column",
         ("_squash_landed is True for a squash-merged tip",
          "SQUASH end to end: exit 1, naming ONLY the two that never landed",
          "both squash-merged faces count as LANDED")),
+    # THE CACHE KEY LOSING THE BASE IT WAS ASKED ABOUT. Two bases render two different
+    # ranges; keyed on the base sha alone, the second one is answered out of the first one's
+    # entry -- a wrong verdict that is uniform across everything sharing that fork point,
+    # which is rule 12's tell and looks like a finding rather than a bug.
+    "patch_cache_key_drops_the_rev": (
+        "    key = (base_sha, rev)",
+        "    key = base_sha  # MUTANT: one entry per fork point, whatever it was compared to",
+        ("the same fork point against a MOVED main is a SECOND entry",)),
+    # CACHING A FAILURE, which is rule 7's fail-open channel: one transient git error becomes
+    # the stored answer for every later ref that shares the pair, with nothing saying so.
+    "patch_cache_stores_failures": (
+        "        if log.returncode != 0:\n            return None",
+        "        if log.returncode != 0:\n"
+        "            if cache is not None:\n"
+        "                cache[key] = None  # MUTANT: a failure becomes an answer\n"
+        "            return None",
+        ("a git failure is NOT cached",)),
     "base_from_a_foreign_repo": (
         "        if head and _head_exists_here(head):",
         "        if head:  # MUTANT: a sha from any repository is accepted",
