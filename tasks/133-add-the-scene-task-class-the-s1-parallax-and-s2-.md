@@ -1,10 +1,11 @@
 ---
 id: 133
 title: 'Add the scene task class: the s1_parallax and s2_glass prompts, rendered per stack from one template each'
-status: todo
+status: in_review
 priority: 1
 refs: 'eval/SCENES.md, eval/suites/wholegame_prompts.py, eval/tools/prompt_guard.py, .agents/skills/add-game/SKILL.md, #41'
 done_when: Both scenes render for all four stacks through one template each; `prompt_guard.py` exits 0 with no engine name in a scene body and the per-stack rule sets identical; a rendered-prompt snapshot is stored; the byte-identical share across stacks is MEASURED and written down rather than asserted; and no criterion, threshold or tolerance from eval/SCENES.md appears in any prompt - checked by grepping the rendered prompts for the criterion vocabulary, not by reading them.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/19
 ---
 
 The suite has one task class: whole games, driven by a held-out play-bot. A **scene** is a timed
