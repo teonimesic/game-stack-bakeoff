@@ -76,12 +76,21 @@ filter is spelled — and writes `relevant=true|false`. Every step below it is g
 `python3 eval/tools/ci_minutes.py --selftest` pins the wiring in both directions, and **its
 closing line is the producer for how many it carries.** The mutants are a `paths:` or
 `paths-ignore:` filter back on either trigger, the scope step deleted, its id renamed, its command
-replaced, one gate losing its guard, the guard flipped to `== 'true'`, the guard conjoined with a
+replaced, its command given a flag `--scope` does not read or a second mode or a pipeline, one
+gate losing its guard, the guard flipped to `== 'true'`, the guard conjoined with a
 constant false, a guarded step placed above the step whose output it reads, a second
 `ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`, a file that does not parse, and
 4 ways off `ubuntu-latest`. The variants — inputs the check must
 **not** redden — are a re-spaced and double-quoted guard, two gates swapped, an unguarded `uses:`
-step, a comment in the job, and an extra flag on the scope step.
+step, a comment in the job, and the scope step re-spaced or run under another interpreter path.
+
+**The scope step is held to the invocation `ci_minutes.py` would honour, not to a substring of
+it.** `--scope --json` contains `--scope`, and until 2026-08-25 the tool ran it at exit 0 having
+ignored `--json` while the gate carried that exact command as a variant — a workflow edited to it
+passed every pin. Each of the tool's modes now declares which of `--json`, `--cache` and
+`--no-timing` it reads, refuses anything else with exit 2, and the gate asks the workflow's
+`run:` line the same question. An accepted-but-ignored flag is worse than an unsupported one
+(`AGENTS.md` rule 13): exit 0 is indistinguishable from having done what was asked.
 
 **The guard is matched WHOLE, against a closed set of 2 accepted expressions**, not by
 containment. `${{ ... relevant != 'false' && false }}` contains the guard's exact text and skips

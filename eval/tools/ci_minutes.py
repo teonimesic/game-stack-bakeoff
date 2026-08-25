@@ -65,21 +65,31 @@ string, and skipping on it would report a green `controls` that executed no gate
 state in which the answer is unknown -- an unreadable diff, an empty one, a non-pull-request
 event -- runs the whole suite.
 
+EVERY MODE REFUSES THE FLAGS IT DOES NOT READ. Each mode above is a different report and each
+reads a different subset of `--json`, `--cache` and `--no-timing`; `MODE_ACCEPTS` is that
+subset, and `main` checks the invocation against it before dispatching. `--scope --json` used
+to exit 0 having ignored `--json`, and `--scope --gates` to exit 0 having ignored `--gates`,
+which is the shape AGENTS.md rule 13 names -- an accepted-but-ignored flag is indistinguishable
+from a working one, where an unsupported flag fails loudly. The workflow's scope step is held
+to the same contract: the gate asks whether its `run:` line is an invocation this tool honours,
+not whether the line contains the word `--scope`.
+
 --selftest pins both directions offline, in ~0.1s and without touching a file, and its
 closing line is the producer for how many workflow mutants and variants it carries. What it
 must catch: truncation instead of rounding up; a compare list at the endpoint's 300-file cap,
 which must be refused rather than scored; the ways a workflow can leave `ubuntu-latest` while
 the file still contains the string; a filter entry no pin depends on; and the ways the scope
 guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, the scope step
-deleted, its id renamed, its command replaced, one gate losing its guard, the guard flipped to
-the fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed
-above the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate,
-a scalar `steps:`, and a file that does not parse at all. What must still
+deleted, its id renamed, its command replaced, its command given a flag `--scope` does not read
+or a second mode or a pipeline, one gate losing its guard, the guard flipped to the fail-open
+`== 'true'`, the guard conjoined with a constant false, a guarded step placed above the step
+whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a scalar
+`steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
-unguarded `uses:` step, a comment in the job, and an extra flag on the scope step. The
-variants are not decoration -- the substring check this replaced went red on a re-quote,
-which is a gate firing where nothing is wrong.
+unguarded `uses:` step, a comment in the job, and the scope step re-spaced or run under
+another interpreter path. The variants are not decoration -- the substring check this
+replaced went red on a re-quote, which is a gate firing where nothing is wrong.
 
 Usage:
     python3 eval/tools/ci_minutes.py                 # the census, from the API
@@ -88,7 +98,8 @@ Usage:
     python3 eval/tools/ci_minutes.py --cache DIR     # also write the raw JSON it consumed
     python3 eval/tools/ci_minutes.py --selftest      # controls, both directions, offline
 
-Exit 0 on success, 1 if --selftest fails, 2 if the data could not be read. Read it unpiped.
+Exit 0 on success, 1 if --selftest fails, 2 if the data could not be read or the flags given
+name a report this tool would not have produced. Read it unpiped.
 """
 
 from __future__ import annotations
@@ -96,6 +107,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import inspect
 import io
 import json
 import math
@@ -258,6 +270,130 @@ def _norm_expr(text: object) -> str:
 
 
 _ALLOWED_GUARDS = frozenset(_norm_expr(g) for g in ALLOWED_GUARDS)
+
+
+# ----------------------------------------------------------------- the CLI contract
+
+# WHICH MODE READS WHICH FLAG, spelled once so nothing has to remember it. `main` used to
+# dispatch on the first mode flag it found and then read `args.json` in only some of the
+# branches, so `--scope --json` exited 0 having ignored `--json`, and `--scope --gates`
+# exited 0 having ignored `--gates`. That is the shape AGENTS.md rule 13 names: an
+# accepted-but-ignored flag is worse than an unsupported one, because exit 0 is
+# indistinguishable from "it did what I asked". An unsupported one fails loudly.
+#
+# The property, not the instance: the defect is not `--scope --json`, it is that every mode
+# accepts the whole flag surface and honours a subset of it. This table IS that subset, and
+# `main` refuses anything outside it before dispatching, so a combination added later is
+# refused by construction rather than by somebody noticing.
+#
+# The empty key is the census -- the mode you get by naming none.
+MODES = ("selftest", "scope", "gates", "hooks", "path_filter")
+MODIFIERS = ("json", "cache", "no_timing")
+MODE_ACCEPTS: dict[str, frozenset[str]] = {
+    # --scope's machine-readable channel is `relevant=` in $GITHUB_OUTPUT, which is what
+    # the workflow reads; its stdout is the audit trail a person reads in the job log.
+    "scope": frozenset(),
+    "selftest": frozenset(),
+    "gates": frozenset({"json"}),
+    "hooks": frozenset({"json"}),
+    "path_filter": frozenset({"json", "cache"}),
+    "": frozenset({"json", "cache", "no_timing"}),
+}
+
+
+def _flag(dest: str) -> str:
+    """The CLI spelling of an argparse dest, derived rather than listed twice."""
+    return "--" + dest.replace("_", "-") if dest else "(the census, no mode flag)"
+
+
+class _ArgError(Exception):
+    """argparse's usage error, raised instead of exiting.
+
+    `ArgumentParser.error` calls `sys.exit(2)`, which is right for a command line and wrong
+    for `filter_problems`, which has to ask whether a workflow's `run:` line is an
+    invocation this tool honours and get an answer back rather than have the process die
+    under it.
+    """
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message):  # argparse's own contract, re-routed
+        raise _ArgError(message)
+
+
+def _build_parser() -> _Parser:
+    """The one parser. Both `main` and the workflow check parse with this object.
+
+    ONE ADDRESS FOR THE FLAG SURFACE (AGENTS.md rule 12). The alternative -- a second list
+    of flags inside the workflow check -- is two spellings of the same fact that agree only
+    until one is edited, and the one that would be edited is this one.
+    """
+    ap = _Parser(description=(__doc__ or "").splitlines()[0])
+    ap.add_argument("--selftest", action="store_true",
+                    help="controls, both directions, offline")
+    ap.add_argument("--path-filter", action="store_true", help="the path-filter audit")
+    ap.add_argument("--scope", action="store_true",
+                    help="controls.yml's own filter: decide whether the slow suites have "
+                         "anything to read, and write `relevant=` to $GITHUB_OUTPUT")
+    ap.add_argument("--gates", action="store_true",
+                    help="how many checks each workflow runs (offline; no API)")
+    ap.add_argument("--hooks", action="store_true",
+                    help="what each git hook tier runs, and whether the register says so "
+                         "(offline; no API)")
+    ap.add_argument("--no-timing", action="store_true",
+                    help="skip the per-run /timing read (one extra API call per run)")
+    ap.add_argument("--cache", metavar="DIR",
+                    help="write the raw JSON consumed, so the number is re-derivable offline")
+    ap.add_argument("--json", action="store_true", help="machine-readable")
+    return ap
+
+
+def invocation_problems(args: object) -> list[str]:
+    """Which of this invocation's flags would be silently ignored, if any.
+
+    Pure, and it takes the PARSED arguments rather than a string, so the same answer serves
+    the command line and the workflow check. Empty means every flag given is one the
+    selected mode reads.
+    """
+    d = args if isinstance(args, dict) else vars(args)
+    on = [m for m in MODES if d.get(m)]
+    if len(on) > 1:
+        return [f"{', '.join(_flag(m) for m in on)} each name a different report, and only "
+                f"`{_flag(on[0])}` would run. Exiting 0 having produced one of them is "
+                f"indistinguishable from having produced the one you asked for"]
+    mode = on[0] if on else ""
+    accepted = MODE_ACCEPTS[mode]
+    reads = ", ".join(f"`{_flag(m)}`" for m in MODIFIERS if m in accepted) or "no modifiers"
+    return [f"`{_flag(mode)}` does not read `{_flag(m)}`, so accepting it would exit 0 "
+            f"having ignored what you asked for. It reads: {reads}"
+            for m in MODIFIERS if d.get(m) and m not in accepted]
+
+
+def scope_invocation_problems(run: object) -> list[str]:
+    """Is one workflow `run:` line an invocation of `--scope` that this tool HONOURS?
+
+    Containment of `ci_minutes.py --scope` was the whole test until 2026-08-25, and
+    `--scope --json` contains it -- so the selftest carried that command as a VARIANT, an
+    input the gate must not redden, and a workflow edited to it passed every pin while the
+    flag did nothing. The gate now asks the question the substring was standing in for.
+
+    FAIL-CLOSED ON ANYTHING IT CANNOT PARSE. Tokens after the script name that argparse
+    rejects -- a shell operator, a second command, a flag that does not exist -- are
+    reported rather than skipped, because a scope step whose command this tool cannot read
+    is one whose behaviour it cannot pin.
+    """
+    text = " ".join(str(run or "").split())
+    if SCOPE_INVOCATION not in text:
+        return [f"does not run `{SCOPE_INVOCATION}`, so whatever writes `relevant` is no "
+                f"longer this tool and is not gated by it"]
+    argv = text.split()
+    at = next(i for i, t in enumerate(argv) if t.endswith("ci_minutes.py"))
+    rest = argv[at + 1:]
+    try:
+        parsed = _build_parser().parse_args(rest)
+    except _ArgError as exc:
+        return [f"runs `{text}`, whose arguments this tool does not accept: {exc}"]
+    return [f"runs `{text}`, and {p}" for p in invocation_problems(parsed)]
 
 
 def scope_decision(event: str, changed: list[str] | None) -> tuple[bool, str]:
@@ -552,10 +688,8 @@ def filter_problems(controls_text: str, gates_text: str | None = None,
             f"Without exactly one, every `if:` below references an output nothing writes "
             f"and the guard's meaning cannot be checked at all"]
     at = scoped[0]
-    if SCOPE_INVOCATION not in " ".join(str(steps[at].get("run") or "").split()):
-        problems.append(
-            f"controls.yml's `{SCOPE_STEP_ID}` step does not run `{SCOPE_INVOCATION}`, so "
-            f"whatever writes `relevant` is no longer this tool and is not gated by it")
+    problems += [f"controls.yml's `{SCOPE_STEP_ID}` step {p}"
+                 for p in scope_invocation_problems(steps[at].get("run"))]
 
     for i, step in enumerate(steps):
         if "run" not in step or i == at:
@@ -1618,6 +1752,30 @@ def _selftest() -> int:
             "the scope step no longer runs --scope":
                 live.replace("        run: python3 eval/tools/ci_minutes.py --scope\n",
                              '        run: echo "relevant=false" >> "$GITHUB_OUTPUT"\n', 1),
+            # THIS ROW WAS A VARIANT UNTIL 2026-08-25 -- an input the gate asserted it must
+            # NOT redden. `--scope --json` contains `--scope`, so the substring check passed
+            # it and `main` ran it at exit 0 having ignored `--json`, which made the gate a
+            # statement that a scope step invoked with a flag the tool does not honour is a
+            # correct scope step. Both halves are repaired: `main` refuses the invocation,
+            # and the gate reddens a workflow that carries it.
+            "the scope step given a flag --scope does not honour":
+                live.replace("ci_minutes.py --scope\n",
+                             "ci_minutes.py --scope --json\n", 1),
+            # The same defect one flag over, and it is not the same string: `--cache DIR`
+            # takes a value, so a check written against `--json` alone would miss it.
+            "the scope step given --cache, which --scope also does not read":
+                live.replace("ci_minutes.py --scope\n",
+                             "ci_minutes.py --scope --cache /tmp/ci\n", 1),
+            # A second mode on the scope step. It would report the gate census and write
+            # no `relevant` at all, which the `!= 'false'` guard then runs blind.
+            "the scope step given a second mode flag":
+                live.replace("ci_minutes.py --scope\n",
+                             "ci_minutes.py --scope --gates\n", 1),
+            # Not a flag at all: a shell operator turns the step's exit status into the
+            # last stage's (AGENTS.md rule 3), and the arguments stop being parseable.
+            "the scope step's exit status swallowed by a pipeline":
+                live.replace("ci_minutes.py --scope\n",
+                             "ci_minutes.py --scope | tail -1\n", 1),
             "one gate loses its guard": drop(live, gate_guard),
             # The fail-OPEN spelling: an output the scope step never wrote is the empty
             # string, so `== 'true'` skips every suite on a step that did not run.
@@ -1670,8 +1828,16 @@ def _selftest() -> int:
                 1),
             "a comment inside the job": live.replace(
                 "    steps:\n", "    steps:\n      # a note\n", 1),
-            "the scope step given an extra flag": live.replace(
-                "ci_minutes.py --scope\n", "ci_minutes.py --scope --json\n", 1),
+            # The variant the mutants above must not swallow: the scope step is still free
+            # to be re-spelled in ways that change nothing this tool honours. Refusing an
+            # invocation because it is unfamiliar rather than because it is ignored would
+            # be a gate firing where nothing is wrong.
+            "the scope step run under a different interpreter path": live.replace(
+                "run: python3 eval/tools/ci_minutes.py --scope\n",
+                "run: /usr/bin/python3 eval/tools/ci_minutes.py --scope\n", 1),
+            "the scope step's command re-spaced": live.replace(
+                "run: python3 eval/tools/ci_minutes.py --scope\n",
+                "run: python3   eval/tools/ci_minutes.py   --scope\n", 1),
         }
         counts["mutants"] += len(mutants)
         counts["variants"] += len(variants)
@@ -1697,6 +1863,120 @@ def _selftest() -> int:
                 failures.append(f"variant '{name}' changed nothing; it is void, not passed")
             elif problems_of(text, name):
                 failures.append(f"FALSE POSITIVE on variant: {name}")
+
+    # -- the CLI contract: which mode reads which flag ---------------------------------
+    # `MODE_ACCEPTS` is a claim about `main`, and a claim about code is worth what the row
+    # that reads the code is worth. What is pinned here: the table's shape, the dispatch
+    # ORDER it depends on, that no modifier is dead, and `main`'s refusal end to end for
+    # every combination that can be exercised without touching the API. What is NOT pinned:
+    # that the census and `--path-filter` really consume `--cache` and `--no-timing`, which
+    # cannot be driven offline -- those two rows of the table are read, not measured.
+    check("the table covers every mode and the census",
+          sorted(MODE_ACCEPTS), sorted(set(MODES) | {""}))
+    check("the table names no flag that is not a modifier",
+          sorted({m for acc in MODE_ACCEPTS.values() for m in acc} - set(MODIFIERS)), [])
+    # THE ORDER IS LOAD-BEARING, not cosmetic: `invocation_problems` reports which mode
+    # WOULD have run when several are given, and it reads `MODES[0]`-first. That is the
+    # same fact as `main`'s dispatch chain, spelled in two places, so it is asserted here
+    # rather than promised in a comment (AGENTS.md rule 12).
+    _main_src = inspect.getsource(main)
+    _seen: list[str] = []
+    for _m in re.findall(r"args\.([a-z_]+)", _main_src):
+        # FIRST read of each, because a mode may be consulted again further down --
+        # `args.path_filter` also chooses the --cache filename -- and only the first is
+        # the dispatch.
+        if _m in MODES and _m not in _seen:
+            _seen.append(_m)
+    check("MODES is main's dispatch order", _seen, list(MODES))
+    check("no modifier is unread by every branch",
+          [m for m in MODIFIERS if f"args.{m}" not in _main_src], [])
+
+    def _problems_for(argv):
+        """`invocation_problems` for one command line, or why it could not be asked.
+
+        A parser edit that drops a flag would make the rows below raise rather than fail,
+        and a check that raises has no verdict at all.
+        """
+        try:
+            return invocation_problems(_build_parser().parse_args(argv))
+        except _ArgError as exc:
+            return [f"the parser rejected {argv}: {exc}"]
+
+    # BOTH DIRECTIONS, one line each. The left column is the invocation; the right is
+    # whether this tool honours every flag in it.
+    for _argv, _honoured in (
+            # A modifier the selected mode does not read. The first row is the one that
+            # was measured; the rest are the same defect at every other mode, which is
+            # what makes this a property rather than an enumeration of one incident.
+            (["--scope", "--json"], False),
+            (["--scope", "--cache", "/tmp/ci"], False),
+            (["--selftest", "--json"], False),
+            (["--path-filter", "--no-timing"], False),
+            (["--gates", "--cache", "/tmp/ci"], False),
+            (["--hooks", "--no-timing"], False),
+            # Two modes: only the first would run, and exiting 0 for it is the same defect.
+            (["--scope", "--gates"], False),
+            (["--selftest", "--path-filter"], False),
+            # The variants. Every one of these is a combination a mode really reads, and a
+            # refusal here would be the gate firing where nothing is wrong.
+            (["--scope"], True),
+            (["--selftest"], True),
+            (["--gates"], True),
+            (["--gates", "--json"], True),
+            (["--hooks", "--json"], True),
+            (["--path-filter", "--json"], True),
+            (["--path-filter", "--cache", "/tmp/ci"], True),
+            ([], True),
+            (["--json"], True),
+            (["--cache", "/tmp/ci"], True),
+            (["--no-timing", "--json"], True),
+    ):
+        check(f"`{' '.join(_argv) or '(no flags)'}` is "
+              f"{'honoured' if _honoured else 'refused'}",
+              not _problems_for(_argv), _honoured)
+        counts["variants" if _honoured else "mutants"] += 1
+
+    # AND THE EXIT STATUS, because `invocation_problems` returning a list is not the same
+    # fact as `main` refusing.
+    #
+    # WHAT THIS ROW DOES IF IT FAILS is part of its design, and the first draft got it
+    # wrong. `--selftest --json` was in the list, so a `main` that stopped refusing would
+    # re-enter `_selftest`, which drives subprocesses at every level -- measured as a hang,
+    # not a red line. A check whose failure mode is a hang reports nothing at all. Only
+    # combinations whose mode is cheap and offline if the refusal fails are driven here,
+    # and `--scope` is neutered by the environment below: with no `GITHUB_EVENT_NAME` it
+    # reads no diff, and with no `GITHUB_OUTPUT` it appends `relevant=` to no file.
+    _saved_env = {k: os.environ.pop(k, None)
+                  for k in ("GITHUB_OUTPUT", "GITHUB_EVENT_NAME")}
+    try:
+        for _argv in (["--scope", "--json"], ["--scope", "--cache", "/dev/null/nope"],
+                      ["--scope", "--gates"]):
+            _err = io.StringIO()
+            with contextlib.redirect_stderr(_err), contextlib.redirect_stdout(io.StringIO()):
+                _rc = main(_argv)
+            check(f"main({_argv}) exits non-zero", _rc, 2)
+            check(f"main({_argv}) names the flag it refused",
+                  [w for w in _argv if w.startswith("--") and w not in _err.getvalue()], [])
+            counts["mutants"] += 1
+    finally:
+        for _k, _v in _saved_env.items():
+            if _v is not None:
+                os.environ[_k] = _v
+    # The variant half of the same question: `main` still dispatches a mode whose flags it
+    # honours. `--hooks --json` is offline, and its payload is parsed rather than eyeballed.
+    _out = io.StringIO()
+    with contextlib.redirect_stdout(_out):
+        _rc = main(["--hooks", "--json"])
+    check("main(['--hooks', '--json']) exits 0", _rc, 0)
+    try:
+        _payload = json.loads(_out.getvalue())
+    except json.JSONDecodeError as exc:
+        _payload = {"__unparseable__": str(exc)}
+    check("and --hooks really reads --json",
+          (isinstance(_payload, dict), "tiers" in _payload,
+           "producer: python3" in _out.getvalue()),
+          (True, True, False))
+    counts["variants"] += 1
 
     # -- the filter's CONTENT, now that it is spelled once, in this file ----------------
     # It used to be spelled twice -- here and in the workflow's `paths:` -- and the gate
@@ -2075,24 +2355,24 @@ def gates_report(cen: dict[str, dict], as_json: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    ap.add_argument("--selftest", action="store_true",
-                    help="controls, both directions, offline")
-    ap.add_argument("--path-filter", action="store_true", help="the path-filter audit")
-    ap.add_argument("--scope", action="store_true",
-                    help="controls.yml's own filter: decide whether the slow suites have "
-                         "anything to read, and write `relevant=` to $GITHUB_OUTPUT")
-    ap.add_argument("--gates", action="store_true",
-                    help="how many checks each workflow runs (offline; no API)")
-    ap.add_argument("--hooks", action="store_true",
-                    help="what each git hook tier runs, and whether the register says so "
-                         "(offline; no API)")
-    ap.add_argument("--no-timing", action="store_true",
-                    help="skip the per-run /timing read (one extra API call per run)")
-    ap.add_argument("--cache", metavar="DIR",
-                    help="write the raw JSON consumed, so the number is re-derivable offline")
-    ap.add_argument("--json", action="store_true", help="machine-readable")
-    args = ap.parse_args(argv)
+    ap = _build_parser()
+    try:
+        args = ap.parse_args(argv)
+    except _ArgError as exc:
+        ap.print_usage(sys.stderr)
+        print(f"ci_minutes: {exc}", file=sys.stderr)
+        return 2
+
+    # BEFORE DISPATCH, and that placement is the whole point: every branch below is a
+    # different report, and reaching one of them having discarded a flag is exit 0 for
+    # something other than what was asked for.
+    bad = invocation_problems(args)
+    if bad:
+        for problem in bad:
+            print(f"ci_minutes: {problem}", file=sys.stderr)
+        print("ci_minutes: refusing to run. An ignored flag is worse than a rejected one.",
+              file=sys.stderr)
+        return 2
 
     if args.selftest:
         return _selftest()
