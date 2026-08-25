@@ -1,10 +1,12 @@
 ---
 id: 153
 title: The register says pre-push runs the full gates.yml set; it runs 5 of 46
-status: todo
+status: in_testing
 priority: 2
 refs: .githooks/run-gates.sh, .github/workflows/README.md, eval/tools/ci_minutes.py, tasks/129
 done_when: The register's description of what each hook runs is true of .githooks/run-gates.sh, checked by naming the five (or whatever the set becomes) rather than by an adjective; any surviving timing carries its producer command; and if the hook's list is derived from gates.yml instead, a control proves the two cannot drift - red when a gate is added to one and not the other. Closing this by correcting the description alone, with the coverage gap stated explicitly, is a complete answer.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/33
+established_by: 'PR #33, all checks green; ci_minutes --selftest 37 mutants / 14 variants; register-vs-hook drift reddens in both directions (coverage 5->6 by hand, and a 6th gate added to the script alone)'
 ---
 
 `.github/workflows/README.md` says the `pre-push` hook runs **"the full `gates.yml` set"**. It does
@@ -86,3 +88,90 @@ figure that survives carries the command that reproduces it and the population i
 Do not describe the hooks with an adjective. *"The cheap gates"* and *"the full `gates.yml` set"*
 are both adjectives, and one of them is false: `run-gates.sh` invokes a hardcoded list of five.
 Name them, or derive them and prove the two cannot drift.
+
+## note 2026-08-25
+
+## Closed in PR #33, with `tasks/129` in the same branch
+
+### What the hook actually runs, and how it is now checked
+
+`.githooks/run-gates.sh` takes **`GATES_LIST_ONLY=1`**: `run()` and `run_advisory()` print
+their argv instead of executing it, and the script exits 0. So the list is obtained by
+**running** the hook, not by re-parsing it — it comes out of the same control flow, including
+the `pre-push`-only branch and the worktree/main-checkout branch.
+
+    GATES_LIST_ONLY=1 .githooks/run-gates.sh pre-push
+    python3 eval/tools/ci_minutes.py --hooks
+
+`hook_census()` in `eval/tools/ci_minutes.py` compares that against a table in
+`.github/workflows/README.md` (`| command | `pre-commit` | `pre-push` |`, one row per command)
+and a coverage sentence in a fixed form that `COVERAGE_RE` reads. `ci_minutes --selftest`
+asserts they are equal, so **adding a gate to the hook takes 3 edits and is red until all 3
+are done**: the script, the table row, the coverage counts.
+
+**The queue lint moved into `run_advisory`.** It used to be a bare `python3` call in the `else`
+branch, which meant the tier's command list depended on which checkout you stood in — and a
+list-only run from a worktree would have executed it. Both spellings now share `list_only`, so
+the published list is checkout-independent. That is worth knowing before touching that branch.
+
+### Do not re-derive: what was measured
+
+| | |
+|---|---|
+| `pre-commit` | 4 of `gates.yml`'s 47 checks |
+| `pre-push` | 5 of 47 |
+| the register's old claim | "the full `gates.yml` set" — true of nothing, ever |
+| `gates` wall clock, last 12 successful runs on `main`, 2026-08-25 | 75–115s (published: 102s) |
+| `controls`, same population | 658–827s (published: 791s) |
+| `pre-push` locally, same host, minutes apart | 16.8s and 17.2s, against 24.8s at triage and ~13s published |
+
+Both published workflow figures were *inside* their range — unlike the 51.9s/685s that 129 was
+filed against — so the defect was no longer that they were wrong, it was that a point value
+there cannot support the inference a reader draws from it. The `takes` row is now the spread,
+with its population and the `gh run list` one-liner beside it. **No hook timing is published
+anywhere**, including in `run-gates.sh`'s own comments and both wrapper hooks, which each
+carried a stale one.
+
+### The decision, and why option 2 was not taken
+
+`DECISIONS.md`, *The gates run in CI and in git hooks, in three tiers*, now records it with a
+reversal condition. The ticket offered three options; this is **option 1 plus a gate**.
+
+Deriving the hook's list from `gates.yml` behind a cheapness marker (option 2) adds a second
+selector to maintain for the same handful of commands, and it answers a question nobody had —
+the tier was not missing coverage, it was missing a *checkable* description. Running all 47
+(option 3) makes `pre-push` minutes long and turns `--no-verify` into a habit.
+
+**The reversal condition is 2 pushes to `main` reddened by the same gate outside the subset.**
+
+### What could not be established
+
+Whether the 5 are the **right** 5, checked against the last month of red gate runs on `main`.
+The ticket asks for that as a claim to check rather than assert; the Actions API does not
+report which step failed for runs already garbage-collected, and there is no stored record of
+per-step failures. The reversal condition is the forward-looking version of that question.
+
+### For the orchestrator: 2 finding candidates, unnumbered
+
+Per `.agents/skills/work/SKILL.md` I have not allocated numbers.
+
+1. **A description by ADJECTIVE is the shape no check can read, and it survives indefinitely.**
+   The register described 3 of its own mechanisms with adjectives — *"the cheap gates"*,
+   *"the full `gates.yml` set"*, *"~13s"* — and the middle one had never been true of anything.
+   Nothing could disagree with it because there was nothing to disagree with. This is the
+   documentation twin of the enumeration-trigger lesson in `AGENTS.md`: an adjective is a
+   trigger with no extension.
+2. **A point timing in a table gets read as a difference.** `gates` spans 75–115s across 12
+   consecutive successful runs of unchanged-ish content — a band far wider than any step this
+   repository adds — so the quantity a reader wants (*did my step make CI slower?*) is not
+   recoverable from the number published for it. The useful statement is the spread or nothing.
+
+### Review
+
+3 rounds, PR #33. Round 1: 4 findings, all real, all applied — 2 of them behavioural (the
+register/script comparison was order-sensitive where the register claims no order; an
+unreadable `gates.yml` came back red with every word of the diagnosis wrong). Round 2: 1
+finding, 2 mutable thresholds written as words; applied, and the `Adding one` half declined on
+the reviewer's own learning about indefinite pronouns. Round 3: clean.
+
+`ci_minutes --selftest` goes from 19 mutants / 5 variants to **37 / 14**.
