@@ -1,12 +1,12 @@
 ---
 id: 153
 title: The register says pre-push runs the full gates.yml set; it runs 5 of 46
-status: in_testing
+status: done
 priority: 2
 refs: .githooks/run-gates.sh, .github/workflows/README.md, eval/tools/ci_minutes.py, tasks/129
 done_when: The register's description of what each hook runs is true of .githooks/run-gates.sh, checked by naming the five (or whatever the set becomes) rather than by an adjective; any surviving timing carries its producer command; and if the hook's list is derived from gates.yml instead, a control proves the two cannot drift - red when a gate is added to one and not the other. Closing this by correcting the description alone, with the coverage gap stated explicitly, is a complete answer.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/33
-established_by: 'PR #33, all checks green; ci_minutes --selftest 37 mutants / 14 variants; register-vs-hook drift reddens in both directions (coverage 5->6 by hand, and a 6th gate added to the script alone)'
+established_by: 'PR #33 squash-merged. Verified independently: ci_minutes.py --hooks reports pre-commit at 4 of gates.yml''s 47 checks and pre-push at 5, all docstat/tasks documentation and queue checks - so ''the full gates.yml set'' had never been true of anything. The list is derived by RUNNING the hook under GATES_LIST_ONLY=1, so it comes out of the hook''s own control flow rather than a second copy. I reproduced the negative control myself with a marker-writing python3 shim: flag on prints 5 lines with the marker ABSENT, flag off fires the same shim 5 times - so ''executed nothing'' is a measurement rather than an inert probe. One review thread declined with evidence: DECISIONS.md is where reasoning lives, 41 of its entries carry dated attribution, and its reasoning is on the never-prune list.'
 ---
 
 `.github/workflows/README.md` says the `pre-push` hook runs **"the full `gates.yml` set"**. It does

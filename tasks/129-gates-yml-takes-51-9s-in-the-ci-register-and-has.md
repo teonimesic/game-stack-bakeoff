@@ -1,12 +1,12 @@
 ---
 id: 129
 title: gates.yml takes 51.9s in the CI register and has no producer; the real figure moved
-status: in_testing
+status: done
 priority: 3
 refs: .github/workflows/README.md, eval/tools/ci_minutes.py
 done_when: Either both duration figures in .github/workflows/README.md are produced by a command written beside them, stating the population it measured over (a mean over the last N successful runs of that workflow on main is a defensible population; one run is not, given the 54-78s spread), and the figures are re-read from it - or both figures are deleted and the register says what it does instead. A producer that reports per-STEP durations is worth more than one reporting run wall clock, because the step is what a change moves and the run is what the runner's noise moves. If the conclusion is that the numbers do not earn a producer, deleting them is a complete answer and closes this.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/33
-established_by: 'PR #33 (taken inside task 153''s branch); the takes row is now a 12-run spread on main with its gh run list producer, and no hook timing is published in the register, run-gates.sh or either wrapper hook'
+established_by: 'Closed with 153 in PR #33. Both published figures were INSIDE their measured range - unlike the 51.9s this ticket was filed against - so the defect had become that a point value cannot bear the inference a reader draws from it. The register now publishes SPREADS: gates 75-115s and controls 658-827s over the last 12 successful runs on main, with the population and the gh command that re-derives them. No hook timing is published anywhere: the register, run-gates.sh''s own comment and both wrapper hooks each carried a stale one, and pre-push read 16.8s and 17.2s minutes apart against my 24.8s at triage and the published ~13s.'
 ---
 
 The register states gates.yml takes 51.9s and controls.yml 685s, with no command beside either. Task 126 added 14 mutants to cost_census_mutants, and the step is isolated on the CI runner at 2s on main (run 32665742872) against 12s on the task branch (run 32669818592) - so gates.yml gained about 10s and the register was not updated, because nobody can tell what population 51.9s was measured over. Run-level wall clock cannot settle it either: the last 10 successful gates runs on main span 54s to 78s, wider than the delta. ci_minutes.py reads the API and is the producer for BILLABLE MINUTES, which is a different quantity - billing rounds each job up to the whole minute, so it cannot report a 10s change at all. This is the shape AGENTS.md names as the defect rather than a shortfall: a count with a producer goes stale for an hour, a count with none goes stale forever.
