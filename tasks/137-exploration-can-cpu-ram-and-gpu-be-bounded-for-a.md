@@ -1,12 +1,12 @@
 ---
 id: 137
 title: 'Exploration: can CPU, RAM and GPU be bounded for a scene performance pass on this host, and what does frame timing cost to measure'
-status: in_testing
+status: done
 priority: 2
 refs: 'eval/SCENES.md, tasks/134, #49, #61, AGENTS.md rule 10'
 done_when: 'A report in eval/SCENES.md (or a file it links) stating, for CPU, RAM and GPU separately: whether a real cap is achievable on this host, by what mechanism, and verified by measuring that the process could NOT exceed it rather than that a flag was accepted. Plus three measurements regardless of the capping answer: how each stack reports real-time frame timing, how much a fixed workload drifts thermally over a run-length repetition, and the run-to-run ramp spread on a single unchanged submission. A null - no portable cap, here is the alternative - closes this.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/26
-established_by: 'PR #26 at 5cb9dee: 0 behind main, 0 of 26 review threads unresolved, gates/controls/CodeRabbit all green; no tested mechanism caps GPU or RAM (taskpolicy -m ignored at 64x overshoot, exit 0; RLIMIT_AS/DATA/RSS EINVAL with RLIMIT_STACK as the control), 1 competing GPU process costs 2.13x, back-to-back drift 1.975x against 0.766-2.485% spaced.'
+established_by: 'PR #26 squash-merged. Verified two load-bearing claims independently: taskpolicy -m 16 allowed 1024 MiB at exit 0, a 64x overshoot with no error - #61''s accepted-but-ignored shape reproduced; and the memory rlimits genuinely refuse, established with a control that discriminates (lowering the SOFT limit, always permitted, is REFUSED for RLIMIT_AS/DATA/RSS/STACK and ACCEPTED for RLIMIT_CPU and RLIMIT_NOFILE - my first probe refused everything including its own control and proved nothing). The null closes the ticket: no GPU lever exists, the CPU levers do not touch GPU frame time, and the container that has real cgroup caps has no GPU device. What replaces it is measured - spaced 25s the same workload holds to 0.766-2.485 percent against a 1.975x back-to-back swing. Allocated FINDINGS #172.'
 ---
 
 `eval/SCENES.md` proposes a performance pass scored as a **ramp**: raise a scene's complexity

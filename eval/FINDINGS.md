@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#171 from building and running this evaluator. **Check whether a
+Findings #19-#172 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -247,6 +247,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **169** | The git fact that broke a gate had been written down correctly the same day, in the skill the gate's own procedure points at — nothing connects a sentence to a predicate | [certifies-nothing](findings/certifies-nothing.md) |
 | **170** | The document a gate was cited as covering had never been opened by it — `glob("**")` does not descend into a dot-directory, and the corpus count read as thorough | [certifies-nothing](findings/certifies-nothing.md) |
 | **171** | The exemption that lets a document discuss phantom flags disarms any probe testing for them — three self-disarming probes in one day, one of them a differential that returned "no difference" | [documentation](findings/documentation.md) |
+| **172** | No cap holds this machine for a scene performance ramp, and `taskpolicy -m` accepts a memory limit and ignores it by 64x — spacing the trials is what makes them comparable | [limits-and-cost](findings/limits-and-cost.md) |
 
 ---
 

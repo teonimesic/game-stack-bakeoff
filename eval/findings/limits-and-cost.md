@@ -778,3 +778,68 @@ Two are worth keeping for their shape:
 - **A memory pin passed locally and let its mutant SURVIVE on Linux**, because it compared a
   *total* peak RSS carrying the interpreter's baseline rather than the growth. Only CI caught it —
   no local run could have.
+
+## 172. No cap holds this machine, and the one flag that documents a memory limit accepts it and ignores it
+
+The scene performance pass was designed around a **ramp** — raise complexity until frame time
+exceeds a budget, report the level reached — which measures the stack only if the resources under
+it are held. On this host (Apple M3 Max, Darwin 25.2.0) they cannot be:
+
+| lever | result |
+|---|---|
+| `taskpolicy -b` | CPU throughput to **0.20x**, GPU frame time moves **under 0.1 ms** in every interleaved round |
+| `taskpolicy -c utility` | GPU within **0.28 ms** |
+| `RLIMIT_AS` / `DATA` / `RSS` | refuse outright — and they refuse when **lowering** the soft limit, which is always permitted |
+| `RLIMIT_CPU` | the one enforceable rlimit; kills on **cumulative seconds**, not rate |
+| Linux VM with cgroups | real caps (`--memory=512m` OOM-kills; `--cpus=2` gives 2.08 cores) and **no GPU device at all** |
+
+**There is no GPU lever.** The CPU levers are real and do not touch GPU frame time, and the
+container that has real caps has no GPU to cap — so every route either misses the resource or
+removes it.
+
+**The host also gives GPU work no isolation:** one competing GPU process costs **2.13x**. So the
+quantity a ramp would report is a function of what else is running, and nothing available makes it
+not be.
+
+### The sharpest instance, and it is #61 again
+
+**`taskpolicy -m` documents a MiB limit, accepts it, and ignores it.** Reproduced independently:
+`taskpolicy -m 16 python3 …` allocated **1024 MiB and exited 0** — a 64x overshoot with no error
+anywhere.
+
+> **An accepted-but-ignored flag is worse than an unsupported one.** An unsupported flag fails
+> loudly; this one is indistinguishable from a working cap by anything a script can see, and it is
+> the second time this project has been handed one — Unity's standalone player takes
+> `-disable-audio` and does nothing with it (#61).
+>
+> **The defence is the same both times: verify a cap by measuring that the process could not
+> exceed it, never by observing that the command was accepted.**
+
+The rlimit result needs its own control to mean anything, because a probe that refuses everything
+proves nothing about the refusal. Lowering the soft limit — always permitted — separates them:
+`RLIMIT_CPU` and `RLIMIT_NOFILE` accept, the four memory limits refuse.
+
+### What replaces the cap is measured, and it is scheduling rather than bounding
+
+The same fixed workload, spaced **25 s** apart, holds to **0.766–2.485%**. Back-to-back it swings
+**1.975x**. In ramp levels: **0.04–0.11 spaced**, against **1.0–3.1 back-to-back** and **1.1–3.4
+contended**.
+
+> **Where a resource cannot be bounded, spacing the measurements can still make them comparable —
+> and that is a design constraint on the RUN, not a property of the instrument.** A perf matrix
+> that packs trials back-to-back to save wall-clock destroys the quantity it exists to collect.
+
+**Frame timing is also not the same quantity across the four stacks.** Bevy on Metal records CPU
+time only; the TypeScript capture path reaches no GPU at all (SwiftShader, with the starter's pin
+*and* with no flags — only `--use-angle=metal` reaches hardware); Godot and Unity both expose a
+real GPU timer. **A cross-stack ramp must read a harness-side wall clock**, because the stacks'
+own timers measure different things.
+
+### What is still unmeasured, stated because the numbers invite over-reading
+
+Every figure above is **one fixed synthetic workload** and is therefore a **floor**. The ticket's
+third measurement — the run-to-run spread of a *real* submission — could not be taken, because no
+scene has been built. The drift is also **non-monotone**, so it is not simple heat and its cause is
+unseparated.
+
+---
