@@ -625,17 +625,28 @@ deleted rather than tuned quiet.
 
 **The flag census refuses the same trade, and the skills are where it costs most (task 149).**
 The backticked-flag half is gated file-wide on 4 harness script names, so it reads 4 of the 10
-`SKILL.md` files and not the other 6 — the documents where commands and flags are most densely
-written. Every candidate widening was measured over the skills corpus on 2026-08-25 and every
-one reddens correct prose: admitting all 10 unconditionally costs **8 correct lines and 0
-genuine hits**, each another tool's flag argued about in prose; requiring one of our scripts on
-the same line reads **2 of the 28** flag mentions a skill really makes and still costs 2;
-requiring one in the same section costs all 8 of the first while reading fewer of the 28.
-`python3 eval/tools/docstat.py --selftest` is the producer for all of those, and its pins go red
-if the trigger is ever widened, so the exclusion cannot become silently false. The bare-fenced
-half is not gated this way and reads all 10, so a flag on a fenced command line — the text a
-reader copies — is covered in every skill. `.agents/skills/audit-docs/SKILL.md` states the same
-split for its readers.
+`SKILL.md` files and leaves 6 unread — the documents where commands and flags are most densely
+written. Every candidate widening was measured over the skills corpus on 2026-08-25, and each
+one reddens correct prose. *reads* is how many of the 28 backticked mentions of a real flag of
+ours a trigger would look at; *rows* is how many correct lines it turns red:
+
+| trigger | reads | rows | genuine |
+|---|---|---|---|
+| the shipped 4 harness names, file-wide | 10/28 | 0 | — |
+| one of our scripts named on the same line | 2/28 | 2 | 0 |
+| one of our scripts in the same section | 26/28 | 8 | 0 |
+| every skill admitted unconditionally | 28/28 | 8 | 0 |
+
+The 8 rows are `gh`, `git` and `just` flags written backticked in prose that argues about them.
+The line-scoped trigger loses in both directions at once. The section-scoped one costs every row
+the unconditional one costs while reading fewer of the 28.
+`python3 eval/tools/docstat.py --selftest` is the producer, and a pin compares this table
+against the live census, so the trigger cannot be widened and this entry left standing.
+
+The bare-fenced half is not gated this way and reads all 10, so a flag on a fenced command
+line — the text a reader copies — is covered in every skill.
+`.agents/skills/audit-docs/SKILL.md` states the split for an auditor; this entry is the
+authority for the measurement.
 
 Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
 gate that fails on correct input gets disabled*:
