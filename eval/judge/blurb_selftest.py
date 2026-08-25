@@ -36,7 +36,10 @@ What is checked, and why each direction is needed:
   5. PACK-PATH EXAMPLES. A `bucket/NN.ext` example in the brief has to be a label the
      packer would really write - and under a non-blind aspect it must carry no suffix at
      all, because in a four-arm field a real suffix names an arm.
-  6. MUTANTS. The historical sentence restored; the two notes collapsed into one.
+  6. MUTANTS. The historical sentence restored; a blurb naming an artifact no pack holds;
+     a real suffix in the non-blind pack-path example; the two notes collapsed into one;
+     a constant `claude -p` prompt. Checks 2 and 5 own two of those, so no check above
+     this line is asserted against a pack without something that proves it can go red.
   7. VARIANT (rule 15). A field that really is knowingly truncated, built by the real
      `build_pack(allow_truncated=True)` over a fixture whose stored drop count is
      non-zero. A mutant removes a mechanism; only a variant can manufacture the input
@@ -512,6 +515,40 @@ def main() -> int:
                f"check 4 green (claims flagged: {mutant_hits}, brief hits: "
                f"{mutant_in_brief}), so check 4 cannot fail and measures nothing")
 
+        # MUTANT for CHECK 2. A blurb naming an artifact the packer never writes is the
+        # `EVIDENCE_BLURB` defect pointing the other way: the judge is told to open
+        # something that is not there and reports its absence as a fact about the
+        # submission.
+        keep_blurb = dict(field.EVIDENCE_BLURB)
+        field.EVIDENCE_BLURB["frames"] = keep_blurb["frames"] + " See `NOTES.txt` too."
+        try:
+            _a, fdest, _m = packs[next(k for k in packs
+                                       if "frames" in k[0].split("+"))]
+            phantom = [art for art in artifacts_named(field.EVIDENCE_BLURB["frames"])
+                       if any(not (fdest / lab / art.rstrip("/")).exists()
+                              for lab in LABELS)]
+        finally:
+            field.EVIDENCE_BLURB.clear()
+            field.EVIDENCE_BLURB.update(keep_blurb)
+        expect("mutant-blurb-names-an-artifact-that-is-not-packed", bool(phantom),
+               f"adding a backticked filename no pack contains left check 2 green "
+               f"(phantoms found: {phantom}), so it cannot fail")
+
+        # MUTANT for CHECK 5. A real suffix in the non-blind brief's pack-path example.
+        # One brief serves 8 submissions from 4 stacks, so any real suffix names an arm.
+        keep_ex = dict(field.PACK_PATH_EXAMPLE)
+        field.PACK_PATH_EXAMPLE[False] = "`sim/03.gd`"
+        try:
+            plain = next(a for a in CODE_ASPECTS if not a.blind_language)
+            suffixed = [e for e in path_examples(field._brief(plain, "g9_probe", None))
+                        if Path(e).suffix]
+        finally:
+            field.PACK_PATH_EXAMPLE.clear()
+            field.PACK_PATH_EXAMPLE.update(keep_ex)
+        expect("mutant-non-blind-example-carries-a-real-suffix", bool(suffixed),
+               f"giving the non-blind pack-path example a real suffix left check 5 "
+               f"green (suffixed examples: {suffixed}), so it cannot fail")
+
         keep_note = dict(field.COMPLETENESS_NOTE)
         field.COMPLETENESS_NOTE[True] = keep_note[False]
         try:
@@ -846,6 +883,44 @@ def main() -> int:
                f"build_pack returned {str(refused)[:160]!r} for a scene id with no "
                f"statement; it must refuse rather than hand fidelity a brief pointing "
                f"at a file that is not there")
+
+        # AND THE SPENDER GUARDS IT TOO. `build_pack`'s refusal is on the packer; a pack
+        # is built once and judged later, from a directory anything may have touched, so
+        # `run_field` asks again before spending 8 model calls (rule 13).
+        #
+        # BOTH COPIES HAVE THEIR COMPLETENESS KEY REMOVED, which is what makes the pair
+        # distinguishing without ever running a judge. `run_field` asks for the statement
+        # BEFORE the completeness key, so the copy that HAS a statement stops at the next
+        # guard and the copy that does not stops at this one - two different refusals off
+        # two packs identical but for the one file.
+        _a0, sdest, _sm = scene_packs[("s1_parallax",
+                                       aspects.ASPECTS["fidelity"].sees, False)]
+        for name, keep_statement in (("scenepack-no-statement", False),
+                                     ("scenepack-with-statement", True)):
+            copy = root / name
+            shutil.copytree(sdest, copy)
+            # The MAPPING lives OUTSIDE the pack (#32), so copytree does not bring it.
+            rec = json.loads(field.mapping_path(sdest).read_text())
+            rec.pop("knowingly_truncated")
+            field.mapping_path(copy).write_text(json.dumps(rec, indent=2))
+            if not keep_statement:
+                # `missing_ok`: if the packer wrote none, the rows above already say so
+                # and this loop must still reach its own two.
+                (copy / field.SCENE_STATEMENT_FILE).unlink(missing_ok=True)
+            err = field.run_field(copy, "fidelity").get("error") or ""
+            named = field.SCENE_STATEMENT_FILE in err
+            if keep_statement:
+                expect("a-scene-pack-with-a-statement-is-not-refused-for-it",
+                       not named and "knowingly_truncated" in err,
+                       f"run_field refused a scene pack that DOES carry "
+                       f"{field.SCENE_STATEMENT_FILE}, or never reached the next guard: "
+                       f"{err[:200]!r}. The row below would pass by refusing every "
+                       f"scene pack")
+            else:
+                expect("run-field-refuses-a-scene-pack-with-no-statement", named,
+                       f"run_field returned {err[:200]!r} for a scene pack whose "
+                       f"{field.SCENE_STATEMENT_FILE} is gone; the brief it is about to "
+                       f"write tells the judge to read that file first")
 
     if FAILS:
         print(f"BLURB SELFTEST: {len(FAILS)} unmet expectation(s)\n")

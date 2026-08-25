@@ -417,12 +417,16 @@ python3 judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
 ```
 
 It builds real packs in both completeness states, both blinding modes and both task classes,
-carries a mutant per check, two variants no mutant can manufacture (a field whose *stored* drop
-count is non-zero; a statement naming an engine driven through the real packer) and two
-fail-closed cases, and must stay green. **The claims it reads are not all about the packer** —
-`SCENE.md` claims what the task was, and the frames blurb claims who is watching — so each is
-checked against what it is a function of. `--stored-rounds` is the producer for every figure in
-`eval/RUNS.md`'s section on this.
+and must stay green. Its own docstring is the register of what it checks; the coverage is
+**7 mutants** — the 2026-08-22 sentence restored, a blurb naming an artifact no pack holds, a
+real suffix in the non-blind pack-path example, the two completeness notes collapsed into one, a
+constant `claude -p` prompt, a stack token in `SCENE.md`, the withheld claim in `SCENE.md` —
+**2 variants** no mutant can manufacture (a field whose *stored* drop count is non-zero; a
+statement naming an engine driven through the real packer) and **2 fail-closed cases**, a
+deleted completeness claim and a scene the packer cannot state. **The claims it reads are not
+all about the packer** — `SCENE.md` claims what the task was, and the frames blurb claims who is
+watching — so each is checked against what it is a function of. `--stored-rounds` is the
+producer for every figure in `eval/RUNS.md`'s section on this.
 
 **Where the caution-vocabulary check is aimed was chosen on the false-positive count, not on
 which address sounded more general** (rule 12, and the census-trigger derivation in

@@ -2516,18 +2516,17 @@ running `--diff` against them: none of the three assertions can see a shared-pre
 because it leaves every rule identical across stacks and names no engine. A deliberate prompt
 edit re-records the snapshot in the same commit.
 
-**That last re-open condition fired on 2026-08-25, and the list grew by 2 phrases.** The criterion
-list held the *measurement* wordings of the 2 claims the scenes exist to withhold — `distinct
-rates`, `declared depth`, `world-horizontal` — and `eval/SCENES.md` states the same 2 claims in
-plain English when it says they are withheld. Planted into a rendered prompt, *"the layers scroll
-at rates ordered by depth"* and *"the water surface stays level while the glass tilts"* read **0
-hits on all 8**. So the check could not see the single leak it most exists to prevent, stated the
-way anyone would state it. `ordered by depth` and `stays level` are now entries: both are in
-`eval/SCENES.md`, so the anti-invention guard accepts them, and both are at **0** false positives
-on the 8 shipped prompts and on the 2 packed scene statements. This is 2 spellings and not a
-property, which is the repair this project distrusts (#30, #83, #131) — a third phrasing still
-walks past. It is taken because the list's own definition is *the vocabulary `eval/SCENES.md` uses
-to state a criterion*, and these 2 phrases are exactly that; the derived alternative was measured
+**The list holds each withheld claim in its plain-English wording as well as its measurement
+wording**, and the same 2 lists govern the scene statement a tier-3 judge is handed. `distinct
+rates`, `declared depth` and `world-horizontal` are the criterion tables' words; `ordered by
+depth` and `stays level` are how `eval/SCENES.md` says the same 2 claims when it says they are
+withheld. Without the second pair the check reads **0 hits on all 8** with either claim planted
+into a rendered prompt — green on a corpus carrying the leak it most exists to prevent. Both are
+at **0** false positives on the 8 shipped prompts and on the 2 packed scene statements, and both
+are in `eval/SCENES.md`, so the anti-invention guard accepts them. **That pair is 2 spellings and
+not a property**, which is the repair this project distrusts (#30, #83, #131): a third phrasing
+walks past. It stands because the list's own definition is *the vocabulary `eval/SCENES.md` uses
+to state a criterion* and these 2 phrases are exactly that; the derived alternative is measured
 and rejected above.
 
 **To re-open:** a scene prompt that cannot be written without a term on either list — which would
@@ -2671,7 +2670,10 @@ rather than the machine is what stops a ramp.
 
 `fidelity` asks whether a strip reads as the scene it was asked for, and that needs what was
 asked for. `field.SCENE_STATEMENTS` holds one statement per scene and `field.build_pack` writes
-it into a scene pack as `SCENE.md`, one text for all 8 submissions.
+it into a scene pack — and only a scene pack — as `SCENE.md`, one text for all 8 submissions.
+Without it the aspect recovers the subject from the field, which finds a submission that omitted
+what 7 others drew and cannot find one where all 8 missed the same requirement — the case a
+fidelity aspect exists for.
 
 **The rendered prompt is not a candidate, and the reason is measurable rather than a worry.** It
 exists per stack: `anonymise.find_stack_names` returns a stack token in every one of the 8
@@ -2684,19 +2686,17 @@ goes through `neutralise`, because it comes from a submission and is not ours to
 is ours. Passing it through would rewrite `Bevy` to `engine` and hand `verify_blind.py --packs` a
 clean file — **the gate green over judge-facing text that named an arm until the harness edited
 it**. `blurb_selftest.py` drives a leaking statement through the real `build_pack` and requires
-the leak to survive and the gate to go red; a mutant that edits the built pack instead cannot ask
-that question at all, and did not.
+the leak to survive and the gate to go red — a mutant that edits the built pack instead cannot
+ask that question at all.
 
-**Before this, the aspect recovered the subject from the field of 8.** It could find a submission
-that omitted what 7 others drew and could not find one where all 8 missed the same requirement —
-the case a fidelity aspect exists for. That narrowing is what the statement removes, and
-`fidelity`'s notes now ask for a field-wide omission in `field_note`.
+**A scene the module cannot state is refused, and both the packer and the spender ask.**
+`build_pack` refuses to build such a pack and `run_field` refuses to judge one whose `SCENE.md`
+is not on disk, because a pack is built once and judged later from a directory anything may have
+touched (rule 13). A scene pack with no statement leaves `fidelity`'s brief pointing at a file
+that is not there and silently restores the narrowing (rule 7).
 
-**A scene the module cannot state is refused, not packed without one**, because a scene pack with
-no statement leaves `fidelity`'s brief pointing at a file that is not there and silently restores
-the narrowing (rule 7). No game pack carries one — a statement of a task nobody set is worse than
-none — and no stored game brief moved: all 90 `(aspect, game, completeness)` briefs this checkout
-builds for game tasks are byte-identical to the ones it built before the change, so no stored
+**No game brief moved.** All 90 `(aspect, game, completeness)` briefs this checkout builds for
+game task ids are byte-identical to the ones built before the statement existed, so no stored
 round's `provenance.brief_sha256` is affected.
 
 **To re-open:** a first real scene field whose judge cites the statement for something no
