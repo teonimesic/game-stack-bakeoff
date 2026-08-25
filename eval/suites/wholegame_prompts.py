@@ -627,13 +627,30 @@ _EVENT_LINE = re.compile(r'^"([a-z_][a-z0-9_]*)"')
 def _declared_events(task: str, block: str) -> tuple[str, ...]:
     """The event names one `_G*_EVENTS` block declares, in the order it lists them.
 
-    Fails closed and loudly. An empty or duplicated result is returned by no correct
-    block, and returning `()` quietly is the exact defect this replaces: an empty
-    expectation makes `audio.manifest` unable to notice a missing cue.
+    Reads the FENCED list, and every non-blank line inside the fence must be an event
+    declaration. Collecting whatever happens to match would drop a line that stopped
+    matching and return a shorter list at exit 0 - which is the same fail-open shape as
+    the transcription this replaces: an expectation missing an event makes
+    `audio.manifest` unable to notice that its cue is absent.
+
+    Anything a correct block cannot produce - no fence, an unreadable line, no names,
+    a repeat - raises here, at import, rather than reaching a grader.
     """
-    names = tuple(m.group(1) for m in
-                  (_EVENT_LINE.match(line.strip()) for line in block.splitlines())
-                  if m is not None)
+    lines = block.splitlines()
+    fence = [i for i, line in enumerate(lines) if line.strip() == "```"]
+    if len(fence) < 2:
+        raise ValueError(f"{task}: its events block has no fenced declaration list "
+                         f"(found {len(fence)} fence line(s))")
+    names: list[str] = []
+    for line in lines[fence[0] + 1:fence[1]]:
+        if not line.strip():
+            continue
+        m = _EVENT_LINE.match(line.strip())
+        if m is None:
+            raise ValueError(f"{task}: {line!r} is inside the events fence and is not "
+                             f"an event declaration, so this block can no longer be "
+                             f"read as the list of events the game declares")
+        names.append(m.group(1))
     if not names:
         raise ValueError(f"{task}: no event names parsed out of its events block; the "
                          f"block's shape has changed and every consumer of EVENTS is "
@@ -641,7 +658,7 @@ def _declared_events(task: str, block: str) -> tuple[str, ...]:
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:
         raise ValueError(f"{task}: duplicate event names in its events block: {dupes}")
-    return names
+    return tuple(names)
 
 
 #: Every game's declared event names. The single address for that fact.

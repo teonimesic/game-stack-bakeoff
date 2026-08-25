@@ -2260,8 +2260,10 @@ failing one would be fail-closed.
 refusals — `python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs`,
 population *stored gradings carrying `programmatic.audio.applies`*, read 2026-08-25. The census
 re-applies `audio.py`'s own `manifest_problems`, `distinct_floor` and `distinct_ok` to each stored
-grading's recorded manifest and sound groups. It decodes nothing and rebuilds nothing, so it is
-not a re-grading pass.
+grading's recorded manifest and sound groups: it reruns no submission and decodes no audio, and
+reconstructs the declared-event grouping from the stored `clips` and `distinct_sound_groups`. It
+is not a re-grading pass, and it refuses rather than guesses where that reconstruction would not
+be exact.
 
 **The null is a fact about the corpus, and the corpus says why**, which is what separates it from
 a broken extraction (rule 12). The same command reports **0** gradings whose manifest omits a

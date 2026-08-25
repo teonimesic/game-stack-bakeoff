@@ -8,8 +8,9 @@ stored verdicts does it move, and which" - and a null needs its number as much a
 This is the producer for that count. It re-applies the SHIPPED rule - `audio.py`'s own
 `manifest_problems`, `distinct_floor` and `distinct_ok` - to what each stored grading
 wrote down, and reports every verdict that changes. It re-runs no submission and decodes
-no audio: a census that rebuilt 43 work trees would be a re-grading pass, which
-`eval/judge/AGENTS.md` reserves for a separate decision.
+no audio - it reconstructs the declared-event grouping from the stored `clips` and
+`distinct_sound_groups`. A census that rebuilt 43 work trees would be a re-grading pass,
+which `eval/judge/AGENTS.md` reserves for a separate decision.
 
     ./audio_regrade_census.py --selftest
     ./audio_regrade_census.py --runs-root <main checkout>/eval/runs
@@ -37,15 +38,18 @@ greedy partition is exact only when every group holding a declared clip has a de
 REPRESENTATIVE. `distinct_groups` matches each clip against `g[0]`; drop `g[0]` and the
 members that matched it are no longer known to match each other.
 
-Three refusals, each fail-closed. A refused grading is counted and named, never resolved
-by assuming: an assumed group count is a verdict about a submission nobody measured.
+Four refusals, each fail-closed. A refused grading is counted and named, never resolved
+by assuming: an assumed group count is a verdict about a submission nobody measured, and
+a row that could not be asked must not enter the null it is meant to be evidence for.
 
-  UNDECLARED_REPRESENTATIVE  a group holding a declared clip is represented by an
-                             undeclared one, so restricting the partition is not exact.
-  AMBIGUOUS_BASENAMES        two `sfx` entries resolve to different paths with the same
-                             file name, so a basename no longer identifies a clip.
-  GROUPS_INCOMPLETE          the recorded groups do not account for exactly the recorded
-                             `sfx` clips. The record is not what this tool assumes.
+  UNDECLARED_REPRESENTATIVE   a group holding a declared clip is represented by an
+                              undeclared one, so restricting the partition is not exact.
+  AMBIGUOUS_BASENAMES         two `sfx` entries resolve to different paths with the same
+                              file name, so a basename no longer identifies a clip.
+  GROUPS_INCOMPLETE           the recorded groups do not account for exactly the
+                              recorded `sfx` clips. The record is not what this assumes.
+  INCOMPLETE_STORED_VERDICTS  the record carries no boolean verdict for one of the 5
+                              criteria, so there is nothing to compare against.
 """
 from __future__ import annotations
 
@@ -57,15 +61,29 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import audio  # noqa: E402
+from audio import CRITERIA  # noqa: E402
 from tier1_census import report_paths  # noqa: E402
 
 #: A grading this tool declines to answer for, and why. Every one is fail-closed: the
 #: alternative to refusing is a verdict about a submission that was never measured.
-REFUSALS = ("AMBIGUOUS_BASENAMES", "GROUPS_INCOMPLETE", "UNDECLARED_REPRESENTATIVE")
+REFUSALS = ("AMBIGUOUS_BASENAMES", "GROUPS_INCOMPLETE", "UNDECLARED_REPRESENTATIVE",
+            "INCOMPLETE_STORED_VERDICTS")
 
 
-def stored_verdicts(audio_block: dict) -> dict[str, bool]:
-    return {c["id"]: bool(c["passed"]) for c in audio_block.get("criteria", [])}
+def stored_verdicts(audio_block: dict) -> dict[str, bool] | None:
+    """The stored verdict per criterion, or None if the record does not carry all 5.
+
+    `None` rather than a partial dict, and `bool` rather than truthiness. A row missing
+    `audio.distinct` would otherwise contribute no comparison and be counted as
+    unchanged - a row that could not be asked, silently entering the null it is supposed
+    to be evidence for. And `bool("false")` is `True`, so a verdict stored as a string
+    would compare as a pass.
+    """
+    got: dict[str, bool] = {}
+    for c in audio_block.get("criteria", []):
+        if isinstance(c, dict) and isinstance(c.get("passed"), bool):
+            got[c.get("id")] = c["passed"]
+    return got if set(got) >= {cid for cid, _q in CRITERIA} else None
 
 
 def sfx_labels_in_scan_order(clips: dict) -> list[str]:
@@ -156,13 +174,15 @@ def census(rows: list[dict]) -> dict:
     moves, refused, unchanged = [], [], 0
     for r in rows:
         res = rescore(r["game"], r["audio"])
+        if r["stored"] is None:
+            res = {"outcome": "INCOMPLETE_STORED_VERDICTS", "now": {}}
         r["result"] = res
         if res["outcome"] in REFUSALS:
             refused.append(r)
             continue
-        changed = {cid: (r["stored"].get(cid), now)
+        changed = {cid: (r["stored"][cid], now)
                    for cid, now in res["now"].items()
-                   if cid in r["stored"] and r["stored"][cid] != now}
+                   if r["stored"][cid] != now}
         if changed:
             r["changed"] = changed
             moves.append(r)
@@ -313,6 +333,23 @@ def selftest() -> int:
     amb["clips"]["sfx.game_over"]["path"] = "/w/other/paddle_hit.wav"
     row("ambiguous_basenames", amb, "g1_pong", "AMBIGUOUS_BASENAMES")
 
+    # A stored record that cannot be compared is REFUSED, never counted as unchanged.
+    for label, crits in (
+            ("a criterion missing from the record",
+             [{"id": cid, "passed": True} for cid, _q in audio.CRITERIA[:-1]]),
+            ("a verdict stored as the string 'false'",
+             [{"id": cid, "passed": ("false" if cid == "audio.distinct" else True)}
+              for cid, _q in audio.CRITERIA])):
+        checks += 1
+        b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
+                   [[f"{e}.wav"] for e in pong], {})
+        b["criteria"] = crits
+        out = census([{"run": "r", "trial": "t", "game": "g1_pong", "submission": "s",
+                       "report": "-", "stored": stored_verdicts(b), "audio": b}])
+        if (len(out["refused"]), out["unchanged"]) != (1, 0):
+            fails.append(f"{label}: refused {len(out['refused'])}, unchanged "
+                         f"{out['unchanged']}; expected 1, 0")
+
     # And the whole census over a 2-row population: 1 moves, 1 does not.
     sfx_bad = {e: "one.wav" for e in pong}
     sfx_bad.update({"x1": "x1.wav", "x2": "x2.wav"})
@@ -367,11 +404,16 @@ def main() -> int:
         for k in ("missing_events", "groups_over_declared", "declared_clips", "floor"):
             if k in res:
                 print(f"  {k}: {res[k]}")
+        stored = stored_verdicts(block)
+        if stored is None:
+            print("  REFUSED INCOMPLETE_STORED_VERDICTS: this record does not carry a "
+                  "boolean verdict for all 5 criteria, so nothing can be compared")
+            return 1
         for cid, now in sorted(res["now"].items()):
-            was = stored_verdicts(block).get(cid)
+            was = stored[cid]
             print(f"  {cid}: stored {'PASS' if was else 'FAIL'} -> "
                   f"now {'PASS' if now else 'FAIL'}"
-                  f"{'   MOVED' if was is not None and was != now else ''}")
+                  f"{'   MOVED' if was != now else ''}")
         return 0
     if a.runs_root is None:
         ap.error("--runs-root is required: eval/runs/ is gitignored, and a census run "

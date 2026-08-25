@@ -210,6 +210,27 @@ def pin_declared_events() -> None:
     check(set(EVENTS_AS_WRITTEN) == set(wp.TASKS),
           f"EVENTS_AS_WRITTEN covers {sorted(EVENTS_AS_WRITTEN)}, the suite defines "
           f"{sorted(wp.TASKS)} - a new game needs its list transcribed here too")
+    # The PARSER, both ways. A block that stops being readable must raise rather than
+    # return the names it could still find: a short list is a grading contract missing an
+    # event, which is the fail-open this whole change is about.
+    good = '```\n"jump"    the player left the ground\n"land"    and came down\n```'
+    check(wp._declared_events("t", good) == ("jump", "land"),
+          f"the parser on a well-formed block returned {wp._declared_events('t', good)}")
+    for label, bad in (
+            ("no fence", '"jump"  the player left the ground'),
+            ("one fence", '```\n"jump"  the player left the ground'),
+            ("a line that is not a declaration",
+             '```\n"jump"  the player left the ground\njump - the player jumped\n```'),
+            ("an empty fence", "```\n```"),
+            ("a repeated name", '```\n"jump"  a\n"jump"  b\n```')):
+        try:
+            got = wp._declared_events("t", bad)
+        except ValueError:
+            got = None
+        check(got is None,
+              f"the parser accepted a block with {label} and returned {got!r} - a "
+              f"partial parse is a declared event the grader will never look for")
+
     widest = max(len(v) for v in EVENTS_AS_WRITTEN.values())
     check(len(VOICES) >= widest,
           f"{len(VOICES)} voices for a widest declared event set of {widest}: a healthy "
