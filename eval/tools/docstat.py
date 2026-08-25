@@ -621,7 +621,12 @@ FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq", "--admin",
                                  "--print", "--cwd", "--provider", "--thinking",
                                  "--autonomous", "--autonomous-max-turns",
                                  # git's own, named whenever a merge method is discussed in prose
-                                 "--no-ff", "--no-edit", "--porcelain"})
+                                 "--no-ff", "--no-edit", "--porcelain",
+                                 "--ours", "--theirs", "--merge", "--offline",
+                                 # `gh`'s, and two from tools named in tasks/149's census of
+                                 # candidate false positives: a doc tool and Chrome.
+                                 "--auto", "--body", "--body-file",
+                                 "--doctool", "--enable-unsafe-webgpu"})
 
 
 def _check_skill_frontmatter() -> list[str]:

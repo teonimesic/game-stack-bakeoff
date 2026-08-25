@@ -1,10 +1,11 @@
 ---
 id: 149
 title: The flag census reads project_docs(), so no SKILL.md is checked for phantom flags
-status: todo
+status: in_review
 priority: 2
 refs: 'eval/tools/docstat.py, .agents/skills/audit-docs/SKILL.md, tasks/147, #170, #38'
 done_when: Either a planted phantom flag in a SKILL.md turns `--sweep` red - with the plant also proved in a document already covered, so a broken plant cannot masquerade as success - and whatever ratchet the corpus change touches is re-baselined deliberately with the new number stated; or the exclusion is written down in docstat.py AND in the audit-docs skill's list of what --sweep does not cover, naming which checks read skills and which do not. Either way `--sweep`, `--selftest` and the corpus pins stay green.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/29
 ---
 
 `docstat.py --sweep`'s flag census — *"flag `--x` matches no argparse in eval/"* — reads
@@ -143,3 +144,80 @@ So the honest framings of this ticket are: *find a trigger for the backticked ha
 4-name enumeration on live-corpus false positives*, or *record the exclusion*. Task 147 recorded
 it for `.github/`; the same reasoning applies to the 6 skills, and the register's
 `Which gates read THIS file` section is the shape to copy.
+
+## note 2026-08-25
+
+## What the next agent should not re-derive (PR #29)
+
+### Closed by the SECOND arm of `done_when` — the exclusion is recorded, with a producer and pins
+
+The corrected notes above were right: the flag census reads `reference_docs()`, every skill is
+in it, and the backticked half is gated file-wide by `HARNESS_TRIGGER`. `project_docs()` is
+untouched and **no ratchet moved**, so the difficulty this ticket was built around never arose.
+
+### Every candidate widening was measured, and every one loses
+
+`python3 eval/tools/docstat.py --selftest` is the producer and reprints all of this live — do
+not quote these figures, re-run it:
+
+| trigger | reads | rows | genuine |
+|---|---|---|---|
+| the shipped 4 harness names, file-wide | 10/28 | 0 | — |
+| one of our scripts named on the same line | 2/28 | 2 | 0 |
+| one of our scripts in the same section | 26/28 | 8 | 0 |
+| every skill admitted unconditionally | 28/28 | 8 | 0 |
+
+`reads` is the recall half and it is the half that is easy to forget: the line-scoped trigger
+looks cheap only because it reads 2 of the 28 flag mentions a skill really makes, and it still
+reddens 2 correct lines. The 8 rows are `gh`, `git` and `just` flags argued about in prose.
+
+**The cost showed up in the act of writing the record.** `audit-docs/SKILL.md` names a harness,
+so it is already admitted; listing those 7 foreign flags there backticked took the shipped
+trigger from 0 candidate rows to 7 on a paragraph whose subject is that they are foreign. A
+widening whose own documentation trips it will keep tripping on correct prose.
+
+### What now stops the record going stale
+
+`_published_skill_figures()` builds each published sentence **from the live census** and asserts
+it appears in the document that publishes it — `_backticked_flags`'s docstring table,
+`DECISIONS.md`'s table and prose, and the audit-docs entry including both skill-name lists.
+Widen the trigger and the pin reddens naming the figure that moved. 27 pin cases, 0 red.
+
+### A CANDIDATE FINDING for the orchestrator to number — do not allocate one
+
+**`HARNESS_TRIGGER` has five alternatives and one of them can never match.** The regex is
+`(wholegame|runner|judge/|evaluate|regrade)\.py`; the `\.py` applies to the whole group, so the
+`judge/` alternative requires the literal text `judge/.py`, which occurs **0 times** in the
+corpus. `eval/judge/blind_dir.py` does not admit through it. That is why every write-up in
+`docstat.py` says *4 harness names* for a 5-alternative regex — the count was right and the
+reason was never written down. Recorded and pinned rather than repaired: making it mean
+`judge/<anything>.py` widens the trigger and moves every published figure above, which needs its
+own adjudication. **That would be a task, not a drive-by.**
+
+### Traps, in the order they cost time
+
+1. **The obvious repair is not the only bad one.** Three widenings were measured here and a
+   fourth in `_harness_trigger_census()`. Before proposing a fifth, run `--selftest`: it prints
+   recall as well as cost, and a trigger that looks cheap is usually one that reads nothing.
+2. **A boundary tightening on `HARNESS_TRIGGER` is wrong, and it looks right.** The unanchored
+   `wholegame\.py` is the **only** alternative admitting a document that names
+   `eval/judge/regrade_wholegame.py`, one of our own harnesses, named in 8 places. Requiring a
+   complete path component drops it and changes admission for 0 documents in exchange. Pinned
+   both ways.
+3. **Section ids must be fence-aware.** 31 of the 130 lines starting with `#` across the 10
+   skills are inside a ``` fence. `ln.startswith("#")` splits real sections and understates the
+   section trigger's reach. Use the shared `_fence_mask()` and `_ATX_HEADING`.
+4. **A producer must count the population the CHECK reads.** `_skill_flag_coverage()` counted a
+   resolving flag before applying the deliberately-fake exemption, while `_backticked_flags()`
+   drops the whole line. Latent at 0 such lines, so nothing disagreed with anything.
+5. **`_DELIBERATELY_FAKE` matches `plant*`, `phantom`, `does not exist`.** `--zzq-unresolved-tok`
+   is the neutral token that works; anything with `phantom` in it exempts its own line.
+
+### Left deliberately
+
+- `project_docs()`, `reference_docs()` and the bare-fenced half are unchanged.
+- No `eval/starters/` file was touched.
+- `FOREIGN_FLAGS_EXACT` was **not** extended with the 7 foreign flags. Doing that would make
+  admitting all 10 skills look free, but it buys the coverage with 7 permanent global
+  exemptions on tokens (`--merge`, `--body`, `--auto`, `--offline`) that are plausible names for
+  a flag of ours — `AGENTS.md` rule 7, and the list would grow with every tool ever discussed.
