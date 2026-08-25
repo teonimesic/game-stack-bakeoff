@@ -312,9 +312,16 @@ class Game:
         return grazed
 
     def _update_aim(self, inputs: dict) -> None:
+        """A zero-length or absent aim vector is "no new direction this tick".
+
+        The gun holds its last orientation and `fire` still fires along it, which is
+        what `_G3_INPUTS` in `eval/suites/wholegame_prompts.py` states. The starting
+        orientation - +x here - is a free choice the prompt leaves to the submission,
+        so nothing may be graded on it.
+        """
         ax, ay, az = _vector(inputs, "aim")
         mag = math.sqrt(ax * ax + ay * ay + az * az)
-        if mag > 1e-6:  # no aim held: keep facing where we last aimed
+        if mag > 1e-6:
             self.aim_x, self.aim_y, self.aim_z = ax / mag, ay / mag, az / mag
 
     def _fire(self, inputs: dict, events: list) -> None:

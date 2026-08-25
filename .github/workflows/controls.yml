@@ -112,6 +112,13 @@ jobs:
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/bot_mutants.py
+      # A mutant asks whether a criterion can fail; this asks the other question --
+      # whether any criterion rests on something the task prompt leaves FREE. It also
+      # produces the tick census eval/RUNS.md quotes for the twenty-third comparability
+      # break, so that figure has a producer rather than a memory.
+      - name: judge/aim_contract_control (the arena aim contract, and what is free in it)
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/aim_contract_control.py
       # The scene probe's own both-directions suite: every criterion in
       # judge/scene_probe.py against its reference, against a mutant that removes the
       # behaviour it names, and against correct scenes the reference does not resemble.
