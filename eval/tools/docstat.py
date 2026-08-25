@@ -142,8 +142,30 @@ def _all_skill_files() -> list[str]:
     return out
 
 
+def dot_dir_docs() -> list[str]:
+    """Instruction markdown under a dot-directory that is not a skill - today, `.github/`.
+
+    `glob("**")` does not descend into a name beginning with a dot, so `.github/` is
+    invisible to `project_docs()` for exactly the reason `.claude/` was. That left
+    `.github/workflows/README.md` - the register `AGENTS.md` tells every session to read
+    before adding a gate, and which names dozens of this repository's own tools and flags -
+    outside every reference check, passing nothing rather than passing.
+
+    Measured 2026-08-24 with the same `--no-such-flag-147` planted on a fenced command line
+    of each file: `--sweep` came back exit 0 on the register and exit 1 naming the flag on
+    the identical plant in `DECISIONS.md`.
+
+    Globbed by DIRECTORY, never by filename. Naming the one file that exists today is the
+    enumeration failure `AGENTS.md`'s rule audit describes, and the next document added
+    under `.github/` would be unswept in the same silent way.
+    """
+    return sorted(q for q in glob.glob(os.path.join(ROOT, ".github", "**", "*.md"),
+                                       recursive=True)
+                  if not is_vendored(q))
+
+
 def reference_docs() -> list[str]:
-    """The corpus for the REFERENCE checks: every project doc, PLUS every skill.
+    """The corpus for the REFERENCE checks: every project doc, every skill, and `.github/`.
 
     The skills are always-loaded instruction documents. A skill naming a flag or an aspect
     that does not exist is the exact defect this sweep was built for (#38), and until
@@ -167,7 +189,7 @@ def reference_docs() -> list[str]:
       ratchet       0 trial ids appear in any skill, and it is scoped to `findings/`
                     regardless, so the count is unmoved.
     """
-    return sorted(set(project_docs()) | set(_all_skill_files()))
+    return sorted(set(project_docs()) | set(_all_skill_files()) | set(dot_dir_docs()))
 
 
 def _fence_mask(lines: list[str]) -> list[bool]:
@@ -3573,6 +3595,40 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _corpus_pins(verbose: bool = False) -> list[str]:
+    """The two corpora reach what they are meant to reach, and nothing else.
+
+    A corpus is an input to a check (#60), and this one failed silently: a dot-directory is
+    skipped by `glob`, so a document could be read by every session and by no gate. The
+    expectation is stated here as a PATH, independently of the glob that produces it - a
+    pin that called `dot_dir_docs()` for its expected value would agree with any mutant of
+    it (`AGENTS.md` rule 12).
+
+    Both directions, because the separation is the point:
+
+      in `reference_docs()`      the register is swept for phantom names
+      NOT in `project_docs()`    that helper feeds the size report and the bare-trial-id
+                                 ratchet, and the ratchet is pinned to an EXACT count a
+                                 larger corpus would move in the direction that passes
+    """
+    register = os.path.join(ROOT, ".github", "workflows", "README.md")
+    rel = os.path.relpath(register, ROOT)
+    cases = [
+        (f"{rel} is in the reference corpus", register in reference_docs(), True),
+        (f"{rel} is NOT in project_docs() - the ratchet's corpus is unmoved",
+         register in project_docs(), False),
+        ("the register exists to be swept at all", os.path.exists(register), True),
+    ]
+    failed = []
+    for name, got, want in cases:
+        ok = got == want
+        if verbose:
+            print(f"{'PASS' if ok else 'FAIL'}  {name}: {got}, expected {want}")
+        if not ok:
+            failed.append(f"corpus pin: {name}: got {got}, want {want}")
+    return failed
+
+
 def cmd_selftest() -> int:
     """`--selftest`: the pins with their cases printed, plus proof the archive was untouched.
 
@@ -3597,6 +3653,8 @@ def cmd_selftest() -> int:
     failed += _orphan_tail_pins(verbose=True)
     print()
     failed += _duplicate_fragment_pins(verbose=True)
+    print()
+    failed += _corpus_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -3996,7 +4054,8 @@ def cmd_sweep() -> int:
 
     _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
-          f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
+          f"({len(project_docs())} project + {len(skills)} skills "
+          f"+ {len(dot_dir_docs())} under .github); {len(flags)} of our "
           f"flags, of which {bare_seen} bare occurrence(s) on a fenced command line of one "
           f"of our {len(scripts)} argparse scripts (pinned red and green); "
           f"{len(aspects)} aspects known and every exhaustive census of them checked "

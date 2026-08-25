@@ -1454,8 +1454,8 @@ rejected twice over: it was arithmetically worse when minutes were metered (+25 
 a second job is a second check that can be absent.
 
 **The lever if latency ever binds is the slow tier's `pull_request` trigger, which was 141 of 220
-minutes**, not the filter, which is 7%. The derivation and the run ids are in
-`.github/workflows/README.md`.
+minutes**, not the filter, which is 7%. `python3 eval/tools/ci_minutes.py` re-derives it: it
+reports minutes by workflow and by workflow x event.
 
 ---
 ## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]

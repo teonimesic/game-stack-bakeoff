@@ -154,11 +154,15 @@ them** — the total is dominated by correct English, and at the last adjudicati
 It prints its population, the range it compared against and the producer of that range, because
 the figure it replaces was published with none of the three and did not reproduce the same day.
 
-**The references half reads the skills too, including this one** — since 2026-08-23 (task
-44). It did not before: the corpus was built with `glob`, `glob` does not descend into
-dot-directories, and every skill lives under one, so for the whole life of the sweep the
-always-loaded instruction documents were the only files it could not see. Measured when
-they were let in: **0 false positives**, after fenced lines stopped counting as claims.
+**The references half reads every instruction document a session is told to read, not only
+the ones outside a dot-directory** — the skills, including this one, and the CI register at
+`.github/workflows/README.md`. `glob` does not descend into a name beginning with a dot, so
+each was invisible to the sweep while being read by every session, and each is reached by a
+corpus that names it rather than by widening `project_docs()`, whose exact-count ratchet a
+larger corpus would move in the direction that passes. Both were measured before being let
+in: the skills at **0 false positives** once fenced lines stopped counting as claims, the
+register at **0 new rows** over the live tree, with a phantom flag planted in it to prove the
+sweep had not simply stopped looking.
 
 Prose is executed by a person, and **a person does not get an argparse error**. A file
 naming a flag, path, aspect or criterion that does not exist is worse than one that says
