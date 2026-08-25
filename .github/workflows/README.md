@@ -230,10 +230,10 @@ against.
 **Do not read `billable.UBUNTU.total_ms` from the API.** It returns `0`. Use the producer above.
 
 **A run the jobs endpoint has nothing for is a third value.** It is printed with its run id and
-left out of the total, never folded in as zero — one run cancelled before a job existed is enough
-to make a per-run refusal exit 2 on every census from then on, since it stays in the run list.
-The refusal that remains is the one an empty bucket cannot express: if *no* run yields a job, the
-endpoint is not answering and the tool reports nothing.
+left out of the total, never folded in as zero. Refusing per run instead would end the census
+altogether: such a run stays in the run list for good, and one exists — 32774427303, cancelled
+before a job was created. The refusal that remains is the one an empty bucket cannot express:
+if *no* run yields a job, the endpoint is not answering and the tool reports nothing.
 
 ## Adding a gate
 
