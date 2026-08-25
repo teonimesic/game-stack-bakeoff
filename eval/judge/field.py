@@ -1475,9 +1475,9 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
     # `SCENE.md` first.
     #
     # EXISTENCE IS NOT THE RESOURCE. An empty file, an edited one, or the OTHER scene's
-    # statement all pass a presence test and all cost 8 model calls scoring strips
-    # against the wrong subject - which is worse than the narrowing the statement
-    # removed, because it looks like an answer. So the content is compared, and every
+    # statement all pass a presence test, and each buys a judge invocation that scores
+    # the whole field against the wrong subject - which is worse than the narrowing the
+    # statement removed, because it looks like an answer. So the content is compared, and every
     # failure to establish it - unreadable, unstatable, unequal - is a refusal (rule 7,
     # rule 13).
     #

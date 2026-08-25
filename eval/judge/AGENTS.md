@@ -76,10 +76,10 @@ vocabulary — a tier-3 opinion told what tier 2 measures is a restatement of ti
 **Both the packer and the spender refuse.** `build_pack` will not build a pack for a scene the
 module cannot state, and `run_field` will not judge one whose `SCENE.md` is missing, undecodable
 or **not this scene's statement** — a pack is built once and judged later from a directory
-anything may have touched, and an empty or wrong-scene file passes a presence test while costing
-8 model calls scored against the wrong subject. There is no escape flag: a pack whose `SCENE.md`
-differs from this checkout's statement of its scene is refused, whatever produced the difference
-— re-pack it.
+anything may have touched, and an empty or wrong-scene file passes a presence test while buying
+a judge invocation that scores the whole field against the wrong subject. There is no escape
+flag: a pack whose `SCENE.md` differs from this checkout's statement of its scene is refused,
+whatever produced the difference — re-pack it.
 
 **A scene round records `provenance.scene_statement_sha256`, and `brief_sha256` cannot stand in
 for it** — the brief NAMES `SCENE.md` and does not contain it, so two rounds with the same brief

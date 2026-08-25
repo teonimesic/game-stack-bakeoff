@@ -890,8 +890,8 @@ def main() -> int:
 
         # AND THE SPENDER GUARDS IT TOO. `build_pack`'s refusal is on the packer; a pack
         # is built once and judged later, from a directory anything may have touched, so
-        # `run_field` asks again before spending 8 model calls (rule 13). EXISTENCE IS
-        # NOT THE RESOURCE: an empty file and the other scene's statement both pass a
+        # `run_field` asks again before spending the judge invocation (rule 13). EXISTENCE
+        # IS NOT THE RESOURCE: an empty file and the other scene's statement both pass a
         # presence test and both cost a field scored against the wrong subject.
         #
         # EVERY COPY HAS ITS COMPLETENESS KEY REMOVED, which is what makes these rows

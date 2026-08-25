@@ -671,8 +671,8 @@ def applicability(aspect_id: str, task_id: str,
     the resource -- `field.py pack`, `field.run_field` and `field_sweep.main` -- rather
     than from whichever one was in front of the author (rule 13).
 
-    Fails closed on an id it cannot classify: a field is 8 model calls, and "I do not
-    know what this task is" is not a reason to make them.
+    Fails closed on an id it cannot classify: a field is one judge invocation over all
+    8 submissions, and "I do not know what this task is" is not a reason to make it.
 
     `registry` exists so `aspects_selftest.py` can drive this function with a mutated
     aspect set. Callers in the harness pass nothing and get `ASPECTS`.
