@@ -1928,6 +1928,13 @@ ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "
 #: alternating `ORDINALS`, so a word the list does not carry is reported instead of missed.
 _BREAK_HEADING = re.compile(r"\b([A-Za-z][A-Za-z-]*)\s+comparability break", re.I)
 
+#: An ATX heading, INCLUDING the up-to-three leading spaces CommonMark allows. `startswith("#")`
+#: was the test until 2026-08-25 and it is a stricter reader than the renderer: ` ## a SEVENTH
+#: comparability break` heads a section in every markdown viewer and was invisible here, so an
+#: indented duplicate ordinal evaded the collision check entirely. A fourth space makes it an
+#: indented code block rather than a heading, which is why the bound is 3 and not `*`.
+_ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
+
 
 def _regime_ordinal_problems(text: str) -> list[str]:
     """A comparability break's ordinal must name exactly one break.
@@ -1965,7 +1972,7 @@ def _regime_ordinal_problems(text: str) -> list[str]:
     seen: dict[str, list[int]] = {}
     problems: list[str] = []
     for i, ln in enumerate(lines, 1):
-        if fenced[i - 1] or not ln.startswith("#"):
+        if fenced[i - 1] or not _ATX_HEADING.match(ln):
             continue
         m = _BREAK_HEADING.search(ln)
         if not m:
@@ -2061,6 +2068,15 @@ def _regime_ordinal_pins(verbose: bool = False) -> list[str]:
     case("green, a heading-shaped line inside a fence",
          "## a FIRST comparability break\n\n```\n## a FIRST comparability break\n```\n",
          False)
+
+    # An ATX heading may carry up to three leading spaces. `startswith("#")` read those as
+    # prose, so an indented duplicate ordinal was invisible to the collision check while
+    # rendering as a heading everywhere else. Three spaces is a heading; four is an indented
+    # code block, and must stay invisible -- both directions, or the fix is a new defect.
+    case("red, an indented duplicate ordinal (up to 3 spaces is still a heading)",
+         "\n".join(run + ["   ## another SECOND comparability break"]) + "\n", True)
+    case("green, 4 spaces is an indented code block, not a heading",
+         "\n".join(run + ["    ## another SECOND comparability break"]) + "\n", False)
     return out
 
 

@@ -2201,10 +2201,10 @@ same bright square-wave blip"*. Nothing in `judge/` has ever scored one distinct
 (`tasks/142`; found by review on PR 19, reviewable only because task 133 checked the rendered
 prompts in).
 
-**The radius is 16 rendered prompts and no scene**, measured rather than reasoned:
-`python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` against the pre-edit snapshot
-returned exit 1 naming **16 of 24** files — all 4 games x 4 stacks, 4 lines each — and **0 of the
-8** scene prompts, because scenes render from `scene_prompts.py`'s own `_scene_preamble()`. The
+**16 rendered prompts moved and no scene prompt did.** That was measured, not reasoned.
+`python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` exited 1 against the pre-edit
+snapshot and named **16 of 24** files: 4 games x 4 stacks, 4 lines each. It named **0 of the 8**
+scene prompts, because scenes render from `scene_prompts.py`'s own `_scene_preamble()`. The
 snapshot is re-recorded in the same commit.
 
 ### What it invalidates, and what it does not
