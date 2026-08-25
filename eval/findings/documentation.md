@@ -1431,3 +1431,50 @@ with nothing comparing them. The difference here is that the propagation was cau
 session that caused it**, which is the only reason the count is four and not more.
 
 ---
+
+## 181. A POPULATION with no producer goes stale exactly as a quantity does, and it is harder to see because the count beside it still looks right
+
+`eval/RUNS.md` carried a four-row census of stored judge rounds with its producer printed directly
+above it. Three rows were stale by 4; the fourth was correct. But the digits were the cheap part.
+
+Two sentences beside the table made claims about **what the numbers covered**:
+
+- *"**10** — all in `wg-aspect-reliability`"*
+- a section headed *"EVERY STORED CODE ROUND WAS TOLD ITS PACK MIGHT BE TRUNCATED"*
+
+Both were false at the new population, and neither was produced by anything. The 14 hashed rounds
+partition **10 in `wg-aspect-reliability`** and **4 in a later blind judge-field sweep** — so the
+universal was refuted by 4 rounds that read the repaired brief, and the single-directory claim by
+the same 4.
+
+> **A count has a producer; the sentence saying what it counts usually does not.** This project
+> already knows that *a count with a producer goes stale for an hour and a count with none goes
+> stale forever*. The population statement is the second kind, always — and it is worse, because a
+> reader who re-runs the producer sees the digit agree and stops.
+
+**The row that did NOT move is the tell.** Three rows moved by exactly 4 and one stayed at 26.
+Adding 4 to everything would have produced a table that was internally consistent, arithmetically
+tidy, and wrong — and nothing in the document would have disagreed.
+
+### The repair reproduced the defect one level in
+
+The fix counted a hashed code round whose aspect no longer exists **in the headline** and **skipped
+it from the population** — the same numerator/denominator mismatch as #174, committed while
+repairing a population claim. Caught in review, fixed with a third verdict column and the invariant
+`n = same + moved + unbuildable`.
+
+**And the first version of that invariant check summed only its own literals**, so it could not
+fail. It parses the census output now.
+
+> **An invariant asserted over the numbers you wrote is not an invariant; it is a restatement.** It
+> has to be computed from the thing under test, or it is `total=0 passed=0` wearing arithmetic.
+
+### What the ticket bought beyond the numbers
+
+The census reads a **gitignored path**, so no gate had ever seen it — which is why it could rot for
+days. It is now pinned by a fixture tree whose answers are written as literals, established **red
+first** (3 red rows with the 4 counts already correct), with a 7-mutant red half and a
+`--variant-control` that measures whether the variant is load-bearing: without it the mutant comes
+back SURVIVED.
+
+---
