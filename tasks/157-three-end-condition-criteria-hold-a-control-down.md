@@ -1,7 +1,7 @@
 ---
 id: 157
 title: Three end-condition criteria hold a control down after the game ends; pong's presses nothing, and that repair was never carried across
-status: todo
+status: in_progress
 priority: 2
 refs: eval/judge/bot_mutants.py, eval/judge/bot_arena.py, eval/judge/bot_platformer.py, eval/judge/bot_tetris3d.py, eval/judge/bot_pong.py, tasks/155
 done_when: The three criteria establish that PLAY stopped rather than that inputs were refused, the way match.ends does; the matching entries in PENDING_VARIANTS come back with an empty failing set and are promoted into VARIANTS; bot_mutants.py exits 0; and eval/judge/tier2_census.py is re-run against the main checkout's eval/runs with the before and after verdict counts recorded in the ticket.
