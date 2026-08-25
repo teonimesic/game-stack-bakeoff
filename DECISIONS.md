@@ -2557,6 +2557,59 @@ stationary-object shape, which would mean the 2 gates are aimed at the wrong pro
 contract change adding `car.screen`, which is the one field that would let `front.occludes` be
 measured twice instead of once.
 
+## The scene performance pass is an uncapped ramp on a spaced, exclusive machine — decided 2026-08-24
+
+`eval/SCENES.md` proposes scoring a scene as a ramp, which reads the stack only if the machine
+underneath holds still. **It cannot be held still by any mechanism on this host, and it does not
+need to be.** `eval/PERF-HOST.md` is the report and the authority; `eval/tools/host_perf_probe.py`
+is the producer for every figure in it.
+
+**No cap exists, and one candidate lies about existing.** `taskpolicy -b` cuts CPU throughput to
+0.21x and moves GPU frame time by under 0.1 ms in every interleaved round, so the CPU levers do
+not reach the GPU and nothing else does either. `RLIMIT_AS`, `RLIMIT_DATA` and `RLIMIT_RSS` — the
+first and third being the same limit on Darwin — return `EINVAL` from `setrlimit`, with
+`RLIMIT_STACK` set to its own hard limit as the control that proves the refusal is about the limit
+rather than the value. `taskpolicy -m` documents a memory limit in MiB and does not enforce one:
+a hog asked for 2048 MB got all of it at exit 0 under `-m 512`, and again under `-m 64 -j 10 -a`.
+That is #61's shape — an accepted-but-ignored flag — and it is written down so nobody builds a cap
+on it. `RLIMIT_CPU` is the one enforceable rlimit here and it kills on cumulative CPU seconds,
+which is a kill switch rather than a rate.
+
+**The container route is rejected on the GPU, not on the caps.** A Linux guest with cgroups v2 was
+started and measured: `--memory=512m` OOM-kills the same hog at exit 137 where the control writes
+2 GB, and `--cpus=2` delivers 2.08 cores against 2.00 asked. Those are real caps and `taskpolicy`
+has no number to ask for at all. But the guest has no `/dev/dri`, no DRM module and no Vulkan
+loader — no GPU device of any kind — so a GPU-bound scene there is software rasterisation, on a
+different machine from every existing result. **A stricter cap on the wrong hardware is not a
+stricter experiment.**
+
+**What replaces the cap is spacing and exclusivity, and both are measured.** The same fixed GPU
+workload, launched in separate processes 25 s apart, holds its median to a 0.766–2.485% range
+across 3 independent runs whose medians agree to 0.074%. Run back to back for 10 minutes it swings
+**1.975x** best to worst, reaching 10% above its opening value at t+16 s. One competing GPU process
+costs **2.13x**. Converted into ramp levels at a 1.25x step between levels, that is 0.11 levels
+spaced against 3.05 back-to-back and 3.39 shared. **Spacing is free and it is the difference
+between a ramp that can separate stacks and one that cannot.**
+
+**The drift is not monotone** — it peaks at t+120 s and recovers — so these arms do not separate
+thermal throttling from the shared CPU/GPU power budget or from a co-tenant, and a block design
+cannot be corrected after the fact by assuming the machine only got slower. Interleaving is
+therefore required rather than preferred.
+
+**The ramp reads a harness-side wall clock.** Bevy 0.19's `RenderDiagnosticsPlugin` records CPU
+time only on Metal by its own documentation, and the ts capture path runs on a software
+rasteriser, while godot 4.7 and unity 6000.0.45f1 both expose a real GPU-side frame timer.
+Reading each engine's best available clock would compare CPU frame time on 2 arms against GPU
+frame time on the other 2. The engine timers stay useful per stack and as a cross-check.
+
+**To re-open:** a machine that is exclusive and not a laptop, where the spaced and back-to-back
+arms would come back much closer together and spacing could be dropped; a macOS release that makes
+`setrlimit` accept an address-space limit, or `taskpolicy -m` enforce one, either of which is a new
+`--caps` row; GPU passthrough into a Linux guest on Apple silicon, which would make the container
+route a real option rather than a different experiment; or the first real scene submission
+measuring a run-to-run spread far above the floor reported here, which would mean the submission
+rather than the machine is what stops a ramp.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
