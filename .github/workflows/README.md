@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 46 documentation, queue and selftest gates | 7 mutant and control suites |
+| checks | 47 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **102s** | **685s** |
 
@@ -30,7 +30,9 @@ alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline a
 each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
 sigil, and no sweep is bounded by a figure nobody is charged (#159). `field_ranks --selftest` and
-`weight_sensitivity --selftest` run there too — both offline and under 0.1s locally.
+`weight_sensitivity --selftest` run there too — both offline and under 0.1s locally, as does
+`audio_regrade_census --selftest`, whose fixtures are dicts rather than decoded audio and so
+needs neither `ffmpeg` nor `just`.
 `skill_layout_selftest` is there rather than beside `skill_layout_control` because it needs
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.

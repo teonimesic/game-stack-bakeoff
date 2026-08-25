@@ -15,14 +15,22 @@ run:
 
 2. **`audio.distinct` compares decoded content, never filenames.** One beep copied to
    five names is the exact failure the criterion exists to catch, and it is invisible to
-   any filename or even any file-hash comparison once the copies are re-encoded.
+   any filename or even any file-hash comparison once the copies are re-encoded. It
+   counts and floors over the SAME set - the events the task declares - because a
+   criterion whose numerator and denominator come from different sets can be bought:
+   2 undeclared junk entries used to convert that exact failure into a pass (tasks/152).
 
 3. **Fail-closed.** A manifest that will not run, will not parse, or names a file that
    will not decode scores FALSE with the reason recorded. It is never "skipped":
-   `total=0 passed=0` is indistinguishable from correct failure.
+   `total=0 passed=0` is indistinguishable from correct failure. A game whose declared
+   event list is empty is refused here for the same reason.
 
 4. **Every criterion here has a mutant in `audio_selftest.py`** that makes it go red. A
-   criterion that cannot fail is worse than absent, because it looks like success.
+   criterion that cannot fail is worse than absent, because it looks like success. The
+   ones that only a VARIANT can reach have one too (`AGENTS.md` rule 15).
+
+5. **The declared event list is READ FROM THE PROMPTS, never transcribed.** A second
+   copy of one fact drifts, and this one did, on 2 of the 4 games (tasks/151).
 
 Decoding goes through `ffmpeg`, so the format the agent chose (wav, ogg, mp3, flac) is
 not a constraint on the grader. If `ffmpeg` is missing, every audio criterion fails with
@@ -38,6 +46,7 @@ import os
 import shutil
 import struct
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,14 +58,28 @@ from probe import Criterion
 # What each game declares. These are the event names in the task prompt, which is
 # a functional contract with the probe, not a rubric item - the prompt states them
 # verbatim and tells the agent to spell them exactly.
+#
+# READ FROM THE PROMPTS, NEVER TRANSCRIBED. `eval/suites/wholegame_prompts.py` is where
+# a task exists, so it is the address (rule 12), and the same lazy-import shape is
+# already how `aspects.py` learns which task ids the suites define. A hand-written copy
+# lived here until 2026-08-25 and had drifted on 2 of the 4 games: it knew 6 of the
+# arena's 9 events and none of the platformer's 8, and 30 of 59 stored audio gradings
+# recorded a real declared cue as an `extra_event` because of it (tasks/151).
+#
+# An import failure here is fatal on purpose. Every audio criterion is graded against
+# this contract, and a grader that cannot state what the task asked for must not go on
+# to report that the submission satisfied it.
 # --------------------------------------------------------------------------- #
 
-GAME_EVENTS: dict[str, tuple[str, ...]] = {
-    "g1_pong": ("paddle_hit", "wall_bounce", "score_left", "score_right", "game_over"),
-    "g2_tetris3d": ("spawn", "move", "rotate", "lock", "layer_clear", "game_over"),
-    "g3_arena": ("fire", "enemy_hit", "enemy_dead", "player_hit", "wave_start",
-                 "game_over"),
-}
+
+def _declared_events() -> dict[str, tuple[str, ...]]:
+    suites = Path(__file__).resolve().parent.parent / "suites"
+    sys.path.insert(0, str(suites))
+    import wholegame_prompts
+    return {task: tuple(names) for task, names in wholegame_prompts.EVENTS.items()}
+
+
+GAME_EVENTS: dict[str, tuple[str, ...]] = _declared_events()
 
 CRITERIA = [
     ("audio.manifest",
@@ -367,6 +390,55 @@ def _resolve(repo: Path, ref: Any) -> Path | None:
 
 
 # --------------------------------------------------------------------------- #
+# The two rules that read the declared event list
+# --------------------------------------------------------------------------- #
+#
+# Both are pure functions of (manifest, declared events) so that `audio_regrade_census.py`
+# can apply the shipped rule to a stored grading instead of restating it. A census that
+# re-implements the rule it is measuring is measuring its own copy.
+
+
+def manifest_problems(manifest: dict[str, Any] | None, expected: tuple[str, ...]
+                      ) -> tuple[list[str], list[str], list[str]]:
+    """`audio.manifest`'s verdict, as (problems, missing_events, extra_events).
+
+    Empty `problems` is a pass. `extra_events` is reported and never a problem: the task
+    asks for an entry per declared event and forbids no others, so an extra cue is a
+    design choice a submission is entitled to make (`tasks/152`).
+    """
+    m = manifest or {}
+    music = m.get("music") if isinstance(m.get("music"), dict) else None
+    sfx = m.get("sfx") if isinstance(m.get("sfx"), dict) else None
+    problems: list[str] = []
+    if music is None:
+        problems.append("no `music` object")
+    if sfx is None:
+        problems.append("no `sfx` object")
+    missing = [e for e in expected
+               if not isinstance((sfx or {}).get(e), dict)
+               or not (sfx or {}).get(e, {}).get("file")]
+    if missing:
+        problems.append(f"sfx missing an entry with a file for: {', '.join(missing)}")
+    return problems, missing, sorted(set(sfx or {}) - set(expected))
+
+
+def distinct_floor(expected: tuple[str, ...]) -> int:
+    """How many distinct sounds the declared events must resolve to.
+
+    Half of them, rounded up, never below 2: the task explicitly permits two events to
+    share a sound, so the floor is not "all of them". What must fail is one clip
+    everywhere.
+    """
+    return max(2, math.ceil(len(expected) / 2))
+
+
+def distinct_ok(n_declared_clips: int, n_groups: int,
+                expected: tuple[str, ...]) -> bool:
+    """`audio.distinct`'s verdict. Both arguments count DECLARED events only."""
+    return n_declared_clips > 0 and n_groups >= distinct_floor(expected)
+
+
+# --------------------------------------------------------------------------- #
 # The criteria
 # --------------------------------------------------------------------------- #
 
@@ -394,6 +466,15 @@ def collect(repo: Path, game: str, env: dict[str, str] | None = None
     if not ffmpeg_available():
         return fail_all("ffmpeg is not installed on the grading machine; no audio "
                         "criterion can be evaluated (fail-closed, not skipped)")
+    if not expected:
+        # The contract is the declared event list. Without one there is nothing for
+        # `audio.manifest` to find missing and nothing for `audio.distinct` to floor on,
+        # so every criterion would report success having measured nothing - which is
+        # what `g4_platformer` did for 24 stored gradings (tasks/151).
+        return fail_all(
+            f"{game!r} declares no events in eval/suites/wholegame_prompts.py, so there "
+            f"is no audio contract to grade it against (fail-closed, not skipped). "
+            f"Games with a declared event set: {sorted(GAME_EVENTS)}")
 
     manifest, note, code = read_manifest(repo, env)
     info: dict[str, Any] = {"game": game, "expected_events": list(expected),
@@ -404,18 +485,9 @@ def collect(repo: Path, game: str, env: dict[str, str] | None = None
     music = manifest.get("music") if isinstance(manifest.get("music"), dict) else None
     sfx = manifest.get("sfx") if isinstance(manifest.get("sfx"), dict) else None
 
-    shape_problems: list[str] = []
-    if music is None:
-        shape_problems.append("no `music` object")
-    if sfx is None:
-        shape_problems.append("no `sfx` object")
-    missing_events = [e for e in expected if not isinstance((sfx or {}).get(e), dict)
-                      or not (sfx or {}).get(e, {}).get("file")]
-    if missing_events:
-        shape_problems.append(f"sfx missing an entry with a file for: "
-                              f"{', '.join(missing_events)}")
+    shape_problems, missing_events, extra_events = manifest_problems(manifest, expected)
     info["missing_events"] = missing_events
-    info["extra_events"] = sorted(set(sfx or {}) - set(expected))
+    info["extra_events"] = extra_events
     add("audio.manifest", not shape_problems,
         ("valid JSON; music + sfx entries for all "
          f"{len(expected)} declared events ({', '.join(expected)})"
@@ -462,18 +534,37 @@ def collect(repo: Path, game: str, env: dict[str, str] | None = None
          else f"silent or near-silent: {'; '.join(quiet) or 'no clips decoded'}"))
 
     # ---- distinct sounds, by CONTENT --------------------------------------- #
-    sfx_clips = [c for k, c in sorted(clips.items()) if k.startswith("sfx.")]
-    groups = distinct_groups(sfx_clips)
-    n_events = len(expected) or len(sfx_clips)
+    #
+    # NUMERATOR AND DENOMINATOR RANGE OVER THE SAME SET: the events the task declares.
+    # Both halves used to be drawn from different sets - groups counted over every `sfx`
+    # entry, floor computed from the declared events - and an undeclared entry fails no
+    # criterion, so 2 unique junk entries bought a Pong submission a pass on the exact
+    # failure this criterion exists to catch (tasks/152).
+    #
+    # The alternative repair was to fail `audio.manifest` on an undeclared entry. It was
+    # not taken: the prompt asks for "an entry for every event name listed above" and
+    # forbids no others, so a submission with a legitimate extra cue - a menu blip, a
+    # footstep - would fail a contract it kept. That is fail-CLOSED and costs a trial;
+    # this repair costs nothing and closes the loophole, because an extra entry now
+    # neither helps nor hurts here. Extras are still decoded and still answer
+    # `audio.files_exist` and `audio.not_silent`, whose numerator and denominator are
+    # both the manifest: there an extra can only ever hurt, never buy a pass.
+    #
     # Sharing one sound between two events is explicitly allowed by the task, so the
-    # floor is half the declared events rather than all of them. What must fail is
-    # one clip reused everywhere.
-    floor = max(2, math.ceil(n_events / 2)) if n_events else 0
+    # floor is half the declared events rather than all of them. What must fail is one
+    # clip reused everywhere.
+    graded = {f"sfx.{e}" for e in expected}
+    sfx_clips = [c for k, c in sorted(clips.items()) if k in graded]
+    ungraded = sorted(k[4:] for k in clips if k.startswith("sfx.") and k not in graded)
+    groups = distinct_groups(sfx_clips)
+    floor = distinct_floor(expected)
     info["distinct_sound_groups"] = [[Path(c.path).name for c in g] for g in groups]
-    add("audio.distinct", bool(sfx_clips) and len(groups) >= floor,
-        (f"{len(groups)} distinct sounds across {len(sfx_clips)} sfx entries "
-         f"(floor {floor}); groups by decoded content: "
-         f"{info['distinct_sound_groups']}")[:400])
+    info["ungraded_sfx_entries"] = ungraded
+    add("audio.distinct", distinct_ok(len(sfx_clips), len(groups), expected),
+        (f"{len(groups)} distinct sounds across {len(sfx_clips)} of the "
+         f"{len(expected)} declared events' sfx entries (floor {floor}); "
+         f"{len(ungraded)} undeclared entries not counted either way; "
+         f"groups by decoded content: {info['distinct_sound_groups']}")[:400])
 
     # ---- music --------------------------------------------------------------#
     m = clips.get("music")
@@ -548,5 +639,4 @@ def triggered_criterion(repo: Path, game: str, fired: list[str],
 
 
 if __name__ == "__main__":
-    import sys
     print(json.dumps(collect(Path(sys.argv[1]).resolve(), sys.argv[2]), indent=2))
