@@ -99,7 +99,7 @@ a per-stack mean over both describes neither. Tier 2 for a scene is `scene_probe
 record says so in `tier2_instrument` and in the tier's own `tier` field; the SLOT keeps the name
 `playbot`, because that is what `WEIGHTS`, the completeness gate and every stored grading spell.
 
-Two things about tier 1 are class-dependent: a scene is filmed at its own contracted tick count
+2 things about tier 1 are class-dependent: a scene is filmed at its own contracted tick count
 rather than the game default, and the 5 tier-1 audio criteria are not asked of it — every rendered
 scene prompt says the scene has no sound, so scoring one against them deducts for compliance.
 

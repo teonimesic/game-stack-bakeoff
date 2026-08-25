@@ -2787,8 +2787,8 @@ rather than refusing, so a scene handed to the retired generalist judge is answe
 game criteria.
 
 So `aspects.INSTRUMENTS` declares the class of every non-aspect instrument — `playbot`,
-`scene_probe`, `legacy_judge` — and `applicability()` answers for both registries. One function
-rather than two that can drift apart, because the question is identical.
+`scene_probe`, `legacy_judge` — and `applicability()` answers for both registries. 1 function
+rather than 2 that can drift apart, because the question is identical.
 
 **`evaluate.TIER2_INSTRUMENT` is written out per task and NOT derived from the class.** Deriving
 it would make the guard a comparison of a value with itself — every pairing correct by

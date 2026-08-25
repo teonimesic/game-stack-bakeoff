@@ -16,6 +16,9 @@ Three populations live under `eval/runs/**/trials/*.json` and must never be summ
 | scene | `task_class` is `scene` | a timed sequence with no player (`eval/SCENES.md`) |
 | spec-change | record has no `game` field | the retired `runner.py` suite (`eval/AGENTS.md`) |
 
+Any other `task_class` is **refused by name**, not read as a game: a partition keyed on
+one recognised value puts every unrecognised one inside the published bake-off figure.
+
 **A scene record carries a `game` field like every other**, so the `game`-field test alone
 put it in the whole-game count — one population's trials inside another population's
 figure, which is the pooling `eval/SCENES.md` forbids in as many words. The class is read
@@ -91,16 +94,33 @@ WHOLEGAME_KEY = "game"
 TASK_CLASS_KEY = "task_class"
 
 
+#: Every class this census knows how to partition. A PRESENT value outside it is refused.
+TASK_CLASSES = frozenset({"game", "scene"})
+
+
 def task_class_of(record: dict) -> str:
-    """`"game"` or `"scene"` for one stored record.
+    """`"game"` or `"scene"` for one stored record. Raises on a class it does not know.
 
     ABSENT READS AS `game` BY CONSTRUCTION, not by convenience. `wholegame.py` gained
     `--scenes` and this field in one change, so a record written without the field was
     written by a harness that could not launch a scene. Reading it as `game` is therefore
     a statement about the corpus, and it is one a scene record cannot slip past: any
     record a scene run produces carries the field.
+
+    A PRESENT VALUE THIS DOES NOT KNOW IS REFUSED, and that is a different question from
+    the absent one. `== "scene" else "game"` tests one instance of an open class: a third
+    task class, or `"Scene"` off a typo, would land inside the published bake-off count
+    and its tokval total with nothing saying so. A partition whose trigger enumerates the
+    values it happened to know about is the failure this repository has a rule for.
     """
-    return "scene" if record.get(TASK_CLASS_KEY) == "scene" else "game"
+    klass = record.get(TASK_CLASS_KEY)
+    if klass is None:
+        return "game"
+    if klass not in TASK_CLASSES:
+        raise CensusError(f"`{TASK_CLASS_KEY}` is {klass!r}, which is not one of "
+                          f"{sorted(TASK_CLASSES)} — refusing to pool it into a "
+                          f"population it may not belong to")
+    return klass
 
 # Directories that hold trees written by a building agent or by a toolchain, not by a
 # harness. A `trials/` directory appearing under one of these is not ours; counting it
@@ -164,6 +184,13 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
         if "agent" in data and not isinstance(data["agent"], dict):
             raise CensusError(f"{path}: `agent` is {data['agent']!r}, not an object — "
                               f"nothing can be read from it")
+        # A TASK CLASS NOBODY HERE PARTITIONS FAILS BY NAME, here rather than at the
+        # point of use, because `task_class_of` is called from inside a comprehension
+        # over every record and has no path to name.
+        try:
+            task_class_of(data)
+        except CensusError as exc:
+            raise CensusError(f"{path}: {exc}") from exc
         out.append((str(path.parent.parent.relative_to(runs_dir)), path.name, data))
     if not out:
         raise CensusError(f"{runs_dir} holds no **/trials/*.json — refusing to report 0 "
@@ -506,6 +533,26 @@ def selftest() -> int:
 
         c = census(runs)
         wg, sc, tree, scn = (c["wholegame"], c["specchange"], c["tree"], c["scene"])
+
+        # Direction 8c: A CLASS THIS CENSUS DOES NOT PARTITION. Not the absent case and
+        # not the scene case - a present value nobody here recognises, which a
+        # `== "scene" else "game"` test folds into the bake-off figure in silence. It is
+        # written into its OWN tree, so the census above is measured over the corpus the
+        # rows below state.
+        with tempfile.TemporaryDirectory() as tmp2:
+            other = Path(tmp2) / "runs"
+            _write(other / "wg-x" / "trials" / "c1__ts__t0.json",
+                   {"game": "c1_cutscene", "task_class": "cutscene", "stack": "ts",
+                    "agent": {"cost_usd": 5.0, "terminal_reason": "completed"}})
+            try:
+                census(other)
+                failures.append("a task_class nobody partitions was accepted, and its "
+                                "record landed in a population it may not belong to")
+            except CensusError as exc:
+                check("the refusal names the file",
+                      "c1__ts__t0.json" in str(exc), True)
+                check("and names the class it could not place",
+                      "'cutscene'" in str(exc), True)
         check("wholegame.trial_records", wg["trial_records"], 9)
         check("wholegame.run_directories", wg["run_directories"], 3)
         check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})

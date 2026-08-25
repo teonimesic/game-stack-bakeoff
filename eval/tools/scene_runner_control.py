@@ -167,6 +167,12 @@ def check_selection(rows: Rows) -> None:
     rows.check("an empty --games is refused, not read as `all`",
                refuses(lambda: wg.select_tasks([], None)),
                "a selection narrowed to nothing must not become the widest one there is")
+    # AND IT IS REFUSED BEFORE THE SCENES ARE ADDED. A refusal that fires only when the
+    # WHOLE selection comes out empty lets `--games --scenes s1_parallax` through, which
+    # is the same operator error buying a paid trial instead of a retyped command.
+    rows.check("an empty --games is refused even when --scenes fills the selection",
+               refuses(lambda: wg.select_tasks([], [SCENE])),
+               f"got {wg.select_tasks([], [SCENE]) if not refuses(lambda: wg.select_tasks([], [SCENE])) else ''}")
     rows.check("a task id no suite defines is refused",
                refuses(lambda: wg.select_tasks(["g9_nothing"], None)))
 
@@ -336,6 +342,14 @@ def check_tier1_shape(rows: Rows) -> None:
         with patched(static, "collect", spy):
             with contextlib.suppress(_Stop):
                 ev.evaluate(FIXTURE, FIXTURE, task, _tmp("t1"), audio=True)
+        # THE SCENE'S EXPECTED `audio_game` IS `None`, WHICH IS ALSO WHAT AN EMPTY `seen`
+        # RETURNS. Without this row, a `static.collect` that was never reached - a
+        # refusal before tier 1, an `evaluate` that bound `collect` by value - reads as a
+        # pass on the two rows below. Today the game iteration happens to catch it; the
+        # scene iteration cannot, and it is the one the change is about.
+        rows.check(f"{task}: tier 1 was reached at all", bool(seen),
+                   "static.collect was never called, so the rows below are comparing "
+                   "absent values and passing for the wrong reason")
         rows.check(f"{task}: audio_game={want_audio!r}",
                    seen.get("audio_game") == want_audio,
                    f"got {seen.get('audio_game')!r}. Every rendered scene prompt says "

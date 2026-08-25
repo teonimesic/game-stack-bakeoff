@@ -98,19 +98,28 @@ def select_tasks(games: list[str] | None, scenes: list[str] | None) -> list[str]
     second harness are two variables, and that a scene matrix packed back to back
     forecloses the performance question (#172).
 
-    An EMPTY `--games` is refused rather than read as "all". It used to be the latter,
-    because `a.games or list(P.TASKS)` cannot tell `[]` from `None`; a selection the
-    operator narrowed to nothing must not silently become the widest one there is.
+    An EMPTY `--games` is refused, and it is refused BEFORE the scenes are added rather
+    than only when the whole selection comes out empty. It used to read as "all", because
+    `a.games or list(P.TASKS)` cannot tell `[]` from `None`; a selection the operator
+    narrowed to nothing must not silently become the widest one there is, and it must not
+    quietly become a paid scene trial either. `--games` with no values buys nothing that
+    omitting it does not - omitting it alongside `--scenes` already selects scenes alone -
+    so refusing costs one retyped command and accepting launches a trial nobody asked for.
     """
+    if games == []:
+        raise SystemExit(
+            "`--games` was given with no values, which selects nothing. It is refused "
+            "rather than read as every game, and rather than left to be filled in by "
+            "`--scenes`. Name the games, or omit `--games` entirely - omitting it "
+            "alongside `--scenes` already selects the scenes alone.")
     if games is None and not scenes:
         chosen = list(P.TASKS)
     else:
         chosen = list(games or []) + list(scenes or [])
     if not chosen:
         raise SystemExit(
-            "no tasks selected. `--games` with no values selects nothing, and it is "
-            "refused rather than read as every game. Name the games, name the scenes "
-            "with `--scenes`, or pass neither for the standing game matrix.")
+            "no tasks selected. Name the games, name the scenes with `--scenes`, or "
+            "pass neither for the standing game matrix.")
     unknown = [t for t in chosen if t not in ALL_TASKS]
     if unknown:
         raise SystemExit(f"unknown task ids: {unknown}. Known: {sorted(ALL_TASKS)}")

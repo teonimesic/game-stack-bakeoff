@@ -78,7 +78,7 @@ command in this file launches no scene. A scene is built only when it is named:
     python3 wholegame.py build --scenes s1_parallax --stacks ts --trials 1 --run-dir runs/<name>
 
 Everything above still applies — the same pre-launch checks, the same turn bound, the same
-work root. Three things are different and none of them is optional:
+work root. 3 things are different and none of them is optional:
 
 - **A scene matrix is not a game matrix with more cells.** `eval/SCENES.md` records the
   sequencing: scenes and a second agent harness are 2 variables, so establish scenes on the

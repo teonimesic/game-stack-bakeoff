@@ -134,7 +134,7 @@ jobs:
         run: python3 eval/judge/scene_mutants.py --census-selftest
       # The RUNNER's side of the same question. `scene_mutants` asks whether each scene
       # criterion can fail; this asks whether the harness can reach the right instrument
-      # at all and still refuse the wrong one -- six named routes from an operator's
+      # at all and still refuse the wrong one -- 6 named routes from an operator's
       # command to a grading instrument or a judge pack, each with a mutant. It drives
       # judge/fixtures/ref_parallax through `just`, which is why it is here rather than
       # in gates.yml.
