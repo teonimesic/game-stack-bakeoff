@@ -447,3 +447,42 @@ The first plant used the token `zzphantomflag` and came back green in **both** f
 `phantom` matches the checker's own deliberately-fake allowlist, so the probe was disarmed by the
 thing it was probing. A neutral token separated the two files immediately. **Name a probe after
 nothing the system knows about.**
+
+## 2026-08-25 — the git hooks, and what they actually run
+
+Area chosen because today's work took `gates.yml` from 32 gates to 46, and the hooks claim to run
+that set. Nobody had read `.githooks/` in any previous pass. Two agents held `audio.py` and
+`docstat.py` at the time, so the pass stayed clear of both — except where it could not (below).
+
+### Found
+
+- **`pre-push` runs 5 of 46 gates, and the register says it runs "the full `gates.yml` set".**
+  `run-gates.sh` invokes a hardcoded list — `docstat --selftest`, `--findings`, `--withdrawn`,
+  `tasks.py check`, and `--sweep` on push only. All five are documentation checks: no mutant
+  suite, no tool selftest, no control. The failure direction is the bad one — a green pre-push
+  reads as *"I have run what CI will run"*. Filed as **`tasks/153`** at p2, with the tension
+  stated rather than assumed: making pre-push run all 46 is not obviously right, because a gate
+  people skip is worse than one nobody added, and correcting the description alone is a complete
+  answer.
+- **The same table's `~13s` is `24.8s` measured.** Same row, same staleness, and it belongs to
+  `tasks/129` — noted there rather than filed twice.
+- **`main` was RED and I found it by running the hook, not from CI.** `docstat --sweep` was
+  failing on **nine** foreign flags named in `tasks/149`'s own notes — git's `--ours`/`--theirs`/
+  `--merge`/`--offline`, `gh`'s `--auto`/`--body`/`--body-file`, and `--doctool`/
+  `--enable-unsafe-webgpu` from the tools its census covers. The agent working 149 is cataloguing
+  candidate false positives, which is its job, and every bare backticked flag it records reddens
+  the gate it is fixing. All nine are genuinely other tools', so the allowlist is the designed
+  home; fixed and pushed.
+
+### Worth carrying forward
+
+**The rule added to the tasks skill this morning — sweep after every `add` and `note` — is written
+for whoever is holding the queue, and an agent writing ticket notes is also holding it.** This is
+the fourth red-on-ticket-prose today and the first that arrived through an agent rather than
+through me. The rule reaches agents only if they read that skill; whether it should live somewhere
+they cannot miss is a question for the next `audit-docs` pass, not a change to make from a cleanup
+pass.
+
+**The hook is the mechanism that would have stopped this reaching `main`, and it is not installed
+by default** — deliberately, since `core.hooksPath` is shared config and arms every worktree at
+once. So the thing that catches this class is a command the operator has to have run.
