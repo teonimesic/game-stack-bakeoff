@@ -58,7 +58,10 @@ What is checked, and why each direction is needed:
      `verify_blind.py --packs`, and free of `tools/prompt_guard.py`'s criterion and
      threshold vocabulary - with a mutant for each of those last 2, a variant driving a
      leaking statement through the real packer, and a fail-closed case for a scene the
-     packer cannot state.
+     packer cannot state. `run_field` refuses a statement that is absent, empty,
+     undecodable or the other scene's, and records the digest of the one it validated -
+     `brief_sha256` cannot stand in for that, because the brief NAMES `SCENE.md` and does
+     not contain it.
  12. WHO THE FRAMES BLURB SAYS IS WATCHING is a function of the task class, in both
      directions. A scene has no player, so "everything the player sees" in a scene brief
      is check 4's defect in a new place - judge-facing text describing something the task
@@ -69,6 +72,7 @@ Run:  python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim h
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -897,9 +901,14 @@ def main() -> int:
         # but for one file, and two different refusals.
         _a0, sdest, _sm = scene_packs[("s1_parallax",
                                        aspects.ASPECTS["fidelity"].sees, False)]
+        #: `bytes` are written as-is; `str` is encoded; `None` deletes the file.
+        #: `undecodable` is the state `(OSError, RuntimeError)` did not cover:
+        #: `read_text` raises `UnicodeDecodeError`, which is a `ValueError`, so an
+        #: invalid-byte statement was a traceback where every sibling is a record.
         STATEMENT_STATES = (
             ("absent", None),
             ("empty", ""),
+            ("undecodable", b"\xff\xfe not utf-8 \xff"),
             ("the other scene's", field.scene_statement("s2_glass")),
             ("this scene's", field.scene_statement("s1_parallax")),
         )
@@ -915,6 +924,8 @@ def main() -> int:
                 # `missing_ok`: if the packer wrote none, the rows above already say so
                 # and this loop must still reach its own.
                 statement.unlink(missing_ok=True)
+            elif isinstance(body, bytes):
+                statement.write_bytes(body)
             else:
                 statement.write_text(body)
             err = field.run_field(copy, "fidelity").get("error") or ""
@@ -932,6 +943,28 @@ def main() -> int:
                        f"{field.SCENE_STATEMENT_FILE} is {state}; the brief it is about "
                        f"to write tells the judge to read that file first, and a wrong "
                        f"subject is worse than none")
+
+        # WHAT THE ROUND WILL RECORD ABOUT ITS SUBJECT. `brief_sha256` cannot answer it:
+        # the brief NAMES `SCENE.md` and does not contain it, so two rounds with the same
+        # brief hash can have been read against two different statements - the question
+        # #83 could not answer about what a judge had seen.
+        #
+        # `_provenance` is a function precisely so this is reachable: everything else in
+        # `run_field`'s tail needs a model call to exist. The expected digest is computed
+        # HERE from `scene_statement`, which is the same value the guard validated - that
+        # is a shared FACT at one address (rule 12), not an imported expectation.
+        for game, aid in (("s1_parallax", "fidelity"), ("g9_probe", "ux")):
+            a = aspects.ASPECTS[aid]
+            sha = (hashlib.sha256(field.scene_statement(game).encode()).hexdigest()[:16]
+                   if aspects.task_class(game) == "scene" else None)
+            prov = field._provenance(a, {"game": game, "sees": a.sees}, "a brief",
+                                     sha, 120, 12.0)
+            expect(f"provenance-records-the-subject[{game}]",
+                   prov.get("scene_statement_sha256") == sha,
+                   f"a {aspects.task_class(game)} round would store "
+                   f"scene_statement_sha256={prov.get('scene_statement_sha256')!r} "
+                   f"against {sha!r}; nothing else in the record says which statement "
+                   f"the strips were scored against")
 
     if FAILS:
         print(f"BLURB SELFTEST: {len(FAILS)} unmet expectation(s)\n")
@@ -968,7 +1001,6 @@ def stored_rounds_census(runs_root: Path) -> int:
     Run it against the MAIN CHECKOUT's `eval/runs`; the path is gitignored, so a worktree's
     copy is empty and this would print a confident set of zeros.
     """
-    import hashlib
     if not runs_root.is_dir():
         print(f"runs root does not exist: {runs_root}", file=sys.stderr)
         return 2

@@ -1358,6 +1358,53 @@ SCHEMA = {
 }
 
 
+
+def _provenance(aspect: Aspect, mapping: dict[str, Any], brief_text: str,
+                statement_sha: str | None, max_turns: int, budget: float
+                ) -> dict[str, Any]:
+    """WHAT THIS ROUND ACTUALLY SAW, so the question is answerable from the record.
+
+    A FUNCTION rather than a dict literal inside `run_field`, because everything else in
+    that function's tail needs a model call to exist and this does not. A field recorded
+    only on the far side of an 8-call spend is a field no offline check can assert;
+    `blurb_selftest.py` drives this directly.
+
+    Two fields were missing before this block existed and both mattered within days.
+    `run` was absent, so a round named only its game - and `g2_tetris3d` is 4 stored
+    fields in different states of repair. `files_opened` was absent until task 09 added it
+    for an unrelated reason, and it is the only thing that bounded #83.
+
+    The rescue that found the missing `run` worked by matching numbers quoted in `fun`'s
+    prose against stored telemetry. **That was luck about one aspect's writing style**:
+    `ux` or `idiomatic` quote no telemetry and would have been unresolvable. Prose is not
+    a substitute for a field.
+
+    So the test applied here is: if someone asks in a month what this round saw, which
+    parts of the answer are gone? Everything below was in that category.
+    """
+    return {
+        "sees": mapping.get("sees"),
+        "blind_language": aspect.blind_language,
+        # The BRIEF is not fixed. A geometry note was added to it on 2026-08-22, and
+        # rounds either side of that saw different text - which is why task 08 had to
+        # re-run seven repeats rather than top up four. Hashing it makes "same brief?"
+        # a comparison instead of an argument.
+        "brief_sha256": hashlib.sha256(brief_text.encode()).hexdigest()[:16],
+        "brief_chars": len(brief_text),
+        # THE SUBJECT A SCENE ROUND WAS SCORED AGAINST, and the brief hash cannot
+        # stand in for it: the brief NAMES `SCENE.md` and does not contain it, so
+        # two rounds with the same `brief_sha256` can have been read against two
+        # different statements. `None` for a game round, which is a third value and
+        # not "the statement was empty".
+        "scene_statement_sha256": statement_sha,
+        "evidence_counts": mapping.get("evidence_counts"),
+        "capture_geometry": mapping.get("capture_geometry"),
+        "knowingly_truncated": mapping.get("knowingly_truncated"),
+        "max_turns": max_turns,
+        "per_call_budget_usd": budget,
+        "judged_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+
 def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
               max_turns: int = 120, budget: float = 12.0,
               timeout_s: int = 3600) -> dict[str, Any]:
@@ -1438,11 +1485,15 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
     # against a different subject and is a different experiment; re-pack it. There are 0
     # stored scene packs, so there is nothing to grandfather and an escape would be a
     # fail-open channel with no measured need.
+    statement_sha: str | None = None
     if task_class(mapping["game"]) == "scene":
         try:
             expected = scene_statement(mapping["game"])
             on_disk = (pack / SCENE_STATEMENT_FILE).read_text()
-        except (OSError, RuntimeError) as e:
+        # `UnicodeError` is NOT covered by `OSError`: `read_text` raises
+        # `UnicodeDecodeError`, a `ValueError`, on a file that is not UTF-8. Uncaught it
+        # is a traceback where every sibling here is a stored `usable: False` record.
+        except (OSError, UnicodeError, RuntimeError) as e:
             return {"usable": False,
                     "error": f"this pack's {SCENE_STATEMENT_FILE} could not be read "
                              f"against scene {mapping['game']!r}: {e}. Every brief for "
@@ -1460,6 +1511,10 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
                              f"other subject, which is worse than reading none. "
                              f"Re-pack the run (field.py pack, or a field_sweep round) "
                              f"rather than judging this pack."}
+        # RECORDED, not merely checked. The brief NAMES `SCENE.md` and does not contain
+        # it, so `brief_sha256` cannot answer "what subject was this round scored
+        # against?" - the question #83 could not answer about what a judge had read.
+        statement_sha = hashlib.sha256(on_disk.encode()).hexdigest()[:16]
     # HOW MUCH OF ITSELF EACH SUBMISSION IS BEING SHOWN IS A THIRD VALUE, not a boolean.
     # `mapping.get("knowingly_truncated")` returning None means the pack was built before
     # `build_pack` recorded it, and a missing key read as falsy would have the brief
@@ -1562,37 +1617,10 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         # record; `run_field` simply never carried it into the stored round.
         "usable": True, "aspect": aspect_id, "game": mapping["game"],
         "run": mapping.get("run"),
-        # PROVENANCE: what this round actually SAW, so the question "what exactly did it
-        # see?" is answerable from the record instead of reconstructed.
-        #
-        # Two fields were missing before this and both mattered within days. `run` was
-        # absent, so a round named only its game - and `g2_tetris3d` is four stored fields
-        # in different states of repair. `files_opened` was absent until task 09 added it
-        # for an unrelated reason, and it is the only thing that bounded #83.
-        #
-        # The rescue that found the missing `run` worked by matching numbers quoted in
-        # `fun`'s prose against stored telemetry. **That was luck about one aspect's
-        # writing style**: `ux` or `idiomatic` quote no telemetry and would have been
-        # unresolvable. Prose is not a substitute for a field.
-        #
-        # So the test applied here is: if someone asks in a month what this round saw,
-        # which parts of the answer are gone? Everything below was in that category.
-        "provenance": {
-            "sees": mapping.get("sees"),
-            "blind_language": aspect.blind_language,
-            # The BRIEF is not fixed. A geometry note was added to it on 2026-08-22, and
-            # rounds either side of that saw different text - which is why task 08 had to
-            # re-run seven repeats rather than top up four. Hashing it makes "same brief?"
-            # a comparison instead of an argument.
-            "brief_sha256": hashlib.sha256(brief_text.encode()).hexdigest()[:16],
-            "brief_chars": len(brief_text),
-            "evidence_counts": mapping.get("evidence_counts"),
-            "capture_geometry": mapping.get("capture_geometry"),
-            "knowingly_truncated": mapping.get("knowingly_truncated"),
-            "max_turns": max_turns,
-            "per_call_budget_usd": budget,
-            "judged_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-        },
+        # PROVENANCE: what this round actually SAW. `_provenance` above holds it and the
+        # reasoning behind every field in it.
+        "provenance": _provenance(aspect, mapping, brief_text,
+                                 statement_sha, max_turns, budget),
         "order_seed": mapping["order_seed"], "model": model,
         "cost_usd": data.get("total_cost_usd"),
         "mapping": mapping["mapping"],
