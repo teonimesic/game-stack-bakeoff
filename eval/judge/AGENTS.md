@@ -61,9 +61,18 @@ registry as the 6 game aspects and at the same weight, 0.00. 2 things govern usi
   every pooled figure**, since 2026-08-24: a pooled figure is a between-stack range, so
   `assert_poolable` refuses it exactly as it refuses a control (`tasks/146`).
 
-`RUBRIC.md` holds what each scene aspect asks, what `fidelity` cannot see without a
-stack-neutral scene statement in the pack, and why the weight question reads **NOT ASKED**
-rather than "no effect" while there are 0 scene gradings.
+`RUBRIC.md` holds what each scene aspect asks, what `fidelity` is read against, and why the
+weight question reads **NOT ASKED** rather than "no effect" while there are 0 scene gradings.
+
+**A scene pack carries `SCENE.md`, a hand-written stack-neutral statement of the scene, and a
+game pack must not.** `field.SCENE_STATEMENTS` is the text and `field.build_pack` writes it
+**raw** — every other piece of pack text goes through `neutralise`, and this one may not, because
+laundering harness-authored text leaves `verify_blind.py --packs` reading a file the harness has
+already cleaned. `blurb_selftest.py` is the gate: on disk for a scene field and absent for a game
+one, byte-identical to `field.scene_statement`, different for the 2 scenes, free of stack tokens
+under `verify_blind.py --packs`, and free of `tools/prompt_guard.py`'s criterion and threshold
+vocabulary — a tier-3 opinion told what tier 2 measures is a restatement of tier 2. A scene the
+module cannot state is **refused**, not packed without one.
 
 **What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
 both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a
@@ -407,9 +416,12 @@ python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim has dri
 python3 judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
 ```
 
-It builds real packs in both completeness states and both blinding modes, carries two mutants, a
-variant (a field whose *stored* drop count is non-zero, which no mutant can manufacture) and a
-fail-closed case, and must stay green. `--stored-rounds` is the producer for every figure in
+It builds real packs in both completeness states, both blinding modes and both task classes,
+carries a mutant per check, two variants no mutant can manufacture (a field whose *stored* drop
+count is non-zero; a statement naming an engine driven through the real packer) and two
+fail-closed cases, and must stay green. **The claims it reads are not all about the packer** —
+`SCENE.md` claims what the task was, and the frames blurb claims who is watching — so each is
+checked against what it is a function of. `--stored-rounds` is the producer for every figure in
 `eval/RUNS.md`'s section on this.
 
 **Where the caution-vocabulary check is aimed was chosen on the false-positive count, not on

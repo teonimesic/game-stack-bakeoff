@@ -85,6 +85,14 @@ RUBRIC_TERMS = (
     "distinct rates", "declared depth", "angular velocity", "frame hash",
     "world-horizontal", "mass balance", "distorted version", "flat tint",
     "ground plane", "piece transforms", "frame distance", "occlude",
+    # THE TWO CLAIMS THE SCENES EXIST TO WITHHOLD, in the plain English SCENES.md uses to
+    # say they are withheld -- "s1 does not say the layers scroll at rates ordered by
+    # depth", "s2 does not say the water surface stays level while the glass tilts". The
+    # measurement wordings above (`distinct rates`, `declared depth`, `world-horizontal`)
+    # are the criterion table's, and MEASURED 2026-08-25 they catch neither restatement:
+    # planted into a rendered prompt, both read 0 hits on all 8. These 2 phrases cost 0
+    # false positives on the 8 shipped prompts and on the packed scene statements.
+    "ordered by depth", "stays level",
 )
 
 # A threshold in a prompt is a bound expression over a quantity. English bound expressions

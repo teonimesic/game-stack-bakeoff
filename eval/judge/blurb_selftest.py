@@ -43,6 +43,24 @@ What is checked, and why each direction is needed:
      the mechanism exists for.
   8. FAIL-CLOSED. Deleting the completeness statement altogether must be red, not quiet -
      otherwise "remove the sentence" is a repair that leaves the judge told nothing.
+  9. A PACK THAT DOES NOT RECORD ITS STATE IS REFUSED by `run_field`, not assumed
+     complete, and every pack the packer writes records one.
+ 10. EVERY REFUSAL IS A STORED RECORD, including for an aspect id `aspects.py` does not
+     define - with the positive half beside it, so the check cannot pass by refusing
+     everything.
+ 11. THE SCENE STATEMENT. `SCENE.md` is judge-facing text making a claim about the TASK
+     rather than about the packer, so it is checked against what it IS a function of: it
+     must be on disk for a scene field and absent for a game one, byte-identical to
+     `field.scene_statement`, different for the 2 scenes, free of stack tokens under
+     `verify_blind.py --packs`, and free of `tools/prompt_guard.py`'s criterion and
+     threshold vocabulary - with a mutant for each of those last 2, a variant driving a
+     leaking statement through the real packer, and a fail-closed case for a scene the
+     packer cannot state.
+ 12. WHO THE FRAMES BLURB SAYS IS WATCHING is a function of the task class, in both
+     directions. A scene has no player, so "everything the player sees" in a scene brief
+     is check 4's defect in a new place - judge-facing text describing something the task
+     does not have. The expected wordings are spelled out in this file and reconciled
+     with `field.FRAMES_AUDIENCE` by a row, never imported from it (task 113).
 
 Run:  python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim has drifted
 """
@@ -51,15 +69,21 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / "tools"))
+sys.path.insert(0, str(HERE.parent / "suites"))
 
 import aspects  # noqa: E402
 import field  # noqa: E402
+import prompt_guard  # noqa: E402
+import scene_prompts  # noqa: E402
 
 FAILS: list[str] = []
 
@@ -176,16 +200,23 @@ def path_examples(text: str) -> set[str]:
 
 
 def judge_facing_texts(aspect: aspects.Aspect, mapping: dict, pack: Path) -> dict[str, str]:
-    """Every text in a pack that speaks to the judge about the packer.
+    """Every text in a pack that speaks to the judge, and makes a claim by doing so.
 
     Written as the resource rather than as a list of the two constants that were wrong,
     because a rule whose trigger is an enumeration has to be re-derived by the first
-    reader who meets an item that is not on it. A third judge-facing text is covered the
-    moment it is added here.
+    reader who meets an item that is not on it. A further judge-facing text is covered
+    the moment it is added here.
+
+    THE CLAIMS ARE NOT ALL ABOUT THE PACKER, and that is what `SCENE.md` widened. Three
+    of these describe how much of each submission the judge is holding; `SCENE.md`
+    describes the TASK all 8 were set. Both are text a judge acts on and neither is read
+    by any gate that walks the pack, which is the property this file exists for -- so the
+    checks below are keyed on which claim a text makes, never on which file it is.
     """
     skill = pack / ".claude" / "skills" / "sampling-code" / "SKILL.md"
+    statement = pack / field.SCENE_STATEMENT_FILE
     kt = bool(mapping.get("knowingly_truncated"))
-    return {
+    texts = {
         "BRIEF.md": field._brief(aspect, mapping["game"],
                                  mapping.get("capture_geometry"),
                                  knowingly_truncated=kt),
@@ -196,6 +227,13 @@ def judge_facing_texts(aspect: aspects.Aspect, mapping: dict, pack: Path) -> dic
         # subject here is the resource and not a directory.
         "claude -p prompt": field.judge_prompt(kt),
     }
+    # READ OFF DISK, not rebuilt from the constant. The question this file asks is what
+    # the judge is HANDED; rebuilding it would agree with the packer by construction and
+    # could not see a pack that failed to write one. Check 11 compares the two.
+    if aspects.task_class(mapping["game"]) == "scene":
+        texts[field.SCENE_STATEMENT_FILE] = (
+            statement.read_text() if statement.is_file() else "")
+    return texts
 
 
 #: WHICH texts STATE the completeness claim, as opposed to merely not contradicting it.
@@ -205,6 +243,16 @@ def judge_facing_texts(aspect: aspects.Aspect, mapping: dict, pack: Path) -> dic
 #: how #100 recurred - so it is held to the weaker rule (it must not contradict, and it
 #: must be a function of the state) and not to the stronger one.
 STATES_THE_CLAIM = ("BRIEF.md", "SKILL.md")
+
+#: Judge-facing texts that make NO claim about the packer, so checks 3 and 3b -- which
+#: ask whether a text tracks `knowingly_truncated` -- have nothing to read in them.
+#:
+#: This is an exemption and every exemption is a channel (rule 7), so it buys nothing:
+#: `SCENE.md` is not unchecked, it is checked against the thing it IS a function of. Its
+#: claim is about the task, so check 11 asserts it varies by SCENE, that it is on disk
+#: only for a scene field, that it names no stack and no criterion, and that the packer
+#: refuses a scene it cannot state.
+CLAIMS_NOTHING_ABOUT_THE_PACK = (field.SCENE_STATEMENT_FILE,)
 
 
 #: Words a note may use ONLY when the pack really is truncated. A closed class, and
@@ -245,12 +293,24 @@ def present_tense_claims() -> dict[str, str]:
     return out
 
 
+#: WHO THE FRAMES BLURB SAYS IS WATCHING, spelled out HERE rather than imported from
+#: `field.FRAMES_AUDIENCE`.
+#:
+#: A control that builds its expectation by calling its subject is not a control: swap the
+#: 2 values in `field.FRAMES_AUDIENCE` and an imported expectation swaps with them, so the
+#: scene brief would be checked against the game wording and come back green (task 113).
+#: These are the second, independent statement; `audiences-still-agree` is the row that
+#: keeps the 2 in step, which is what the rule asks for instead of a shared object.
+FRAMES_AUDIENCE_GAME = "Everything the player sees"
+FRAMES_AUDIENCE_SCENE = "Everything the scene shows"
+
 CODE_ASPECTS = [a for a in aspects.ASPECTS.values() if "code" in a.sees.split("+")]
 LABELS = list(field.LABELS)
 
 
-def build(run: Path, aspect: aspects.Aspect, dest: Path, **kw) -> dict:
-    return field.build_pack(run, "g9_probe", dest, 7, sees=aspect.sees,
+def build(run: Path, aspect: aspects.Aspect, dest: Path, game: str = "g9_probe",
+          **kw) -> dict:
+    return field.build_pack(run, game, dest, 7, sees=aspect.sees,
                             blind_language=aspect.blind_language, **kw)
 
 
@@ -347,6 +407,8 @@ def main() -> int:
                 expect(f"judge-facing-text-exists[{a.id}:{where}]", bool(text.strip()),
                        f"{where} is empty for aspect {a.id!r}, so every claim check "
                        f"against it reads an empty string")
+                if where in CLAIMS_NOTHING_ABOUT_THE_PACK:
+                    continue
                 # The brief only carries the note for a code aspect - the cap was on the
                 # code pack. The skill is aspect-agnostic and carries it always.
                 if where in STATES_THE_CLAIM and (where == "SKILL.md" or code):
@@ -377,6 +439,8 @@ def main() -> int:
                     t0, t1 = field.pack_skill(False), field.pack_skill(True)
                 if where == "BRIEF.md" and "code" not in a.sees.split("+"):
                     continue  # no completeness claim to make; the cap was code-only
+                if where in CLAIMS_NOTHING_ABOUT_THE_PACK:
+                    continue  # a claim about the task; check 11 is its state test
                 expect(f"state-dependent[{a.id}:{where}]", t0 != t1,
                        f"{where} for aspect {a.id!r} is byte-identical for a complete "
                        f"pack and a knowingly truncated one, so whatever it says about "
@@ -586,13 +650,211 @@ def main() -> int:
                f"run_field refused the real aspect {a0.id!r} as unknown, so check 10 "
                f"passes by refusing everything")
 
+        # -------------------------------------------------------------------
+        # 11. THE SCENE STATEMENT. `SCENE.md` is the one judge-facing text whose
+        #     claim is about the TASK rather than about the packer, so checks 3 and
+        #     3b have nothing to read in it. These are its state tests.
+        # -------------------------------------------------------------------
+        scene_runs = {s: stored_run(root / f"sc-{s}", game=s)
+                      for s in sorted(scene_prompts.SCENES)}
+        scene_packs: dict[tuple[str, str, bool], tuple[aspects.Aspect, Path, dict]] = {}
+        for sid in aspects.SCENE_ASPECTS:
+            a = aspects.ASPECTS[sid]
+            for game, srun in scene_runs.items():
+                key = (game, a.sees, a.blind_language)
+                if key in scene_packs:
+                    continue
+                dest = root / (f"scenepack-{game}-{a.sees.replace('+', '-')}"
+                               f"-blind{int(a.blind_language)}")
+                scene_packs[key] = (a, dest, build(srun, a, dest, game=game))
+
+        expect("scene-fixture-builds-both-scenes",
+               len({k[0] for k in scene_packs}) == len(scene_prompts.SCENES),
+               f"the fixture built packs for {sorted({k[0] for k in scene_packs})} of "
+               f"{sorted(scene_prompts.SCENES)}; check 11e reads one scene and cannot "
+               f"see a statement that is the same for every one of them")
+
+        # EVERY scene the suites define has a statement, or the packer refuses a field
+        # nobody could have known was unstatable until they tried to judge it.
+        expect("every-scene-has-a-statement",
+               set(field.SCENE_STATEMENTS) == set(scene_prompts.SCENES),
+               f"field.SCENE_STATEMENTS states {sorted(field.SCENE_STATEMENTS)} and "
+               f"eval/suites/scene_prompts.py defines {sorted(scene_prompts.SCENES)}; a "
+               f"scene with no statement cannot be packed at all")
+
+        for (game, sees, blind), (a, dest, m) in sorted(scene_packs.items()):
+            tag = f"{game}:{sees}:blind={blind}"
+            on_disk = dest / field.SCENE_STATEMENT_FILE
+            expect(f"scene-pack-carries-the-statement[{tag}]", on_disk.is_file(),
+                   f"a pack built for scene {game!r} has no "
+                   f"{field.SCENE_STATEMENT_FILE}; every brief for a scene aspect tells "
+                   f"the judge to read it, so this is a brief pointing at nothing")
+            if not on_disk.is_file():
+                continue
+            text = on_disk.read_text()
+            expect(f"statement-on-disk-is-the-constant[{tag}]",
+                   text == field.scene_statement(game),
+                   f"{field.SCENE_STATEMENT_FILE} on disk is not what "
+                   f"field.scene_statement({game!r}) returns, so the text this file "
+                   f"checks is not the text the judge is handed")
+            # A FUNCTION OF THE TASK. This is `SCENE.md`'s analogue of check 3b: a
+            # statement identical for both scenes would be describing neither.
+            other = next(s for s in scene_prompts.SCENES if s != game)
+            expect(f"statement-varies-by-scene[{tag}]",
+                   field.SCENE_STATEMENTS[other] not in text,
+                   f"the pack for {game!r} carries the body of {other!r}, so the "
+                   f"statement is not a function of the scene it claims to state")
+            expect(f"statement-is-judge-facing-text[{tag}]",
+                   judge_facing_texts(a, m, dest).get(
+                       field.SCENE_STATEMENT_FILE) == text,
+                   f"judge_facing_texts does not return "
+                   f"{field.SCENE_STATEMENT_FILE} for scene aspect {a.id!r}, so none of "
+                   f"the resource-wide checks in this file read it")
+            # NO CRITERION VOCABULARY, with the same closed lists the PROMPTS are
+            # grepped against (`tools/prompt_guard.py`). A tier-3 opinion told what
+            # tier 2 measures is a restatement of tier 2, not a second reading.
+            hits = prompt_guard.assert_no_rubric_vocabulary({game: text})
+            expect(f"statement-states-no-criterion[{tag}]", not hits,
+                   f"{field.SCENE_STATEMENT_FILE} for {game!r} carries eval/SCENES.md "
+                   f"criterion or threshold vocabulary: {hits[:3]}")
+
+        # NO STACK TOKEN, through the CLI the done-condition names, in both directions.
+        # A subprocess and not `check_pack_skill` directly: the exit code is what a gate
+        # reads, and `--packs` is the flag an operator runs.
+        vb = [sys.executable, str(HERE / "verify_blind.py"), "--packs"]
+        clean_pack = next(d for (g, s, b), (_a, d, _m) in sorted(scene_packs.items())
+                          if s == "frames")
+        r = subprocess.run(vb + [str(clean_pack)], capture_output=True, text=True)
+        expect("verify-blind-passes-a-scene-pack", r.returncode == 0,
+               f"verify_blind.py --packs exited {r.returncode} on a freshly built scene "
+               f"pack: {(r.stdout + r.stderr)[-400:]}")
+
+        # MUTANT: a stack name written into the file on disk must turn that green red.
+        # This one says only that `verify_blind` can fail on this file at all.
+        planted = root / "scenepack-planted"
+        shutil.copytree(clean_pack, planted)
+        (planted / field.SCENE_STATEMENT_FILE).write_text(
+            field.scene_statement("s1_parallax")
+            + "\nThe scene is drawn with Bevy sprites.\n")
+        r = subprocess.run(vb + [str(planted)], capture_output=True, text=True)
+        expect("mutant-stack-token-in-the-statement", r.returncode == 1,
+               f"verify_blind.py --packs exited {r.returncode} on a pack whose "
+               f"{field.SCENE_STATEMENT_FILE} names an engine, so the gate the "
+               f"statement relies on cannot fail: {(r.stdout + r.stderr)[-400:]}")
+
+        # VARIANT (rule 15). The mutant above edits the pack AFTER the packer ran, so it
+        # cannot ask the question that decides how the statement is written: does the
+        # leak SURVIVE the packer? Every other piece of pack text goes through
+        # `neutralise`, which would rewrite `Bevy` to `engine` and hand `verify_blind` a
+        # clean file - the gate green over judge-facing text that had named an arm until
+        # the harness edited it. Only a leaking statement driven through the real
+        # `build_pack` can tell those apart, and no mutant can manufacture one.
+        keep_stmt = dict(field.SCENE_STATEMENTS)
+        field.SCENE_STATEMENTS["s1_parallax"] = (
+            keep_stmt["s1_parallax"] + "\nThe scene is drawn with Bevy sprites.\n")
+        leaky = root / "scenepack-leaky"
+        try:
+            build(scene_runs["s1_parallax"], aspects.ASPECTS["fidelity"], leaky,
+                  game="s1_parallax")
+            written = leaky / field.SCENE_STATEMENT_FILE
+            # Absent is a THIRD value and is not "the leak was removed": it means the
+            # packer wrote no statement at all, which the rows above already report.
+            survived = written.is_file() and "Bevy" in written.read_text()
+        finally:
+            field.SCENE_STATEMENTS.clear()
+            field.SCENE_STATEMENTS.update(keep_stmt)
+        r = subprocess.run(vb + [str(leaky)], capture_output=True, text=True)
+        expect("variant-a-leaking-statement-survives-the-packer",
+               survived and r.returncode == 1,
+               f"a statement naming an engine came out of build_pack "
+               f"{'unchanged' if survived else 'REWRITTEN'} and verify_blind.py --packs "
+               f"exited {r.returncode}. The statement must be written raw: laundering it "
+               f"leaves the blinding gate reading text the harness has already cleaned")
+
+        # MUTANT: the claim the scene exists to WITHHOLD, restated in the statement.
+        withheld = (field.scene_statement("s2_glass")
+                    + "\nThe water surface stays level while the glass tilts.\n")
+        expect("mutant-criterion-in-the-statement",
+               bool(prompt_guard.assert_no_rubric_vocabulary({"s2_glass": withheld})),
+               "planting s2's deliberately withheld claim into the statement left the "
+               "rubric-vocabulary grep green, so that check measures nothing")
+
+        # A GAME PACK MUST NOT CARRY ONE. The other direction of "for scene fields
+        # only": a statement in a game pack describes a task nobody set.
+        for key, (a, dest, m) in sorted(packs.items()):
+            expect(f"game-pack-carries-no-statement{list(key)}",
+                   not (dest / field.SCENE_STATEMENT_FILE).exists(),
+                   f"a pack built for the game fixture carries "
+                   f"{field.SCENE_STATEMENT_FILE}")
+            expect(f"game-brief-does-not-name-it{list(key)}",
+                   field.SCENE_STATEMENT_FILE not in
+                   judge_facing_texts(a, m, dest)["BRIEF.md"],
+                   f"a game brief tells the judge to read "
+                   f"{field.SCENE_STATEMENT_FILE}, which no game pack contains")
+        # EVERY scene aspect, not every pack shape. `fidelity` and `motion` share the
+        # `frames` shape, so a per-pack loop checks whichever of the two the packs dict
+        # happened to store - and `fidelity` names the file in its own notes, so it would
+        # pass a brief that had stopped naming it while `motion` silently did not.
+        for sid in aspects.SCENE_ASPECTS:
+            a = aspects.ASPECTS[sid]
+            for game in sorted(scene_prompts.SCENES):
+                _a, dest, m = scene_packs[(game, a.sees, a.blind_language)]
+                expect(f"scene-brief-names-it[{sid}:{game}]",
+                       field.SCENE_STATEMENT_FILE in
+                       judge_facing_texts(a, m, dest)["BRIEF.md"],
+                       f"the brief for scene aspect {sid!r} never names "
+                       f"{field.SCENE_STATEMENT_FILE}, so a file the judge needs is one "
+                       f"it has no reason to open")
+
+        # WHO IS WATCHING is a function of the task class too, in both directions. A
+        # scene has no player, so a scene brief saying "everything the player sees" is
+        # the completeness note's defect in a new place: judge-facing text describing a
+        # thing the task does not have.
+        expect("audiences-still-agree",
+               field.FRAMES_AUDIENCE == {"game": FRAMES_AUDIENCE_GAME,
+                                         "scene": FRAMES_AUDIENCE_SCENE},
+               f"field.FRAMES_AUDIENCE is {field.FRAMES_AUDIENCE} and this file expects "
+               f"{{'game': {FRAMES_AUDIENCE_GAME!r}, 'scene': {FRAMES_AUDIENCE_SCENE!r}}}. "
+               f"The 2 are deliberately separate statements; reconcile them here rather "
+               f"than importing one from the other")
+        for klass, group, expected in (
+                ("game", packs, FRAMES_AUDIENCE_GAME),
+                ("scene", scene_packs, FRAMES_AUDIENCE_SCENE)):
+            other = (FRAMES_AUDIENCE_SCENE if klass == "game"
+                     else FRAMES_AUDIENCE_GAME)
+            for key, (a, dest, m) in sorted(group.items()):
+                if "frames" not in a.sees.split("+"):
+                    continue
+                brief = judge_facing_texts(a, m, dest)["BRIEF.md"]
+                expect(f"frames-audience-is-the-class[{klass}:{a.id}:{m['game']}]",
+                       expected in brief and other not in brief,
+                       f"the {klass} brief for {a.id!r} describes its frames' audience "
+                       f"as {other!r}; a scene has no player and a game has no scene")
+
+        # FAIL-CLOSED. A scene this module cannot state must be refused, not packed
+        # without a statement - that would silently restore the aspect to reading the
+        # subject out of the field, which is the narrowing the statement removed.
+        unstatable = stored_run(root / "unstatable", game="s9_probe")
+        refused = None
+        try:
+            build(unstatable, aspects.ASPECTS["fidelity"],
+                  root / "pack-unstatable", game="s9_probe")
+        except RuntimeError as e:
+            refused = str(e)
+        expect("fail-closed-on-an-unstatable-scene",
+               refused is not None and "SCENE_STATEMENTS" in refused,
+               f"build_pack returned {str(refused)[:160]!r} for a scene id with no "
+               f"statement; it must refuse rather than hand fidelity a brief pointing "
+               f"at a file that is not there")
+
     if FAILS:
         print(f"BLURB SELFTEST: {len(FAILS)} unmet expectation(s)\n")
         for f in FAILS:
             print(f"  FAIL {f}")
         return 1
-    print("BLURB SELFTEST: every claim in the pack's judge-facing text matches the "
-          "packer, in both completeness states, with mutants and a variant.")
+    print("BLURB SELFTEST: every claim in the pack's judge-facing text matches what it "
+          "claims about - the packer in both completeness states, the scene for the "
+          "scene statement - with mutants, a variant and a fail-closed case for each.")
     return 0
 
 

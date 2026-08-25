@@ -434,29 +434,33 @@ SCENE_SCALE = {
 }
 
 
-#: WHAT `fidelity` IS NOT ASKING, and why the question is weaker than it first looks.
+#: WHAT THIS ASPECT IS MEASURED AGAINST, and why it is a file rather than the field.
 #:
-#: "Does this look like the thing that was described?" needs the description, and the
-#: pack does not carry one. The rendered scene prompt exists per stack
-#: (`eval/suites/rendered/s1_parallax__*.txt`), and handing a judge one of those would
-#: name the arm in the evidence -- the leak `blind_extensions` and `neutralise` exist to
-#: close. A stack-neutral statement of each scene could be written and packed, and until
-#: it is, this aspect asks the strongest question the pack can support: all eight
-#: submissions are attempting one subject, so read the subject out of the field and
-#: judge how completely each realises it.
+#: "Does this read as the scene it was asked for" needs what was asked for, and the pack
+#: carries it: `field.SCENE_STATEMENTS`, written into every scene pack as `SCENE.md`. It
+#: is one hand-written statement per scene, identical in all 8 submissions' packs, so it
+#: separates nothing.
 #:
-#: That is a real narrowing and it belongs beside the number: it can find a submission
-#: that omits what seven others drew, and it CANNOT find one where all eight missed the
-#: same requirement. `eval/SCENES.md` and `RUBRIC.md` say so where the aspect is
-#: published, and `tasks/144` packs a neutral statement.
+#: THE RENDERED PROMPT IS NOT A CANDIDATE AND NEVER WAS. It exists per stack, and
+#: `anonymise.find_stack_names` returns a stack token in every one of the 8 -- handing a
+#: judge one would name the arm in its own evidence, which is the leak `neutralise` and
+#: `blind_extensions` exist to close. `verify_blind.py --packs` gates the statement
+#: instead, and `blurb_selftest.py` greps it with `tools/prompt_guard.py`'s closed lists
+#: so that a criterion cannot reach the judge through it either.
+#:
+#: WHAT THE STATEMENT BOUGHT. Until 2026-08-25 the aspect recovered the subject from the
+#: field of 8 and scored how completely each realised it, so it could find a submission
+#: that omitted what 7 others drew and could NOT find one where all 8 missed the same
+#: requirement -- the case a fidelity aspect exists for. Read against the statement, a
+#: requirement no submission met is a finding about the field, and the notes below ask
+#: for it in `field_note`.
 FIDELITY = Aspect(
     id="fidelity",
     task_class="scene",
     title="Fidelity to the scene",
     question=(
-        "Does this read as the scene it was asked for? Every submission in this field "
-        "is attempting the SAME subject, so work out what that subject is from the "
-        "field itself, then judge how completely and how convincingly each one "
+        "Does this read as the scene it was asked for? `SCENE.md` in this directory "
+        "states that scene. Judge how completely and how convincingly each submission "
         "realises it."
     ),
     anchors=SCENE_SCALE,
@@ -468,15 +472,16 @@ FIDELITY = Aspect(
     ),
     notes=(
         "You are looking at PNGs sampled at even intervals across one run: the first "
-        "is the opening state, the last is late in the run. You are NOT given the "
-        "written brief. Recover the subject by reading all eight strips first and "
-        "asking what they are evidently all trying to depict, then score each against "
-        "that. An element seven strips show and one does not is the signal; an element "
-        "no strip shows is not evidence about any of them.\n"
-        "Ask, in order: are the things the field is evidently depicting present at "
-        "all; do they hold together as one scene rather than as separate objects "
-        "sharing a frame; does the sequence go somewhere between the first frame and "
-        "the last, or is the strip a set of views of one unchanging moment.\n"
+        "is the opening state, the last is late in the run. Read `SCENE.md` before you "
+        "open a strip -- it states what every submission here was asked to build, in "
+        "the same words for all of them -- and score each strip against it.\n"
+        "Ask, in order: are the things the statement describes present at all; do they "
+        "hold together as one scene rather than as separate objects sharing a frame; "
+        "does the sequence go somewhere between the first frame and the last, or is "
+        "the strip a set of views of one unchanging moment.\n"
+        "Something the statement asks for that NO strip shows is a finding about the "
+        "whole field, not a reason to leave every score where it is. Say so in "
+        "`field_note` and score each submission on what it did do.\n"
         "Do not reward decoration and do not reward ambition you cannot see. A plain "
         "strip that clearly depicts the subject beats an elaborate one that does not. "
         "And do not infer from an absent frame: if the run produced fewer frames than "
