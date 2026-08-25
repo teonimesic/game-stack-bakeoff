@@ -1,10 +1,12 @@
 ---
 id: 129
 title: gates.yml takes 51.9s in the CI register and has no producer; the real figure moved
-status: todo
+status: done
 priority: 3
 refs: .github/workflows/README.md, eval/tools/ci_minutes.py
 done_when: Either both duration figures in .github/workflows/README.md are produced by a command written beside them, stating the population it measured over (a mean over the last N successful runs of that workflow on main is a defensible population; one run is not, given the 54-78s spread), and the figures are re-read from it - or both figures are deleted and the register says what it does instead. A producer that reports per-STEP durations is worth more than one reporting run wall clock, because the step is what a change moves and the run is what the runner's noise moves. If the conclusion is that the numbers do not earn a producer, deleting them is a complete answer and closes this.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/33
+established_by: 'Closed with 153 in PR #33. Both published figures were INSIDE their measured range - unlike the 51.9s this ticket was filed against - so the defect had become that a point value cannot bear the inference a reader draws from it. The register now publishes SPREADS: gates 75-115s and controls 658-827s over the last 12 successful runs on main, with the population and the gh command that re-derives them. No hook timing is published anywhere: the register, run-gates.sh''s own comment and both wrapper hooks each carried a stale one, and pre-push read 16.8s and 17.2s minutes apart against my 24.8s at triage and the published ~13s.'
 ---
 
 The register states gates.yml takes 51.9s and controls.yml 685s, with no command beside either. Task 126 added 14 mutants to cost_census_mutants, and the step is isolated on the CI runner at 2s on main (run 32665742872) against 12s on the task branch (run 32669818592) - so gates.yml gained about 10s and the register was not updated, because nobody can tell what population 51.9s was measured over. Run-level wall clock cannot settle it either: the last 10 successful gates runs on main span 54s to 78s, wider than the delta. ci_minutes.py reads the API and is the producer for BILLABLE MINUTES, which is a different quantity - billing rounds each job up to the whole minute, so it cannot report a 10s change at all. This is the shape AGENTS.md names as the defect rather than a shortfall: a count with a producer goes stale for an hour, a count with none goes stale forever.
@@ -156,3 +158,52 @@ jobs API and already has the per-step data.
 
 **Do not average the noise away and publish the mean as though it were the quantity.** The useful
 statement is the spread, or nothing.
+
+## note 2026-08-25
+
+## Closed in PR #33, inside `tasks/153`'s branch — the figures are a SPREAD, not deleted
+
+153's ticket authorised taking this one with it; both are the same table.
+
+**Outcome: neither of the two permitted branches exactly.** The figures are not deleted and
+they are not a re-read point value. `.github/workflows/README.md`'s `takes` row now carries the
+**full range over a stated population**, with the command that re-derives it:
+
+| workflow | published now | n | min | max |
+|---|---|---|---|---|
+| `gates` | **75–115s** | 12 | 75s | 115s |
+| `controls` | **658–827s** | 12 | 658s | 827s |
+
+Population: the last 12 successful runs of each workflow on `main`, read 2026-08-25 with
+
+    gh run list --workflow gates.yml --branch main --status success --limit 12 \
+      --json startedAt,updatedAt --jq '.[] | ((.updatedAt|fromdate) - (.startedAt|fromdate))'
+
+**What had changed since this ticket was filed, and it matters.** At triage both published
+figures fell OUTSIDE their range (51.9s below a 54–78s minimum; 685s above a 529–673s maximum).
+They no longer do: the file said 102s and 791s, and both are inside. So the defect is no longer
+that the numbers are wrong — it is that a point value in that cell **cannot support the
+inference a reader draws from it**. `gates` spans 40s across 12 consecutive runs, an order of
+magnitude more than a step this repository adds, so the difference between two readings is
+noise and the number invites exactly the reasoning it cannot bear.
+
+That is why the spread survives rather than being deleted: the tier split — about a minute
+against about eleven — is what the register is FOR, and a reader needs the order of magnitude to
+place a new gate. What they must not be given is a point value.
+
+**No per-step producer was built, and that is a deliberate decline.** This ticket's own notes
+argue for one, and it would be better; it was not worth its API surface against the thing the
+register is read for. The per-step route is written into the register instead — read it out of
+`repos/<owner>/<repo>/actions/runs/<id>/jobs` — beside the sentence saying why the run-level
+number cannot answer that question. If someone later wants to size a step routinely, that is a
+new ticket and `ci_minutes.py` already fetches the jobs endpoint.
+
+**No hook timing is published anywhere now.** `~2s`/`~13s` are gone from the register,
+`run-gates.sh`'s own `10.9s measured` comment is gone, and both wrapper hooks stopped claiming
+that a duration lives elsewhere — it does not. Measured on this host, `pre-push` read 16.8s and
+17.2s minutes apart, against 24.8s taken the same day.
+
+**The tier-placement question raised in the first note stays withdrawn**, and nothing here
+re-opens it.
+
+`DECISIONS.md` records both calls under *The gates run in CI and in git hooks, in three tiers*.
