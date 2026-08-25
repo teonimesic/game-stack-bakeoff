@@ -221,20 +221,39 @@ it is one number per submission.
 
 ### What a performance pass needs before it means anything
 
+**`eval/PERF-HOST.md` is the authority for everything in this section**: it measured what this
+host does to a frame-time number, and it decides the design. The short form:
+
+- **No tested host mechanism gives a usable GPU, RAM or CPU-rate cap.** Every capping candidate
+  the report tried leaves GPU throughput untouched, `taskpolicy -m` accepts a memory limit and
+  ignores it, and the address-space rlimits cannot be set at all. `RLIMIT_CPU` is the exception
+  and it only kills on cumulative CPU seconds. A Linux VM has real cgroup caps and **no GPU
+  device**, so it is a different experiment rather than a stricter one. The pass is an uncapped
+  ramp with the machine recorded.
+- **Space the trials, and require an exclusive machine.** Spaced 25 s apart, the same fixed
+  workload holds to ~1% and costs about a tenth of a ramp level. Run back to back it swings
+  **1.975x**, and the report's isolation measurement — 1 competing GPU process — costs **2.13x**.
+  Either is 1.0 to 3.4 ramp levels of host contribution depending on the step size chosen,
+  which is larger than any stack gap smaller than it — and no stack gap here is measured yet.
 - **Hold the machine, per arm, and prove it.** A perf number is far more machine-sensitive than a
   correctness one. AGENTS.md rule 10 was bought by a system daemon that gated `execve` for ten
   days and split a run's results by whether the arm linked new binaries (#49). Capture machine
   state per trial rather than assuming it held.
-- **Interleave the arms.** A laptop thermally throttles, so a run that does all of stack A then all
-  of stack B measures the ORDER as much as the stacks. Randomise or interleave, and record when
-  each trial ran — no aggregate here has ever been partitioned by time, and this is the first
-  measurement where it would obviously matter.
+- **Interleave the arms, record each trial's timestamp, and never pool trials across time
+  windows.** This host's throughput moves under sustained load — by 1.975x over 10 minutes — so a
+  run that does all of stack A then all of stack B measures the ORDER as much as the stacks. The
+  movement is **not monotone** and its cause is not established, so a block design cannot be
+  repaired afterwards by assuming the machine only ever got slower.
+- **Read a harness-side wall clock, not each engine's own timer.** Bevy on Metal records CPU time
+  only, and the ts capture path has no GPU at all, while godot and unity both expose a real
+  GPU-side frame timer. Reading each engine's best clock would compare different quantities.
 - **Report the ramp with its budget and resolution.** A level number without them is not a
   quantity anyone can compare later.
 
-Resource capping — bounding CPU, RAM and ideally GPU so the ramp measures the stack rather than
-the machine — is an open problem, not a setting. `tasks/137` explores it. **Do not build a
-performance pass that assumes caps exist until that ticket reports.**
+**What is still unmeasured is the run-to-run spread of a real submission**, because no scene has
+been built. Every figure above is one fixed synthetic workload and is therefore a floor: it says
+the machine is not what stops a ramp, and it cannot say the submission is not. Measure that on
+the first scene that exists, before reporting any stack comparison.
 
 ## Tier 3 aspects for scenes
 

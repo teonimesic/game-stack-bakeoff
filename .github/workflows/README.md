@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 44 documentation, queue and selftest gates | 7 mutant and control suites |
+| checks | 45 documentation, queue and selftest gates | 7 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **102s** | **685s** |
 
@@ -153,6 +153,7 @@ has to run.
 | `ci_minutes.py` without `--selftest` | it reads the Actions API once per run, and the run count grows with every push — gating it would make CI cost grow quadratically in its own history. The offline `--selftest` half IS gated |
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
 | the full `lint.py` rule set | 72 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
+| `host_perf_probe.py --caps`, `--gpu`, `--spread`, `--drift` | they measure the darwin host they run on: `--caps` needs `taskpolicy`, the other three need a Metal device, and all 4 need the machine to themselves — on a shared runner they would report the runner's neighbours. Each refuses off darwin **by name** rather than passing vacantly. **Its offline half, `--selftest`, IS gated**: it pins the percentile, spread and drift arithmetic every arm reports through, with a mutant per row |
 
 ### Which gates read THIS file
 
