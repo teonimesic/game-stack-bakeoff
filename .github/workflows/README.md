@@ -10,18 +10,28 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 47 documentation, queue and selftest gates | 8 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **102s** | **791s** |
+| takes | **75–115s** | **658–827s** |
 
 **Every number in that table has a producer, and none of them is remembered.** The check counts
 come from `python3 eval/tools/ci_minutes.py --gates`, which reads the workflows and counts steps
-invoking something under `eval/`; they are pinned in `ci_minutes --selftest`. The timings come
-from `gh pr checks <n>`, which prints both for any pull request.
+invoking something under `eval/`; they are pinned in `ci_minutes --selftest`.
 
-**Re-read a timing from a run rather than carrying it forward, and never estimate one by adding
-step times.** A single timing is one sample of a noisy quantity, and the run-to-run spread on
-unchanged content has measured larger than the cost of a step this repository adds. So a timing
-that looks stale is not evidence that a step was added, and a step that was added is invisible
-next to the variance — read the current pair rather than reasoning about the difference.
+**The `takes` row is a SPREAD, and it is a spread because a point figure there cannot be right.**
+It is the full range of the last 12 successful runs of each workflow on `main`, read
+2026-08-25 with:
+
+```bash
+gh run list --workflow gates.yml --branch main --status success --limit 12 \
+  --json startedAt,updatedAt --jq '.[] | ((.updatedAt|fromdate) - (.startedAt|fromdate))'
+```
+
+`gates` spans 40s across those 12 runs and `controls` 169s, on content that differs by far less
+than that — so a single reading is one draw from a wide band, and the difference between two of
+them says nothing about a step. **A timing that looks stale is not evidence that a step was
+added, and a step that was added is invisible next to the variance.** For the pull request in
+front of you, read the current pair with `gh pr checks <n>`; to size a step, read it per-step out
+of `repos/<owner>/<repo>/actions/runs/<id>/jobs`, because the step is what a change moves and the
+run is what the runner's noise moves.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
@@ -95,13 +105,43 @@ once, so it is the operator's to enable:
 git config core.hooksPath .githooks
 ```
 
-| | runs | takes |
-|---|---|---|
-| `pre-commit` | the cheap gates on what you are about to commit | **~2s** |
-| `pre-push` | the full `gates.yml` set | **~13s** |
+Each tier runs a fixed list, and this is it — not a description of it:
 
-Both are local wall clock and machine-dependent — re-time with `time .githooks/run-gates.sh
-pre-commit` / `time .githooks/run-gates.sh pre-push` rather than trusting the column.
+| command | `pre-commit` | `pre-push` |
+|---|---|---|
+| `python3 eval/tools/docstat.py --selftest` | yes | yes |
+| `python3 eval/tools/docstat.py --findings` | yes | yes |
+| `python3 eval/tools/docstat.py --withdrawn` | yes | yes |
+| `python3 eval/tools/tasks.py check` | yes | yes |
+| `python3 eval/tools/docstat.py --sweep` | — | yes |
+
+`pre-push` runs **5** of `gates.yml`'s **47** checks; `pre-commit` runs **4**.
+
+```bash
+python3 eval/tools/ci_minutes.py --hooks
+```
+
+**That producer reads the hook by RUNNING it**, not by re-reading the file: `GATES_LIST_ONLY=1
+.githooks/run-gates.sh <tier>` prints each gate's argv and executes none of them, so the list
+comes out of the same control flow the hook takes. `ci_minutes --selftest` asserts the table
+above equals what came back, and goes red if either moves without the other — which is what keeps
+a description of a script true (`AGENTS.md` rule 12).
+
+**What the hooks do NOT cover is most of it, and that is the direction that costs you.** All 5
+are documentation and queue checks over the working tree. No mutant suite runs before a push, no
+`*_control.py`, and no `--selftest` but `docstat`'s own — so nothing here checks a checker, and
+`controls.yml` is not touched at all. **A green `pre-push` is not evidence that CI will be
+green.** The hooks are a cheap filter on the failure that recurs here — stale citations, a
+malformed queue; the workflows are the gate.
+
+**No hook timing is published.** Both tiers are local wall clock on one machine, and two readings
+of `pre-push` on the same host minutes apart have differed by more than the whole `pre-commit`
+tier costs. Time the one you care about:
+
+```bash
+time .githooks/run-gates.sh pre-commit
+time .githooks/run-gates.sh pre-push
+```
 
 Bypass either with `git commit --no-verify` / `git push --no-verify`.
 
@@ -171,6 +211,7 @@ no document corpus at all — read by every session, checked by nothing.
 | on this file | |
 |---|---|
 | `docstat --sweep`, unresolved references and structure | **reads it** |
+| `ci_minutes --selftest`, the hook table and the coverage sentence | **reads them**, and nothing else does. Reword either and that gate goes red naming the form it needs |
 | `docstat --sweep`, the backticked-flag half | **does not.** It is gated file-wide on 4 harness script names and this file names tools, not harnesses |
 | `linkcheck.py` with no arguments | **does not** — `LIVE_DOCS` is the front door and what it links into. Pass the path to check this file |
 
@@ -245,6 +286,12 @@ if *no* run yields a job, the endpoint is not answering and the tool reports not
 3. Revert.
 4. If you leave a gate out, add a row to the table above. A gate excluded and recorded is fine;
    one silently absent is not.
+
+**Adding one to a git hook takes 3 edits**: the command goes into `.githooks/run-gates.sh`, a
+row goes into the hook table, and the coverage sentence under it gets the new counts.
+`ci_minutes --selftest` is red until all 3 are done, and it names which one is missing. That
+is deliberate — the hooks are what someone trusts instead of reading the workflows, so their
+published list has to be the list.
 
 Every step uses `set -e`; a `run:` block reports only its last command's status otherwise.
 

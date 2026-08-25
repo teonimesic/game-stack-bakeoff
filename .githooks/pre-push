@@ -1,6 +1,6 @@
 #!/bin/sh
-# The pre-commit set plus the full documentation sweep.
-# The gate list, the bypass, the worktree caveat and the measured cost of each tier are in
-# run-gates.sh and .github/workflows/README.md. A duration written here as well would be a
-# second copy of a measurement, and the two would disagree -- they already did once.
+# Runs the pre-push tier of run-gates.sh: the pre-commit set plus the documentation sweep.
+# WHICH gates that is, the bypass and the worktree caveat: .github/workflows/README.md,
+# whose hook table is asserted against this script by `ci_minutes.py --selftest`. No
+# duration is written anywhere -- time it with `time .githooks/run-gates.sh pre-push`.
 exec "$(git rev-parse --show-toplevel)/.githooks/run-gates.sh" pre-push

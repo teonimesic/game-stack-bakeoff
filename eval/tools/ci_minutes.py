@@ -101,8 +101,10 @@ import json
 import math
 import os
 import pathlib
+import re
 import subprocess
 import sys
+import tempfile
 
 REPO = "teonimesic/game-stack-bakeoff"
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -651,8 +653,268 @@ def gate_census(texts: dict[str, str] | None = None,
             "malformed": malformed,
             "names": [(s.get("name") or str(s["run"]).strip().splitlines()[0])[:80]
                       for s in gates],
+            # The COMMAND, not the step name. `hook_census` asks whether a command the git
+            # hook runs is one of these, and a step name is prose that says nothing about
+            # what was invoked. Every line of a multi-line `run:` block, because a step is
+            # allowed to hold more than one and the hook's command could be any of them.
+            "commands": sorted({norm for s in gates
+                                for norm in (_norm_command(ln)
+                                             for ln in str(s["run"]).splitlines())
+                                if norm}),
         }
     return out
+
+
+def _norm_command(text: object) -> str:
+    """One command line, whitespace-collapsed, for comparing two spellings of the same call.
+
+    A workflow writes `run: python3 eval/tools/docstat.py --sweep` and the hook prints
+    `python3 eval/tools/docstat.py --sweep`; only the run of spaces between them is free to
+    differ, so that is the only thing normalised. Nothing is lowercased and no flag is
+    dropped -- `--findings` and `--withdrawn` are different gates and must not collapse.
+    """
+    return " ".join(str(text).split())
+
+
+# ---------------------------------------------------------------- the git hooks
+
+HOOK_RUNNER = ROOT / ".githooks" / "run-gates.sh"
+REGISTER = WORKFLOW_DIR / "README.md"
+HOOK_TIERS = ("pre-commit", "pre-push")
+
+# The header the hook table must carry, and the only one this reads. A table found by
+# position would move the moment a section is added above it (rule 12: the address is an
+# input to the check), so it is found by its own header cells.
+HOOK_TABLE_HEADER = ["command", "`pre-commit`", "`pre-push`"]
+
+# A cell means "this tier runs it" only if it says exactly this. Everything else has to be
+# in the closed set below or the row is REPORTED rather than read as a no -- an unrecognised
+# cell silently meaning "no" is how a gate quietly leaves the published list.
+HOOK_YES = "yes"
+HOOK_NO = {"", "-", "--", "–", "—", "no", "n/a"}
+
+_MD_DELIM = re.compile(r"^:?-{3,}:?$")
+
+# The register states the coverage as digits, and this is the shape it must state it in.
+# A looser read would let the sentence be reworded into something the check no longer sees,
+# which fails OPEN: the numbers would go stale with the gate still green. Reword it and this
+# goes red naming the required form, which is the direction a documentation gate must fail.
+COVERAGE_RE = re.compile(
+    r"`pre-push`\s+runs\s+\*\*(\d+)\*\*\s+of\s+`gates\.yml`'s\s+\*\*(\d+)\*\*\s+checks;"
+    r"\s+`pre-commit`\s+runs\s+\*\*(\d+)\*\*")
+
+
+def _md_cells(line: str) -> list[str] | None:
+    """The cells of a markdown table row, or None if this line is not one."""
+    s = line.strip()
+    if not (s.startswith("|") and s.endswith("|") and len(s) > 1):
+        return None
+    return [c.strip() for c in s[1:-1].split("|")]
+
+
+def _list_hook(tier: str) -> tuple[int, str, str]:
+    """Ask `.githooks/run-gates.sh` what it runs, by RUNNING it in list-only mode."""
+    proc = subprocess.run(
+        ["sh", str(HOOK_RUNNER), tier], cwd=str(ROOT),
+        capture_output=True, text=True, check=False,
+        env={**os.environ, "GATES_LIST_ONLY": "1"},
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def register_hook_table(text: str) -> tuple[dict[str, list[str]], list[str]]:
+    """What `.github/workflows/README.md` DECLARES each hook tier runs.
+
+    This is the second, independent statement of the fact `_list_hook` reads from the
+    script -- and it has to stay independent. A check that built its expectation by calling
+    its subject is not a check (`AGENTS.md` rule 12's addendum, task 113), so nothing here
+    imports anything from the hook: it reads the document a human wrote.
+    """
+    declared: dict[str, list[str]] = {t: [] for t in HOOK_TIERS}
+    problems: list[str] = []
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _md_cells(ln) == HOOK_TABLE_HEADER]
+    if not heads:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries no hook table. It must hold one whose "
+            f"header row is `| {' | '.join(HOOK_TABLE_HEADER)} |`, naming every command "
+            f"each tier runs -- that table is what `run-gates.sh` is checked against")
+        return declared, problems
+    if len(heads) > 1:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries {len(heads)} hook tables (lines "
+            f"{', '.join(str(h + 1) for h in heads)}). Two would disagree eventually and "
+            f"a reader could not tell which is the register")
+        return declared, problems
+    i = heads[0] + 1
+    delim = _md_cells(lines[i]) if i < len(lines) else None
+    if not delim or not all(_MD_DELIM.match(c) for c in delim):
+        problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the hook table's "
+                        f"header has no `|---|---|---|` row under it, so it is not a table")
+        return declared, problems
+    i += 1
+    seen: list[str] = []
+    while i < len(lines):
+        cells = _md_cells(lines[i])
+        if cells is None:
+            break
+        if len(cells) != len(HOOK_TABLE_HEADER):
+            problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the hook table "
+                            f"row has {len(cells)} cells, want {len(HOOK_TABLE_HEADER)}")
+            i += 1
+            continue
+        cmd = cells[0]
+        if not (cmd.startswith("`") and cmd.endswith("`") and len(cmd) > 2):
+            problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the command cell "
+                            f"{cmd!r} is not a backticked command")
+            i += 1
+            continue
+        cmd = _norm_command(cmd[1:-1])
+        if cmd in seen:
+            problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: `{cmd}` is listed "
+                            f"twice; a duplicated row makes the coverage count wrong")
+        seen.append(cmd)
+        for tier, cell in zip(HOOK_TIERS, cells[1:]):
+            low = cell.lower()
+            if low == HOOK_YES:
+                declared[tier].append(cmd)
+            elif low not in HOOK_NO:
+                problems.append(
+                    f"{REGISTER.relative_to(ROOT)} line {i + 1}: the `{tier}` cell for "
+                    f"`{cmd}` reads {cell!r}, which is neither `{HOOK_YES}` nor one of "
+                    f"{sorted(HOOK_NO)}. Reading it as a no would drop a gate from the "
+                    f"published list without anything going red")
+        i += 1
+    if not seen:
+        problems.append(f"{REGISTER.relative_to(ROOT)}: the hook table has no rows")
+    return declared, problems
+
+
+def hook_census(list_hook=_list_hook, register_text: str | None = None,
+                census: dict[str, dict] | None = None) -> dict:
+    """Does `.github/workflows/README.md` state what the git hooks actually run?
+
+    WHY THIS EXISTS. The register said `pre-push` runs "the full `gates.yml` set". It ran
+    5 of 47, all of them documentation and queue checks, and the sentence had been true of
+    nothing since it was written -- so someone pushing on a green hook believed they had
+    run what CI runs and had run about a ninth of it (task 153). The failure is the shape
+    `AGENTS.md` names twice over: a description by ADJECTIVE, which no check can read, and
+    one fact spelled in two files with a comment promising they agree.
+
+    Both halves are repaired here. The register names the commands in a table; this reads
+    that table and reads the script, and they must be equal.
+
+    THE SCRIPT IS RUN, NOT PARSED. `GATES_LIST_ONLY=1` makes `run()` print its argv instead
+    of executing it, so the list comes out of the hook's own control flow -- including the
+    `pre-push`-only branch and the worktree branch, which a regex over the file would have
+    had to re-derive and could get wrong in a way that looked like the register being right.
+
+    IT ALSO ASKS WHAT THE HOOKS DO NOT COVER, because that is the dangerous direction. Every
+    hook command must be one of `gates.yml`'s gates: if it is not, the register's "N of M"
+    is arithmetic over two different populations and cannot be repaired by re-reading it.
+    """
+    problems: list[str] = []
+    tiers: dict[str, list[str]] = {}
+    for tier in HOOK_TIERS:
+        rc, out, err = list_hook(tier)
+        if rc != 0:
+            problems.append(f"`GATES_LIST_ONLY=1 {HOOK_RUNNER.relative_to(ROOT)} {tier}` "
+                            f"exited {rc}: {(err or out).strip()[:300]}")
+            tiers[tier] = []
+            continue
+        cmds = [_norm_command(ln) for ln in out.splitlines() if ln.strip()]
+        stray = [c for c in cmds if not c.startswith("python3 eval/")]
+        if stray:
+            problems.append(
+                f"{HOOK_RUNNER.relative_to(ROOT)} {tier} printed {stray!r} in list-only "
+                f"mode. Every line there must be a `python3 eval/...` gate; anything else "
+                f"means the mode is emitting diagnostics and the list cannot be trusted")
+        if not cmds:
+            problems.append(f"{HOOK_RUNNER.relative_to(ROOT)} {tier} printed no commands "
+                            f"in list-only mode -- a hook that runs nothing reads here as "
+                            f"a hook that agrees with an empty table")
+        tiers[tier] = cmds
+
+    text = REGISTER.read_text(encoding="utf-8") if register_text is None else register_text
+    declared, dec_problems = register_hook_table(text)
+    problems += dec_problems
+
+    for tier in HOOK_TIERS:
+        # MEMBERSHIP, not sequence. The register claims a fixed LIST per tier and says
+        # nothing about the order of its rows, so comparing ordered would redden the gate on
+        # a table reshuffle that changes nothing a reader acts on -- and a check that fires
+        # where nothing is wrong spends exactly the attention a real firing needs. Sorting
+        # keeps duplicates visible, which is the one ordering-free way the two can differ in
+        # length; the register's own duplicate row is reported separately.
+        if sorted(declared[tier]) != sorted(tiers[tier]) and not dec_problems:
+            problems.append(
+                f"the register and {HOOK_RUNNER.relative_to(ROOT)} disagree about `{tier}`."
+                f"\n      register : {declared[tier]}"
+                f"\n      the hook : {tiers[tier]}")
+
+    cen = gate_census() if census is None else census
+    # A CENSUS THAT COULD NOT READ `gates.yml` HAS NO TOTAL, and reporting one anyway
+    # misattributes the cause: it comes back `gates: 0, commands: []`, which reads here as
+    # "the hooks run 5 commands gates.yml does not" and "claims 5 of 47, measured 5 of 0".
+    # The exit status would be right and every word of the diagnosis wrong. Raised by
+    # CodeRabbit on PR #33.
+    if cen["gates"].get("malformed"):
+        problems.append(
+            f"`gates.yml` could not be read, so there is no total to count the hooks "
+            f"against: {cen['gates']['malformed']}. The coverage sentence is arithmetic "
+            f"over two populations and one of them is missing")
+        return {"tiers": tiers, "declared": declared, "gate_count": 0,
+                "coverage_claim": None, "orphans": [], "problems": problems}
+    gate_cmds = set(cen["gates"]["commands"])
+    gate_count = cen["gates"]["gates"]
+    orphans = sorted({c for t in HOOK_TIERS for c in tiers[t]} - gate_cmds)
+    if orphans:
+        problems.append(
+            f"the hooks run {orphans!r}, which `gates.yml` does not. The register counts "
+            f"the hook's commands against gates.yml's total, and that count is only "
+            f"meaningful while every hook command is one of them")
+
+    claim = COVERAGE_RE.search(text)
+    coverage: tuple[int, int, int] | None = None
+    if not claim:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} states no hook coverage. It must carry, "
+            f"verbatim: ``pre-push` runs **N** of `gates.yml`'s **M** checks; `pre-commit` "
+            f"runs **K**.` -- the numbers are what a reader acts on, and a sentence no "
+            f"check can find is a sentence that goes stale silently")
+    else:
+        coverage = (int(claim.group(1)), int(claim.group(2)), int(claim.group(3)))
+        want = (len(tiers["pre-push"]), gate_count, len(tiers["pre-commit"]))
+        if coverage != want:
+            problems.append(
+                f"{REGISTER.relative_to(ROOT)} claims pre-push {coverage[0]} of "
+                f"{coverage[1]} and pre-commit {coverage[2]}; measured "
+                f"{want[0]} of {want[1]} and {want[2]}")
+
+    return {"tiers": tiers, "declared": declared, "gate_count": gate_count,
+            "coverage_claim": coverage, "orphans": orphans, "problems": problems}
+
+
+def hooks_report(cen: dict, as_json: bool = False) -> int:
+    """Print the hook census and decide the exit status. ONE decision, both output modes."""
+    if as_json:
+        print(json.dumps(cen, indent=2))
+    else:
+        for tier in HOOK_TIERS:
+            cmds = cen["tiers"][tier]
+            print(f"{tier}: {len(cmds)} of gates.yml's {cen['gate_count']} checks")
+            for c in cmds:
+                print(f"    {c}")
+        print("\n  producer: python3 eval/tools/ci_minutes.py --hooks")
+        print("  the list is read by RUNNING the hook: "
+              "GATES_LIST_ONLY=1 .githooks/run-gates.sh <tier>")
+    for p in cen["problems"]:
+        print(f"  DISAGREEMENT: {p}", file=sys.stderr)
+    if cen["problems"]:
+        print("ci_minutes: the CI register does not describe the git hooks it documents.",
+              file=sys.stderr)
+        return 1
+    return 0
 
 
 def path_filter_audit(runs: list[dict], compare) -> dict:
@@ -923,6 +1185,202 @@ def _selftest() -> int:
     check("the scope step is counted as itself", _cen["controls"]["scope"], 1)
     check("and not as a gate", [n for n in _cen["controls"]["names"] if "scope" in n], [])
     check("gates.yml has no scope step", _cen["gates"]["scope"], 0)
+    # -- the git hooks, and whether the register describes them --------------------------
+    # THE LIVE PAIR FIRST, because this is the row that has to be true of the repository
+    # rather than of a fixture: the register's table and coverage sentence against what
+    # `.githooks/run-gates.sh` prints when it is run.
+    _live_hooks = hook_census()
+    check("the register describes the git hooks it documents", _live_hooks["problems"], [])
+    check("pre-commit's list is not empty", bool(_live_hooks["tiers"]["pre-commit"]), True)
+    check("pre-push's list is not empty", bool(_live_hooks["tiers"]["pre-push"]), True)
+    # And the published coverage is what the two producers say, not what it says of itself.
+    check("the coverage sentence counts the hook and the workflow",
+          _live_hooks["coverage_claim"],
+          (len(_live_hooks["tiers"]["pre-push"]), _cen["gates"]["gates"],
+           len(_live_hooks["tiers"]["pre-commit"])))
+    # LIST-ONLY MUST NOT EXECUTE, and the control runs in BOTH directions. A mode that
+    # listed AND ran would be green on every row above while costing a full sweep, and a
+    # shim that never fires would make the "did not execute" half vacuous -- so the same
+    # shim is asked to fire with the flag off. `python3` is shadowed on PATH rather than
+    # trusted to be slow: absence of output is not absence of execution.
+    with tempfile.TemporaryDirectory() as _td:
+        _shim_dir, _marker = pathlib.Path(_td) / "bin", pathlib.Path(_td) / "fired"
+        _shim_dir.mkdir()
+        _shim = _shim_dir / "python3"
+        _shim.write_text(f'#!/bin/sh\nprintf x >> "{_marker}"\nexit 0\n')
+        _shim.chmod(0o755)
+        _env = {**os.environ, "PATH": f"{_shim_dir}:{os.environ.get('PATH', '')}"}
+
+        def _run_hook_shimmed(listing: bool):
+            env = {**_env, "GATES_LIST_ONLY": "1"} if listing else _env
+            return subprocess.run(["sh", str(HOOK_RUNNER), "pre-push"], cwd=str(ROOT),
+                                  capture_output=True, text=True, check=False, env=env)
+
+        _listed = _run_hook_shimmed(True)
+        check("list-only exits 0", _listed.returncode, 0)
+        check("list-only executed no gate", _marker.exists(), False)
+        check("list-only printed every pre-push gate",
+              [_norm_command(ln) for ln in _listed.stdout.splitlines() if ln.strip()],
+              _live_hooks["tiers"]["pre-push"])
+        counts["mutants"] += 1
+        # The variant half: with the flag off, the very same shim IS invoked. Without this
+        # row, a shim that could never run would report "executed nothing" for free.
+        _ran = _run_hook_shimmed(False)
+        check("without the flag the hook really executes its gates",
+              (_ran.returncode, _marker.exists(), len(_marker.read_text())
+               if _marker.exists() else 0),
+              (0, True, len(_live_hooks["tiers"]["pre-push"])))
+        counts["variants"] += 1
+
+    # The fixture pair the mutants below are edits of. It is deliberately NOT the live one:
+    # a mutant of the live register would have to be a string replacement that keeps working
+    # as the document is rewritten, and the property under test is the reader, not the text.
+    _hook_cmds = ["python3 eval/tools/docstat.py --selftest",
+                  "python3 eval/tools/tasks.py check",
+                  "python3 eval/tools/docstat.py --sweep"]
+    _hook_tiers = {"pre-commit": _hook_cmds[:2], "pre-push": _hook_cmds}
+    _hook_gates = {"gates": {"gates": 3, "commands": sorted(_hook_cmds), "malformed": []}}
+
+    def _fake_register(rows, cover=(3, 3, 2), header=None, delim=True, tail=""):
+        head = HOOK_TABLE_HEADER if header is None else header
+        out = ["# fixture", "", "| " + " | ".join(head) + " |"]
+        if delim:
+            out.append("|" + "|".join(["---"] * len(head)) + "|")
+        out += [f"| {c} | {a} | {b} |" for c, a, b in rows]
+        out += ["", tail, ""]
+        if cover:
+            out.append(f"`pre-push` runs **{cover[0]}** of `gates.yml`'s **{cover[1]}** "
+                       f"checks; `pre-commit` runs **{cover[2]}**.")
+        return "\n".join(out) + "\n"
+
+    def _lister(tiers, rc=0, text=None):
+        def _f(tier):
+            if text is not None:
+                return rc, text, ""
+            return rc, "".join(f"{c}\n" for c in tiers[tier]), ""
+        return _f
+
+    _ok_rows = [("`python3 eval/tools/docstat.py --selftest`", "yes", "yes"),
+                ("`python3 eval/tools/tasks.py check`", "yes", "yes"),
+                ("`python3 eval/tools/docstat.py --sweep`", "—", "yes")]
+    _hook_mutants = {
+        "a gate the hook runs is missing from the table":
+            (_fake_register(_ok_rows[:2], cover=(3, 3, 2)), _lister(_hook_tiers)),
+        "a row for a gate the hook does not run":
+            (_fake_register(_ok_rows + [("`python3 eval/tools/linkcheck.py`", "yes", "yes")],
+                            cover=(3, 3, 2)), _lister(_hook_tiers)),
+        "the sweep marked as running pre-commit too":
+            (_fake_register([_ok_rows[0], _ok_rows[1],
+                             ("`python3 eval/tools/docstat.py --sweep`", "yes", "yes")]),
+             _lister(_hook_tiers)),
+        "no table at all":
+            ("# fixture\n\n`pre-push` runs **3** of `gates.yml`'s **3** checks; "
+             "`pre-commit` runs **2**.\n", _lister(_hook_tiers)),
+        "two hook tables, which a reader cannot choose between":
+            (_fake_register(_ok_rows) + "\n" + _fake_register(_ok_rows[:1], cover=None),
+             _lister(_hook_tiers)),
+        "the header with no delimiter row under it":
+            (_fake_register(_ok_rows, delim=False), _lister(_hook_tiers)),
+        "a cell that is neither yes nor a no-marker":
+            (_fake_register([_ok_rows[0], _ok_rows[1],
+                             ("`python3 eval/tools/docstat.py --sweep`", "sometimes",
+                              "yes")]), _lister(_hook_tiers)),
+        "the same command on two rows":
+            (_fake_register(_ok_rows + [_ok_rows[0]], cover=(3, 3, 2)),
+             _lister(_hook_tiers)),
+        "a command cell that is not backticked":
+            (_fake_register([("python3 eval/tools/docstat.py --selftest", "yes", "yes")]
+                            + _ok_rows[1:]), _lister(_hook_tiers)),
+        "no coverage sentence":
+            (_fake_register(_ok_rows, cover=None), _lister(_hook_tiers)),
+        "the coverage sentence off by one":
+            (_fake_register(_ok_rows, cover=(4, 3, 2)), _lister(_hook_tiers)),
+        "the coverage sentence naming the wrong workflow total":
+            (_fake_register(_ok_rows, cover=(3, 47, 2)), _lister(_hook_tiers)),
+        # THE HOOK'S HALF. The table can be right and the script wrong, and that direction
+        # is the one that matters: the register is what a person reads before pushing.
+        "the runner refusing in list-only mode":
+            (_fake_register(_ok_rows), _lister(_hook_tiers, rc=2)),
+        "the runner printing nothing":
+            (_fake_register(_ok_rows), _lister(_hook_tiers, text="")),
+        "the runner printing a diagnostic instead of a gate":
+            (_fake_register(_ok_rows), _lister(_hook_tiers, text="warning: no git\n")),
+        "the hook running something gates.yml does not":
+            (_fake_register(_ok_rows + [("`python3 eval/tools/nope.py`", "yes", "yes")],
+                            cover=(4, 3, 3)),
+             _lister({t: c + ["python3 eval/tools/nope.py"]
+                      for t, c in _hook_tiers.items()})),
+        "the hook silently dropping a gate the table still lists":
+            (_fake_register(_ok_rows), _lister({"pre-commit": _hook_cmds[:1],
+                                                "pre-push": _hook_cmds[:2]})),
+    }
+    _hook_variants = {
+        "the live pair": (None, None),
+        "cells padded and the pipes re-spaced":
+            (_fake_register(_ok_rows).replace("| yes |", "|   yes   |"),
+             _lister(_hook_tiers)),
+        "a plain hyphen rather than an em dash for no":
+            (_fake_register([_ok_rows[0], _ok_rows[1],
+                             ("`python3 eval/tools/docstat.py --sweep`", "-", "yes")]),
+             _lister(_hook_tiers)),
+        "an empty cell for no":
+            (_fake_register([_ok_rows[0], _ok_rows[1],
+                             ("`python3 eval/tools/docstat.py --sweep`", "", "yes")]),
+             _lister(_hook_tiers)),
+        "YES in capitals":
+            (_fake_register([("`python3 eval/tools/docstat.py --selftest`", "YES", "Yes")]
+                            + _ok_rows[1:]), _lister(_hook_tiers)),
+        "prose between the table and the coverage sentence":
+            (_fake_register(_ok_rows, tail="Some explanation of why these five.\n"),
+             _lister(_hook_tiers)),
+        "the coverage sentence wrapped across two lines":
+            (_fake_register(_ok_rows, cover=None)
+             + "`pre-push` runs **3** of `gates.yml`'s\n**3** checks; `pre-commit` runs "
+               "**2**.\n", _lister(_hook_tiers)),
+        # The table's rows are a SET. The register claims a fixed list per tier and no
+        # order, so a reshuffle changes nothing a reader acts on and must not redden.
+        "the table's rows reordered":
+            (_fake_register([_ok_rows[1], _ok_rows[0], _ok_rows[2]]), _lister(_hook_tiers)),
+    }
+    for _name, (_text, _lh) in {**_hook_mutants, **_hook_variants}.items():
+        _want_red = _name in _hook_mutants
+        try:
+            _got = (hook_census() if _text is None
+                    else hook_census(_lh, register_text=_text, census=_hook_gates))
+        except Exception as _exc:  # noqa: BLE001 - a raise is not a verdict
+            failures.append(f"hook_census RAISED on {_name}: {_exc!r}")
+            continue
+        if bool(_got["problems"]) != _want_red:
+            failures.append(
+                f"hook_census {'SURVIVED' if _want_red else 'reddened on'} {_name}: "
+                f"{_got['problems'] or 'no problems'}")
+        # BOTH OUTPUT MODES, for the reason gates_report carries: the refusal lived in one
+        # branch there and `--json` returned 0 over a census that had already refused.
+        for _as_json in (False, True):
+            with contextlib_redirect_all():
+                _code = hooks_report(_got, as_json=_as_json)
+            if (_code != 0) != _want_red:
+                failures.append(f"hooks_report(as_json={_as_json}) returned {_code} on "
+                                f"{_name}; want {'nonzero' if _want_red else '0'}")
+    counts["mutants"] += len(_hook_mutants)
+    counts["variants"] += len(_hook_variants)
+    # AN UNREADABLE `gates.yml` MUST BE NAMED AS ITSELF. It is its own row rather than one
+    # of the mutants above because the assertion is on the DIAGNOSIS, not on the exit
+    # status: without the refusal the run is still red, and every word of why is wrong --
+    # an orphan list and a coverage sentence "measured 5 of 0". Raised by CodeRabbit, PR #33.
+    _bad_gates = {"gates": {"gates": 0, "commands": [],
+                            "malformed": ["gates.yml: pyyaml is missing"]}}
+    _got = hook_census(_lister(_hook_tiers), register_text=_fake_register(_ok_rows),
+                       census=_bad_gates)
+    check("an unreadable gates.yml is refused rather than counted",
+          [p for p in _got["problems"] if "could not be read" in p] != [], True)
+    check("and nothing is blamed on the hooks for it",
+          [p for p in _got["problems"] if "which `gates.yml` does not" in p or
+           "claims pre-push" in p], [])
+    check("and no coverage claim is published over a missing total",
+          (_got["coverage_claim"], _got["gate_count"]), (None, 0))
+    counts["mutants"] += 1
+
     # The live files must be well-formed, and this is the check that says so rather than
     # the census raising on its way past. It runs BEFORE filter_problems, so without it a
     # malformed live workflow produces a traceback ahead of every diagnostic written for
@@ -1215,8 +1673,8 @@ def _selftest() -> int:
             "the scope step given an extra flag": live.replace(
                 "ci_minutes.py --scope\n", "ci_minutes.py --scope --json\n", 1),
         }
-        counts["mutants"] = len(mutants)
-        counts["variants"] = len(variants)
+        counts["mutants"] += len(mutants)
+        counts["variants"] += len(variants)
         # A RAISE IS NOT A VERDICT, and reporting it as one is the difference between
         # "MUTANT SURVIVED: x" and a traceback whose reader has to work out which row it
         # came from. Several of the mutants below are deliberately malformed workflows,
@@ -1327,7 +1785,6 @@ def _selftest() -> int:
     # The output file is the whole interface to the workflow, so pin what lands in it --
     # and pin the LOG too, because a skipped `controls` run is only auditable afterwards
     # if the step said what it read.
-    import tempfile
     with tempfile.TemporaryDirectory() as _d:
         _out = os.path.join(_d, "gh_output")
         _log = io.StringIO()
@@ -1627,6 +2084,9 @@ def main(argv: list[str] | None = None) -> int:
                          "anything to read, and write `relevant=` to $GITHUB_OUTPUT")
     ap.add_argument("--gates", action="store_true",
                     help="how many checks each workflow runs (offline; no API)")
+    ap.add_argument("--hooks", action="store_true",
+                    help="what each git hook tier runs, and whether the register says so "
+                         "(offline; no API)")
     ap.add_argument("--no-timing", action="store_true",
                     help="skip the per-run /timing read (one extra API call per run)")
     ap.add_argument("--cache", metavar="DIR",
@@ -1642,6 +2102,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.gates:
         return gates_report(gate_census(), as_json=args.json)
+
+    if args.hooks:
+        return hooks_report(hook_census(), as_json=args.json)
 
     try:
         runs = fetch_runs()
