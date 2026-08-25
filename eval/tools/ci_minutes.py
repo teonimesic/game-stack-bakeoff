@@ -75,21 +75,23 @@ to the same contract: the gate asks whether its `run:` line is an invocation thi
 not whether the line contains the word `--scope`.
 
 --selftest pins both directions offline, in ~0.1s and without touching a file, and its
-closing line is the producer for how many workflow mutants and variants it carries. What it
+closing line is the producer for how many mutants and variants it carries. What it
 must catch: truncation instead of rounding up; a compare list at the endpoint's 300-file cap,
 which must be refused rather than scored; the ways a workflow can leave `ubuntu-latest` while
-the file still contains the string; a filter entry no pin depends on; and the ways the scope
+the file still contains the string; a filter entry no pin depends on; every mode reached with
+a flag it does not read; and the ways the scope
 guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, the scope step
 deleted, its id renamed, its command replaced, its command given a flag `--scope` does not read
-or a second mode or a pipeline, one gate losing its guard, the guard flipped to the fail-open
-`== 'true'`, the guard conjoined with a constant false, a guarded step placed above the step
-whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a scalar
-`steps:`, and a file that does not parse at all. What must still
+or a second mode or `--help` or a pipeline, one gate losing its guard, the guard flipped to the
+fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed above
+the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a
+scalar `steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
-unguarded `uses:` step, a comment in the job, and the scope step re-spaced or run under
-another interpreter path. The variants are not decoration -- the substring check this
-replaced went red on a re-quote, which is a gate firing where nothing is wrong.
+unguarded `uses:` step, a comment in the job, the scope step re-spaced or run under
+another interpreter path, every mode reached with a flag it does read, and `-h`. The variants
+are not decoration -- the substring check this replaced went red on a re-quote, which is a
+gate firing where nothing is wrong.
 
 Usage:
     python3 eval/tools/ci_minutes.py                 # the census, from the API
@@ -316,19 +318,55 @@ class _ArgError(Exception):
     """
 
 
+class _ArgExit(Exception):
+    """argparse's CLEAN exit -- `--help` -- raised instead of taken.
+
+    ARGPARSE HAS TWO EXIT PATHS AND ONLY ONE OF THEM IS `error`. `--help` runs
+    `print_help()` then `exit(0)` without ever going through `error`, so a parser that
+    overrides `error` alone still dies under its caller. Raised by CodeRabbit on PR #35,
+    and measured: `filter_problems` on a `--scope --help` scope step printed the whole
+    help screen and raised `SystemExit(0)` where a list of problems was expected.
+    """
+
+    def __init__(self, status: int):
+        super().__init__(f"argparse exited with status {status}")
+        self.status = status
+
+
 class _Parser(argparse.ArgumentParser):
-    def error(self, message):  # argparse's own contract, re-routed
+    """The parser with both of argparse's exits re-routed, and its printing optional.
+
+    `quiet` is what the workflow check passes. argparse writes usage and help straight to
+    a stream, and a gate reporting on a `run:` line must not spray a help screen into the
+    log it is being read from.
+    """
+
+    def __init__(self, *args, quiet: bool = False, **kwargs):
+        self.quiet = quiet
+        super().__init__(*args, **kwargs)
+
+    def _print_message(self, message, file=None):
+        if not self.quiet:
+            super()._print_message(message, file)
+
+    def error(self, message):
         raise _ArgError(message)
 
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, sys.stderr)
+        raise _ArgExit(status)
 
-def _build_parser() -> _Parser:
+
+def _build_parser(quiet: bool = False) -> _Parser:
     """The one parser. Both `main` and the workflow check parse with this object.
 
     ONE ADDRESS FOR THE FLAG SURFACE (AGENTS.md rule 12). The alternative -- a second list
     of flags inside the workflow check -- is two spellings of the same fact that agree only
-    until one is edited, and the one that would be edited is this one.
+    until one is edited, and the one that would be edited is this one. `quiet` changes
+    where the messages go, never which flags exist.
     """
-    ap = _Parser(description=(__doc__ or "").splitlines()[0])
+    ap = _Parser(description=(__doc__ or "").splitlines()[0], quiet=quiet)
     ap.add_argument("--selftest", action="store_true",
                     help="controls, both directions, offline")
     ap.add_argument("--path-filter", action="store_true", help="the path-filter audit")
@@ -380,19 +418,27 @@ def scope_invocation_problems(run: object) -> list[str]:
     FAIL-CLOSED ON ANYTHING IT CANNOT PARSE. Tokens after the script name that argparse
     rejects -- a shell operator, a second command, a flag that does not exist -- are
     reported rather than skipped, because a scope step whose command this tool cannot read
-    is one whose behaviour it cannot pin.
+    is one whose behaviour it cannot pin. `--help` is a third outcome and it is neither: it
+    parses, it is not an error, and the step would print a help screen and write no
+    `relevant` at all.
     """
     text = " ".join(str(run or "").split())
     if SCOPE_INVOCATION not in text:
         return [f"does not run `{SCOPE_INVOCATION}`, so whatever writes `relevant` is no "
                 f"longer this tool and is not gated by it"]
     argv = text.split()
-    at = next(i for i, t in enumerate(argv) if t.endswith("ci_minutes.py"))
+    at = next((i for i, t in enumerate(argv) if t.endswith("ci_minutes.py")), None)
+    if at is None:
+        return [f"runs `{text}`, in which no token names this script, so what would write "
+                f"`relevant` cannot be identified"]
     rest = argv[at + 1:]
     try:
-        parsed = _build_parser().parse_args(rest)
+        parsed = _build_parser(quiet=True).parse_args(rest)
     except _ArgError as exc:
         return [f"runs `{text}`, whose arguments this tool does not accept: {exc}"]
+    except _ArgExit as exc:
+        return [f"runs `{text}`, which prints a help screen and exits {exc.status} without "
+                f"deciding anything or writing `relevant`"]
     return [f"runs `{text}`, and {p}" for p in invocation_problems(parsed)]
 
 
@@ -1776,6 +1822,13 @@ def _selftest() -> int:
             "the scope step's exit status swallowed by a pipeline":
                 live.replace("ci_minutes.py --scope\n",
                              "ci_minutes.py --scope | tail -1\n", 1),
+            # ARGPARSE'S OTHER EXIT. `--help` never reaches `error()`, so the step would
+            # print a help screen, exit 0, write no `relevant`, and -- until PR #35 --
+            # raise `SystemExit(0)` straight out of `filter_problems`, which is a check
+            # with no verdict rather than a check that says no.
+            "the scope step given --help, which decides nothing":
+                live.replace("ci_minutes.py --scope\n",
+                             "ci_minutes.py --scope --help\n", 1),
             "one gate loses its guard": drop(live, gate_guard),
             # The fail-OPEN spelling: an output the scope step never wrote is the empty
             # string, so `== 'true'` skips every suite on a step that did not run.
@@ -1848,7 +1901,12 @@ def _selftest() -> int:
         def problems_of(text, name):
             try:
                 return filter_problems(text, gates_yml.read_text())
-            except Exception as exc:  # noqa: BLE001 - the point is that nothing escapes
+            # `SystemExit` EXPLICITLY, because it is not an `Exception` and the parser two
+            # calls down leaves by raising it. Measured: the mutant renaming `_Parser.exit`
+            # made a `--scope --help` row exit the whole selftest at status 0 -- green,
+            # silent, nothing asserted -- and SURVIVED, until this line named it.
+            # `KeyboardInterrupt` is deliberately still free to leave.
+            except (Exception, SystemExit) as exc:  # noqa: BLE001 - nothing may escape
                 failures.append(f"filter_problems RAISED on '{name}': {exc!r}. A check "
                                 f"that raises returns no verdict at all")
                 return ["raised"]
@@ -1946,35 +2004,73 @@ def _selftest() -> int:
     # combinations whose mode is cheap and offline if the refusal fails are driven here,
     # and `--scope` is neutered by the environment below: with no `GITHUB_EVENT_NAME` it
     # reads no diff, and with no `GITHUB_OUTPUT` it appends `relevant=` to no file.
+    def _main_rc(argv):
+        """`(status, stdout, stderr)` for one `main` call, with `sys.exit` REPORTED.
+
+        The same lesson as the hang, one exit away: argparse leaves by calling `sys.exit`,
+        so a `_Parser` that stopped raising would make these rows end the whole selftest at
+        status 0 -- green, silent, and having asserted nothing. Measured: the mutant that
+        renames `_Parser.exit` SURVIVED until this wrapper existed. A check whose failure
+        mode is the process leaving reports nothing at all.
+        """
+        out, err = io.StringIO(), io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = main(argv)
+        except SystemExit as exc:
+            failures.append(f"main({argv}) called sys.exit({exc.code}) instead of "
+                            f"returning. A status the process takes is one no row can read")
+            status = "sys.exit"
+        return status, out.getvalue(), err.getvalue()
+
     _saved_env = {k: os.environ.pop(k, None)
                   for k in ("GITHUB_OUTPUT", "GITHUB_EVENT_NAME")}
     try:
         for _argv in (["--scope", "--json"], ["--scope", "--cache", "/dev/null/nope"],
                       ["--scope", "--gates"]):
-            _err = io.StringIO()
-            with contextlib.redirect_stderr(_err), contextlib.redirect_stdout(io.StringIO()):
-                _rc = main(_argv)
+            _rc, _, _err = _main_rc(_argv)
             check(f"main({_argv}) exits non-zero", _rc, 2)
             check(f"main({_argv}) names the flag it refused",
-                  [w for w in _argv if w.startswith("--") and w not in _err.getvalue()], [])
+                  [w for w in _argv if w.startswith("--") and w not in _err], [])
             counts["mutants"] += 1
     finally:
         for _k, _v in _saved_env.items():
             if _v is not None:
                 os.environ[_k] = _v
+    # `--help` STILL WORKS, and that is the variant for the exit re-routing above. Both of
+    # argparse's exits now raise, so a `main` that forgot to catch the clean one would kill
+    # the process on `-h` instead of printing it. Checked on stdout, not just on the status.
+    for _help_flag in ("--help", "-h"):
+        _hrc, _hout, _ = _main_rc([_help_flag])
+        check(f"main(['{_help_flag}']) exits 0", _hrc, 0)
+        check(f"main(['{_help_flag}']) prints the usage and the modes",
+              [w for w in ("usage:", "--scope", "--gates", "--selftest") if w not in _hout],
+              [])
+        counts["variants"] += 1
+    # And the same flag inside a workflow step is a MUTANT, adjudicated on the string so
+    # nothing has to reach the real file. It must be a verdict, never a raise.
+    try:
+        _help_step = scope_invocation_problems("python3 eval/tools/ci_minutes.py "
+                                               "--scope --help")
+    except BaseException as exc:  # noqa: BLE001 - a raise here IS the defect under test
+        _help_step = []
+        failures.append(f"scope_invocation_problems RAISED on `--scope --help`: {exc!r}. "
+                        f"A check that raises returns no verdict at all")
+    check("a `--scope --help` step is reported rather than raised on",
+          bool(_help_step), True)
+    counts["mutants"] += 1
+
     # The variant half of the same question: `main` still dispatches a mode whose flags it
     # honours. `--hooks --json` is offline, and its payload is parsed rather than eyeballed.
-    _out = io.StringIO()
-    with contextlib.redirect_stdout(_out):
-        _rc = main(["--hooks", "--json"])
+    _rc, _out, _ = _main_rc(["--hooks", "--json"])
     check("main(['--hooks', '--json']) exits 0", _rc, 0)
     try:
-        _payload = json.loads(_out.getvalue())
+        _payload = json.loads(_out)
     except json.JSONDecodeError as exc:
         _payload = {"__unparseable__": str(exc)}
     check("and --hooks really reads --json",
           (isinstance(_payload, dict), "tiers" in _payload,
-           "producer: python3" in _out.getvalue()),
+           "producer: python3" in _out),
           (True, True, False))
     counts["variants"] += 1
 
@@ -2358,6 +2454,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = _build_parser()
     try:
         args = ap.parse_args(argv)
+    except _ArgExit as exc:
+        # `--help`. The parser has already printed it, because this one is not `quiet`.
+        return exc.status
     except _ArgError as exc:
         ap.print_usage(sys.stderr)
         print(f"ci_minutes: {exc}", file=sys.stderr)
