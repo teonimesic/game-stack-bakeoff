@@ -3,9 +3,10 @@
 # This tier is a REQUIRED check on main, so a merge waits on it -- which is why the slow
 # mutant suites live in controls.yml and this one stays fast. What each tier takes, and
 # what is deliberately NOT here, is in .github/workflows/README.md and only there: a
-# timing copied into a comment is a figure nothing can disagree with. The split was
-# originally about metered minutes on a private repository; the repository is public since
-# 2026-08-24 and Linux minutes are free, so what the split now buys is latency.
+# timing copied into a comment is a figure nothing can disagree with. What the split buys
+# is LATENCY. It began as a billing split, back when the repository was private and Actions
+# minutes were metered; whether they are metered today is read by `ci_minutes.py` on every
+# census rather than asserted in a comment, which is how the old assertion outlived it.
 #
 # EVERY GATE IS ITS OWN STEP. A `run: |` block reports only its last command's exit
 # status (AGENTS.md rule 3), so a multi-command step is a step that can pass while a
@@ -33,7 +34,7 @@ concurrency:
 
 jobs:
   gates:
-    runs-on: ubuntu-latest   # public repo: Linux minutes are free; keep it off macOS anyway
+    runs-on: ubuntu-latest   # Linux, the 1x multiplier; nothing here needs macOS
     steps:
       - uses: actions/checkout@v5
         with:

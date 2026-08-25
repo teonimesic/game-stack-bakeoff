@@ -197,19 +197,22 @@ own lines every run to prove it.
 
 ## Minutes
 
-The repository is **public**, so Linux Actions minutes are **free and unlimited** — read with
-`gh repo view teonimesic/game-stack-bakeoff --json isPrivate`, never remembered. Nothing below
-is a bill — it is wall-clock in front of a merge, which is what `gates` and `controls` being
-required checks turned it into.
+What the figures below always are is **wall clock in front of a merge**, which is what `gates`
+and `controls` being required checks turned them into. Whether they are **also a bill** depends
+on the repository's visibility, and that is not asserted here:
 
 ```bash
 python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
 ```
 
-**The producer reads that visibility for itself** — `repos/<owner>/<repo>` `.private`, on every
-census — and refuses anything that is not `true` or `false` rather than assuming either. Whether
-a minute costs anything is a property of the repository, and the tool went on printing `PRIVATE
--- these minutes are metered` for a day after the repository was made public.
+**The producer reads the visibility itself** — `repos/<owner>/<repo>` `.private`, on every
+census — and prints `PUBLIC` or `PRIVATE` in its header, refusing anything that is not `true`
+or `false` rather than assuming either. Read it from there, or from `gh repo view
+teonimesic/game-stack-bakeoff --json isPrivate`. A sentence here saying which one it is would
+be a fourth copy of a fact that changes without telling anyone: the tool went on printing
+`PRIVATE -- these minutes are metered` for a day after the repository was made public, and
+three documents said the same. `DECISIONS.md` is the one live document that states it, with
+that command beside it.
 
 **That producer answers the billing question, not the waiting one.** It counts per job, rounds
 each up to the whole minute and excludes the queue wait, so it is the wrong instrument for
