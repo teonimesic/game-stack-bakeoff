@@ -1523,8 +1523,10 @@ and the workflow gate asks the scope step's `run:` line the same question instea
 substring of it. **The substring was satisfied by 2 commands that do something else** — the
 second is `echo eval/tools/ci_minutes.py --scope`, which runs `echo` — so the gate now asks
 whether the shell runs *this* script, accepting the script alone or `python`/`python3` in front
-of it and nothing else. It tokenises the line the way a shell does, so a quoted script path and a
-trailing comment pass rather than redden.
+of it and nothing else. It tokenises the line the way a shell does — **newlines included**, since
+a `#` comment ends at its line and a flattened multi-line block would let one hide the second
+command that overwrites `relevant` — so a quoted script path and a trailing comment pass rather
+than redden.
 
 **The lever if latency ever binds is the slow tier's `pull_request` trigger, not its path
 filter.** `python3 eval/tools/ci_minutes.py` is what decides that on current data: it reports

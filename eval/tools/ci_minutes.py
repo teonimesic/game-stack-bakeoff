@@ -84,7 +84,8 @@ guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, 
 deleted, its id renamed, its command replaced, its command given a flag `--scope` does not read
 or a second mode or `--help` or a pipeline, its command echoed or wrapped in `sh -c` instead of
 run, its command pointed at another script whose name ends the same way or at another mode of
-this one, its command left with an unbalanced quote, one gate losing its guard, the guard
+this one, its command left with an unbalanced quote, a second command hidden behind a comment
+on a multi-line step, one gate losing its guard, the guard
 flipped to the
 fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed above
 the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a
@@ -444,14 +445,21 @@ def scope_invocation_problems(run: object) -> list[str]:
     it cannot pin. `--help` is neither an error nor a decision: it parses, exits 0, prints a
     help screen and writes no `relevant`.
     """
-    text = " ".join(str(run or "").split())
+    raw = str(run or "")
+    text = " ".join(raw.split())
     # SPLIT THE WAY THE SHELL DOES, not on whitespace. `str.split` keeps the quote
     # characters, so `python3 "eval/tools/ci_minutes.py" --scope` -- a command that runs
     # exactly what the live step runs -- did not match the script and was reddened, and a
     # trailing `# note` became 2 unrecognised arguments. A gate firing where nothing is
     # wrong spends the attention a real firing needs. Raised by CodeRabbit on PR #35.
+    #
+    # ON `raw`, NOT ON `text`, AND THAT IS THE FAIL-OPEN HALF. A shell comment runs to the
+    # end of its LINE, so flattening a multi-line `run:` first lets a `#` on the first line
+    # swallow every line after it -- and the line after it is where a second command
+    # overwrites `relevant`. Splitting the flattened form accepted that step at 0 problems.
+    # `text` is for the message; the verdict is read off the text the shell would see.
     try:
-        argv = shlex.split(text, comments=True)
+        argv = shlex.split(raw, comments=True)
     except ValueError as exc:
         return [f"runs `{text}`, which does not tokenise as a shell command ({exc}), so "
                 f"what it would run cannot be established"]
@@ -1894,6 +1902,15 @@ def _selftest() -> int:
             "the scope step's command with an unbalanced quote":
                 live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
                              'run: python3 "eval/tools/ci_minutes.py --scope\n', 1),
+            # THE FAIL-OPEN ONE. A shell comment ends at its LINE, so a checker that
+            # flattens the block first lets `#` on line 1 hide line 2 -- and line 2 is
+            # where `relevant` gets overwritten by something that is not this tool.
+            "a second command hidden behind a comment on a multi-line scope step":
+                live.replace(
+                    "        run: python3 eval/tools/ci_minutes.py --scope\n",
+                    "        run: |\n"
+                    "          python3 eval/tools/ci_minutes.py --scope # the filter\n"
+                    '          echo "relevant=false" >> "$GITHUB_OUTPUT"\n', 1),
             "one gate loses its guard": drop(live, gate_guard),
             # The fail-OPEN spelling: an output the scope step never wrote is the empty
             # string, so `== 'true'` skips every suite on a step that did not run.

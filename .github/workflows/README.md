@@ -79,7 +79,7 @@ closing line is the producer for how many it carries.** The mutants are a `paths
 replaced, its command given a flag `--scope` does not read or a second mode or `--help` or a
 pipeline, its command echoed or wrapped in `sh -c` instead of run, its command pointed at another
 script whose name ends the same way or at another mode of this one, its command left with an
-unbalanced quote,
+unbalanced quote, a second command hidden behind a comment on a multi-line step,
 one gate losing its guard, the guard flipped to `== 'true'`, the guard conjoined with a
 constant false, a guarded step placed above the step whose output it reads, a second
 `ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`, a file that does not parse, and
@@ -95,8 +95,10 @@ it.** 2 commands satisfy the substring and do something else: `--scope --json` c
 `--scope` and, until 2026-08-25, ran at exit 0 having ignored `--json` while the gate carried it
 as a variant; `echo eval/tools/ci_minutes.py --scope` contains it and runs `echo`. So the gate
 asks the question the substring stood in for — does the shell run **this** script, with arguments
-that produce a scope decision? The line is tokenised the way a shell tokenises it, so a quoted
-path and a trailing comment are variants rather than failures. The accepted forms are the script
+that produce a scope decision? The line is tokenised the way a shell tokenises it — including its
+newlines, because a `#` comment ends at its line and flattening a multi-line block first would let
+one hide a second command that overwrites `relevant`. A quoted path and a trailing comment are
+variants rather than failures. The accepted forms are the script
 alone or `python`/`python3` in
 front of it, and each of the tool's modes declares which of `--json`, `--cache` and `--no-timing`
 it reads and refuses anything else with exit 2. An accepted-but-ignored flag is worse than an
