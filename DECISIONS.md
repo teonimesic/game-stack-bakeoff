@@ -2758,6 +2758,82 @@ subject cannot be stated without naming a stack, which would say the technique d
 generalise; or a measured way to blind a rendered prompt, which would replace a hand-written text
 with a derived one and remove the drift risk a hand-written text carries.
 
+## The runner launches scenes behind `--scenes`, and every route to an instrument declares a class — decided 2026-08-25
+
+`eval/wholegame.py` could not launch a scene until this. Task 133 kept scenes out of `TASKS`
+because `--games` defaulted to every key of it, so registering one would have put it in the
+standing matrix command against a probe that did not exist. The probe exists (`scene_probe.py`),
+tier 3 exists (`fidelity`, `motion`, `framework_fluency`) and the judge's subject exists
+(`SCENE.md`), so the reason has expired — but the trap has not, and the fix is not to widen the
+default.
+
+**`--scenes` is a second flag, not a wider `--games`.** It defaults to **none**, so a scene is
+built only when it is named, and `--games` still defaults to every game. A default is a value
+somebody can widen without noticing; a second flag is a selection nobody makes by accident. The
+asymmetry is the decision: a scene trial is not a cheap addition to a game run — `eval/SCENES.md`
+records that scenes and a second harness are two variables, and #172 measured the same fixed
+workload swinging **1.975x** back to back, so a matrix that packs scene trials together forecloses
+the performance question before it is asked. `wholegame.select_tasks()` is where both defaults are
+written and where the reason is; an empty `--games` is now refused rather than read as *all*,
+because a selection narrowed to nothing must not become the widest one there is.
+
+**A CLASS IS DECLARED BY THE INSTRUMENT, NOT INFERRED AT THE CALL SITE.** `aspects.applicability`
+was already the guard for the three paths that reach a judge FIELD, and none of them was the
+runner. Wiring scenes in adds three more routes, and what stood in for a guard on the largest of
+them was `evaluate.BOTS[task]` raising `KeyError` — a refusal that exists because a dict happens
+to hold four keys, arrives after tier 1 has already run, and disappears the moment anyone adds a
+fifth. `judge.py` had not even that: `GAME_BRIEF.get(game, "(unknown game)")` supplies a brief
+rather than refusing, so a scene handed to the retired generalist judge is answered on all 13
+game criteria.
+
+So `aspects.INSTRUMENTS` declares the class of every non-aspect instrument — `playbot`,
+`scene_probe`, `legacy_judge` — and `applicability()` answers for both registries. One function
+rather than two that can drift apart, because the question is identical.
+
+**`evaluate.TIER2_INSTRUMENT` is written out per task and NOT derived from the class.** Deriving
+it would make the guard a comparison of a value with itself — every pairing correct by
+construction, `applicability` structurally unable to disagree, which is rule 12's corollary and
+what left a `tasks.py` mutant surviving 48 rows (task 113). Written out, it is a second statement
+about each task, and `eval/tools/scene_runner_control.py` carries the variant that shows a
+class-derived map is the weaker of the two.
+
+**The routes are enumerated, because a guard is a property of a call site.** `scene_runner_control
+--paths` prints six: task selection, the class resolution that gates the per-submission pack, the
+tier-2 dispatch, the legacy judge, and the two argparse surfaces. `anonymise.build_pack` gets no
+row of its own — it is class-agnostic, copies a submission's own files, and is reachable only
+through the class resolution. A route with no row is a route nobody checked.
+
+**The tier-2 SLOT keeps the name `playbot`, and so does `playbot.json`.** It is the weighted slot,
+spelled that way in `WEIGHTS`, in the completeness gate, in `regrade_wholegame.py`, in
+`paired_verdicts.py`, in `tier2_census.py` and in every stored grading. Renaming it to suit the
+second task class rewrites what all of those read and changes nothing about the measurement. Which
+instrument produced the record is inside it — `tier: "playbot"` or `tier: "scene_probe"`, written
+by the instrument — and beside it as `tier2_instrument`, with `task_class` at the top of both the
+trial record and the grading. Nothing downstream has to parse an id prefix, and `cmd_report`
+computes every aggregate **per class**, because a per-stack mean over both describes neither.
+
+**Two things about tier 1 are class-dependent, and both would otherwise measure the task rather
+than the work.** A scene is filmed at its own contracted tick count rather than the game default
+of 900 — the frames are what `fidelity` and `motion` read, and their brief says the last frame is
+late in the run, which filming 240 ticks past the end makes false. And the five tier-1 audio
+criteria are **not** asked of a scene: every rendered scene prompt says *"The scene has no sound.
+Do not spend effort on audio"*, so scoring one against them deducts for compliance — the same
+shape as the stale-cache defect, where the grader penalised an agent for doing what the task
+asked.
+
+**Nothing time-shaped enters the correctness pass.** The capture stays `just film SEED TICKS -
+OUTDIR`, six argv elements and no seventh, and the control drives one submission twice and
+requires every per-criterion verdict to be identical — with a variant that adds a clock reading to
+one criterion's evidence and shows the row goes red. Performance is a second pass
+(`eval/SCENES.md`, `eval/PERF-HOST.md`); the correctness pass is tick-indexed and that is what
+makes the same-seed / different-seed pair a control rather than an opinion.
+
+**To re-open:** a third task class, which would make a two-flag surface a three-flag one and argue
+for a single `--tasks` with an explicit class filter; a measured reason to launch scenes by
+default, which would mean the scene and game populations had become comparable enough to want in
+one directory; or a tier-2 instrument that serves both classes, which would retire
+`TIER2_INSTRUMENT` as a per-task table.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).

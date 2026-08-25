@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 49 documentation, queue and selftest gates | 8 mutant and control suites |
+| checks | 49 documentation, queue and selftest gates | 9 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **75–115s** | **658–827s** |
 
@@ -51,8 +51,11 @@ no document corpus: it kills a child mid-plant in a throwaway git repository and
 the working tree survives.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
-`aim_contract_control`, `scene_mutants` and its `--census-selftest`, `tasks_mutants`,
-`audio_selftest`, `rusage_selftest`, `skill_layout_control`. `aim_contract_control` is there
+`aim_contract_control`, `scene_mutants` and its `--census-selftest`, `scene_runner_control`,
+`tasks_mutants`, `audio_selftest`, `rusage_selftest`, `skill_layout_control`.
+`scene_runner_control` is the runner's half of the scene question — six named routes from an
+operator's command to a grading instrument or a judge pack, each with a mutant — and it drives
+`judge/fixtures/ref_parallax` through `just`, about 10s. `aim_contract_control` is there
 for the toolchain reason rather than the wall-clock one — 11s, and it drives the arena
 fixture through `just probe`.
 

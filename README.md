@@ -202,7 +202,7 @@ GUID, its reachability from every ancestor directory, and every criterion id the
 | Tier | Weight | What it measures |
 |---|---|---|
 | **1. Programmatic** | **GATE** | Builds, gate green, lints clean, tests pass, frames render and animate, performance probe — plus, where the game asks for sound, five audio criteria (manifest complete, files decode, nothing silent, effects genuinely distinct by decoded content, music loops and is long enough). 9 criteria, or 14 with audio. **Pass/fail, reported with the failing ids — not part of the score.** |
-| **2. Play-bot** | **1.00** | A scripted bot drives thousands of ticks and asserts the game actually plays: collisions resolve, scoring works, the match ends, replays reproduce. Where the game asks for sound, it also asserts that every event the run *actually emitted* has a working cue. |
+| **2. Play-bot** | **1.00** | A scripted bot drives thousands of ticks and asserts the game actually plays: collisions resolve, scoring works, the match ends, replays reproduce. Where the game asks for sound, it also asserts that every event the run *actually emitted* has a working cue. A **scene** has no player, so this tier is [`eval/judge/scene_probe.py`](eval/judge/scene_probe.py) instead — the same shape of instrument at the same weight, computed from tick-indexed frames and telemetry ([`eval/SCENES.md`](eval/SCENES.md)). Scene and game scores are never pooled. |
 | **3. LLM judge** | **0.00** | One specialist per aspect, each ranking a whole eight-submission field rather than scoring submissions one at a time. **Diagnostic only — contributes nothing, and stays at 0.00 until it passes its validation gates.** |
 
 `overall = tier2`. **Tier 1 stopped being 0.31 of the score on 2026-08-23** ([#92], [#123]): across
@@ -241,9 +241,16 @@ cd eval/starters/rust && just verify   # the one gate (any starter)
 
 cd eval
 # whole-game matrix
-python3 wholegame.py run      --stacks rust,ts,unity,godot --games g1_pong --trials 1
+python3 wholegame.py plan     --stacks rust ts unity godot --games g1_pong --trials 1
+python3 wholegame.py build    --stacks rust ts unity godot --games g1_pong --trials 1 \
+                              --run-dir runs/<name>
 python3 wholegame.py evaluate --run-dir runs/<name> --eval-parallel 1
 python3 wholegame.py report   --run-dir runs/<name>
+
+# a SCENE - a timed sequence with no player, graded by judge/scene_probe.py instead of a
+# play-bot. `--scenes` defaults to NONE, so the command above launches none of them.
+python3 wholegame.py build    --scenes s1_parallax --stacks ts --trials 1 \
+                              --run-dir runs/<name>
 
 # spec-change bake-off - RETIRED 2026-08-23, launch path deleted with the templates.
 # Its stored trials are still readable, and so is what they were asked to do.

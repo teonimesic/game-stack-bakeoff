@@ -70,6 +70,27 @@ measurement itself.** Treat a recurrence at parallelism 2 as *data*: it would ru
 saturation explanation out rather than merely surviving it, which is more than the current
 evidence can do.
 
+## Launching a scene
+
+**`--games` defaults to every game and `--scenes` defaults to NONE**, so the standing matrix
+command in this file launches no scene. A scene is built only when it is named:
+
+    python3 wholegame.py build --scenes s1_parallax --stacks ts --trials 1 --run-dir runs/<name>
+
+Everything above still applies — the same pre-launch checks, the same turn bound, the same
+work root. Three things are different and none of them is optional:
+
+- **A scene matrix is not a game matrix with more cells.** `eval/SCENES.md` records the
+  sequencing: scenes and a second agent harness are 2 variables, so establish scenes on the
+  `claude` arm before crossing them.
+- **Do not pack scene trials back to back if a performance pass is coming.** #172 measured the
+  same fixed workload swinging **1.975x** run back to back and holding to ~1% at 25 s spacing.
+  The correctness pass is tick-indexed and immune; the performance pass is not, and a schedule
+  chosen for the first forecloses the second.
+- **Read the class before reading a score.** Every trial record and every grading carries
+  `task_class`, and `wholegame.py report` computes each aggregate per class. A scene score
+  pooled with a game score describes neither.
+
 ## Before terminating any wedged trial, capture
 
 In this order, and all of it, because the previous occurrence left none of it:

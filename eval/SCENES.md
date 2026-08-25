@@ -82,6 +82,27 @@ that decided it.
 A prompt that names a criterion teaches to the test; a judge's brief that names one turns a
 tier-3 opinion into a restatement of tier 2. `judge/blurb_selftest.py` runs that grep.
 
+## Launching one
+
+    python3 eval/wholegame.py plan  --scenes s1_parallax --stacks ts --trials 1
+    python3 eval/wholegame.py build --scenes s1_parallax --stacks ts --trials 1 \
+        --run-dir eval/runs/<name>
+    python3 eval/wholegame.py evaluate --run-dir eval/runs/<name>
+
+**`--scenes` defaults to NONE and `--games` still defaults to every game, so the standing matrix
+command launches no scene.** That asymmetry is deliberate and `DECISIONS.md` holds the reason: a
+default is a value somebody can widen without noticing, and a scene trial is not a cheap addition
+to a game run. `wholegame.select_tasks()` is where both defaults are written.
+
+Every record carries `task_class`, and `wholegame.py report` computes each aggregate per class —
+a per-stack mean over both describes neither. Tier 2 for a scene is `scene_probe.py` and the
+record says so in `tier2_instrument` and in the tier's own `tier` field; the SLOT keeps the name
+`playbot`, because that is what `WEIGHTS`, the completeness gate and every stored grading spell.
+
+Two things about tier 1 are class-dependent: a scene is filmed at its own contracted tick count
+rather than the game default, and the 5 tier-1 audio criteria are not asked of it — every rendered
+scene prompt says the scene has no sound, so scoring one against them deducts for compliance.
+
 ## Grading: what replaces the play-bot
 
 | tier | games | scenes |
@@ -274,10 +295,16 @@ alongside the game ones:
 
 **An aspect is asked only of its own task class, and that is a guard rather than a convention.**
 `aspects.applicability()` refuses every cross pairing and refuses a task id it cannot classify,
-at `judge/field.py pack`, at `field.run_field` and at `field_sweep.py` — 3 paths, because
-the resource is *a judge field run against a task* and a guard placed beside one caller is a
-guard the next caller does not have. `judge/aspects_selftest.py` pins it with a mutant and a
-variant.
+at `judge/field.py pack`, at `field.run_field`, at `field_sweep.py` and at the 3 routes the
+RUNNER reaches a grading instrument or a judge pack by — 6 paths, because the resource is *a
+graded task* and a guard placed beside one caller is a guard the next caller does not have.
+
+**It answers for the deterministic instruments too.** `aspects.INSTRUMENTS` declares the class of
+`playbot`, `scene_probe` and the retired `legacy_judge`, so the same function guards them. What
+stood in for a guard on the play-bot was `evaluate.BOTS[task]` raising `KeyError` — a refusal that
+exists because a dict holds 4 keys, that arrives after tier 1 has run, and that a 5th key would
+remove. `judge/aspects_selftest.py` pins both registries with a mutant and a variant, and
+`tools/scene_runner_control.py` names each route and drives it.
 
 **`framework_fluency` cannot be blinded and must never enter a blind comparison.** The whole
 question is which engine's APIs appear in the source, so naming the stack *is* the measurement.

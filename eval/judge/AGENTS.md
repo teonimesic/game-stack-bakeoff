@@ -51,9 +51,12 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
 registry as the 6 game aspects and at the same weight, 0.00. 2 things govern using them:
 
 - **An aspect is asked only of its own task class, and `aspects.applicability()` refuses the
-  rest** — at `field.py pack`, at `field.run_field` and at `field_sweep.py`, because the
-  resource is *a judge field run against a task* and it is reached by 3 paths. It refuses a
-  task id it cannot classify rather than reading it as a game.
+  rest** — at `field.py pack`, at `field.run_field`, at `field_sweep.py` and at the 3 routes
+  `eval/wholegame.py` reaches a grading instrument or a judge pack by, because the resource is
+  *a graded task* and it is reached by 6 paths. It refuses a task id it cannot classify rather
+  than reading it as a game, and **it answers for the deterministic instruments too**:
+  `aspects.INSTRUMENTS` declares the class of `playbot`, `scene_probe` and `legacy_judge`.
+  `eval/tools/scene_runner_control.py --paths` prints the routes; each has a mutant.
 - **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
   `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
   prints the reason and the aspect's per-stack means — alphabetically by stack, never sorted

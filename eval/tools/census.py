@@ -8,12 +8,20 @@ produced any of them, so nothing could notice when they stopped being true. This
 producer. It reports the counts and, with every one, the **population** it counted over —
 an aggregate without its scope is unfalsifiable (#113).
 
-Two populations live under `eval/runs/**/trials/*.json` and must never be summed blind:
+Three populations live under `eval/runs/**/trials/*.json` and must never be summed blind:
 
 | population | test | what it is |
 |---|---|---|
-| whole-game | record has a `game` field | `wholegame.py` submissions — the bake-off |
+| whole-game | `task_class` is `game`, or absent | `wholegame.py` game submissions — the bake-off |
+| scene | `task_class` is `scene` | a timed sequence with no player (`eval/SCENES.md`) |
 | spec-change | record has no `game` field | the retired `runner.py` suite (`eval/AGENTS.md`) |
+
+**A scene record carries a `game` field like every other**, so the `game`-field test alone
+put it in the whole-game count — one population's trials inside another population's
+figure, which is the pooling `eval/SCENES.md` forbids in as many words. The class is read
+off `task_class`, which `wholegame.py` writes into every record. **Absent reads as `game`,
+and that is a fact rather than a default**: the field arrived in the same change that made
+a scene launchable at all, so no record without it can be a scene.
 
 Within the whole-game population, partition by `agent.terminal_reason` before computing
 anything (`eval/AGENTS.md`, rule 4). Four `archive-arena2d` records predate the field and
@@ -78,6 +86,21 @@ DEFAULT_RUNS = ROOT / "eval" / "runs"
 # by wholegame.py, which always sets it; a spec-change record is written by runner.py,
 # which never does.
 WHOLEGAME_KEY = "game"
+
+#: Which task class a stored record belongs to. Written by `wholegame.py build`.
+TASK_CLASS_KEY = "task_class"
+
+
+def task_class_of(record: dict) -> str:
+    """`"game"` or `"scene"` for one stored record.
+
+    ABSENT READS AS `game` BY CONSTRUCTION, not by convenience. `wholegame.py` gained
+    `--scenes` and this field in one change, so a record written without the field was
+    written by a harness that could not launch a scene. Reading it as `game` is therefore
+    a statement about the corpus, and it is one a scene record cannot slip past: any
+    record a scene run produces carries the field.
+    """
+    return "scene" if record.get(TASK_CLASS_KEY) == "scene" else "game"
 
 # Directories that hold trees written by a building agent or by a toolchain, not by a
 # harness. A `trials/` directory appearing under one of these is not ours; counting it
@@ -195,7 +218,9 @@ def _terminal(record: dict) -> str:
 
 def census(runs_dir: Path) -> dict:
     records, skipped = load_records(runs_dir)
-    wholegame = [r for r in records if WHOLEGAME_KEY in r[2]]
+    tasks = [r for r in records if WHOLEGAME_KEY in r[2]]
+    wholegame = [r for r in tasks if task_class_of(r[2]) == "game"]
+    scenes = [r for r in tasks if task_class_of(r[2]) == "scene"]
     specchange = [r for r in records if WHOLEGAME_KEY not in r[2]]
 
     cells = collections.Counter((d["game"], d["stack"]) for _, _, d in wholegame)
@@ -249,6 +274,23 @@ def census(runs_dir: Path) -> dict:
                 harness_of(d) for _, _, d in wholegame).items())),
             "per_run": per_run,
         },
+        "scene": {
+            "population": "stored trial records whose `task_class` is `scene`",
+            "trial_records": len(scenes),
+            "run_directories": len({r for r, _, _ in scenes}),
+            "scenes": dict(sorted(collections.Counter(
+                d["game"] for _, _, d in scenes).items())),
+            "stacks": dict(sorted(collections.Counter(
+                d["stack"] for _, _, d in scenes).items())),
+            "terminal_reason": dict(sorted(collections.Counter(
+                _terminal(d) for _, _, d in scenes).items())),
+            "agent_cost_usd": round(
+                sum(_cost(d) for _, _, d in scenes if _priced(d)), 2),
+            "cost_unpriced_records": sum(
+                1 for _, _, d in scenes if not _priced(d)),
+            "harness": dict(sorted(collections.Counter(
+                harness_of(d) for _, _, d in scenes).items())),
+        },
         "specchange": {
             "population": "stored trial records with no `game` field — the retired suite",
             "trial_records": len(specchange),
@@ -281,7 +323,7 @@ def _unpriced_note(n: int) -> str:
 
 
 def render(c: dict) -> str:
-    wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
+    wg, sc, tree, scn = (c["wholegame"], c["specchange"], c["tree"], c["scene"])
     biggest = max(wg["per_run"].items(), key=lambda kv: kv[1]["records"], default=None)
     lines = [
         f"read on {c['read_on']} from {c['runs_dir']}",
@@ -309,6 +351,24 @@ def render(c: dict) -> str:
             f"  terminal_reason    {_fmt_counter(info['terminal_reason'])}",
         ]
     lines += [
+        "",
+        f"SCENE — population: {scn['population']}",
+        f"  trial records      {scn['trial_records']}",
+    ]
+    if scn["trial_records"]:
+        lines += [
+            f"  run directories    {scn['run_directories']}",
+            f"  scenes             {len(scn['scenes'])}   {_fmt_counter(scn['scenes'])}",
+            f"  stacks             {len(scn['stacks'])}   {_fmt_counter(scn['stacks'])}",
+            f"  terminal_reason    {_fmt_counter(scn['terminal_reason'])}",
+            f"  harness            {_fmt_counter(scn['harness'])}",
+            f"  agent.cost_usd     {scn['agent_cost_usd']:,.2f} {tokenvalue.UNIT}"
+            + _unpriced_note(scn['cost_unpriced_records']),
+        ]
+    lines += [
+        "  NEVER pooled with the whole-game figures above — different task class, "
+        "different tier-2",
+        "  instrument, different criteria (eval/SCENES.md).",
         "",
         f"SPEC-CHANGE — population: {sc['population']}",
         f"  trial records      {sc['trial_records']}",
@@ -368,6 +428,8 @@ def selftest() -> int:
             pass
 
         # The known-answer tree, stated before it is measured:
+        #   2 scene records over 1 run dir, 1 scene, 1 stack, 40.00 tokval, in NONE of
+        #     the whole-game figures;
         #   3 whole-game records over 2 run dirs, 2 games, 2 stacks, 3 cells,
         #   terminal completed 1 / api_error 1 / absent 1, 6.00 tokval;
         #   2 spec-change records over 2 run dirs, 9.00 tokval — ONE OF THEM NESTED inside an
@@ -431,8 +493,19 @@ def selftest() -> int:
                    {"game": "g1", "stack": "rust",
                     "agent": {"terminal_reason": "completed", "cost_usd": value}})
 
+        # Direction 8: A SCENE RECORD. It carries a `game` field like every other record,
+        # so the field test alone counts it as a whole-game trial - one population's
+        # trial inside another population's figure, which is what `eval/SCENES.md`
+        # forbids. Two of them, in their own run directory, with a distinct cost so the
+        # sums can be told apart by a number and not only by a count.
+        for i in range(2):
+            _write(runs / "wg-scene" / "trials" / f"s1_parallax__ts__t{i}.json",
+                   {"game": "s1_parallax", "task_class": "scene", "stack": "ts",
+                    "trial": i,
+                    "agent": {"cost_usd": 20.0, "terminal_reason": "completed"}})
+
         c = census(runs)
-        wg, sc, tree = c["wholegame"], c["specchange"], c["tree"]
+        wg, sc, tree, scn = (c["wholegame"], c["specchange"], c["tree"], c["scene"])
         check("wholegame.trial_records", wg["trial_records"], 9)
         check("wholegame.run_directories", wg["run_directories"], 3)
         check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})
@@ -455,7 +528,7 @@ def selftest() -> int:
         # NaN, and `6.0 != nan` would be the only way anyone found out.
         check("no unusable figure reached the total", wg["agent_cost_usd"], 6.0)
         check("the total is finite", math.isfinite(wg["agent_cost_usd"]), True)
-        check("tree.harness", tree["harness"], {"claude": 10, "prime-agent": 1})
+        check("tree.harness", tree["harness"], {"claude": 12, "prime-agent": 1})
         # A record whose two provenance fields DISAGREE is neither of them: it is excluded
         # from every priced sum by the same test that excludes a foreign harness, and it
         # shows up in the partition where a reader cannot miss it. Picking one silently is
@@ -475,19 +548,42 @@ def selftest() -> int:
               harness_of({"agent": {"cost_usd": 1.0}}), "claude")
         # The spec-change records must NOT be counted as whole-game, and must be counted
         # — including the one nested inside the archive wrapper.
+        # Direction 8, both halves. The scene records are counted as scenes and reach no
+        # whole-game figure: not the record count, not the game counter, not the cost.
+        # Asking only "is the scene count 2" would pass on an implementation that counted
+        # them TWICE, which is the shape that puts a scene inside a published game total.
+        check("scene.trial_records", scn["trial_records"], 2)
+        check("scene.run_directories", scn["run_directories"], 1)
+        check("scene.scenes", scn["scenes"], {"s1_parallax": 2})
+        check("scene.agent_cost_usd", scn["agent_cost_usd"], 40.0)
+        check("no scene record is in the whole-game count", wg["trial_records"], 9)
+        check("no scene id is in the whole-game games counter",
+              "s1_parallax" in wg["games"], False)
+        check("no scene tokval reached the whole-game total", wg["agent_cost_usd"], 6.0)
+        check("the scene run directory is not a whole-game one",
+              wg["run_directories"], 3)
+        # And the whole TREE still counts every record once - a partition that drops a
+        # population is as wrong as one that pools it.
+        check("a record with no task_class is read as a game",
+              task_class_of({"game": "g1_pong"}), "game")
+        check("a scene record is read as a scene",
+              task_class_of({"game": "s1_parallax", "task_class": "scene"}), "scene")
         check("specchange.trial_records", sc["trial_records"], 2)
         check("specchange.run_directories", sc["run_directories"], 2)
         check("specchange.agent_cost_usd", sc["agent_cost_usd"], 9.0)
-        check("tree.trial_records", tree["trial_records"], 11)
-        check("tree.run_directories", tree["run_directories"], 5)
-        check("tree.agent_cost_usd", tree["agent_cost_usd"], 15.0)
+        # The WHOLE TREE still counts every record once: 9 game + 2 scene + 2
+        # spec-change. A partition that drops a population is as wrong as one that
+        # pools it, and only asking both questions separates the two.
+        check("tree.trial_records", tree["trial_records"], 13)
+        check("tree.run_directories", tree["run_directories"], 6)
+        check("tree.agent_cost_usd", tree["agent_cost_usd"], 55.0)
         check("largest matrix is wg-a", max(
             wg["per_run"].items(), key=lambda kv: kv[1]["records"])[0], "wg-a")
         # The nested run is identified by its path, not by its bare name.
         counted, skipped = trial_paths(runs)
         check("nested run identified by relative path",
               sorted({str(Path(p).parent.parent.relative_to(runs)) for p in counted}),
-              ["archive-x/core-y", "core-x", "wg-a", "wg-b", "wg-c"])
+              ["archive-x/core-y", "core-x", "wg-a", "wg-b", "wg-c", "wg-scene"])
         # 4b, both halves: excluded from the counts AND reported.
         check("agent-authored trials/ skipped", len(skipped), 1)
         check("skip is reported", tree["skipped_agent_authored"], 1)
