@@ -171,6 +171,75 @@ floor or range is computed.
 **Never pool this record with a game population.** It carries `game: g1_pong` because every
 record does, and it was not asked to build pong.
 
+## THE FIRST SCENE EVER BUILT AND GRADED — `wg-scene-s1ts-2026-08-25`. INTERRUPTED, and NOT a submission
+
+| | |
+|---|---|
+| what | 1 cell, `s1_parallax__ts__t0`, the ts starter, the rendered `s1_parallax` prompt. The first time anything in this project launched a scene |
+| how it ended | **killed from outside at 3599s** by the session's background-task manager, mid-agent-turn — the transcript's last entry is `[Request interrupted by user]`. `terminal_reason` is **`harness_kill_external`**, a value outside the harness's own enumeration, because nothing in the trial ended it |
+| resource | **not reconstructable.** `num_turns` and the token totals come off the CLI's terminal result event, which never arrived, so all of them and `cost_usd` are `null`. The transcript alone gives 198 assistant messages and 137 tool-use blocks, recorded in a field of their own as a scale rather than as the harness's counters |
+| what was salvaged | the work tree survived the kill, so the submission was captured by hand — `diff.patch`, `diff.stat`, `status.txt`, `tree.txt`, `submission.tar.gz`, 24 files changed, all four capture exits 0 |
+| tier 1 | **GATE FAIL, 4 of 9**: `verify.green`, `lint.clean`, `tests.green`, `render.nonempty` |
+| tier 2 | `scene_probe`, **5 of 6 scored = 0.833**. 8 criteria reported: 5 pass, 1 fail, **2 `scored=False`** |
+| evaluate | 58s for the whole grading, tier 1 plus the probe's 3 traces and 3 films |
+
+**Never pool this record with anything.** It is not `completed`, it is one cell, and `wholegame.py
+report` already excludes it from every aggregate — the run prints `0 aggregated, 1 not completed`.
+Its value is entirely in what the instrument did on first contact.
+
+### What first contact found, and the headline is a FALSE NEGATIVE
+
+**`layers.depth_ordered` failed, and the failure is the criterion's.** It computes
+`abs(offset_last - offset_first)` per layer and asks whether that decreases with declared depth.
+The submission wraps `offset` — which the scene contract asks for, and which `loop.seamless`
+exists to check — so what the criterion read was a modular residue. The evidence is decisive and
+is a property of the numbers rather than a reading of the source: **all 7 layers returned a value
+below their own declared span**, and 37 `wrap` events fired in the same trace.
+
+| layer | declared depth | span | measured `abs(Δoffset)` |
+|---|---|---|---|
+| road | 0 | 240 | 120.1 |
+| verge | 0.6 | 340 | 165.1 |
+| grove | 1.5 | 440 | 304.0 |
+| ridge | 4 | 400 | 232.0 |
+| range | 9 | 480 | 36.0 |
+| clouds | 20 | 900 | 245.7 |
+| sky | 60 | 1800 | 84.6 |
+
+The submission's own convention agrees with the criterion's — `layerFactor(depth) = 1/(1+depth)`,
+larger depth scrolling slower — so a sign-convention reading does not rescue the result either.
+**A mutant could not have found this.** Only a submission that wraps could, which is rule 15 and
+#46's shape, and it took the first real one. `tasks/162` carries the repair.
+
+### 2 of 8 criteria could not be set up at all
+
+`layers.image_parallax` and `loop.seamless` came back `scored=False`: the image-side shift
+estimator read **only 2 of 7 declared layers**, against 8 missed frame pairs of 132 across the 3
+fixtures. `scene_probe.py`'s docstring predicted the direction — *"expect the rate to be worse on
+a submission that fills its foreground"* — and this submission's mean ink coverage is **0.966**.
+So `measured_twice` came back as 2 of the 3 criteria designed to have both halves.
+
+### `render.nonempty` is a game criterion applied to a scene
+
+Tier 1 failed it at **0.966 against a window of 0.001–0.85**. That window is calibrated on games,
+which draw a subject against a background; a scene that fills the frame with sky, road and
+scenery exceeds it by drawing what it was asked to draw. It is the same shape as the audio
+criteria, which this change already stops asking of a scene. `tasks/163` carries it.
+
+**`verify.green`, `lint.clean` and `tests.green` are the interruption, not the submission.** 118
+of 119 of its own tests pass and the lint finding is `'previous' is never reassigned. Use
+'const'` — the agent was killed mid-polish, adjusting wheel proportions, with the gate red as it
+always is between edits.
+
+### Wall clock, and the figure is a FLOOR
+
+Build **≥ 60 min**: the cell was still working when it was killed, so that is what it had used
+and not what it needed. Evaluation **58s**, complete. ts is the cheapest stack on the game table
+and the other three are unmeasured for scenes, so a full 2-scene × 4-stack × 2-trial matrix has a
+build floor of **≥ 16 h serial, ≥ 4 h at parallelism 4** — a bound, not an estimate.
+`wholegame.py plan --scenes …` prints this beside the cost table, which is scaled from game
+trials and says nothing about a scene.
+
 ## THE FRAMES CHANNEL IS NOT EQUIVALENT ACROSS ARMS, and it never has been — measured 2026-08-23
 
 **This is not a boundary in time.** Nothing changed on this date; the asymmetry has been present

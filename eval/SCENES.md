@@ -129,11 +129,22 @@ against a mutant that removes the behaviour it names and against correct scenes 
 does not resemble, and both run in `controls.yml`. The two reference scenes are
 `judge/fixtures/ref_parallax` and `judge/fixtures/ref_glass`.
 
-**No criterion has ever met a submission.** No scene has been built or graded, so every threshold
-was chosen against fixtures written by the same hand as the criterion, and the probe's first real
-run is also its first real test. `python3 judge/scene_mutants.py --census` reports what each
-criterion separated in the population that exists, and says in as many words that the population
-is fixtures. Do not read a scene result without reading that line.
+**1 submission has now met these criteria, and it is 1.** `eval/RUNS.md` holds it. Every
+threshold was still chosen against fixtures written by the same hand as the criterion, so
+`python3 judge/scene_mutants.py --census` — which reports over FIXTURES and says so — is still
+what a scene result must be read against.
+
+**First contact found a false negative, which is what #46 said to expect.** `layers.depth_ordered`
+scored the submission FALSE by reading `abs(offset_last - offset_first)` out of a field the
+scene's own contract wraps: all 7 of that submission's layers returned a value below their own
+span, 37 `wrap` events fired in the same trace, and the criterion had measured a modular residue
+rather than a scroll rate. A mutant could not have found it — only a submission that wraps could,
+and wrapping is what `loop.seamless` exists to check. `tasks/162` carries the repair.
+
+**And 2 of the 8 criteria came back `scored=False`** on that submission: the image-side estimator
+read only 2 of 7 declared layers, against 8 missed frame pairs of 132 on the fixtures. The probe's
+docstring predicted the direction — *"expect the rate to be worse on a submission that fills its
+foreground"* — and that submission's mean ink coverage is 0.966.
 
 **One instrument error is already measured**, so the first run does not have to rediscover it:
 across the 3 parallax fixtures the image-side shift estimator misses **8 of 132 frame pairs** — 1

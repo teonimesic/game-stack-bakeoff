@@ -1172,11 +1172,18 @@ BUILD_MIN_PER_TRIAL = {"rust": 95, "ts": 65, "unity": 80, "godot": 70}
 EVAL_MIN_PER_TRIAL = {"rust": 14, "ts": 8, "unity": 16, "godot": 10}
 #: WHAT A SCENE CELL COSTS IN WALL CLOCK, and the population it was measured over.
 #:
-#: FILLED IN FROM ONE CELL. It is stated as one cell because that is what exists, and a
-#: single measurement multiplied up is a projection rather than a range - `eval/AGENTS.md`
-#: forbids extrapolating across a boundary nothing has been measured across, and the
-#: boundaries here are the other three stacks and the other scene.
-SCENE_WALL_CLOCK_NOTE = "SCENE_WALL_CLOCK_NOTE: not yet measured"
+#: ONE CELL, AND ITS BUILD FIGURE IS A FLOOR RATHER THAN A DURATION. `s1_parallax__ts__t0`
+#: was still working at 3599s when it was killed from outside, so 60 min is what the cell
+#: had used and not what it needed. Multiplying it up gives a lower bound and nothing
+#: else - `eval/AGENTS.md` forbids projecting across a boundary nothing has been measured
+#: across, and the unmeasured boundaries here are the other 3 stacks and the other scene.
+SCENE_WALL_CLOCK_NOTE = """SCENE WALL CLOCK, from 1 cell (s1_parallax x ts, eval/RUNS.md):
+  build     >= 60 min. The cell was KILLED at 3599s while still working, so this is a
+            floor. ts is the cheapest stack on the game table; rust, unity and godot are
+            unmeasured for scenes and the game table says nothing about a scene.
+  evaluate  58s, complete: tier 1 plus the scene probe's 3 traces and 3 films.
+  A full 2-scene x 4-stack x 2-trial matrix is 16 cells, so its build floor is >= 16 h
+  serial and >= 4 h at parallelism 4. The floor is not an estimate of the run."""
 
 JUDGE_COST_PER_TRIAL = 1.75   # MEASURED: two Sonnet-5 passes over a 95 KB pack plus 12
                               # frames came to 1.70 tokval and took 30-31 turns each. The
