@@ -177,9 +177,17 @@ python3 eval/tools/docstat.py --selftest    # prints the census, and the rows, o
 ```
 
 That is the producer, not a figure: it recounts against the live corpus every run rather than
-restating what was true the day it was measured. The higher-damage shape is covered either way —
-a **bare** flag on a fenced command line, which is the text a reader copies, is caught here, and
-the same `--selftest` plants one in this file's own lines every run to prove it.
+restating what was true the day it was measured.
+
+**It reports CANDIDATE rows, and they have to be read.** The census applies only the exclusions
+the check itself applies and classifies nothing beyond them, so a genuinely unresolved flag of
+ours would appear in that list exactly as a `gh` flag does. Adjudicate the rows before treating
+the wider trigger as false-positive-only; the last adjudication was 2026-08-24 at 25 rows and
+found none genuine.
+
+The higher-damage shape is covered either way — a **bare** flag on a fenced command line, which
+is the text a reader copies, is caught here, and the same `--selftest` plants one in this file's
+own lines every run to prove it.
 
 ## Minutes
 

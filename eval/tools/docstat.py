@@ -3651,7 +3651,7 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
-def _harness_trigger_census() -> dict:
+def _harness_trigger_census(docs: list[str] | None = None) -> dict:
     """What widening the backticked-flag half's file-wide trigger would cost.
 
     THE PRODUCER for the figures `.github/workflows/README.md` and `github_docs()` state.
@@ -3662,15 +3662,29 @@ def _harness_trigger_census() -> dict:
     obvious property to replace it with is the CLOSED class `_our_script_names()` - does
     this document name any script this repository owns. `AGENTS.md`'s rule audit says to
     choose between candidate triggers on the live-corpus false-positive count, never on
-    which sounds more general, and this one loses: every row it adds is another tool's
-    flag or a token a task file names as deliberately fake.
+    which sounds more general, and this one loses.
+
+    IT REPORTS CANDIDATES, NOT VERDICTS. The only exclusions applied are the ones the check
+    itself applies - known local flags, `FOREIGN_FLAG_PREFIXES`, `FOREIGN_FLAGS_EXACT` and
+    the deliberately-fake line exemption. Nothing here classifies a remaining row, so a
+    genuinely unresolved flag of ours would appear in this list exactly as a `gh` flag does.
+    Calling the whole list false positives in the OUTPUT would be a reason not to count a
+    failure, and every one of those is a channel a bug can widen (`AGENTS.md` rule 7).
+    Raised by CodeRabbit on PR #25.
+
+    The adjudication is a dated one-off and is stated as one: 2026-08-24, 25 rows, none
+    genuine - `gh`, `git`, Godot and Chrome flags, and tokens task files name as fake. The
+    live count prints beside it, so the two disagreeing is visible rather than silent.
+
+    `docs` exists for the pin that drives this over a synthetic corpus. Everything else
+    takes the default.
     """
     flags, scripts = _argparse_flags(), _our_script_names()
     old_rx = re.compile(r"(wholegame|runner|judge/|evaluate|regrade)\.py")
     wide_rx = re.compile(r"\b(" + "|".join(re.escape(s) for s in sorted(scripts)) + r")\b")
     old_admitted = wide_admitted = 0
     new_rows = []
-    docs = reference_docs()
+    docs = reference_docs() if docs is None else docs
     for q in docs:
         text = open(q, encoding="utf-8", errors="replace").read()
         narrow, wide = bool(old_rx.search(text)), bool(wide_rx.search(text))
@@ -3739,6 +3753,19 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
         found = github_docs(root=tmp)
         fixture_walked = _github_docs_by_walk(root=tmp)
 
+        # The census reports CANDIDATES, and this is the direction that matters: a
+        # genuinely unresolved flag of OURS, in a document the wider trigger would newly
+        # admit, must appear. Measured rather than asserted, because the claim in the
+        # output is what stops a reader dismissing a real hit as a known false positive.
+        # `no_harness` names a script and no harness, which is exactly that population.
+        no_harness = os.path.join(tmp, "names_a_script.md")
+        open(no_harness, "w").write(
+            "Run `eval/tools/prune_scan.py` with `--zzq-unresolved-tok` for this.\n")
+        quiet = os.path.join(tmp, "names_nothing.md")
+        open(quiet, "w").write("Run it with `--zzq-unresolved-tok` for this.\n")
+        cens = _harness_trigger_census(docs=[no_harness, quiet])
+        surfaced = [r for r in cens["new_rows"] if "--zzq-unresolved-tok" in r]
+
     census = _harness_trigger_census()
     reg_text = open(register, encoding="utf-8", errors="replace").read()
     reg_lines = reg_text.split("\n")
@@ -3758,6 +3785,10 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
          vendored in found, False),
         ("...and the walking oracle drops exactly the same set",
          fixture_walked == found, True),
+        ("the census surfaces an unresolved flag of OURS as a candidate, not only "
+         "foreign ones", len(surfaced), 1),
+        ("...and only from the doc the wider trigger would newly admit",
+         [r for r in surfaced if "names_a_script.md" in r] == surfaced, True),
         # POSITIVE CONTROL for the corpus, not just membership. Being in the list is not
         # being read: the bare-fenced half must actually fire on a token planted in this
         # file's own lines. Green membership with a check that never looks is the exact
@@ -3790,10 +3821,14 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
         print(f"\n  harness-trigger census over {census['corpus']} reference docs: "
               f"the shipped 4-name trigger admits {census['narrow']}, "
               f"`names any script of ours` would admit {census['wide']}")
-        print(f"  and add {len(census['new_rows'])} row(s), every one another tool's flag "
-              f"or a deliberately-fake token:")
+        print(f"  and add {len(census['new_rows'])} CANDIDATE row(s). Each needs "
+              f"ADJUDICATING before it counts as a false positive - this census excludes "
+              f"known\n  local and known foreign flags and classifies nothing beyond that, "
+              f"so a genuinely\n  unresolved flag of ours would appear here too:")
         for row in census["new_rows"]:
             print(f"    {row}")
+        print("  Last adjudicated 2026-08-24 at 25 rows: none genuine. A count above that, "
+              "or a\n  row naming a script of ours, is unadjudicated and must be read.")
     return failed
 
 
