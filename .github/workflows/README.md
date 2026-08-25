@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 47 documentation, queue and selftest gates | 8 mutant and control suites |
+| checks | 49 documentation, queue and selftest gates | 8 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **75–115s** | **658–827s** |
 
@@ -37,7 +37,9 @@ run is what the runner's noise moves.
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
 control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that runs on Python
 alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
-each. `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
+each, and `judge/stored_rounds_mutants` with its `--variant-control` is offline at about 5
+seconds, because it drives a 0.6s selftest 7 times over a symlinked mirror of `eval/`.
+`docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
 sigil, and no sweep is bounded by a figure nobody is charged (#159). `field_ranks --selftest` and
 `weight_sensitivity --selftest` run there too — both offline and under 0.1s locally, as does
@@ -115,7 +117,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/tasks.py check` | yes | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **5** of `gates.yml`'s **47** checks; `pre-commit` runs **4**.
+`pre-push` runs **5** of `gates.yml`'s **49** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks

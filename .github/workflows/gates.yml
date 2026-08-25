@@ -88,9 +88,9 @@ jobs:
         run: python3 eval/tools/tasks.py check
 
       # ---- source ------------------------------------------------------------------
-      # NOT `lint.py --gate`. That gates the whole pinned set, which stands at 67
-      # findings (`python3 eval/tools/lint.py --counts`) with an untriaged backlog;
-      # wiring it red on day one teaches everyone
+      # NOT `lint.py --gate`. That gates the whole pinned set, which stands at 97
+      # findings (`python3 eval/tools/lint.py --counts`, read 2026-08-25) with an
+      # untriaged backlog; wiring it red on day one teaches everyone
       # to skip CI. `invalid-syntax` is the subset that is at zero today and can still
       # go red -- pinned both ways in tasks/110.
       - name: lint.py, syntax errors only
@@ -227,6 +227,16 @@ jobs:
       - name: judge/blurb_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/judge/blurb_selftest.py
+      # The red half of `blurb_selftest`'s stored-round census arm. That census reads
+      # `eval/runs/`, which is gitignored, so the fixture inside the selftest is the only
+      # thing any gate can see it through - and a green fixture is the shape rule 1
+      # distrusts. Offline, ~5 s: 7 runs of a 0.6 s selftest over a symlinked mirror.
+      - name: judge/stored_rounds_mutants (can the census arm fail?)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/stored_rounds_mutants.py
+      - name: judge/stored_rounds_mutants --variant-control (is the variant load-bearing?)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/stored_rounds_mutants.py --variant-control
       - name: judge/capability_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/judge/capability_selftest.py

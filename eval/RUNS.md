@@ -289,7 +289,7 @@ which makes it easier to miss and no less disqualifying:
 run row gains the date and the flag, because after it the run's numbers no longer match anything
 published about it before. Nothing has been re-scored so far.
 
-## EVERY STORED CODE ROUND WAS TOLD ITS PACK MIGHT BE TRUNCATED, AND IT WAS NOT — 2026-08-23
+## THE CODE JUDGE WAS TOLD ITS PACK MIGHT BE TRUNCATED WHEN IT WAS NOT — 2026-08-23
 
 A grader-side boundary, in the same place as the fifth above and deliberately **not given an
 ordinal**: regime ordinals are one of the four hand-allocated namespaces in this repository and
@@ -320,20 +320,42 @@ python3 eval/judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
 ```
 
 It rebuilds each round's brief from the aspect, game and geometry the round itself recorded, and
-compares the hash against its stored `provenance.brief_sha256`. It infers nothing from a date.
+compares the hash against its stored `provenance.brief_sha256`. It infers nothing from a date. It
+also prints **where** each counted round is and **what pack state** it was told about, because
+those are the claims the prose beside a census makes and the ones that go stale first: three rows
+of this table were overtaken by four later rounds while the producer sat printed directly above
+them, and the population sentences beside them were true of a population that had grown (task 132).
 
-| | n |
-|---|---|
-| stored judge rounds in `eval/runs/**` | 93 |
-| of those, code-seeing (`idiomatic`, `architecture`) | 36 |
-| code-seeing rounds carrying a `provenance.brief_sha256` | **10** — all in `wg-aspect-reliability`, all `knowingly_truncated: false` |
-| of those 10, whose stored hash rebuilt **byte-identically** to the pre-repair brief | **10 of 10** (measured 2026-08-23 before the change; after it the same producer reports all 10 as `moved`) |
-| the other 26 code-seeing rounds | **no brief hash stored — permanently unassessable**, not "clean" |
+| | n | the population it counts |
+|---|---|---|
+| stored judge rounds in `eval/runs/**` | 97 | every JSON record carrying an `aspect` and an `order_seed`, at any depth below the root |
+| of those, code-seeing (`idiomatic`, `architecture`) | 40 | `provenance.sees` contains `code` — or, for a round stored before `provenance` existed, its aspect does |
+| code-seeing rounds carrying a `provenance.brief_sha256` | **14** | 10 in `wg-aspect-reliability`, 4 in `wg-g4c-2026-08-21T02-26-46/judge-blind-2026-08-23`; every one `knowingly_truncated: false` |
+| the other code-seeing rounds | **26 — no brief hash stored, permanently unassessable**, not "clean" | 14 under `wg-funframes-crossgame`, 8 under `wg-tetris-judge-2026-08-17`, 4 under `wg-g4c-capgate` — all three are wrappers, and the producer splits each into the sub-directories that really hold the rounds |
 
-The 10 are proof rather than inference: the stored hash and the rebuilt text agreed to the digit,
-so those rounds demonstrably read that sentence. The 26 predate `provenance`, and nothing on disk
-says what brief they were shown. Read them as unmeasurable, the same as the 26 rounds with no
-`files_opened` log in #83.
+**The 14 fall on both sides of this boundary, and which side is an identity rather than a date.**
+
+| directory | aspect | n | brief chars, stored → rebuilt here | reads |
+|---|---|---|---|---|
+| `wg-aspect-reliability` | `architecture` | 5 | 3536 → 3576 | `moved` |
+| `wg-aspect-reliability` | `idiomatic` | 5 | 3928 → 4000 | `moved` |
+| `wg-g4c-2026-08-21T02-26-46/judge-blind-2026-08-23` | `architecture` | 2 | 3576 → 3576 | `same` |
+| `wg-g4c-2026-08-21T02-26-46/judge-blind-2026-08-23` | `idiomatic` | 2 | 4000 → 4000 | `same` |
+
+**`moved` is the expected reading here and not a defect** — the brief was changed on purpose, so a
+round that read the old one cannot match the new. What makes the 10 proof rather than inference is
+that the old brief rebuilds as well: check out the commit before the repair, `bc9fb52~1`, and
+`field._brief(aspects.ASPECTS[aid], "g4_platformer", None)` returns `6a94883e3dbe0eb2` at 3536
+characters for `architecture` and `6fd7554b71a03f5e` at 3928 for `idiomatic` — the hashes and the
+lengths those 10 rounds stored. They demonstrably read the sentence.
+
+The 4 `same` rounds are the blind judge-field sweep held in that run's `judge-blind-2026-08-23/`,
+and their hashes are the repaired brief's, so they demonstrably read the repaired text — a
+complete pack told it is complete. They are the only stored code rounds that were told the truth,
+which is why this section's claim is about the code judge and not about every round on disk.
+
+The 26 predate `provenance`, and nothing on disk says what brief they were shown. Read them as
+unmeasurable, the same as the 26 rounds with no `files_opened` log in #83.
 
 **What changed, and what it costs.** The claim is now a function of the pack —
 `field.COMPLETENESS_NOTE`, selected by `knowingly_truncated`, used by **both** judge-facing texts
@@ -345,16 +367,16 @@ contradicted each other.
 **This moves the brief, so rounds either side are not strictly comparable** — the same shape as
 the `FRAMES_BLIND_SPOT` paragraph above. **Rule 8 says enumerate what differs from the artifacts
 rather than from what the edit intended**, so the producer rebuilds *every* hashed round, not
-only the code ones. Over the 30 rounds that carry a hash, 5 per aspect:
+only the code ones. Over the 34 rounds that carry a hash:
 
-| aspect | brief chars, stored → this checkout | moved by this change? |
-|---|---|---|
-| `architecture` | 3536 → 3576 | **yes** |
-| `idiomatic` | 3928 → 4000 | **yes** |
-| `audio` | 3459 → 3459, byte-identical | no |
-| `fun` | 3821 → 4759 | **no** — the same 938 characters pre-repair; it is the `FRAMES_BLIND_SPOT` paragraph recorded above |
-| `fun_frames` | 3275 → 4213 | **no** — as `fun` |
-| `ux` | 3321 → 4259 | **no** — as `fun` |
+| aspect | n | brief chars, stored → this checkout | moved by this change? |
+|---|---|---|---|
+| `architecture` | 7 | 3536 → 3576 for 5 rounds, 3576 → 3576 for 2 | **yes**, for the 5 stored before it |
+| `idiomatic` | 7 | 3928 → 4000 for 5 rounds, 4000 → 4000 for 2 | **yes**, for the 5 stored before it |
+| `audio` | 5 | 3459 → 3459, byte-identical | no |
+| `fun` | 5 | 3821 → 4759 | **no** — the same 938 characters pre-repair; it is the `FRAMES_BLIND_SPOT` paragraph recorded above |
+| `fun_frames` | 5 | 3275 → 4213 | **no** — as `fun` |
+| `ux` | 5 | 3321 → 4259 | **no** — as `fun` |
 
 Only the two code-seeing aspects moved for this reason, and the three frames aspects moved by
 byte-identical amounts before and after the change, which is what makes the isolation a
