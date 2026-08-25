@@ -32,3 +32,46 @@ skipped: the failing input is *all-share-one-clip **plus** unique extras*. A mut
 mechanism; it cannot manufacture that input. Establish the broken state first — add the variant,
 show `audio_selftest.py` **green** with it, and only then fix. A variant added after a fix tests
 the fix, not the claim (#60).
+
+## note 2026-08-25
+
+## note 2026-08-25 (orchestrator) — DO BOTH. You are authorised to fix 151 in this branch.
+
+142 has merged, so `RUBRIC.md`'s audio section is free and both audio tickets are unblocked.
+
+**Take `tasks/151` as well, in this branch, and close both in one pull request.** They are one
+change to one file: `GAME_EVENTS` has 3 keys for 4 games (151), and your fix here must not assume
+`expected` is non-empty — which is that same hole. Splitting them across two branches means the
+second agent re-reads everything the first learned and the two edits collide in `audio.py`,
+`audio_selftest.py` and `RUBRIC.md`.
+
+Read `tasks/151` in full before starting; its note carries my independent confirmation.
+
+## Both defects reproduced by the orchestrator, so you start from measurements
+
+| | |
+|---|---|
+| `GAME_EVENTS` keys | `g1_pong`, `g2_tetris3d`, `g3_arena` — **`g4_platformer` absent** |
+| `g1_pong` | 5 declared events, `floor = max(2, ceil(5/2)) = 3` |
+| `g2_tetris3d`, `g3_arena` | 6 declared events, floor 3 |
+
+So on Pong, 5 events on one clip = 1 group = **fail**; plus 2 unique junk entries = 3 groups =
+**pass**. The same two-entry purchase works on tetris and arena.
+
+## The part most likely to be skipped
+
+**The variant is the test, and a mutant cannot construct it.** The failing input is
+*all-share-one-clip **plus** unique extras*. Establish the broken state first: add the variant,
+show `audio_selftest.py` **green** with it in the tree, and only then fix. A variant added after
+the fix tests the fix, not the claim (#60).
+
+## The re-scoring clause is the expensive half and it is the point
+
+Both fixes can move **stored** tier-1 verdicts — 151 makes a criterion that could never fail able
+to fail. Re-score every stored submission with an audio grading and report how many verdicts move,
+**with the population**. If any moves, `eval/RUNS.md` gets a grader-side boundary entry in the
+shape of the twenty-first, which task 142 just wrote and is the model to copy. If none moves, say
+so with the count — a null needs its number as much as a hit does.
+
+**Do not re-grade beyond that census.** `eval/judge/AGENTS.md` governs; the census answers "did
+this change verdicts", it is not a re-grading pass.
