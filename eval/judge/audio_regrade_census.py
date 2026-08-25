@@ -108,11 +108,18 @@ def regroup(audio_block: dict, expected: tuple[str, ...]
 
     `refusal` is None when the two counts are exact.
     """
-    clips = audio_block.get("clips") or {}
-    groups = audio_block.get("distinct_sound_groups") or []
-    # A malformed record must be REFUSED, never crash the census. An exception here stops
-    # every remaining row, so one unreadable grading would take the whole count with it -
-    # and a count that did not finish is not a smaller count, it is no answer at all.
+    # Read RAW, with no `or {}` fallback. A falsey or absent field coerced to an empty
+    # container is indistinguishable from a grading that really recorded nothing, and it
+    # reaches the arithmetic: 0 declared clips over 0 groups is a `SCORED` row whose
+    # `audio.distinct` is FALSE, so a record this tool cannot read would be reported as a
+    # submission that failed. Every reason not to count a failure is a channel a bug can
+    # widen (rule 7).
+    #
+    # And a malformed record must be REFUSED, never crash the census. An exception here
+    # stops every remaining row, so one unreadable grading would take the whole count
+    # with it - and a count that did not finish is not a smaller count, it is no answer.
+    clips = audio_block.get("clips")
+    groups = audio_block.get("distinct_sound_groups")
     if not isinstance(clips, dict) or not isinstance(groups, list):
         return None, 0, "GROUPS_INCOMPLETE"
     if not all(isinstance(v, dict) for v in clips.values()):
@@ -382,17 +389,54 @@ def selftest() -> int:
     # A record whose SHAPE is not what this tool reads is refused, never crashed on.
     # An exception takes every remaining row with it, and a census that stopped is not a
     # smaller census.
+    absent = object()
     shapes = [("criteria is null", "criteria", None, "INCOMPLETE_STORED_VERDICTS"),
+              ("criteria is absent", "criteria", absent,
+               "INCOMPLETE_STORED_VERDICTS"),
               ("criteria is an object", "criteria", {}, "INCOMPLETE_STORED_VERDICTS"),
               ("clips is a list", "clips", [], "GROUPS_INCOMPLETE"),
               ("a clip entry is a string", "clips", {"sfx.x": "no"}, "GROUPS_INCOMPLETE"),
               ("groups is an object", "distinct_sound_groups", {}, "GROUPS_INCOMPLETE"),
               ("a group is a string", "distinct_sound_groups", ["a.wav"],
+               "GROUPS_INCOMPLETE"),
+              # FALSEY, which an `or {}` fallback would read as "recorded nothing" and
+              # score rather than refuse.
+              ("clips is an empty list", "clips", [], "GROUPS_INCOMPLETE"),
+              ("clips is absent", "clips", absent, "GROUPS_INCOMPLETE"),
+              ("clips is null", "clips", None, "GROUPS_INCOMPLETE"),
+              ("groups is an empty object", "distinct_sound_groups", {},
+               "GROUPS_INCOMPLETE"),
+              ("groups is absent", "distinct_sound_groups", absent,
+               "GROUPS_INCOMPLETE"),
+              ("groups is null", "distinct_sound_groups", None,
                "GROUPS_INCOMPLETE")]
+    # BOTH evidence fields falsey at once, which is the only shape a fallback lets
+    # through: `[] or {}` and `{} or []` agree with each other, the multiset check
+    # compares nothing with nothing, and the row is SCORED with 0 declared clips - a
+    # record this tool cannot read, reported as a submission whose audio.distinct failed.
+    # Reddening one field at a time does NOT catch that: each single-field mutant still
+    # disagrees with the other field and refuses for the wrong reason, and a run against
+    # the restored fallbacks was GREEN on all 6 of them.
+    both = [("clips and groups both empty", ([], {})),
+            ("clips and groups both absent", (absent, absent)),
+            ("clips and groups both null", (None, None))]
+    for label, (cv, gv) in both:
+        b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
+                   [[f"{e}.wav"] for e in pong], {})
+        for key, value in (("clips", cv), ("distinct_sound_groups", gv)):
+            if value is absent:
+                del b[key]
+            else:
+                b[key] = value
+        row(label, b, "g1_pong", "GROUPS_INCOMPLETE")
+
     for label, key, value, want_outcome in shapes:
         b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
                    [[f"{e}.wav"] for e in pong], {})
-        b[key] = value
+        if value is absent:
+            del b[key]
+        else:
+            b[key] = value
         checks += 1
         try:
             got = census([{"run": "r", "trial": "t", "game": "g1_pong",
