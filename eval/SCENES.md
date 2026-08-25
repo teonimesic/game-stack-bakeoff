@@ -196,12 +196,14 @@ declares its own `span`, so a wrapped series and a cumulative one carry the same
 Naming an encoding would be a regime boundary against every scene trial, and it would deduct marks
 for reporting `offset` the way a renderer wants it.
 
-**Nothing in `ParallaxScene` may subtract two reported `offset` values.** `_walk` rebuilds each
-layer's series from the per-tick trace, mapping every step into `(-span/2, span/2]` before adding
-it, and `layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that series. It
-is exact while a layer moves less than half a span in 1 tick, and a no-op on a scene that already
-accumulates. Per tick, not per captured frame: 2 captures are 60 ticks apart, which is long enough
-for a near layer to cross more than half its span.
+**No criterion in `ParallaxScene` may difference two reported `offset` values.** `_walk` rebuilds
+each layer's series from the per-tick trace, mapping every step into `(-span/2, span/2]` before
+adding it, and `layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that
+series. `_walk` is the only place that subtracts 2 reported offsets, and only ever consecutive
+ones: that difference is a modular residue anywhere else. It is exact while a layer moves less
+than half a span in 1 tick, and a no-op on a scene that already accumulates. Per tick, not per
+captured frame: 2 captures are 60 ticks apart, which is long enough for a near layer to cross more
+than half its span.
 
 **A layer that stops being reported and comes back is failed, not bridged.** Unwrapping across the
 hole returns a smaller travel that looks plausible, and `state.shape` reads tick 0 only, so

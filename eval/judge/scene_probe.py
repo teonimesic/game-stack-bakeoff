@@ -525,16 +525,19 @@ class ParallaxScene(Scene):
         """Per layer id, its `offset` at every tick, UNWRAPPED against its own `span`,
         and the ids of the layers this could not be done for.
 
-        NOTHING IN THIS CLASS MAY SUBTRACT TWO REPORTED `offset` VALUES. The trace
-        contract says `offset` is how far a layer has been displaced so far and `span`
-        is the width after which it repeats, and it does not say whether the number
-        accumulates or stays inside `[0, span)` - `eval/SCENES.md` decides that both are
-        contracted, because the layer declares the `span` that converts one into the
-        other. A difference of two reported offsets is therefore a modular residue, not
-        a distance, and reading it as a distance is what scored the first real
-        submission's `layers.depth_ordered` FALSE on a scene whose layers were ordered
-        perfectly (`tasks/162`): all 7 came back below their own declared span while 37
-        `wrap` events fired in the same trace.
+        NO CRITERION IN THIS CLASS MAY DIFFERENCE TWO REPORTED `offset` VALUES - this
+        method is the only place that subtracts a pair, and only ever a CONSECUTIVE
+        pair, which is the one difference that carries a step rather than a residue.
+
+        The trace contract says `offset` is how far a layer has been displaced so far
+        and `span` is the width after which it repeats, and it does not say whether the
+        number accumulates or stays inside `[0, span)` - `eval/SCENES.md` decides that
+        both are contracted, because the layer declares the `span` that converts one
+        into the other. Any other difference of two reported offsets is a modular
+        residue, not a distance, and reading it as a distance is what scored the first
+        real submission's `layers.depth_ordered` FALSE on a scene whose layers were
+        ordered perfectly (`tasks/162`): all 7 came back below their own declared span
+        while 37 `wrap` events fired in the same trace.
 
         The repair is per TICK, not per captured frame: each step is mapped into
         `(-span/2, span/2]` and accumulated, which is exact whenever a layer moves less

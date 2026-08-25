@@ -2900,9 +2900,11 @@ every scene trial, and it would deduct marks for reporting `offset` the way a re
 
 **The probe absorbs it, in 1 place.** `ParallaxScene._walk` rebuilds each layer's offset series
 from the per-tick trace, mapping every step into `(-span/2, span/2]` before adding it;
-`layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that series, and nothing
-in the class subtracts 2 reported offsets. Per tick, not per captured frame: captures are 60 ticks
-apart, and a near layer can cross more than half its span in that time.
+`layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that series. **`_walk` is
+the only place that subtracts 2 reported offsets, and only ever consecutive ones** — a criterion
+that differences 2 arbitrary offsets is reading a modular residue. Per tick, not per captured
+frame: captures are 60 ticks apart, and a near layer can cross more than half its span in that
+time.
 
 **A layer that stops being reported and comes back is failed, not bridged.** Unwrapping across
 the hole returns a smaller travel that looks plausible, and `state.shape` reads tick 0 only, so
