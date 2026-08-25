@@ -2786,11 +2786,11 @@ criteria with **no mutant at all**, so a registry scoped to the mutant set would
 third of the answer. A criterion added without an entry fails the suite; `no-construction` is a
 legitimate entry and says nobody could build a correct game that fails it.
 
-**A variant's coverage is per FIXTURE.** A variant runs the whole bot on one fixture, so the 4
-variants are not 4 subjects each criterion has met. They land 1 on `ref_pong`, **0** on
-`ref_tetris3d`, 1 on `ref_arena` and 2 on `ref_platformer` — and `ref_tetris3d`, the one with
-none, is where 3 of the 6 false negatives were found. Never quote a suite-wide variant count as
-per-criterion coverage.
+**Variant coverage is per fixture.** Each variant runs the whole bot on one fixture, so the 4
+variants do not provide 4 observations for every criterion. The fixture counts are: 1 on
+`ref_pong`, 0 on `ref_tetris3d`, 1 on `ref_arena`, and 2 on `ref_platformer`. `ref_tetris3d`
+has no variants and is where 3 of the 6 false negatives were found. Never quote a suite-wide
+variant count as per-criterion coverage.
 
 **To re-open:** all 6 pending entries repaired and promoted, which would leave the mechanism
 carrying nothing and make it worth asking whether it earns its ~7s; or a pending entry that
