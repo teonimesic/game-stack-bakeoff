@@ -5,10 +5,23 @@ game. Is there a technology stack in which it builds a *better* game than in the
 that be settled by measurement instead of by argument?
 
 **The setup.** Four starting templates, one per candidate stack: Godot, Rust/Bevy, TypeScript and
-Unity. A fresh `claude -p` session with no knowledge of this project is dropped into one of them
-and asked to build a game. A separate grading harness, which the building agent cannot see, then
-scores what came out. [`eval/judge/verify_blind.py`](eval/judge/verify_blind.py) is what checks
-that it really cannot see it.
+Unity. A fresh coding-agent session with no knowledge of this project is dropped into one of them
+and given a task. A separate grading harness, which the building agent cannot see, then scores what
+came out. [`eval/judge/verify_blind.py`](eval/judge/verify_blind.py) is what checks that it really
+cannot see it.
+
+**Two things about that setup are themselves variables, and both are newer than the answer below.**
+
+- **The task can be a game or a SCENE** — a timed sequence with no player, which asks how far a
+  stack's rendering and animation can be driven rather than whether interactive logic works. Scenes
+  are graded by a different tier-2 instrument and are **never pooled with games**
+  ([`eval/SCENES.md`](eval/SCENES.md)).
+- **The agent harness is selectable.** `claude -p` is one arm; a second, driving a GPT model, exists
+  so that "which agent built it" stops being a constant nobody can see. Token counts and turns are
+  the comparable quantities across arms — never money, which is two vendors' price lists ([#159]).
+
+**Neither has produced a comparison yet.** Each has run and been graded; a matrix has not. The
+answer below is about games, built by one harness.
 
 **The answer so far: no stack wins, and the honest reading is that this instrument cannot tell
 the four apart.**
