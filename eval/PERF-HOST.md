@@ -6,20 +6,25 @@ only if CPU, RAM and GPU are held underneath it. This page reports whether they 
 machine every existing result came from, and what the alternative is.
 
 **The answer is a null on the GPU and it closes the question.** Every capping or biasing mechanism
-tested here leaves GPU throughput untouched, and 1 competing GPU process costs more than 2 ramp
-levels. So the honest design is an **uncapped ramp on an exclusive machine, spaced rather than
-back-to-back, interleaved across arms, with the machine recorded per trial** — and that design is
-buildable today, because the 2 numbers that decide whether it can mean anything both came back
-small enough.
+tested here leaves GPU throughput untouched. So the honest design is an **uncapped ramp on an
+exclusive machine, spaced rather than back-to-back, interleaved across arms, with the machine
+recorded per trial**.
+
+That design is buildable today, and the 3 measurements that decide it are why. Spaced 25 s apart,
+the same fixed workload holds its median to a **0.766–2.485%** range. Run back to back it swings
+**1.975x**, and with 1 more GPU process on the machine it costs **2.13x**. Only the first of those
+is small: **spacing and exclusivity are requirements rather than preferences**, because they are
+what move a ramp out of the second and third conditions into the first.
 
 **What a null here is and is not.** These arms establish that the tested mechanisms do not cap or
 bias GPU work; they cannot establish that no mechanism could. Each arm is one row of
 `host_perf_probe.py --gpu`, and a candidate nobody has thought of is a new row rather than a
 refutation — which is the shape of the re-open conditions in `DECISIONS.md`.
 
-Every figure below names the arm that made it, and all of them were measured on 2026-08-24 on the
-machine described next. The producer is one file, and the arms are fenced here so the doc sweep
-checks them:
+Every figure below was measured on 2026-08-24 on the machine described next. The host figures —
+capping, spread and drift — all come from `eval/tools/host_perf_probe.py` and each names the arm
+that made it; the per-stack frame-timing table comes from the installed toolchains instead, and
+names its source per row. The probe's arms are fenced here so the doc sweep checks them:
 
 ```bash
 python3 eval/tools/host_perf_probe.py --caps      # can CPU or RAM be bounded?
@@ -121,8 +126,9 @@ CPU-seconds on the unchanged workload.
 
 ## The Linux VM route: real caps, and no GPU at all
 
-The 1 configuration where all 3 caps are real is a Linux guest with cgroups v2. A VM is
-already installed here, so this was measured rather than assumed. Inside it:
+A Linux guest with cgroups v2 is where the CPU and RAM caps become real — not the GPU one,
+for the reason the next lines give. A VM is already installed here, so this was measured
+rather than assumed. Inside it:
 
 - `/sys/fs/cgroup` is `cgroup2fs` — real cgroups v2.
 - **`/dev/dri` does not exist**, `/sys/class/drm` holds only `version`, no DRM or virtio-gpu
@@ -150,12 +156,13 @@ boundary rather than a free upgrade.
 
 ## How much the machine moves, with no cap in the picture
 
-Two numbers decide whether a ramp can mean anything, and they answer differently.
+2 numbers decide whether a ramp can mean anything, and they answer differently.
 
 ### Spaced launches are stable to about 1%
 
 `--spread` runs the same fixed workload in separate processes with a 25 s idle gap between them.
-3 independent runs, 1 of them started hot straight after the 10-minute drift arm:
+3 separate runs — **not independent replicates**, since the second began straight after the
+10-minute drift arm and so inherited that arm's machine state:
 
 | run | n | median of per-launch medians | range as a share of the median |
 |---|---|---|---|
@@ -163,8 +170,10 @@ Two numbers decide whether a ramp can mean anything, and they answer differently
 | second, started hot | 12 | 8.3821 ms | 2.485% |
 | third, through the committed tool | 3 | 8.3839 ms | 0.766% |
 
-The 3 medians agree to **0.074%**, across runs separated by 15 minutes and a 10-minute GPU burn. The second run's wider range is its **first** launch alone (8.567 ms); launches 1–11
-span 8.358–8.407 ms, a 0.585% range. So a 25 s idle gap fully recovers a machine that had been
+The 3 medians agree to **0.074%**. That is a description of these 3 runs rather than an interval
+anyone should carry forward — they are 15 minutes apart with a 10-minute GPU burn between two of
+them, so they are not 3 draws from one population. The second run's wider range is its **first**
+launch alone (8.567 ms); launches 1–11 span 8.358–8.407 ms, a 0.585% range. So a 25 s idle gap fully recovers a machine that had been
 reading 11.5 ms back-to-back moments earlier — **the drift below is about sustained load, not
 about accumulated heat.**
 
@@ -200,7 +209,7 @@ A ramp reports the highest level sustained, so a frame time inflated by `r` cost
 |---|---|---|---|---|
 | spaced launches, worst of 3 runs | 1.025 | 0.11 | 0.06 | 0.04 |
 | back-to-back over 10 min | 1.975 | 3.05 | 1.68 | 0.98 |
-| one competing GPU process | 2.130 | 3.39 | 1.86 | 1.09 |
+| 1 competing GPU process | 2.130 | 3.39 | 1.86 | 1.09 |
 
 **Spaced, the host costs about a tenth of a level and a ramp can separate stacks. Back-to-back or
 shared, it costs 1 to 3 levels and no stack comparison survives.** That is the whole result,
@@ -208,8 +217,10 @@ and it is a design constraint rather than a blocker.
 
 ## Frame timing, per stack
 
-A ramp has to read a clock, and the 4 stacks do not offer the same one. Every row was read
-from the installed toolchain or the starter, not from documentation:
+A ramp has to read a clock, and the 4 stacks do not offer the same one. Every row was read from
+the installed toolchain or from this repository's own starters — a shipped doc comment, a symbol
+in the shipped binary, the CLI's own `--help`, a live renderer string — and none of it from
+memory or from an upstream website:
 
 | stack | GPU-side frame timer here | what it offers | source |
 |---|---|---|---|

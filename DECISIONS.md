@@ -2560,9 +2560,11 @@ measured twice instead of once.
 ## The scene performance pass is an uncapped ramp on a spaced, exclusive machine — decided 2026-08-24
 
 `eval/SCENES.md` proposes scoring a scene as a ramp, which reads the stack only if the machine
-underneath holds still. **It cannot be held still by any mechanism on this host, and it does not
-need to be.** `eval/PERF-HOST.md` is the report and the authority; `eval/tools/host_perf_probe.py`
-is the producer for every figure in it.
+underneath holds still. **It cannot be held still by any mechanism tested on this host, and it
+does not need to be.** `eval/PERF-HOST.md` is the report and the authority.
+`eval/tools/host_perf_probe.py` is the producer for the host figures in it — capping, spread and
+drift; the per-stack frame-timing rows come from the installed toolchains and each names its own
+source.
 
 **No tested mechanism gives a usable GPU, RAM or CPU-rate cap, and 1 candidate lies about doing
 so.** `taskpolicy -b` cuts CPU throughput to 0.20x and moves GPU frame time by under 0.1 ms in
@@ -2590,7 +2592,8 @@ stricter experiment.**
 
 **What replaces the cap is spacing and exclusivity, and both are measured.** The same fixed GPU
 workload, launched in separate processes 25 s apart, holds its median to a 0.766–2.485% range
-across 3 independent runs whose medians agree to 0.074%. Run back to back for 10 minutes it swings
+across 3 separate runs whose medians agree to 0.074% — 3 runs rather than 3 independent
+replicates, since one began straight after the drift arm and inherited its machine state. Run back to back for 10 minutes it swings
 **1.975x** best to worst, reaching 10% above its opening value at t+16 s. One competing GPU process
 costs **2.13x**. Converted into ramp levels at a 1.25x step between levels, that is 0.11 levels
 spaced against 3.05 back-to-back and 3.39 shared. **Spacing is free and it is the difference

@@ -230,7 +230,7 @@ host does to a frame-time number, and it decides the design. The short form:
   and it only kills on cumulative CPU seconds. A Linux VM has real cgroup caps and **no GPU
   device**, so it is a different experiment rather than a stricter one. The pass is an uncapped
   ramp with the machine recorded.
-- **Space the trials, and require the machine to itself.** Spaced 25 s apart, the same fixed
+- **Space the trials, and require an exclusive machine.** Spaced 25 s apart, the same fixed
   workload holds to ~1% and costs about a tenth of a ramp level. Run back to back it swings
   **1.975x**, and the report's isolation measurement — 1 competing GPU process — costs **2.13x**.
   Either is 1 to 3 ramp levels, and no stack comparison survives that.
