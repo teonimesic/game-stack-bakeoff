@@ -18,10 +18,11 @@ task and inconsistent with the reference the criteria were written against.
     python3 aim_contract_control.py --contract   # offline, sub-second, gated
     python3 aim_contract_control.py              # the above, plus the census and arms
 
-`--contract` pins the specified half in both directions against `Game` alone: it needs no
-probe, no `just` and no subprocess. The default run adds the two measurements that take
-minutes because they drive the whole play-bot - the tick census, and one arm per reading
-- and is the producer for the figures `eval/RUNS.md` states for this boundary.
+`--contract` pins the specified half in both directions against `Game` alone, in both
+shapes a zero aim arrives in - the fields omitted, and the fields present and zero - and
+needs no probe, no `just` and no subprocess. The default run adds what has to drive the
+whole play-bot: the tick census, and one arm per reading. It is the producer for the
+figures `eval/RUNS.md` states for this boundary.
 """
 
 from __future__ import annotations
@@ -126,13 +127,28 @@ def load_game(repo: Path, arm: str):
     return mod
 
 
-def held_shot(mod, arm: str):
-    """Aim +y, fire, then hold fire with NO aim field. Returns that shot's velocity."""
+#: The two ways the prompt's *zero-length aim* can arrive on the wire. They are one
+#: sentence in the task and two shapes in a submission - `"aim_x" in inputs` separates
+#: them, and a reader written that way is honest and reads the contract wrongly on one of
+#: the two. The play-bot sends only the first; a mouse or a stick releasing to centre
+#: sends the second, so both are in scope and both are checked.
+NO_AIM_TICKS = {
+    "omitted": {"fire": True},
+    "explicit zero": {"fire": True, "aim_x": 0.0, "aim_y": 0.0, "aim_z": 0.0},
+}
+
+
+def held_shot(mod, no_aim: dict):
+    """Aim +y and fire, then hold `no_aim` until a shot comes out. Returns its velocity.
+
+    `no_aim` carries no direction, so what comes out is the arm's answer to the
+    unspecified case. `None` means the arm never fired again.
+    """
     g = mod.Game(7)
     g.step({"fire": True, "aim_x": 0.0, "aim_y": 1.0, "aim_z": 0.0})
     before = {b["id"] for b in g.state()["bullets"]}
     for _ in range(30):
-        g.step({"fire": True})
+        g.step(dict(no_aim))
         new = [(b["vx"], b["vy"], b["vz"]) for b in g.state()["bullets"]
                if b["id"] not in before]
         if new:
@@ -158,17 +174,20 @@ def contract(problems: list[str]) -> list[tuple[str, str, str]]:
     """
     rows = []
     for arm in ("ref", "resetx", "nofire"):
-        got = held_shot(load_game(build(arm), arm), arm)
+        mod = load_game(build(arm), arm)
         want = EXPECTED_HELD_SHOT[arm]
-        ok = same(got, want)
-        rows.append(("%-7s %s" % (arm, ARM_NOTE[arm]),
-                     "shot with no aim field: %s" % (want,),
-                     "ok" if ok else "UNMET: got %s" % (got,)))
-        if not ok:
-            problems.append(
-                "the aim contract: arm %r fired %s where the prompt's sentence requires "
-                "%s. Either `_update_aim` no longer implements what `_G3_INPUTS` states, "
-                "or this arm has stopped biting." % (arm, got, want))
+        for shape, no_aim in NO_AIM_TICKS.items():
+            got = held_shot(mod, no_aim)
+            ok = same(got, want)
+            rows.append(("%-7s %s" % (arm, ARM_NOTE[arm]),
+                         "%-13s -> %s" % (shape, want),
+                         "ok" if ok else "UNMET: got %s" % (got,)))
+            if not ok:
+                problems.append(
+                    "the aim contract: arm %r fired %s where the prompt's sentence "
+                    "requires %s, on a zero aim of the %r shape. Either `_update_aim` no "
+                    "longer implements what `_G3_INPUTS` states, or this arm has "
+                    "stopped biting." % (arm, got, want, shape))
     return rows
 
 
@@ -265,11 +284,23 @@ def arms(problems: list[str]) -> list[tuple[str, str, str]]:
     print("  criteria passed                 %s/%s\n" % (base_out["passed"],
                                                          base_out["total"]))
 
-    if c["zero"] == 0:
+    # Both of these fail closed. A zero here is the shape of a bot that no longer drives
+    # the case AND the shape of a census aimed at the wrong field, and neither may pass
+    # quietly: the FIRING count is the one that carries the ticket, because a zero-aim
+    # tick that does not fire cannot make two honest submissions diverge on a shot.
+    rows.append(("the play-bot drives the unspecified case",
+                 "some tick carries a zero or absent aim",
+                 "ok (%d)" % c["zero"] if c["zero"] else "UNMET: 0"))
+    rows.append(("...and fires on it",
+                 "some zero-aim tick holds `fire`",
+                 "ok (%d)" % c["zero_firing"] if c["zero_firing"] else "UNMET: 0"))
+    if c["zero"] == 0 or c["zero_firing"] == 0:
         problems.append(
-            "the census found no zero-aim tick at all. The bot has changed, and the "
-            "case this control exists for may now be unreachable - which would be a "
-            "result, but it must be established rather than read off a silent zero.")
+            "the census found %d zero-aim tick(s), %d of them firing. A zero here means "
+            "the bot no longer drives the case this control exists for, so the arms "
+            "below are measuring nothing - which may be a result, but it has to be "
+            "established rather than read off a silent zero."
+            % (c["zero"], c["zero_firing"]))
 
     for arm in ("startz", "resetx", "nofire"):
         _, verdicts, _ = drive(arm)

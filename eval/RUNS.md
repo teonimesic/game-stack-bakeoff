@@ -2296,11 +2296,10 @@ single-member groups, no extras, floor 3 — must be `PASS -> PASS` on both crit
 **Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
 sessions that could not see each other. Cite the heading, not the number.
 
-**Four sentences became five** in `suites/wholegame_prompts.py` `_G3_INPUTS`. The task said only
-*"the aim fields describe a direction; only its orientation matters, not its length"*, and now
-adds what a zero-length or absent aim vector does: the gun holds its last orientation, `fire`
-still fires along it, and where it points before any aim has ever been given is the submission's
-choice.
+**`suites/wholegame_prompts.py` `_G3_INPUTS` gained a sentence.** The task said only *"the aim
+fields describe a direction; only its orientation matters, not its length"*, and now adds what a
+zero-length or absent aim vector does: the gun holds its last orientation, `fire` still fires
+along it, and where it points before any aim has ever been given is the submission's choice.
 
 **Why:** the case was unspecified and it is driven. Two honest submissions could read it
 oppositely — *return the gun to +x*, or *no direction was chosen, so withhold the shot* — and
