@@ -30,6 +30,24 @@ Mutants are made by copying a fixture to a temp directory and patching `game.py`
 exact string replacement, so this file is self-contained and repeatable and no fixture
 is ever modified in place. Every patch asserts its target appears exactly once - a
 mutant that silently failed to apply would produce a green row that means nothing.
+
+THREE KINDS OF SUBJECT, AND THEY ASK THREE DIFFERENT QUESTIONS.
+
+    MUTANT   can this criterion FAIL?      reference, behaviour removed -> must FAIL
+    VARIANT  can it still PASS on a        a correct game the reference does not
+             correct game?                 resemble -> EVERY criterion must pass
+    PENDING  a correct game it FAILS       a correct game -> the measured failing set
+             today, declared               must equal the declared one
+
+`--hazards` prints `HAZARDS`, one recorded answer per criterion to *what
+correct-but-unusual game would mis-score this?*, grouped by the failure shapes #34, #29
+and #46 adjudicated. `--selftest` proves the registry gate and the pending adjudication
+can go red; both are offline and drive nothing.
+
+A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture, never per
+suite - and the population is the 70 criterion instances the four bots report, not the
+36 that carry a mutant. Two of the six pending false negatives are on criteria with no
+mutant at all.
 """
 
 from __future__ import annotations
@@ -38,8 +56,9 @@ import argparse
 import shutil
 import sys
 import tempfile
+import textwrap
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -422,6 +441,205 @@ VARIANTS: list[Variant] = [
 ]
 
 
+# --------------------------------------------------------------------------- #
+# PENDING VARIANTS - correct games this suite FAILS TODAY
+# --------------------------------------------------------------------------- #
+#
+# A `Variant` is a correct game every criterion passes. A `Pending` is a correct game
+# some criterion FAILS, with the failing ids written down, and the suite asserts EXACTLY
+# that set every run.
+#
+# It is not a tolerance and it must never become one. `Variant.tolerates` waives a
+# criterion silently and is the one place in this file a failure is allowed not to
+# count; a `Pending` names the criterion, names the ticket that will repair it, and goes
+# red on any set but the declared one - including the EMPTY set, which is what a landed
+# repair looks like and which asks the next agent to promote the entry into `VARIANTS`.
+#
+# All four shapes below are a correct game under the task prompt, whose shared preamble
+# asks for one in every game:
+#
+#     The game presents itself: a player who has never seen it can tell what to do,
+#     can see their progress while playing, and reaches a clear end state.
+#
+# THE LINE THAT DECIDES WHETHER PRESENTATION IS THIS SUITE'S PROBLEM: whether it gates
+# the SIMULATION. A title card that holds the first serve and a game-over card that
+# takes a control as a reset both stop the sim from stepping, so the play-bot sees them;
+# a paddle that bobs, a screen that shakes and a score that counts up on screen live in
+# the view layer, which the prompt puts in a different module and the probe never reads.
+
+#: The reference stops stepping forever once the well stacks out. The task prompt says
+#: an ended game "stops accepting play until it is reset", and an agent is free to bind
+#: that reset to a control - one did, in `g1_pong__rust`, whose
+#: `GAME_OVER_LOCKOUT_TICKS = 96` holds a card and then lets a control start a new
+#: match. That submission is why pong's `match.ends` presses NOTHING after the win. The
+#: repair was never carried to the other three games, all of which hold a control down
+#: for 200-300 ticks after death and then ask whether the game is still over.
+ARENA_RESTART_ON_A_CONTROL = ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            # VARIANT: a game-over card for 96 ticks, then any control starts a new
+            # run - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+                return ["wave_start"]
+            return events
+""")
+
+PF_RESTART_ON_A_CONTROL = ("""        if self.game_over or self.victory:
+            return events
+""", """        if self.game_over or self.victory:
+            # VARIANT: a game-over card for 96 ticks, then any control starts a new
+            # run - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+            return events
+""")
+
+#: `bot_pong.LIVE_BUDGET` is 512 ticks and `bot_platformer._CONTROL_TICKS` is 512,
+#: both of them bought by a Godot submission that held the ball for `OPENING_DELAY =
+#: 104` "so the title card is readable" (#34). `bot_tetris3d` was never revisited and
+#: has TWO opening budgets, which is why there are two subjects here rather than one:
+#: `piece.falls` steps 120 ticks and wants a descent, and `_await_piece` gives the first
+#: piece 20. A repair to either leaves the other red. 96 is the platformer REFERENCE's
+#: own `OPENING_TICKS`, so neither card is longer than one this repository ships.
+#:
+#: The well is shown with the piece already in it, frozen - the platformer reference's
+#: reading of a card, and the one that isolates the descent budget.
+TETRIS_CARD_OVER_A_FROZEN_WELL = ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            return events
+        if self.tick <= 96:
+            # VARIANT: a title card. Control is not handed over yet; nothing falls.
+            return events
+""")
+
+#: The well is shown empty until the card clears, which is the other reading of a card
+#: and the one that meets the 20-tick await. The boundary is exact and measured: an
+#: 18-tick card passes, a 21-tick card fails.
+TETRIS_CARD_OVER_AN_EMPTY_WELL = ("""        self._spawn()  # the first piece is already falling at tick 0
+""", """        # VARIANT: the well is shown empty behind a title card; the first piece
+        # arrives when the card clears.
+"""), ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            return events
+        if self.tick <= 96:
+            return events
+        if self.piece_kind is None and not self.grid:
+            return self._spawn()
+""")
+
+#: `rally.counts` reads the counter on the tick `paddle_hit` fires. Nothing in the task
+#: orders the two, and a sim that emits the event where the collision is resolved and
+#: settles its counters in an end-of-tick pass lands the increment one tick later.
+#: WEAKER PROVENANCE THAN THE OTHER THREE, and it is worth saying so: those trace to an
+#: adjudicated submission, this one is constructed from the state contract, and
+#: `rally.counts` has never failed in the 25 stored `g1_pong` gradings.
+RALLY_SETTLES_LATE = ("""    def step(self, inputs: dict) -> list:
+        \"\"\"Advance exactly one tick. Returns the events raised this tick.\"\"\"
+        events: list = []
+        self.tick += 1
+""", """    def step(self, inputs: dict) -> list:
+        \"\"\"Advance exactly one tick. Returns the events raised this tick.\"\"\"
+        events: list = []
+        self.tick += 1
+        if getattr(self, "_rally_pending", False):
+            self.rally = self.rally + 1   # VARIANT: the counter settles next tick
+            self._rally_pending = False
+"""), ("""        self.rally += 1
+""", """        self._rally_pending = True
+""")
+
+
+#: `fire.rate_limited` asks about SHOTS and counts BULLET IDS. A weapon that fires a
+#: spread puts several in the world per shot, which is an ordinary design for a game the
+#: prompt asks to make "loud, fast and readable at a glance". The criterion prints the
+#: shot count in its own evidence string beside a verdict computed from the other one.
+SPREAD_WEAPON = ("""        self.fire_cooldown = FIRE_INTERVAL
+        self.bullets.append({
+            "id": self._take_id(),
+            "x": self.px + self.aim_x * MUZZLE_OFFSET,
+            "y": self.py + self.aim_y * MUZZLE_OFFSET,
+            "z": self.pz + self.aim_z * MUZZLE_OFFSET,
+            "vx": self.aim_x * BULLET_SPEED,
+            "vy": self.aim_y * BULLET_SPEED,
+            "vz": self.aim_z * BULLET_SPEED,
+        })
+""", """        self.fire_cooldown = 4      # VARIANT: a faster, three-round spread
+        for k in (-1, 0, 1):
+            self.bullets.append({
+                "id": self._take_id(),
+                "x": self.px + self.aim_x * MUZZLE_OFFSET,
+                "y": self.py + self.aim_y * MUZZLE_OFFSET + k * 3.0,
+                "z": self.pz + self.aim_z * MUZZLE_OFFSET,
+                "vx": self.aim_x * BULLET_SPEED,
+                "vy": self.aim_y * BULLET_SPEED + k * 8.0,
+                "vz": self.aim_z * BULLET_SPEED,
+            })
+""")
+
+
+@dataclass(frozen=True)
+class Pending:
+    fixture: str
+    label: str
+    patches: tuple[tuple[str, str], ...]
+    #: EXACTLY the criteria this correct game fails or leaves unscored today.
+    fails: tuple[str, ...]
+    #: the ticket that will repair it. A pending entry with no owner is a waiver.
+    task: str
+    notes: str = ""
+
+
+PENDING_VARIANTS: list[Pending] = [
+    Pending("ref_arena", "a game-over card, then a control starts a new run",
+            (ARENA_RESTART_ON_A_CONTROL,), ("gameover.triggers",), task="tasks/157",
+            notes="`_death` holds fire, aim and move for 300 ticks after the player "
+                  "dies and then asks whether the game is still over. Measured: "
+                  "`game over at tick 533; after 300 more ticks of input: "
+                  "game_over=False, alive=True, score frozen: True`"),
+    Pending("ref_platformer", "a game-over card, then a control starts a new run",
+            (PF_RESTART_ON_A_CONTROL,), ("gameover.triggers",), task="tasks/157",
+            notes="`_hurt` holds move_right, jump and attack for 200 ticks after the "
+                  "player dies. Measured: `game over at tick 364; after 200 more ticks "
+                  "of input: game_over=False, alive=True, score frozen: True`"),
+    Pending("ref_tetris3d", "a 96-tick card over a frozen well",
+            (TETRIS_CARD_OVER_A_FROZEN_WELL,), ("piece.falls",), task="tasks/158",
+            notes="`piece.falls` steps 120 ticks and requires the piece to descend, "
+                  "against a fall interval of 48. Measured: `lowest cell height went "
+                  "from 11 to 11 without input`. A 60-tick card passes, so the budget "
+                  "is not absent - it is a quarter of what the same shape bought pong"),
+    Pending("ref_tetris3d", "a 96-tick card over an empty well",
+            TETRIS_CARD_OVER_AN_EMPTY_WELL,
+            ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
+            task="tasks/158",
+            notes="four of fifteen criteria, from one 20-tick await. `piece.spawns` "
+                  "reads `first piece has 0 cells: []` and the rest follow it. The "
+                  "declared set is wide ON PURPOSE: a repair that raises one budget "
+                  "and not the other will come back with a DIFFERENT set rather than "
+                  "an empty one, which is the report a partial fix should produce"),
+    Pending("ref_arena", "a faster three-round spread weapon",
+            (SPREAD_WEAPON,), ("fire.rate_limited",), task="tasks/160",
+            notes="measured `90 bullets from 120 ticks of held fire (30 fire events)`. "
+                  "30 shots in 120 ticks IS a rate limit; the criterion read the 90"),
+    Pending("ref_pong", "the rally counter settles one tick after the hit",
+            RALLY_SETTLES_LATE, ("rally.counts",), task="tasks/159",
+            notes="`_rally` compares `rally` across the `paddle_hit` tick only. "
+                  "Measured: `rally counter incremented on paddle hits (33 hits seen)` "
+                  "- the evidence string does not say which way it read, which is a "
+                  "second, smaller defect in the same criterion"),
+]
+
+
 MUTANTS: list[Mutant] = [
     Mutant("ball.moves", "ref_pong", "the ball never actually moves",
            (BALL_FROZEN,), collateral=("ball.wall_bounce", "paddle.deflects",
@@ -543,6 +761,412 @@ MUTANTS: list[Mutant] = [
 
 
 # --------------------------------------------------------------------------- #
+# HAZARDS - one answer per criterion to "what correct game would mis-score this?"
+# --------------------------------------------------------------------------- #
+#
+# THE POPULATION IS 70, NOT 36. Thirty-six criteria carry a mutant; a variant runs the
+# whole bot on ONE fixture, so a variant on `ref_pong` says nothing about `ref_arena`.
+# The real subject count per criterion is the number of variants on ITS OWN fixture, and
+# before this file was written that was 1 for pong, 1 for arena, 2 for the platformer and
+# **0 for tetris**. Two of the six false negatives found here are on criteria with no
+# mutant at all, so a registry scoped to the 36 would have missed a third of the answer.
+#
+# Every entry names a SHAPE, so the question "does anything cover the shapes #46 names?"
+# is a group-by rather than a memory. A shape with no `covered_by` anywhere is a gap.
+
+SHAPES: dict[str, str] = {
+    "opening-card": "the game withholds play at the start so its presentation can be "
+                    "read (#34: OPENING_DELAY = 104)",
+    "closing-card": "the game holds an end-of-game card and then takes a control as "
+                    "the reset the prompt says it waits for",
+    "late-unlock": "the property is gated behind progress the bot has to earn (#46: "
+                   "four enemy kinds behind wave >= 2, 3 and 4)",
+    "idle-is-fatal": "the bot's own default input ends the game before the measurement "
+                     "completes (#46: enemies.chase measured a corpse)",
+    "contract-reading": "a second legal reading of a state field (task 76: `active` as "
+                        "the swing rather than the damaging window)",
+    "world-geometry": "the level or the playfield has a shape the reference's does not "
+                      "(a pit under the opening ledge; a piece flush against a wall)",
+    "tuning": "the game's own constants put it in a regime the reference is not in, so "
+              "a branch opens that the reference never takes (enemies faster than the "
+              "player)",
+    "design-branch": "a deliberate branch the reference does not have (#82: a pit "
+                     "respawns instead of applying knockback)",
+    "edge-vs-level": "the game acts on a rising edge where the reference acts on a held "
+                     "control, or the reverse",
+    "engine-session": "the engine refuses a second probe session on a project the first "
+                      "still holds (#25, #29, #30)",
+    "no-construction": "no correct game could be constructed - the property is the task "
+                       "itself, and a game without it is incomplete rather than unusual",
+}
+
+
+@dataclass(frozen=True)
+class Hazard:
+    fixture: str
+    criterion: str
+    shape: str
+    #: the correct-but-unusual game that would mis-score this criterion
+    hazard: str
+    #: how that hazard is answered today
+    answer: str
+    #: a `Variant.label` or a `Pending.label` on this fixture, or "" for neither
+    covered_by: str = ""
+
+
+_V_CARD = "a 104-tick opening title card holds the ball"
+_V_FAST = "enemies faster than the player, so one reaches it mid-leg"
+_V_SWING = "`active` spans the whole swing, hitbox only the middle"
+_V_PIT = "the opening ledge overlooks a bottomless pit"
+_P_RESTART = "a game-over card, then a control starts a new run"
+_P_FROZEN = "a 96-tick card over a frozen well"
+_P_EMPTY = "a 96-tick card over an empty well"
+_P_SPREAD = "a faster three-round spread weapon"
+_P_RALLY = "the rally counter settles one tick after the hit"
+
+_SESSION = ("the three session-lock controls, which also pin that a permanently locked "
+            "project comes back NOT MEASURED rather than FALSE")
+_CONTRACT = ("no correct game constructed: this is the shape the probe protocol "
+             "specifies, and a game reporting another one has not met the contract")
+
+HAZARDS: list[Hazard] = [
+    # -- ref_pong ---------------------------------------------------------- #
+    Hazard("ref_pong", "state.shape", "no-construction",
+           "a game that reports the ball, paddles, score and rally under other names",
+           _CONTRACT),
+    Hazard("ref_pong", "ball.moves", "opening-card",
+           "a title card that holds the ball before the first serve",
+           "the variant, plus a 512-tick budget that watches POSITION rather than "
+           "velocity - the first repair used velocity as a proxy and still failed a "
+           "Unity submission that sets the serve velocity at tick 1 and holds the ball",
+           _V_CARD),
+    Hazard("ref_pong", "ball.wall_bounce", "tuning",
+           "a paddle that imparts angle only near its tips, so a small strike offset "
+           "returns the ball flat and it never reaches a wall",
+           "`_STRIKE_OFFSETS` searches six offsets, widening on a flat return and "
+           "walking back on a conceded point, and returns NOT ESTABLISHED when no "
+           "paddle return ever happened rather than scoring the serve angle"),
+    Hazard("ref_pong", "paddle.moves", "tuning",
+           "a paddle that accelerates rather than snapping to speed, so a fixed idle "
+           "reads no displacement",
+           "`_hold_until_still` runs up to 600 ticks and stops on convergence, not on "
+           "a tick count: a slow paddle gets the ticks it needs"),
+    Hazard("ref_pong", "paddle.bounded", "design-branch",
+           "a paddle with an idle bob or a settle, whose y is never byte-constant at "
+           "the limit and so never satisfies the 60-tick convergence test",
+           "declined: the prompt puts all drawing in the view module and the probe "
+           "reports the simulation, so a bob is not in this state. THE LINE IS WHETHER "
+           "THE PRESENTATION GATES THE SIM - a title card does, a bob does not"),
+    Hazard("ref_pong", "paddle.deflects", "idle-is-fatal",
+           "a match that reaches eleven while the bot is setting something else up, "
+           "freezing every criterion measured afterwards",
+           "the play order is fixed and documented, and the paddle-mechanics phase runs "
+           "last on its own session. Measured cost of the wrong order on the reference: "
+           "five false negatives at once"),
+    Hazard("ref_pong", "rally.counts", "contract-reading",
+           "a sim that emits `paddle_hit` where the collision resolves and settles its "
+           "counters in an end-of-tick pass, landing the increment one tick later",
+           "PENDING, measured red. Weaker provenance than the other five: constructed "
+           "from the state contract, and rally.counts has never failed in the 25 stored "
+           "g1_pong gradings", _P_RALLY),
+    Hazard("ref_pong", "rally.resets", "contract-reading",
+           "the same ordering at the point rather than at the hit",
+           "the criterion ORs two independent observations - the reset seen during the "
+           "rally drive and the one seen during the scoring drive - so one missed tick "
+           "does not decide it"),
+    Hazard("ref_pong", "score.increments", "tuning",
+           "a game that plays a scoring beat before the counter moves",
+           "the score is read from `s.last` after the serve check rather than on the "
+           "event tick, so several ticks of delay are absorbed"),
+    Hazard("ref_pong", "serve.resets", "opening-card",
+           "a get-ready beat between the point and the serve, longer than the six ticks "
+           "the criterion looks ahead",
+           "measured green: a 40-tick beat with the ball held at the centre passes, "
+           "because the test is |x| < 60 and a held ball IS at the centre. It would "
+           "fail a game that parks the ball off-centre during the beat, which is a "
+           "shape no submission has shipped"),
+    Hazard("ref_pong", "match.ends", "closing-card",
+           "a game-over card that a control clears into a new match",
+           "the criterion presses NOTHING for 600 ticks after the win. It is the ONLY "
+           "one of the four end-condition criteria that does, and carrying that repair "
+           "to the other three is tasks/157"),
+    Hazard("ref_pong", "determinism.replay", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+    Hazard("ref_pong", "determinism.seed", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+
+    # -- ref_tetris3d ------------------------------------------------------- #
+    Hazard("ref_tetris3d", "state.shape", "no-construction",
+           "a game that reports the well, piece and heights under other names",
+           _CONTRACT),
+    Hazard("ref_tetris3d", "well.dimensions", "no-construction",
+           "a well that is not 5 x 5 x 12",
+           "no correct game constructed: the prompt fixes the geometry, so a different "
+           "well is a spec miss rather than an unusual correct game"),
+    Hazard("ref_tetris3d", "piece.spawns", "opening-card",
+           "a title card, a next-piece beat or a materialise animation longer than the "
+           "20 ticks `_await_piece` allows at tick 0",
+           "PENDING, measured red, and the boundary is exact: an 18-tick card passes "
+           "and a 21-tick card fails. A beat between LATER pieces passes, because those "
+           "are awaited with a limit of 60", _P_EMPTY),
+    Hazard("ref_tetris3d", "piece.falls", "opening-card",
+           "a title card that holds the well before the first piece descends",
+           "PENDING, measured red. 120 ticks against a fall interval of 48 is a quarter "
+           "of the 512 the same shape bought pong and the platformer", _P_FROZEN),
+    Hazard("ref_tetris3d", "piece.locks", "tuning",
+           "a game with a lock delay, so the `lock` event lands well after the piece "
+           "reaches the bottom",
+           "the criterion steps up to 600 ticks waiting for the first lock, and it "
+           "measures the FIRST lock of a fresh game, where no layer can be complete and "
+           "so `settled` cannot fall instead of rising"),
+    Hazard("ref_tetris3d", "bounds.respected", "world-geometry",
+           "a wall kick that pushes a rotating piece one cell outside the well for the "
+           "tick the rotation resolves",
+           "correct to fail: the prompt says a rotation that would leave the well simply "
+           "does not happen, so the excursion is the defect. The criterion samples every "
+           "tick of the move and rotate drives rather than the endpoints"),
+    Hazard("ref_tetris3d", "move.translates", "world-geometry",
+           "a piece that spawns flush against a wall, so refusing the move is correct",
+           "REPAIRED and pinned (#29, `g2_tetris3d__rust__t0`): the direction comes from "
+           "the piece's own cells and the well, every direction with clearance is tried, "
+           "and a piece spanning both horizontal axes returns NOT MEASURED"),
+    Hazard("ref_tetris3d", "rotate.reorients", "edge-vs-level",
+           "a game that rotates on the rising edge, so a held control rotates once",
+           "the criterion presses for a single tick at a time across nine attempts on "
+           "fresh pieces, and `_drop` guarantees a falling edge before every press"),
+    Hazard("ref_tetris3d", "harddrop.locks", "tuning",
+           "a lock delay after the slam, so the lock lands later than the two ticks the "
+           "criterion allows",
+           "declined: the prompt defines hard_drop as 'drop straight down and lock "
+           "immediately', so a delay is a spec miss rather than a design choice"),
+    Hazard("ref_tetris3d", "piece.stacks", "tuning",
+           "a game that clears layers as fast as the bot stacks them, so the maximum "
+           "column height never rises",
+           "the criterion accepts either a higher stack OR a non-zero `layers_cleared`"),
+    Hazard("ref_tetris3d", "layer.clears", "late-unlock",
+           "any correct game: the placement policy cannot fill a 25-cell layer out of "
+           "four-cell pieces",
+           "DIAGNOSTIC ONLY for exactly that reason, measured across three seeds, two "
+           "well geometries and five placement cost functions"),
+    Hazard("ref_tetris3d", "score.rewards_clears", "late-unlock",
+           "the same: the reward cannot be seen without a clear",
+           "DIAGNOSTIC ONLY, with `layer.clears`"),
+    Hazard("ref_tetris3d", "gameover.triggers", "closing-card",
+           "a game-over card that a control clears into a new run",
+           "MEASURED, and the answer is not a clean pass. The same 96-tick card that "
+           "fails `ref_arena` and `ref_platformer` PASSES here, on a game that restarted "
+           "and stacked out AGAIN inside the window - `still over after 200 more ticks "
+           "of input: True` - with `frozen` satisfied because the restart put the score "
+           "back to 0. Raise the card to 190 ticks and the verdict flips to False on a "
+           "game no less correct, so the verdict is a function of the card length rather "
+           "than of the property. tasks/157"),
+    Hazard("ref_tetris3d", "determinism.replay", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+    Hazard("ref_tetris3d", "determinism.seed", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+
+    # -- ref_arena ---------------------------------------------------------- #
+    Hazard("ref_arena", "state.shape", "no-construction",
+           "a game that reports the arena, player, enemies and bullets under other "
+           "names", _CONTRACT),
+    Hazard("ref_arena", "player.moves", "tuning",
+           "a player that accelerates slowly enough that 30 ticks of full push moves "
+           "less than the 2-unit floor",
+           "the reference travels ~130 units in those 30 ticks, so the floor is two "
+           "orders of magnitude below it and only a near-immobile player fails"),
+    Hazard("ref_arena", "move.analog", "design-branch",
+           "a deadzone above half the stick range, which rounds a half push to nothing "
+           "and lands outside the 0.25-0.75 band",
+           "declined: the prompt gives the movement axes as a continuous -1.0..1.0 "
+           "vector, so a deadzone eating half of it is the control defect this criterion "
+           "exists to catch"),
+    Hazard("ref_arena", "player.bounded", "world-geometry",
+           "an arena whose half-extents differ per axis, so a corner push reaches one "
+           "wall long before another",
+           "the criterion reads `half_x/half_y/half_z` out of the game's own state "
+           "rather than assuming a cube, and asks only for half the extent on each axis"),
+    Hazard("ref_arena", "wall.graze", "design-branch",
+           "a game that raises `wall_graze` as the player is pushed off the boundary "
+           "rather than as it arrives",
+           "the criterion presses into the corner for 900 ticks and asks only whether "
+           "the event ever fired, so any moment of the contact satisfies it"),
+    Hazard("ref_arena", "enemies.spawn", "opening-card",
+           "a wave announcement that plays before the enemies appear, beyond the 300 "
+           "ticks the criterion waits",
+           "300 ticks is about 4.7 seconds of card, against 96 in the platformer "
+           "reference and 104 in the submission that bought pong its budget"),
+    Hazard("ref_arena", "enemy.kinds", "late-unlock",
+           "four kinds gated behind wave >= 2, wave >= 3 and wave >= 4, which is what "
+           "all six adjudicated submissions shipped (#46)",
+           "covered by the REFERENCE, which #46 changed to unlock at waves 1, 2 and 3. "
+           "That is the strongest form of variant coverage available: every arena "
+           "criterion now runs against a late unlock on every run, not only this one"),
+    Hazard("ref_arena", "enemy.materialises", "tuning",
+           "a materialise window so short that the enemy is active again before the "
+           "bot's first bullet reaches it",
+           "the criterion follows the enemy BY ID and counts hits only while its own "
+           "`spawning` flag is set, so the window's length cannot decide it; a window "
+           "of zero ticks is the mutant"),
+    Hazard("ref_arena", "enemies.chase", "tuning",
+           "enemies faster than the player, so the tracked one reaches it mid-leg - the "
+           "branch that raised KeyError and fail-closed a whole submission to 0.000",
+           "the variant, plus one constructor for every leg exit so no exit can carry a "
+           "different shape", _V_FAST),
+    Hazard("ref_arena", "fire.spawns_bullets", "edge-vs-level",
+           "a game that fires on the rising edge, so 120 ticks of held fire produce one "
+           "bullet",
+           "one bullet is enough: the criterion asks for any bullet with a speed above "
+           "1.0, and the interval question belongs to `fire.rate_limited`"),
+    Hazard("ref_arena", "fire.rate_limited", "design-branch",
+           "a spread weapon, which puts several bullets in the world per shot",
+           "PENDING, measured red. The criterion asks about SHOTS and counts BULLET "
+           "IDS, and prints the shot count in its own evidence beside a verdict "
+           "computed from the other number. tasks/160", _P_SPREAD),
+    Hazard("ref_arena", "aim.independent", "no-construction",
+           "a game that ties the firing direction to the movement direction",
+           "no correct game constructed: the prompt specifies separate move and aim "
+           "vectors, so coupling them is the defect this criterion exists to catch"),
+    Hazard("ref_arena", "aim.three_axis", "world-geometry",
+           "an arena shallow enough on the depth axis that a bullet leaves it inside "
+           "the tick it is created and never appears in a snapshot",
+           "the bot moves along -y in every firing phase for exactly this reason - "
+           "measured once as 'the game cannot aim upward' on a correct implementation"),
+    Hazard("ref_arena", "bullets.kill", "tuning",
+           "an enemy with enough health that the bot's kiting fire never finishes one",
+           "the combat session runs up to 9000 ticks and stops early only once a kill, "
+           "a wave and a multiplier step have all been seen"),
+    Hazard("ref_arena", "score.on_kill", "design-branch",
+           "a game that banks the score and awards it at the end of the wave",
+           "OPEN, and not constructed. The criterion needs the score to rise ON a kill "
+           "tick; end-of-wave banking is a real arcade design and nothing here tests it. "
+           "Left open rather than guessed at: no stored submission has shipped it"),
+    Hazard("ref_arena", "multiplier.rises", "late-unlock",
+           "a multiplier needing more kills per step than the bot achieves before it "
+           "dies",
+           "the criterion plays with the standoff policy - which closes as well as runs, "
+           "because unconditional retreat once stalled the bot one kill short of a wave "
+           "- and reports the wave and kill counts so a failure to establish reads "
+           "differently from a defect"),
+    Hazard("ref_arena", "multiplier.falls", "contract-reading",
+           "a game that drops the multiplier on the tick AFTER the hit, the same "
+           "ordering as `rally.counts`",
+           "OPEN, and not constructed. The criterion reads the multiplier on the tick "
+           "`player_hit` fires. It is the same shape as tasks/159 and should be settled "
+           "with it rather than separately"),
+    Hazard("ref_arena", "wave.advances", "design-branch",
+           "a wave that ends on a timer rather than on the last kill",
+           "the criterion asks only that the wave number rose, by any mechanism"),
+    Hazard("ref_arena", "player.takes_damage", "idle-is-fatal",
+           "a game where standing still is SURVIVABLE, so 9000 idle ticks produce no "
+           "hit - the inverse of #46, where standing still was fatal",
+           "the criterion reports the hit count and the health beside the verdict, so "
+           "'the player was never reached' is legible; a game that never damages an "
+           "idle player in 9000 ticks has not met the prompt's patrol behaviour"),
+    Hazard("ref_arena", "gameover.triggers", "closing-card",
+           "a game-over card that a control clears into a new run",
+           "PENDING, measured red: `_death` holds fire, aim and move for 300 ticks "
+           "after the player dies and then asks whether the game is still over. "
+           "tasks/157", _P_RESTART),
+    Hazard("ref_arena", "determinism.replay", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+    Hazard("ref_arena", "determinism.seed", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+
+    # -- ref_platformer ----------------------------------------------------- #
+    Hazard("ref_platformer", "state.shape", "no-construction",
+           "a game that reports the level, player, attack and platforms under other "
+           "names", _CONTRACT),
+    Hazard("ref_platformer", "player.walks", "opening-card",
+           "a title card before control is handed over",
+           "`_take_control` waits up to 512 ticks, which is the pong repair carried "
+           "across - and the reference itself ships `OPENING_TICKS = 96`, so every "
+           "platformer criterion already runs behind a card on every run"),
+    Hazard("ref_platformer", "player.bounded", "world-geometry",
+           "a stage whose edge is a wall the character collides with rather than a "
+           "coordinate clamp",
+           "the criterion asks only that x stops changing while the control is held, "
+           "which both designs satisfy"),
+    Hazard("ref_platformer", "player.falls", "world-geometry",
+           "an opening ledge over a pit, which is what an opening ledge is for and what "
+           "five of six wg-g4c submissions shipped",
+           "the variant, plus a repaired criterion that jumps and lands on the platform "
+           "underfoot rather than walking off and hoping", _V_PIT),
+    Hazard("ref_platformer", "platform.lands", "world-geometry",
+           "the same pit: nothing under the start ledge to land on",
+           "the variant. The repair is why `platform.lands` is now collateral of the "
+           "`jump.leaves_ground` mutant BY CONSTRUCTION, which is declared rather than "
+           "left as a surprise", _V_PIT),
+    Hazard("ref_platformer", "jump.leaves_ground", "tuning",
+           "a jump with a windup, so the character is still grounded for several ticks "
+           "after the press",
+           "the criterion watches height rather than the tick of the press, over a "
+           "budget that outlasts a windup"),
+    Hazard("ref_platformer", "jump.grounded_only", "design-branch",
+           "coyote time - a short grace window after walking off a ledge, which is "
+           "standard platformer feel and which the prompt's 'the feel of the jump is "
+           "the game' invites",
+           "measured green: a six-tick coyote window passes every criterion. The "
+           "criterion asks whether a SECOND jump is refused before landing, and a "
+           "coyote window does not grant one"),
+    Hazard("ref_platformer", "attack.active_frames", "contract-reading",
+           "`active` meaning a swing is in progress while the hitbox is live only in "
+           "the middle - the reading `g4_platformer__unity__t0` took, and a legal one",
+           "the variant. The reference sets the two to the same tick set, so no fixture "
+           "without this variant can tell them apart", _V_SWING),
+    Hazard("ref_platformer", "attack.faces", "contract-reading",
+           "the same reading: sampling the hitbox on every active tick reads the empty "
+           "rectangle's centre (0, 0) as a position and scores -61.7",
+           "the variant", _V_SWING),
+    Hazard("ref_platformer", "attack.damages", "world-geometry",
+           "a pit between the character and the nearest enemy",
+           "the variant, plus one shared `_walk_toward` that jumps a gap seen through "
+           "`_edge_distance` before entering it", _V_PIT),
+    Hazard("ref_platformer", "enemy.damages_player", "world-geometry",
+           "the same pit, in the loop whose whole experiment is making contact",
+           "the variant. This is the criterion that read '0 player_hit events over 4097 "
+           "ticks' while `attack.damages` passed, because only two of three copies of "
+           "'walk toward the target' had learned to jump (task 76)", _V_PIT),
+    Hazard("ref_platformer", "invuln.window", "world-geometry",
+           "the same pit: no enemy contact means no two hits to measure a gap between",
+           "the variant, and the criterion says 'the window could not be measured' "
+           "rather than 'there is no window'", _V_PIT),
+    Hazard("ref_platformer", "knockback.applied", "design-branch",
+           "a pit that puts the character back on the last wide platform instead of "
+           "applying an impulse, which is what `g4_platformer__unity__t0` does (#82)",
+           "the criterion samples only hits with an enemy within 40 units and no "
+           "position jump, and reports NOT MEASURED when no enemy hit landed - the one "
+           "criterion here that is unscored rather than false on a real submission",
+           _V_PIT),
+    Hazard("ref_platformer", "anim.states", "contract-reading",
+           "a game whose animation labels are stack-native strings this criterion does "
+           "not know",
+           "the criterion counts DISTINCT labels across standing, walking, airborne and "
+           "swinging rather than matching names, so any vocabulary passes"),
+    Hazard("ref_platformer", "anim.frames_advance", "tuning",
+           "an animation slow enough that a short walk shows a single frame",
+           "OPEN, and not constructed. The criterion walks for `_WALK_TICKS` = 40, so a "
+           "sheet advancing every 40-odd ticks would fail. No stored submission is "
+           "anywhere near that, and the prompt asks for a frame-indexed sprite"),
+    Hazard("ref_platformer", "score.on_kill", "world-geometry",
+           "the same pit: no kill means no score tick to read",
+           "the variant, and the criterion distinguishes 'no kill was observed' from "
+           "'the score did not rise'", _V_PIT),
+    Hazard("ref_platformer", "gameover.triggers", "closing-card",
+           "a game-over card that a control clears into a new run",
+           "PENDING, measured red: `_hurt` holds move_right, jump and attack for 200 "
+           "ticks after the player dies. tasks/157", _P_RESTART),
+    Hazard("ref_platformer", "stage.completes", "late-unlock",
+           "any correct stage the bot cannot cross end to end",
+           "DIAGNOSTIC ONLY, and the reason a variant must read `Bot.diagnostic_only` "
+           "rather than counting an unscored criterion as an escape"),
+    Hazard("ref_platformer", "determinism.replay", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+    Hazard("ref_platformer", "determinism.seed", "engine-session",
+           "an engine that refuses a second probe session", _SESSION),
+]
+
+
+# --------------------------------------------------------------------------- #
 # Running
 # --------------------------------------------------------------------------- #
 
@@ -594,6 +1218,108 @@ def _locking_fixture(dest: Path, script: str) -> Path:
     return repo
 
 
+def live_criteria(fixture: str) -> list[str]:
+    """The criterion ids this fixture's bot actually reports, read from the bot."""
+    return [cid for cid, _q in __import__(BOT_FOR[fixture]).BOT.criteria]
+
+
+def hazard_gate() -> list[str]:
+    """Offline: does every criterion have an answer, and does every answer resolve?
+
+    The registry is only worth having if it cannot drift from the bots. A criterion
+    added without a hazard entry is the state this whole file was written to find, and
+    a `covered_by` naming a variant that was renamed is a citation that still reads
+    like coverage (`AGENTS.md`, the renaming rule).
+    """
+    problems: list[str] = []
+    by_key = {(h.fixture, h.criterion): h for h in HAZARDS}
+    if len(by_key) != len(HAZARDS):
+        problems.append("HAZARDS has duplicate (fixture, criterion) keys")
+    for fixture in sorted(BOT_FOR):
+        live = set(live_criteria(fixture))
+        mine = {c for f, c in by_key if f == fixture}
+        for missing in sorted(live - mine):
+            problems.append(
+                f"hazards: {fixture}/{missing} has no entry. Every criterion needs an "
+                f"answer to 'what correct-but-unusual game would mis-score this?', and "
+                f"'nobody could construct one' is an answer - see SHAPES['no-construction']")
+        for stale in sorted(mine - live):
+            problems.append(f"hazards: {fixture}/{stale} is not a criterion any more")
+
+    labels = {(v.fixture, v.label) for v in VARIANTS}
+    labels |= {(p.fixture, p.label) for p in PENDING_VARIANTS}
+    for h in HAZARDS:
+        if h.shape not in SHAPES:
+            problems.append(f"hazards: {h.fixture}/{h.criterion} names shape "
+                            f"{h.shape!r}, which SHAPES does not define")
+        if h.covered_by and (h.fixture, h.covered_by) not in labels:
+            problems.append(
+                f"hazards: {h.fixture}/{h.criterion} is covered_by "
+                f"{h.covered_by!r}, and no variant or pending entry on that fixture "
+                f"carries that label")
+    claimed = {(h.fixture, h.covered_by) for h in HAZARDS if h.covered_by}
+    for fixture, label in sorted(labels - claimed):
+        problems.append(
+            f"hazards: the {fixture} subject {label!r} is claimed by no criterion. A "
+            f"variant exists to encode a specific way a correct game can differ; one "
+            f"no criterion points at was written to raise a count")
+    return problems
+
+
+def hazard_census() -> None:
+    """Print the registry grouped by shape - the answer to 'what covers #46's shapes?'
+
+    A shape with no variant or pending subject is NOT automatically a gap: three of them
+    are answered by machinery a variant cannot be, and each row's `answer` says which.
+    The session-lock family is pinned by `lock_controls`, `late-unlock` by the reference
+    itself since #46 changed it to unlock enemy kinds by wave, and `no-construction` is
+    the finding that nobody could build a correct game that fails the criterion.
+    """
+    def wrap(text: str, tag: str) -> None:
+        for i, line in enumerate(textwrap.wrap(text, 84)):
+            print(f"       {tag if i == 0 else '':<8}{line}")
+
+    print(f"{len(HAZARDS)} criteria across {len(BOT_FOR)} fixtures; "
+          f"{len(VARIANTS)} variants, {len(PENDING_VARIANTS)} pending")
+    for shape, meaning in SHAPES.items():
+        rows = sorted((h for h in HAZARDS if h.shape == shape),
+                      key=lambda r: (r.fixture, r.criterion))
+        covered = sum(1 for h in rows if h.covered_by)
+        print(f"\n\n== {shape}  ({covered} of {len(rows)} with a subject)\n   {meaning}")
+        for h in rows:
+            mark = f"   <- {h.covered_by}" if h.covered_by else ""
+            print(f"\n   {h.fixture}/{h.criterion}{mark}")
+            wrap(h.hazard, "hazard:")
+            wrap(h.answer, "answer:")
+    bare = sorted({h.shape for h in HAZARDS}
+                  - {h.shape for h in HAZARDS if h.covered_by})
+    print(f"\n\nshapes with no VARIANT or PENDING subject: {bare or 'none'}\n"
+          f"read those rows' `answer` before calling one a gap")
+
+
+def adjudicate_pending(p: "Pending", bad: list[str]) -> tuple[bool, str, str]:
+    """Read one pending subject's measured failing set. Returns (ok, cell, problem).
+
+    Three outcomes and they are not the same claim. `bad == p.fails` is the declared
+    false negative still standing. An EMPTY set means the criterion was repaired and the
+    subject is now an ordinary variant, which is a red row on purpose: the entry has to
+    move, and nothing else would make that happen. Any other set means the defect
+    changed shape, and a declared waiver that changed shape is not a waiver any more.
+    """
+    got, want = sorted(set(bad)), sorted(set(p.fails))
+    if got == want:
+        return True, f"still red, as declared ({p.task})", ""
+    if not got:
+        return False, "REPAIRED - promote it into VARIANTS", (
+            f"pending '{p.label}' on {p.fixture} passes every criterion now. The "
+            f"criterion it was declared against was repaired, so this is an ordinary "
+            f"variant: move it into VARIANTS with its `exercises` set to {want}.")
+    return False, f"MOVED: declared {want}, got {got}", (
+        f"pending '{p.label}' on {p.fixture}: declared failing set {want}, measured "
+        f"{got}. A declared false negative that changed shape is not a waiver any "
+        f"more; re-adjudicate it against {p.task}.")
+
+
 @dataclass
 class Verdicts:
     passed: dict[str, bool] = field(default_factory=dict)
@@ -621,6 +1347,29 @@ def _apply(repo: Path, patches: tuple[tuple[str, str], ...], label: str) -> None
                 f"--- target ---\n{old}")
         text = text.replace(old, new)
     game.write_text(text)
+
+
+def unmet(got: Verdicts, fixture: str, tolerates: tuple[str, ...] = ()) -> list[str]:
+    """What a CORRECT game failed or left unscored, minus the declared waivers.
+
+    A criterion that is `diagnostic_only` reports `scored=False` BY DESIGN, so counting
+    it as "came back unscored" would fail every subject on a fixture that has one. That
+    is what `stage.completes` did here, and the first response was to list it in a
+    variant's `tolerates` -- which would have buried a harness bug inside the one field
+    allowed to excuse failures. Rule 7: every reason not to count a failure is a channel
+    a bug can widen, so the design intent is read from the bot rather than waived.
+
+    One copy, because `Variant` and `Pending` both need it and two similar policies in
+    one file is how #100 came back.
+    """
+    diagnostic = getattr(__import__(BOT_FOR[fixture]).BOT,
+                         "diagnostic_only", frozenset())
+    waived = set(tolerates) | set(diagnostic)
+    failed = sorted(cid for cid, ok in got.passed.items()
+                    if not ok and cid not in waived)
+    unscored = sorted(cid for cid, sc in got.scored.items()
+                      if not sc and cid not in waived)
+    return failed + unscored
 
 
 def run_bot(repo: Path, fixture: str) -> Verdicts:
@@ -692,6 +1441,81 @@ def lock_controls(tmp: Path, problems: list[str]) -> list[tuple[str, str, str]]:
     return rows
 
 
+def selftest() -> int:
+    """Offline: can the registry gate and the pending adjudication FAIL?
+
+    `hazard_gate` and `adjudicate_pending` are checks like any other here, so each is
+    mutated and must go red. A registry gate that cannot fail would report a complete
+    per-criterion census of a file that had drifted out from under it, which is the
+    shape this whole suite exists to prevent - and it costs no subprocess to pin.
+    """
+    rows: list[tuple[str, str, str]] = []
+    problems: list[str] = []
+
+    def expect(name: str, want: str, got: str) -> None:
+        rows.append((name, want, "ok" if want == got else f"UNMET: {got}"))
+        if want != got:
+            problems.append(f"selftest {name}: expected {want}, got {got}")
+
+    def n_problems(**patch) -> int:
+        """`hazard_gate()` with module state temporarily replaced."""
+        saved = {k: globals()[k] for k in patch}
+        globals().update(patch)
+        try:
+            return len(hazard_gate())
+        finally:
+            globals().update(saved)
+
+    expect("the registry is clean as shipped", "0", str(len(hazard_gate())))
+
+    h = HAZARDS[0]
+    expect("a criterion with no entry", "1",
+           str(n_problems(HAZARDS=[x for x in HAZARDS if x is not h])))
+    expect("a duplicated (fixture, criterion)", "1",
+           str(n_problems(HAZARDS=HAZARDS + [h])))
+    expect("covered_by naming nothing", "1",
+           str(n_problems(HAZARDS=[replace(x, covered_by="no such subject")
+                                   if x is h else x for x in HAZARDS])))
+    # The label really exists - on ANOTHER fixture. A registry keyed on the label alone
+    # would call this covered, and a variant only ever runs on its own fixture.
+    other = next(v.label for v in VARIANTS if v.fixture != h.fixture)
+    expect("covered_by naming a subject on another fixture", "1",
+           str(n_problems(HAZARDS=[replace(x, covered_by=other) if x is h else x
+                                   for x in HAZARDS])))
+    expect("a shape SHAPES does not define", "1",
+           str(n_problems(HAZARDS=[replace(x, shape="invented") if x is h else x
+                                   for x in HAZARDS])))
+    orphan = Variant(h.fixture, "a subject nobody points at", (), ())
+    expect("a subject no criterion claims", "1",
+           str(n_problems(VARIANTS=VARIANTS + [orphan])))
+
+    p = PENDING_VARIANTS[0]
+    expect("a pending that still fails what it declared", "ok",
+           "ok" if adjudicate_pending(p, list(p.fails))[0] else "red")
+    expect("a pending that passes everything", "red",
+           "ok" if adjudicate_pending(p, [])[0] else "red")
+    expect("a pending that fails something else", "red",
+           "ok" if adjudicate_pending(p, ["some.other"])[0] else "red")
+
+    # `unmet` must waive a criterion the BOT calls diagnostic, and nothing else.
+    diag = Verdicts(passed={"stage.completes": False}, scored={"stage.completes": False})
+    expect("unmet waives a diagnostic-only criterion", "[]",
+           str(unmet(diag, "ref_platformer")))
+    real = Verdicts(passed={"player.walks": False}, scored={"player.walks": True})
+    expect("unmet counts an ordinary one", "['player.walks']",
+           str(unmet(real, "ref_platformer")))
+
+    w = max(len(r[0]) for r in rows)
+    print(f"{'check':<{w}}  expected")
+    print("-" * (w + 40))
+    for name, want, verdict in rows:
+        print(f"{name:<{w}}  {want:<12}  {verdict}")
+    print(f"\n{len(rows)} offline checks, {len(problems)} unmet")
+    for x in problems:
+        print(f"  FAIL {x}")
+    return 1 if problems else 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--verbose", "-v", action="store_true",
@@ -701,7 +1525,23 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--skip-lock-controls", action="store_true",
                     help="skip the session-lock controls (one of them waits out the "
                          "retry backoff and takes ~40s)")
+    ap.add_argument("--hazards", action="store_true",
+                    help="print the per-criterion hazard registry grouped by shape and "
+                         "exit; offline, drives nothing")
+    ap.add_argument("--selftest", action="store_true",
+                    help="prove the registry gate and the pending adjudication can go "
+                         "red; offline, drives nothing")
     args = ap.parse_args(argv)
+
+    if args.selftest:
+        return selftest()
+
+    if args.hazards:
+        hazard_census()
+        problems = hazard_gate()
+        for p in problems:
+            print(f"  FAIL {p}")
+        return 1 if problems else 0
 
     wanted = [m for m in MUTANTS if args.only in (None, m.criterion)]
     if not wanted:
@@ -713,7 +1553,8 @@ def main(argv: list[str]) -> int:
 
     rows: list[tuple[str, str, str, str, str, bool]] = []
     variant_rows: list[tuple[str, str, str]] = []
-    problems: list[str] = []
+    pending_rows: list[tuple[str, str, str]] = []
+    problems: list[str] = hazard_gate()
 
     with tempfile.TemporaryDirectory(prefix="bot-mutants-") as td:
         tmp = Path(td)
@@ -779,21 +1620,7 @@ def main(argv: list[str]) -> int:
                 repo = _copy_fixture(v.fixture, tmp / f"variant-{i}")
                 _apply(repo, v.patches, v.label)
                 got = run_bot(repo, v.fixture)
-                # A criterion that is `diagnostic_only` reports scored=False BY DESIGN,
-                # so counting it as "came back unscored" fails every variant on a fixture
-                # that has one. That is what `stage.completes` did here, and the first
-                # response was to list it in a variant's `tolerates` -- which would have
-                # buried a harness bug inside the one field allowed to excuse failures.
-                # Rule 7: every reason not to count a failure is a channel a bug can
-                # widen, so the design intent is read from the bot rather than waived.
-                diagnostic = getattr(__import__(BOT_FOR[v.fixture]).BOT,
-                                     "diagnostic_only", frozenset())
-                waived = set(v.tolerates) | set(diagnostic)
-                failed = sorted(cid for cid, ok in got.passed.items()
-                                if not ok and cid not in waived)
-                unscored = sorted(cid for cid, sc in got.scored.items()
-                                  if not sc and cid not in waived)
-                bad = failed + unscored
+                bad = unmet(got, v.fixture, v.tolerates)
                 # A tolerance that never fires is a tolerance hiding nothing today and
                 # something tomorrow. Say which ones were actually used.
                 used = sorted(c for c in v.tolerates
@@ -812,6 +1639,19 @@ def main(argv: list[str]) -> int:
                         f"{'; '.join(got.evidence.get(c, '')[:200] for c in bad[:2])}")
                 print(f"  variant {v.label[:44]:<44} {got.wall_s:>5.1f}s "
                       f"{'ok' if not bad else 'UNMET'}", flush=True)
+
+        # -- PENDING: correct games this suite FAILS, with the failing ids ---- #
+        if args.only is None:
+            for i, p in enumerate(PENDING_VARIANTS):
+                repo = _copy_fixture(p.fixture, tmp / f"pending-{i}")
+                _apply(repo, p.patches, p.label)
+                got = run_bot(repo, p.fixture)
+                ok, cell, problem = adjudicate_pending(p, unmet(got, p.fixture))
+                pending_rows.append((p.label, p.fixture, cell))
+                if problem:
+                    problems.append(problem)
+                print(f"  pending {p.label[:44]:<44} {got.wall_s:>5.1f}s "
+                      f"{'ok' if ok else 'UNMET'}", flush=True)
 
         lock_rows: list[tuple[str, str, str]] = []
         if not args.skip_lock_controls and args.only is None:
@@ -832,6 +1672,14 @@ def main(argv: list[str]) -> int:
         print("-" * (n + 40))
         for label, exercises, verdict in variant_rows:
             print(f"{label:<{n}}  {exercises:<24}  {verdict}")
+    if pending_rows:
+        n = max(len(r[0]) for r in pending_rows)
+        print(f"\npending - CORRECT games this suite FAILS TODAY; each declares which "
+              f"criteria, and an EMPTY set is a repair to promote\n"
+              f"{'subject':<{n}}  fixture")
+        print("-" * (n + 50))
+        for label, fixture, verdict in pending_rows:
+            print(f"{label:<{n}}  {fixture:<14}  {verdict}")
     if lock_rows:
         n = max(len(r[0]) for r in lock_rows)
         print(f"\nsession-lock controls (on ref_pong, whose bot opens four sibling "
@@ -841,7 +1689,9 @@ def main(argv: list[str]) -> int:
             print(f"{behaviour:<{n}}  {expected:<42}  {verdict}")
     print(f"\n{len(rows)} criteria pinned in both directions, "
           f"{len(variant_rows)} variants, "
+          f"{len(pending_rows)} pending, "
           f"{len(lock_rows)} session-lock controls, "
+          f"{len(HAZARDS)} criteria with a recorded hazard, "
           f"{len(problems)} expectation(s) unmet")
     for p in problems:
         print(f"  FAIL {p}")

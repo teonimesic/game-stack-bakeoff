@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 49 documentation, queue and selftest gates | 8 mutant and control suites |
+| checks | 50 documentation, queue and selftest gates | 8 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **75–115s** | **658–827s** |
 
@@ -152,7 +152,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/tasks.py check` | yes | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **5** of `gates.yml`'s **49** checks; `pre-commit` runs **4**.
+`pre-push` runs **5** of `gates.yml`'s **50** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks

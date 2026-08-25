@@ -2758,6 +2758,43 @@ subject cannot be stated without naming a stack, which would say the technique d
 generalise; or a measured way to blind a rendered prompt, which would replace a hand-written text
 with a derived one and remove the drift risk a hand-written text carries.
 
+## A known play-bot false negative is declared as a red subject, not fixed in passing — decided 2026-08-25
+
+`bot_mutants.py` now carries a third kind of subject beside its mutants and its variants. A
+`Pending` is a **correct game the suite fails today**, with the failing criterion ids written
+down; every run asserts the measured set equals the declared one. Six are shipped, on all four
+fixtures, each naming the ticket that owns its repair.
+
+**Why the defect is declared rather than repaired here.** Every one of the six is a criterion
+change, and a criterion change moves stored verdicts across 68 graded submissions — a re-scoring
+event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
+*found* it would bundle a measurement change into a coverage change, which is the
+multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
+reproduces it, and the repair is `tasks/157`, `tasks/158`, `tasks/159` and `tasks/160`.
+
+**A pending entry is not a tolerance, and the difference is the assertion.** `Variant.tolerates`
+waives a criterion silently; a pending declares exactly which ids fail and goes red on **any**
+other set. That includes the **empty** set: a landed repair turns the row red with *"promote it
+into VARIANTS"*, which is the only mechanism that makes the entry stop being a waiver. Rule 7
+says every reason not to count a failure is a channel a bug can widen — this one is a channel
+exactly one criterion wide, and it closes itself.
+
+**The registry is the other half.** `HAZARDS` holds one answer per criterion to *what
+correct-but-unusual game would mis-score this?* — **70** of them, the criterion instances the
+four bots actually report, not the 36 that carry a mutant. Two of the six false negatives are on
+criteria with **no mutant at all**, so a registry scoped to the mutant set would have missed a
+third of the answer. A criterion added without an entry fails the suite; `no-construction` is a
+legitimate entry and says nobody could build a correct game that fails it.
+
+**A variant's coverage is per FIXTURE.** A variant runs the whole bot on one fixture, so four
+variants over four games is 1, 0, 1 and 2 subjects — `ref_tetris3d` had none, and it is where
+three of the six were found. Never quote a suite-wide variant count as per-criterion coverage.
+
+**To re-open:** all six pending entries repaired and promoted, which would leave the mechanism
+carrying nothing and make it worth asking whether it earns its ~5s; or a pending entry that
+survives three tickets, which would mean the declaration is being used to live with a defect
+rather than to schedule its repair.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
