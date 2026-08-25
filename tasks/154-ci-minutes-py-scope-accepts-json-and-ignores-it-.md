@@ -1,7 +1,7 @@
 ---
 id: 154
 title: ci_minutes.py --scope accepts --json and ignores it, and the selftest calls that a VARIANT
-status: todo
+status: in_progress
 priority: 3
 refs: eval/tools/ci_minutes.py main() and filter_problems, .github/workflows/controls.yml scope step, .github/workflows/README.md, AGENTS.md rule 13, PR 31
 done_when: 'Either (a) main() rejects --scope --json with a non-zero exit and a message naming the unsupported combination, and filter_problems reclassifies that command as a MUTANT with the selftest still exit 0; or (b) --scope honours --json and emits its scope decision as JSON, with the variant kept and a row asserting the JSON is parseable and carries the relevant verdict. Either way: state which was chosen and why, ci_minutes.py --selftest exits 0 unpiped, and the mutant/variant counts in its closing line are re-read rather than carried forward. A third acceptable outcome is a measured NO - evidence that the flag combination is unreachable from any workflow the repository can hold - but the current variant text says the opposite, so that would have to explain the variant away.'
