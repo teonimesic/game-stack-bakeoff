@@ -92,3 +92,54 @@ is the same question for the 6 skills that name no harness.
 That the class is understood. **Two mechanisms have now been proposed for one symptom and the first
 was wrong** (#170 carries the correction). Before changing anything, reproduce both plants above
 and confirm the split is the harness name and not something else that happens to correlate with it.
+
+## note 2026-08-24
+
+## The premise in this ticket's title is refuted — measured over all 10 skills, task 147
+
+**The flag census does NOT read `project_docs()`.** It reads `refs = reference_docs()`, and every
+skill is already in it. In `cmd_sweep()` the only `for p in docs:` loop — `docs = project_docs()`
+— is the bare-trial-id ratchet, and it is scoped to `findings/`. Both flag halves live inside
+`for p in refs:`.
+
+What actually gates the backticked half is **file-wide**, 40 lines into that loop:
+
+    harness = re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", text)
+    if harness:   # a doc that never mentions our harness names someone else's flags
+
+A document naming none of those 4 never has its backticked flags checked, wherever it lives.
+
+**The two hypotheses agree on `DECISIONS.md` and on the register and disagree on skills**, which
+are in `reference_docs()` and not in `project_docs()`. Planting the identical backticked token in
+each of the 10 skills separates them decisively:
+
+| skill | names a harness | `--sweep` |
+|---|---|---|
+| add-game, audit-docs, evaluate-run, run-matrix | yes | **exit 1** |
+| dispatch, prune, refine, tasks, update-readme, work | no | exit 0 |
+
+`any SKILL.md in project_docs()` is `False`. Under the corpus hypothesis all 10 rows would be
+exit 0; 4 are not. The split is on the harness gate and on nothing else. `prune/SKILL.md`, the
+positive control in this ticket's own table, is one of the 6 that name no harness — so the
+observation was right and the cause was read off a single row.
+
+### What that changes about the work
+
+- **Widening a corpus fixes nothing here**, so the ratchet difficulty this ticket is built around
+  does not arise. `project_docs()` can stay exactly as it is.
+- The real question is whether to widen the `harness` trigger, and **the obvious widening is
+  measurably worse.** Replacing the 4-name enumeration with the closed class
+  `_our_script_names()` admits 166 documents instead of 43 and adds **25 rows, 0 of them true
+  positives** — `--auto`, `--body-file`, `--ours`, `--theirs` (`gh`/`git`), `--doctool` (Godot),
+  `--enable-unsafe-webgpu` (Chrome), and tokens task files name as deliberately fake. 9 of the 25
+  are in skills, which is where this ticket wants coverage. That is `AGENTS.md`'s recorded shape:
+  an open-class property that fires on correct input is how a gate gets disabled.
+- **`python3 eval/tools/docstat.py --selftest` is now the producer** for those counts (task 147,
+  `_harness_trigger_census()`), so re-derive them rather than quoting these.
+- The **bare-fenced** half is line-scoped on a script name and already reads every skill and the
+  register. It is the higher-damage shape — the text a reader copies — and it is covered.
+
+So the honest framings of this ticket are: *find a trigger for the backticked half that beats the
+4-name enumeration on live-corpus false positives*, or *record the exclusion*. Task 147 recorded
+it for `.github/`; the same reasoning applies to the 6 skills, and the register's
+`Which gates read THIS file` section is the shape to copy.

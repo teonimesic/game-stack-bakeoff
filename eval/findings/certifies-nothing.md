@@ -5357,20 +5357,29 @@ The scope is wider than the register, measured the same way: **a phantom flag pl
 > committed while writing up #170. Two documents disagreeing with a corpus listing is a hypothesis;
 > the pair of plants that separate them is the measurement.
 
-### The repair is half a repair, and that half is the interesting one
+### Two independent reasons a document goes unchecked, and only one of them was the corpus
 
-Feeding a `dot_dir_docs()` into `reference_docs()` closes it for reference resolution. It does not
-close it for the flag census, because `cmd_sweep()` holds **two** corpora and the flag check reads
-`project_docs()` — 201 docs, 0 of them under `.github/`. The same plant on the repaired branch
-still exits 0.
+Widening `reference_docs()` closed the corpus half. A plant in the register still exited 0
+afterwards, and the second reason is the file-wide gate above: `cmd_sweep()` runs the backticked
+half only where the document names a harness. The register names tools, so it qualifies for
+neither reason to be checked and the corpus fix alone could not save it.
 
-Widening `project_docs()` was declined for a stated reason: it feeds an exact-count ratchet that a
-larger corpus would move in the **passing** direction, so widening the corpus would loosen a
-different gate. That reasoning is sound, and it leaves a gap.
+**The corpus was never the reason for skills**, which was the first mechanism proposed here and is
+refuted above. The flag loop runs over `reference_docs()` — `docstat.py:3632`, `for p in refs:` —
+and every skill is in it. The census of all ten, planted identically, splits exactly on the harness
+name: 4 red, 6 green.
 
-> **When one gate's corpus feeds another gate's threshold, widening the first quietly weakens the
-> second — so "which documents does this check read" becomes a decision with two answers and no
-> obvious owner.** Record which checks read a directory and which do not. A gate excluded and
-> written down is a known limit; one that is silently absent is a green tick nobody can price.
+**Both obvious repairs are measured and both are bad.** Widening `project_docs()` fixes nothing
+here and moves an exact-count ratchet in the **passing** direction. Widening the harness trigger to
+every script name this repository owns goes from 43 documents to 165 and adds **25 rows with 0 true
+positives** — `gh`, `git`, Godot and Chrome flags, 9 of them in skills.
+
+> **A document can be unchecked for more than one reason at once, and fixing the reason you found
+> leaves the others reporting green.** The corpus fix was correct, verifiable and insufficient, and
+> the only thing that showed it was replanting after the repair rather than trusting that a
+> diagnosed cause was the cause.
+
+> **Where no trigger beats the corpus, record the exclusion.** A gate excluded and written down is
+> a known limit; one silently absent is a green tick nobody can price.
 
 ---
