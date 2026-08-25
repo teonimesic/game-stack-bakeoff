@@ -197,12 +197,12 @@ own lines every run to prove it.
 
 ## Minutes
 
-What the figures below always are is **wall clock in front of a merge**, which is what `gates`
-and `controls` being required checks turned them into. Whether they are **also a bill** depends
-on the repository's visibility, and that is not asserted here:
+The minutes below are counted in **the unit GitHub bills in** — per job, rounded up to the
+whole minute. Whether they are **also a bill** depends on the repository's visibility, and that
+is not asserted here.
 
 ```bash
-python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
+python3 eval/tools/ci_minutes.py     # minutes in GitHub's billing UNIT, per workflow and job
 ```
 
 **The producer reads the visibility itself** — `repos/<owner>/<repo>` `.private`, on every
