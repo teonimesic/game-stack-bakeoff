@@ -2888,6 +2888,34 @@ carrying nothing and make it worth asking whether it earns its ~7s; or a pending
 survives 3 tickets, which would mean the declaration is being used to live with a defect
 rather than to schedule its repair.
 
+## A scene layer's `offset` may accumulate or wrap, and the probe reads both — decided 2026-08-25
+
+The `s1_parallax` trace contract calls `offset` *"how far that layer has been displaced sideways
+so far"* and `span` *"the width after which the layer repeats itself"*, and it does not say
+whether the number keeps growing or stays inside `[0, span)`. The first real submission chose
+`[0, span)`; `layers.depth_ordered` subtracted two of them and scored a perfectly ordered scene
+FALSE on a modular residue. **Both encodings are contracted.**
+
+**The decision is against changing the prompt.** Naming an encoding is a regime boundary over
+every scene trial, and it would buy no measurement: the layer declares the `span` that converts
+one encoding into the other, so the two are one series written two ways. What it would buy is a
+deduction for choosing the representation a renderer wants.
+
+**So the cost falls on the instrument, and it is one address.** `ParallaxScene._walk` reads the
+per-tick series and unwraps each step against that layer's own `span`; nothing else in the class
+may subtract two reported offsets. The unwrap is arithmetically a **no-op** where a scene already
+accumulates — measured on the reference fixture, all 4 layers returning their old travel to the
+last bit — and it has to be per tick rather than per captured frame, because 2 captures are 60
+ticks apart and the first submission's road crosses **1.6–2.25 spans** between them.
+
+`eval/SCENES.md` states it where a prompt author will look; `scene_mutants.py`'s `` `offset` is
+reported inside its own span `` variant is what holds it, and it was **red before the repair and
+green after** on `layers.depth_ordered` and `loop.seamless`.
+
+**To re-open:** a scene whose layers can move more than half a span in one tick, which is where
+a per-tick unwrap stops being decidable and the contract would have to name an encoding after
+all.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).

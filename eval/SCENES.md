@@ -135,8 +135,9 @@ threshold was still chosen against fixtures written by the same hand as the crit
 what a scene result must be read against.
 
 **First contact with a real submission found a false negative and 2 criteria it could not set
-up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`; the repair
-is `tasks/162` and the calibration question is `tasks/163`. The standing limit is the sentence
+up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`.
+`layers.depth_ordered` is repaired and re-graded (`tasks/162`, and the decision it forced is
+below); the tier-1 calibration question is `tasks/163`. The standing limit is the sentence
 above: every threshold was chosen against fixtures, and a scene result is read against
 `scene_mutants.py --census` until that stops being true.
 
@@ -183,6 +184,32 @@ differences are what makes them measurable at 12 frames.**
 - `seed.pair` compares the captured PNG **bytes**, not a frame hash. A hash a submission computes
   about its own frames is another field it can get wrong or quietly stop updating; the files on
   disk are not.
+
+### `layers[].offset` may ACCUMULATE or WRAP, and both are contracted
+
+The prompt says `offset` is *"how far that layer has been displaced sideways so far"* and `span` is
+*"the width after which the layer repeats itself"*. It does not say whether the number keeps
+growing or stays inside `[0, span)`, and **the decision is that it may do either**. A layer
+declares the `span` that converts one encoding into the other, so the two are the same series
+written two ways; a criterion that can read only one of them is measuring the encoding rather than
+the scene.
+
+**The prompt is not changed, and that is the decision rather than an omission from it.** Naming an
+encoding would be a regime boundary against every scene trial, and it would buy no measurement —
+`[0, span)` is what a renderer wants, which is why the first real submission chose it, and the
+scene asks for a background that repeats, which is what makes the choice available at all.
+
+**What it costs the probe: nothing in `ParallaxScene` may subtract two reported `offset` values.**
+`_walk` reads the per-tick series and unwraps each step against that layer's own `span`, and
+`layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` all read the unwrapped walk.
+The unwrap is exact while a layer moves less than half a span in one tick, and is arithmetically a
+no-op on a scene that already accumulates — measured on the reference fixture, where all 4 layers
+return their old travel to the last bit. It has to be per tick and cannot be per captured frame:
+two captures are 60 ticks apart and the first real submission's road crosses **1.6–2.25 spans**
+between them.
+
+`scene_mutants.py`'s `` `offset` is reported inside its own span `` variant is what holds this —
+the reference scene, the identical picture, the other encoding, every verdict unchanged.
 
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks
 

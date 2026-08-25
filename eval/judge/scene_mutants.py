@@ -210,6 +210,22 @@ V_SHORT_RAMP = (Patch("game.py", "LIGHT_BEGIN = 240", "LIGHT_BEGIN = 590  # VARI
 V_BIGGER_FRAMES = (Patch("film.py", "WIDTH = 640", "WIDTH = 960  # VARIANT"),
                    Patch("film.py", "HEIGHT = 360", "HEIGHT = 540  # VARIANT"))
 
+#: THE VARIANT THAT WAS NOT HERE WHEN THE FIRST REAL SUBMISSION ARRIVED, and the reason
+#: three criteria misread it (`tasks/162`). The reference lets `offset` accumulate
+#: forever; `eval/SCENES.md` decides that reporting it inside `[0, span)` is equally
+#: contracted, and that is what a renderer wants, so it is what the first submission
+#: did. The picture is unchanged - `film.py` already draws `offset % span` - so every
+#: verdict must be unchanged too.
+#:
+#: NO MUTANT COULD HAVE FOUND THIS. A mutant removes the mechanism a criterion names;
+#: what was needed was an INPUT the criterion mishandles, and only a scene that wraps is
+#: one (rule 15, #46's shape).
+V_WRAPPED_OFFSET = Patch(
+    "game.py",
+    '                        "offset": _r(self.offsets[lid]), "span": span,',
+    '                        "offset": _r(self.offsets[lid] % span), "span": span,'
+    '  # VARIANT: reported inside its own span')
+
 
 # --------------------------------------------------------------------------- #
 # s2_glass
@@ -458,6 +474,13 @@ VARIANTS: list[Variant] = [
                   "captured frame lands inside a ramp that short, so the image half "
                   "cannot be established and the criterion must fall back rather than "
                   "fail a correct scene for being quick"),
+    Variant("s1_parallax", "`offset` is reported inside its own span",
+            (V_WRAPPED_OFFSET,), ("layers.depth_ordered", "layers.image_parallax",
+                                  "loop.seamless"),
+            notes="the same scene, the same picture, `offset` wrapped into `[0, span)` "
+                  "instead of accumulating. A criterion that subtracts two reported "
+                  "offsets reads a modular residue rather than a scroll rate, which is "
+                  "what the first real submission was scored on (`tasks/162`)"),
     Variant("s1_parallax", "the same scene filmed 1.5x larger", V_BIGGER_FRAMES,
             ("layers.image_parallax", "loop.seamless", "light.monotonic"),
             notes="submissions choose their own capture geometry, so every image-side "

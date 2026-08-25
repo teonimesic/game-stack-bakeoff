@@ -26,12 +26,15 @@ how a gate goes fail-open (AGENTS.md rule 7):
 | `just film` produced no frames, or not the contracted 12 | a fact about the SUBMISSION. An image-ONLY criterion scores FALSE. A criterion that also has a telemetry half is scored on it, and `image_half` records why - one broken recipe must not deduct once per criterion |
 | the frames exist but no captured MOMENT satisfies the criterion's precondition - no frame lands inside the light ramp, no layer wrapped between two frames, the glass never left its opening position | an experiment that could not be set up. `Criterion(scored=False)`, reported, excluded from the score, and counted in `unscored` |
 
-THE HONEST EXPECTATION, stated here because the results will be published: **no criterion
-in this file has ever met a real submission.** No scene has been built or graded, so every
-threshold below was chosen against fixtures written by the same hand, and the probe's
-first real run is also its first real test. #46 is sixteen false negatives found in one
+THE HONEST EXPECTATION, stated here because the results will be published: **1 submission
+has met these criteria** (`eval/RUNS.md`), and every threshold below was still chosen
+against fixtures written by the same hand. #46 is sixteen false negatives found in one
 sweep of criteria that were green on their reference; the same is the reasonable prior
-here. `scene_mutants.py --census` is what reports which criteria ever separated anything.
+here, and first contact paid it immediately - `layers.depth_ordered` scored that
+submission FALSE on a scene whose layers were ordered perfectly, because it subtracted two
+reported `offset` values and the submission wrapped them (`tasks/162`). Read `_walk`
+before adding a criterion that touches `offset`. `scene_mutants.py --census` is what
+reports which criteria ever separated anything.
 
 THE ONE INSTRUMENT ERROR ALREADY MEASURED, so the first real run does not have to
 rediscover it: the image-side shift estimator misses **8 of the 132 frame pairs in the 3
@@ -517,6 +520,58 @@ class ParallaxScene(Scene):
         rows = state.get("layers")
         return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
+    @staticmethod
+    def _walk(r: SceneRun) -> dict[Any, dict[int, float]]:
+        """Per layer id, its `offset` at every tick, UNWRAPPED against its own `span`.
+
+        NOTHING IN THIS CLASS MAY SUBTRACT TWO REPORTED `offset` VALUES. The trace
+        contract says `offset` is how far a layer has been displaced so far and `span`
+        is the width after which it repeats, and it does not say whether the number
+        accumulates or stays inside `[0, span)` - `eval/SCENES.md` decides that both are
+        contracted, because the layer declares the `span` that converts one into the
+        other. A difference of two reported offsets is therefore a modular residue, not
+        a distance, and reading it as a distance is what scored the first real
+        submission's `layers.depth_ordered` FALSE on a scene whose layers were ordered
+        perfectly (`tasks/162`): all 7 came back below their own declared span while 37
+        `wrap` events fired in the same trace.
+
+        The repair is per TICK, not per captured frame: each step is mapped into
+        `(-span/2, span/2]` and accumulated, which is exact whenever a layer moves less
+        than half a span in one tick and is a NO-OP on a submission that already
+        accumulates - so a cumulative scene comes back bit-identical to what it got
+        before. On the submission that provoked this the widest step is 4.0% of its
+        layer's span; between two captured frames, 60 ticks apart, the same layer moves
+        1.6-2.25 spans and no per-frame unwrap could recover it.
+        """
+        walk: dict[Any, dict[int, float]] = {}
+        prev: dict[Any, float] = {}
+        acc: dict[Any, float] = {}
+        for t in r.trace_a:
+            for row in ParallaxScene._layers(t.state):
+                lid = row.get("id")
+                offset, span = num(row, "offset"), num(row, "span")
+                if lid is None or offset is None:
+                    continue
+                if lid not in walk:
+                    walk[lid], acc[lid] = {}, offset
+                else:
+                    step = offset - prev[lid]
+                    if span is not None and span > 0:
+                        step -= span * round(step / span)
+                    acc[lid] += step
+                prev[lid] = offset
+                walk[lid][t.tick] = acc[lid]
+        return walk
+
+    @staticmethod
+    def _travelled(walk: dict[Any, dict[int, float]], lid: Any) -> float | None:
+        """How far one layer moved from its first reported tick to its last."""
+        one = walk.get(lid)
+        if not one or len(one) < 2:
+            return None
+        ticks = sorted(one)
+        return one[ticks[-1]] - one[ticks[0]]
+
     def _shift_limit(self, img: png.Image) -> int:
         return max(6, int(img.width * 0.14))
 
@@ -530,8 +585,14 @@ class ParallaxScene(Scene):
         Each record carries the measured pixel shift, its confidence, and the telemetry
         change in that layer's own `offset` over the same ticks. The two are the point:
         one is what the renderer drew, the other is what the submission said it drew.
+
+        The offset change and the wrap flag both come from `_walk`, never from the two
+        reported values: 60 ticks separate two captures, so a layer whose span is small
+        enough for `loop.seamless` to have anything to look at is exactly the layer
+        whose reported offsets cannot be subtracted.
         """
         out: dict[int, list[dict]] = {}
+        walk = self._walk(r)
         limit = self._shift_limit(r.frames_a[0])
         for layer in self._layers(r.state_at(r.frame_ticks[0])):
             lid = layer.get("id")
@@ -549,8 +610,8 @@ class ParallaxScene(Scene):
                     continue
                 shift, conf = got
                 a = self._layer_by_id(r.state_at(r.frame_ticks[i]), lid)
-                b = self._layer_by_id(r.state_at(r.frame_ticks[i + 1]), lid)
-                oa, ob = num(a, "offset"), num(b, "offset")
+                oa = walk.get(lid, {}).get(r.frame_ticks[i])
+                ob = walk.get(lid, {}).get(r.frame_ticks[i + 1])
                 span = num(a, "span")
                 rows.append({"pair": i, "shift": shift, "confidence": conf,
                              "d_offset": None if oa is None or ob is None else ob - oa,
@@ -639,15 +700,14 @@ class ParallaxScene(Scene):
         return out
 
     def _depth_ordered(self, r: SceneRun) -> Criterion:
-        first, last = self._layers(r.trace_a[0].state), self._layers(r.trace_a[-1].state)
-        by_id = {row.get("id"): row for row in last}
+        walk = self._walk(r)
         rows = []
-        for row in first:
+        for row in self._layers(r.trace_a[0].state):
             depth = num(row, "depth")
-            a, b = num(row, "offset"), num(by_id.get(row.get("id"), {}), "offset")
-            if depth is None or a is None or b is None:
+            moved = self._travelled(walk, row.get("id"))
+            if depth is None or moved is None:
                 continue
-            rows.append((depth, abs(b - a), row.get("id")))
+            rows.append((depth, abs(moved), row.get("id")))
         if len(rows) < self.MIN_LAYERS:
             return self.ok("layers.depth_ordered", False,
                            f"{len(rows)} usable layers, fewer than the {self.MIN_LAYERS} "
@@ -659,7 +719,8 @@ class ParallaxScene(Scene):
         ordered = all(b < a * self.RATE_SEPARATION for a, b in pairs)
         detail = ", ".join(f"depth {d:g} moved {t:.1f}" for d, t, _ in rows)
         return self.ok("layers.depth_ordered", ordered,
-                       f"over the whole run, by increasing depth: {detail}"
+                       f"over the whole run, unwrapped against each layer's own span, "
+                       f"by increasing depth: {detail}"
                        + ("" if ordered else
                           f" - not strictly decreasing at separation "
                           f"{self.RATE_SEPARATION}"))
@@ -702,12 +763,12 @@ class ParallaxScene(Scene):
             # empty `shifts` whenever the frames are unusable, so a count taken from
             # there is 0 by construction - a number in the evidence that cannot be
             # anything else, which is this repository's most-repeated defect.
+            walk = self._walk(r)
             looped = 0
             for row in self._layers(r.trace_a[0].state):
                 span = num(row, "span")
-                offset = num(self._layer_by_id(r.trace_a[-1].state, row.get("id")),
-                             "offset")
-                if span and span > 0 and offset is not None and abs(offset) >= span:
+                moved = self._travelled(walk, row.get("id"))
+                if span and span > 0 and moved is not None and abs(moved) >= span:
                     looped += 1
             return self.ok(cid, wraps_fired > 0,
                            f"{r.why_frames_unusable()}; scored on telemetry alone: "

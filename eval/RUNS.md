@@ -180,36 +180,66 @@ record does, and it was not asked to build pong.
 | resource | **not reconstructable.** `num_turns` and the token totals come off the CLI's terminal result event, which never arrived, so all of them and `cost_usd` are `null`. The transcript alone gives 198 assistant messages and 137 tool-use blocks, recorded in a field of their own as a scale rather than as the harness's counters |
 | what was salvaged | the work tree survived the kill, so the submission was captured by hand — `diff.patch`, `diff.stat`, `status.txt`, `tree.txt`, `submission.tar.gz`, 24 files changed, all four capture exits 0 |
 | tier 1 | **GATE FAIL, 4 of 9**: `verify.green`, `lint.clean`, `tests.green`, `render.nonempty` |
-| tier 2 | `scene_probe`, **5 of 6 scored = 0.833**. 8 criteria reported: 5 pass, 1 fail, **2 `scored=False`** |
+| tier 2 | `scene_probe`, **5 of 6 scored = 0.833** as graded on the day; **6 of 7 = 0.857** re-graded after the `tasks/162` repair. The stored `playbot.json` holds the first, this table holds both, and neither is a completed trial |
 | evaluate | 58s for the whole grading, tier 1 plus the probe's 3 traces and 3 films |
 
 **Never pool this record with anything.** It is not `completed`, it is one cell, and `wholegame.py
 report` already excludes it from every aggregate — the run prints `0 aggregated, 1 not completed`.
 Its value is entirely in what the instrument did on first contact.
 
-### What first contact found, and the headline is a FALSE NEGATIVE
+### What first contact found, and the headline is a FALSE NEGATIVE — since REPAIRED
 
-**`layers.depth_ordered` failed, and the failure is the criterion's.** It computes
-`abs(offset_last - offset_first)` per layer and asks whether that decreases with declared depth.
-The submission wraps `offset` — which the scene contract asks for, and which `loop.seamless`
-exists to check — so what the criterion read was a modular residue. The evidence is decisive and
-is a property of the numbers rather than a reading of the source: **all 7 layers returned a value
-below their own declared span**, and 37 `wrap` events fired in the same trace.
+**`layers.depth_ordered` failed, and the failure was the criterion's.** It computed
+`abs(offset_last - offset_first)` per layer and asked whether that decreases with declared depth.
+The submission reports `offset` wrapped into `[0, span)` — which `eval/SCENES.md` has now decided
+is contracted, since the layer declares the `span` that converts one encoding into the other — so
+what the criterion read was a modular residue. The evidence was decisive and is a property of the
+numbers rather than a reading of the source: **all 7 layers returned a value below their own
+declared span**, and 37 `wrap` events fired in the same trace.
 
-| layer | declared depth | span | measured `abs(Δoffset)` |
-|---|---|---|---|
-| road | 0 | 240 | 120.1 |
-| verge | 0.6 | 340 | 165.1 |
-| grove | 1.5 | 440 | 304.0 |
-| ridge | 4 | 400 | 232.0 |
-| range | 9 | 480 | 36.0 |
-| clouds | 20 | 900 | 245.7 |
-| sky | 60 | 1800 | 84.6 |
+| layer | declared depth | span | what it read | what the layer moved |
+|---|---|---|---|---|
+| road | 0 | 240 | 120.1 | 5160.1 |
+| verge | 0.6 | 340 | 165.1 | 3225.1 |
+| grove | 1.5 | 440 | 304.0 | 2064.0 |
+| ridge | 4 | 400 | 232.0 | 1032.0 |
+| range | 9 | 480 | 36.0 | 516.0 |
+| clouds | 20 | 900 | 245.7 | 245.7 |
+| sky | 60 | 1800 | 84.6 | 84.6 |
 
-The submission's own convention agrees with the criterion's — `layerFactor(depth) = 1/(1+depth)`,
-larger depth scrolling slower — so a sign-convention reading does not rescue the result either.
+The right-hand column is the same trace unwrapped against each layer's own `span`, and it is
+**strictly decreasing with depth by a factor of 1.56–2.90 at every step** — a scene whose layers
+were ordered perfectly, scored FALSE. The submission's own convention agreed with the criterion's
+all along — `layerFactor(depth) = 1/(1+depth)`, larger depth scrolling slower — so a
+sign-convention reading never rescued the result either.
+
 **A mutant could not have found this.** Only a submission that wraps could, which is rule 15 and
-the shape of [#46], and it took the first real one. `tasks/162` carries the repair.
+the shape of [#46], and it took the first real one. `tasks/162` carries the repair: `_walk`
+unwraps the per-tick series, and `scene_mutants.py` gained the variant that was missing — the
+reference scene reporting the other encoding, drawing the identical picture.
+
+### The re-grade, and it moved a second criterion
+
+    tar -xzf <run>/artifacts/s1_parallax__ts__t0/submission.tar.gz -C <tree>
+    pnpm install --frozen-lockfile && pnpm exec playwright install chromium
+    python3 eval/judge/scene_probe.py s1_parallax <tree>
+
+| criterion | as graded | re-graded | why |
+|---|---|---|---|
+| `layers.depth_ordered` | FAIL scored | **PASS scored** | the repair |
+| `layers.image_parallax` | `scored=False` | **FAIL scored** | a consequence, and it is NOT trustworthy — below |
+| everything else | — | unchanged | |
+
+**Do not quote the `layers.image_parallax` FAIL.** The repair also fixed the offset change
+`_measure_shifts` hands the reliability filter, which promoted the road band from unreadable to
+readable and let the criterion establish itself on 3 bands. It should not have: the road crosses
+**1.6–2.25 spans between two captured frames**, so its measured shift is aliased against its own
+tile, and it passes `_reliable` only because that filter's agreement slack is a floor **in ratio
+units** — 0.15 against a median ratio of 0.053, so nearly any shift inside the estimator's ±89px
+search window agrees with any other. The two bands it is then compared against, clouds and sky,
+move 25 and 8 world units per captured pair and read **0 px on 11 of 11 and 9 of 11 pairs**. The
+honest verdict for this submission is the one it had, `scored=False`; `tasks/164` carries the
+filter.
 
 ### 2 of 8 criteria could not be set up at all
 
@@ -218,6 +248,11 @@ estimator read **only 2 of 7 declared layers**, against 8 missed frame pairs of 
 fixtures. `scene_probe.py`'s docstring predicted the direction — *"expect the rate to be worse on
 a submission that fills its foreground"* — and this submission's mean ink coverage is **0.966**.
 So `measured_twice` came back as 2 of the 3 criteria designed to have both halves.
+
+**`loop.seamless` is still `scored=False` after the repair, and now for a reason worth writing
+down**: the road wraps on **every one of the 11 captured pairs**, so the criterion has no
+away-from-the-wrap baseline to compare a crossing against, and the layers that do have one — sky
+and clouds — never wrap at all. 12 frames over 660 ticks cannot see this scene's seam.
 
 ### `render.nonempty` is a game criterion applied to a scene
 
