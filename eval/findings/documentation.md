@@ -1346,3 +1346,44 @@ support a conclusion drawn from one of them, and saying so is cheaper and more h
 transform that pretends the disagreement away.
 
 ---
+
+## 171. The exemption that lets a document discuss phantom flags is the same mechanism that disarms a probe testing for them, and it fired three times in one day
+
+`docstat.py` exempts any line matching `does not exist|phantom|plant\w*|do not name them`, so a
+document may write about a made-up flag without the flag check firing on it. Necessary: several
+documents here explain that check.
+
+**A probe for that check is written in exactly that vocabulary.** Three instances, all 2026-08-24,
+by three different authors:
+
+| probe | intended | actual |
+|---|---|---|
+| `--zzqphantomflag` | red | green — already recorded in `docstat.py`'s own comment |
+| a plant introduced as *"A phantom flag `--zzphantomflag` …"* | red in one file, green in the other | **green in both**, read as "neither file is covered" |
+| `--zzq-real-phantom` in a census control | 25 → 26 rows | 25 → 25, read as the census working |
+
+The middle one is the expensive shape. It was a **differential** probe — the same plant in two
+files, expected to separate them — and the exemption suppressed both sides, so the differential
+returned *"no difference"* and the conclusion drawn was that neither document was checked. A
+neutral token separated them on the first try.
+
+> **A probe named after a term the system special-cases is disarmed by the thing it is testing, and
+> a disarmed probe is indistinguishable from a passing one.** The exemption is a line-level
+> substring test over four open-class English words, and the words are precisely the ones anybody
+> writing about the check reaches for.
+
+**Documenting it did not stop it.** The hazard is recorded in a comment beside the constant, and
+it caught nobody: the second and third instances were written by authors who had the file open.
+A comment warns the reader who is already looking at that line; the probe is written somewhere
+else, minutes later, in prose.
+
+**What actually works is a rule about naming, not about the exemption.** Name a probe token after
+nothing the system knows — a random string — and **run the positive half first**: plant in a
+document you have already seen the check fire on. A probe that cannot go red on a known-good case
+has not been shown to work, and every one of these three read green while measuring nothing.
+
+The general form, which this project has met in `|| echo 0`, in pipeline exit status, in a
+one-turn probe (#168) and now here: **the failure mode is not a wrong answer, it is a right-looking
+answer from a mechanism that never ran.**
+
+---
