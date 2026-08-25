@@ -1,12 +1,12 @@
 ---
 id: 149
 title: The flag census reads project_docs(), so no SKILL.md is checked for phantom flags
-status: in_testing
+status: done
 priority: 2
 refs: 'eval/tools/docstat.py, .agents/skills/audit-docs/SKILL.md, tasks/147, #170, #38'
 done_when: Either a planted phantom flag in a SKILL.md turns `--sweep` red - with the plant also proved in a document already covered, so a broken plant cannot masquerade as success - and whatever ratchet the corpus change touches is re-baselined deliberately with the new number stated; or the exclusion is written down in docstat.py AND in the audit-docs skill's list of what --sweep does not cover, naming which checks read skills and which do not. Either way `--sweep`, `--selftest` and the corpus pins stay green.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/29
-established_by: 'Widened, not excluded: a plant in prune/SKILL.md went exit 0 -> exit 1 while eval/PERF-HOST.md stayed exit 0; 4 review rounds; the widening commit 576692a is UNREVIEWED (rate limited) and one line of this ticket''s notes reddens the sweep - see the ACTION REQUIRED note'
+established_by: 'PR #29 squash-merged. The ticket''s title is refuted by its own corrected notes: the flag census reads reference_docs(), every skill is in it, and the gate was HARNESS_TRIGGER admitting 4 of 10 skills. project_docs() untouched, no ratchet moved. The four-way control shows the coverage bought (a harness-free skill goes exit 0 to exit 1) and that the gate did not become unconditional (an ordinary harness-free document stays exit 0). The answer FLIPPED mid-branch: at 07:00 admitting all 10 skills cost 8 correct lines so the exclusion was right, then my unrelated 6bfc80b put those 9 tokens in FOREIGN_FLAGS_EXACT and the cost fell to 0, which is why it ships widened.'
 ---
 
 `docstat.py --sweep`'s flag census — *"flag `--x` matches no argparse in eval/"* — reads
