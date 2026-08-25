@@ -1,12 +1,12 @@
 ---
 id: 144
 title: Pack a stack-neutral statement of each scene, so fidelity can ask the question it is named for
-status: in_testing
+status: done
 priority: 3
 refs: eval/SCENES.md, eval/judge/RUBRIC.md, eval/judge/aspects.py, eval/judge/field.py, eval/judge/verify_blind.py, tasks/135
 done_when: 'A stack-neutral statement of each scene exists, is written into the pack by field.build_pack for scene fields only, and carries no arm-naming token: verify_blind.py --packs over a built scene pack is green, and a planted stack token in the statement turns it red. blurb_selftest.judge_facing_texts() covers it, because it is judge-facing text making a claim. fidelity''s notes stop telling the judge to recover the subject from the field. The ''cannot find what all eight missed'' caveat is removed from SCENES.md and RUBRIC.md in the same change.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/34
-established_by: 'verify_blind.py --packs exit 0 on a built s1_parallax pack and exit 1 with a planted stack token; blurb_selftest.py green with 13 of 14 field.py mutants red; 90 game briefs byte-identical; PR #34, 6 review rounds, round 6 unreviewed'
+established_by: 'PR #34 squash-merged. field.SCENE_STATEMENTS holds one hand-written statement per scene, written from eval/SCENES.md rather than laundered from a rendered prompt, and build_pack writes it as SCENE.md into scene packs only. Verified independently: on main the rubric term list had 28 entries with neither ''ordered by depth'' nor ''stays level'', so the plainest statement of each withheld criterion read 0 hits - now 30 entries and both paraphrases are caught across all four stacks with clean text passing. My first check of this was aimed at the snapshot, which prompt_guard does not read on its default path, so it read exit 0 for the wrong reason. Also established: anonymise.find_stack_names returns a stack token in every one of the 8 rendered scene prompts, so the prompt was never a candidate for the pack; all 90 stored game briefs are byte-identical before and after. Allocated FINDINGS #178.'
 ---
 
 fidelity asks 'does this read as the scene it was asked for'. The pack carries no statement of the scene: the rendered prompt exists per stack (eval/suites/rendered/s1_parallax__ts.txt and its three siblings), so handing a judge one names the arm in its own evidence - the leak blind_extensions and neutralise exist to close. Until a neutral statement is packed, the aspect recovers the subject from the field of eight and can find a submission that omits what seven others drew, but CANNOT find one where all eight missed the same requirement. That narrowing is recorded in eval/SCENES.md, eval/judge/RUBRIC.md and the aspect's own comment; this ticket removes it.

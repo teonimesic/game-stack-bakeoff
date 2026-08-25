@@ -1387,3 +1387,47 @@ one-turn probe (#168) and now here: **the failure mode is not a wrong answer, it
 answer from a mechanism that never ran.**
 
 ---
+
+## 178. The guard that keeps the rubric out of the prompts held only the rubric's OWN wordings, so the plainest statement of a criterion walked past it
+
+`prompt_guard.assert_no_rubric_vocabulary` exists to stop `eval/SCENES.md`'s criteria reaching a
+prompt — teaching to the test is what it prevents. Its `RUBRIC_TERMS` list was built from the way
+the criteria are **written in the design document**.
+
+The two claims the scenes exist to withhold, said the way a prompt-writer would actually say them:
+
+> *"the layers scroll at rates ordered by depth"*
+> *"the water surface stays level while the glass tilts"*
+
+Both read **0 hits on all 8** scene prompts. The list held 28 terms and neither phrase, so the
+guard was **green on a clean corpus and a leaking one alike** — the shape this project keeps
+finding, and here it sat inside the check written to prevent exactly this leak.
+
+> **A vocabulary list drawn from how WE describe a thing does not cover how someone else would
+> describe it.** The design document says *"layers scroll at distinct rates ordered by declared
+> depth"*; a prompt would say *"the far hills move slower than the road"*. Same criterion, no
+> shared substring. The list was an enumeration of one author's phrasing, presented as a check on
+> everyone's.
+
+The repair is two more spellings, and it is recorded as such rather than as a fix: `ordered by
+depth` and `stays level` are now entries at 0 false positives, **a third phrasing still walks
+past, and `DECISIONS.md` says so.** That is the honest position — this project has measured twice
+that the property-shaped alternatives are worse (an open-class quantifier trigger at 31 red lines
+and 0 true positives; a widened harness trigger at 25 rows and 0 true positives), so an
+enumeration that is known-incomplete beats a property that fires on correct input.
+
+### The same round: a false claim that spread by being copied
+
+`aspects.applicability`'s docstring said **"a field is 8 model calls"**. `run_field` makes exactly
+**one** `subprocess.run`. The claim predated the branch, and the agent working it copied the
+sentence into **three more places** before checking it.
+
+> **A wrong sentence in a docstring is a template.** Nobody re-derives a claim they are quoting —
+> the act of copying is precisely the act of not checking — so the cost of a false statement is
+> not one wrong reader, it is one wrong reader per copy, and the copies look like corroboration.
+
+This is #169 and #174 in a third form: a fact stated in prose beside the code that contradicts it,
+with nothing comparing them. The difference here is that the propagation was caught **in the same
+session that caused it**, which is the only reason the count is four and not more.
+
+---
