@@ -1,10 +1,11 @@
 ---
 id: 155
 title: The tier carrying the whole weight has 4 variant games for 36 criteria; the newest tier has 8 for 15
-status: todo
+status: in_review
 priority: 2
 refs: 'eval/judge/bot_mutants.py, eval/judge/scene_mutants.py, AGENTS.md rule 15, #46'
 done_when: 'A per-criterion answer to ''what correct-but-unusual game would mis-score this'', recorded for all 36; the 4 existing variants checked against the shapes #46 names, with any uncovered shape either added as a variant or recorded as deliberately out of scope with the reason; and bot_mutants.py still exits 0 with every criterion pinned in both directions. Concluding that 4 is sufficient, with the per-criterion reasoning, is a complete answer and closes this.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/38
 ---
 
 The play-bot tier carries **the whole weight** of a submission's score — tier 1 is a gate, tier 3 is

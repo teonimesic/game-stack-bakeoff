@@ -522,3 +522,45 @@ is a number with no referent**, and it would have made the ticket claim a hole t
 - The session-lock controls include *"every session refused, forever → every criterion NOT
   MEASURED, not FALSE"*, which is the fail-closed shape rule 7 asks for, tested rather than
   asserted.
+
+## 2026-08-25 (third pass) — the two improvement loops, which no pass had opened
+
+Chosen because `IMPROVEMENTS.md` and `eval/IMPROVEMENTS.md` are named in `AGENTS.md`'s index as
+live mechanisms and no previous pass had read either. Both agents were holding `eval/judge/` and
+the harness, so the pass stayed clear of those.
+
+### Examined and judged sound — the loop is IDLE, not stale, and the distinction took measuring
+
+The obvious reading was *"last touched 2026-08-23, and two days of heavy evaluator work since —
+therefore stale"*. **That is wrong**, and filing it would have been a spurious ticket:
+
+- the last matrix is **`wg-g4c-2026-08-21`** (run names carry dates; **mtimes are useless here**,
+  every directory was touched by today's censuses);
+- the last iteration is **15, dated 2026-08-23** — *after* that run;
+- `.agents/skills/refine/SKILL.md` fires the loop on *"a matrix has finished AND been evaluated"*.
+
+So the loop is current with respect to its documented trigger and is idle because nothing has run.
+**A mechanism with no recent entries is not evidence of neglect until you check what feeds it.**
+
+### Found — the trigger under-describes the file
+
+**Iterations 13, 14 and 15 were not run-driven.** Iteration 13 opens by reasoning from iteration
+11a about a gate reading its function's input rather than its output — a grader change with no run
+between. So the skill names one trigger and the file contains iterations that trigger does not
+name.
+
+It matters now because 2026-08-24/25 produced at least three changes with the exact iteration
+shape — a hypothesis, a change, and a measurement that could have refuted it (the barred-aspect
+pooling exclusion, the grader's declared-event transcription, the zero-aim contract). All three are
+recorded in findings, tickets and `eval/RUNS.md`; **nothing is lost.** What is undecided is whether
+the loop is meant to hold them, and right now that is settled by whoever happens to be writing.
+
+Filed as **`tasks/161`** at p3, with the explicit note that **concluding the loop is run-only
+closes it** and that today's changes must **not** be retro-filed as iterations — rewriting history
+into a loop that did not produce it is the narration this project removes from live documents.
+
+### Method note
+
+`ls -dt eval/runs/*/` returned nothing under zsh and I nearly read that as "no runs". The directory
+holds **30**. Two glob failures in two days from the same shell (#164); the habit that catches it
+is asking *"is this answer the same for every subject?"* before believing it.
