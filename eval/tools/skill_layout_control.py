@@ -45,6 +45,8 @@ more than the confidence you had in it (AGENTS.md), and only if it survives the 
 `skill_layout_selftest.py` pins all of it offline, on a throwaway git repository, with a
 real SIGTERM and a real SIGKILL rather than a simulated failure.
 """
+import contextlib
+import fcntl
 import json
 import os
 import shutil
@@ -60,6 +62,7 @@ from docstat import SKILLS_REAL, SKILLS_LINKS  # the address, not a second spell
 
 SWEEP = [sys.executable, os.path.join(HERE, "docstat.py"), "--sweep"]
 STATE_NAME = "skill_layout_control_state.json"
+LOCK_NAME = "skill_layout_control.lock"
 SELF = "python3 eval/tools/skill_layout_control.py"
 
 
@@ -84,12 +87,62 @@ def sweep(root: str = ROOT) -> tuple[int, str]:
 # directory. `--absolute-git-dir` returns a linked worktree's PRIVATE directory, so two
 # agents planting in two worktrees cannot read each other's state.
 # ---------------------------------------------------------------------------------------
-def state_path(root: str = ROOT) -> str:
+def _git_dir(root: str = ROOT) -> str:
     r = subprocess.run(["git", "rev-parse", "--absolute-git-dir"],
                        cwd=root, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"not a git checkout: {root}\n{r.stderr.strip()}")
-    return os.path.join(r.stdout.strip(), STATE_NAME)
+    return r.stdout.strip()
+
+
+def state_path(root: str = ROOT) -> str:
+    return os.path.join(_git_dir(root), STATE_NAME)
+
+
+def lock_path(root: str = ROOT) -> str:
+    return os.path.join(_git_dir(root), LOCK_NAME)
+
+
+class Busy(RuntimeError):
+    """Another run of this tool holds this work tree."""
+
+
+@contextlib.contextmanager
+def hold(root: str = ROOT):
+    """Hold this work tree exclusively for the whole run, with an OS lock.
+
+    THE LOCK DECIDES OWNERSHIP; THE STATE FILE ONLY DESCRIBES A CRASH. The first version of
+    this asked whether the pid in the state file was alive, and that is two defects in one:
+    two runs both read `clean` before either had written a state file and both went on to
+    plant, and a reused pid names an unrelated process. Raised by CodeRabbit on PR #28, and it
+    is AGENTS.md rule 2 - a pid read out of an artifact is the artifact's account of a
+    process, not the process.
+
+    `flock` has neither problem. Acquisition is atomic, so there is no window between
+    classifying the tree and owning it; and the kernel releases it when the holder dies,
+    SIGKILL included, so a crashed run leaves the lock free and its state file behind - which
+    is exactly the division of labour: the lock says who owns the tree NOW, the state file
+    says what the last owner was in the middle of.
+    """
+    path = lock_path(root)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            try:
+                held = os.read(fd, 200).decode(errors="replace").strip()
+            except OSError:
+                held = ""
+            raise Busy(
+                f"another run holds this work tree ({held or 'holder unknown'}). Two runs "
+                f"planting into one tree read each other's plants as leftovers. Wait for it, "
+                f"or delete {path} if you are sure nothing is running.") from exc
+        os.ftruncate(fd, 0)
+        os.write(fd, f"pid {os.getpid()} since {time.strftime('%Y-%m-%dT%H:%M:%S')}\n".encode())
+        yield fd
+    finally:
+        os.close(fd)                                 # closing releases the flock
 
 
 def write_state(root: str = ROOT) -> str:
@@ -242,41 +295,23 @@ def repair(root: str = ROOT) -> list[str]:
     return acted
 
 
-def _alive(pid) -> bool:
-    """Is that process still running? Signal 0 asks without delivering anything."""
-    if not isinstance(pid, int) or pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True                                  # exists, owned by somebody else
-    return True
-
-
 def recovery_verdict(root: str = ROOT) -> tuple[str, list[str], dict | None]:
-    """What a starting run must do about the tree it found.
+    """What a run must do about the tree it found, ONCE IT HOLDS THE LOCK.
 
-    Four values. Separated from `cmd_run` so the decision can be pinned without a sweep.
+    Three values. Separated from `cmd_run` so the decision can be pinned without a sweep.
+    Whether another run owns the tree is not asked here - `hold()` answers that, atomically,
+    before this is ever called.
 
-    `busy`   another run of this tool holds the tree - its state file names a LIVE pid that
-             is not ours. Two runs planting in one work tree interleave their plants and
-             their repairs, and the second would read the first's plant as a leftover to
-             clean up underneath it. Fail closed: pid reuse can only make this refuse a run
-             that could have proceeded, never let two through.
-    `resume` a leftover this tool's own state file accounts for, written by a process that
-             is gone - so it died mid-plant and this run repairs it.
+    `resume` a leftover this tool's own state file accounts for. We hold the lock, so the
+             process that wrote it is gone: it died mid-plant, and this run repairs it.
     `refuse` a leftover nothing accounts for. Not deleted for the reader: a path we cannot
              prove we created is a path something else may own.
     `clean`  nothing planted.
     """
-    state = read_state(root)
-    if state and _alive(state.get("pid")) and state.get("pid") != os.getpid():
-        return "busy", leftovers(root), state
     stale = leftovers(root)
     if not stale:
         return "clean", [], None
+    state = read_state(root)
     return ("refuse" if state is None else "resume"), stale, state
 
 
@@ -456,14 +491,17 @@ def install_handlers(root: str) -> None:
 
 # ---------------------------------------------------------------------------------------
 def cmd_repair(root: str = ROOT) -> int:
-    # A repair during someone else's run destroys their plant and leaves them measuring a
-    # restored tree they think is planted. Same question as `cmd_run`'s, same answer.
-    verdict, _, state = recovery_verdict(root)
-    if verdict == "busy":
-        say(f"REFUSING: a run holds this work tree - pid {state.get('pid', '?')}, started "
-            f"{state.get('started', '?')}. Repairing now would delete its plant underneath "
-            f"it.\n  Wait for it, or if that pid is gone, delete {state_path(root)}")
+    # Under the lock: a repair during someone else's run deletes their plant underneath them
+    # and leaves them measuring a restored tree they believe is planted.
+    try:
+        with hold(root):
+            return _repair_held(root)
+    except Busy as exc:
+        say(f"REFUSING TO REPAIR: {exc}")
         return 1
+
+
+def _repair_held(root: str) -> int:
     acted = repair(root)
     clear_state(root)
     for a in acted:
@@ -474,13 +512,16 @@ def cmd_repair(root: str = ROOT) -> int:
 
 
 def cmd_run(root: str = ROOT) -> int:
-    verdict, stale, state = recovery_verdict(root)
-    if verdict == "busy":
-        say(f"REFUSING TO RUN: another run holds this work tree - pid "
-            f"{state.get('pid', '?')}, started {state.get('started', '?')}.")
-        say("  Two runs planting into one tree read each other's plants as leftovers.\n"
-            f"  Wait for it, or if that pid is gone, delete {state_path(root)}")
+    try:
+        with hold(root):
+            return _run_held(root)
+    except Busy as exc:
+        say(f"REFUSING TO RUN: {exc}")
         return 1
+
+
+def _run_held(root: str) -> int:
+    verdict, stale, state = recovery_verdict(root)
     if verdict == "refuse":
         say("REFUSING TO RUN: the tree already carries a plant and no state file "
             "explains it.")

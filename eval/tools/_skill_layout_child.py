@@ -10,6 +10,11 @@ tests `try/finally`, not the handler.
     argv[2]  guarded    - state file written, handlers installed (the shipped behaviour)
              no-handler - state file written, handlers NOT installed (the SIGTERM mutant)
              no-state   - handlers installed, state file NOT written (the SIGKILL mutant)
+             lock       - hold the work-tree lock and nothing else
+
+Prints `ready` when it is in the state the test wants, then waits. A real second process is
+the only thing that can hold an flock against the test: the lock is per open file
+description, so a second acquisition inside one process succeeds.
 """
 import os
 import sys
@@ -19,10 +24,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import skill_layout_control as slc
 
 root, mode = sys.argv[1], sys.argv[2]
+if mode == "lock":
+    with slc.hold(root):
+        print("ready", flush=True)
+        time.sleep(120)
+    raise SystemExit(0)
+
 if mode != "no-state":
     slc.write_state(root)
 if mode != "no-handler":
     slc.install_handlers(root)
 slc.PointerAsRealCopy(root).plant()
-print("planted", flush=True)
+print("ready", flush=True)
 time.sleep(120)

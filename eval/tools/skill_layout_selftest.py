@@ -28,7 +28,6 @@ THE FIXTURE IS A THROWAWAY GIT REPOSITORY, not the live tree. A control that rep
 repository it is testing cannot tell "the repair worked" from "the repair was never needed",
 and it would have exactly the failure mode this whole ticket is about.
 """
-import json
 import os
 import pathlib
 import shutil
@@ -82,13 +81,6 @@ def dirty(root: str) -> str:
 def _read(path: str) -> str:
     return pathlib.Path(path).read_text() if os.path.exists(path) else "<gone>"
 
-
-def _write_state_for(root: str, pid: int) -> None:
-    """A state file naming somebody else's pid. Written through the tool, then re-pointed."""
-    path = slc.write_state(root)
-    rec = json.loads(pathlib.Path(path).read_text())
-    rec["pid"] = pid
-    pathlib.Path(path).write_text(json.dumps(rec))
 
 
 
@@ -291,47 +283,55 @@ def pin_an_occupied_leaf_is_refused(p: Pins, tmp: str) -> None:
             slc.leftovers(root2), [f"{SKILLS_REAL}/tasks/extra/SKILL.md"])
 
 
-def pin_a_live_run_holds_the_tree(p: Pins, tmp: str) -> None:
+def pin_the_lock_holds_the_tree(p: Pins, tmp: str) -> None:
     """A second run must not plant into a tree the first one is already planting into.
 
     Not the reviewer's symlink race - this is the concurrency that IS reachable here, with no
     adversary at all: two runs in one work tree interleave their plants, and the second reads
-    the first's plant as a leftover to clean up underneath it. The state file already names
-    the pid, so the check is whether that pid is alive.
+    the first's plant as a leftover to clean up underneath it.
 
-    Fail closed. Pid reuse can only make this refuse a run that could have proceeded.
+    The lock is an OS lock and the test uses a REAL second process, because that is the only
+    thing that can hold one: `flock` is per open file description, so a second acquisition
+    inside this process would succeed and the pin would be green on nothing. It is also why
+    the pid-in-the-state-file version this replaces was wrong twice over - two runs could
+    both classify the tree before either wrote a state file, and a reused pid names a
+    stranger (CodeRabbit, PR #28).
     """
-    print("\na state file naming a LIVE foreign pid holds the tree")
-    root = make_fixture(os.path.join(tmp, "busy"))
-    holder = subprocess.Popen([sys.executable, "-c", "import time; print('up', flush=True);"
-                                                     " time.sleep(120)"],
-                              stdout=subprocess.PIPE, text=True)
-    holder.stdout.readline()
+    print("\nan OS lock holds the tree, and the kernel drops it when the holder dies")
+    root = make_fixture(os.path.join(tmp, "lock"))
+    holder = subprocess.Popen([sys.executable, CHILD, root, "lock"],
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
-        _write_state_for(root, holder.pid)
-        p.check("recovery_verdict is 'busy'", slc.recovery_verdict(root)[0], "busy")
-        p.check("busy is decided on a CLEAN tree too - the holder is between plants",
-                slc.leftovers(root), [])
-        slc.PointerAsRealCopy(root).plant()
-        p.check("and on a planted one", slc.recovery_verdict(root)[0], "busy")
-        slc.repair(root)
+        p.check("the holder says it has the lock", holder.stdout.readline().strip(), "ready")
+        p.refuses("a second hold() is refused", lambda: _take(root))
+        p.check("and it is a Busy, so a caller can tell it from a real failure",
+                _busy(lambda: _take(root)), True)
+        p.check("cmd_repair refuses rather than deleting under the holder",
+                slc.cmd_repair(root), 1)
     finally:
         holder.kill()
         holder.wait(timeout=30)
 
-    # MUTANT of the liveness test: the same state file naming a pid that is GONE must be
-    # `resume`, not `busy` - otherwise a crashed run locks the tree out permanently.
-    _write_state_for(root, holder.pid)
-    p.check("a dead pid is not busy", slc.recovery_verdict(root)[0], "clean")
-    slc.PointerAsRealCopy(root).plant()
-    p.check("a dead pid with a leftover is 'resume'", slc.recovery_verdict(root)[0], "resume")
-    slc.repair(root)
-    slc.clear_state(root)
+    # The kernel releases an flock when the holder dies, SIGKILL included - so a crashed run
+    # leaves the lock FREE and its state file behind. MUTANT of that: if the lock survived
+    # its holder, this row would refuse and the tree would be locked out permanently.
+    p.refuses("the dead holder's lock is free", lambda: _take(root), want=False)
+    p.check("the tree is unlocked for a real run", slc.cmd_repair(root), 0)
 
-    # VARIANT: our OWN pid must not lock us out of our own run.
-    slc.write_state(root)
-    p.check("our own pid is not a foreign holder", slc.recovery_verdict(root)[0], "clean")
-    slc.clear_state(root)
+
+def _take(root: str) -> None:
+    with slc.hold(root):
+        pass
+
+
+def _busy(fn) -> bool:
+    try:
+        fn()
+    except slc.Busy:
+        return True
+    except Exception:                                 # noqa: BLE001 - reported by the caller
+        return False
+    return False
 
 
 def pin_state_file_is_outside_the_work_tree(p: Pins, tmp: str) -> None:
@@ -359,7 +359,7 @@ def _run_child(root: str, mode: str, sig: int) -> int:
     proc = subprocess.Popen([sys.executable, CHILD, root, mode],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     line = proc.stdout.readline()
-    if "planted" not in line:
+    if "ready" not in line:
         proc.kill()
         raise RuntimeError(f"child never planted: {line!r}{proc.stdout.read()}")
     proc.send_signal(sig)
@@ -440,7 +440,7 @@ SECTIONS = (pin_each_plant_is_seen_and_repaired,
             pin_a_foreign_tree_survives_the_repair,
             pin_a_symlinked_component_is_refused,
             pin_an_occupied_leaf_is_refused,
-            pin_a_live_run_holds_the_tree,
+            pin_the_lock_holds_the_tree,
             pin_state_file_is_outside_the_work_tree,
             pin_sigterm_restores,
             pin_sigkill_is_recovered_next_run,
