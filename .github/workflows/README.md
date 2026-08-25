@@ -197,13 +197,19 @@ own lines every run to prove it.
 
 ## Minutes
 
-The repository is **public**, so Linux Actions minutes are **free and unlimited**. Nothing below
+The repository is **public**, so Linux Actions minutes are **free and unlimited** — read with
+`gh repo view teonimesic/game-stack-bakeoff --json isPrivate`, never remembered. Nothing below
 is a bill — it is wall-clock in front of a merge, which is what `gates` and `controls` being
 required checks turned it into.
 
 ```bash
 python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
 ```
+
+**The producer reads that visibility for itself** — `repos/<owner>/<repo>` `.private`, on every
+census — and refuses anything that is not `true` or `false` rather than assuming either. Whether
+a minute costs anything is a property of the repository, and the tool went on printing `PRIVATE
+-- these minutes are metered` for a day after the repository was made public.
 
 **That producer answers the billing question, not the waiting one.** It counts per job, rounds
 each up to the whole minute and excludes the queue wait, so it is the wrong instrument for
@@ -219,6 +225,12 @@ the diff taken is the merge commit's first-parent diff, which is what `paths:` w
 against.
 
 **Do not read `billable.UBUNTU.total_ms` from the API.** It returns `0`. Use the producer above.
+
+**A run the jobs endpoint has nothing for is a third value.** It is printed with its run id and
+left out of the total, never folded in as zero — one run cancelled before a job existed is enough
+to make a per-run refusal exit 2 on every census from then on, since it stays in the run list.
+The refusal that remains is the one an empty bucket cannot express: if *no* run yields a job, the
+endpoint is not answering and the tool reports nothing.
 
 ## Adding a gate
 

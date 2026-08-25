@@ -1,10 +1,11 @@
 # The FAST tier: every gate that reads documents, the queue, or a register.
 #
-# Budget: 42s of gates, measured 2026-08-23 (see .github/workflows/README.md for the
-# table and for what is deliberately NOT here). This tier is a REQUIRED check on main, so
-# a merge waits on it -- which is why the 521s of mutant suites live in controls.yml and
-# this one stays fast. The split was originally about metered minutes on a private
-# repository; the repository is public since 2026-08-24 and Linux minutes are free.
+# This tier is a REQUIRED check on main, so a merge waits on it -- which is why the slow
+# mutant suites live in controls.yml and this one stays fast. What each tier takes, and
+# what is deliberately NOT here, is in .github/workflows/README.md and only there: a
+# timing copied into a comment is a figure nothing can disagree with. The split was
+# originally about metered minutes on a private repository; the repository is public since
+# 2026-08-24 and Linux minutes are free, so what the split now buys is latency.
 #
 # EVERY GATE IS ITS OWN STEP. A `run: |` block reports only its last command's exit
 # status (AGENTS.md rule 3), so a multi-command step is a step that can pass while a
@@ -14,9 +15,9 @@ name: gates
 on:
   pull_request:
   push:
-    # Metered minutes: agent branches are pushed often and reviewed as PRs, so the push
-    # trigger is narrowed to main. `ci-control-**` exists to re-prove the push path
-    # itself without spending a run on every agent branch -- see the control in tasks/110.
+    # Agent branches are pushed often and reviewed as PRs, where the pull_request trigger
+    # already covers them, so the push trigger is narrowed to main. `ci-control-**` exists
+    # to re-prove the push path itself -- see the control in tasks/110.
     branches: [main, 'ci-control-**']
 
 # The job runs code out of the repository, and on a pull_request that code can come from

@@ -1,9 +1,10 @@
 # The SLOW tier: the mutant suites, and the two selftests that spend real seconds.
 #
-# Split out of gates.yml for one reason and it is not tidiness: LATENCY. These five steps
-# are 685s measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s) against the
-# fast tier's 42s, and both are required checks, so running them on every event would put
-# eleven minutes in front of every merge for checks whose inputs are only source.
+# Split out of gates.yml for one reason and it is not tidiness: LATENCY. These suites take
+# minutes where the fast tier takes seconds, and both are required checks, so running them
+# on every event would put the whole slow tier in front of every merge for checks whose
+# inputs are only source. What each tier takes is in .github/workflows/README.md and only
+# there -- read it from the register, never from a comment that cannot be disagreed with.
 #
 # It WAS a billing split: the repository was private and Actions minutes were metered. It
 # went public on 2026-08-24 and Linux minutes are now unlimited, so the cost argument is
