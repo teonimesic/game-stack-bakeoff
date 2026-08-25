@@ -1,12 +1,12 @@
 ---
 id: 132
 title: The stored-judge-round census in eval/RUNS.md disagrees with the producer printed above it, on three rows of four
-status: in_testing
+status: done
 priority: 2
 refs: 'eval/RUNS.md, eval/judge/blurb_selftest.py, #83, tasks/130'
 done_when: Every row of that table is re-read from `python3 eval/judge/blurb_selftest.py --stored-rounds <checkout>/eval/runs` and states the population it counted; the two sentences that make claims about the 10 (single-directory, and 10-of-10 byte-identical) either still hold for the new population or are replaced by what does; and the paragraph beneath still supports its conclusion or says what changed. BLOCKED BEHIND 130 - both edit eval/RUNS.md.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/36
-established_by: 'PR #36, all 3 checks green at 035b68b; producer re-read 97/40/14/26 with the 14 split 10 in wg-aspect-reliability (moved) and 4 in wg-g4c-2026-08-21T02-26-46/judge-blind-2026-08-23 (same); pre-repair brief rebuilt from bc9fb52~1 reproduces both stored hashes; blurb_selftest check 13 plus stored_rounds_mutants at 7 mutants caught and a variant control that survives without the variant and is caught with it'
+established_by: 'PR #36 squash-merged. The digits were not the defect: the row that did NOT move (26 unassessable) is the tell, since adding 4 everywhere would have been internally consistent and wrong. Two population claims were false and neither had a producer - the 14 hashed rounds partition 10 in wg-aspect-reliability and 4 in a later blind judge-field sweep, so ''all in wg-aspect-reliability'' and the section heading ''EVERY STORED CODE ROUND WAS TOLD ITS PACK MIGHT BE TRUNCATED'' were both refuted by the same 4 rounds. The census reads a gitignored path so no gate had ever seen it; it is now pinned by a fixture tree established RED first, with a 7-mutant red half and a --variant-control that shows the variant is load-bearing. Allocated FINDINGS #181.'
 ---
 
 `eval/RUNS.md` (~line 278) carries a four-row census of stored judge rounds, with its producer
