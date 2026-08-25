@@ -53,3 +53,42 @@ standalone player takes `-disable-audio`, does nothing with it, and exits 0 - an
 ignored flag is worse than an unsupported one, because it is indistinguishable from a working
 guard by anything a script can see (#61). Verify a cap by measuring that the process actually
 could not exceed it, on the path that really holds the resource.
+
+## note 2026-08-24
+
+## note 2026-08-24 — the correctness half has landed, so this is the only thing between scenes and a run
+
+`eval/suites/scene_prompts.py` (133), `eval/judge/scene_probe.py` (134) and the three tier-3
+aspects (135) are all merged. Scenes are gradeable for **correctness**. This ticket is the
+performance half, and `eval/SCENES.md` states plainly that a performance pass must not be built
+until this reports.
+
+## Read the correctness contract before designing around it
+
+The capture path is deterministic and tick-indexed on purpose: 660 ticks, 12 frames at
+`floor(i*660/11)`, no wall-clock anywhere. **A performance pass cannot reuse it** — it is expected
+to run slower than real time, and adding timing to it would contaminate the thing that makes every
+criterion computable. Two passes, two records.
+
+## A measurement that just arrived, and it sharpens the third required number
+
+Task 135's agent measured, incidentally: **two consecutive `gates.yml` runs one markdown edit
+apart came back 65s and 102s** — a 57% spread on unchanged content. That is CI rather than a
+scene, and it is not this ticket's population, but it is the same question — *how much does this
+machine move under me?* — and it says the answer here is likely to be large.
+
+So of this ticket's three required measurements, treat the **run-to-run spread on one unchanged
+submission** as the one most likely to decide the outcome. If a ramp level varies by two levels
+across repeats of the same build, no stack comparison is possible at any cap, and the honest
+report says so and stops. That is a complete answer to this exploration, and a more useful one
+than a capping mechanism nobody can trust.
+
+## Order the work by what can kill it
+
+1. **Run-to-run spread on one unchanged build.** Cheapest, and if it is large everything else is
+   moot.
+2. **Thermal drift** over a run-length repetition. Same character.
+3. **Capping**, GPU first — if GPU work cannot be bounded, CPU and RAM caps buy little for a
+   GPU-bound scene, and an uncapped ramp with the machine recorded is the honest design.
+
+Do not build the ramp. This ticket decides whether a ramp can mean anything.
