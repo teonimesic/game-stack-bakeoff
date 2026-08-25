@@ -272,3 +272,12 @@ jobs:
       - name: judge/paired_verdicts --selftest (synthetic half; corpus pins need eval/runs)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/paired_verdicts.py --selftest
+      # `skill_layout_control.py` itself is in controls.yml: its five plants need the real
+      # document corpus, and it takes ~125s. What runs here is the half that only shows up
+      # when that control DIES -- it plants into the real working tree, so an interrupted run
+      # is a repository state, and one left `.claude/skills` a directory of copies with the
+      # next four gate runs red for a reason nothing named (tasks/147, tasks/150). Offline,
+      # on a throwaway git repository, with a real SIGTERM and a real SIGKILL.
+      - name: tools/skill_layout_selftest (an interrupted plant must not leave the tree broken)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/skill_layout_selftest.py
