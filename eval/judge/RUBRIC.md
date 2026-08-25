@@ -656,7 +656,11 @@ is a finding, not an escape from deciding.
 
 Audio was a **total blind spot**: no task asked for it, no tier examined it, no
 criterion mentioned it. The task prompts now require looping background music and a
-distinct sound effect per declared event, plus a `just audio-manifest` contract.
+sound effect for each declared event, plus a `just audio-manifest` contract. **The
+prompt does not ask for one distinct sound per event and no criterion here scores
+that** — the manifest section leaves sharing to the agent, `audio.distinct` sets its
+floor at half the declared events, and the `audio` aspect prefers three well-chosen
+cues to five technically distinct blips.
 
 Deterministic checks come first, because most audio failures are mechanical:
 
