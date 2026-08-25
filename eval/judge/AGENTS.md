@@ -64,10 +64,12 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
 
 4 things to know before you touch any of it:
 
-- **No criterion here has ever met a submission.** No scene has been built or graded, so every
-  threshold was chosen against fixtures written by the same hand as the criterion. Treat a scene
-  score as fixture-validated until a matrix has run, and say so wherever one is reported — #46 is
-  what a first contact with real work has cost before.
+- **1 submission has met these criteria** (`eval/RUNS.md`), and every threshold was still
+  chosen against fixtures written by the same hand as the criterion. Treat a scene score as
+  fixture-validated until a matrix has run, and say so wherever one is reported. First contact
+  scored 5 of 6, left 2 of 8 criteria unscored, and produced a false negative in
+  `layers.depth_ordered`, which reads a wrapped `offset` as a scroll rate (`tasks/162`) — #46's
+  shape, and a mutant could not have found it.
 - **`--census` reports over FIXTURES and says so.** It answers whether a criterion can take both
   values on material this repository wrote. `--runs-root` looks for stored scene gradings and
   prints `NOT ASKED` when there are none, never `0 separated` — the 2 are different claims
@@ -85,9 +87,12 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
 registry as the 6 game aspects and at the same weight, 0.00. 2 things govern using them:
 
 - **An aspect is asked only of its own task class, and `aspects.applicability()` refuses the
-  rest** — at `field.py pack`, at `field.run_field` and at `field_sweep.py`, because the
-  resource is *a judge field run against a task* and it is reached by 3 paths. It refuses a
-  task id it cannot classify rather than reading it as a game.
+  rest** — at `field.py pack`, at `field.run_field`, at `field_sweep.py` and at the 3 routes
+  `eval/wholegame.py` reaches a grading instrument or a judge pack by, because the resource is
+  *a graded task* and it is reached by 6 paths. It refuses a task id it cannot classify rather
+  than reading it as a game, and **it answers for the deterministic instruments too**:
+  `aspects.INSTRUMENTS` declares the class of `playbot`, `scene_probe` and `legacy_judge`.
+  `eval/tools/scene_runner_control.py --paths` prints the routes; each has a mutant.
 - **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
   `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
   prints the reason and the aspect's per-stack means — alphabetically by stack, never sorted

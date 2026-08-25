@@ -63,9 +63,68 @@ import tokenvalue  # noqa: E402
 
 import agent_harness  # noqa: E402
 import wholegame_prompts as P  # noqa: E402
+import scene_prompts as SP  # noqa: E402
+import aspects  # noqa: E402
 import disclosure as _disclosure  # noqa: E402
 
 STARTERS = {s: HERE / "starters" / s for s in P.STACKS}
+
+#: EVERY TASK THIS HARNESS CAN RENDER A PROMPT FOR - both classes, one lookup.
+#:
+#: It is NOT what `--games` defaults to, and the two must not be conflated: see
+#: `select_tasks()` for the default and the reason it stops here.
+ALL_TASKS = {**P.TASKS, **SP.SCENES}
+if len(ALL_TASKS) != len(P.TASKS) + len(SP.SCENES):
+    raise SystemExit(
+        f"a task id is defined in BOTH eval/suites/wholegame_prompts.py and "
+        f"eval/suites/scene_prompts.py: "
+        f"{sorted(set(P.TASKS) & set(SP.SCENES))}. Two prompts under one id means the "
+        f"stored trial record cannot say which one the agent was sent.")
+
+
+def select_tasks(games: list[str] | None, scenes: list[str] | None) -> list[str]:
+    """The tasks one invocation builds, from `--games` and `--scenes`.
+
+    THE STANDING MATRIX COMMAND DOES NOT LAUNCH SCENES, and this function is where that
+    is decided. `--games` defaults to every game; `--scenes` defaults to NONE, so a scene
+    is built only when it is named.
+
+    IT IS A SEPARATE FLAG RATHER THAN A WIDER DEFAULT ON PURPOSE. `--games` defaulted to
+    every key of the registry it read, so registering a scene in that registry would have
+    put it in the standing command by construction - which is exactly why task 133 kept
+    scenes out of it and left them unlaunchable. A default is a value somebody can widen
+    without noticing; a second flag is a selection nobody makes by accident. A scene trial
+    is not a cheap addition to a game run: `eval/SCENES.md` records that scenes and a
+    second harness are two variables, and that a scene matrix packed back to back
+    forecloses the performance question (#172).
+
+    An EMPTY `--games` is refused, and it is refused BEFORE the scenes are added rather
+    than only when the whole selection comes out empty. It used to read as "all", because
+    `a.games or list(P.TASKS)` cannot tell `[]` from `None`; a selection the operator
+    narrowed to nothing must not silently become the widest one there is, and it must not
+    quietly become a paid scene trial either. `--games` with no values buys nothing that
+    omitting it does not - omitting it alongside `--scenes` already selects scenes alone -
+    so refusing costs one retyped command and accepting launches a trial nobody asked for.
+    """
+    if games == []:
+        raise SystemExit(
+            "`--games` was given with no values, which selects nothing. It is refused "
+            "rather than read as every game, and rather than left to be filled in by "
+            "`--scenes`. Name the games, or omit `--games` entirely - omitting it "
+            "alongside `--scenes` already selects the scenes alone.")
+    if games is None and not scenes:
+        chosen = list(P.TASKS)
+    else:
+        chosen = list(games or []) + list(scenes or [])
+    if not chosen:
+        raise SystemExit(
+            "no tasks selected. Name the games, name the scenes with `--scenes`, or "
+            "pass neither for the standing game matrix.")
+    unknown = [t for t in chosen if t not in ALL_TASKS]
+    if unknown:
+        raise SystemExit(f"unknown task ids: {unknown}. Known: {sorted(ALL_TASKS)}")
+    return chosen
+
 
 # Per-stack caps for the BUILD phase. Rust and TypeScript are headless enough to run
 # several at once; Godot opens a real window for its render tests and Unity launches an
@@ -322,6 +381,11 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     art = run_dir / "artifacts" / tid
     art.mkdir(parents=True, exist_ok=True)
     rec: dict[str, Any] = {"trial_id": tid, "stack": stack, "game": game,
+                           # WHICH TASK CLASS, stamped at build time rather than left for
+                           # a reader to infer from the id. A scene score is never pooled
+                           # with a game score (`eval/SCENES.md`), and every aggregate
+                           # downstream partitions on this field.
+                           "task_class": aspects.task_class(game),
                            "trial": trial, "work": str(work),
                            "harness": {"name": h.name, "model": h.model,
                                        "supports_stop_hook": h.supports_stop_hook},
@@ -364,7 +428,7 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
         env["STARTER_HOOK_LOG"] = str(_hook_log)
 
         prompt = (prompt_override if prompt_override is not None
-                  else P.TASKS[game](stack))
+                  else ALL_TASKS[game](stack))
         (art / "prompt.txt").write_text(prompt)
         # WHETHER THIS RECORD IS A SUBMISSION AT ALL. A `--prompt-file` trial carries a
         # `game` field like every other record and was not asked to build that game, so
@@ -550,7 +614,7 @@ def cmd_build(a: argparse.Namespace) -> int:
     work_root.mkdir(parents=True, exist_ok=True)
 
     stacks = a.stacks or list(P.STACKS)
-    games = a.games or list(P.TASKS)
+    games = select_tasks(a.games, getattr(a, "scenes", None))
     missing = [s for s in stacks if not STARTERS[s].exists()]
     if missing:
         print(f"missing starters: {missing} - build them first")
@@ -614,7 +678,13 @@ def cmd_build(a: argparse.Namespace) -> int:
     # name its harness is a run nobody can place in the ledger's harness dimension.
     harness = agent_harness.get(getattr(a, "harness", None) or HARNESS)
     _manifest.write_manifest(run_dir, {
-        "stacks": stacks, "games": games, "trials": a.trials, "model": harness.model,
+        "stacks": stacks, "games": games,
+        # THE TASK CLASS OF EVERY SELECTED TASK, in the append-only record of what this
+        # launch was configured to be. `games` alone does not say it: a directory holding
+        # `s1_parallax` is a scene run whether or not anybody later remembers that an `s`
+        # prefix means something.
+        "task_classes": {t: aspects.task_class(t) for t in games},
+        "trials": a.trials, "model": harness.model,
         "harness": harness.name,
         "max_turns": MAX_TURNS, "max_budget_usd": MAX_BUDGET_USD,
         "work_root": str(work_root),
@@ -657,7 +727,7 @@ def cmd_build(a: argparse.Namespace) -> int:
         jobs = [j for j in jobs if f"{j[3]}__{j[2]}__t{j[4]}" in wanted]
         print(f"--only: building {len(jobs)} of the selection's trials: {wanted}")
 
-    print(f"{len(jobs)} trials = {len(games)} games x {len(stacks)} stacks x "
+    print(f"{len(jobs)} trials = {len(games)} tasks x {len(stacks)} stacks x "
           f"{a.trials} trials, overall parallelism {a.parallel}, per-stack caps "
           f"{BUILD_CAP}\nwork root: {work_root}\n"
           f"harness: {harness.name} ({harness.model}) — an arm dimension; "
@@ -909,6 +979,20 @@ def cmd_report(a: argparse.Namespace) -> int:
 
     print(f"\n=== {run_dir.name}: {len(rows)} trials ({len(scored_rows)} aggregated, "
           f"{len(truncated)} not completed, {len(unmeasured)} unmeasured) ===\n")
+
+    # TWO TASK CLASSES, NEVER ONE MEAN. A scene has no player and is graded by a
+    # different tier-2 instrument against different criteria (`eval/SCENES.md`), so a
+    # per-stack figure averaged over both describes neither. The class comes off the
+    # stored record where the harness wrote it, and off `aspects.task_class` for a record
+    # written before that field existed - so an old directory still partitions.
+    def _klass(r: dict[str, Any]) -> str:
+        return str(r.get("task_class") or aspects.task_class(r["game"]))
+
+    classes = sorted({_klass(r) for r in rows})
+    if len(classes) > 1:
+        print(f"*** {len(classes)} TASK CLASSES IN ONE RUN: {classes} ***")
+        print("    Scene and game scores are never pooled. Every aggregate below is "
+              "computed\n    PER CLASS and labelled with it.\n")
     pre_gate = [r for r in rows if r.get("eval") and not r["eval"].get("scoring_regime")]
     if pre_gate:
         print(f"*** {len(pre_gate)} of {len(rows)} stored `overall` values were written "
@@ -995,38 +1079,58 @@ def cmd_report(a: argparse.Namespace) -> int:
               "homogeneous.\n    Re-evaluate the whole run, or report the tiers "
               "separately. Do not quote these.")
 
-    print("\n--- per stack, averaged per game first then across games "
-          f"(completed trials only, n={len(scored_rows)}) ---")
-    by_stack: dict[str, dict[str, list[float]]] = {}
-    for r in scored_rows:
-        if r.get("eval"):
-            by_stack.setdefault(r["stack"], {}).setdefault(r["game"], []).append(
-                r["eval"]["overall"])
-    for stack, per_game in sorted(by_stack.items()):
-        means = [statistics.fmean(v) for v in per_game.values()]
-        se = (statistics.stdev(means) / len(means) ** 0.5) if len(means) > 1 else float("nan")
-        se_txt = f"{se:.3f}" if se == se else "  -"
-        print(f"{stack:<8} score {statistics.fmean(means):.3f} +-SE {se_txt}  "
-              f"(n={len(means)} games)")
-    print("\nScores are averaged PER GAME first, then across games. Pooling across all "
+    for klass in classes:
+        in_class = [r for r in scored_rows if _klass(r) == klass]
+        print(f"\n--- {klass}s: per stack, averaged per task first then across tasks "
+              f"(completed trials only, n={len(in_class)}) ---")
+        if not in_class:
+            print("no completed trials in this class")
+            continue
+        by_stack: dict[str, dict[str, list[float]]] = {}
+        for r in in_class:
+            if r.get("eval"):
+                by_stack.setdefault(r["stack"], {}).setdefault(r["game"], []).append(
+                    r["eval"]["overall"])
+        for stack, per_game in sorted(by_stack.items()):
+            means = [statistics.fmean(v) for v in per_game.values()]
+            se = ((statistics.stdev(means) / len(means) ** 0.5)
+                  if len(means) > 1 else float("nan"))
+            se_txt = f"{se:.3f}" if se == se else "  -"
+            print(f"{stack:<8} score {statistics.fmean(means):.3f} +-SE {se_txt}  "
+                  f"(n={len(means)} {klass}s)")
+        if klass == "scene":
+            print("SCENE SCORES ARE FIXTURE-VALIDATED. Every scene_probe.py threshold was "
+                  "chosen against\nfixtures written by the same hand as the criterion; "
+                  "read `python3 judge/scene_mutants.py\n--census` before quoting any of "
+                  "these (eval/SCENES.md).")
+    print("\nScores are averaged PER TASK first, then across tasks. Pooling across all "
           "trials is inconsistent (Miller, arXiv:2411.00640 sec 3).")
 
     print("\n* judge = DIAGNOSTIC ONLY, contributes nothing to `overall`.")
-    print(f"\n--- per criterion, across {len(scored_rows)} completed trials "
-          "(judge rows are diagnostic, not scored) ---")
-    tally: dict[str, dict[str, list[int]]] = {}
-    for r in scored_rows:
-        e = r.get("eval")
-        if not e:
-            continue
-        for tier in ("programmatic", "playbot", "judge"):
-            for c in (e[tier] or {}).get("criteria", []):
-                tally.setdefault(tier, {}).setdefault(c["id"], []).append(
-                    int(bool(c["passed"])))
-    for tier, crits in tally.items():
-        print(f"\n[{tier}{' - DIAGNOSTIC, NOT SCORED' if tier == 'judge' else ''}]")
-        for cid, vals in sorted(crits.items(), key=lambda kv: sum(kv[1]) / len(kv[1])):
-            print(f"  {sum(vals)}/{len(vals)}  {cid}")
+    for klass in classes:
+        in_class = [r for r in scored_rows if _klass(r) == klass]
+        print(f"\n--- {klass}s: per criterion, across {len(in_class)} completed trials "
+              "(judge rows are diagnostic, not scored) ---")
+        tally: dict[str, dict[str, list[int]]] = {}
+        for r in in_class:
+            e = r.get("eval")
+            if not e:
+                continue
+            for tier in ("programmatic", "playbot", "judge"):
+                t = e.get(tier) or {}
+                # THE INSTRUMENT, not the slot. `playbot` is the name of the weighted
+                # tier-2 SLOT and a scene's slot holds `scene_probe` output; printing
+                # the slot name over scene criterion ids would invite exactly the pooling
+                # the class partition exists to prevent.
+                label = str(t.get("tier") or tier)
+                for c in t.get("criteria", []):
+                    tally.setdefault(label, {}).setdefault(c["id"], []).append(
+                        int(bool(c["passed"])))
+        for tier, crits in tally.items():
+            print(f"\n[{tier}{' - DIAGNOSTIC, NOT SCORED' if tier == 'judge' else ''}]")
+            for cid, vals in sorted(crits.items(),
+                                    key=lambda kv: sum(kv[1]) / len(kv[1])):
+                print(f"  {sum(vals)}/{len(vals)}  {cid}")
 
     print("\n--- terminal reasons ---")
     reasons: dict[tuple[str, str], int] = {}
@@ -1066,6 +1170,21 @@ COST_PER_TRIAL = {"low": 12.0, "mid": 20.0, "high": 25.0}
 TURNS_PER_TRIAL = {"low": 90, "mid": 150, "high": 250}
 BUILD_MIN_PER_TRIAL = {"rust": 95, "ts": 65, "unity": 80, "godot": 70}
 EVAL_MIN_PER_TRIAL = {"rust": 14, "ts": 8, "unity": 16, "godot": 10}
+#: WHAT A SCENE CELL COSTS IN WALL CLOCK, and the population it was measured over.
+#:
+#: ONE CELL, AND ITS BUILD FIGURE IS A FLOOR RATHER THAN A DURATION. `s1_parallax__ts__t0`
+#: was still working at 3599s when it was killed from outside, so 60 min is what the cell
+#: had used and not what it needed. Multiplying it up gives a lower bound and nothing
+#: else - `eval/AGENTS.md` forbids projecting across a boundary nothing has been measured
+#: across, and the unmeasured boundaries here are the other 3 stacks and the other scene.
+SCENE_WALL_CLOCK_NOTE = """SCENE WALL CLOCK, from 1 cell (s1_parallax x ts, eval/RUNS.md):
+  build     >= 60 min. The cell was KILLED at 3599s while still working, so this is a
+            floor. ts is the cheapest stack on the game table; rust, unity and godot are
+            unmeasured for scenes and the game table says nothing about a scene.
+  evaluate  58s, complete: tier 1 plus the scene probe's 3 traces and 3 films.
+  A full 2-scene x 4-stack x 2-trial matrix is 16 cells, so its build floor is >= 16 h
+  serial and >= 4 h at parallelism 4. The floor is not an estimate of the run."""
+
 JUDGE_COST_PER_TRIAL = 1.75   # MEASURED: two Sonnet-5 passes over a 95 KB pack plus 12
                               # frames came to 1.70 tokval and took 30-31 turns each. The
                               # first estimate here was 0.35 and was wrong by 5x - the
@@ -1075,10 +1194,19 @@ JUDGE_COST_PER_TRIAL = 1.75   # MEASURED: two Sonnet-5 passes over a 95 KB pack 
 
 def cmd_plan(a: argparse.Namespace) -> int:
     stacks = a.stacks or list(P.STACKS)
-    games = a.games or list(P.TASKS)
+    games = select_tasks(a.games, getattr(a, "scenes", None))
+    classes = {aspects.task_class(t) for t in games}
     n = len(stacks) * len(games) * a.trials
-    print(f"matrix: {len(games)} games x {len(stacks)} stacks x {a.trials} trials "
+    print(f"matrix: {len(games)} tasks x {len(stacks)} stacks x {a.trials} trials "
           f"= {n} trials\n")
+    if len(classes) > 1:
+        print(f"*** {len(classes)} TASK CLASSES IN ONE SELECTION: {sorted(classes)} ***")
+        print("Scene and game scores are never pooled (eval/SCENES.md), so the totals "
+              "below are a\ncount of trials and not of a comparable population.\n")
+    if "scene" in classes:
+        # SCENE WALL CLOCK IS MEASURED, NOT SCALED FROM THE GAME TABLE. The cost table
+        # below is scaled from game trials and says nothing about a scene.
+        print(SCENE_WALL_CLOCK_NOTE + "\n")
     print(f"projected {tokenvalue.UNIT} (a token valuation, not a bill - see the "
           f"footnote)\n")
     print(f"{'':<14} {'low':>10} {'mid':>10} {'high':>10}")
@@ -1154,7 +1282,13 @@ def main() -> int:
     for name in ("plan", "build", "evaluate", "report"):
         p = sub.add_parser(name)
         p.add_argument("--stacks", nargs="*", default=None, choices=list(P.STACKS))
-        p.add_argument("--games", nargs="*", default=None, choices=list(P.TASKS))
+        # THE DEFAULT IS EVERY GAME AND NO SCENE. `select_tasks()` holds the decision
+        # and the reason; this is only where the two flags are declared.
+        p.add_argument("--games", nargs="*", default=None, choices=list(P.TASKS),
+                       help="which games to build (default: all of them)")
+        p.add_argument("--scenes", nargs="*", default=None, choices=list(SP.SCENES),
+                       help="which SCENES to build (default: NONE - a scene is built "
+                            "only when it is named. eval/SCENES.md says why)")
         p.add_argument("--trials", type=int, default=2)
         p.add_argument("--parallel", type=int, default=4)
         p.add_argument("--eval-parallel", type=int, default=1)
@@ -1217,7 +1351,7 @@ def main() -> int:
     cc = sub.add_parser("concurrency-check")
     cc.add_argument("--submission", required=True, type=Path)
     cc.add_argument("--starter", required=True, type=Path)
-    cc.add_argument("--game", required=True, choices=list(P.TASKS))
+    cc.add_argument("--game", required=True, choices=sorted(ALL_TASKS))
     cc.add_argument("--k", type=int, default=3)
 
     a = ap.parse_args()

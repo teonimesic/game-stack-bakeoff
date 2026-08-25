@@ -334,6 +334,47 @@ def mutants() -> list[tuple[str, str, dict[str, Aspect]]]:
     return out
 
 
+#: What every non-aspect instrument is for, stated HERE rather than read back out of
+#: `aspects.INSTRUMENTS`. A check whose expectation comes from its subject cannot fail on
+#: a mutant of the subject (AGENTS.md rule 12's corollary, task 113).
+INSTRUMENT_CLASS = {"playbot": "game", "scene_probe": "scene", "legacy_judge": "game"}
+
+
+def instruments_are_guarded(instruments: dict[str, str]) -> list[str]:
+    """`applicability` answers for a deterministic instrument exactly as for an aspect.
+
+    Four questions, and the last is the one the play-bot needed: an instrument admitted
+    on the wrong class is the state `evaluate.BOTS[task]` was in, where the only refusal
+    was a `KeyError` from a dict that happened to hold four keys.
+    """
+    problems: list[str] = []
+    if sorted(instruments) != sorted(INSTRUMENT_CLASS):
+        problems.append(f"instrument registry is {sorted(instruments)}, this check "
+                        f"expects {sorted(INSTRUMENT_CLASS)} - add the new instrument "
+                        f"here with the class it may be run against")
+        return problems
+    for identifier, want in sorted(INSTRUMENT_CLASS.items()):
+        if instruments[identifier] != want:
+            problems.append(f"{identifier}: declared {instruments[identifier]!r}, "
+                            f"expected {want!r}")
+    for identifier, want in sorted(instruments.items()):
+        for task in sorted(aspects_mod._task_classes()):
+            refused = aspects_mod.applicability(identifier, task)
+            same = task_class(task) == want
+            if same and refused:
+                problems.append(f"{identifier} on {task}: same class, refused anyway "
+                                f"({refused[:80]})")
+            if not same and not refused:
+                problems.append(f"{identifier} on {task}: a {want} instrument was "
+                                f"admitted on a {task_class(task)}")
+        if not aspects_mod.applicability(identifier, "an-id-no-suite-defines"):
+            problems.append(f"{identifier}: admitted a task id whose class cannot be "
+                            f"established - the guard fails open")
+    if not aspects_mod.applicability("not-an-instrument-at-all", "g1_pong"):
+        problems.append("an unknown instrument id was admitted")
+    return problems
+
+
 def main() -> int:
     failures = 0
 
@@ -372,6 +413,27 @@ def main() -> int:
     print(f"  {'ok  ' if id_shape_agrees(doctored) else 'FAIL'}  "
           f"MUTANT: a scene task the map calls a game is caught")
     failures += not id_shape_agrees(doctored)
+
+    # DETERMINISTIC INSTRUMENTS, driven from here for the same reason the id-shape
+    # fallback is: its subject is the instrument map, not the aspect set.
+    print("\nnon-aspect instruments are guarded by the same function")
+    live_instruments = dict(aspects_mod.INSTRUMENTS)
+    inst_problems = instruments_are_guarded(live_instruments)
+    print(f"  {'ok  ' if not inst_problems else 'FAIL'}  "
+          f"{len(live_instruments)} instrument(s) declare a class and are refused "
+          f"off it")
+    for problem in inst_problems:
+        print(f"          {problem}")
+    failures += bool(inst_problems)
+
+    # MUTANT: the scene probe is declared a game instrument. Nothing raises, every id
+    # still resolves, and `evaluate` would drive a scene probe at a game.
+    reclassed = dict(live_instruments)
+    reclassed["scene_probe"] = "game"
+    caught = bool(instruments_are_guarded(reclassed))
+    print(f"  {'ok  ' if caught else 'FAIL'}  "
+          f"MUTANT: scene_probe is declared a game instrument")
+    failures += not caught
 
     print(f"\n{'PASS' if not failures else f'BROKEN: {failures} failure(s)'}")
     return 1 if failures else 0

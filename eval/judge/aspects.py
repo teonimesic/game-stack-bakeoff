@@ -14,8 +14,16 @@ scores are never pooled (`eval/SCENES.md`), so every aspect declares the class i
 may be asked of in `Aspect.task_class`. The registry stays one dict because a
 second dict is a second place a reader has to know about, and `docstat.py`'s
 aspect census parses this one; `GAME_ASPECTS` and `SCENE_ASPECTS` are DERIVED from
-it, never listed by hand. `applicability()` is the guard, and `field.run_field`,
-`field.py pack` and `field_sweep.py` all call it before anything is spent.
+it, never listed by hand. `applicability()` is the guard, and all 6 paths that reach a
+graded task call it before anything is spent.
+
+IT GUARDS DETERMINISTIC INSTRUMENTS TOO, which is why it is not called
+`aspect_applicability`. "May this instrument be run against this task" is one question
+whether the instrument is an LLM aspect or a play-bot, and the play-bot is the one that
+fails silently: `evaluate.BOTS[task]` refuses a scene by raising `KeyError`, which is an
+accident of a dict lookup rather than a design, and a dict that gained a scene key would
+drive a bot at a scene with no player. `INSTRUMENTS` declares the class of every
+non-aspect instrument, and `applicability()` answers for both registries.
 """
 
 from __future__ import annotations
@@ -72,9 +80,10 @@ class Aspect:
     #: confident numbers about a question that was not asked - the same shape as
     #: judging `fun` over a code-only pack, which `run_field` already refuses.
     #:
-    #: `applicability()` is the guard. It is called from `field.run_field`,
-    #: `field.py pack` and `field_sweep.main`, because the resource being protected is
-    #: "a judge field run against a task" and that resource is reached by three paths.
+    #: `applicability()` is the guard, and it answers for `INSTRUMENTS` as well. It is
+    #: called from `field.run_field`, `field.py pack`, `field_sweep.main` and the 3
+    #: paths the runner reaches a grading instrument or a judge pack by, because the
+    #: resource being protected is "a graded task" and it is reached by six paths.
     task_class: str = "game"
     #: WHY A CROSS-STACK RANKING OF THIS ASPECT IS MEANINGLESS; `""` if there is none.
     #:
@@ -663,13 +672,54 @@ def task_class(task_id: str) -> str:
     return _SHAPE_CLASS[m.group("klass")] if m else UNKNOWN_TASK
 
 
-def applicability(aspect_id: str, task_id: str,
-                  registry: dict[str, Aspect] | None = None) -> str | None:
-    """`None` if this aspect may be asked of this task; otherwise why it may not.
+#: NON-ASPECT INSTRUMENTS, and the ONE task class each may be run against.
+#:
+#: An aspect declares its class on `Aspect.task_class`; a play-bot, the scene probe and
+#: the retired generalist judge have no `Aspect` to declare it on, and until 2026-08-25
+#: nothing declared it for them. What stood in for a guard was `evaluate.BOTS[task]`
+#: raising `KeyError` -- a refusal that exists only because the dict happens to hold four
+#: keys, and that disappears the moment anyone adds a fifth. `judge.py` had not even
+#: that: `GAME_BRIEF.get(game, "(unknown game)")` hands a scene to 13 criteria written
+#: about games and answers every one of them.
+#:
+#: These are ids, not modules, for the reason `Aspect.control_for` is a sentence rather
+#: than a flag: the thing that must be comparable across the two registries is the CLASS,
+#: and a module reference would make this table a second import graph.
+INSTRUMENTS: dict[str, str] = {
+    #: tier 2 for a game -- `judge/bot_*.py`, driven by `probe.drive`.
+    "playbot": "game",
+    #: tier 2 for a scene -- `judge/scene_probe.py`. Same weight, different instrument.
+    "scene_probe": "scene",
+    #: the RETIRED 13-criterion generalist judge, `judge/judge.py`, opt-in behind
+    #: `--with-legacy-judge`. Every one of its criteria is written about a game.
+    "legacy_judge": "game",
+}
 
-    THE GUARD FOR "asked only of scenes", and it is called from all 3 paths that reach
-    the resource -- `field.py pack`, `field.run_field` and `field_sweep.main` -- rather
-    than from whichever one was in front of the author (rule 13).
+
+def declared_class(instrument_id: str,
+                   registry: dict[str, Aspect] | None = None) -> str | None:
+    """The task class `instrument_id` may be run against, or None if it declares none."""
+    registry = ASPECTS if registry is None else registry
+    aspect = registry.get(instrument_id)
+    if aspect is not None:
+        return aspect.task_class
+    return INSTRUMENTS.get(instrument_id)
+
+
+def applicability(instrument_id: str, task_id: str,
+                  registry: dict[str, Aspect] | None = None) -> str | None:
+    """`None` if this instrument may be run against this task; otherwise why it may not.
+
+    THE GUARD FOR "asked only of scenes", called from all 6 paths that reach the
+    resource rather than from whichever one was in front of the author (rule 13):
+    `field.py pack`, `field.run_field`, `field_sweep.main`, and the 3 by which the RUNNER
+    reaches a grading instrument or a judge pack -- `evaluate.evaluate`'s up-front class
+    resolution, its tier-2 dispatch and its legacy tier-3 call.
+    `eval/tools/scene_runner_control.py --paths` prints the runner's 3 with their guards.
+
+    `instrument_id` is an aspect id or an `INSTRUMENTS` id. Both declare a task class
+    and the question asked of them is identical, so there is one guard rather than two
+    that can drift apart.
 
     Fails closed on an id it cannot classify: a field is one judge invocation over all
     8 submissions, and "I do not know what this task is" is not a reason to make it.
@@ -678,19 +728,22 @@ def applicability(aspect_id: str, task_id: str,
     aspect set. Callers in the harness pass nothing and get `ASPECTS`.
     """
     registry = ASPECTS if registry is None else registry
-    aspect = registry.get(aspect_id)
-    if aspect is None:
-        return (f"{aspect_id!r} is not an aspect. Known: {sorted(registry)}")
+    want = declared_class(instrument_id, registry)
+    if want is None:
+        return (f"{instrument_id!r} is not an aspect and not a declared instrument. "
+                f"Aspects: {sorted(registry)}; instruments: {sorted(INSTRUMENTS)}")
+    kind = "aspect" if instrument_id in registry else "instrument"
     klass = task_class(task_id)
     if klass == UNKNOWN_TASK:
         return (f"{task_id!r} is in neither eval/suites/wholegame_prompts.py nor "
                 f"eval/suites/scene_prompts.py and is not shaped like a task id, so "
                 f"its class cannot be established. Refusing rather than assuming: "
-                f"{aspect_id!r} is asked only of {aspect.task_class}s.")
-    if klass != aspect.task_class:
-        return (f"{aspect_id!r} is a {aspect.task_class} aspect and {task_id!r} is a "
+                f"{instrument_id!r} is asked only of {want}s.")
+    if klass != want:
+        peers = sorted(i for i, a in registry.items() if a.task_class == want)
+        peers += sorted(i for i, c in INSTRUMENTS.items() if c == want)
+        return (f"{instrument_id!r} is a {want} {kind} and {task_id!r} is a "
                 f"{klass}. Scene and game scores are never pooled (eval/SCENES.md), "
-                f"and an aspect asked of the wrong class returns eight confident "
-                f"numbers about a question nobody asked. {aspect.task_class}s here: "
-                f"{sorted(i for i, a in registry.items() if a.task_class == aspect.task_class)}")
+                f"and an instrument run against the wrong class returns confident "
+                f"numbers about a question nobody asked. {want}s here: {peers}")
     return None

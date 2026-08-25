@@ -37,12 +37,15 @@ score. `tools/prompt_guard.py` asserts both classes and gates a scene prompt aga
 `SCENES.md`'s own criterion vocabulary; `tools/prompt_guard_control.py` pins it in both
 directions.
 
-**Nothing has launched a scene yet, and the probe that grades one now exists** —
-`judge/scene_probe.py`, with `judge/scene_mutants.py` pinning it in both directions. So the
-scene class is at the stage the game class was before its first matrix: an instrument validated
-against fixtures its own author wrote, and against no submission. Read the honest expectation in
-`scene_probe.py`'s docstring before quoting a scene score, and see `judge/AGENTS.md` for what the
-tiers are.
+**`wholegame.py` launches a scene behind `--scenes`, which defaults to NONE**, so the standing
+matrix command builds none. `wholegame.select_tasks()` holds that decision and `DECISIONS.md` the
+reason; `tools/scene_runner_control.py --paths` prints the 6 routes by which the runner reaches a
+grading instrument or a judge pack, each guarded by `judge/aspects.applicability`.
+
+**1 scene has been built and graded** (`RUNS.md`), and every threshold in `judge/scene_probe.py`
+was still chosen against fixtures its own author wrote. Read the honest expectation in that
+docstring before quoting a scene score, and see `judge/AGENTS.md` for what the tiers are. First
+contact found a false negative in `layers.depth_ordered` and left 2 of 8 criteria unscored.
 
 **`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
 suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded

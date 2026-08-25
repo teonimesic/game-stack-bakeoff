@@ -136,6 +136,15 @@ jobs:
       - name: judge/scene_mutants --census-selftest
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/scene_mutants.py --census-selftest
+      # The RUNNER's side of the same question. `scene_mutants` asks whether each scene
+      # criterion can fail; this asks whether the harness can reach the right instrument
+      # at all and still refuse the wrong one -- 6 named routes from an operator's
+      # command to a grading instrument or a judge pack, each with a mutant. It drives
+      # judge/fixtures/ref_parallax through `just`, which is why it is here rather than
+      # in gates.yml.
+      - name: scene_runner_control (the runner's routes to a scene, both directions)
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/tools/scene_runner_control.py
       # NOT a count. This said "the five mutants" while there were 21, and task 122 made it
       # 25 -- a cardinal in a step name has no producer and cannot be checked, which is the
       # failure AGENTS.md's counts rule is about. `tasks_mutants.py --list` is the producer.
