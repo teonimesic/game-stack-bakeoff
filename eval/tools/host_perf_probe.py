@@ -226,10 +226,21 @@ def pct(xs: list[float], p: float) -> float:
 
     **This is not the nearest-rank definition and the two disagree**, which matters because the
     difference is silent: nearest rank is `ceil(p/100 * n)`, so on `[1,2,3,4]` at p25 it returns
-    `1` where this returns `2`. Both are standard, this one is numpy's `interpolation="nearest"`,
-    and `--selftest` pins that exact pair so the docstring and the formula cannot drift apart
-    again. It always returns a value that was actually observed — never an interpolation between
-    two frames, which is not a frame time anything measured.
+    `1` where this returns `2`. Both are standard — this one is numpy's `interpolation="nearest"`
+    — and `--selftest` pins that exact pair so the docstring and the formula cannot drift apart
+    again.
+
+    **How much the choice is worth, measured rather than argued**: over the 107 stored launches
+    behind `eval/PERF-HOST.md`, each an EVEN 600-frame sample, the 2 conventions return the same
+    median on 19 and differ on 88 — by at most **0.141%**, against a spread the report puts at
+    0.766–2.485%. Recomputing the published spread ranges under nearest rank moves them 0.784% ->
+    0.784% and 2.485% -> 2.478%. So the convention is a real choice with a bounded consequence,
+    and it is named here rather than left for a reader to infer from a formula.
+
+    Neither convention interpolates, so "it returns an observed frame time" argues for both and
+    decides nothing. What decides it is that the figures in `eval/PERF-HOST.md` were produced by
+    this formula: changing it silently would leave a document whose numbers the shipped tool no
+    longer reproduces.
     """
     if not xs:
         raise ValueError("empty series")
