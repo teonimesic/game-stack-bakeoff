@@ -660,9 +660,11 @@ effect for each declared event, and a `just audio-manifest` contract.
 
 **The prompt does not ask for a distinct sound per event, and no criterion here scores
 that.** The manifest section leaves sharing to the agent. `audio.distinct` counts
-distinct decoded sounds across the manifest's `sfx` entries and requires at least half
-as many as the game declares events — no more than that. The tier-3 `audio` aspect
-values well-chosen cues over uniqueness for its own sake.
+distinct decoded sounds across the manifest's `sfx` entries, and its floor is
+`max(2, ceil(n / 2))` — no more than that. `n` is the number of events the game
+declares, or, where the grader holds no declared-event list for the game, the number of
+decoded `sfx` entries. The tier-3 `audio` aspect values well-chosen cues over
+uniqueness for its own sake.
 
 Deterministic checks come first, because most audio failures are mechanical:
 
@@ -703,6 +705,11 @@ for an undeclared event does not fail `audio.manifest`. So a Pong submission map
 a floor of 3 and passes, where the same submission without the extras scores 1 and
 fails. Until that is repaired, read a passing `audio.distinct` as *the manifest contains
 enough distinct sounds*, not as *the declared events sound different from each other*.
+
+**Where the grader holds no declared-event list, the denominator falls back to the
+decoded `sfx` entries** and the criterion floors on the submission's own manifest rather
+than on the task. That is the state `g4_platformer` is in today (`tasks/151`), and it
+makes `audio.manifest` unfailable on that game as well, since nothing is then missing.
 
 Only what is left after those is asked of a judge: does the music suit this game, are
 the effects readable and distinguishable in play, is anything harsh or fatiguing.

@@ -2075,7 +2075,21 @@ def _regime_ordinal_pins(verbose: bool = False) -> list[str]:
     # The variant. Every compound ordinal ends in a word that is itself an ordinal, so a
     # trigger that alternates ORDINALS files `TWENTY-FIRST` under `first` -- and a document
     # whose breaks run 1..21 then reads as a gap at 2, 3, 4. That is what shipped.
-    compound = ["## a %s comparability break" % w.upper() for w in ORDINALS[:22]]
+    #
+    # THE WORDS ARE WRITTEN OUT, not sliced from ORDINALS. A control that imports its
+    # expectation from its subject is not a control (AGENTS.md rule 12, task 113): built as
+    # `ORDINALS[:22]`, a regression trimming the tuple back to `twentieth` would silently
+    # hand this case 20 SIMPLE ordinals, and it would go green having tested no compound one
+    # at all -- green for the absence of the thing it exists to check.
+    COMPOUND_FIXTURE = (
+        "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+        "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
+        "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth",
+        "twenty-first", "twenty-second")
+    if len(COMPOUND_FIXTURE) != 22 or "twenty-second" not in COMPOUND_FIXTURE:
+        out.append("the compound-ordinal fixture no longer runs to twenty-second, so the "
+                   "variant it exists to pin is not being tested")
+    compound = ["## a %s comparability break" % w.upper() for w in COMPOUND_FIXTURE]
     case("green, 22 breaks running first..twenty-second (the compound-ordinal variant)",
          "\n".join(compound) + "\n", None)
     case("green, an ordinal cited in prose under its own heading",
