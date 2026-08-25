@@ -24,8 +24,8 @@ Definition of done:
 - `just run` opens a window and the game is actually playable with a keyboard.
 - The game presents itself: a player who has never seen it can tell what to do, can
   see their progress while playing, and reaches a clear end state.
-- The game has sound — looping background music, and a distinct sound effect for each
-  of the events listed below.
+- The game has sound — looping background music, and a sound effect for each of the
+  events listed below.
 - The game is covered by tests you write, in the same three tiers the starter uses:
   simulation tests, replay/determinism tests, and rendering tests.
 - The probe protocol below works, because that is how the game is driven without a

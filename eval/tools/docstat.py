@@ -1918,10 +1918,25 @@ def cmd_citations(as_json: bool = False) -> int:
 
 ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
             "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
-            "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth")
+            "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth",
+            "twenty-first", "twenty-second", "twenty-third", "twenty-fourth", "twenty-fifth",
+            "twenty-sixth", "twenty-seventh", "twenty-eighth", "twenty-ninth", "thirtieth",
+            "thirty-first", "thirty-second", "thirty-third", "thirty-fourth", "thirty-fifth",
+            "thirty-sixth", "thirty-seventh", "thirty-eighth", "thirty-ninth", "fortieth")
+
+#: The ordinal word a heading uses, whatever it is. Matched GENERICALLY rather than by
+#: alternating `ORDINALS`, so a word the list does not carry is reported instead of missed.
+_BREAK_HEADING = re.compile(r"\b([A-Za-z][A-Za-z-]*)\s+comparability break", re.I)
+
+#: An ATX heading, INCLUDING the up-to-three leading spaces CommonMark allows. `startswith("#")`
+#: was the test until 2026-08-25 and it is a stricter reader than the renderer: ` ## a SEVENTH
+#: comparability break` heads a section in every markdown viewer and was invisible here, so an
+#: indented duplicate ordinal evaded the collision check entirely. A fourth space makes it an
+#: indented code block rather than a heading, which is why the bound is 3 and not `*`.
+_ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 
 
-def _check_regime_ordinals() -> list[str]:
+def _regime_ordinal_problems(text: str) -> list[str]:
     """A comparability break's ordinal must name exactly one break.
 
     THE FOURTH IDENTIFIER NAMESPACE TO COLLIDE, and for the same reason as the other three.
@@ -1939,24 +1954,41 @@ def _check_regime_ordinals() -> list[str]:
     starter edit as the seventh comparability break" -- and a check that counted those
     would fire on correct documents, which is how a gate gets disabled. A first pass at
     this counted every mention and reported two collisions that were not there.
+
+    THE ORDINAL IS READ GENERICALLY, AND THAT IS THE POINT. `ORDINALS` used to be
+    alternated straight into the pattern, which is an enumeration as a trigger (AGENTS.md,
+    the rule audit) -- and it ran out. The list ended at `twentieth`, so the twenty-first
+    break matched `\\bFIRST\\s+comparability break` inside the word `TWENTY-FIRST` and was
+    filed under `first`: a correct document read as a gap at `second, third, fourth`, and a
+    second twenty-first break would have been reported as colliding with a `first` that does
+    not exist (`tasks/142`). Reading whatever word the heading uses and reporting an
+    unrecognised one turns running out of list from a WRONG ANSWER into a LOUD one -- the
+    list still has to be extended, but the extension is asked for rather than guessed at.
+
+    A FUNCTION OF ITS INPUT, so `--selftest` can hand it a document instead of the tree.
     """
-    path = os.path.join(ROOT, "eval", "RUNS.md")
-    if not os.path.exists(path):
-        return [f"eval/RUNS.md not found at {path} - this check ran over nothing"]
-    text = open(path, encoding="utf-8", errors="replace").read()
     lines = text.split("\n")
     fenced = _fence_mask(lines)
     seen: dict[str, list[int]] = {}
+    problems: list[str] = []
     for i, ln in enumerate(lines, 1):
-        if fenced[i - 1] or not ln.startswith("#"):
+        if fenced[i - 1] or not _ATX_HEADING.match(ln):
             continue
-        m = re.search(r"\b(" + "|".join(ORDINALS) + r")\s+comparability break", ln, re.I)
-        if m:
-            seen.setdefault(m.group(1).lower(), []).append(i)
+        m = _BREAK_HEADING.search(ln)
+        if not m:
+            continue
+        word = m.group(1).lower()
+        if word not in ORDINALS:
+            problems.append(
+                f"eval/RUNS.md line {i} heads a section '{m.group(1)} comparability break' "
+                f"and '{word}' is not an ordinal this check knows - either the heading is "
+                f"malformed or ORDINALS in eval/tools/docstat.py needs extending past "
+                f"'{ORDINALS[-1]}'. Until then the ordering and gap checks cannot see it.")
+            continue
+        seen.setdefault(word, []).append(i)
     if not seen:
-        return ["no comparability-break headings parsed from eval/RUNS.md - the wording "
-                "has changed and this check is reading nothing"]
-    problems = []
+        return problems + ["no comparability-break headings parsed from eval/RUNS.md - the "
+                           "wording has changed and this check is reading nothing"]
     for word, at in sorted(seen.items(), key=lambda kv: ORDINALS.index(kv[0])):
         if len(at) > 1:
             problems.append(
@@ -1970,6 +2002,112 @@ def _check_regime_ordinals() -> list[str]:
                         f"{ORDINALS[idx[0]]} and {ORDINALS[idx[-1]]} - a gap means a "
                         f"citation resolves to nothing")
     return problems
+
+
+def _check_regime_ordinals() -> list[str]:
+    """`_regime_ordinal_problems` over the real `eval/RUNS.md`."""
+    path = os.path.join(ROOT, "eval", "RUNS.md")
+    if not os.path.exists(path):
+        return [f"eval/RUNS.md not found at {path} - this check ran over nothing"]
+    return _regime_ordinal_problems(
+        open(path, encoding="utf-8", errors="replace").read())
+
+
+def _regime_ordinal_pins(verbose: bool = False) -> list[str]:
+    """Pin the regime-ordinal check in both directions, including the case that broke it.
+
+    The RED half asks whether the check can fail: a collision, a gap, a heading whose
+    ordinal the list does not carry, and a corpus with no heading at all.
+
+    The GREEN half is the one that matters here, because the defect this replaces was a
+    FALSE POSITIVE on correct input -- a real twenty-first break read as a gap. A mutant
+    could never have found it: nothing was missing from the check, it answered the wrong
+    thing on an input it mishandled, which only a variant asks (AGENTS.md rule 15). So the
+    green cases are compound ordinals, an ordinal cited in PROSE beside a heading, and one
+    inside a fence.
+
+    EVERY RED CASE NAMES THE DIAGNOSTIC IT EXPECTS, and that is not tidiness. This function
+    has four distinct failure messages, and one of them -- "no comparability-break headings
+    parsed" -- fires whenever the scan finds nothing at all. A red pin asserting only
+    `bool(got)` therefore passes when the parser has stopped recognising headings entirely,
+    which is the exact defect the scan exists to notice. `expect` is the fragment the case
+    is really about, so a pin can only go green for its own reason.
+    """
+    out: list[str] = []
+
+    def case(name: str, text: str, expect: str | None):
+        """`expect` is a required fragment of the diagnostic, or None meaning silent."""
+        got = _regime_ordinal_problems(text)
+        if expect is None:
+            good, want = not got, "0 hit(s)"
+        else:
+            good, want = any(expect in g for g in got), f"a hit saying {expect!r}"
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: {len(got)} hit(s), "
+                  f"expected {want}")
+        if not good:
+            out.append(f"the regime-ordinal pin '{name}' came out wrong: {len(got)} "
+                       f"hit(s), expected {want} - {got[:2]}")
+
+    _COLLISION = "the ordinal is the citation key"
+    _GAP = "a gap means a citation resolves to nothing"
+    _UNKNOWN = "is not an ordinal this check knows"
+    _NOTHING = "this check is reading nothing"
+
+    head = os.path.join(ROOT, "eval", "RUNS.md")
+    if os.path.exists(head):
+        case("green, eval/RUNS.md at HEAD",
+             open(head, encoding="utf-8", errors="replace").read(), None)
+
+    run = ["## a FIRST comparability break", "## a SECOND comparability break"]
+    case("green, two consecutive ordinals", "\n".join(run) + "\n", None)
+    case("red, the same ordinal heads two sections",
+         "\n".join(run + ["## another SECOND comparability break"]) + "\n", _COLLISION)
+    case("red, a gap in the middle",
+         "\n".join(run + ["## a FOURTH comparability break"]) + "\n", _GAP)
+    case("red, an ordinal past the end of ORDINALS",
+         "\n".join(run + ["## a FIFTY-FIRST comparability break"]) + "\n", _UNKNOWN)
+    case("red, a heading with no ordinal at all",
+         "## the starters changed, a comparability break\n", _UNKNOWN)
+    case("red, no comparability-break heading anywhere",
+         "## the starters changed on 2026-08-25\n", _NOTHING)
+
+    # The variant. Every compound ordinal ends in a word that is itself an ordinal, so a
+    # trigger that alternates ORDINALS files `TWENTY-FIRST` under `first` -- and a document
+    # whose breaks run 1..21 then reads as a gap at 2, 3, 4. That is what shipped.
+    #
+    # THE WORDS ARE WRITTEN OUT, not sliced from ORDINALS. A control that imports its
+    # expectation from its subject is not a control (AGENTS.md rule 12, task 113): built as
+    # `ORDINALS[:22]`, a regression trimming the tuple back to `twentieth` would silently
+    # hand this case 20 SIMPLE ordinals, and it would go green having tested no compound one
+    # at all -- green for the absence of the thing it exists to check.
+    COMPOUND_FIXTURE = (
+        "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+        "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
+        "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth",
+        "twenty-first", "twenty-second")
+    if len(COMPOUND_FIXTURE) != 22 or "twenty-second" not in COMPOUND_FIXTURE:
+        out.append("the compound-ordinal fixture no longer runs to twenty-second, so the "
+                   "variant it exists to pin is not being tested")
+    compound = ["## a %s comparability break" % w.upper() for w in COMPOUND_FIXTURE]
+    case("green, 22 breaks running first..twenty-second (the compound-ordinal variant)",
+         "\n".join(compound) + "\n", None)
+    case("green, an ordinal cited in prose under its own heading",
+         "## a FIRST comparability break\n\nSame starter edit as the first comparability "
+         "break, and unlike the first comparability break it changes no score.\n", None)
+    case("green, a heading-shaped line inside a fence",
+         "## a FIRST comparability break\n\n```\n## a FIRST comparability break\n```\n",
+         None)
+
+    # An ATX heading may carry up to three leading spaces. `startswith("#")` read those as
+    # prose, so an indented duplicate ordinal was invisible to the collision check while
+    # rendering as a heading everywhere else. Three spaces is a heading; four is an indented
+    # code block, and must stay invisible -- both directions, or the fix is a new defect.
+    case("red, an indented duplicate ordinal (up to 3 spaces is still a heading)",
+         "\n".join(run + ["   ## another SECOND comparability break"]) + "\n", _COLLISION)
+    case("green, 4 spaces is an indented code block, not a heading",
+         "\n".join(run + ["    ## another SECOND comparability break"]) + "\n", None)
+    return out
 
 
 #: A sentence that claims the aspect list is COMPLETE.
@@ -3857,6 +3995,8 @@ def cmd_selftest() -> int:
     print()
     failed += _duplicate_fragment_pins(verbose=True)
     print()
+    failed += _regime_ordinal_pins(verbose=True)
+    print()
     failed += _corpus_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
@@ -4274,6 +4414,9 @@ def cmd_sweep() -> int:
           f"the out-of-range citation census pinned red and green over 10 cases and its "
           f"population pinned against ARCHIVE_PATHS (--citations is the producer, and "
           f"gates nothing); "
+          f"regime ordinals: {len(ORDINALS)} known, headings read generically so an "
+          f"unrecognised one is reported rather than missed (pinned red and green, "
+          f"including the compound-ordinal variant; --selftest); "
           f"{wsummary}; renumber triage: {len(_load_triage())} adjudicated row(s), each "
           f"still matching exactly one line of the document it names")
     return 0
