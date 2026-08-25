@@ -1,7 +1,7 @@
 # The SLOW tier: the mutant suites, and the two selftests that spend real seconds.
 #
-# Split out of gates.yml for one reason and it is not tidiness: LATENCY. This job is 685s
-# measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s) against the
+# Split out of gates.yml for one reason and it is not tidiness: LATENCY. This job is 791s
+# measured (bot_mutants 286s, tasks_mutants 305s, skill_layout 75s) against the
 # fast tier's 42s, and both are required checks, so running them on every event would put
 # eleven minutes in front of every merge for checks whose inputs are only source.
 #

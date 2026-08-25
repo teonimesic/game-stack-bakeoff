@@ -10,7 +10,7 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 47 documentation, queue and selftest gates | 8 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **102s** | **685s** |
+| takes | **102s** | **791s** |
 
 **Every number in that table has a producer, and none of them is remembered.** The check counts
 come from `python3 eval/tools/ci_minutes.py --gates`, which reads the workflows and counts steps
@@ -40,7 +40,7 @@ the working tree survives.
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `aim_contract_control`, `scene_mutants` and its `--census-selftest`, `tasks_mutants`,
 `audio_selftest`, `rusage_selftest`, `skill_layout_control`. `aim_contract_control` is there
-for the toolchain reason rather than the wall-clock one — 5.2s, and it drives the arena
+for the toolchain reason rather than the wall-clock one — 11s, and it drives the arena
 fixture through `just probe`.
 
 ### Where `controls.yml`'s filter lives, and why it is not in `on:`
