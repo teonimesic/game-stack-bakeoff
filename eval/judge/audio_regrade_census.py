@@ -125,7 +125,14 @@ def regroup(audio_block: dict, expected: tuple[str, ...]
     if not all(isinstance(v, dict) for v in clips.values()):
         return None, 0, "GROUPS_INCOMPLETE"
     labels = sfx_labels_in_scan_order(clips)
-    basename = {lab: Path(str(clips[lab].get("path", ""))).name for lab in labels}
+    # A path is what identifies a clip here, so an unusable one is not a clip. `str()`
+    # over a missing or non-string value yields `""` or `"None"`, and a group list
+    # holding the same value would then match it - unreadable evidence scored as a
+    # partition (rule 7).
+    if any(not isinstance(clips[lab].get("path"), str)
+           or not Path(clips[lab]["path"]).name for lab in labels):
+        return None, 0, "GROUPS_INCOMPLETE"
+    basename = {lab: Path(clips[lab]["path"]).name for lab in labels}
 
     by_name: dict[str, set[str]] = {}
     for lab in labels:
@@ -429,6 +436,22 @@ def selftest() -> int:
             else:
                 b[key] = value
         row(label, b, "g1_pong", "GROUPS_INCOMPLETE")
+
+    # An sfx clip whose path cannot name a file. Each of these coerces to a basename a
+    # group list could carry - `""` or `"None"` - so without the guard the row scores.
+    for label, path in (("a missing path", None), ("an empty path", ""),
+                        ("a non-string path", 7), ("a path with no file part", "/")):
+        b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
+                   [[f"{e}.wav"] for e in pong], {})
+        bad = f"sfx.{pong[0]}"
+        if path is None:
+            del b["clips"][bad]["path"]
+        else:
+            b["clips"][bad]["path"] = path
+        b["distinct_sound_groups"] = [[Path(str(b["clips"][f"sfx.{e}"].get("path", "")))
+                                       .name for e in pong[:1]]] + \
+            [[f"{e}.wav"] for e in pong[1:]]
+        row(f"sfx clip with {label}", b, "g1_pong", "GROUPS_INCOMPLETE")
 
     for label, key, value, want_outcome in shapes:
         b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
