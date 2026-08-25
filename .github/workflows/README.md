@@ -37,8 +37,9 @@ run is what the runner's noise moves.
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
 control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that runs on Python
 alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
-each, and `judge/stored_rounds_mutants` with its `--variant-control` is offline at about 5
-seconds, because it drives a 0.6s selftest 7 times over a symlinked mirror of `eval/`.
+each. `judge/stored_rounds_mutants` is offline at about 4.3s — it drives a 0.6s selftest 8 times
+over a symlinked mirror of `eval/`, once as the control and once per mutant — and its
+`--variant-control` is a further 1.7s over 3 more runs.
 `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
 `sweep_bounds_control` are the code-side half of the same question — no producer prints a money
 sigil, and no sweep is bounded by a figure nobody is charged (#159). `field_ranks --selftest` and

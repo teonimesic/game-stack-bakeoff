@@ -81,7 +81,7 @@ What is checked, and why each direction is needed:
      VARIANT is a round stored `knowingly_truncated: true` whose hash is the
      truncated-state brief's: it reads `same` only if the census honours the state the
      round recorded, which no mutant of the population block can manufacture.
-     `stored_rounds_mutants.py` is the red half - 6 mutants and a `--variant-control`.
+     `stored_rounds_mutants.py` is the red half - 7 mutants and a `--variant-control`.
 
 Run:  python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim has drifted
 """
@@ -90,6 +90,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import itertools
 import json
 import re
 import shutil
@@ -341,7 +342,7 @@ def build(run: Path, aspect: aspects.Aspect, dest: Path, game: str = "g9_probe",
 def census_fixture(root: Path) -> Path:
     """A stored-runs tree whose census answer is stated in the caller, not computed.
 
-    7 rounds, and the shape of the real corpus rather than a flat list of it:
+    9 rounds, and the shape of the real corpus rather than a flat list of it:
 
     * `alpha/` - 2 `architecture` rounds hashed against the brief THIS checkout builds,
       so they must read `same`.
@@ -357,6 +358,10 @@ def census_fixture(root: Path) -> Path:
       stored before it existed: unassessable, not clean.
     * `gamma/` - 1 hashed `audio` round, which is a round and is not code, plus a JSON
       file that is not a round and a file that is not JSON.
+    * `delta/` - 1 hashed code round naming an aspect `aspects.py` does not define. Its
+      brief cannot be rebuilt, so it is neither `same` nor `moved` - and it is still one
+      of the rounds the headline counts, so it must appear in the population under a
+      third verdict rather than be dropped between the two.
     """
     audio, arch, idio = (aspects.ASPECTS[a] for a in ("audio", "architecture",
                                                       "idiomatic"))
@@ -387,6 +392,10 @@ def census_fixture(root: Path) -> Path:
     write("gamma/au.json", "audio", prov(audio, kt=False, real=True))
     (root / "gamma/notaround.json").write_text(json.dumps({"aspect": "audio"}))
     (root / "gamma/notjson.json").write_text("{")
+    # `sees` is spelled out because the aspect it names does not exist to be read off.
+    assert "architecture_v0" not in aspects.ASPECTS
+    write("delta/x1.json", "architecture_v0",
+          dict(prov(arch, kt=False, real=False), sees="code"))
     return root
 
 
@@ -1112,34 +1121,61 @@ def main() -> int:
         expect("census-fixture-runs", rc == 0,
                f"the census returned {rc} over the fixture tree, so every row below "
                f"would be asserting against an error path")
-        for label, want in (("stored judge rounds", 8), ("code-seeing", 7),
-                            ("carrying provenance.brief_sha256", 4),
+        for label, want in (("stored judge rounds", 9), ("code-seeing", 8),
+                            ("carrying provenance.brief_sha256", 5),
                             ("NO brief hash (unassessable)", 3)):
             line = next((ln for ln in out.splitlines() if label in ln), "")
             got = line.rsplit(":", 1)[-1].strip()
             expect(f"census-counts[{label}]", got == str(want),
                    f"the fixture holds {want} for {label!r} by construction - 2 hashed "
                    f"architecture rounds in `alpha`, 2 hashed idiomatic rounds nested 2 "
-                   f"deep, 3 hash-less code rounds in `beta`, 1 hashed audio round, and "
-                   f"2 files that are not rounds at all - but the census printed "
+                   f"deep, 3 hash-less code rounds in `beta`, 1 hashed audio round, 1 "
+                   f"hashed code round naming a dead aspect in `delta`, and 2 files "
+                   f"that are not rounds at all - but the census printed "
                    f"{got!r} on {line.strip()!r}")
         # The population block, which is what the RUNS.md row states in prose. Each
-        # tuple is (directory, aspect, knowingly_truncated, n, same, moved) and every
-        # value is a property of the fixture, stated here and nowhere else.
-        for dirname, aid, kt, n, same, moved in (
-                ("alpha", "architecture", "False", 2, 2, 0),
-                ("alpha/nested/deeper", "idiomatic", "True", 2, 1, 1)):
+        # tuple is (directory, aspect, knowingly_truncated, n, same, moved,
+        # unbuildable) and every value is a property of the fixture, stated here and
+        # nowhere else.
+        pop_rows = (("alpha", "architecture", "False", 2, 2, 0, 0),
+                    ("alpha/nested/deeper", "idiomatic", "True", 2, 1, 1, 0),
+                    ("delta", "architecture_v0", "False", 1, 0, 0, 1))
+        for dirname, aid, kt, n, same, moved, dead in pop_rows:
             hit = [ln for ln in out.splitlines()
                    if ln.split()[:1] == [dirname] and aid in ln]
             fields = hit[0].split() if hit else []
             expect(f"census-population[{dirname}:{aid}]",
                    len(hit) == 1 and fields[1:] == [aid, kt, str(n), str(same),
-                                                    str(moved)],
+                                                    str(moved), str(dead)],
                    f"the {n} hashed {aid} round(s) under {dirname!r} were stored with "
                    f"knowingly_truncated={kt} and rebuild {same} same / {moved} moved "
-                   f"against this checkout, but the census printed {hit!r}. A row that "
-                   f"names no directory and no pack state cannot tell a reader whether "
-                   f"the population it counted is still the one the prose describes")
+                   f"/ {dead} unbuildable against this checkout, but the census printed "
+                   f"{hit!r}. A row that names no directory and no pack state cannot "
+                   f"tell a reader whether the population it counted is still the one "
+                   f"the prose describes")
+        # THE POPULATION MUST ACCOUNT FOR EVERY ROUND THE HEADLINE COUNTS, read off the
+        # CENSUS'S OWN OUTPUT rather than off the literals above - those are the second,
+        # independent statement of the fact and summing them would only prove they add
+        # up (rule 12's corollary). Every printed row's n must equal same + moved +
+        # unbuildable, and the rows must sum to the hashed-code headline. The `delta`
+        # round is the one that would go missing.
+        lines = out.splitlines()
+        head = next(i for i, ln in enumerate(lines) if "the hashed CODE rounds" in ln)
+        body = itertools.takewhile(bool, lines[head + 2:])
+        printed = [ln.split()[-4:] for ln in body]
+        totals = [[int(v) for v in row] for row in printed]
+        # The headline is the census's own, not a literal - it is asserted against one
+        # above, and what THIS row asks is whether the two halves of one output agree.
+        headline = int(next(ln for ln in lines
+                            if "carrying provenance.brief_sha256" in ln).rsplit(":")[-1])
+        expect("census-population-accounts-for-every-hashed-code-round",
+               bool(totals) and sum(n for n, _s, _m, _u in totals) == headline
+               and all(n == s + m + u for n, s, m, u in totals),
+               f"the census printed population rows {printed!r}; their `n` must sum to "
+               f"the {headline} hashed code rounds its own headline counts, and each "
+               f"row's `n` must equal same + moved + unbuildable. A population that "
+               f"omits a record its own headline counts is the defect this block exists "
+               f"to end")
         expect("census-population-excludes-a-non-code-round",
                "gamma" not in out,
                f"the fixture's hashed AUDIO round is in `gamma`, and the population "
@@ -1232,24 +1268,33 @@ def stored_rounds_census(runs_root: Path) -> int:
         a = aspects.ASPECTS.get(aid)
         if a is None:
             unbuildable.append(p.name)
-            continue
-        txt = field._brief(a, prov.get("game") or d.get("game"),
-                           prov.get("capture_geometry"),
-                           knowingly_truncated=bool(prov.get("knowingly_truncated")))
-        h = hashlib.sha256(txt.encode()).hexdigest()[:16]
-        row = per_aspect.setdefault(aid, {"sees": sees, "n": 0, "same": 0, "moved": 0,
-                                          "chars": set()})
-        row["n"] += 1
-        verdict = "same" if h == prov["brief_sha256"] else "moved"
-        row[verdict] += 1
-        row["chars"].add((prov.get("brief_chars"), len(txt)))
+            verdict = "unbuildable"
+        else:
+            txt = field._brief(a, prov.get("game") or d.get("game"),
+                               prov.get("capture_geometry"),
+                               knowingly_truncated=bool(prov.get("knowingly_truncated")))
+            h = hashlib.sha256(txt.encode()).hexdigest()[:16]
+            row = per_aspect.setdefault(aid, {"sees": sees, "n": 0, "same": 0,
+                                              "moved": 0, "chars": set()})
+            row["n"] += 1
+            verdict = "same" if h == prov["brief_sha256"] else "moved"
+            row[verdict] += 1
+            row["chars"].add((prov.get("brief_chars"), len(txt)))
         if "code" in (sees or "").split("+"):
             # The FULL relative parent, not the top-level directory: a run directory is
             # not always a child of the root, and the rounds this row is about really
             # do sit in a dated sub-directory of one (#127).
+            #
+            # A ROUND WHOSE ASPECT NO LONGER EXISTS GETS A ROW TOO. Its brief cannot be
+            # rebuilt, so it is neither `same` nor `moved` - but it IS one of the rounds
+            # the headline counts, and a population that omits a record its own total
+            # includes is the defect this block was written to end. `n` is the sum of
+            # the three verdict columns, which is what makes that checkable rather than
+            # promised.
             key = (str(p.parent.relative_to(runs_root)), aid,
                    bool(prov.get("knowingly_truncated")))
-            pop = population.setdefault(key, {"n": 0, "same": 0, "moved": 0})
+            pop = population.setdefault(key, {"n": 0, "same": 0, "moved": 0,
+                                              "unbuildable": 0})
             pop["n"] += 1
             pop[verdict] += 1
     unassessable: dict[str, int] = {}
@@ -1279,10 +1324,10 @@ def stored_rounds_census(runs_root: Path) -> int:
     print("  the hashed CODE rounds - the population the prose beside the table "
           "describes:")
     print(f"    {'directory':{width}s} {'aspect':14s} {'knowingly_truncated':21s} "
-          f"{'n':>3s} {'same':>5s} {'moved':>6s}")
+          f"{'n':>3s} {'same':>5s} {'moved':>6s} {'unbuildable':>12s}")
     for (where, aid, kt), pop in sorted(population.items()):
         print(f"    {where:{width}s} {aid:14s} {str(kt):21s} {pop['n']:3d} "
-              f"{pop['same']:5d} {pop['moved']:6d}")
+              f"{pop['same']:5d} {pop['moved']:6d} {pop['unbuildable']:12d}")
     print()
     print("  the code rounds with NO brief hash, by directory - unassessable, not clean:")
     for where, n in sorted(unassessable.items()):

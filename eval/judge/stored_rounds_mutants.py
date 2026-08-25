@@ -29,6 +29,7 @@ Every one of these leaves a census that runs, exits 0 and prints a plausible tab
 | `unassessable_directories_dropped` | the by-directory listing of the hash-less rounds | 26 rounds called *permanently unassessable* with no population named, so nothing says when that set grows |
 | `rebuild_ignores_pack_state` | the recorded state passed to the rebuild | every round rebuilt in the complete state, so a truncated round reads `moved` - **a drift reported where none happened**. Only the VARIANT catches this |
 | `census_walk_one_level` | the depth-independent walk | 4 of the 14 real hashed code rounds sit 2 levels down and would vanish from every count |
+| `unbuildable_dropped_from_population` | the row for a round whose aspect no longer exists | a round the headline counts and the population omits, which is this file's own defect one level in. `n = same + moved + unbuildable` per row is what makes it visible |
 
 THE VARIANT (rule 15)
 ---------------------
@@ -44,7 +45,7 @@ SURVIVE. Measured 2026-08-25 - survives without it, caught with it.
 **Needs no corpus.** The fixture is built under `tempfile` by `blurb_selftest.py` itself,
 so this runs anywhere, including an agent worktree with no `eval/runs/`.
 
-    python3 eval/judge/stored_rounds_mutants.py                    # every mutant, ~5s
+    python3 eval/judge/stored_rounds_mutants.py                    # every mutant, ~4.3s
     python3 eval/judge/stored_rounds_mutants.py --list             # the count and names
     python3 eval/judge/stored_rounds_mutants.py --variant-control  # is the variant needed
 """
@@ -79,14 +80,17 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "    for where, n in sorted(unassessable.items()):",
         "    for where, n in sorted({}.items()):"),
     "rebuild_ignores_pack_state": (
-        '                           knowingly_truncated='
+        '                               knowingly_truncated='
         'bool(prov.get("knowingly_truncated")))\n'
-        "        h = hashlib.sha256",
-        "                           knowingly_truncated=False)\n"
-        "        h = hashlib.sha256"),
+        "            h = hashlib.sha256",
+        "                               knowingly_truncated=False)\n"
+        "            h = hashlib.sha256"),
     "census_walk_one_level": (
         '    for p in sorted(runs_root.rglob("*.json")):',
         '    for p in sorted(runs_root.glob("*/*.json")):'),
+    "unbuildable_dropped_from_population": (
+        '            unbuildable.append(p.name)\n            verdict = "unbuildable"',
+        "            unbuildable.append(p.name)\n            continue"),
 }
 
 #: Removes the variant round from the fixture, restoring the shape it had before rule 15
@@ -94,12 +98,12 @@ MUTANTS: dict[str, tuple[str, str]] = {
 DROP_VARIANT: tuple[tuple[str, str], ...] = (
     ('    write("alpha/nested/deeper/i1.json", "idiomatic", '
      "prov(idio, kt=True, real=True))\n", ""),
-    ('("alpha/nested/deeper", "idiomatic", "True", 2, 1, 1)',
-     '("alpha/nested/deeper", "idiomatic", "True", 1, 0, 1)'),
-    ('("stored judge rounds", 8), ("code-seeing", 7),\n'
-     '                            ("carrying provenance.brief_sha256", 4),',
-     '("stored judge rounds", 7), ("code-seeing", 6),\n'
-     '                            ("carrying provenance.brief_sha256", 3),'),
+    ('("alpha/nested/deeper", "idiomatic", "True", 2, 1, 1, 0)',
+     '("alpha/nested/deeper", "idiomatic", "True", 1, 0, 1, 0)'),
+    ('("stored judge rounds", 9), ("code-seeing", 8),\n'
+     '                            ("carrying provenance.brief_sha256", 5),',
+     '("stored judge rounds", 8), ("code-seeing", 7),\n'
+     '                            ("carrying provenance.brief_sha256", 4),'),
 )
 
 

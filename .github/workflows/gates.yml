@@ -230,7 +230,8 @@ jobs:
       # The red half of `blurb_selftest`'s stored-round census arm. That census reads
       # `eval/runs/`, which is gitignored, so the fixture inside the selftest is the only
       # thing any gate can see it through - and a green fixture is the shape rule 1
-      # distrusts. Offline, ~5 s: 7 runs of a 0.6 s selftest over a symlinked mirror.
+      # distrusts. Offline: 4.3 s over 8 runs of a 0.6 s selftest against a symlinked
+      # mirror, plus 1.7 s over 3 more for --variant-control.
       - name: judge/stored_rounds_mutants (can the census arm fail?)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/stored_rounds_mutants.py

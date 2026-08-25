@@ -449,16 +449,16 @@ deleted completeness claim and a scene the packer cannot state. **The claims it 
 all about the packer** — `SCENE.md` claims what the task was, and the frames blurb claims who is
 watching — so each is checked against what it is a function of.
 
-**`--stored-rounds` is the producer for every figure in `eval/RUNS.md`'s section on this, and
-for the POPULATION beside each one.** It prints the directory and the recorded pack state of
-every code round it counts, hashed and unassessable alike, because a population with no producer
-goes stale forever exactly as a quantity with no producer does — the prose beside that table said
-*all in `wg-aspect-reliability`* for two days after a sweep put four more rounds somewhere else,
-with the producer's own command printed directly above it (task 132). It reads a gitignored
-directory, so `blurb_selftest.py` builds a fixture tree whose answer is written out as literals
-and asserts the census against it; `judge/stored_rounds_mutants.py` is the red half, **6 mutants
-and 1 variant**, and `--variant-control` measures that the variant catches what no mutant does
-rather than asserting it.
+**`--stored-rounds` is the producer for every figure in `eval/RUNS.md`'s section on this, and for
+the POPULATION beside each one** — a population with no producer goes stale exactly as a quantity
+with no producer does. It prints the directory and the recorded pack state of every code round it
+counts, hashed and unassessable alike, and every hashed row carries `n = same + moved +
+unbuildable`, so a record the headline counts cannot go missing between two verdicts.
+
+It reads a gitignored directory, so `blurb_selftest.py` builds a fixture tree whose answer is
+written out as literals and asserts the census against it. `judge/stored_rounds_mutants.py` is the
+red half — **7 mutants**, plus `--variant-control`, which measures that the variant catches what
+no mutant does rather than asserting it.
 
 **Where the caution-vocabulary check is aimed was chosen on the false-positive count, not on
 which address sounded more general** (rule 12, and the census-trigger derivation in
