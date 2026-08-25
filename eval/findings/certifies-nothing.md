@@ -5341,9 +5341,21 @@ built the main corpus with `glob("**")`. The knowledge and the bug shipped in on
 not a check, because nothing compares the two.**
 
 The scope is wider than the register, measured the same way: **a phantom flag planted in a
-`SKILL.md` is not caught either** — all 10 skills are in `reference_docs()` and none is in
-`project_docs()`, so the flag census reads none of them. Skills are where commands and flags are
-most densely written.
+`SKILL.md` is not caught either.**
+
+> **CORRECTION, same day.** This paragraph first attributed that to the corpus — *"all 10 skills
+> are in `reference_docs()` and none is in `project_docs()`"*. **That mechanism is wrong**, and the
+> agent working `tasks/147` said so. Skills are in the corpus; the backticked-flag check is gated
+> **file-wide** on `(wholegame|runner|judge/|evaluate|regrade)\.py`, so a document naming none of
+> those never has its backticked flags checked at all.
+>
+> Re-measured decisively: the identical plant gives **exit 1** in
+> `.agents/skills/evaluate-run/SKILL.md`, which names a harness, and **exit 0** in
+> `.agents/skills/prune/SKILL.md`, which does not. **4 of 10 skills name one; 6 do not.**
+>
+> The symptom was real and the cause was invented from one observation — the same failure as #168,
+> committed while writing up #170. Two documents disagreeing with a corpus listing is a hypothesis;
+> the pair of plants that separate them is the measurement.
 
 ### The repair is half a repair, and that half is the interesting one
 

@@ -48,3 +48,47 @@ believe skill flags are checked.
 Do not widen `project_docs()` without measuring what the ratchet does. And do not verify a fix by
 planting a flag only in a skill: plant in a skill AND in a document already covered, so a
 green-everywhere result cannot come from a broken plant.
+
+## note 2026-08-24
+
+## note 2026-08-24 — THE CAUSE IN THIS TICKET'S BODY IS WRONG. Read this before the body.
+
+The body says the flag census reads `project_docs()` and that skills are outside it. **That is not
+the mechanism.** Corrected by the agent working `tasks/147`, and re-measured here decisively:
+
+| identical plant, `` `--zzqwerty-nonexistent` `` | `--sweep` |
+|---|---|
+| `.agents/skills/evaluate-run/SKILL.md` — **names a harness** | **exit 1** |
+| `.agents/skills/prune/SKILL.md` — names none | exit 0 |
+
+Skills **are** in the corpus. The backticked-flag half is gated **file-wide** at
+`docstat.py:3664`, `re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", text)`, and only
+runs when the document names one of those four. **4 of the 10 skills do; 6 do not**, and those 6
+have their backticked flags unchecked.
+
+The bare-fenced half is deliberately outside that gate, and its own docstring says why: the
+document-wide form *"hid a false positive for three weeks until an unrelated edit added a harness
+name"*.
+
+## What this changes about the ticket
+
+The `done_when` still stands — a planted flag in a skill must turn `--sweep` red, proved alongside
+a plant in a document already covered. **What must not happen is the repair the wrong cause
+implies:** widening `project_docs()` would not fix this and would move the exact-count ratchet in
+the passing direction for nothing.
+
+**The obvious repair here is also measured and also bad.** Task 147's agent widened the harness
+trigger to `_our_script_names()`: 43 documents to 165, **25 new rows, 0 true positives** — `gh`,
+`git`, Godot and Chrome flags. So the file-wide trigger cannot simply be opened up, and this is the
+census-trigger lesson again: choose on the live false-positive count, not on which sounds more
+general.
+
+That makes **recording the exclusion the likely right answer**, and closing this ticket that way is
+success, not a shortfall. Task 147 already records it in three places for the register; this ticket
+is the same question for the 6 skills that name no harness.
+
+## What NOT to conclude from this note
+
+That the class is understood. **Two mechanisms have now been proposed for one symptom and the first
+was wrong** (#170 carries the correction). Before changing anything, reproduce both plants above
+and confirm the split is the harness name and not something else that happens to correlate with it.
