@@ -2695,9 +2695,9 @@ missing, undecodable, or not this scene's statement, because a pack is built onc
 from a directory anything may have touched (rule 13). **Existence is not the resource**: an empty
 file and the other scene's statement both pass a presence test, and a field scored against the
 wrong subject is worse than one scored against none, because it looks like an answer. There is no
-escape flag — a pack whose statement differs from this checkout's was built for a different
-subject, and with 0 stored scene packs there is nothing to grandfather, so an escape would be a
-fail-open channel with no measured need (rule 7).
+escape flag — a pack whose `SCENE.md` differs from this checkout's statement of its scene is
+refused, whatever produced the difference, and with 0 stored scene packs there is nothing to
+grandfather, so an escape would be a fail-open channel with no measured need (rule 7).
 
 **The statement it validated is recorded**, as `provenance.scene_statement_sha256`. The brief
 names `SCENE.md` and does not contain it, so `brief_sha256` cannot say which subject a round was

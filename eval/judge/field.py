@@ -1481,10 +1481,11 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
     # failure to establish it - unreadable, unstatable, unequal - is a refusal (rule 7,
     # rule 13).
     #
-    # NO ESCAPE FLAG. A pack whose statement differs from this checkout's was judged
-    # against a different subject and is a different experiment; re-pack it. There are 0
-    # stored scene packs, so there is nothing to grandfather and an escape would be a
-    # fail-open channel with no measured need.
+    # NO ESCAPE FLAG. The comparison establishes that the file differs; it does not
+    # establish HOW, and it does not need to (rule 2) - a stale pack, an edited file and
+    # a statement changed since packing are one observable state, and re-packing answers
+    # all three. There are 0 stored scene packs, so there is nothing to grandfather and
+    # an escape would be a fail-open channel with no measured need.
     statement_sha: str | None = None
     if task_class(mapping["game"]) == "scene":
         try:
