@@ -43,6 +43,10 @@ from docstat import SKILLS_REAL, SKILLS_LINKS
 
 CHILD = os.path.join(HERE, "_skill_layout_child.py")
 MINE = "somebody else's file\n"
+# The signals `install_handlers` must register, stated INDEPENDENTLY of the tool and compared
+# with it in a row of `pin_a_caught_signal_restores`. See that docstring for what sharing the
+# tool's tuple hid.
+CAUGHT = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 
 
 # ---------------------------------------------------------------------------------------
@@ -368,18 +372,34 @@ def _run_child(root: str, mode: str, sig: int) -> int:
     return proc.returncode
 
 
-def pin_sigterm_restores(p: Pins, tmp: str) -> None:
-    print("\nSIGTERM mid-plant: the handler restores before dying (and its mutant does not)")
-    root = make_fixture(os.path.join(tmp, "sigterm"))
-    rc = _run_child(root, "guarded", signal.SIGTERM)
-    p.check("child died of SIGTERM, not of exit(1)", rc, -signal.SIGTERM)
-    p.check("leftovers() clear after the kill", slc.leftovers(root), [])
-    p.check("git status clean after the kill", dirty(root), "")
-    p.check("the state file is gone too", slc.read_state(root), None)
+def pin_a_caught_signal_restores(p: Pins, tmp: str) -> None:
+    """EVERY signal `install_handlers` registers, not the one that produced the ticket.
+
+    SIGTERM alone left a missing SIGINT or SIGHUP handler completely invisible, and Ctrl-C is
+    the commonest way this ever gets interrupted by hand. CodeRabbit, PR #28.
+
+    THE POPULATION IS STATED HERE AND COMPARED TO THE TOOL'S, never imported from it. The
+    first version looped over `slc._SIGNALS` directly - which is AGENTS.md rule 12's
+    corollary, a control importing its expectation from its subject - and the mutant that
+    shrinks `_SIGNALS` to `(SIGTERM,)` came back SURVIVED, 0 red of 6, having quietly
+    shrunk the pin from 14 rows to 6. A row that compares the two is what makes a removal
+    visible; sharing the object is what hides it.
+    """
+    print("\na caught signal mid-plant restores before dying (and its mutant does not)")
+    p.check("the tool registers exactly the signals pinned below",
+            tuple(slc._SIGNALS), CAUGHT)
+    for sig in CAUGHT:
+        name = signal.Signals(sig).name
+        root = make_fixture(os.path.join(tmp, f"caught-{name}"))
+        rc = _run_child(root, "guarded", sig)
+        p.check(f"{name}: child died of the signal, not of exit(1)", rc, -sig)
+        p.check(f"{name}: leftovers() clear after the kill", slc.leftovers(root), [])
+        p.check(f"{name}: git status clean after the kill", dirty(root), "")
+        p.check(f"{name}: the state file is gone too", slc.read_state(root), None)
 
     # MUTANT: the handler is what does the work. Delete it and the same kill must break the
     # tree - otherwise this pin would be green on a tool with no crash safety at all.
-    mroot = make_fixture(os.path.join(tmp, "sigterm-mutant"))
+    mroot = make_fixture(os.path.join(tmp, "signal-mutant"))
     _run_child(mroot, "no-handler", signal.SIGTERM)
     p.check("MUTANT no handler: the tree IS left broken", bool(slc.leftovers(mroot)), True)
     p.check("MUTANT no handler: git status is dirty", dirty(mroot) != "", True)
@@ -415,6 +435,68 @@ def pin_sigkill_is_recovered_next_run(p: Pins, tmp: str) -> None:
             bool(slc.leftovers(mroot)), True)
 
 
+def pin_cmd_run_itself(p: Pins, tmp: str) -> None:
+    """Drive the REAL entry point, not the pieces it is built from.
+
+    Every other section here calls `hold()`, `recovery_verdict()` and `repair()` directly, so
+    a change that removed the lock from `cmd_run`, or removed its stale-run recovery, would
+    leave all of them green while allowing concurrent planting and leaving a SIGKILL-damaged
+    tree unrepaired. CodeRabbit, PR #28 - and it is AGENTS.md rule 1: a control that never
+    exercises the entry point is a control the entry point can be deleted from.
+
+    The five sweeps are stubbed through `cmd_run`'s `plants` seam and nothing else is. They
+    take two minutes and, run against a fixture, read the real repository's documents rather
+    than the fixture's - so they could only ever answer a question about this checkout.
+    """
+    print("\nthe normal entry point takes the lock, recovers, and reports the plants' result")
+    calls = []
+
+    def stub(root):
+        calls.append(root)
+        return 0
+
+    # 1. UNDER CONTENTION. A real second process holds the tree; cmd_run must refuse, and the
+    #    stub must never be reached - proving it stopped at the lock and not later.
+    root = make_fixture(os.path.join(tmp, "cmdrun-busy"))
+    holder = subprocess.Popen([sys.executable, CHILD, root, "lock"],
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        holder.stdout.readline()
+        p.check("cmd_run refuses while another run holds the tree",
+                slc.cmd_run(root, plants=stub), 1)
+        p.check("and it never reached the plants", calls, [])
+    finally:
+        holder.kill()
+        holder.wait(timeout=30)
+
+    # 2. AFTER A SIGKILL. The tree is damaged and the state file explains it; cmd_run must
+    #    repair before planting, and leave nothing behind.
+    kroot = make_fixture(os.path.join(tmp, "cmdrun-resume"))
+    _run_child(kroot, "guarded", signal.SIGKILL)
+    p.check("the SIGKILLed tree really is damaged", bool(slc.leftovers(kroot)), True)
+    calls.clear()
+    p.check("cmd_run returns the plants' result", slc.cmd_run(kroot, plants=stub), 0)
+    p.check("it reached the plants this time", calls, [kroot])
+    p.check("the leftover was repaired", slc.leftovers(kroot), [])
+    p.check("git status clean", dirty(kroot), "")
+    p.check("and the state file cleared", slc.read_state(kroot), None)
+
+    # 3. VARIANT: an unexplained leftover must still stop it, through the entry point.
+    rroot = make_fixture(os.path.join(tmp, "cmdrun-refuse"))
+    _run_child(rroot, "no-state", signal.SIGKILL)
+    calls.clear()
+    p.check("cmd_run refuses an unexplained leftover", slc.cmd_run(rroot, plants=stub), 1)
+    p.check("and never reached the plants", calls, [])
+    p.check("nothing was deleted for us", bool(slc.leftovers(rroot)), True)
+
+    # 4. VARIANT: a clean tree runs, and the failing case is reported rather than swallowed.
+    croot = make_fixture(os.path.join(tmp, "cmdrun-clean"))
+    p.check("a clean tree runs", slc.cmd_run(croot, plants=stub), 0)
+    p.check("a failing plant run is reported", slc.cmd_run(croot, plants=lambda r: 1), 1)
+    p.check("and it left the tree clean", dirty(croot), "")
+    p.check("and no state file", slc.read_state(croot), None)
+
+
 def pin_the_advice_says_what_to_do(p: Pins, _tmp: str) -> None:
     """The `or` half of the ticket: a red baseline must name the repair and the cause."""
     print("\nthe advice names the repair command, the cause, and every guarded path")
@@ -442,8 +524,9 @@ SECTIONS = (pin_each_plant_is_seen_and_repaired,
             pin_an_occupied_leaf_is_refused,
             pin_the_lock_holds_the_tree,
             pin_state_file_is_outside_the_work_tree,
-            pin_sigterm_restores,
+            pin_a_caught_signal_restores,
             pin_sigkill_is_recovered_next_run,
+            pin_cmd_run_itself,
             pin_the_advice_says_what_to_do)
 
 
@@ -469,8 +552,9 @@ def cmd_selftest() -> int:
         shutil.rmtree(tmp, ignore_errors=True)
     for f in p.failed:
         print(f"  {f}")
+    kills = ", ".join(signal.Signals(s).name for s in CAUGHT) + ", SIGKILL"
     print(f"\n{p.n - len(p.failed)}/{p.n} pins over {len(slc.PLANTS)} plants and "
-          f"{len(SECTIONS)} sections, with a real SIGTERM and a real SIGKILL")
+          f"{len(SECTIONS)} sections, with real kills: {kills}")
     return 1 if p.failed else 0
 
 

@@ -134,10 +134,16 @@ def hold(root: str = ROOT):
                 held = os.read(fd, 200).decode(errors="replace").strip()
             except OSError:
                 held = ""
+            # NEVER "delete the lock file". `flock` is held on the open file description's
+            # inode: unlinking the path leaves a live holder's lock exactly where it was, and
+            # the next run creates a NEW inode, locks that, and plants into the same tree -
+            # the failure this lock exists to prevent, reached by following our own advice.
+            # There is nothing to clean up by hand, ever. CodeRabbit, PR #28.
             raise Busy(
                 f"another run holds this work tree ({held or 'holder unknown'}). Two runs "
-                f"planting into one tree read each other's plants as leftovers. Wait for it, "
-                f"or delete {path} if you are sure nothing is running.") from exc
+                f"planting into one tree read each other's plants as leftovers. Wait for it "
+                f"to finish - the kernel releases {path} when the holder exits, SIGKILL "
+                f"included, so there is nothing to clean up by hand.") from exc
         os.ftruncate(fd, 0)
         os.write(fd, f"pid {os.getpid()} since {time.strftime('%Y-%m-%dT%H:%M:%S')}\n".encode())
         yield fd
@@ -511,16 +517,26 @@ def _repair_held(root: str) -> int:
     return 0
 
 
-def cmd_run(root: str = ROOT) -> int:
+def cmd_run(root: str = ROOT, plants=None) -> int:
+    """The normal entry point: take the lock, recover, plant, restore.
+
+    `plants` is a SEAM, not a hook. `skill_layout_selftest.py` passes a stub so that it can
+    drive THIS function - its lock acquisition and its stale-run recovery - against a fixture
+    without the five sweeps, which take two minutes and read the real document corpus rather
+    than the fixture's. Without it the selftest could only reach the pieces, and a change
+    removing the lock from here, or the recovery, would leave every pin green (CodeRabbit,
+    PR #28). It is an argument rather than a patch on the module, so what a test replaced is
+    visible at the call site.
+    """
     try:
         with hold(root):
-            return _run_held(root)
+            return _run_held(root, plants or _run_plants)
     except Busy as exc:
         say(f"REFUSING TO RUN: {exc}")
         return 1
 
 
-def _run_held(root: str) -> int:
+def _run_held(root: str, plants) -> int:
     verdict, stale, state = recovery_verdict(root)
     if verdict == "refuse":
         say("REFUSING TO RUN: the tree already carries a plant and no state file "
@@ -541,7 +557,7 @@ def _run_held(root: str) -> int:
     write_state(root)
     install_handlers(root)
     try:
-        return _run_plants(root)
+        return plants(root)
     finally:
         repair(root)
         clear_state(root)
