@@ -1,12 +1,12 @@
 ---
 id: 156
 title: 'Scenes have all three tiers and cannot be run: wholegame.py has no knowledge of them'
-status: in_testing
+status: done
 priority: 1
 refs: 'eval/wholegame.py, eval/suites/scene_prompts.py, eval/judge/scene_probe.py, eval/SCENES.md, tasks/133, tasks/136, #172'
 done_when: One scene trial runs end to end under the existing harness and is graded by scene_probe.py, with its record stored under eval/runs/ and the per-criterion verdicts reported; aspects.applicability is called on every path the runner can reach a pack by, checked by naming them; whether the standing matrix command launches scenes is decided deliberately and written where the default is; the deterministic capture path gains no wall-clock timing; and the wall-clock cost of a full scene matrix is stated from that one cell. Launching a matrix is NOT in scope.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/37
-established_by: 'PR #37, 3 commits, gates+controls+CodeRabbit all pass at head 1af631e. 45 rows in scene_runner_control (6 named routes, mutants and variants); census.py --selftest red on 3 mutants (21/2/1 rows); the first scene ever built graded 5/6 = 0.833 on scene_probe and found a FALSE NEGATIVE in layers.depth_ordered (all 7 layers returned a value below their own span, 37 wrap events) - tasks/162, tasks/163 filed, finding unnumbered for the orchestrator.'
+established_by: 'PR #37 squash-merged. Scenes are runnable: wholegame.py had 0 occurrences of ''scene'' and the only thing between a scene and a play-bot was BOTS missing a key - a refusal by accident of a four-entry dict, arriving AFTER tier 1 had already run six recipes. Verified the stored trial myself: terminal_reason harness_kill_external with num_turns, cost_usd and input_tokens all None rather than 0, and the probe''s first contact with a real submission gives 5 pass, 1 FALSE NEGATIVE (layers.depth_ordered read a modular residue out of a field the contract wraps - all 7 layers below their own span while 37 wrap events fired) and 2 scored=False. A mutant could not have found that; only a submission that wraps could, which is rule 15. Wall clock is stated conditionally after review: >= 3599 s for the one measured cell, and the 16-cell figure named as 16 x one observation rather than a measurement of 16 cells.'
 ---
 
 Scenes are complete through all three tiers and **cannot be run**. `eval/wholegame.py` has no

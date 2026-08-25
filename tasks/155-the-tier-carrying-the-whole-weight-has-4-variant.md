@@ -1,12 +1,12 @@
 ---
 id: 155
 title: The tier carrying the whole weight has 4 variant games for 36 criteria; the newest tier has 8 for 15
-status: in_testing
+status: done
 priority: 2
 refs: 'eval/judge/bot_mutants.py, eval/judge/scene_mutants.py, AGENTS.md rule 15, #46'
 done_when: 'A per-criterion answer to ''what correct-but-unusual game would mis-score this'', recorded for all 36; the 4 existing variants checked against the shapes #46 names, with any uncovered shape either added as a variant or recorded as deliberately out of scope with the reason; and bot_mutants.py still exits 0 with every criterion pinned in both directions. Concluding that 4 is sufficient, with the per-criterion reasoning, is a complete answer and closes this.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/38
-established_by: '6 reproducible false negatives found and shipped as declared Pending subjects; HAZARDS records one answer for each of the 70 criterion instances; bot_mutants.py exit 0 at 229.4s, --selftest 13 checks each red under its own mutation; PR #38 gates+controls+CodeRabbit all pass at 18abc7a'
+established_by: 'PR #38 squash-merged. The answer is NO - 4 variants is not enough - and my ticket asked over the wrong population twice. A variant runs the whole bot on ONE fixture, so coverage is per fixture: 1 on ref_pong, ZERO on ref_tetris3d, 1 on ref_arena, 2 on ref_platformer. And the criteria carrying weight are the 70 instances the four bots report, not the 36 that carry a mutant - 2 of the 6 defects found are on criteria with no mutant at all, so a registry scoped to 36 would have missed a third of the answer. Six reproducible false negatives, each a correct game under the prompt, each measured; the first two are pong''s own repair never carried across to g3 and g4, which carry the identical prompt sentence. bot_mutants --selftest is 13 offline checks, 0 unmet. No criterion repaired - each moves stored verdicts over 68 graded submissions - filed as tasks/157-160.'
 ---
 
 The play-bot tier carries **the whole weight** of a submission's score — tier 1 is a gate, tier 3 is
