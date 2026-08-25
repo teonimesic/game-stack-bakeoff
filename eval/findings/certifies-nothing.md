@@ -5546,3 +5546,59 @@ cited from this tool during the session came from `--gates` or `--selftest`, bot
 still exit 0 on the broken tree. That is luck about which subcommand was needed, not diligence.
 
 ---
+
+## 177. The play-bot drove an unspecified case 33 times and no verdict moved — and the byte-identical evidence across arms is the reason the null needed a second check
+
+The arena prompt said only that *"the aim fields describe a direction; only its orientation
+matters"*. The reference fixture, on a zero-magnitude aim, **keeps the previous orientation and
+fires along it**. Two honest submissions could read that differently, and the difference is scored.
+
+**The census was run before the prompt was touched, and it decided which ticket this was.** Over
+every tick the arena play-bot sends against the reference:
+
+| | |
+|---|---|
+| ticks sent | **7,540** |
+| carrying a zero or absent aim | **4,636** |
+| of those, holding `fire` | **33** |
+
+So the unspecified case is **driven**, 33 times, all from the routine that fires through the gaps
+between waves with no live enemy to aim at. This was a prompt change and a regime boundary, not an
+"unreachable, no action" note.
+
+### The null, and why it was not believed on sight
+
+Driving the whole bot against a reference patched to **return the gun to +x**, and again against
+one patched to **withhold the shot**, returns the same verdict on **all 22 criteria with
+byte-identical evidence**.
+
+That uniformity is the signature this project has been burned by twice — six submissions scoring
+identically because `$TMPDIR` had deleted their toolchain (#45), six failing identically because
+the bot stood still (#46). **Identical output across arms that share only the instrument is
+evidence about the instrument.**
+
+So it was separated rather than accepted. Direct rows show each arm producing a **different bullet
+velocity** — `(0, 520, 0)` shipped, `(520, 0, 0)` reset, `None` withheld — which distinguishes
+*"the patches never applied"* from *"the readings genuinely do not diverge"*. Only the second
+survives.
+
+> **A null and a broken instrument produce the same table. The only thing that separates them is a
+> measurement taken at a level where the arms MUST differ** — and if no such level exists, the null
+> is not reportable.
+
+### What the corpus says, and the population that is not 24
+
+Read from source rather than inferred: **8 of 8 stored submissions already hold the last aim**
+(`AIM_DEADZONE`, `> 1e-6`, `!= Vec3::ZERO`, …) — **0 reset, 0 withhold**. Every stack independently
+chose the reading the reference implements, which is why nothing diverged.
+
+`census.py` reports **24** stored `g3_arena` trials; only **8** ran under a prompt that declares
+`aim_x` at all. **The population for this question is 8, and the number a reader reaches for is
+24.**
+
+**Nothing stores a per-tick input tape.** A stored arena trial keeps a prompt, a diff, frames and a
+`playbot.json` of verdicts — so the reference-driven census is not merely the best population
+available, it is the **only** one. What a real submission's own trajectory would have sent is
+unmeasurable offline, and `eval/RUNS.md` says so rather than implying the figure covers it.
+
+---
