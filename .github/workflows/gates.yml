@@ -252,6 +252,13 @@ jobs:
       - name: judge/weight_sensitivity --selftest (can the sweep find a constructed flip?)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/weight_sensitivity.py --selftest
+      # `audio_regrade_census` is the producer for "how many stored verdicts does this
+      # grader change move", which every change to the audio criteria owes. Its fixtures
+      # are dicts and it decodes nothing, so it needs neither ffmpeg nor `just` -- unlike
+      # `audio_selftest`, which is next door in controls.yml for exactly that reason.
+      - name: judge/audio_regrade_census --selftest (the stored-verdict producer, both ways)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/audio_regrade_census.py --selftest
       # `host_perf_probe` is the producer for every figure in `eval/PERF-HOST.md`. Its four
       # measuring arms all need darwin and an exclusive machine -- `--caps` additionally needs
       # `taskpolicy`, and `--gpu`, `--spread` and `--drift` a Metal device -- and each refuses

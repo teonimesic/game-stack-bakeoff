@@ -32,6 +32,8 @@ Thresholds stay hidden; field names cannot.
 
 from __future__ import annotations
 
+import re
+
 # --------------------------------------------------------------------------- #
 # Stack vocabulary
 # --------------------------------------------------------------------------- #
@@ -602,6 +604,78 @@ TASKS = {
 }
 
 STACKS = ("rust", "ts", "unity", "godot")
+
+
+# --------------------------------------------------------------------------- #
+# The declared event names, read out of the blocks the prompts render
+# --------------------------------------------------------------------------- #
+#
+# `_probe_section` renders one of these blocks into every game prompt under "events is a
+# list of strings drawn from", and the audio section then says `sfx` must have an entry
+# for every event name listed there. So this block IS the contract, and the grader has
+# to read it from here rather than keep a copy: a transcription is a second address for
+# one fact (`AGENTS.md` rule 12), and both copies had drifted. `eval/judge/audio.py`
+# knew 6 of the arena's 9 events and none of the platformer's 8, which cost
+# `audio.manifest` its per-event question on one whole game (`tasks/151`).
+
+#: One declaration: a quoted event name, then nothing, or whitespace and a description.
+#: Matched against the WHOLE stripped line. A prefix match would read `"jump"typo` as
+#: `jump` and a fenced block full of those as a clean parse.
+_EVENT_LINE = re.compile(r'"([a-z_][a-z0-9_]*)"(?:\s+\S.*)?')
+
+
+def _declared_events(task: str, block: str) -> tuple[str, ...]:
+    """The event names one `_G*_EVENTS` block declares, in the order it lists them.
+
+    Reads the FENCED list, and every non-blank line inside the fence must be an event
+    declaration. Collecting whatever happens to match would drop a line that stopped
+    matching and return a shorter list at exit 0 - which is the same fail-open shape as
+    the transcription this replaces: an expectation missing an event makes
+    `audio.manifest` unable to notice that its cue is absent.
+
+    Anything a correct block cannot produce - no fence, an unreadable line, no names,
+    a repeat - raises here, at import, rather than reaching a grader.
+    """
+    lines = block.splitlines()
+    fence = [i for i, line in enumerate(lines) if line.strip() == "```"]
+    if len(fence) < 2:
+        raise ValueError(f"{task}: its events block has no fenced declaration list "
+                         f"(found {len(fence)} fence line(s))")
+    names: list[str] = []
+    for line in lines[fence[0] + 1:fence[1]]:
+        if not line.strip():
+            continue
+        m = _EVENT_LINE.fullmatch(line.strip())
+        if m is None:
+            raise ValueError(f"{task}: {line!r} is inside the events fence and is not "
+                             f"an event declaration, so this block can no longer be "
+                             f"read as the list of events the game declares")
+        names.append(m.group(1))
+    if not names:
+        raise ValueError(f"{task}: no event names parsed out of its events block; the "
+                         f"block's shape has changed and every consumer of EVENTS is "
+                         f"now wrong about this game")
+    dupes = sorted({n for n in names if names.count(n) > 1})
+    if dupes:
+        raise ValueError(f"{task}: duplicate event names in its events block: {dupes}")
+    return tuple(names)
+
+
+#: Every game's declared event names. The single address for that fact.
+EVENTS: dict[str, tuple[str, ...]] = {
+    "g1_pong": _declared_events("g1_pong", _G1_EVENTS),
+    "g2_tetris3d": _declared_events("g2_tetris3d", _G2_EVENTS),
+    "g3_arena": _declared_events("g3_arena", _G3_EVENTS),
+    "g4_platformer": _declared_events("g4_platformer", _G4_EVENTS),
+}
+
+if set(EVENTS) != set(TASKS):
+    raise ValueError(
+        f"EVENTS and TASKS disagree about which games exist: "
+        f"only in TASKS {sorted(set(TASKS) - set(EVENTS))}, "
+        f"only in EVENTS {sorted(set(EVENTS) - set(TASKS))}. A game with no entry here "
+        f"reaches the grader with an empty event set, which is a criterion that cannot "
+        f"fail (tasks/151).")
 
 
 if __name__ == "__main__":  # `python wholegame_prompts.py g2_tetris3d rust`

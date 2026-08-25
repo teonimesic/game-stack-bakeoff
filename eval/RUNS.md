@@ -2230,6 +2230,67 @@ agent effort spent synthesising one clip per event, and `audio.distinct` — alr
 the declared events — closer to its floor. Nothing here measures that; the first post-boundary run
 is what would.
 
+## THE AUDIO CRITERIA CHANGED ON 2026-08-25 — a TWENTY-SECOND comparability break, and it moves no stored verdict
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+**Grader-side, unlike the twenty-first.** Two tier-1 criteria changed in `judge/audio.py`, and
+tier 1 gates, so this is the kind of break that can move a stored gate outcome. It does not —
+measured, below — but the instrument a future submission meets is not the one the stored ones met.
+
+| | before | after |
+|---|---|---|
+| where the declared event list comes from | a hand-written `GAME_EVENTS` in `judge/audio.py` | read from `suites/wholegame_prompts.py`, the only place a task exists |
+| `g3_arena` | **6** declared events | **9** — the transcription had lost `enemy_spawn`, `wall_graze`, `multiplier` |
+| `g4_platformer` | **absent**, so `expected` was empty: `audio.manifest` could not fail, and `audio.distinct` floored on the submission's own clip count | **8** |
+| a game with no declared events | scored, and passed | **refused** — all 5 fail, fail-closed |
+| `audio.distinct`'s groups | counted over **every** `sfx` entry, while the floor came from the declared events | counted over the **declared events'** entries, the same set the floor comes from |
+
+**Why the last row:** the two sets were purchasable apart. A Pong submission mapping all 5
+declared events to one clip scored 1 group against a floor of 3 and failed; the same submission
+plus 2 unique undeclared entries scored 3 and passed, on the exact failure the criterion exists to
+catch (`tasks/152`, found by review on PR 27). An undeclared entry now counts for nothing in
+either direction, and still does not fail `audio.manifest` — the prompt forbids no extra cue, and
+failing one would be fail-closed.
+
+### What it invalidates, and what it does not
+
+**0 of 59 stored audio gradings move a verdict**, over **43** distinct submissions, with **0**
+refusals — `python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs`,
+population *stored gradings carrying `programmatic.audio.applies`*, read 2026-08-25. The census
+re-applies `audio.py`'s own `manifest_problems`, `distinct_floor` and `distinct_ok` to each stored
+grading's recorded manifest and sound groups: it reruns no submission and decodes no audio, and
+reconstructs the declared-event grouping from the stored `clips` and `distinct_sound_groups`. It
+refuses rather than guesses where that reconstruction would not be exact.
+
+**It IS an offline re-grading computation**, and calling it anything else would be false: it
+applies current scoring to stored evidence and produces verdicts. What it is not is a re-grading
+that **replaces** anything — it **writes nothing**, no stored record is rewritten, and it is the
+rewriting that `eval/judge/AGENTS.md` reserves for its own decision. The distinction matters in
+one direction only: a reader must not conclude that those rules do not apply here.
+
+**The null is a fact about the corpus, and the corpus says why**, which is what separates it from
+a broken extraction (rule 12). The same command reports **0** gradings whose manifest omits a
+declared event and **0** carrying an undeclared `sfx` entry. Every submission that produced a
+manifest at all shipped an entry for exactly the events its own prompt declares — 5 for Pong, 6
+for Tetris, 9 for the arena, 8 for the platformer. **Neither hole was ever exercised**: every
+"extra event" the old grader recorded was a real declared cue its transcription had lost, and no
+submission ever shipped a junk entry. The remaining **2** gradings — `wg-arena3d`'s two Rust
+trials — produced no manifest, failed all five before, and fail all five now.
+
+**So no stored score, gate outcome or `overall` changes, and nothing above needs re-grading.**
+
+**What is not comparable across this date** is what the criteria would say about work that
+exercises either hole. A platformer submission omitting a declared cue passed `audio.manifest`
+before this date and fails it after; an arena submission shipping 6 of its 9 cues did the same.
+Both are hypothetical against the stored tree and neither is against a future run.
+
+**The extraction was proven on a row whose answer was stated in advance** before the census was
+believed: `wg-audio-2026-08-14T12-29-42/artifacts/g1_pong__godot__t0` — 5 declared events, 5
+single-member groups, no extras, floor 3 — must be `PASS -> PASS` on both criteria, and is
+(`--report <that report.json>`).
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.

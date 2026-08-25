@@ -659,12 +659,15 @@ criterion mentioned it. The task prompts now require looping background music, a
 effect for each declared event, and a `just audio-manifest` contract.
 
 **The prompt does not ask for a distinct sound per event, and no criterion here scores
-that.** The manifest section leaves sharing to the agent. `audio.distinct` counts
-distinct decoded sounds across the manifest's `sfx` entries, and its floor is
-`max(2, ceil(n / 2))` — no more than that. `n` is the number of events the game
-declares, or, where the grader holds no declared-event list for the game, the number of
-decoded `sfx` entries. The tier-3 `audio` aspect values well-chosen cues over
-uniqueness for its own sake.
+that.** The manifest section leaves sharing to the agent, `audio.distinct` asks only for
+a floor (below), and the tier-3 `audio` aspect values well-chosen cues over uniqueness
+for its own sake.
+
+**The declared event list is read out of `eval/suites/wholegame_prompts.py`**, which is
+where a task exists, rather than transcribed into `audio.py`. A game the suites declare
+no events for is **refused**: all five criteria fail with that as the reason, because
+nothing is missing when nothing is expected and five passes over no contract is a
+mechanism that runs and measures nothing.
 
 Deterministic checks come first, because most audio failures are mechanical:
 
@@ -685,34 +688,41 @@ this asks whether each event *that fired* has a working cue — using the events
 produced rather than the ones the task declared. A game that declares six events, emits
 four, and ships cues for three fails this and passes nothing else.
 
-Implemented in `audio.py`; mutation-tested in `audio_selftest.py`, which pairs every one
-of the six criteria with a fixture that makes it go red — a silent clip, one beep
-re-encoded under five names, a manifest missing an event, a missing file, music that is
-a 0.2 s click, a manifest that is not JSON, and no recipe at all.
+`audio.distinct` compares **decoded samples**, never filenames and never file hashes,
+so one beep re-encoded at five different sample rates is one sound. Its floor is
+`max(2, ceil(n / 2))`, where `n` is the number of declared events — half of them rather
+than all, because the task permits two events to share a sound. What must fail is one
+clip reused everywhere.
 
-Two decisions inside `audio.distinct` are worth stating because they bound what it can
-claim. It compares **decoded samples**, not filenames and not file hashes, so the
-mutant that defeats every cheaper comparison — one beep re-encoded at five different
-sample rates — is caught. And its floor is half the declared events rather than all of
-them, because the task explicitly permits two events to share a sound; what must fail is
-one clip reused everywhere.
+**Numerator and denominator range over the same set.** Groups are counted over the
+declared events' `sfx` entries and the floor comes from the declared events, so an
+undeclared entry counts for nothing here in either direction. It does not fail
+`audio.manifest` either: the prompt asks for an entry per declared event and forbids no
+others, and failing a legitimate extra cue would be fail-closed and would cost trials.
+Undeclared entries are still decoded and still answer `audio.files_exist` and
+`audio.not_silent`, whose numerator and denominator are both the manifest — there an
+extra can only hurt, never buy a pass.
 
-**Its numerator and its denominator come from different sets, and that is a known
-fail-open** (`tasks/152`). The floor is computed from the events the game *declares*,
-while the groups are counted over *every* `sfx` entry the manifest lists — and an entry
-for an undeclared event does not fail `audio.manifest`. So a Pong submission mapping all
-5 declared events to one clip and adding 2 unique extra entries scores 3 groups against
-a floor of 3 and passes, where the same submission without the extras scores 1 and
-fails. Until that is repaired, read a passing `audio.distinct` as *the manifest contains
-enough distinct sounds*, not as *the declared events sound different from each other*.
+Implemented in `audio.py`. `audio_selftest.py` pairs each criterion with a mutant that
+makes it go red — a silent clip, one beep re-encoded under five names, a manifest missing
+an event, a missing file, music that is a 0.2 s click, a manifest that is not JSON, no
+recipe at all — and with the **variants** a mutant cannot construct, which are the half
+this criterion set needs: all declared events on one clip *plus* unique undeclared
+extras, and a manifest covering a strict subset of the declared events. It also pins
+`audio.GAME_EVENTS` against a hand-transcribed list and against the rendered prompts,
+because a check that reads its expectation from the grader goes green on both halves of
+one mistake.
 
-**Where the grader holds no declared-event list, the denominator falls back to the
-decoded `sfx` entries** and the criterion floors on the submission's own manifest rather
-than on the task. That is the state `g4_platformer` is in today (`tasks/151`). It also
-costs `audio.manifest` its per-event question on that game: nothing is missing when
-nothing is expected, so the criterion cannot notice an absent cue. It still fails there
-on a manifest that will not run or parse, and on one carrying no `music` or no `sfx`
-object.
+**After changing an audio criterion, re-score the stored corpus.** Run:
+
+```shell
+python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
+```
+
+It re-applies these criteria offline to every stored grading, names the verdicts that
+move, and refuses the records it cannot compare. Record in `eval/RUNS.md` the population
+it checked, how many verdicts moved and which — including zero.
+
 
 Only what is left after those is asked of a judge: does the music suit this game, are
 the effects readable and distinguishable in play, is anything harsh or fatiguing.
