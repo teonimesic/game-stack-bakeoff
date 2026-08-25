@@ -5502,3 +5502,47 @@ they describe. **A latent defect whose repair invalidates published measurements
 not a bug fix** — and the pin is what stops the next reader assuming the five branches all work.
 
 ---
+
+## 176. A refusal at the wrong granularity is an outage, and only the half of the tool that could not fail this way was gated
+
+`ci_minutes.py` is the producer the CI register names for Actions minutes. From 2026-08-24 it
+exited **2 on every invocation** of its census, reporting no number at all.
+
+The cause is one run in 464. Run `32774427303` was a `controls` run cancelled **before any job was
+created**, so its `jobs` array is empty — permanently, and it stays in the runs list forever. The
+tool refused, which is correct in spirit: *"reported no jobs — a refusal, not 0 minutes"* is exactly
+the discipline this project insists on, and `cmd || echo 0` is the failure it exists to prevent.
+
+**The refusal was at the wrong level.** One unreadable run made the whole census unreadable, so a
+tool that should have reported 463 jobs and named the one it could not read reported nothing.
+
+> **A guard that refuses the smallest unit it can see is right; a guard that escalates that refusal
+> to the whole report converts a gap into an outage.** The correct output was always available:
+> exclude what cannot be read, carry it by id, print it, and refuse only when there is nothing left
+> to report.
+
+Measured before anything was changed, one run at a time across all 464: **1** reports zero jobs,
+and **105 of the other 106 cancelled runs report jobs normally** — so *cancelled* is not the
+property, and nothing in the tool tested for it. After the repair: **2479 minutes over 463
+completed jobs, 1 run reported not-counted.** The surviving refusal is all-runs-empty.
+
+### Why nobody noticed for a day
+
+The register documents that `ci_minutes.py` reads the API once per run, and that gating it would
+make CI cost grow quadratically in its own history — **so only the offline `--selftest` half is
+gated**, and that half was green throughout. The API half has no gate by deliberate, recorded
+decision.
+
+> **When a tool is split into a gated half and an ungated half, the ungated half is where an
+> outage lives undetected — and the split is usually made for a good reason that has nothing to do
+> with correctness.** The exclusion was recorded, which is the project's standard; what was not
+> recorded is that the excluded half is the one that produces the published number.
+
+It was found by running the tool for an unrelated reason — checking a new output line — which is
+the only way an ungated path gets exercised at all.
+
+**The orchestrator's own citations survive this**, and the reason is worth stating: every figure
+cited from this tool during the session came from `--gates` or `--selftest`, both offline, both
+still exit 0 on the broken tree. That is luck about which subcommand was needed, not diligence.
+
+---
