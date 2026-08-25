@@ -233,7 +233,7 @@ against.
 
 **A run the jobs endpoint has nothing for is a third value.** It is printed with its run id and
 left out of the total, never folded in as zero. Refusing per run instead would end the census
-altogether: such a run stays in the run list for good, and one exists — 32774427303, cancelled
+altogether: such a run stays in the run list for good, and 1 exists — 32774427303, cancelled
 before a job was created. The refusal that remains is the one an empty bucket cannot express:
 if *no* run yields a job, the endpoint is not answering and the tool reports nothing.
 
