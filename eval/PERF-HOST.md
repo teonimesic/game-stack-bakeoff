@@ -156,7 +156,8 @@ boundary rather than a free upgrade.
 
 ## How much the machine moves, with no cap in the picture
 
-2 numbers decide whether a ramp can mean anything, and they answer differently.
+2 conditions were measured — spaced launches and back-to-back ones — and they answer
+differently. Contention is the third measurement and it sits with the GPU arm above.
 
 ### Spaced launches are stable to about 1%
 
@@ -211,9 +212,12 @@ A ramp reports the highest level sustained, so a frame time inflated by `r` cost
 | back-to-back over 10 min | 1.975 | 3.05 | 1.68 | 0.98 |
 | 1 competing GPU process | 2.130 | 3.39 | 1.86 | 1.09 |
 
-**Spaced, the host costs about a tenth of a level and a ramp can separate stacks. Back-to-back or
-shared, it costs 1 to 3 levels and no stack comparison survives.** That is the whole result,
-and it is a design constraint rather than a blocker.
+**Spaced, the host contributes about a tenth of a level. Back-to-back or shared, it contributes
+1 to 3.** A ramp can only separate stacks by more than the host contributes, so at 1 to 3 levels
+the host is the larger term for any stack gap smaller than that — and how large a stack gap is,
+like the spread a real submission adds on top, is unmeasured until a scene exists. That is why
+spacing and exclusivity are requirements: they are what make the host term small enough that the
+question becomes about the submissions.
 
 ## Frame timing, per stack
 
