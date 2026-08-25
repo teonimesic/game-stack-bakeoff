@@ -3912,9 +3912,17 @@ def _skill_flag_coverage(skills: list[str] | None = None) -> dict:
             unread.append(rel)
         # Section = from one ATX heading to the next. Numbered rather than keyed by title,
         # so two sections that happen to share a heading cannot merge into one.
+        #
+        # FENCE-AWARE, and via the one `_fence_mask()` every structure check here shares.
+        # A `#` inside ``` is a shell comment, and these documents are full of them: 31 of
+        # the 130 lines starting with `#` across the 10 skills are fenced. Counting those
+        # as headings splits real sections, which moves a flag away from the harness name
+        # that governs it and silently understates the section trigger's reach - the
+        # figure this producer publishes. Raised by CodeRabbit on PR #29.
+        fenced = _fence_mask(lines)
         sec, sec_of = 0, []
-        for ln in lines:
-            if ln.startswith("#"):
+        for i, ln in enumerate(lines):
+            if not fenced[i] and _ATX_HEADING.match(ln):
                 sec += 1
             sec_of.append(sec)
         named = {sec_of[i] for i, ln in enumerate(lines) if wide_rx.search(ln)}
@@ -4025,18 +4033,31 @@ def _skill_flag_pins(verbose: bool = False) -> list[str]:
     # this fixture exists for, latent on the live skills at 0 such lines.
     exempt_only = ("Run `python3 eval/judge/runner.py` first.\n"
                    "We planted `--sweep` on this line, so nothing here is a claim.\n")
+    # A FENCED `#` between a script name and a flag, which is a shell comment and not a
+    # heading. Counting it as one puts the flag in a section of its own, where no script
+    # is named, and the `section` figure comes back short. 31 of the 130 `#` lines across
+    # the live skills are fenced, so this is the shape and not a curiosity.
+    fenced_hash = ("# A heading\n"
+                   "Run `python3 eval/tools/prune_scan.py` like this.\n"
+                   "```bash\n"
+                   "# a shell comment, not a section\n"
+                   "echo hello\n"
+                   "```\n"
+                   "Then pass `--zzq-unresolved-tok` to it.\n")
 
     with tempfile.TemporaryDirectory() as tmp:
         paths = {}
         for name, body in (("names_a_harness", with_harness),
                            ("names_no_harness", without),
-                           ("all_exempt", exempt_only)):
+                           ("all_exempt", exempt_only),
+                           ("fenced_hash", fenced_hash)):
             paths[name] = os.path.join(tmp, name, "SKILL.md")
             os.makedirs(os.path.dirname(paths[name]))
             open(paths[name], "w").write(body)
         split = _skill_flag_coverage(skills=[paths["names_a_harness"],
                                              paths["names_no_harness"]])
         exempt_cov = _skill_flag_coverage(skills=[paths["all_exempt"]])
+        hash_cov = _skill_flag_coverage(skills=[paths["fenced_hash"]])
 
     live = _skill_flag_coverage()
     published = _published_skill_figures(live)
@@ -4064,6 +4085,10 @@ def _skill_flag_pins(verbose: bool = False) -> list[str]:
          (exempt_cov["mentions"], exempt_cov["reads"]["all"]), (0, 0)),
         ("...and the same line planted with an UNRESOLVED flag adds no row either",
          exempt_cov["rows"]["all"], []),
+        # The section trigger reads markdown structure, so it must read it the way every
+        # other structure check here does. A fenced `#` is a shell comment.
+        ("a fenced `#` does not split a section away from the script name above it",
+         len(hash_cov["rows"]["section"]), 1),
         # The live statement the docstring and the audit-docs skill both make.
         ("some live SKILL.md is unread by this half - the recorded exclusion is real",
          bool(live["unread"]), True),
