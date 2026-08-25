@@ -1,11 +1,12 @@
 ---
 id: 149
 title: The flag census reads project_docs(), so no SKILL.md is checked for phantom flags
-status: in_review
+status: in_testing
 priority: 2
 refs: 'eval/tools/docstat.py, .agents/skills/audit-docs/SKILL.md, tasks/147, #170, #38'
 done_when: Either a planted phantom flag in a SKILL.md turns `--sweep` red - with the plant also proved in a document already covered, so a broken plant cannot masquerade as success - and whatever ratchet the corpus change touches is re-baselined deliberately with the new number stated; or the exclusion is written down in docstat.py AND in the audit-docs skill's list of what --sweep does not cover, naming which checks read skills and which do not. Either way `--sweep`, `--selftest` and the corpus pins stay green.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/29
+established_by: 'Widened, not excluded: a plant in prune/SKILL.md went exit 0 -> exit 1 while eval/PERF-HOST.md stayed exit 0; 4 review rounds; the widening commit 576692a is UNREVIEWED (rate limited) and one line of this ticket''s notes reddens the sweep - see the ACTION REQUIRED note'
 ---
 
 `docstat.py --sweep`'s flag census — *"flag `--x` matches no argparse in eval/"* — reads
@@ -221,3 +222,85 @@ own adjudication. **That would be a task, not a drive-by.**
   admitting all 10 skills look free, but it buys the coverage with 7 permanent global
   exemptions on tokens (`--merge`, `--body`, `--auto`, `--offline`) that are plausible names for
   a flag of ours — `AGENTS.md` rule 7, and the list would grow with every tool ever discussed.
+
+## note 2026-08-25
+
+## SUPERSEDES the note above — closed by the FIRST arm, not the second
+
+The note above was written while this branch was recording the exclusion. **Merging `main`
+invalidated its central measurement and the answer flipped.** Read this one; the figures above
+are the pre-merge ones and are wrong now.
+
+### What changed the answer
+
+`6bfc80b` put all 9 foreign tokens the skills argue about into `FOREIGN_FLAGS_EXACT`, for an
+unrelated reason: ticket prose was reddening the sweep with the same flags. The cost of
+admitting every skill to the backticked half fell from **8 correct lines to 0**. An exclusion
+argued from a cost of 8 does not survive the cost becoming 0.
+
+**The asymmetry is the argument, and it is the part worth carrying forward.** The exemptions are
+the fail-open half and were paid for regardless of what this ticket did; widening the trigger is
+the fail-closed half. Declining the coverage would have paid the price and taken nothing for it.
+
+### The state now
+
+`_backticked_flags()` is gated on `HARNESS_TRIGGER` **or** the document being a `SKILL.md`. All
+10 skills are read; it reads 28 of the 28 backticked mentions of a real flag of ours that the
+skills make, at 0 rows.
+
+The four-way control, the identical planted token `--zzq-unresolved-tok` backticked inline:
+
+| plant | before | after |
+|---|---|---|
+| `.agents/skills/prune/SKILL.md` — a skill naming no harness | exit 0 | **exit 1** |
+| `.agents/skills/evaluate-run/SKILL.md` — a skill naming one | exit 1 | exit 1 |
+| `DECISIONS.md` — ordinary, names one | exit 1 | exit 1 |
+| `eval/PERF-HOST.md` — ordinary, names none | exit 0 | exit 0 |
+
+The last row matters as much as the first: the gate did **not** become unconditional. Ordinary
+documents naming no harness are still out of scope, and widening to the closed class
+`_our_script_names()` still loses at 13 candidate rows over the reference corpus, 11 of them in
+`tasks/`. That exclusion is recorded in `docstat.py` and in the audit-docs skill.
+
+### What to watch, and what NOT to do about it
+
+**Admitting every skill is only defensible while it costs 0 rows**, and a skill that starts
+discussing a new tool's flag will redden `--sweep` on correct input. `_skill_flag_pins()` holds
+that as a live case (`admitting every skill still costs 0 correct lines`). **When it fires, the
+repair is `FOREIGN_FLAGS_EXACT`, not narrowing the trigger back** — narrowing gives up the
+coverage while the exemptions stay paid for.
+
+### Still true from the note above
+
+The candidate-finding about `HARNESS_TRIGGER`'s inert `judge/` alternative, the boundary
+measurement, the fence-aware section ids, and the trap list all stand unchanged.
+
+## note 2026-08-25
+
+## ACTION REQUIRED BEFORE COMMITTING THIS TICKET — one line reddens the sweep
+
+Measured, not suspected: running the backticked half over this file returns one unresolved
+token, so committing the queue as it stands turns `docstat.py --sweep` red on `main`. This is
+the same shape as 6bfc80b, arriving from the other direction.
+
+**The line**, in the note headed *SUPERSEDES the note above*, immediately before the four-way
+control table. It reads:
+
+> The four-way control, identical (backtick)--zzq-unresolved-tok(backtick) backticked inline:
+
+The token is genuinely a deliberately-fake control name, so the designed repair is the
+line-scoped exemption rather than an entry in `FOREIGN_FLAGS_EXACT`. **Add an exemption word to
+that one line**, e.g. end it with *"— a token planted as a control"*. `_DELIBERATELY_FAKE`
+matches `plant*`, `phantom` and `does not exist`.
+
+I could not do it myself: `tasks.py` appends and never rewrites, and worktree isolation refuses
+`Edit`/`Write` against the shared checkout. Every other occurrence of the token in this file
+already sits on a line carrying an exemption word, which is why only one line is affected.
+
+**The general shape is worth more than the instance.** An agent working a ticket about foreign
+or phantom flags must catalogue them to do the job, its notes land in a swept corpus through the
+shared queue, and the sweep goes red on prose that is correct. It has now happened twice in one
+day on this one ticket. The two available answers are a line-scoped exemption written as the
+note is composed, or an archive exemption for `tasks/` in the flag check — the latter is what
+`findings/` already has for the aspect check, and 11 of the 13 rows the wider trigger would add
+are in `tasks/`. That is a decision, not a drive-by, so it is stated here rather than taken.
