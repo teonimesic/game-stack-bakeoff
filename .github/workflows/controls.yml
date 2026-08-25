@@ -1,7 +1,7 @@
 # The SLOW tier: the mutant suites, and the two selftests that spend real seconds.
 #
-# Split out of gates.yml for one reason and it is not tidiness: LATENCY. These five steps
-# are 685s measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s) against the
+# Split out of gates.yml for one reason and it is not tidiness: LATENCY. This job is 685s
+# measured (bot_mutants 226s, tasks_mutants 320s, skill_layout 125s) against the
 # fast tier's 42s, and both are required checks, so running them on every event would put
 # eleven minutes in front of every merge for checks whose inputs are only source.
 #
@@ -111,6 +111,13 @@ jobs:
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/bot_mutants.py
+      # 5.2s. A mutant asks whether a criterion can fail; this asks the other question --
+      # whether any criterion rests on something the task prompt leaves FREE. It also
+      # produces the tick census eval/RUNS.md quotes for the twenty-third comparability
+      # break, so that figure has a producer rather than a memory.
+      - name: judge/aim_contract_control (the arena aim contract, and what is free in it)
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/aim_contract_control.py
       # The scene probe's own both-directions suite: every criterion in
       # judge/scene_probe.py against its reference, against a mutant that removes the
       # behaviour it names, and against correct scenes the reference does not resemble.

@@ -2291,6 +2291,67 @@ believed: `wg-audio-2026-08-14T12-29-42/artifacts/g1_pong__godot__t0` — 5 decl
 single-member groups, no extras, floor 3 — must be `PASS -> PASS` on both criteria, and is
 (`--report <that report.json>`).
 
+## THE ARENA AIM CONTRACT WAS WRITTEN DOWN ON 2026-08-25 — a TWENTY-THIRD comparability break, and it moves no stored verdict
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+**Four sentences became five** in `suites/wholegame_prompts.py` `_G3_INPUTS`. The task said only
+*"the aim fields describe a direction; only its orientation matters, not its length"*, and now
+adds what a zero-length or absent aim vector does: the gun holds its last orientation, `fire`
+still fires along it, and where it points before any aim has ever been given is the submission's
+choice.
+
+**Why:** the case was unspecified and it is driven. Two honest submissions could read it
+oppositely — *return the gun to +x*, or *no direction was chosen, so withhold the shot* — and
+both were consistent with every word of the task and inconsistent with
+`judge/fixtures/ref_arena/game.py`, which the play-bot's criteria were written against. Found by
+review on PR 19.
+
+**It is driven 4,636 times.** `python3 eval/judge/aim_contract_control.py`, population *every
+tick the arena play-bot sends against the reference*: **7,540** ticks sent, **4,636** carrying a
+zero or absent aim, **33** of those holding `fire` — all 33 from `_multiplier_falls`, which fires
+through the gaps between waves with no live enemy to aim at. Nothing stores a per-tick trace, so
+this is the only population there is: the 8 stored trials keep a prompt, a diff, frames and a
+`playbot.json` of verdicts, and no record of what was sent.
+
+### What it invalidates, and what it does not
+
+**Invalidated: pooling `g3_arena` trials across this date on anything derived from the task
+text.** The population is **8** — `wg-arena3d-2026-08-15T12-46-30`, the only run whose stored
+prompts declare `aim_x` at all (the other **16** of the **24** stored `g3_arena` trials predate
+the 2026-08-15 3D rewrite and have no aim fields). Counts read 2026-08-25 from
+`python3 eval/tools/census.py`, and the split by `grep -l aim_x` over the stored `prompt.txt`
+files.
+
+**Not invalidated, and it is most of it:**
+
+- **No stored score moves, and no criterion, threshold or weight changed.** `judge/` is untouched
+  by the prompt edit; the reference already did what the sentence now says.
+- **All 8 stored submissions already implement it.** Read from their stored source: every one
+  holds the previous orientation on a zero aim — `AIM_DEADZONE`, `AIM_EPSILON`, `length_squared()
+  > 0.001`, `aim != Vec3::ZERO`, `lengthSquared3(...) > 0`, `> 1e-6`, `LengthSquared > 0f`,
+  `> 1e-6f`. **0 of 8** reset the gun and **0 of 8** withhold the shot. The wording was written
+  to the behaviour the field had already converged on, not against it.
+- **The free half is exercised and it is genuinely free.** **8 of 8** start the gun somewhere
+  other than the reference's +x — `-z` in six, `Vec3.Forward` and `Vec3.UnitZ` in the two Unity
+  trials. `aim_contract_control`'s `startz` arm moves the reference's starting orientation to
+  `-z` and every criterion returns what it returned before, which is why the prompt leaves it
+  open rather than pinning it.
+
+**The defect was latent, and that is a measurement rather than a hope.** Driving the whole
+play-bot against a reference patched to *return to +x*, and again against one patched to
+*withhold the shot*, returns **the same verdict on all 22 criteria** in both cases. So no stored
+score could have depended on the reading, and the exposure was to a future submission — one that
+read the gap the other way and lost points for it. The control keeps both arms and goes red if a
+criterion ever starts to discriminate them, at which point the question is whether that criterion
+is legitimate now that the prompt specifies the case.
+
+**The extraction was proven on rows whose answers were stated in advance** before the 4,636 was
+believed (rule 12): `player.moves` opens the run with exactly **90** pure-movement ticks that
+must read as zero-aim, and `aim.independent` sends **120** ticks aiming +x that must not. Both
+are rows in the control.
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.

@@ -112,7 +112,10 @@ fire                        boolean       fire while held
 A movement vector of any magnitude and any direction is valid — the player is not
 restricted to eight directions, and a half-pushed stick moves at half speed. Magnitudes
 above 1.0 are clamped to 1.0. The aim fields describe a direction; only its orientation
-matters, not its length.
+matters, not its length. An aim vector of zero length — including a tick that omits the
+aim fields — means *no new direction this tick*: the gun keeps pointing wherever it was
+last aimed, and `fire` still fires along that held direction. Where the gun points before
+any aim has ever been given is yours to choose.
 
 A control that is held across consecutive ticks takes effect on **every** one of those
 ticks. The player is never required to release and re-press it to act again. Where the
