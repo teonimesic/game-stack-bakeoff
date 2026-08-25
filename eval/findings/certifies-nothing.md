@@ -5602,3 +5602,66 @@ available, it is the **only** one. What a real submission's own trajectory would
 unmeasurable offline, and `eval/RUNS.md` says so rather than implying the figure covers it.
 
 ---
+
+## 179. The gate carried, as a variant it must not redden, the exact command the tool discarded a flag on
+
+`ci_minutes.py --scope` accepts `--json` and ignores it. That alone is #61's shape — an
+accepted-but-ignored flag is indistinguishable from a working one by anything a script can see.
+
+**The gate blessed it.** `filter_problems` classifies the workflow's scope step, and its selftest
+listed *"the scope step given an extra flag"* among the **variants** — the rows that assert
+*"this is CORRECT input and the check must still pass"*. So the suite asserted, as a property to
+protect, that a scope step invoked with a flag the tool silently discards is a correct scope step.
+
+Measured on `main` before anything changed — **six** combinations exit 0 having discarded a flag:
+
+    --scope --json        --scope --gates       --selftest --json
+    --path-filter --no-timing   --gates --cache DIR   --hooks --no-timing
+
+and the suite was green at 37 mutants / 14 variants throughout.
+
+> **A mutant asks whether a check can fail; a variant asserts that something is fine. A variant
+> written around a defect makes the defect load-bearing** — the next person to fix it turns the
+> gate red and reads that as their own mistake.
+
+This is worse than an untested defect. An untested defect is unprotected; this one had a row of a
+control suite standing in front of it, and the row was written by someone who believed the tool
+honoured the flag.
+
+**The repair chose the shape over the instance:** `MODE_ACCEPTS` declares which of `--json`,
+`--cache` and `--no-timing` each mode reads, and `main` refuses anything else with exit 2 before
+dispatching — rather than making `--scope` honour `--json`, which answers one combination and
+leaves the other five. Suite now 63 mutants / 33 variants, 16 planted mutants all dead.
+
+> **When a control blesses a defect, check the other instances of the same shape before repairing
+> the one you found.** The variant named one command; the property it should have encoded covered
+> six.
+
+---
+
+## 180. `except Exception` does not catch `SystemExit`, so a mutant came back SURVIVED at exit 0
+
+The mutant harness wraps each planted mutant in `except Exception` to record a failure. `argparse`
+calls `sys.exit()`, which raises **`SystemExit`** — a `BaseException`, not an `Exception`.
+
+So a mutant that made the tool exit through `argparse` was not caught, not recorded as a failure,
+and reported **SURVIVED at exit 0**: the harness saying *"this mutant was not detected"* when what
+happened is that the harness itself was terminated.
+
+Two more of the same family on one branch: a check whose planted defect made the process **hang**
+reported nothing at all, and one that made it exit early did the same.
+
+> **A harness that reports on a subject it runs in-process can only report failures it survives.**
+> Every failure mode that removes the harness — `SystemExit`, `os._exit`, a hang, a signal — is
+> indistinguishable from the outcome it exists to detect, and it is indistinguishable in the
+> **reassuring** direction.
+
+The tell is available and cheap: a mutant suite should report **how many mutants it evaluated**,
+not only how many died, and that count should be pinned. A harness that loses a mutant silently
+reports a smaller population and the same verdict.
+
+This is the mirror of #173. There, the diagnostic was destroyed by the event it was diagnosing;
+here, the *evaluator* is destroyed by the defect it is evaluating. Both fail toward "nothing to
+report", and both read as success.
+
+---
