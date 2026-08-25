@@ -20,7 +20,7 @@ tier="${1:?usage: run-gates.sh pre-commit|pre-push}"
 
 # VALIDATE THE TIER, because an unrecognised one FAILS OPEN. `pre-push` is selected by an
 # equality test below, so `run-gates.sh pre-pushx` would silently run the pre-commit set,
-# skip the 11s sweep, print `pre-pushx: ...` and exit 0 -- fewer gates, and indistinguishable
+# skip the sweep, print `pre-pushx: ...` and exit 0 -- fewer gates, and indistinguishable
 # from a hook that worked. AGENTS.md rule 7: every reason not to run a check is a channel a
 # bug can widen. Raised by CodeRabbit on PR #3.
 case "$tier" in
@@ -48,12 +48,38 @@ else
     queue_blocks=0
 fi
 
+# LIST-ONLY MODE, and it is what makes the register checkable rather than believed.
+# `.github/workflows/README.md` names the commands each tier runs. That is one fact spelled
+# in two files, so `ci_minutes.py --selftest` asserts them equal (AGENTS.md rule 12) -- and
+# it reads THIS SCRIPT by running it rather than by re-parsing it, so the list it checks
+# comes out of the same control flow the hook takes. A second reader of the source can
+# disagree with the source; running it cannot.
+#
+#   GATES_LIST_ONLY=1 .githooks/run-gates.sh pre-push
+#
+# prints one `python3 ...` line per gate, executes none of them, and exits 0.
+list_only() { [ "${GATES_LIST_ONLY:-}" = 1 ]; }
+
 failed=""
 run() {
+    if list_only; then printf 'python3 %s\n' "$*"; return 0; fi
     # No pipe. A pipeline's exit status is the last stage's (AGENTS.md rule 3).
     if ! python3 "$@"; then
         failed="$failed
   python3 $*"
+    fi
+}
+
+# The same gate, advisory instead of blocking. A SEPARATE function rather than a flag on
+# `run`, so that both spellings go through `list_only`: the queue lint used to be invoked
+# directly in the warning branch, which made the tier's command list depend on which
+# checkout you were standing in, and would have executed it under a list-only run.
+run_advisory() {
+    if list_only; then printf 'python3 %s\n' "$*"; return 0; fi
+    if ! python3 "$@"; then
+        printf '\n%s: python3 %s is RED on the SHARED queue in the main checkout.\n' \
+            "$tier" "$*" >&2
+        printf 'Not blocking here — this is a linked worktree and the queue is not in this commit.\n' >&2
     fi
 }
 
@@ -63,14 +89,18 @@ run eval/tools/docstat.py --withdrawn
 
 if [ "$queue_blocks" = 1 ]; then
     run eval/tools/tasks.py check
-elif ! python3 eval/tools/tasks.py check; then
-    printf '\n%s: tasks.py check is RED on the SHARED queue in the main checkout.\n' "$tier" >&2
-    printf 'Not blocking here — this is a linked worktree and the queue is not in this commit.\n' >&2
+else
+    run_advisory eval/tools/tasks.py check
 fi
 
-# pre-push only: 10.9s measured, which is past what a per-commit hook can hold before it
-# gets bypassed as a habit. It is also the gate that actually failed — the stale-citation
-# rows stayed red across several merges because nothing was running it.
+# pre-push only, because it is the one gate here that costs a multiple of the others, and a
+# per-commit hook past a few seconds gets bypassed as a habit. No figure is written down:
+# it is local wall clock on one machine, and two readings taken for task 153 on the same
+# host minutes apart differed by more than the whole pre-commit tier costs. Time it with
+# `time .githooks/run-gates.sh pre-push`.
+#
+# It is also the gate that actually failed — the stale-citation rows stayed red across
+# several merges because nothing was running it.
 if [ "$tier" = pre-push ]; then
     run eval/tools/docstat.py --sweep
 fi

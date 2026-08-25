@@ -1398,10 +1398,32 @@ red across several merges.
 truth. What is decided:
 
 **3 tiers, split on a budget rather than on coverage** — the hooks in seconds, the fast CI
-tier under a couple of minutes, the slow one in minutes, with the current timing of each and its
-producer in the register named above. A hook nobody bypasses is worth more than a hook that
-covers everything, and `--no-verify` is one flag. **A hook checks the CONTENT; CI additionally
-checks the CHECKERS** — a control over a tool changes only when the tool changes.
+tier around a minute, the slow one in minutes. A hook nobody bypasses is worth more than a hook
+that covers everything, and `--no-verify` is one flag. **A hook checks the CONTENT; CI
+additionally checks the CHECKERS** — a control over a tool changes only when the tool changes.
+
+**So the hooks run a strict, small subset, and the register NAMES it rather than describing
+it — decided 2026-08-25, task 153.** `pre-push` runs 5 of `gates.yml`'s 47 checks and
+`pre-commit` 4, all of them documentation and queue checks; the register said it ran *"the full
+`gates.yml` set"*, which had never been true of anything. **The repair is not to run more.**
+Widening `pre-push` to 47 makes it minutes long and turns `--no-verify` into a habit, which
+costs the tier its whole value; deriving its list from `gates.yml` behind a cheapness marker
+adds a second selector to maintain for the same 5 commands. What the tier was missing was not
+coverage but a **checkable** description, so the register carries the command list as a table,
+`.githooks/run-gates.sh` prints its own list under `GATES_LIST_ONLY=1`, and
+`ci_minutes.py --selftest` asserts the two equal — red when a gate is added to either alone.
+**An adjective is the shape no check can read**; a hook whose published list is asserted against
+the hook is one a reader can act on, and the coverage gap is then stated rather than implied.
+
+**No hook timing is published, and the workflow tiers are published as a SPREAD — decided
+2026-08-25, tasks 129 and 153.** A point figure in that table was wrong every time it was read:
+`gates` spans 75–115s over the last 12 successful runs on `main` and `controls` 658–827s, so a
+single reading is one draw from a band far wider than any step this repository adds, and the
+difference between two of them supports no inference about a change. The hook figures were worse
+still — local wall clock on one machine, and two readings of `pre-push` minutes apart on the same
+host differed by more than the whole `pre-commit` tier costs. The register states the spread with
+the population and the command that re-derives it, and points at `gh pr checks <n>` for the pull
+request in front of you.
 
 **The hooks are installed by hand, with `git config core.hooksPath .githooks`, and are not
 installed by anything automatic.** `core.hooksPath` lives in the shared git config, so one
@@ -2678,6 +2700,7 @@ settled question is noise that makes the live ones harder to find.
 | Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
+| `pre-push` runs 5 of `gates.yml`'s 47 checks | The **same** gate outside those 5 reddening a push to `main` twice. The subset is aimed at the failure that recurs locally — stale citations and a malformed queue — and a second `main` breakage from one uncovered gate is evidence it is drawn wrong, where a single one is a normal miss. Widening it is a re-timing, not a re-argument: read the new tier with `time .githooks/run-gates.sh pre-push` before adding, because the tier's value is that nobody reaches for `--no-verify` |
 | Harness lint is a recipe, not a gate | `PLW1510` and `BLE001` **staying at 0 across a working week** without anyone tending them. At that point a gate costs nothing to add and would catch the next site before it is written; today it would fire on a backlog nobody has triaged and be disabled |
 | The `template*/` trees and the spec-change suite are retired | A decision to **run spec-change trials again**. Then restore from git rather than re-forking: `git checkout <pre-retirement> -- template-ts/`. Note what re-opening costs — the trees are frozen at 2026-08-23 and every starter repair since then is missing from them, which is the drift that closed them in the first place |
 | A harder task is priced, not bought | **A play-bot that reaches the goal.** The pre-test ran (task 83, #139) and came back spread — 0.274 to 0.803 — but 8 of 8 runs end on health exhaustion, and improving the bot reordered the field (ρ=0.405, p=0.163), so the spread is the instrument's. Nothing here justifies buying it: all-eight-at-1.000 would, and none of the eight reaches 1.000. **This row cited a $421-to-$698 *spend* until 2026-08-23. There is no such spend** — the account is a subscription and every dollar figure here is a list-price valuation of tokens (#159). The decline rests on the pre-test, not on a price. Re-opens when a bot clears a real submission's stage without dying — at which point the fraction is about the level and the question is live again |

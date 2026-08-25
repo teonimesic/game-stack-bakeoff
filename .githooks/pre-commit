@@ -1,5 +1,6 @@
 #!/bin/sh
-# The cheap gates on the content you are about to commit.
-# The gate list, the bypass, the worktree caveat and the measured cost of each tier are in
-# run-gates.sh and .github/workflows/README.md.
+# Runs the pre-commit tier of run-gates.sh against the content you are about to commit.
+# WHICH gates that is, the bypass and the worktree caveat: .github/workflows/README.md,
+# whose hook table is asserted against this script by `ci_minutes.py --selftest`. No
+# duration is written anywhere -- time it with `time .githooks/run-gates.sh pre-commit`.
 exec "$(git rev-parse --show-toplevel)/.githooks/run-gates.sh" pre-commit
