@@ -5428,3 +5428,77 @@ continues to 5/5. **A control that can leave the repository broken must be able 
 next run**, because the person who meets the damage is usually not the person who caused it.
 
 ---
+
+## 174. The grader kept its own copy of what the task asks for, and it drifted — three of nine declared cues were scored as extras
+
+`eval/judge/audio.py` held a `GAME_EVENTS` table transcribing, per game, the events each prompt
+declares. It is the denominator of two criteria. It had drifted from the prompts it transcribes:
+
+| game | prompt declares | grader held |
+|---|---|---|
+| `g3_arena` | **9** | **6** — `enemy_spawn`, `wall_graze`, `multiplier` missing |
+| `g4_platformer` | 8 | **absent entirely** — no key at all |
+
+Confirmed at both ends: the rendered prompt lists all nine at `g3_arena__rust.txt:148-154`, and the
+grader's table returned six. So a submission that produced a real, *required* cue had it recorded
+as an **`extra_event`** — the grader marking as surplus the thing the task demanded. **30 of 59
+stored gradings** carry that.
+
+The platformer case is worse in kind: with no key, `n_events` fell back to `len(sfx_clips)` — the
+denominator taken from the submission's own manifest — so a manifest with **1 of 8** declared cues
+scored `audio.manifest` PASS, with the evidence string *"entries for all 0 declared events ()"*.
+**The criterion could not fail**, and it printed its own emptiness in the evidence nobody read.
+
+> **A grader that transcribes the task keeps a second copy of the specification, and nothing
+> compares the two.** The prompts are generated from one template per game and are checked in;
+> the grader's table was typed by hand from them once. Every later prompt edit was free to move
+> the task without moving the grader, and the only symptom is a verdict that looks reasonable.
+
+This is the same class as #169 — a fact written down twice with no mechanism comparing the
+copies — and it lands in the more expensive place: not a gate that reddens, but a **score**.
+
+### Why the re-scoring census is a null, and why the null is trustworthy
+
+`audio_regrade_census.py` reports **unchanged 59, moved 0, refused 0** across 43 submissions. That
+would be a suspicious result on its own — a defect this large moving nothing. It is trustworthy
+because the same command reports the reason:
+
+- gradings whose manifest **omits a declared event**: **0**
+- gradings carrying an **undeclared** entry: **0**
+
+**Neither hole was ever exercised.** Every stored submission happened to declare exactly the events
+its grader knew about, or fewer in ways that did not cross a floor. The null is a fact about the
+corpus, not about the instrument, and it stops being true for the first submission that behaves
+differently — which `eval/RUNS.md`'s twenty-second break says explicitly.
+
+**A null that cannot say why it is null is indistinguishable from a broken extraction** (rule 12).
+This one can.
+
+---
+
+## 175. A regex alternation had five branches and one could never match, and every reader wrote "four" without noticing that was the bug
+
+`docstat.py`'s file-wide gate for the backticked-flag check:
+
+    (wholegame|runner|judge/|evaluate|regrade)\.py
+
+The `\.py` binds the **whole group**, so the `judge/` branch requires the literal string
+`judge/.py` — which occurs nowhere. `eval/judge/blind_dir.py` does not match it. Verified directly:
+the branch is reachable only by a path no file has.
+
+**Four of five branches can fire, and every write-up in this repository says "four harness
+names"** — correct as a count of what works, and produced by reading the *behaviour* rather than
+the source. **The discrepancy between "five alternatives" and "four names" was the defect, and it
+was visible in every document that discussed it.**
+
+> **A count derived from observed behaviour agrees with a broken implementation by construction.**
+> Nobody wrote "five" and found it wrong; they wrote "four" because four is what happened. The
+> only way to see it was to read the regex against its own alternation, which no amount of
+> testing the outcome would prompt.
+
+It is recorded and pinned rather than repaired: widening the branch admits documents that no
+published figure was measured over, so fixing it moves numbers that are currently correct for what
+they describe. **A latent defect whose repair invalidates published measurements is a decision,
+not a bug fix** — and the pin is what stops the next reader assuming the five branches all work.
+
+---

@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#173 from building and running this evaluator. **Check whether a
+Findings #19-#175 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -249,6 +249,8 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **171** | The exemption that lets a document discuss phantom flags disarms any probe testing for them — three self-disarming probes in one day, one of them a differential that returned "no difference" | [documentation](findings/documentation.md) |
 | **172** | No cap holds this machine for a scene performance ramp, and `taskpolicy -m` accepts a memory limit and ignores it by 64x — spacing the trials is what makes them comparable | [limits-and-cost](findings/limits-and-cost.md) |
 | **173** | A tool's log of what it had broken was discarded by stdout buffering at exactly the moment it was the only way to know — a log flushed only at exit does not exist for a run that never reaches it | [certifies-nothing](findings/certifies-nothing.md) |
+| **174** | The grader kept its own copy of what the task declares and it drifted — 3 of 9 arena cues scored as extras, and the platformer's criterion could not fail at all | [certifies-nothing](findings/certifies-nothing.md) |
+| **175** | A regex alternation had five branches and one could never match, and every reader wrote "four" without noticing the discrepancy WAS the defect | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
