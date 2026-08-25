@@ -205,10 +205,18 @@ def _github_docs_by_walk(root: str | None = None) -> list[str]:
     base = ROOT if root is None else root
     out = []
     for d, subs, files in os.walk(os.path.join(base, ".github")):
-        subs[:] = [s for s in subs if not is_vendored(s)]
-        if is_vendored(d):
+        # FULL PATHS, because that is what `is_vendored` tests. 3 of the 5 VENDORED
+        # entries are path fragments carrying separators - `/target/`, `/.godot/`,
+        # `/Library/` - so `is_vendored("target")` on a bare directory NAME is False
+        # while `is_vendored(".../target/x.md")` is True. An oracle filtering names
+        # would keep a file the subject drops and redden `--selftest` against a correct
+        # `reference_docs()`: a check that fails on correct input is one that gets
+        # disabled. Raised by CodeRabbit on PR #25.
+        subs[:] = [s for s in subs if not is_vendored(os.path.join(d, s) + os.sep)]
+        if is_vendored(d + os.sep):
             continue
-        out += [os.path.join(d, f) for f in files if f.endswith(".md")]
+        out += [os.path.join(d, f) for f in files
+                if f.endswith(".md") and not is_vendored(os.path.join(d, f))]
     return sorted(out)
 
 
@@ -3643,6 +3651,45 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _harness_trigger_census() -> dict:
+    """What widening the backticked-flag half's file-wide trigger would cost.
+
+    THE PRODUCER for the figures `.github/workflows/README.md` and `github_docs()` state.
+    A count with no producer goes stale forever, so this is computed on the live corpus
+    every `--selftest` rather than remembered from the day it was measured.
+
+    The half is gated on `harness`, a file-wide search for 4 harness script names. The
+    obvious property to replace it with is the CLOSED class `_our_script_names()` - does
+    this document name any script this repository owns. `AGENTS.md`'s rule audit says to
+    choose between candidate triggers on the live-corpus false-positive count, never on
+    which sounds more general, and this one loses: every row it adds is another tool's
+    flag or a token a task file names as deliberately fake.
+    """
+    flags, scripts = _argparse_flags(), _our_script_names()
+    old_rx = re.compile(r"(wholegame|runner|judge/|evaluate|regrade)\.py")
+    wide_rx = re.compile(r"\b(" + "|".join(re.escape(s) for s in sorted(scripts)) + r")\b")
+    old_admitted = wide_admitted = 0
+    new_rows = []
+    docs = reference_docs()
+    for q in docs:
+        text = open(q, encoding="utf-8", errors="replace").read()
+        narrow, wide = bool(old_rx.search(text)), bool(wide_rx.search(text))
+        old_admitted += narrow
+        wide_admitted += wide
+        if not (wide and not narrow):
+            continue
+        for ln in text.split("\n"):
+            if re.search(_DELIBERATELY_FAKE, ln, re.I):
+                continue
+            for tok in re.findall(r"`(--[a-z0-9-]{2,})`", ln):
+                if (tok.startswith(FOREIGN_FLAG_PREFIXES)
+                        or tok in FOREIGN_FLAGS_EXACT or tok in flags):
+                    continue
+                new_rows.append(f"{os.path.relpath(q, ROOT)}: {tok}")
+    return {"corpus": len(docs), "narrow": old_admitted,
+            "wide": wide_admitted, "new_rows": sorted(new_rows)}
+
+
 def _corpus_pins(verbose: bool = False) -> list[str]:
     """The two corpora reach what they are meant to reach, and nothing else.
 
@@ -3683,8 +3730,16 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
         shallow = os.path.join(tmp, ".github", "CONTRIBUTING.md")
         open(shallow, "w").write("# shallow\n")
         open(os.path.join(tmp, ".github", "notes.txt"), "w").write("not markdown\n")
+        # VENDORED, nested. The subject drops it by full-path match; an oracle that
+        # tested the bare directory name would keep it, and the completeness case above
+        # would then be red while `reference_docs()` was right.
+        vendored = os.path.join(tmp, ".github", "target", "generated.md")
+        os.makedirs(os.path.dirname(vendored))
+        open(vendored, "w").write("# vendored\n")
         found = github_docs(root=tmp)
+        fixture_walked = _github_docs_by_walk(root=tmp)
 
+    census = _harness_trigger_census()
     reg_text = open(register, encoding="utf-8", errors="replace").read()
     reg_lines = reg_text.split("\n")
     planted = reg_lines + ["```bash", "python3 eval/tools/docstat.py --zzq-not-a-flag", "```"]
@@ -3699,6 +3754,10 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
          register in walked, True),
         ("adversarial: a nested and a top-level .github doc, and no .txt",
          found == sorted([deep, shallow]), True),
+        ("adversarial: a VENDORED nested doc is dropped by the glob",
+         vendored in found, False),
+        ("...and the walking oracle drops exactly the same set",
+         fixture_walked == found, True),
         # POSITIVE CONTROL for the corpus, not just membership. Being in the list is not
         # being read: the bare-fenced half must actually fire on a token planted in this
         # file's own lines. Green membership with a check that never looks is the exact
@@ -3714,6 +3773,11 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
         ("the backticked half still does NOT admit the register (recorded exclusion)",
          bool(re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", reg_text)),
          False),
+        # The recorded exclusion rests on the wider trigger costing rows. Asserted
+        # mechanically; whether those rows are FALSE positives is adjudication, and the
+        # census prints them so the next reader adjudicates rather than trusts.
+        ("widening that trigger is not free - it admits more docs and adds rows",
+         census["wide"] > census["narrow"] and len(census["new_rows"]) > 0, True),
     ]
     failed = []
     for name, got, want in cases:
@@ -3722,6 +3786,14 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
             print(f"{'PASS' if ok else 'FAIL'}  {name}: {got}, expected {want}")
         if not ok:
             failed.append(f"corpus pin: {name}: got {got}, want {want}")
+    if verbose:
+        print(f"\n  harness-trigger census over {census['corpus']} reference docs: "
+              f"the shipped 4-name trigger admits {census['narrow']}, "
+              f"`names any script of ours` would admit {census['wide']}")
+        print(f"  and add {len(census['new_rows'])} row(s), every one another tool's flag "
+              f"or a deliberately-fake token:")
+        for row in census["new_rows"]:
+            print(f"    {row}")
     return failed
 
 

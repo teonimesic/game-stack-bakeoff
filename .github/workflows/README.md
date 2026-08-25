@@ -167,12 +167,19 @@ no document corpus at all — read by every session, checked by nothing.
 | `linkcheck.py` with no arguments | **does not** — `LIVE_DOCS` is the front door and what it links into. Pass the path to check this file |
 
 **The obvious repair to the second row is measurably worse, which is why it is a recorded
-exclusion and not a bug.** Widening that trigger from the 4 names to *"names any script this
-repository owns"* takes it from 43 documents to 165 and adds **25 rows with 0 true positives** —
-`gh`, `git`, Godot and Chrome flags, and the fake tokens task files name on purpose. The
-higher-damage shape is covered either way: a **bare** flag on a fenced command line, which is the
-text a reader copies, is caught here, and `docstat.py --selftest` plants one in this file's own
-lines every run to prove it.
+exclusion and not a bug.** Widening that trigger from the 4 harness names to the closed class
+*"names any script this repository owns"* admits far more documents and every row it adds is
+another tool's flag — `gh`, `git`, Godot, Chrome — or a token a task file names as deliberately
+fake.
+
+```bash
+python3 eval/tools/docstat.py --selftest    # prints the census, and the rows, on today's corpus
+```
+
+That is the producer, not a figure: it recounts against the live corpus every run rather than
+restating what was true the day it was measured. The higher-damage shape is covered either way —
+a **bare** flag on a fenced command line, which is the text a reader copies, is caught here, and
+the same `--selftest` plants one in this file's own lines every run to prove it.
 
 ## Minutes
 
@@ -183,6 +190,10 @@ required checks turned it into.
 ```bash
 python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
 ```
+
+**That producer answers the billing question, not the waiting one.** It counts per job, rounds
+each up to the whole minute and excludes the queue wait, so it is the wrong instrument for
+*"how long does this tier take"* — use `gh pr checks <n>`, which reports elapsed time, for that.
 
 `controls.yml` is the slow tier and a required check, so it is what a merge waits on. Its filter
 is evaluated against the **whole pull request diff**, not the latest push, so a branch that
@@ -211,5 +222,7 @@ read comes back green, and green is the reassuring answer when you are trying to
 works.
 
 **A tier budget is a measurement, not a property of the tier**, and one merge can move it by
-more than the run-to-run noise. Re-time with `python3 eval/tools/ci_minutes.py` rather than
-trusting a number written here.
+more than the run-to-run noise. Re-read it with `gh pr checks <n>` rather than trusting a number
+written here — **not** with `ci_minutes.py`, which answers a different question: it reports
+*billable* minutes, per job, rounded up to the whole minute and excluding the queue wait, while
+what a merge waits on is elapsed wall clock.
