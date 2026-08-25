@@ -1,14 +1,15 @@
 # The SLOW tier: the mutant suites, and the two selftests that spend real seconds.
 #
-# Split out of gates.yml for one reason and it is not tidiness: LATENCY. This job is 791s
-# measured (bot_mutants 286s, tasks_mutants 305s, skill_layout 75s) against the
-# fast tier's 42s, and both are required checks, so running them on every event would put
-# eleven minutes in front of every merge for checks whose inputs are only source.
+# Split out of gates.yml for one reason and it is not tidiness: LATENCY. These suites take
+# minutes where the fast tier takes seconds, and both are required checks, so running them
+# on every event would put the whole slow tier in front of every merge for checks whose
+# inputs are only source. What each tier takes is in .github/workflows/README.md and only
+# there -- read it from the register, never from a comment that cannot be disagreed with.
 #
-# It WAS a billing split: the repository was private and Actions minutes were metered. It
-# went public on 2026-08-24 and Linux minutes are now unlimited, so the cost argument is
-# gone and the wall-clock one is what keeps the tiers apart. `ci_minutes.py` still measures
-# what runs; nothing is charged for it.
+# It WAS a billing split, back when the repository was private and Actions minutes were
+# metered. Wall clock is what keeps the tiers apart now. Whether a minute is also billed is
+# read by `ci_minutes.py` on every census and printed in its header -- not asserted here,
+# because an assertion in a comment outlives the fact it was true of.
 #
 # THE FILTER IS NOT IN `on:`, AND THAT IS THE WHOLE POINT OF THIS SHAPE. A workflow whose
 # `paths:` do not match produces NO check, not a passing one, and `controls` is a required
@@ -111,7 +112,7 @@ jobs:
       - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/bot_mutants.py
-      # 5.2s. A mutant asks whether a criterion can fail; this asks the other question --
+      # A mutant asks whether a criterion can fail; this asks the other question --
       # whether any criterion rests on something the task prompt leaves FREE. It also
       # produces the tick census eval/RUNS.md quotes for the twenty-third comparability
       # break, so that figure has a producer rather than a memory.
