@@ -18,11 +18,10 @@ invoking something under `eval/`; they are pinned in `ci_minutes --selftest`. Th
 from `gh pr checks <n>`, which prints both for any pull request.
 
 **Re-read a timing from a run rather than carrying it forward, and never estimate one by adding
-step times.** A single timing is one sample of a noisy quantity, and the noise is larger than the
-step you would be adding: 2 consecutive `gates.yml` runs one markdown edit apart came back **65s**
-and **102s** — a 57% spread on content that did not change — while a step added to that workflow
-costs under 0.2s locally. So a timing that looks stale is not evidence that a step was added, and
-a step that was added is invisible next to the variance.
+step times.** A single timing is one sample of a noisy quantity, and the run-to-run spread on
+unchanged content has measured larger than the cost of a step this repository adds. So a timing
+that looks stale is not evidence that a step was added, and a step that was added is invisible
+next to the variance — read the current pair rather than reasoning about the difference.
 
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
@@ -42,8 +41,8 @@ sigil, and no sweep is bounded by a figure nobody is charged (#159). `field_rank
 **The filter is a step, not a `paths:` trigger.** A workflow whose `paths:` do not match
 produces **no check at all**, not a passing one — and `controls` is a required check, so a pull
 request touching only `tasks/` or a root document waits on a check that can never arrive, and
-updating the branch does not help. Measured at PR #14's head: 2 `gates` check runs, **0**
-`controls`.
+updating the branch does not help. The measurement that established it is in
+`ci_minutes.py --scope`'s docstring, beside the code it decided.
 
 So `controls.yml` triggers on every pull request and asks the question inside the job. Its first
 step runs `python3 eval/tools/ci_minutes.py --scope`, which diffs the pull request against its
@@ -155,6 +154,26 @@ has to run.
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
 | the full `lint.py` rule set | 72 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 
+### Which gates read THIS file
+
+Not all of them, and the gap is recorded rather than implied. `.github/` begins with a dot,
+`glob("**")` does not descend into it, and until `github_docs()` existed this register was in
+no document corpus at all — read by every session, checked by nothing.
+
+| on this file | |
+|---|---|
+| `docstat --sweep`, unresolved references and structure | **reads it** |
+| `docstat --sweep`, the backticked-flag half | **does not.** It is gated file-wide on 4 harness script names and this file names tools, not harnesses |
+| `linkcheck.py` with no arguments | **does not** — `LIVE_DOCS` is the front door and what it links into. Pass the path to check this file |
+
+**The obvious repair to the second row is measurably worse, which is why it is a recorded
+exclusion and not a bug.** Widening that trigger from the 4 names to *"names any script this
+repository owns"* takes it from 43 documents to 165 and adds **25 rows with 0 true positives** —
+`gh`, `git`, Godot and Chrome flags, and the fake tokens task files name on purpose. The
+higher-damage shape is covered either way: a **bare** flag on a fenced command line, which is the
+text a reader copies, is caught here, and `docstat.py --selftest` plants one in this file's own
+lines every run to prove it.
+
 ## Minutes
 
 The repository is **public**, so Linux Actions minutes are **free and unlimited**. Nothing below
@@ -191,6 +210,6 @@ Every step uses `set -e`; a `run:` block reports only its last command's status 
 read comes back green, and green is the reassuring answer when you are trying to prove a gate
 works.
 
-**A tier budget is a measurement, not a property of the tier** — a single merge has taken one
-control suite from 39s to 157s. Re-time with `ci_minutes.py` rather than trusting a number
-written here.
+**A tier budget is a measurement, not a property of the tier**, and one merge can move it by
+more than the run-to-run noise. Re-time with `python3 eval/tools/ci_minutes.py` rather than
+trusting a number written here.

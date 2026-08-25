@@ -96,6 +96,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../eval
 ROOT = os.path.dirname(REPO)
@@ -142,26 +143,73 @@ def _all_skill_files() -> list[str]:
     return out
 
 
-def dot_dir_docs() -> list[str]:
-    """Instruction markdown under a dot-directory that is not a skill - today, `.github/`.
+def github_docs(root: str | None = None) -> list[str]:
+    """Every non-vendored markdown file under `.github/`, at any depth.
 
     `glob("**")` does not descend into a name beginning with a dot, so `.github/` is
     invisible to `project_docs()` for exactly the reason `.claude/` was. That left
     `.github/workflows/README.md` - the register `AGENTS.md` tells every session to read
     before adding a gate, and which names dozens of this repository's own tools and flags -
-    outside every reference check, passing nothing rather than passing.
+    outside every reference check, passing nothing rather than passing. Measured with the
+    same `--no-such-flag-147` planted on a fenced command line of each file: `--sweep` came
+    back exit 0 on the register and exit 1 naming the flag on the identical plant in
+    `DECISIONS.md`.
 
-    Measured 2026-08-24 with the same `--no-such-flag-147` planted on a fenced command line
-    of each file: `--sweep` came back exit 0 on the register and exit 1 naming the flag on
-    the identical plant in `DECISIONS.md`.
+    Globbed by DIRECTORY, never by filename, and recursively rather than at one level.
+    Naming the one file that exists today is the enumeration failure `AGENTS.md`'s rule
+    audit describes, and the next document added under `.github/` would be unswept in the
+    same silent way - which is what `_corpus_pins` drives a nested fixture through.
 
-    Globbed by DIRECTORY, never by filename. Naming the one file that exists today is the
-    enumeration failure `AGENTS.md`'s rule audit describes, and the next document added
-    under `.github/` would be unswept in the same silent way.
+    WHAT THIS BUYS, AND WHAT IT DOES NOT. Being in `reference_docs()` is necessary and not
+    sufficient: two of the reference halves carry their own file-wide trigger, and one of
+    them does not admit this file. Measured by planting the same phantom token 4 ways in
+    the register and in `DECISIONS.md`:
+
+      plant                                   register   DECISIONS.md
+      bare flag on a fenced command line       exit 1     exit 1     <- reads .github/
+      backticked flag, script named on line    exit 0     exit 1     <- does NOT
+      backticked flag, no script on the line   exit 0     exit 1     <- does NOT
+      phantom aspect in prose                  exit 0     exit 0     <- neither: see below
+
+    The backticked half is gated on `harness`, a file-wide search for 4 harness script
+    names, and the register names none of them - it names tools. The aspect half is
+    scoped to documents that make a claim about aspects, which this file never does, so
+    its exit 0 is agreement rather than absence.
+
+    THE OBVIOUS REPAIR IS MEASURABLY WORSE, which is why it is recorded here instead of
+    applied. Replacing the 4-name enumeration with the closed class `_our_script_names()`
+    takes the admitted corpus from 43 documents to 165 and adds **25 rows, of which 0 are
+    true positives** - `--auto`, `--body-file`, `--ours`, `--theirs` (`gh` and `git`),
+    `--doctool` (Godot), `--enable-unsafe-webgpu` (Chrome), and the deliberately-fake
+    tokens task files name on purpose. That is the shape `AGENTS.md`'s rule audit
+    describes: an open-class property that fires on correct input is how a gate gets
+    disabled. `_corpus_pins` holds the exclusion so it cannot become silent.
+
+    `root` exists for those pins. Everything else takes the default.
     """
-    return sorted(q for q in glob.glob(os.path.join(ROOT, ".github", "**", "*.md"),
+    base = ROOT if root is None else root
+    return sorted(q for q in glob.glob(os.path.join(base, ".github", "**", "*.md"),
                                        recursive=True)
                   if not is_vendored(q))
+
+
+def _github_docs_by_walk(root: str | None = None) -> list[str]:
+    """The same set, found by WALKING - the pins' independent statement of the answer.
+
+    A control that computes its expectation by calling the function under test agrees with
+    every mutant of that function: the `tasks.py note` control built its expected bytes from
+    `tasks.py`'s own helper and came back SURVIVED on 48 rows (task 113, `AGENTS.md` rule 12).
+    So this reaches the same files by a different mechanism, and `_corpus_pins` compares the
+    two rather than making them one object.
+    """
+    base = ROOT if root is None else root
+    out = []
+    for d, subs, files in os.walk(os.path.join(base, ".github")):
+        subs[:] = [s for s in subs if not is_vendored(s)]
+        if is_vendored(d):
+            continue
+        out += [os.path.join(d, f) for f in files if f.endswith(".md")]
+    return sorted(out)
 
 
 def reference_docs() -> list[str]:
@@ -189,7 +237,7 @@ def reference_docs() -> list[str]:
       ratchet       0 trial ids appear in any skill, and it is scoped to `findings/`
                     regardless, so the count is unmoved.
     """
-    return sorted(set(project_docs()) | set(_all_skill_files()) | set(dot_dir_docs()))
+    return sorted(set(project_docs()) | set(_all_skill_files()) | set(github_docs()))
 
 
 def _fence_mask(lines: list[str]) -> list[bool]:
@@ -3599,25 +3647,73 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
     """The two corpora reach what they are meant to reach, and nothing else.
 
     A corpus is an input to a check (#60), and this one failed silently: a dot-directory is
-    skipped by `glob`, so a document could be read by every session and by no gate. The
-    expectation is stated here as a PATH, independently of the glob that produces it - a
-    pin that called `dot_dir_docs()` for its expected value would agree with any mutant of
-    it (`AGENTS.md` rule 12).
+    skipped by `glob`, so a document could be read by every session and by no gate.
+
+    ASKED AS COMPLETENESS, not as one filename. Pinning only
+    `.github/workflows/README.md` passes for a `github_docs()` that returns exactly that
+    file, so the second document added under `.github/` would be unswept and green - the
+    same silent shape this whole repair exists to close. The live case therefore compares
+    `reference_docs()` against `_github_docs_by_walk()`, which reaches the files by a
+    different mechanism, and the adversarial case drives a NESTED fixture no one-level and
+    no hardcoded implementation can satisfy.
+
+    The register is still named explicitly, because the one row whose answer you can state
+    in advance is what proves the extraction before you believe the census (rule 12).
 
     Both directions, because the separation is the point:
 
-      in `reference_docs()`      the register is swept for phantom names
+      in `reference_docs()`      swept for phantom names
       NOT in `project_docs()`    that helper feeds the size report and the bare-trial-id
                                  ratchet, and the ratchet is pinned to an EXACT count a
                                  larger corpus would move in the direction that passes
     """
     register = os.path.join(ROOT, ".github", "workflows", "README.md")
     rel = os.path.relpath(register, ROOT)
+    refs = set(reference_docs())
+    walked = _github_docs_by_walk()
+    unswept = sorted(os.path.relpath(q, ROOT) for q in walked if q not in refs)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # ADVERSARIAL: nested two deep, and a sibling at the top. A one-level glob, a
+        # hardcoded `workflows/README.md`, and a `.md` test that forgets to recurse each
+        # come back short here while the live tree above still looks perfect.
+        deep = os.path.join(tmp, ".github", "ISSUE_TEMPLATE", "nested", "deep.md")
+        os.makedirs(os.path.dirname(deep))
+        open(deep, "w").write("# deep\n")
+        shallow = os.path.join(tmp, ".github", "CONTRIBUTING.md")
+        open(shallow, "w").write("# shallow\n")
+        open(os.path.join(tmp, ".github", "notes.txt"), "w").write("not markdown\n")
+        found = github_docs(root=tmp)
+
+    reg_text = open(register, encoding="utf-8", errors="replace").read()
+    reg_lines = reg_text.split("\n")
+    planted = reg_lines + ["```bash", "python3 eval/tools/docstat.py --zzq-not-a-flag", "```"]
+
     cases = [
-        (f"{rel} is in the reference corpus", register in reference_docs(), True),
+        (f"{rel} is in the reference corpus", register in refs, True),
         (f"{rel} is NOT in project_docs() - the ratchet's corpus is unmoved",
          register in project_docs(), False),
-        ("the register exists to be swept at all", os.path.exists(register), True),
+        ("every .md under .github/ is swept, found by walking rather than by the same glob",
+         unswept, []),
+        ("the walk found the register too - neither side is an empty set agreeing",
+         register in walked, True),
+        ("adversarial: a nested and a top-level .github doc, and no .txt",
+         found == sorted([deep, shallow]), True),
+        # POSITIVE CONTROL for the corpus, not just membership. Being in the list is not
+        # being read: the bare-fenced half must actually fire on a token planted in this
+        # file's own lines. Green membership with a check that never looks is the exact
+        # shape this repair closed.
+        ("the bare-fenced half fires on a flag planted in the register's own lines",
+         "--zzq-not-a-flag" in _bare_fenced_flags(planted, _our_script_names()), True),
+        ("...and says nothing about the register unplanted",
+         [t for t in _bare_fenced_flags(reg_lines, _our_script_names())
+          if t not in _argparse_flags()], []),
+        # THE RECORDED EXCLUSION, pinned so it cannot go stale silently. If this reddens,
+        # the register began naming a harness and the backticked half now reads it - the
+        # docstring table above is then wrong and must be re-measured, not deleted.
+        ("the backticked half still does NOT admit the register (recorded exclusion)",
+         bool(re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", reg_text)),
+         False),
     ]
     failed = []
     for name, got, want in cases:
@@ -4055,7 +4151,7 @@ def cmd_sweep() -> int:
     _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
           f"({len(project_docs())} project + {len(skills)} skills "
-          f"+ {len(dot_dir_docs())} under .github); {len(flags)} of our "
+          f"+ {len(github_docs())} under .github); {len(flags)} of our "
           f"flags, of which {bare_seen} bare occurrence(s) on a fenced command line of one "
           f"of our {len(scripts)} argparse scripts (pinned red and green); "
           f"{len(aspects)} aspects known and every exhaustive census of them checked "

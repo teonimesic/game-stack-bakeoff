@@ -155,14 +155,18 @@ It prints its population, the range it compared against and the producer of that
 the figure it replaces was published with none of the three and did not reproduce the same day.
 
 **The references half reads every instruction document a session is told to read, not only
-the ones outside a dot-directory** — the skills, including this one, and the CI register at
-`.github/workflows/README.md`. `glob` does not descend into a name beginning with a dot, so
-each was invisible to the sweep while being read by every session, and each is reached by a
-corpus that names it rather than by widening `project_docs()`, whose exact-count ratchet a
-larger corpus would move in the direction that passes. Both were measured before being let
-in: the skills at **0 false positives** once fenced lines stopped counting as claims, the
-register at **0 new rows** over the live tree, with a phantom flag planted in it to prove the
-sweep had not simply stopped looking.
+the ones outside a dot-directory** — every `SKILL.md`, including this one, and every markdown
+file under `.github/`, of which the CI register at `.github/workflows/README.md` is currently
+the only one. `glob` does not descend into a name beginning with a dot, so each was invisible
+to the sweep while being read by every session. Each is reached by a corpus that names its
+directory rather than by widening `project_docs()`, whose exact-count ratchet a larger corpus
+would move in the direction that passes.
+
+Both were measured with `python3 eval/tools/docstat.py --sweep` before being let in: the
+skills at **0** false positives once fenced lines stopped counting as claims, `.github/` at
+**0** new rows over the live tree. In each case a phantom flag was planted first and the
+sweep made to name it, because a corpus that has stopped looking and a corpus with nothing
+to say are the same exit code.
 
 Prose is executed by a person, and **a person does not get an argparse error**. A file
 naming a flag, path, aspect or criterion that does not exist is worse than one that says

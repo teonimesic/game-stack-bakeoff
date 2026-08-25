@@ -1363,11 +1363,11 @@ red across several merges.
 `.github/workflows/README.md`.** It is not restated here — a second copy is a second source of
 truth. What is decided:
 
-**Three tiers, split on a budget rather than on coverage.** `.githooks/pre-commit` is 1.2s and
-`.githooks/pre-push` is 12.0s, both measured; `gates.yml` is 42s of gates and `controls.yml` is
-521s. A hook nobody bypasses is worth more than a hook that covers everything, and `--no-verify`
-is one flag. **A hook checks the CONTENT; CI additionally checks the CHECKERS** — a control over
-a tool changes only when the tool changes.
+**Three tiers, split on a budget rather than on coverage** — the hooks in seconds, the fast CI
+tier under a couple of minutes, the slow one in minutes, with the current timing of each and its
+producer in the register named above. A hook nobody bypasses is worth more than a hook that
+covers everything, and `--no-verify` is one flag. **A hook checks the CONTENT; CI additionally
+checks the CHECKERS** — a control over a tool changes only when the tool changes.
 
 **The hooks are installed by hand, with `git config core.hooksPath .githooks`, and are not
 installed by anything automatic.** `core.hooksPath` lives in the shared git config, so one
@@ -1395,18 +1395,16 @@ out `starter_parity.py`, `parity_selftest.py` and `starter_gate_control.py` (325
 Godot, cargo, pnpm and Unity), and `evidence_set_control.py` and `disclosure_mutants.py`, which
 need `eval/runs/` and correctly exit 2 without it.
 
-**The repository is PRIVATE, so Actions minutes are metered** — the MIT licence is a separate
-setting and buys nothing here. The allowance could not be read (`gh api
-/users/teonimesic/settings/billing/actions` is 404 without the `user` token scope), so the design
-is lean rather than sized: `ubuntu-latest`, push narrowed to `main`, `cancel-in-progress`, and
-the 521s tier behind a path filter plus a nightly cron. **Whether to make the repository public
-is the operator's call and nobody else's**; it would remove the constraint entirely.
+**The repository is PUBLIC, so Linux Actions minutes are free and unlimited** — read with
+`gh repo view teonimesic/game-stack-bakeoff --json isPrivate`, never remembered. The design stays
+lean anyway, because what a merge now waits on is wall clock in front of a required check rather
+than a bill: `ubuntu-latest`, push narrowed to `main`, `cancel-in-progress`, and the slow tier
+behind a path filter plus a nightly cron.
 
-**What CI has consumed has a producer: `python3 eval/tools/ci_minutes.py`.** The allowance is
-still unreadable, but consumption is not — it is read from the Actions API per job, rounded up
-to the whole minute, and printed with the window it counted over. The projection that used to
-stand in the register was arithmetic over 2 guessed run-rates and is replaced by a measured
-total, not by a better estimate. 2 traps are encoded in the tool rather than in prose because
+**What CI has consumed has a producer: `python3 eval/tools/ci_minutes.py`.** Consumption is read
+from the Actions API per job, rounded up to the whole minute, and printed with the window it
+counted over. The projection that used to stand in the register was arithmetic over 2 guessed
+run-rates and is replaced by a measured total, not by a better estimate. 2 traps are encoded in the tool rather than in prose because
 both return plausible numbers: `run_duration_ms` is the run including its queue wait, and
 `billable.UBUNTU.total_ms` — the field named for exactly this quantity — read **0 for 58 of 58
 runs**, so anything summing it reports "0 minutes consumed" and is indistinguishable from a
@@ -1453,9 +1451,10 @@ producer for how many mutants and variants it carries. The two-job form stays re
 rejected twice over: it was arithmetically worse when minutes were metered (+25 to save 16), and
 a second job is a second check that can be absent.
 
-**The lever if latency ever binds is the slow tier's `pull_request` trigger, which was 141 of 220
-minutes**, not the filter, which is 7%. `python3 eval/tools/ci_minutes.py` re-derives it: it
-reports minutes by workflow and by workflow x event.
+**The lever if latency ever binds is the slow tier's `pull_request` trigger, not its path
+filter.** `python3 eval/tools/ci_minutes.py` is what decides that on current data: it reports
+minutes by workflow and by workflow x event, and the `controls` x `pull_request` cell is the one
+the lever acts on.
 
 ---
 ## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]
