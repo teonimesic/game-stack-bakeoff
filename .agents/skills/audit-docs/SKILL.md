@@ -267,10 +267,14 @@ tests nothing. The `printf` above appends an unfenced sentence for exactly that 
 **The flag check does not share that rule, and knowing which you are controlling matters.**
 It has no fence exemption, and it is now **two halves with different triggers**:
 
-| half | trigger | corpus measurement |
-|---|---|---|
-| backticked | `` `--<flag>` `` anywhere, in a doc that names one of our harnesses | 0 hits |
-| bare (task 89) | a `--<flag>` on a **fenced** line, after the name of one of our argparse-owning scripts, before the first shell operator | 0 hits over 56 such lines and 31 in-scope tokens, of which 30 resolve to our argparse and 1 is known-foreign |
+| half | trigger | reads a SKILL.md? | corpus measurement |
+|---|---|---|---|
+| backticked | `` `--<flag>` `` anywhere, in a doc that names one of our harnesses **or in any skill** | all 10 | 0 hits |
+| bare (task 89) | a `--<flag>` on a **fenced** line, after the name of one of our argparse-owning scripts, before the first shell operator | all 10 | 0 hits over 56 such lines and 31 in-scope tokens, of which 30 resolve to our argparse and 1 is known-foreign |
+
+**The backticked half admitted only the 4 skills naming a harness until 2026-08-25**, and now
+reads 28 of the 28 backticked flag mentions the skills make, at a cost of 0 correct lines. Run
+`python3 eval/tools/docstat.py --selftest` for the live figures.
 
 Until 2026-08-23 only the first existed, so a **bare** flag on a fenced command line — the
 ordinary way a usage block is written, and the text a reader copies and pastes — was the
@@ -310,6 +314,14 @@ Do not "fix" these by adding them back. Each was measured and removed:
   — that pattern harvests `re.search` and `aspects.py` as criterion ids**, and a check whose
   corpus is junk goes quiet rather than wrong, which is the harder failure to see.
 - **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.
+- **A backticked flag in an ordinary document that names none of our 4 harness scripts.**
+  Skills are **not** in this exclusion — the half admits all 10 skills regardless, which is
+  where flags are most densely written. Widening it further, to any document naming a
+  script this repository owns, still loses at **13 candidate rows** over the reference
+  corpus, 11 of them in `tasks/`. `DECISIONS.md` is the authority for those figures and
+  for why the skills were admitted; `python3 eval/tools/docstat.py --selftest` re-derives
+  them, and its pins redden both if a phantom flag in a skill stops being caught and if
+  admitting them starts costing a correct line.
 - **A bare flag in unfenced PROSE, and a bare flag on a fenced line that names no script
   of ours.** Both were built and measured on 2026-08-23 (task 89). Prose: 2 false
   positives, 0 true — a sentence naming `field.py` and then the claude CLI's

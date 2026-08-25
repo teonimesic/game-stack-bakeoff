@@ -623,6 +623,40 @@ per-aspect results table over the subset a particular round ran. Nine false posi
 a gap that has never occurred is the trade this file already refused when the path check was
 deleted rather than tuned quiet.
 
+**The flag census reads every skill, and the widening was decided by a cost that moved
+(task 149).** The backticked-flag half is gated file-wide on 4 harness script names, which
+admitted 4 of the 10 `SKILL.md` files — leaving the documents where commands and flags are most
+densely written mostly unchecked. It now reads all 10 `SKILL.md` files, at a cost of 0 correct
+lines. *reads* is how many of the 28 backticked mentions of a real flag of ours a trigger would
+look at; *rows* is how many correct lines it turns red:
+
+| trigger | reads | rows |
+|---|---|---|
+| the retired 4 harness names, file-wide | 10/28 | 0 |
+| one of our scripts named on the same line | 2/28 | 0 |
+| one of our scripts in the same section | 26/28 | 0 |
+| SHIPPED: every skill | 28/28 | 0 |
+
+**Every row cost something when this was measured six hours earlier, and admitting all 10 cost
+8** — `gh`, `git` and `just` flags argued about in prose, which is the shape this file refuses
+above. The exclusion was written, and then all 9 of those tokens entered `FOREIGN_FLAGS_EXACT`
+on `main` (`6bfc80b`) for an unrelated reason: ticket prose was reddening the sweep with the
+same flags. **An exclusion argued from a cost of 8 does not survive the cost becoming 0**, and
+the asymmetry decides it — the exemptions are the fail-open half and were paid for regardless,
+while widening the trigger is the fail-closed half. Declining the coverage would have paid the
+price and taken nothing for it.
+
+`python3 eval/tools/docstat.py --selftest` is the producer, and pins compare this table against
+the live census in both directions: that a phantom flag in a skill naming no harness is caught,
+and that no candidate costs a row. **The second is the one to watch.** A skill that starts
+discussing a new tool's flag turns the sweep red on correct input, which is how a gate gets
+disabled; the repair is `FOREIGN_FLAGS_EXACT`, not narrowing the trigger back.
+
+What is still excluded is ordinary documents naming none of the 4 harness scripts. Widening
+that to the closed class `_our_script_names()` still loses at 13 candidate rows over the
+reference corpus, 11 of them in `tasks/`. `.agents/skills/audit-docs/SKILL.md` states both
+halves for an auditor; this entry is the authority for the measurement.
+
 Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
 gate that fails on correct input gets disabled*:
 
