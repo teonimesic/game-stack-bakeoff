@@ -29,6 +29,7 @@ repository it is testing cannot tell "the repair worked" from "the repair was ne
 and it would have exactly the failure mode this whole ticket is about.
 """
 import os
+import pathlib
 import shutil
 import signal
 import subprocess
@@ -41,6 +42,7 @@ import skill_layout_control as slc
 from docstat import SKILLS_REAL, SKILLS_LINKS
 
 CHILD = os.path.join(HERE, "_skill_layout_child.py")
+MINE = "somebody else's file\n"
 
 
 # ---------------------------------------------------------------------------------------
@@ -76,6 +78,13 @@ def dirty(root: str) -> str:
     return _git(root, "status", "--porcelain").strip()
 
 
+def _read(path: str) -> str:
+    return pathlib.Path(path).read_text() if os.path.exists(path) else "<gone>"
+
+
+
+
+
 # ---------------------------------------------------------------------------------------
 class Pins:
     def __init__(self):
@@ -94,6 +103,26 @@ class Pins:
         ok = needle in haystack
         if not ok:
             self.failed.append(f"{name}: {needle!r} not in {haystack!r}")
+        print(f"  {'PASS' if ok else 'FAIL'}  {name}")
+
+    def refuses(self, name: str, fn, want: bool = True):
+        """Did `fn` REFUSE - raise the tool's own RuntimeError?
+
+        Three outcomes, not two. Any other exception is a failed pin carrying its text, never
+        a refusal and never an aborted suite: a check that dies on an unexpected input reports
+        nothing about the inputs after it, which is the shape a mutant hides in.
+        """
+        self.n += 1
+        try:
+            fn()
+            got, note = False, "returned normally"
+        except RuntimeError as exc:
+            got, note = True, f"refused: {exc}"
+        except Exception as exc:                      # noqa: BLE001 - reported, not swallowed
+            got, note = None, f"{type(exc).__name__}: {exc}"
+        ok = got is want
+        if not ok:
+            self.failed.append(f"{name}: {note}")
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
 
 
@@ -170,6 +199,54 @@ def pin_a_foreign_tree_survives_the_repair(p: Pins, tmp: str) -> None:
             os.path.exists(os.path.join(root, SKILLS_REAL, "tasks", "SKILL.md")), True)
     p.check("only the extra/ scaffolding went",
             os.path.exists(os.path.join(root, SKILLS_REAL, "tasks", "extra")), False)
+
+
+def pin_a_symlinked_component_is_refused(p: Pins, tmp: str) -> None:
+    """VARIANT: a symlink on a plant's path takes the write and the prune OUTSIDE the tree.
+
+    `.codex/skills -> /elsewhere` makes `os.makedirs` write the plant outside the repository
+    and the parent walk remove a directory the repository does not contain. Raised by
+    CodeRabbit on PR #28. Delete `assert_inside` from either call site and the two "survives"
+    rows below go red, because that is exactly what the unguarded code does.
+    """
+    print("\na symlinked path component is refused, and nothing outside the tree is touched")
+    root = make_fixture(os.path.join(tmp, "symlinked"))
+    outside = os.path.join(tmp, "outside")
+    os.makedirs(os.path.join(outside, "tasks"))
+    victim = os.path.join(outside, "tasks", "SKILL.md")
+    with open(victim, "w") as fh:
+        fh.write(MINE)
+    os.makedirs(os.path.join(root, ".codex"))
+    os.symlink(outside, os.path.join(root, ".codex", "skills"))
+
+    p.refuses("plant() refuses", slc.PlantRealCopy(root).plant)
+    # The CONTENT, not the listing. An unguarded plant copies its SKILL.md straight over the
+    # victim, and the directory listing is byte-identical before and after - a row that cannot
+    # tell those two apart is reporting the instrument (AGENTS.md rule 9).
+    p.check("the file outside is not overwritten", _read(victim), MINE)
+
+    # The leftover a pre-guard run could have left: the file already sitting out there,
+    # reachable through the symlink. repair() must refuse it rather than follow it.
+    p.refuses("repair() refuses", lambda: slc.repair(root))
+    p.check("the file outside survives", _read(victim), MINE)
+    p.check("the directory outside survives", os.path.isdir(os.path.join(outside, "tasks")),
+            True)
+
+    # And the leaf must be the regular file a plant writes, never a directory `_rm` would
+    # rmtree. Same fixture shape, no symlink, so only the leaf test can fire.
+    clean = make_fixture(os.path.join(tmp, "leafdir"))
+    os.makedirs(os.path.join(clean, ".codex", "skills", "tasks", "SKILL.md", "inner"))
+    p.refuses("a directory standing where the plant's file belongs is refused",
+              lambda: slc.repair(clean))
+    p.check("and it is still there", os.path.isdir(
+        os.path.join(clean, ".codex", "skills", "tasks", "SKILL.md", "inner")), True)
+
+    # VARIANT: the guard must not fire on the shipped layout, or every plant refuses.
+    ok = make_fixture(os.path.join(tmp, "guard-variant"))
+    p.refuses("the guard passes a clean path",
+              lambda: slc.assert_inside(ok, ".codex/skills/tasks/SKILL.md"), want=False)
+    p.refuses("and passes the deep plant's path",
+              lambda: slc.assert_inside(ok, f"{SKILLS_REAL}/tasks/extra/SKILL.md"), want=False)
 
 
 def pin_state_file_is_outside_the_work_tree(p: Pins, tmp: str) -> None:
@@ -253,7 +330,7 @@ def pin_sigkill_is_recovered_next_run(p: Pins, tmp: str) -> None:
             bool(slc.leftovers(mroot)), True)
 
 
-def pin_the_advice_says_what_to_do(p: Pins) -> None:
+def pin_the_advice_says_what_to_do(p: Pins, _tmp: str) -> None:
     """The `or` half of the ticket: a red baseline must name the repair and the cause."""
     print("\nthe advice names the repair command, the cause, and every guarded path")
     advice = slc.repair_advice()
@@ -273,17 +350,34 @@ def pin_the_advice_says_what_to_do(p: Pins) -> None:
 
 
 # ---------------------------------------------------------------------------------------
+SECTIONS = (pin_each_plant_is_seen_and_repaired,
+            pin_clean_tree_is_left_alone,
+            pin_a_foreign_tree_survives_the_repair,
+            pin_a_symlinked_component_is_refused,
+            pin_state_file_is_outside_the_work_tree,
+            pin_sigterm_restores,
+            pin_sigkill_is_recovered_next_run,
+            pin_the_advice_says_what_to_do)
+
+
 def cmd_selftest() -> int:
+    """Run every section. A section that DIES is one failed pin, not a silenced suite.
+
+    Sections mutate real trees and kill real processes, so an unexpected exception is a live
+    possibility - and a suite that stops at the first one reports nothing about the sections
+    after it while still printing a count. That count would then be smaller than the last
+    green run's and nothing would say why, which is the shape a mutant hides in.
+    """
     tmp = tempfile.mkdtemp(prefix="skill-layout-selftest-")
     p = Pins()
     try:
-        pin_each_plant_is_seen_and_repaired(p, tmp)
-        pin_clean_tree_is_left_alone(p, tmp)
-        pin_a_foreign_tree_survives_the_repair(p, tmp)
-        pin_state_file_is_outside_the_work_tree(p, tmp)
-        pin_sigterm_restores(p, tmp)
-        pin_sigkill_is_recovered_next_run(p, tmp)
-        pin_the_advice_says_what_to_do(p)
+        for section in SECTIONS:
+            try:
+                section(p, tmp)
+            except Exception as exc:                  # noqa: BLE001 - recorded, not swallowed
+                p.n += 1
+                p.failed.append(f"{section.__name__} ABORTED: {type(exc).__name__}: {exc}")
+                print(f"  FAIL  {section.__name__} ABORTED: {type(exc).__name__}: {exc}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     for f in p.failed:

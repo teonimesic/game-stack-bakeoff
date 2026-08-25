@@ -152,6 +152,31 @@ def _differs_from_index(root: str, rel: str) -> bool:
     return bool(r.stdout.strip())
 
 
+def assert_inside(root: str, rel: str) -> None:
+    """Refuse to plant or prune through a SYMLINKED path component.
+
+    Every path this tool writes or removes is spelled relative to `root`, and a symlink
+    anywhere in that spelling takes the operation somewhere else: `os.makedirs` follows a
+    `.codex/skills -> /elsewhere` and writes the plant outside the repository, after which the
+    parent walk removes a directory the repository does not contain. The address is an input
+    to the check (AGENTS.md rule 12) and a symlink rewrites it silently, so the components are
+    checked rather than assumed. Raised by CodeRabbit on PR #28.
+
+    Refusing is right rather than resolving: the shipped layout has no symlink on any of these
+    paths - `docstat.py --sweep` must be GREEN before a plant runs, and it requires
+    `.claude/skills` to be a symlink to a REAL `.agents/skills` - so one here is a tree nobody
+    has established the shape of, and this tool is not the thing that should decide about it.
+    """
+    p = os.path.abspath(root)
+    for part in rel.replace(os.sep, "/").split("/"):
+        p = os.path.join(p, part)
+        if os.path.islink(p):
+            raise RuntimeError(
+                f"{rel}: '{os.path.relpath(p, root)}' is a symlink to "
+                f"'{os.readlink(p)}'. Refusing to plant or prune through it - the operation "
+                f"would land outside {root}. Resolve or remove it first.")
+
+
 def _unplant_file(root: str, file_rel: str, stop_rel: str) -> list[str]:
     """Remove one planted FILE, then only the directories it left empty, up to `stop_rel`.
 
@@ -165,10 +190,18 @@ def _unplant_file(root: str, file_rel: str, stop_rel: str) -> list[str]:
     empty directory carries no content and no git object, so nothing is lost; a directory
     with anything in it survives, which is the property being bought.
     """
+    assert_inside(root, file_rel)
     acted = []
     fp = os.path.join(root, file_rel)
     if os.path.lexists(fp):
-        _rm(fp)
+        # THE LEAF MUST BE A REGULAR FILE. `_rm` would `rmtree` a directory standing where the
+        # plant's file belongs, and that directory is not something this tool put there.
+        if os.path.islink(fp) or not os.path.isfile(fp):
+            what = "a symlink" if os.path.islink(fp) else "a directory"
+            raise RuntimeError(
+                f"{file_rel}: expected the regular file a plant writes, found {what}. "
+                f"Refusing to remove it.")
+        os.unlink(fp)
         acted.append(f"rm -f {file_rel}")
     stop = os.path.abspath(os.path.join(root, stop_rel))
     d = os.path.dirname(os.path.abspath(fp))
@@ -261,6 +294,7 @@ class PlantRealCopy:
         self.dir = os.path.join(root, ".codex", "skills", "tasks")
 
     def plant(self):
+        assert_inside(self.root, self.creates[0][0])
         os.makedirs(self.dir, exist_ok=True)
         shutil.copy(os.path.join(self.root, SKILLS_REAL, "tasks", "SKILL.md"),
                     os.path.join(self.dir, "SKILL.md"))
@@ -281,6 +315,7 @@ class PlantDeepCopy:
         self.dir = os.path.join(root, SKILLS_REAL, "tasks", "extra")
 
     def plant(self):
+        assert_inside(self.root, self.creates[0][0])
         os.makedirs(self.dir, exist_ok=True)
         shutil.copy(os.path.join(self.root, SKILLS_REAL, "tasks", "SKILL.md"),
                     os.path.join(self.dir, "SKILL.md"))
