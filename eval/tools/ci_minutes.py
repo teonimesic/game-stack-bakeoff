@@ -84,14 +84,16 @@ guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, 
 deleted, its id renamed, its command replaced, its command given a flag `--scope` does not read
 or a second mode or `--help` or a pipeline, its command echoed or wrapped in `sh -c` instead of
 run, its command pointed at another script whose name ends the same way or at another mode of
-this one, one gate losing its guard, the guard flipped to the
+this one, its command left with an unbalanced quote, one gate losing its guard, the guard
+flipped to the
 fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed above
 the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a
 scalar `steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
 unguarded `uses:` step, a comment in the job, the scope step re-spaced, run under another
-interpreter path, run under `python`, or executed directly with no interpreter named, every
+interpreter path, run under `python`, executed directly with no interpreter named, given a
+quoted script path, or carrying a trailing shell comment, every
 mode reached with a flag it does read, and `-h`. The variants
 are not decoration -- the substring check this replaced went red on a re-quote, which is a
 gate firing where nothing is wrong.
@@ -119,6 +121,7 @@ import math
 import os
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -442,7 +445,16 @@ def scope_invocation_problems(run: object) -> list[str]:
     help screen and writes no `relevant`.
     """
     text = " ".join(str(run or "").split())
-    argv = text.split()
+    # SPLIT THE WAY THE SHELL DOES, not on whitespace. `str.split` keeps the quote
+    # characters, so `python3 "eval/tools/ci_minutes.py" --scope` -- a command that runs
+    # exactly what the live step runs -- did not match the script and was reddened, and a
+    # trailing `# note` became 2 unrecognised arguments. A gate firing where nothing is
+    # wrong spends the attention a real firing needs. Raised by CodeRabbit on PR #35.
+    try:
+        argv = shlex.split(text, comments=True)
+    except ValueError as exc:
+        return [f"runs `{text}`, which does not tokenise as a shell command ({exc}), so "
+                f"what it would run cannot be established"]
     at = next((i for i, t in enumerate(argv)
                if t == SCOPE_SCRIPT or t.endswith("/" + SCOPE_SCRIPT)), None)
     if at is None:
@@ -1876,6 +1888,12 @@ def _selftest() -> int:
             "the scope step running a different mode of this same tool":
                 live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
                              "run: python3 eval/tools/ci_minutes.py --gates\n", 1),
+            # An unbalanced quote is not a command at all. It must be REPORTED -- a step
+            # whose text does not tokenise is one whose behaviour cannot be established,
+            # and `shlex` raises rather than guessing.
+            "the scope step's command with an unbalanced quote":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             'run: python3 "eval/tools/ci_minutes.py --scope\n', 1),
             "one gate loses its guard": drop(live, gate_guard),
             # The fail-OPEN spelling: an output the scope step never wrote is the empty
             # string, so `== 'true'` skips every suite on a step that did not run.
@@ -1947,6 +1965,14 @@ def _selftest() -> int:
             "the scope step executed directly, with no interpreter named": live.replace(
                 "run: python3 eval/tools/ci_minutes.py --scope\n",
                 "run: eval/tools/ci_minutes.py --scope\n", 1),
+            # Shell syntax that changes no word the shell passes to the program. Splitting
+            # on whitespace reddened both, which is a gate firing where nothing is wrong.
+            "the scope step's script path quoted": live.replace(
+                "run: python3 eval/tools/ci_minutes.py --scope\n",
+                'run: python3 "eval/tools/ci_minutes.py" --scope\n', 1),
+            "the scope step's command with a trailing shell comment": live.replace(
+                "run: python3 eval/tools/ci_minutes.py --scope\n",
+                "run: python3 eval/tools/ci_minutes.py --scope  # the filter\n", 1),
         }
         counts["mutants"] += len(mutants)
         counts["variants"] += len(variants)
@@ -2114,6 +2140,19 @@ def _selftest() -> int:
                         f"A check that raises returns no verdict at all")
     check("a `--scope --help` step is reported rather than raised on",
           bool(_help_step), True)
+    counts["mutants"] += 1
+    # AND THE SAME FOR TEXT THAT IS NOT A COMMAND. The workflow mutant carrying an
+    # unbalanced quote reddens either way -- a whitespace fallback would leave the quote
+    # glued to the path and miss the script -- so the row that discriminates has to ask
+    # WHICH answer came back, not merely that one did.
+    try:
+        _bad_quote = scope_invocation_problems('python3 "eval/tools/ci_minutes.py --scope')
+    except BaseException as exc:  # noqa: BLE001 - a raise here IS the defect under test
+        _bad_quote = []
+        failures.append(f"scope_invocation_problems RAISED on an unbalanced quote: {exc!r}. "
+                        f"A check that raises returns no verdict at all")
+    check("an unbalanced quote is reported as untokenisable, not as a missing script",
+          [p for p in _bad_quote if "tokenise" in p] != [], True)
     counts["mutants"] += 1
 
     # The variant half of the same question: `main` still dispatches a mode whose flags it
