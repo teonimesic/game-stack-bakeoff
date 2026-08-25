@@ -854,7 +854,13 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
     # through `neutralise` would launder a stack name out of harness-authored text and
     # leave the gate unable to see the leak it exists to catch.
     if statement:
-        (dest / SCENE_STATEMENT_FILE).write_text(statement)
+        # UTF-8 BY CONTRACT, on the write and on the read in `run_field`. `write_text`
+        # and `read_text` default to the LOCALE encoding, so a packer and a judge host
+        # on different code pages would disagree about what the statement says while
+        # every check here stayed green - and the invalid-byte refusal below would
+        # decode instead of refusing (rule 12: the address is an input, and so is the
+        # codec).
+        (dest / SCENE_STATEMENT_FILE).write_text(statement, encoding="utf-8")
 
     leaked = sorted(q.name for q in dest.rglob("*")
                     if q.is_file() and "MAPPING" in q.name)
@@ -1490,7 +1496,7 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
     if task_class(mapping["game"]) == "scene":
         try:
             expected = scene_statement(mapping["game"])
-            on_disk = (pack / SCENE_STATEMENT_FILE).read_text()
+            on_disk = (pack / SCENE_STATEMENT_FILE).read_text(encoding="utf-8")
         # `UnicodeError` is NOT covered by `OSError`: `read_text` raises
         # `UnicodeDecodeError`, a `ValueError`, on a file that is not UTF-8. Uncaught it
         # is a traceback where every sibling here is a stored `usable: False` record.

@@ -85,7 +85,15 @@ whatever produced the difference — re-pack it.
 for it** — the brief NAMES `SCENE.md` and does not contain it, so two rounds with the same brief
 hash can have been read against two different subjects. `None` on a game round is a third value
 and not an empty statement. `field._provenance` is a function rather than a literal inside
-`run_field` so that what a round WILL record is assertable without a model call.
+`run_field` so the record-assembling tail is reachable at all; `blurb_selftest.py` drives it
+through **`run_field` with `field.subprocess` stubbed**, because a direct call to `_provenance`
+proves only that it copies its argument.
+
+**`SCENE.md` is UTF-8 by contract, written and read with the encoding named.** `write_text` and
+`read_text` default to the LOCALE codec, so a packer and a judge host on different code pages
+would disagree about what the statement says with every check still green — and the invalid-byte
+refusal would decode instead of refusing. Each refusal state in the selftest asserts *which*
+branch answered, so the undecodable case cannot pass through the mismatch branch.
 
 **What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
 both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a

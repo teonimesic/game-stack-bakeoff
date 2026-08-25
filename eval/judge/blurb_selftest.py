@@ -59,9 +59,12 @@ What is checked, and why each direction is needed:
      threshold vocabulary - with a mutant for each of those last 2, a variant driving a
      leaking statement through the real packer, and a fail-closed case for a scene the
      packer cannot state. `run_field` refuses a statement that is absent, empty,
-     undecodable or the other scene's, and records the digest of the one it validated -
-     `brief_sha256` cannot stand in for that, because the brief NAMES `SCENE.md` and does
-     not contain it.
+     undecodable or the other scene's, and each state asserts WHICH refusal answered, so
+     the undecodable one cannot pass through the mismatch branch on a host whose locale
+     codec happens to accept the bytes. What a round RECORDS about its subject is driven
+     through `run_field` with the judge stubbed - `brief_sha256` cannot stand in for it,
+     because the brief NAMES `SCENE.md` and does not contain it, and a direct call to
+     `_provenance` would prove only that the function copies its argument.
  12. WHO THE FRAMES BLURB SAYS IS WATCHING is a function of the task class, in both
      directions. A scene has no player, so "everything the player sees" in a scene brief
      is check 4's defect in a new place - judge-facing text describing something the task
@@ -239,7 +242,7 @@ def judge_facing_texts(aspect: aspects.Aspect, mapping: dict, pack: Path) -> dic
     # could not see a pack that failed to write one. Check 11 compares the two.
     if aspects.task_class(mapping["game"]) == "scene":
         texts[field.SCENE_STATEMENT_FILE] = (
-            statement.read_text() if statement.is_file() else "")
+            statement.read_text(encoding="utf-8") if statement.is_file() else "")
     return texts
 
 
@@ -732,7 +735,7 @@ def main() -> int:
                    f"the judge to read it, so this is a brief pointing at nothing")
             if not on_disk.is_file():
                 continue
-            text = on_disk.read_text()
+            text = on_disk.read_text(encoding="utf-8")
             expect(f"statement-on-disk-is-the-constant[{tag}]",
                    text == field.scene_statement(game),
                    f"{field.SCENE_STATEMENT_FILE} on disk is not what "
@@ -800,7 +803,8 @@ def main() -> int:
             written = leaky / field.SCENE_STATEMENT_FILE
             # Absent is a THIRD value and is not "the leak was removed": it means the
             # packer wrote no statement at all, which the rows above already report.
-            survived = written.is_file() and "Bevy" in written.read_text()
+            survived = (written.is_file()
+                        and "Bevy" in written.read_text(encoding="utf-8"))
         finally:
             field.SCENE_STATEMENTS.clear()
             field.SCENE_STATEMENTS.update(keep_stmt)
@@ -905,14 +909,21 @@ def main() -> int:
         #: `undecodable` is the state `(OSError, RuntimeError)` did not cover:
         #: `read_text` raises `UnicodeDecodeError`, which is a `ValueError`, so an
         #: invalid-byte statement was a traceback where every sibling is a record.
+        #
+        # THE THIRD COLUMN IS WHICH REFUSAL, and it is what makes `undecodable` a test of
+        # anything. `read_text` defaults to the LOCALE codec, so on a non-UTF-8 host the
+        # invalid bytes would decode and the state would take the MISMATCH branch - green,
+        # for a reason that has nothing to do with decoding. `field.py` reads with
+        # `encoding="utf-8"` and this column asserts which branch answered.
         STATEMENT_STATES = (
-            ("absent", None),
-            ("empty", ""),
-            ("undecodable", b"\xff\xfe not utf-8 \xff"),
-            ("the other scene's", field.scene_statement("s2_glass")),
-            ("this scene's", field.scene_statement("s1_parallax")),
+            ("absent", None, "could not be read"),
+            ("empty", "", "is not the statement"),
+            ("undecodable", b"\xff\xfe not utf-8 \xff", "could not be read"),
+            ("the other scene's", field.scene_statement("s2_glass"),
+             "is not the statement"),
+            ("this scene's", field.scene_statement("s1_parallax"), None),
         )
-        for state, body in STATEMENT_STATES:
+        for state, body, refusal in STATEMENT_STATES:
             copy = root / f"scenepack-statement-{state.replace(' ', '-')}"
             shutil.copytree(sdest, copy)
             # The MAPPING lives OUTSIDE the pack (#32), so copytree does not bring it.
@@ -927,7 +938,7 @@ def main() -> int:
             elif isinstance(body, bytes):
                 statement.write_bytes(body)
             else:
-                statement.write_text(body)
+                statement.write_text(body, encoding="utf-8")
             err = field.run_field(copy, "fidelity").get("error") or ""
             named = field.SCENE_STATEMENT_FILE in err
             if state == "this scene's":
@@ -938,33 +949,80 @@ def main() -> int:
                        f"{err[:200]!r}. The rows above would pass by refusing every "
                        f"scene pack")
             else:
-                expect(f"run-field-refuses-a-statement-that-is-{state}", named,
+                expect(f"run-field-refuses-a-statement-that-is-{state}",
+                       named and refusal in err,
                        f"run_field returned {err[:200]!r} for a scene pack whose "
-                       f"{field.SCENE_STATEMENT_FILE} is {state}; the brief it is about "
-                       f"to write tells the judge to read that file first, and a wrong "
-                       f"subject is worse than none")
+                       f"{field.SCENE_STATEMENT_FILE} is {state}; it must refuse, and "
+                       f"the refusal must be the {refusal!r} one - the brief it is "
+                       f"about to write tells the judge to read that file first, and a "
+                       f"wrong subject is worse than none")
 
-        # WHAT THE ROUND WILL RECORD ABOUT ITS SUBJECT. `brief_sha256` cannot answer it:
-        # the brief NAMES `SCENE.md` and does not contain it, so two rounds with the same
-        # brief hash can have been read against two different statements - the question
-        # #83 could not answer about what a judge had seen.
+        # WHAT A ROUND RECORDS ABOUT ITS SUBJECT, on the path that really holds it.
+        # `brief_sha256` cannot answer the question: the brief NAMES `SCENE.md` and does
+        # not contain it, so two rounds with the same brief hash can have been read
+        # against two different statements - what #83 could not answer about what a judge
+        # had seen.
         #
-        # `_provenance` is a function precisely so this is reachable: everything else in
-        # `run_field`'s tail needs a model call to exist. The expected digest is computed
-        # HERE from `scene_statement`, which is the same value the guard validated - that
-        # is a shared FACT at one address (rule 12), not an imported expectation.
+        # DRIVEN THROUGH `run_field` WITH THE JUDGE STUBBED, not by calling `_provenance`.
+        # A direct call proves the function copies its argument and nothing more: it stays
+        # green if `run_field` never passes the digest, hashes something else, or drops
+        # the field. The stub is `field.subprocess`, replaced for the duration by an
+        # object exposing the two names `run_field` uses - so the guards, the brief write
+        # and the whole record-assembling tail all execute, and the round costs nothing.
+        # `JUDGING.md` has the precedent: the model call is stubbed so both arms run.
+        VERDICT = {"submissions": [{"label": lab, "score": 2, "rank": 1,
+                                    "evidence": "e" * 60} for lab in LABELS],
+                   "best": "A", "worst": "B", "field_note": "stubbed"}
+
+        class _StubJudge:
+            """`field.subprocess`, for a round that must not spend anything."""
+            TimeoutExpired = subprocess.TimeoutExpired
+
+            def __init__(self) -> None:
+                self.calls: list[list[str]] = []
+
+            def run(self, argv, **kw):
+                self.calls.append(argv)
+                line = json.dumps({"type": "result", "structured_output": VERDICT,
+                                   "total_cost_usd": 0.0})
+                return subprocess.CompletedProcess(argv, 0, line + "\n", "")
+
         for game, aid in (("s1_parallax", "fidelity"), ("g9_probe", "ux")):
             a = aspects.ASPECTS[aid]
-            sha = (hashlib.sha256(field.scene_statement(game).encode()).hexdigest()[:16]
-                   if aspects.task_class(game) == "scene" else None)
-            prov = field._provenance(a, {"game": game, "sees": a.sees}, "a brief",
-                                     sha, 120, 12.0)
+            scene = aspects.task_class(game) == "scene"
+            src = scene_packs[(game, a.sees, a.blind_language)][1] if scene else \
+                packs[(a.sees, a.blind_language)][1]
+            copy = root / f"stubbed-round-{game}"
+            shutil.copytree(src, copy)
+            shutil.copy(field.mapping_path(src), field.mapping_path(copy))
+            # The expected digest is computed HERE from the BYTES ON DISK - the thing the
+            # guard validated - rather than from `field.scene_statement`. That is the
+            # second, independent statement of the fact (rule 12's corollary): a
+            # `run_field` that hashed the constant instead of the file would agree with a
+            # constant-derived expectation and disagree with this one.
+            packed = copy / field.SCENE_STATEMENT_FILE
+            want = (hashlib.sha256(packed.read_bytes()).hexdigest()[:16]
+                    if scene and packed.is_file() else None)
+            stub = _StubJudge()
+            real, field.subprocess = field.subprocess, stub
+            try:
+                rec = field.run_field(copy, aid)
+            finally:
+                field.subprocess = real
+            expect(f"stubbed-round-is-usable[{game}]",
+                   rec.get("usable") is True and len(stub.calls) == 1,
+                   f"the stubbed round for {game!r} returned "
+                   f"usable={rec.get('usable')!r} after {len(stub.calls)} judge "
+                   f"invocation(s): {str(rec.get('error'))[:200]!r}. The row below would "
+                   f"be reading a refusal rather than a record")
             expect(f"provenance-records-the-subject[{game}]",
-                   prov.get("scene_statement_sha256") == sha,
-                   f"a {aspects.task_class(game)} round would store "
-                   f"scene_statement_sha256={prov.get('scene_statement_sha256')!r} "
-                   f"against {sha!r}; nothing else in the record says which statement "
-                   f"the strips were scored against")
+                   (rec.get("provenance") or {}).get("scene_statement_sha256") == want,
+                   f"a {aspects.task_class(game)} round stored "
+                   f"scene_statement_sha256="
+                   f"{(rec.get('provenance') or {}).get('scene_statement_sha256')!r} "
+                   f"against the digest of the {field.SCENE_STATEMENT_FILE} it "
+                   f"validated, {want!r}; nothing else in the record says which "
+                   f"statement the strips were scored against")
 
     if FAILS:
         print(f"BLURB SELFTEST: {len(FAILS)} unmet expectation(s)\n")
