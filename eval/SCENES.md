@@ -134,17 +134,11 @@ threshold was still chosen against fixtures written by the same hand as the crit
 `python3 judge/scene_mutants.py --census` — which reports over FIXTURES and says so — is still
 what a scene result must be read against.
 
-**First contact found a false negative, which is what #46 said to expect.** `layers.depth_ordered`
-scored the submission FALSE by reading `abs(offset_last - offset_first)` out of a field the
-scene's own contract wraps: all 7 of that submission's layers returned a value below their own
-span, 37 `wrap` events fired in the same trace, and the criterion had measured a modular residue
-rather than a scroll rate. A mutant could not have found it — only a submission that wraps could,
-and wrapping is what `loop.seamless` exists to check. `tasks/162` carries the repair.
-
-**And 2 of the 8 criteria came back `scored=False`** on that submission: the image-side estimator
-read only 2 of 7 declared layers, against 8 missed frame pairs of 132 on the fixtures. The probe's
-docstring predicted the direction — *"expect the rate to be worse on a submission that fills its
-foreground"* — and that submission's mean ink coverage is 0.966.
+**First contact with a real submission found a false negative and 2 criteria it could not set
+up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`; the repair
+is `tasks/162` and the calibration question is `tasks/163`. The standing limit is the sentence
+above: every threshold was chosen against fixtures, and a scene result is read against
+`scene_mutants.py --census` until that stops being true.
 
 **One instrument error is already measured**, so the first run does not have to rediscover it:
 across the 3 parallax fixtures the image-side shift estimator misses **8 of 132 frame pairs** — 1
