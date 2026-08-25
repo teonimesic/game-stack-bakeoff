@@ -30,10 +30,19 @@ workflow files rather than remembered.
 THREE VALUES, NOT TWO. A job with `completed_at: null` is in flight. It is not zero minutes
 and it is not an error; it is unfinished, and it is reported in its own bucket rather than
 folded into the total. Pooling it would make the total quietly low every time the tool runs
-while something is building (`AGENTS.md` rule 4).
+while something is building (`AGENTS.md` rule 4). A run the jobs endpoint has nothing for is
+the same shape and gets the same treatment -- see `fetch_jobs`, where refusing it instead
+made the whole producer exit 2 over 1 run in 464.
 
 WHAT IT REFUSES. Any `gh api` failure exits 2 naming the endpoint. There is no `|| 0`
 anywhere: an error must never become a plausible in-range number (rule 3).
+
+WHETHER THE MINUTES ARE BILLED IS READ, NOT REMEMBERED. Whether a minute costs anything is
+a property of the repository, and this tool printed `PRIVATE -- these minutes are metered`
+as a literal for a day after the repository was made public. A hardcoded `PUBLIC` is the
+same defect one value later, so `fetch_visibility` reads `repos/{REPO}` `.private` and
+refuses anything that is not `true` or `false` -- the wrong guess says minutes are free
+while they are being billed. It is one extra API call, on the census path only.
 
 THE WINDOW IS PART OF THE NUMBER. This repository's first workflow run is 2026-08-23, so a
 figure from it is "minutes since CI existed", not a monthly rate, and the tool prints the
@@ -136,7 +145,8 @@ def billable_minutes(seconds: float) -> int:
     return math.ceil(seconds / 60)
 
 
-def census(jobs: list[dict], runs: list[dict]) -> dict:
+def census(jobs: list[dict], runs: list[dict],
+           runs_without_jobs: list[int] | None = None) -> dict:
     """Total billable minutes, partitioned. Never sums across the partitions blind."""
     by_run = {r["id"]: r for r in runs}
     finished, in_flight = [], []
@@ -167,6 +177,9 @@ def census(jobs: list[dict], runs: list[dict]) -> dict:
         "raw_seconds": sum(s for _, s in finished),
         "jobs_counted": len(finished),
         "jobs_in_flight": len(in_flight),
+        # The third value's third case: runs the jobs endpoint had nothing for. Excluded
+        # from the total and carried by id, never folded in as zero.
+        "runs_without_jobs": list(runs_without_jobs or []),
         "per_workflow": per_workflow,
         "per_conclusion": per_conclusion,
         "per_workflow_event": per_event,
@@ -735,6 +748,44 @@ def _gh(endpoint: str, jq: str) -> list[str]:
     return [ln for ln in proc.stdout.splitlines() if ln.strip()]
 
 
+def fetch_visibility(reader=_gh) -> bool:
+    """True if the repository is private. READ from the endpoint, never remembered.
+
+    The reader is injected so `--selftest` can pin both answers and every refusal offline,
+    rather than monkeypatching a module global. There is no default answer: a repository
+    whose visibility could not be read is one whose minutes may or may not be billed, and
+    guessing either way produces a confident sentence about money.
+    """
+    lines = reader(f"repos/{REPO}", ".private")
+    values = [ln.strip() for ln in lines if ln.strip()]
+    if values != ["true"] and values != ["false"]:
+        raise DataError(
+            f"repos/{REPO}: `.private` read {lines!r}, which is neither `true` nor "
+            f"`false`. Refusing to say whether these minutes are billed.")
+    return values == ["true"]
+
+
+def visibility_line(private: bool) -> str:
+    """The census's repository line. Pure, so both branches are pinned offline."""
+    if private:
+        return f"  repository : {REPO}  (PRIVATE -- these minutes are metered)"
+    return f"  repository : {REPO}  (PUBLIC -- Linux minutes are free and unlimited)"
+
+
+def allowance_lines(private: bool) -> list[str]:
+    """What the figure draws on. Pure, and it says nothing about a bill when there is none."""
+    if private:
+        return [
+            "  These minutes are metered. This tool does not read the allowance they draw",
+            "  on: `gh api /users/<owner>/settings/billing/actions` needs the `user` token",
+            "  scope, which the token here is not required to carry.",
+        ]
+    return [
+        "  No allowance is drawn on: Linux minutes on a public repository are free and",
+        "  unlimited. The figure above is wall clock in front of a merge, not a bill.",
+    ]
+
+
 def fetch_runs() -> list[dict]:
     lines = _gh(
         f"repos/{REPO}/actions/runs?per_page=100",
@@ -746,18 +797,41 @@ def fetch_runs() -> list[dict]:
     return [json.loads(ln) for ln in lines]
 
 
-def fetch_jobs(run_ids: list[int]) -> list[dict]:
-    out = []
+def fetch_jobs(run_ids: list[int], reader=_gh) -> tuple[list[dict], list[int]]:
+    """Every run's jobs, and the ids of the runs that reported none.
+
+    A SINGLE RUN WITH NO JOBS USED TO KILL THE WHOLE CENSUS. Run 32774427303 was cancelled
+    at 2026-08-24T20:32:05Z before any job was created, so its `jobs` array is empty and
+    always will be; the tool raised on it and exited 2, which made the producer that
+    `DECISIONS.md` and `.github/workflows/README.md` both name for CI consumption unable to
+    report anything at all, permanently, over one run in 464.
+
+    Refusing was the right instinct and the wrong shape. A run with no jobs is the same
+    THIRD VALUE as a job in flight: it is not zero minutes and it is not an error, so it
+    goes in its own bucket, is excluded from the total, and is PRINTED with its run id --
+    the total is qualified rather than quietly low. Measured over the 464 runs this
+    repository had on 2026-08-25: 1 run reports no jobs, and 105 of the other 106 cancelled
+    runs report jobs normally, so "cancelled" is not the property and is not tested here.
+
+    The refusal that remains is the one an empty bucket cannot express: if NO run yields a
+    job, the endpoint is not answering and the census is a confident zero, so it raises.
+    """
+    out: list[dict] = []
+    empty: list[int] = []
     for rid in run_ids:
-        lines = _gh(
+        lines = reader(
             f"repos/{REPO}/actions/runs/{rid}/jobs?per_page=100",
             f".jobs[] | {{run_id: {rid}, job_id: .id, name, status, conclusion, "
             "started_at, completed_at}",
         )
         if not lines:
-            raise DataError(f"run {rid} reported no jobs -- a refusal, not 0 minutes")
+            empty.append(rid)
+            continue
         out.extend(json.loads(ln) for ln in lines)
-    return out
+    if run_ids and not out:
+        raise DataError(
+            f"all {len(run_ids)} runs reported no jobs -- a refusal, not 0 minutes")
+    return out, empty
 
 
 def fetch_billable_field(run_ids: list[int]) -> dict[int, int]:
@@ -1319,6 +1393,125 @@ def _selftest() -> int:
     check("one bought by the whole-PR diff", aud["no_match"], 1)
     check("one genuinely needed", aud["match"], 1)
 
+    # -- a run the jobs endpoint has nothing for ----------------------------------------
+    # Run 32774427303 was cancelled before a job existed, and the old per-run refusal made
+    # the whole census exit 2 over it -- for good, since it stays in the run list. The
+    # reader is injected, so this is offline.
+    _JOBLESS = 32774427303  # the real one, so the printed line can be asserted verbatim
+
+    def _jobs_reader(endpoint, _jq):
+        rid = int(endpoint.split("/runs/")[1].split("/")[0])
+        if rid == _JOBLESS:
+            return []
+        return [json.dumps({"run_id": rid, "job_id": rid * 10, "name": "x",
+                            "status": "completed", "conclusion": "success",
+                            "started_at": "2026-08-23T15:00:00Z",
+                            "completed_at": "2026-08-23T15:01:00Z"})]
+
+    _got_jobs, _jobless = fetch_jobs([1, _JOBLESS, 3], _jobs_reader)
+    check("the other runs' jobs still arrive", len(_got_jobs), 2)
+    check("the jobless run is carried by id, not dropped", _jobless, [_JOBLESS])
+    check("and is not invented as a job", [j["run_id"] for j in _got_jobs], [1, 3])
+    _rep_jobless = census(_got_jobs, [{"id": 1, "name": "gates", "event": "push"},
+                                      {"id": 3, "name": "gates", "event": "push"}],
+                          _jobless)
+    check("the jobless run reaches the report",
+          _rep_jobless["runs_without_jobs"], [_JOBLESS])
+    check("and is outside the counted population", _rep_jobless["jobs_counted"], 2)
+    check("census defaults the bucket to empty, never to None",
+          census([], [])["runs_without_jobs"], [])
+    # MUTANT: the refusal that has to survive. If NOTHING answers, an empty bucket would
+    # report 0 minutes over a silent endpoint -- the confident zero this tool exists to
+    # refuse. Only the all-empty case raises.
+    try:
+        fetch_jobs([1, 2, 3], lambda *_: [])
+        failures.append("fetch_jobs reported 0 minutes when NO run yielded a job -- that "
+                        "is a dead endpoint, not an idle repository")
+    except DataError:
+        pass
+    check("no runs asked for is not a refusal", fetch_jobs([], lambda *_: []), ([], []))
+    # The bucket has to reach the PRINTED census too. Recorded and never shown is a total
+    # that reads as complete, which is the whole failure -- so this renders it.
+    with contextlib_redirect_all() as _shown:
+        _print_census(_rep_jobless, None, False)
+    _text = _shown()
+    check("the printed census names the jobless run's id", str(_JOBLESS) in _text, True)
+    check("and says it is NOT counted", "NOT counted" in _text, True)
+    # And the visibility reaches the print, rather than a literal doing it again.
+    check("the rendered census says PUBLIC when told public", "PUBLIC" in _text, True)
+    check("and does not also say PRIVATE", "PRIVATE" in _text, False)
+    with contextlib_redirect_all() as _shown_private:
+        _print_census(_rep_jobless, None, True)
+    check("the same report says PRIVATE when told private",
+          "PRIVATE" in _shown_private(), True)
+
+    # -- the visibility read, offline in both directions --------------------------------
+    # The tool printed `(PRIVATE -- these minutes are metered)` as a literal, and went on
+    # printing it for a day after the repository was made public (task 148). The reader is
+    # injected here, so nothing below touches the network.
+    check("`.private: false` is not private", fetch_visibility(lambda *_: ["false"]), False)
+    check("`.private: true` is private", fetch_visibility(lambda *_: ["true"]), True)
+    check("surrounding whitespace still parses",
+          fetch_visibility(lambda *_: ["  true  "]), True)
+    # The address is an input to the check (AGENTS.md rule 12): a correct parse of the
+    # wrong endpoint is a confident answer about a different repository.
+    _asked: list[tuple] = []
+
+    def _recording(endpoint, jq):
+        _asked.append((endpoint, jq))
+        return ["false"]
+
+    fetch_visibility(_recording)
+    check("the endpoint read is this repository's record",
+          _asked, [(f"repos/{REPO}", ".private")])
+    # VARIANTS: everything a `.private` read can come back as that is not an answer. Each
+    # must REFUSE. A tool that guesses here prints a sentence about money.
+    for _label, _lines in {
+        "an empty result": [],
+        "a blank line": [""],
+        "jq's null": ["null"],
+        "Python's True": ["True"],
+        "a JSON object": ['{"private": false}'],
+        "two lines": ["false", "true"],
+        "the whole repo record": ['{"name": "game-stack-bakeoff"}'],
+    }.items():
+        try:
+            _got = fetch_visibility(lambda *_a, _l=_lines: _l)
+            failures.append(f"fetch_visibility ANSWERED {_got!r} on {_label} ({_lines!r}) "
+                            f"-- an unreadable visibility must refuse, not guess")
+        except DataError:
+            pass
+    # And a `gh` failure propagates rather than becoming an answer: main() turns DataError
+    # into exit 2, so this is the census refusing rather than reporting a free minute.
+    def _angry(*_a):
+        raise DataError("repos/x: gh exited 1")
+    try:
+        _got = fetch_visibility(_angry)
+        failures.append(f"fetch_visibility swallowed a gh failure and returned {_got!r}")
+    except DataError:
+        pass
+    # The two printed lines must actually differ, and each must say the true thing. A
+    # formatter that ignored its argument would pass a check on one branch alone.
+    check("public is not called metered", "metered" in visibility_line(False), False)
+    check("the metered line does not say PUBLIC", "PUBLIC" in visibility_line(True), False)
+    check("the free line says PUBLIC", "PUBLIC" in visibility_line(False), True)
+    check("private says metered", "metered" in visibility_line(True), True)
+    check("the two repository lines differ",
+          visibility_line(True) == visibility_line(False), False)
+    check("no allowance sentence on a public repository",
+          any("allowance" in ln and "No allowance" not in ln
+              for ln in allowance_lines(False)), False)
+    check("the metered branch still names the billing endpoint",
+          any("settings/billing/actions" in ln for ln in allowance_lines(True)), True)
+    # MUTANT: _print_census must not have a default for `private`. A default is exactly the
+    # remembered value this repair removed, one call site later.
+    try:
+        _print_census({}, None)  # type: ignore[call-arg]
+        failures.append("_print_census accepted no `private` argument -- a default here is "
+                        "a remembered answer about whether minutes are billed")
+    except TypeError:
+        pass
+
     if failures:
         print("ci_minutes --selftest: FAIL")
         for f in failures:
@@ -1333,9 +1526,11 @@ def _selftest() -> int:
 # ---------------------------------------------------------------- reporting
 
 
-def _print_census(rep: dict, billable_field: dict[int, int] | None) -> None:
+def _print_census(rep: dict, billable_field: dict[int, int] | None, private: bool) -> None:
+    # `private` has no default on purpose: a caller that forgets it gets a TypeError, not a
+    # remembered answer about whether these minutes cost anything.
     print("GitHub Actions minutes consumed, read from the API, not estimated")
-    print(f"  repository : {REPO}  (PRIVATE -- these minutes are metered)")
+    print(visibility_line(private))
     print("  runners    : ubuntu-latest, billed at the 1x Linux multiplier")
     print("  unit       : per JOB, wall clock rounded UP to the whole minute")
     print()
@@ -1347,6 +1542,10 @@ def _print_census(rep: dict, billable_field: dict[int, int] | None) -> None:
           f"{rep['last_job_started']}")
     if rep["jobs_in_flight"]:
         print(f"  NOT counted              : {rep['jobs_in_flight']} job(s) still in flight")
+    if rep["runs_without_jobs"]:
+        ids = ", ".join(str(r) for r in rep["runs_without_jobs"])
+        print(f"  NOT counted              : {len(rep['runs_without_jobs'])} run(s) the "
+              f"jobs endpoint had nothing for ({ids})")
     print()
     print("  by workflow:")
     for name, slot in sorted(rep["per_workflow"].items(), key=lambda kv: -kv[1]["minutes"]):
@@ -1365,10 +1564,8 @@ def _print_census(rep: dict, billable_field: dict[int, int] | None) -> None:
               f"{zeros} of {len(billable_field)} runs.")
         print("  That field is NOT the source of the figure above, for exactly that reason.")
     print()
-    print("  The allowance this draws on could not be read: "
-          "`gh api /users/teonimesic/settings/billing/actions`")
-    print("  is 404 and asks for the `user` token scope, which this token "
-          "(gist, read:org, repo, workflow) lacks.")
+    for line in allowance_lines(private):
+        print(line)
 
 
 def _print_audit(aud: dict) -> None:
@@ -1457,14 +1654,16 @@ def main(argv: list[str] | None = None) -> int:
             payload = {"runs": runs, "audit": aud}
         else:
             ids = [r["id"] for r in runs]
-            jobs = fetch_jobs(ids)
+            jobs, jobless = fetch_jobs(ids)
             timing = None if args.no_timing else fetch_billable_field(ids)
-            rep = census(jobs, runs)
+            private = fetch_visibility()
+            rep = census(jobs, runs, jobless)
             if args.json:
-                print(json.dumps(rep, indent=2))
+                print(json.dumps({**rep, "repository_private": private}, indent=2))
             else:
-                _print_census(rep, timing)
-            payload = {"runs": runs, "jobs": jobs, "census": rep, "timing": timing}
+                _print_census(rep, timing, private)
+            payload = {"runs": runs, "jobs": jobs, "census": rep, "timing": timing,
+                       "repository_private": private}
     except DataError as exc:
         print(f"ci_minutes: {exc}", file=sys.stderr)
         print("ci_minutes: refusing to report a number. This is not 0 minutes.",

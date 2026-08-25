@@ -168,7 +168,9 @@ python3 eval/tools/tasks.py done <id> "what you verified, and how"
 > first any more.
 
 **Use `--auto`.** With `strict` on and several pull requests open, the branch you verified goes
-stale whenever anything else lands, and `controls` is 685s, so the window between *green* and
+stale whenever anything else lands, and `controls` takes minutes
+(`.github/workflows/README.md` is the register for what each tier costs), so the window
+between *green* and
 *merged* is minutes wide and someone else's merge closes it. `--auto` merges the moment the
 requirements are met instead of asking you to win a race. It needs `allow_auto_merge` on the
 repository, which is set.

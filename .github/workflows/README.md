@@ -197,13 +197,22 @@ own lines every run to prove it.
 
 ## Minutes
 
-The repository is **public**, so Linux Actions minutes are **free and unlimited**. Nothing below
-is a bill — it is wall-clock in front of a merge, which is what `gates` and `controls` being
-required checks turned it into.
+The minutes below are counted in **the unit GitHub bills in** — per job, rounded up to the
+whole minute. Whether they are **also a bill** depends on the repository's visibility, and that
+is not asserted here.
 
 ```bash
-python3 eval/tools/ci_minutes.py     # billable minutes, per workflow and per job
+python3 eval/tools/ci_minutes.py     # minutes in GitHub's billing UNIT, per workflow and job
 ```
+
+**The producer reads the visibility itself** — `repos/<owner>/<repo>` `.private`, on every
+census — and prints `PUBLIC` or `PRIVATE` in its header, refusing anything that is not `true`
+or `false` rather than assuming either. Read it from there, or from `gh repo view
+teonimesic/game-stack-bakeoff --json isPrivate`. A sentence here saying which one it is would
+be a fourth copy of a fact that changes without telling anyone: the tool went on printing
+`PRIVATE -- these minutes are metered` for a day after the repository was made public, and
+three documents said the same. `DECISIONS.md` is the one live document that states it, with
+that command beside it.
 
 **That producer answers the billing question, not the waiting one.** It counts per job, rounds
 each up to the whole minute and excludes the queue wait, so it is the wrong instrument for
@@ -219,6 +228,12 @@ the diff taken is the merge commit's first-parent diff, which is what `paths:` w
 against.
 
 **Do not read `billable.UBUNTU.total_ms` from the API.** It returns `0`. Use the producer above.
+
+**A run the jobs endpoint has nothing for is a third value.** It is printed with its run id and
+left out of the total, never folded in as zero. Refusing per run instead would end the census
+altogether: such a run stays in the run list for good, and one exists — 32774427303, cancelled
+before a job was created. The refusal that remains is the one an empty bucket cannot express:
+if *no* run yields a job, the endpoint is not answering and the tool reports nothing.
 
 ## Adding a gate
 
