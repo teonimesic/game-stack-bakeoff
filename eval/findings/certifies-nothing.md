@@ -5300,3 +5300,77 @@ matters was checked too: PR #14, closed **without** merging, answers `False`, so
 not manufacture a landing.
 
 ---
+
+## 170. The document a gate was cited as covering had never been opened by it, because `glob("**")` does not descend into a dot-directory
+
+`.github/workflows/README.md` was edited repeatedly on 2026-08-24, and each edit was followed by
+`docstat.py --sweep`, reported green, and pushed. The sweep had never read the file.
+
+`project_docs()` builds its corpus with `glob("**")`, which **does not descend into directories
+whose name begins with a dot**. So `.github/` was invisible, exactly as `.claude/` was until task
+44 — the same defect, in a second dot-directory, found by a ticket that was about prose.
+
+Measured with one plant and a positive control, because an all-green result and a broken probe are
+indistinguishable:
+
+| identical plant, `` `--zzqwerty-nonexistent` `` | `--sweep` |
+|---|---|
+| `.github/workflows/README.md` | **exit 0** |
+| `DECISIONS.md` | exit 1, naming the flag |
+
+> **A gate's corpus is an address, and rule 12 applies to it exactly as it applies to a path.** The
+> method was correct and the file list it ran over silently excluded the subject. Nothing looked
+> wrong: the command was right, the exit code was 0, and the count it printed — *"over 207 docs"* —
+> was large enough to read as thorough.
+
+**The count is what made it invisible.** A corpus census that prints a number nobody can check
+against an expectation reports its own size, not its completeness. 207 is as consistent with
+*"every document"* as with *"every document except the ones in dot-directories"*, and only the
+second is true.
+
+### The hazard was documented in the same file, next to the code that had it
+
+`docstat.py` already contained this, in the helper that collects skills:
+
+> *"`glob` does not descend into dot-directories, and every skill here lives under one. A `**`
+> spelling of this returned zero files while reporting clean."*
+
+That is the defect, named exactly, in a docstring — while `project_docs()`, forty lines above,
+built the main corpus with `glob("**")`. The knowledge and the bug shipped in one file, and this is
+#169 arriving a second time: **a fact written in prose next to a predicate that contradicts it is
+not a check, because nothing compares the two.**
+
+The scope is wider than the register, measured the same way: **a phantom flag planted in a
+`SKILL.md` is not caught either.**
+
+> **CORRECTION, same day.** This paragraph first attributed that to the corpus — *"all 10 skills
+> are in `reference_docs()` and none is in `project_docs()`"*. **That mechanism is wrong**, and the
+> agent working `tasks/147` said so. Skills are in the corpus; the backticked-flag check is gated
+> **file-wide** on `(wholegame|runner|judge/|evaluate|regrade)\.py`, so a document naming none of
+> those never has its backticked flags checked at all.
+>
+> Re-measured decisively: the identical plant gives **exit 1** in
+> `.agents/skills/evaluate-run/SKILL.md`, which names a harness, and **exit 0** in
+> `.agents/skills/prune/SKILL.md`, which does not. **4 of 10 skills name one; 6 do not.**
+>
+> The symptom was real and the cause was invented from one observation — the same failure as #168,
+> committed while writing up #170. Two documents disagreeing with a corpus listing is a hypothesis;
+> the pair of plants that separate them is the measurement.
+
+### The repair is half a repair, and that half is the interesting one
+
+Feeding a `dot_dir_docs()` into `reference_docs()` closes it for reference resolution. It does not
+close it for the flag census, because `cmd_sweep()` holds **two** corpora and the flag check reads
+`project_docs()` — 201 docs, 0 of them under `.github/`. The same plant on the repaired branch
+still exits 0.
+
+Widening `project_docs()` was declined for a stated reason: it feeds an exact-count ratchet that a
+larger corpus would move in the **passing** direction, so widening the corpus would loosen a
+different gate. That reasoning is sound, and it leaves a gap.
+
+> **When one gate's corpus feeds another gate's threshold, widening the first quietly weakens the
+> second — so "which documents does this check read" becomes a decision with two answers and no
+> obvious owner.** Record which checks read a directory and which do not. A gate excluded and
+> written down is a known limit; one that is silently absent is a green tick nobody can price.
+
+---

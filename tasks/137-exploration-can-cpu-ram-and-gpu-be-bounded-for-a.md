@@ -1,10 +1,11 @@
 ---
 id: 137
 title: 'Exploration: can CPU, RAM and GPU be bounded for a scene performance pass on this host, and what does frame timing cost to measure'
-status: in_progress
+status: in_review
 priority: 2
 refs: 'eval/SCENES.md, tasks/134, #49, #61, AGENTS.md rule 10'
 done_when: 'A report in eval/SCENES.md (or a file it links) stating, for CPU, RAM and GPU separately: whether a real cap is achievable on this host, by what mechanism, and verified by measuring that the process could NOT exceed it rather than that a flag was accepted. Plus three measurements regardless of the capping answer: how each stack reports real-time frame timing, how much a fixed workload drifts thermally over a run-length repetition, and the run-to-run ramp spread on a single unchanged submission. A null - no portable cap, here is the alternative - closes this.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/26
 ---
 
 `eval/SCENES.md` proposes a performance pass scored as a **ramp**: raise a scene's complexity
