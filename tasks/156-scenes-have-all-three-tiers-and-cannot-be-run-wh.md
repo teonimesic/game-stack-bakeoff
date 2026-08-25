@@ -1,10 +1,11 @@
 ---
 id: 156
 title: 'Scenes have all three tiers and cannot be run: wholegame.py has no knowledge of them'
-status: todo
+status: in_review
 priority: 1
 refs: 'eval/wholegame.py, eval/suites/scene_prompts.py, eval/judge/scene_probe.py, eval/SCENES.md, tasks/133, tasks/136, #172'
 done_when: One scene trial runs end to end under the existing harness and is graded by scene_probe.py, with its record stored under eval/runs/ and the per-criterion verdicts reported; aspects.applicability is called on every path the runner can reach a pack by, checked by naming them; whether the standing matrix command launches scenes is decided deliberately and written where the default is; the deterministic capture path gains no wall-clock timing; and the wall-clock cost of a full scene matrix is stated from that one cell. Launching a matrix is NOT in scope.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/37
 ---
 
 Scenes are complete through all three tiers and **cannot be run**. `eval/wholegame.py` has no
