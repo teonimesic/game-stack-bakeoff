@@ -1363,7 +1363,7 @@ red across several merges.
 `.github/workflows/README.md`.** It is not restated here — a second copy is a second source of
 truth. What is decided:
 
-**Three tiers, split on a budget rather than on coverage** — the hooks in seconds, the fast CI
+**3 tiers, split on a budget rather than on coverage** — the hooks in seconds, the fast CI
 tier under a couple of minutes, the slow one in minutes, with the current timing of each and its
 producer in the register named above. A hook nobody bypasses is worth more than a hook that
 covers everything, and `--no-verify` is one flag. **A hook checks the CONTENT; CI additionally

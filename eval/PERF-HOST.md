@@ -270,7 +270,8 @@ Two of these need work before a ramp can run at all:
    kill switch on cumulative seconds and a bias that takes no argument. Report the machine instead: `host_perf_probe.py --spread`
    is a cheap before-and-after witness that the host was in its usual state.
 2. **Space the trials.** A 25 s idle gap between measured runs recovered this machine completely;
-   back-to-back costs 1.0 to 3.4 ramp levels. Spacing is the single highest-value design choice
+   back-to-back costs 1.0 to 3.1 ramp levels and 1 competing GPU process costs 1.1 to 3.4,
+   the range in each case being the step size a ramp chooses. Spacing is the single highest-value design choice
    here and it is free.
 3. **Require exclusivity.** 1 competing GPU process costs 2.13x. Nothing else may run — not the
    correctness pass, not a second trial, not a judge call. The GPU gives no client a floor.

@@ -224,16 +224,24 @@ ITERS = 1024
 def pct(xs: list[float], p: float) -> float:
     """The observed value at the rounded `p/100 * (n-1)` index of a sorted copy. `p` is 0..100.
 
-    **This is not the nearest-rank definition and the two disagree**, which matters because the
-    difference is silent: nearest rank is `ceil(p/100 * n)`, so on `[1,2,3,4]` at p25 it returns
-    `1` where this returns `2`. Both are standard — this one is numpy's `interpolation="nearest"`
-    — and `--selftest` pins that exact pair so the docstring and the formula cannot drift apart
-    again.
+    **Ties round UP**, and that is the whole of the convention: the virtual index is
+    `p/100 * (n-1)` and `int(i + 0.5)` resolves an exact `.5` away from zero.
+
+    It is neither of the 2 conventions a reader is likely to assume, and `--selftest` pins a case
+    against each so the docstring and the formula cannot drift apart again:
+
+    - **Not nearest rank**, which is `ceil(p/100 * n)`: on `[1,2,3,4]` at p25 that is `1` where
+      this returns `2`.
+    - **Not numpy's `method="nearest"`**, which shares the virtual index but rounds ties to
+      EVEN: on `[1,2,3]` at p25 the index is exactly `0.5`, so numpy gives `1` and this gives
+      `2`. The 2 agree except at an exact tie that rounds up to an ODD index — they agree at
+      n=600 (index 299.5 -> 300) and differ at n=602 (300.5 -> 301 here, 300 there).
 
     **How much the choice is worth, measured rather than argued**: over the 107 stored launches
-    behind `eval/PERF-HOST.md`, each an EVEN 600-frame sample, the 2 conventions return the same
-    median on 19 and differ on 88 — by at most **0.141%**, against a spread the report puts at
-    0.766–2.485%. Recomputing the published spread ranges under nearest rank moves them 0.784% ->
+    behind `eval/PERF-HOST.md`, each an EVEN 600-frame sample, this and NEAREST RANK return the
+    same median on 19 and differ on 88 — by at most **0.141%**, against a spread the report puts
+    at 0.766–2.485%. Against numpy's rule the gap is 0: every stored launch is n=600, where the
+    p50 tie rounds to 300 under both. Recomputing the published spread ranges under nearest rank moves them 0.784% ->
     0.784% and 2.485% -> 2.478%. So the convention is a real choice with a bounded consequence,
     and it is named here rather than left for a reader to infer from a formula.
 
@@ -557,10 +565,16 @@ def arm_selftest() -> int:
     check("pct p50 of 1..9", pct([9, 1, 5, 3, 7, 2, 8, 4, 6], 50), 5)
     check("pct p10 of 1..11", pct(list(range(1, 12)), 10), 2)
     check("pct p90 of 1..11", pct(list(range(1, 12)), 90), 10)
-    # The case where this convention and nearest-rank disagree, pinned so the docstring and
-    # the formula cannot drift apart: nearest rank would return 1 here.
-    check("pct p25 of 1..4 is the rounded-index value, not nearest rank",
+    # The 2 cases where this convention parts company with the conventions a reader is likely
+    # to assume, pinned so the docstring and the formula cannot drift apart.
+    check("pct p25 of 1..4 is the rounded-index value, not nearest rank (which gives 1)",
           pct([1, 2, 3, 4], 25), 2)
+    # An EXACT tie: virtual index 0.5. This rounds up; numpy's method="nearest" rounds to even
+    # and returns 1. Without this row the claim about ties is untested — the row above uses
+    # index 0.75, which is not a tie at all.
+    check("pct p25 of 1..3 rounds the exact tie UP, where numpy nearest rounds to even",
+          pct([1, 2, 3], 25), 2)
+    check("pct p50 of a 2-sample takes the upper element on the tie", pct([8.0, 9.0], 50), 9.0)
     check("summarise max", summarise([1.0, 2.0, 30.0])["max"], 30.0)
     check("spread range_pct", spread([8.0, 10.0, 9.0])["range_pct"], 100 * 2 / 9)
     d = drift([(0.0, 8.0), (10.0, 8.0), (70.0, 10.0), (80.0, 10.0)])
