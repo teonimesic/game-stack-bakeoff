@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#175 from building and running this evaluator. **Check whether a
+Findings #19-#176 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -251,6 +251,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **173** | A tool's log of what it had broken was discarded by stdout buffering at exactly the moment it was the only way to know — a log flushed only at exit does not exist for a run that never reaches it | [certifies-nothing](findings/certifies-nothing.md) |
 | **174** | The grader kept its own copy of what the task declares and it drifted — 3 of 9 arena cues scored as extras, and the platformer's criterion could not fail at all | [certifies-nothing](findings/certifies-nothing.md) |
 | **175** | A regex alternation had five branches and one could never match, and every reader wrote "four" without noticing the discrepancy WAS the defect | [certifies-nothing](findings/certifies-nothing.md) |
+| **176** | A refusal at the wrong granularity is an outage — one unreadable run in 464 made the minutes producer exit 2 for a day, in the half deliberately left ungated | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
