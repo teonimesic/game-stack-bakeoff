@@ -242,18 +242,41 @@ def repair(root: str = ROOT) -> list[str]:
     return acted
 
 
-def recovery_verdict(root: str = ROOT) -> tuple[str, list[str], dict | None]:
-    """What a starting run must do about the tree it found: `clean`, `resume` or `refuse`.
+def _alive(pid) -> bool:
+    """Is that process still running? Signal 0 asks without delivering anything."""
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True                                  # exists, owned by somebody else
+    return True
 
-    Separated from `cmd_run` so the decision can be pinned without a sweep. `resume` is a
-    leftover this tool's own state file accounts for; `refuse` is a leftover nothing accounts
-    for, and those must not be deleted for the reader - a path we cannot prove we created is
-    a path something else may own.
+
+def recovery_verdict(root: str = ROOT) -> tuple[str, list[str], dict | None]:
+    """What a starting run must do about the tree it found.
+
+    Four values. Separated from `cmd_run` so the decision can be pinned without a sweep.
+
+    `busy`   another run of this tool holds the tree - its state file names a LIVE pid that
+             is not ours. Two runs planting in one work tree interleave their plants and
+             their repairs, and the second would read the first's plant as a leftover to
+             clean up underneath it. Fail closed: pid reuse can only make this refuse a run
+             that could have proceeded, never let two through.
+    `resume` a leftover this tool's own state file accounts for, written by a process that
+             is gone - so it died mid-plant and this run repairs it.
+    `refuse` a leftover nothing accounts for. Not deleted for the reader: a path we cannot
+             prove we created is a path something else may own.
+    `clean`  nothing planted.
     """
+    state = read_state(root)
+    if state and _alive(state.get("pid")) and state.get("pid") != os.getpid():
+        return "busy", leftovers(root), state
     stale = leftovers(root)
     if not stale:
         return "clean", [], None
-    state = read_state(root)
     return ("refuse" if state is None else "resume"), stale, state
 
 
@@ -280,6 +303,28 @@ def repair_advice(rows_above: bool = False) -> str:
 # ---------------------------------------------------------------------------------------
 # The plants
 # ---------------------------------------------------------------------------------------
+def _copy_skill_to(root: str, file_rel: str) -> None:
+    """Write a plant's SKILL.md at `file_rel`, and refuse anything already standing there.
+
+    `shutil.copy` onto an existing DIRECTORY writes `SKILL.md/SKILL.md` inside it, so a plant
+    aimed at a foreign `SKILL.md/` directory silently modifies its contents - and `repair()`
+    then correctly refuses to remove that directory, leaving the modification behind for good.
+    Refusing ANY existing leaf, not merely a directory, because a regular file already there
+    is somebody's and removing it afterwards would be the same loss one step later. Raised by
+    CodeRabbit on PR #28; `leftovers()` reports the same condition, so a run never reaches
+    here with the leaf occupied.
+    """
+    assert_inside(root, file_rel)
+    dest = os.path.join(root, file_rel)
+    if os.path.lexists(dest):
+        raise RuntimeError(
+            f"{file_rel}: something is already there. Refusing to plant over it - "
+            f"this tool would then remove it as if it had written it.")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    shutil.copy(os.path.join(root, SKILLS_REAL, "tasks", "SKILL.md"), dest)
+
+
+
 class PlantRealCopy:
     """A genuine second copy: a real SKILL.md, not a symlink, in a second location.
 
@@ -294,10 +339,7 @@ class PlantRealCopy:
         self.dir = os.path.join(root, ".codex", "skills", "tasks")
 
     def plant(self):
-        assert_inside(self.root, self.creates[0][0])
-        os.makedirs(self.dir, exist_ok=True)
-        shutil.copy(os.path.join(self.root, SKILLS_REAL, "tasks", "SKILL.md"),
-                    os.path.join(self.dir, "SKILL.md"))
+        _copy_skill_to(self.root, self.creates[0][0])
 
 
 class PlantDeepCopy:
@@ -315,10 +357,7 @@ class PlantDeepCopy:
         self.dir = os.path.join(root, SKILLS_REAL, "tasks", "extra")
 
     def plant(self):
-        assert_inside(self.root, self.creates[0][0])
-        os.makedirs(self.dir, exist_ok=True)
-        shutil.copy(os.path.join(self.root, SKILLS_REAL, "tasks", "SKILL.md"),
-                    os.path.join(self.dir, "SKILL.md"))
+        _copy_skill_to(self.root, self.creates[0][0])
 
 
 class BreakPointer:
@@ -417,6 +456,14 @@ def install_handlers(root: str) -> None:
 
 # ---------------------------------------------------------------------------------------
 def cmd_repair(root: str = ROOT) -> int:
+    # A repair during someone else's run destroys their plant and leaves them measuring a
+    # restored tree they think is planted. Same question as `cmd_run`'s, same answer.
+    verdict, _, state = recovery_verdict(root)
+    if verdict == "busy":
+        say(f"REFUSING: a run holds this work tree - pid {state.get('pid', '?')}, started "
+            f"{state.get('started', '?')}. Repairing now would delete its plant underneath "
+            f"it.\n  Wait for it, or if that pid is gone, delete {state_path(root)}")
+        return 1
     acted = repair(root)
     clear_state(root)
     for a in acted:
@@ -428,6 +475,12 @@ def cmd_repair(root: str = ROOT) -> int:
 
 def cmd_run(root: str = ROOT) -> int:
     verdict, stale, state = recovery_verdict(root)
+    if verdict == "busy":
+        say(f"REFUSING TO RUN: another run holds this work tree - pid "
+            f"{state.get('pid', '?')}, started {state.get('started', '?')}.")
+        say("  Two runs planting into one tree read each other's plants as leftovers.\n"
+            f"  Wait for it, or if that pid is gone, delete {state_path(root)}")
+        return 1
     if verdict == "refuse":
         say("REFUSING TO RUN: the tree already carries a plant and no state file "
             "explains it.")

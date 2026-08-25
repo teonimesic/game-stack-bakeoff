@@ -28,6 +28,7 @@ THE FIXTURE IS A THROWAWAY GIT REPOSITORY, not the live tree. A control that rep
 repository it is testing cannot tell "the repair worked" from "the repair was never needed",
 and it would have exactly the failure mode this whole ticket is about.
 """
+import json
 import os
 import pathlib
 import shutil
@@ -80,6 +81,14 @@ def dirty(root: str) -> str:
 
 def _read(path: str) -> str:
     return pathlib.Path(path).read_text() if os.path.exists(path) else "<gone>"
+
+
+def _write_state_for(root: str, pid: int) -> None:
+    """A state file naming somebody else's pid. Written through the tool, then re-pointed."""
+    path = slc.write_state(root)
+    rec = json.loads(pathlib.Path(path).read_text())
+    rec["pid"] = pid
+    pathlib.Path(path).write_text(json.dumps(rec))
 
 
 
@@ -249,6 +258,82 @@ def pin_a_symlinked_component_is_refused(p: Pins, tmp: str) -> None:
               lambda: slc.assert_inside(ok, f"{SKILLS_REAL}/tasks/extra/SKILL.md"), want=False)
 
 
+def pin_an_occupied_leaf_is_refused(p: Pins, tmp: str) -> None:
+    """VARIANT: something is already standing where the plant writes its file.
+
+    `shutil.copy` onto an existing DIRECTORY writes `SKILL.md/SKILL.md` inside it, and
+    `repair()` then correctly refuses to remove that directory - so the modification is
+    permanent. Raised by CodeRabbit on PR #28. Delete the `lexists` test in `_copy_skill_to`
+    and the nested-content row below goes red.
+    """
+    print("\nan occupied plant leaf is refused, and its contents are not modified")
+    root = make_fixture(os.path.join(tmp, "occupied"))
+    leaf = os.path.join(root, ".codex", "skills", "tasks", "SKILL.md")
+    os.makedirs(leaf)
+    nested = os.path.join(leaf, "SKILL.md")
+    with open(nested, "w") as fh:
+        fh.write(MINE)
+
+    p.refuses("plant() refuses a directory at the leaf", slc.PlantRealCopy(root).plant)
+    p.check("its nested content is untouched", _read(nested), MINE)
+    p.check("the listing is unchanged", sorted(os.listdir(leaf)), ["SKILL.md"])
+
+    # A regular file there is refused too: removing it afterwards would be the same loss one
+    # step later, and `leftovers()` already reports it so a run never gets here.
+    root2 = make_fixture(os.path.join(tmp, "occupied-file"))
+    leaf2 = os.path.join(root2, SKILLS_REAL, "tasks", "extra", "SKILL.md")
+    os.makedirs(os.path.dirname(leaf2))
+    with open(leaf2, "w") as fh:
+        fh.write(MINE)
+    p.refuses("plant() refuses a file at the leaf", slc.PlantDeepCopy(root2).plant)
+    p.check("that file is untouched", _read(leaf2), MINE)
+    p.check("leftovers() reports it, so a run stops before planting",
+            slc.leftovers(root2), [f"{SKILLS_REAL}/tasks/extra/SKILL.md"])
+
+
+def pin_a_live_run_holds_the_tree(p: Pins, tmp: str) -> None:
+    """A second run must not plant into a tree the first one is already planting into.
+
+    Not the reviewer's symlink race - this is the concurrency that IS reachable here, with no
+    adversary at all: two runs in one work tree interleave their plants, and the second reads
+    the first's plant as a leftover to clean up underneath it. The state file already names
+    the pid, so the check is whether that pid is alive.
+
+    Fail closed. Pid reuse can only make this refuse a run that could have proceeded.
+    """
+    print("\na state file naming a LIVE foreign pid holds the tree")
+    root = make_fixture(os.path.join(tmp, "busy"))
+    holder = subprocess.Popen([sys.executable, "-c", "import time; print('up', flush=True);"
+                                                     " time.sleep(120)"],
+                              stdout=subprocess.PIPE, text=True)
+    holder.stdout.readline()
+    try:
+        _write_state_for(root, holder.pid)
+        p.check("recovery_verdict is 'busy'", slc.recovery_verdict(root)[0], "busy")
+        p.check("busy is decided on a CLEAN tree too - the holder is between plants",
+                slc.leftovers(root), [])
+        slc.PointerAsRealCopy(root).plant()
+        p.check("and on a planted one", slc.recovery_verdict(root)[0], "busy")
+        slc.repair(root)
+    finally:
+        holder.kill()
+        holder.wait(timeout=30)
+
+    # MUTANT of the liveness test: the same state file naming a pid that is GONE must be
+    # `resume`, not `busy` - otherwise a crashed run locks the tree out permanently.
+    _write_state_for(root, holder.pid)
+    p.check("a dead pid is not busy", slc.recovery_verdict(root)[0], "clean")
+    slc.PointerAsRealCopy(root).plant()
+    p.check("a dead pid with a leftover is 'resume'", slc.recovery_verdict(root)[0], "resume")
+    slc.repair(root)
+    slc.clear_state(root)
+
+    # VARIANT: our OWN pid must not lock us out of our own run.
+    slc.write_state(root)
+    p.check("our own pid is not a foreign holder", slc.recovery_verdict(root)[0], "clean")
+    slc.clear_state(root)
+
+
 def pin_state_file_is_outside_the_work_tree(p: Pins, tmp: str) -> None:
     """The marker must be invisible to `git status`, or `git add -A` can commit it.
 
@@ -354,6 +439,8 @@ SECTIONS = (pin_each_plant_is_seen_and_repaired,
             pin_clean_tree_is_left_alone,
             pin_a_foreign_tree_survives_the_repair,
             pin_a_symlinked_component_is_refused,
+            pin_an_occupied_leaf_is_refused,
+            pin_a_live_run_holds_the_tree,
             pin_state_file_is_outside_the_work_tree,
             pin_sigterm_restores,
             pin_sigkill_is_recovered_next_run,
@@ -382,8 +469,8 @@ def cmd_selftest() -> int:
         shutil.rmtree(tmp, ignore_errors=True)
     for f in p.failed:
         print(f"  {f}")
-    print(f"\n{p.n - len(p.failed)}/{p.n} pins over {len(slc.PLANTS)} plants, "
-          f"2 real kills (SIGTERM, SIGKILL) and 2 mutants")
+    print(f"\n{p.n - len(p.failed)}/{p.n} pins over {len(slc.PLANTS)} plants and "
+          f"{len(SECTIONS)} sections, with a real SIGTERM and a real SIGKILL")
     return 1 if p.failed else 0
 
 
