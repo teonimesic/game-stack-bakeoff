@@ -306,6 +306,87 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # an object here become a base, and then EVERY `merge-base` exits 128 -- which the
     # three-valued reader turns into NOT_CHECKED for every ticket. The gate goes silent
     # and total, and reads as a clean queue.
+    # THE SQUASH ARM NEVER ASKED, which is what shipped and is task 140: ancestry alone is
+    # the right test for `merge --no-ff` and the wrong one for `merge --squash`, where the
+    # tip is not an ancestor of it. Under this mutant every merged ticket whose ref survives
+    # reads ORPHANED -- fail-closed, one new red row per merge, and a gate bypassed as habit.
+    #
+    # ONLY THE CONSUMER ROWS CAN SEE IT. `_squash_landed` is untouched, so the row calling it
+    # directly stays green; naming that row here left this mutant reported as SURVIVING, which
+    # is the harness refusing a `kills` entry the mutant cannot reach.
+    "squash_arm_never_asked": (
+        "    sq = _squash_landed(ref, b, cache)\n"
+        "    if sq is True:\n"
+        "        return True",
+        "    sq = False  # MUTANT: only ancestry is asked, as before task 140",
+        ("SQUASH end to end: exit 1, naming ONLY the two that never landed",
+         "both squash-merged faces count as LANDED")),
+    # THE FAIL-OPEN HALF, and it is the one that costs evidence rather than attention: a
+    # branch whose work is on no base at all reads LANDED, which is the task 70 defect back
+    # with a green gate over it. Rule 15's variant -- the rows that must stay RED have to be
+    # able to go green.
+    "squash_claims_every_ref": (
+        "    unknown = False\n    for _label, rev in bases:",
+        "    return True  # MUTANT: every ref is claimed to have landed\n"
+        "    unknown = False\n    for _label, rev in bases:",
+        ("VARIANT: _squash_landed is False for work that never landed",
+         "VARIANT: _is_landed still returns False on a genuine orphan",
+         "SQUASH end to end: exit 1, naming ONLY the two that never landed",
+         "`check` end to end: exit 1, naming 71 and NOT 70")),
+    # A GIT FAILURE READ AS A CLEAN "no", the same defect `git_error_is_not_ancestor` pins on
+    # the ancestry arm. `merge-base` exits 128 for a ref that vanished between the listing and
+    # the query; dropping it into the False path makes `check` accuse a ticket whose content
+    # it never read (rule 2).
+    #
+    # IT IS NAMED ON THE PRODUCER'S ROW ALONE, MEASURED. Listing `_is_landed passes the None
+    # through` as well left this SURVIVING at 1 red of 111: for a ref git cannot resolve, the
+    # ANCESTRY arm returns None too, so `_is_landed` degrades on that and the mutation is
+    # invisible one level up. A `kills` entry naming a row the mutant cannot reach reports the
+    # mutant as surviving, which is the harness working -- and it is why the composition needs
+    # its own mutant (`is_landed_swallows_unknown`) rather than being covered by this one.
+    "squash_git_error_is_false": (
+        "            if mb.returncode != 0:\n"
+        "                unknown = True\n"
+        "                continue",
+        "            if mb.returncode != 0:\n"
+        "                continue  # MUTANT: a git failure reads as a clean 'no'",
+        ("_squash_landed returns None (not False) when git cannot answer",)),
+    # THE COMPOSITION SWALLOWING THE THIRD VALUE. Both arms are intact and only `_is_landed`
+    # is wrong, so `_squash_landed`'s own rows stay green and the ticket still becomes an
+    # accusation -- the shape that survives anything pinning the producer alone.
+    "is_landed_swallows_unknown": (
+        "    if anc is None or sq is None:\n        return None\n    return False",
+        "    if False:  # MUTANT: an unreadable ref becomes an accusation\n"
+        "        return None\n    return False",
+        ("_is_landed passes the None through",)),
+    # READING THE WRONG COLUMN of `git patch-id`, which prints `<patch-id> <commit-id>`. The
+    # comparison then never matches, so every squash-merged branch reads ORPHANED while the
+    # code still looks like it is comparing patch-ids. A wrong answer that is uniform across
+    # the population is rule 12's tell.
+    "patch_id_reads_the_wrong_column": (
+        "    out = {f[0] for f in (ln.split() for ln in ids.stdout.splitlines()) if f}",
+        "    out = {f[1] for f in (ln.split() for ln in ids.stdout.splitlines())"
+        " if len(f) > 1}  # MUTANT: the commit-id column",
+        ("_squash_landed is True for a squash-merged tip",
+         "SQUASH end to end: exit 1, naming ONLY the two that never landed",
+         "both squash-merged faces count as LANDED")),
+    # THE CACHE KEY LOSING THE BASE IT WAS ASKED ABOUT. Two bases render two different
+    # ranges; keyed on the base sha alone, the second one is answered out of the first one's
+    # entry -- a wrong verdict that is uniform across everything sharing that fork point,
+    # which is rule 12's tell and looks like a finding rather than a bug.
+    "patch_cache_key_drops_the_rev": (
+        "    key = (base_sha, rev)",
+        "    key = base_sha  # MUTANT: one entry per fork point, whatever it was compared to",
+        ("the same fork point against a MOVED main is a SECOND entry",)),
+    # CACHING A FAILURE, which is rule 7's fail-open channel: one transient git error becomes
+    # the stored answer for every later ref that shares the pair, with nothing saying so.
+    "patch_cache_stores_failures": (
+        "        if log.returncode != 0:\n            return None",
+        "        if log.returncode != 0:\n"
+        "            if cache is not None:\n"
+        "                cache[key] = None  # MUTANT: a failure becomes an answer\n"
+        "            return None",
+        ("a git failure is NOT cached",)),
     "base_from_a_foreign_repo": (
         "        if head and _head_exists_here(head):",
         "        if head:  # MUTANT: a sha from any repository is accepted",

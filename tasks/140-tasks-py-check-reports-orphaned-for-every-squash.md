@@ -1,11 +1,12 @@
 ---
 id: 140
 title: tasks.py check reports ORPHANED for every squash-merged branch, and the repository merges by squash
-status: in_review
+status: done
 priority: 2
 refs: eval/tools/tasks.py landed_status, DECISIONS.md "A closed ticket is checked against the tree", .agents/skills/dispatch/SKILL.md merging section, tasks/122
 done_when: landed_status distinguishes a branch that was squash-merged from one that was never merged, with the three-valued contract preserved and NOT_CHECKED still never a pass; a control pins it red on a genuinely orphaned branch and green on a squash-merged one, using real refs in this repository; and tasks.py check is green on the queue as it stands or names only tickets whose work really is absent from the tree
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/23
+established_by: 'PR #23 squash-merged. Verified independently on REAL objects, all three directions: PR #16''s squash commit 399280e has exactly 1 parent and is an ancestor of main; its branch tip 58df942 is an ancestor of nothing on main; and the two patch-ids match at cc2213e. Differential against origin/main''s own code: the old _is_ancestor answers None for that tip while the new _is_landed answers True, and for PR #14 - closed WITHOUT merging - the new predicate answers False, so it does not manufacture a landing. A nonexistent ref answers None on both. tasks_control exit 0, tasks_mutants 35 mutants 0 survived.'
 ---
 
 Measured 2026-08-24 from an agent worktree on task 127. tasks.py check exits 1 with: "131: status done, but refs/remotes/origin/task-131-controls-filter-into-a-step is not an ancestor of main", and the same for 130. Both are wrong. PR #16 was merged 2026-08-24T12:55:34Z and its merge commit 399280e7f059aaf694fa517c331f83f875a5cfb8 IS an ancestor of origin/main - but it has ONE parent and a tree of its own, because gh pr merge --squash creates a new commit rather than a merge of the branch. So the branch tip 58df942db5fae6a6537c26b40096c2894b1f3c90 is not an ancestor of anything and never will be. landed_status uses merge-base --is-ancestor on the BRANCH TIP, which is the right test for the git merge --no-ff flow this project abandoned and the wrong test for the squash flow DECISIONS.md now records. The failure direction is fail-closed, which costs attention rather than evidence - but it fires on every merged ticket whose remote ref survives, so the count grows with every merge, and a gate that is red for reasons unrelated to the change in front of you is a gate that gets bypassed as a habit. The pre-push hook already refuses to block on it from a linked worktree, which is a second reason nobody sees it go green. The signal that is actually available is the squash commit: gh pr view <n> --json mergeCommit gives it, and the PR is reachable from the ticket via the pr field that in_review already requires.
@@ -94,3 +95,107 @@ That matters for the fix and for the control:
 
 The control therefore needs both faces: a local branch and a remote-tracking ref, each pointing at
 a squash-merged tip (must be GREEN) and each pointing at genuinely unmerged work (must be RED).
+
+## note 2026-08-24
+
+## What the fix is, and why it is not `gh pr view --json mergeCommit`
+
+`_is_landed` asks 2 questions and keeps the 3-valued contract:
+
+- `_is_ancestor` first, **unchanged** — still the whole answer for the `git merge --no-ff` refs
+  stored before the flow changed.
+- then `_squash_landed`, which renders `merge-base..ref` as one diff and asks whether its
+  `git patch-id` is among the patch-ids of the commits the base gained since.
+
+A `True` from either arm wins; an arm that could not answer outranks a `False`, so an unreadable
+ref is `NOT_CHECKED` and never an accusation.
+
+The ticket suggested `gh pr view <n> --json mergeCommit`. Rejected, and the reason is in
+`DECISIONS.md`: it needs the network and an authenticated `gh`, while `check` runs in a git hook
+and in CI, where an unavailable answer becomes a third population of NOT_CHECKED with nothing to
+distinguish it from a clean queue. A patch-id is also a closed test, which is the property the
+original entry rejected the `pr` field for lacking.
+
+## The measurement, both directions
+
+Fixture: a real `git merge --squash` over 4 refs — a local branch and a remote-tracking ref, each
+squash-merged and each genuinely unmerged.
+
+| tool | result |
+|---|---|
+| `main`'s `tasks.py` | exit 1 naming all 4 — 2 of them false |
+| this branch | exit 1 naming only the 2 that never landed, census `2 reachable from main` |
+
+Real objects, 2026-08-24: PR #16's squash commit `399280e` has **1** parent and is an ancestor of
+`main`; its branch tip `58df942` is an ancestor of no commit on `main`; the tip's change **is** on
+`main`, patch-id `cc2213e`, matching `399280e` exactly.
+
+## Two things the next agent should not re-derive
+
+**The deleted tip cannot be a default control row.** `delete_branch_on_merge` is on, so
+`58df942` is reachable from nothing and no clone that did not perform the merge can fetch it —
+`actions/checkout` at `fetch-depth: 0` fetches live branch heads only. An unconditional row on it
+reports NOT CHECKED, `tasks_control.py` exits **3**, and `gates.yml` goes red on every machine but
+one. It is behind `--live-squash-refs`, recorded as a deliberate exclusion in
+`.github/workflows/README.md`. The row that runs everywhere is the one-parent property of
+`399280e`, which is on `main`.
+
+**The patch-id cache: `(base_sha, rev)`, and a control that moves one thing at a time.** Measured
+over 12 orphaned refs on a 60-commit `main`, best of 3: `check` is 288ms with ancestry alone,
+1070ms with the squash arm, 720ms once the base range is cached — and unchanged at 1037ms when the
+refs fork from different commits, which is what says the cache collapses what it claims and
+nothing else. A git failure is never cached.
+
+The mutant that drops `rev` from the key **survived its first control row**, and the row was the
+defect: it compared one fork point against 2 different bases, under which `merge-base` moves as
+well, so both halves of the key change together and dropping one is invisible. It now advances
+`main`, holding the fork point fixed. A variant that moves 2 things at once cannot say which one
+the check is reading.
+
+## What was NOT established
+
+**The false-negative direction has no real case.** A squash whose diff was rewritten by conflict
+resolution has a different patch-id and reads `ORPHANED`. That is fail-closed — attention, not
+evidence — and it is written into `_squash_landed`'s docstring and into `DECISIONS.md` as what
+would re-open the choice. No such commit exists in this repository's history to test against.
+
+**The live queue is entirely `NOT_CHECKED`** (145 tasks, 0 reachable, 133 NOT CHECKED), so the
+end-to-end proof is the fixture, not the queue.
+
+## For the orchestrator
+
+**A finding number is needed and none was allocated.** The claim: *a decision that named its own
+reversal condition had that condition fire the next day, and nothing connected the two.*
+`DECISIONS.md`'s entry said ancestry would be re-opened by *"the repository adopting squash
+merges"*; `.agents/skills/dispatch/SKILL.md` already stated the git fact the predicate
+contradicted. Two live documents, one predicate, and no check comparing them — the same shape as
+*a fact spelled in two files and asserted equal nowhere*. The failure was fail-closed and
+intermittent: the remote face heals on `fetch --prune`, the local face never does, so an
+investigator arriving after a prune finds nothing.
+
+**Filed: `tasks/147`** — `.github/workflows/README.md` narrating its own history (run ids, dated
+timings, change-history sentences). Raised by the reviewer on this pull request and declined here
+because those lines arrived with the merge of `main` from task 135 (`c29429a`, #22).
+
+## Numbers
+
+`tasks_control.py` 100 → **111** rows, 0 FAILED, 0 NOT CHECKED (**115** with
+`--live-squash-refs`). `tasks_mutants.py` 28 → **35**, 0 survived, `--selftest` green.
+`docstat.py --sweep`, `linkcheck.py`, `skill_layout_control.py`, `tasks.py check`,
+`lint.py --gate --rule invalid-syntax` all exit 0; `lint.py --counts` unchanged at 83.
+
+## note 2026-08-24
+
+## note 2026-08-24 (orchestrator) — the live end-to-end proof the fixture could not give
+
+Your hand-back said the live queue is entirely `NOT_CHECKED`, so the proof is the fixture. One
+became available at merge and it is recorded here because it will not recur:
+
+At the moment ticket 140 was marked `done`, **its own squash-merged branch was still present
+locally** (`task-140-squash-aware-landed-check` at `b97291b`). That is exactly the configuration
+that produced `ORPHANED` under the old predicate — a `done` ticket whose branch tip is an ancestor
+of nothing. `tasks.py check` exited **0** and named nothing.
+
+So the repair is confirmed against the live queue, on the ticket that fixed it, in the state that
+caused the report. The window was accidental — one `git branch -D` later and it would have been
+unreproducible.

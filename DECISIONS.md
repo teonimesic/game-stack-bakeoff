@@ -1911,7 +1911,12 @@ actually stored. A short interval with a verification at the end of it is not th
 an interval with none.
 
 ---
-## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23
+## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23, second test added 2026-08-24
+
+> **This entry's reversal condition has fired: the repository is squash-only.** Ancestry alone
+> reads `ORPHANED` for every merged ticket whose ref survives, so a second test sits beside it.
+> Ancestry stays, because it is still the whole answer for the `git merge --no-ff` refs already
+> stored.
 
 **Decided [agent], on measurement, after task 70 sat at `done` over 678 insertions across 5 files
 that `main` had never seen** — including `eval/judge/paired_verdicts.py` at 458 lines, which
@@ -1920,24 +1925,34 @@ on 2026-08-23, and it ended because a person clearing stale worktrees happened t
 compared a closed ticket against the tree, and the failure is invisible from either side on its
 own: the queue says merged, and the tree disagrees by silence.
 
-`tasks.py check` now reads, for every `done` ticket, whether any `task-<id>-*` ref is an
-ancestor of the tree. `landed_status` returns **three values**:
+`tasks.py check` now reads, for every `done` ticket, whether any `task-<id>-*` ref has reached
+the tree. `landed_status` returns **three values**:
 
 | verdict | means | `check` |
 |---|---|---|
-| `LANDED` | a `task-<id>-*` ref is an ancestor | counted |
-| `ORPHANED` | such a ref exists and none of them is | **exit 1**, naming the ref |
+| `LANDED` | a `task-<id>-*` ref has landed — its tip is an ancestor of the base, **or** its change is already on the base | counted |
+| `ORPHANED` | such a ref exists and none of them has landed by either test | **exit 1**, naming the ref |
 | `NOT_CHECKED` | no such ref survives, **or git could not answer** | counted and printed, **never a pass** |
 
-`merge-base --is-ancestor` uses exit 0 and 1 for the answer and everything else for a failure, so
-`_is_ancestor` is three-valued too. Collapsing 128 into "not an ancestor" would make `check`
-exit 1 naming a ticket whose ancestry it never established — rule 2, a state inferred from
-something that is not a report of it.
+**Two tests, because the repository has used two merge flows and refs from both survive.**
+`_is_landed` asks `_is_ancestor` first, which is the whole answer under `git merge --no-ff`, and
+then `_squash_landed`, which is the whole answer under `gh pr merge --squash`: a squash writes a
+commit with one parent and a tree of its own, so **the tip it landed is not an ancestor of it**,
+and nothing a later squash does changes that. `_squash_landed` renders `merge-base..ref` as one
+diff and asks whether its
+`git patch-id` is among the patch-ids of the commits the base gained since — which is the same
+question ancestry was standing in for, asked about the change rather than about the commit.
+
+Every arm is three-valued and for one reason: **a git failure is not a "no".** `merge-base
+--is-ancestor` uses exit 0 and 1 for the answer and everything else for a failure; collapsing 128
+into "not an ancestor" would make `check` exit 1 naming a ticket whose ancestry it never
+established — rule 2, a state inferred from something that is not a report of it. `_squash_landed`
+degrades the same way, and `_is_landed` lets an unanswered arm outrank a `False`.
 
 | Decided | Rejected, and why |
 |---|---|
 | Three values | Two. A merged branch is normally deleted, so a two-valued check would report **112 of the 119** closed tickets as verified while verifying nothing — rule 1's `total=0 passed=0` with a plausible denominator |
-| The trigger is *a `done` ticket whose branch is not an ancestor* | Anything keyed on the ticket's `pr` field, or on merge-commit messages. Both are open classes of text; a ref name and an ancestry test are closed |
+| The trigger is *a `done` ticket whose branch has neither landed as a commit nor as a change* | Anything keyed on the ticket's `pr` field, or on merge-commit messages. Both are open classes of text; a ref name, an ancestry test and a patch-id are closed. `gh pr view <n> --json mergeCommit` names the squash commit directly and was rejected on top of that: it needs the network and an authenticated `gh`, and `check` runs in a git hook and in CI, where an unavailable answer would become a third population of NOT_CHECKED with nothing to distinguish it from a clean queue |
 | `main`, `origin/main`, **and the invoking checkout's `HEAD`**, any of which counts | `main` alone. It makes the gate unfixable from the branch that fixes it: the agent landing an orphan cannot turn its own `check` green before the orchestrator merges, and a gate that stays red through correct work gets bypassed as a habit. In the main checkout and in CI all three are the same commit, so the condition is unchanged exactly where it is enforced |
 | The caller's `HEAD` is taken from **both the process's working directory and the file's own checkout**, de-duplicated **by SHA**, and **each is required to exist in the repository the ancestry query runs against** | Any single address. A bare `HEAD` asked at `TASKS` is `main` under another name — two bases printed where there is one (rules 9 and 12). `ROOT` alone is worse: it comes from `__file__`, and the work skill tells an agent to run the **main** copy of the tool, under which its own branch is never consulted and the orphan it just landed cannot be cleared. The existence check is not defensive tidiness — without it a SHA from an unrelated checkout becomes a base, every `merge-base` exits 128, and the three-valued reader turns **the whole gate silent**, which reads as a clean queue. `tasks_control`'s own caller-HEAD row caught that |
 | It **fails** rather than warns | A warning. The false-positive count is 0, and the one true positive is a published tool that existed on no branch anyone would look at |
@@ -1952,12 +1967,13 @@ them** (#140), and the flag gate's was **8 false positives against 0 true** (#14
 triggers were open classes of English; a ref name and an ancestry test are not.
 
 **What it cannot see, stated so nobody reads more into a green than is there.** It asks
-*reachability*, not *content*: a branch merged `-s ours`, or one whose changes a later commit
-reverted, reads `LANDED` with its work absent. That is rule 15's variant half and the failure
-message says *read the branch diff* rather than *merge it*. The known false positive is a **squash
-merge**, which lands the content and leaves the tip unreachable — 0 of the 7 surviving branches
-were squashed when this shipped, and if the repository starts squashing, the trigger stops being
-the right one rather than needing a wider tolerance.
+*arrival*, not *survival*: a branch merged `-s ours`, or one whose changes a later commit
+reverted, reads `LANDED` with its work absent from the tree today. That is rule 15's variant half
+and the failure message says *read the branch diff* rather than *merge it*. The known false
+**negative** is a squash whose diff differs from the branch's own — the base moved under a file
+the branch also edited, and the merge resolved the overlap — which reads `ORPHANED` with its work
+present. That direction costs attention rather than evidence, which is the side of rule 7 to be
+on.
 
 > **A verdict is relative to the refs the caller can see, and CI can see fewer — measured, not
 > supposed.** On the same commit on the same day, the operator's checkout read **7 LANDED / 112
@@ -1968,23 +1984,64 @@ the right one rather than needing a wider tolerance.
 > opinion, and a green CI run does not cover this. The same run also showed `main` failing to
 > resolve there and `origin/main` carrying it, which is what that fallback is for.
 
-Pinned in both directions by `tasks_control.py` direction 11 — predicate rows including the
-`task-7-` / `task-70-` prefix variants in both directions and the three-valued `is_ancestor`, plus
+Pinned in both directions by `tasks_control.py` directions 11 and 11c — predicate rows including
+the `task-7-` / `task-70-` prefix variants in both directions and the three-valued arms, plus
 end-to-end rows on real scratch repositories, one of which runs the tool with its cwd in a
-worktree the file does not live in. The control goes 79 rows to 100. Seven mutants in
-`tasks_mutants.py` cover it: excusing an orphan, accusing a deleted branch, computing the census
-without printing it, de-duplicating the bases by name, reading a git error as "not an ancestor",
-asking the caller's HEAD only at the file's address, and accepting a base from a foreign
-repository. **1 of them survived first time** — the error-branch mutant — because the rows
-pinned `landed_status`'s handling of a `None` and never ran `_is_ancestor` itself. A consumer
-pinned without its producer is the `tasks/106` shape, and it is why that row now calls the
-function against a real repository where a missing ref exits 128.
+worktree the file does not live in. **Direction 11c performs a real `merge --squash`** over 4
+refs, because the defect has two faces and each needs both directions: a **local** branch and a
+**remote-tracking** ref, each squash-merged and each genuinely unmerged. Only the remote face
+heals on `fetch --prune`; the local one survives until somebody deletes it by hand, so a fixture
+carrying one face proves less than it looks. The control goes 79 rows to 111.
+
+**The base range is rendered once per `(base_sha, rev)`, not once per ref.** Measured
+2026-08-24 over 12 orphaned refs on a 60-commit range: `check` is 288ms with ancestry alone,
+1070ms with the squash arm, and 720ms once the pair is cached — and unchanged at 1037ms when
+the refs fork from different commits, which is the measurement that says the cache is doing
+what it claims and nothing else. **A git failure is never cached**: a stored `None` would turn
+one transient error into every later ref's verdict, which is rule 7's fail-open channel.
+
+**And one row says something about this repository, not only about a fixture built to agree with
+it:** `399280e`, a real squash merge on `main`, has exactly **one** parent — which is why the tip
+it landed is not an ancestor of it — and it is on `main`, so any clone with the history has it.
+A shallow one does not, and the row says NOT CHECKED there rather than passing.
+
+**The deleted tip is opt-in, and the reason is this ticket's own defect one level up.**
+`--live-squash-refs` adds 4 rows against PR #16's actual objects: `58df942` is an ancestor of
+nothing, its change is on `main`, and `_is_landed` therefore reads `LANDED` — measured 2026-08-24,
+115 rows, 0 failed. `delete_branch_on_merge` removed that branch, so no clone that did not perform
+the merge can fetch the tip, and an unconditional row would report NOT CHECKED — **exit 3** — on
+every machine but one. A gate red for a reason unrelated to the change in front of it is the thing
+that got this defect ignored in the first place.
+
+14 mutants in `tasks_mutants.py` cover it: excusing an orphan, accusing a deleted branch,
+computing the census without printing it, de-duplicating the bases by name, reading a git error as
+"not an ancestor", asking the caller's HEAD only at the file's address, accepting a base from a
+foreign repository, never asking the squash arm, claiming every ref has landed, reading a git
+error in the squash arm as a clean "no", swallowing the third value in the composition, reading
+`patch-id`'s commit-id column instead of its patch-id column, dropping `rev` from the cache key,
+and caching a failure.
+
+3 constraints on the rows and the `kills` lists, each of which a mutant walked through
+before it held:
+
+- **Every arm is called at its own address, not only through its consumer.** A row handing
+  `landed_status` a lambda never runs `_is_ancestor`, so the error-branch mutant is invisible to
+  it — the `tasks/106` shape. The producer rows run against a real repository where a missing
+  ref exits 128.
+- **A `kills` entry must name a row the mutant can reach.** Where two arms degrade the same way
+  — for a ref git cannot resolve, both return `None` — a mutation of one is invisible one level
+  up, so the composition carries its own mutant rather than borrowing the arms'.
+- **A variant that moves two things at once cannot say which one the check is reading**
+  (rule 8, inside a control). The cache-key row advances `main`, holding the fork point fixed;
+  comparing one fork point against two bases moves `merge-base` as well, and both halves of the
+  key change together.
 
 | Would re-open this | The observation |
 |---|---|
 | The three-valued shape | `NOT_CHECKED` falling to near zero, which would mean branches are being kept. Then the two-valued check is the stronger one |
 | Failing rather than warning | A false positive on the live queue. The count is printed every run, so it is observable rather than remembered |
-| Ancestry as the test | The repository adopting squash merges. Ancestry then answers a question nobody is asking |
+| Patch-id as the second test | A false `ORPHANED` on the live queue from a squash whose diff was rewritten by conflict resolution. The census is printed every run, so the count is observable rather than remembered |
+| Reading merge state from refs at all | `delete_branch_on_merge` being turned off, which would leave every merged branch present and make ancestry-plus-content the routine path rather than the residue |
 
 ---
 ## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23

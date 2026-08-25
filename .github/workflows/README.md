@@ -160,6 +160,7 @@ or make this repository public"*) — going public is what made it available.
 | an external-link check | `research/` alone carries **85** `http(s)` URLs and nothing validates one. Deliberate: `linkcheck.py` skips those schemes because this repository is offline-gradeable and a network check is a different tool with a different failure mode. The consequence is that a rotted source still *looks* sourced — acceptable because `research/` is labelled a prior rather than evidence, and would not be if a measurement rested on one |
 | `integrity_census.py` | a census, not a gate: it exits 0 on a historical hit by construction. Its control calls the two integrity pins `--sweep` already runs |
 | `ci_minutes.py` without `--selftest` | it reads the Actions API once per run, and the run count grows with every push — gating it would make CI cost grow quadratically in its own history. The offline `--selftest` half IS gated |
+| `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
 | the full `lint.py` rule set | 72 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 
 ## Minutes

@@ -340,8 +340,12 @@ defect this was built for reads `NOT_CHECKED`.** A green CI run does not cover t
 in the checkout holding the branches is what does. The measurement behind that is in
 `DECISIONS.md`.
 
-**It asks reachability, not content.** A branch merged `-s ours`, or one a later commit reverted,
-reads `LANDED` with its work absent; a squash merge would read `ORPHANED` with its work present.
+**Two tests, because the repository has used two merge flows.** A tip that is an ancestor of the
+base counts, and so does a change already on the base — which is the only one that fires under
+`gh pr merge --squash`, where the tip is not an ancestor of the commit that landed it.
+
+**It asks arrival, not survival.** A branch merged `-s ours`, or one a later commit reverted,
+reads `LANDED` with its work absent from the tree today.
 
 ## Reachability: `check` warns, it cannot decide
 
