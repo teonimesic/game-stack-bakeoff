@@ -82,7 +82,10 @@ def stored_verdicts(audio_block: dict) -> dict[str, bool] | None:
     """
     want = {cid for cid, _q in CRITERIA}
     got: dict[str, bool] = {}
-    for c in audio_block.get("criteria", []):
+    criteria = audio_block.get("criteria")
+    if not isinstance(criteria, list):
+        return None
+    for c in criteria:
         if not isinstance(c, dict):
             continue
         cid = c.get("id")
@@ -107,6 +110,13 @@ def regroup(audio_block: dict, expected: tuple[str, ...]
     """
     clips = audio_block.get("clips") or {}
     groups = audio_block.get("distinct_sound_groups") or []
+    # A malformed record must be REFUSED, never crash the census. An exception here stops
+    # every remaining row, so one unreadable grading would take the whole count with it -
+    # and a count that did not finish is not a smaller count, it is no answer at all.
+    if not isinstance(clips, dict) or not isinstance(groups, list):
+        return None, 0, "GROUPS_INCOMPLETE"
+    if not all(isinstance(v, dict) for v in clips.values()):
+        return None, 0, "GROUPS_INCOMPLETE"
     labels = sfx_labels_in_scan_order(clips)
     basename = {lab: Path(str(clips[lab].get("path", ""))).name for lab in labels}
 
@@ -368,6 +378,32 @@ def selftest() -> int:
         if (len(out["refused"]), out["unchanged"]) != (1, 0):
             fails.append(f"{label}: refused {len(out['refused'])}, unchanged "
                          f"{out['unchanged']}; expected 1, 0")
+
+    # A record whose SHAPE is not what this tool reads is refused, never crashed on.
+    # An exception takes every remaining row with it, and a census that stopped is not a
+    # smaller census.
+    shapes = [("criteria is null", "criteria", None, "INCOMPLETE_STORED_VERDICTS"),
+              ("criteria is an object", "criteria", {}, "INCOMPLETE_STORED_VERDICTS"),
+              ("clips is a list", "clips", [], "GROUPS_INCOMPLETE"),
+              ("a clip entry is a string", "clips", {"sfx.x": "no"}, "GROUPS_INCOMPLETE"),
+              ("groups is an object", "distinct_sound_groups", {}, "GROUPS_INCOMPLETE"),
+              ("a group is a string", "distinct_sound_groups", ["a.wav"],
+               "GROUPS_INCOMPLETE")]
+    for label, key, value, want_outcome in shapes:
+        b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
+                   [[f"{e}.wav"] for e in pong], {})
+        b[key] = value
+        checks += 1
+        try:
+            got = census([{"run": "r", "trial": "t", "game": "g1_pong",
+                           "submission": "s", "report": "-",
+                           "stored": stored_verdicts(b), "audio": b}])
+        except Exception as ex:                                       # noqa: BLE001
+            fails.append(f"{label}: the census raised {type(ex).__name__}: {ex}")
+            continue
+        outcomes = [r["result"]["outcome"] for r in got["refused"]]
+        if outcomes != [want_outcome]:
+            fails.append(f"{label}: refused {outcomes}, expected [{want_outcome}]")
 
     # ...and a grouping whose basename MULTIPLICITIES do not match the recorded clips.
     # THE VARIANT A TOTAL CANNOT SEE: one occurrence of a repeated name dropped and one
