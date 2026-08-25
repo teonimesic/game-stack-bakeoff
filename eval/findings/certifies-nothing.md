@@ -5383,3 +5383,48 @@ positives** — `gh`, `git`, Godot and Chrome flags, 9 of them in skills.
 > a known limit; one silently absent is a green tick nobody can price.
 
 ---
+
+## 173. The tool's own log of what it had broken was discarded by stdout buffering, at exactly the moment it was the only way to know
+
+`skill_layout_control.py` plants defects into the **real** working tree and restores each one. A
+2-minute timeout killed it mid-plant. It left `.claude/skills` a real directory of copies, after
+which `docstat.py --sweep` returned **11 rows, 10 of them naming a `SKILL.md`** — and the repair
+named nowhere. Four gate runs were then red, blaming the skills, for a reason unrelated to the
+change in front of the reader.
+
+**The run's redirected log file was zero bytes.** stdout is block-buffered when it is a file rather
+than a terminal, so every line the tool had printed about which plant was in place was still in a
+userspace buffer when the process died. The one record that would have identified the damage was
+destroyed by the same event that caused it.
+
+> **A log that is only flushed at exit does not exist for any run that does not reach exit — and
+> the runs that fail to reach exit are the ones the log was written for.** Buffering makes a
+> diagnostic conditional on the outcome it is meant to diagnose.
+
+This is the sibling of the project's *capture what the instrument DID* rule, one layer down: that
+rule is about deciding to record; this is about the recording surviving. The decision had been
+made correctly — the tool did print what it was doing — and the mechanism threw it away.
+
+### What replaces it, verified by a real kill rather than a simulation
+
+Three mechanisms, and the first is why no rarely-run recovery path is left to rot: `repair()`
+restores **from the git index** and is also what runs between plants, so an ordinary run exercises
+the crash path five times. A state file and an `flock` live inside the **git directory**, invisible
+to `git status` and per-worktree. Signal handlers restore before re-raising, and every line is
+flushed.
+
+Confirmed independently after the merge, with SIGTERM at 12 s into a live run:
+
+| | |
+|---|---|
+| exit | **143** |
+| `.claude/skills` | **still a symlink** |
+| `git status --porcelain` | **0 changed files** |
+| the log | **224 bytes, naming what it restored** — `rm -f .codex/skills/tasks/SKILL.md; rmdir …` |
+
+SIGKILL cannot be caught, so that path is covered differently: the next run detects the state file,
+reports *"a previous run died mid-plant (state file from pid …)"*, repairs from the index and
+continues to 5/5. **A control that can leave the repository broken must be able to say so on its
+next run**, because the person who meets the damage is usually not the person who caused it.
+
+---
