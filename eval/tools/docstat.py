@@ -96,6 +96,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../eval
 ROOT = os.path.dirname(REPO)
@@ -142,8 +143,85 @@ def _all_skill_files() -> list[str]:
     return out
 
 
+def github_docs(root: str | None = None) -> list[str]:
+    """Every non-vendored markdown file under `.github/`, at any depth.
+
+    `glob("**")` does not descend into a name beginning with a dot, so `.github/` is
+    invisible to `project_docs()` for exactly the reason `.claude/` was. That left
+    `.github/workflows/README.md` - the register `AGENTS.md` tells every session to read
+    before adding a gate, and which names dozens of this repository's own tools and flags -
+    outside every reference check, passing nothing rather than passing. Measured with the
+    same `--no-such-flag-147` planted on a fenced command line of each file: `--sweep` came
+    back exit 0 on the register and exit 1 naming the flag on the identical plant in
+    `DECISIONS.md`.
+
+    Globbed by DIRECTORY, never by filename, and recursively rather than at one level.
+    Naming the one file that exists today is the enumeration failure `AGENTS.md`'s rule
+    audit describes, and the next document added under `.github/` would be unswept in the
+    same silent way - which is what `_corpus_pins` drives a nested fixture through.
+
+    WHAT THIS BUYS, AND WHAT IT DOES NOT. Being in `reference_docs()` is necessary and not
+    sufficient: two of the reference halves carry their own file-wide trigger, and one of
+    them does not admit this file. Measured by planting the same phantom token 4 ways in
+    the register and in `DECISIONS.md`:
+
+      plant                                   register   DECISIONS.md
+      bare flag on a fenced command line       exit 1     exit 1     <- reads .github/
+      backticked flag, script named on line    exit 0     exit 1     <- does NOT
+      backticked flag, no script on the line   exit 0     exit 1     <- does NOT
+      phantom aspect in prose                  exit 0     exit 0     <- neither: see below
+
+    The backticked half is gated on `harness`, a file-wide search for 4 harness script
+    names, and the register names none of them - it names tools. The aspect half is
+    scoped to documents that make a claim about aspects, which this file never does, so
+    its exit 0 is agreement rather than absence.
+
+    THE OBVIOUS REPAIR IS MEASURABLY WORSE, which is why it is recorded here instead of
+    applied. Replacing the 4-name enumeration with the closed class `_our_script_names()`
+    takes the admitted corpus from 43 documents to 165 and adds **25 rows, of which 0 are
+    true positives** - `--auto`, `--body-file`, `--ours`, `--theirs` (`gh` and `git`),
+    `--doctool` (Godot), `--enable-unsafe-webgpu` (Chrome), and the deliberately-fake
+    tokens task files name on purpose. That is the shape `AGENTS.md`'s rule audit
+    describes: an open-class property that fires on correct input is how a gate gets
+    disabled. `_corpus_pins` holds the exclusion so it cannot become silent.
+
+    `root` exists for those pins. Everything else takes the default.
+    """
+    base = ROOT if root is None else root
+    return sorted(q for q in glob.glob(os.path.join(base, ".github", "**", "*.md"),
+                                       recursive=True)
+                  if not is_vendored(q))
+
+
+def _github_docs_by_walk(root: str | None = None) -> list[str]:
+    """The same set, found by WALKING - the pins' independent statement of the answer.
+
+    A control that computes its expectation by calling the function under test agrees with
+    every mutant of that function: the `tasks.py note` control built its expected bytes from
+    `tasks.py`'s own helper and came back SURVIVED on 48 rows (task 113, `AGENTS.md` rule 12).
+    So this reaches the same files by a different mechanism, and `_corpus_pins` compares the
+    two rather than making them one object.
+    """
+    base = ROOT if root is None else root
+    out = []
+    for d, subs, files in os.walk(os.path.join(base, ".github")):
+        # FULL PATHS, because that is what `is_vendored` tests. 3 of the 5 VENDORED
+        # entries are path fragments carrying separators - `/target/`, `/.godot/`,
+        # `/Library/` - so `is_vendored("target")` on a bare directory NAME is False
+        # while `is_vendored(".../target/x.md")` is True. An oracle filtering names
+        # would keep a file the subject drops and redden `--selftest` against a correct
+        # `reference_docs()`: a check that fails on correct input is one that gets
+        # disabled. Raised by CodeRabbit on PR #25.
+        subs[:] = [s for s in subs if not is_vendored(os.path.join(d, s) + os.sep)]
+        if is_vendored(d + os.sep):
+            continue
+        out += [os.path.join(d, f) for f in files
+                if f.endswith(".md") and not is_vendored(os.path.join(d, f))]
+    return sorted(out)
+
+
 def reference_docs() -> list[str]:
-    """The corpus for the REFERENCE checks: every project doc, PLUS every skill.
+    """The corpus for the REFERENCE checks: every project doc, every skill, and `.github/`.
 
     The skills are always-loaded instruction documents. A skill naming a flag or an aspect
     that does not exist is the exact defect this sweep was built for (#38), and until
@@ -167,7 +245,7 @@ def reference_docs() -> list[str]:
       ratchet       0 trial ids appear in any skill, and it is scoped to `findings/`
                     regardless, so the count is unmoved.
     """
-    return sorted(set(project_docs()) | set(_all_skill_files()))
+    return sorted(set(project_docs()) | set(_all_skill_files()) | set(github_docs()))
 
 
 def _fence_mask(lines: list[str]) -> list[bool]:
@@ -3573,6 +3651,187 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _harness_trigger_census(docs: list[str] | None = None) -> dict:
+    """What widening the backticked-flag half's file-wide trigger would cost.
+
+    THE PRODUCER for the figures `.github/workflows/README.md` and `github_docs()` state.
+    A count with no producer goes stale forever, so this is computed on the live corpus
+    every `--selftest` rather than remembered from the day it was measured.
+
+    The half is gated on `harness`, a file-wide search for 4 harness script names. The
+    obvious property to replace it with is the CLOSED class `_our_script_names()` - does
+    this document name any script this repository owns. `AGENTS.md`'s rule audit says to
+    choose between candidate triggers on the live-corpus false-positive count, never on
+    which sounds more general, and this one loses.
+
+    IT REPORTS CANDIDATES, NOT VERDICTS. The only exclusions applied are the ones the check
+    itself applies - known local flags, `FOREIGN_FLAG_PREFIXES`, `FOREIGN_FLAGS_EXACT` and
+    the deliberately-fake line exemption. Nothing here classifies a remaining row, so a
+    genuinely unresolved flag of ours would appear in this list exactly as a `gh` flag does.
+    Calling the whole list false positives in the OUTPUT would be a reason not to count a
+    failure, and every one of those is a channel a bug can widen (`AGENTS.md` rule 7).
+    Raised by CodeRabbit on PR #25.
+
+    The adjudication is a dated one-off and is stated as one: 2026-08-24, 25 rows, none
+    genuine - `gh`, `git`, Godot and Chrome flags, and tokens task files name as fake. The
+    live count prints beside it, so the two disagreeing is visible rather than silent.
+
+    `docs` exists for the pin that drives this over a synthetic corpus. Everything else
+    takes the default.
+    """
+    flags, scripts = _argparse_flags(), _our_script_names()
+    old_rx = re.compile(r"(wholegame|runner|judge/|evaluate|regrade)\.py")
+    wide_rx = re.compile(r"\b(" + "|".join(re.escape(s) for s in sorted(scripts)) + r")\b")
+    old_admitted = wide_admitted = 0
+    new_rows = []
+    docs = reference_docs() if docs is None else docs
+    for q in docs:
+        text = open(q, encoding="utf-8", errors="replace").read()
+        narrow, wide = bool(old_rx.search(text)), bool(wide_rx.search(text))
+        old_admitted += narrow
+        wide_admitted += wide
+        if not (wide and not narrow):
+            continue
+        for ln in text.split("\n"):
+            if re.search(_DELIBERATELY_FAKE, ln, re.I):
+                continue
+            for tok in re.findall(r"`(--[a-z0-9-]{2,})`", ln):
+                if (tok.startswith(FOREIGN_FLAG_PREFIXES)
+                        or tok in FOREIGN_FLAGS_EXACT or tok in flags):
+                    continue
+                new_rows.append(f"{os.path.relpath(q, ROOT)}: {tok}")
+    return {"corpus": len(docs), "narrow": old_admitted,
+            "wide": wide_admitted, "new_rows": sorted(new_rows)}
+
+
+def _corpus_pins(verbose: bool = False) -> list[str]:
+    """The two corpora reach what they are meant to reach, and nothing else.
+
+    A corpus is an input to a check (#60), and this one failed silently: a dot-directory is
+    skipped by `glob`, so a document could be read by every session and by no gate.
+
+    ASKED AS COMPLETENESS, not as one filename. Pinning only
+    `.github/workflows/README.md` passes for a `github_docs()` that returns exactly that
+    file, so the second document added under `.github/` would be unswept and green - the
+    same silent shape this whole repair exists to close. The live case therefore compares
+    `reference_docs()` against `_github_docs_by_walk()`, which reaches the files by a
+    different mechanism, and the adversarial case drives a NESTED fixture no one-level and
+    no hardcoded implementation can satisfy.
+
+    The register is still named explicitly, because the one row whose answer you can state
+    in advance is what proves the extraction before you believe the census (rule 12).
+
+    Both directions, because the separation is the point:
+
+      in `reference_docs()`      swept for phantom names
+      NOT in `project_docs()`    that helper feeds the size report and the bare-trial-id
+                                 ratchet, and the ratchet is pinned to an EXACT count a
+                                 larger corpus would move in the direction that passes
+    """
+    register = os.path.join(ROOT, ".github", "workflows", "README.md")
+    rel = os.path.relpath(register, ROOT)
+    refs = set(reference_docs())
+    walked = _github_docs_by_walk()
+    unswept = sorted(os.path.relpath(q, ROOT) for q in walked if q not in refs)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # ADVERSARIAL: nested two deep, and a sibling at the top. A one-level glob, a
+        # hardcoded `workflows/README.md`, and a `.md` test that forgets to recurse each
+        # come back short here while the live tree above still looks perfect.
+        deep = os.path.join(tmp, ".github", "ISSUE_TEMPLATE", "nested", "deep.md")
+        os.makedirs(os.path.dirname(deep))
+        open(deep, "w").write("# deep\n")
+        shallow = os.path.join(tmp, ".github", "CONTRIBUTING.md")
+        open(shallow, "w").write("# shallow\n")
+        open(os.path.join(tmp, ".github", "notes.txt"), "w").write("not markdown\n")
+        # VENDORED, nested. The subject drops it by full-path match; an oracle that
+        # tested the bare directory name would keep it, and the completeness case above
+        # would then be red while `reference_docs()` was right.
+        vendored = os.path.join(tmp, ".github", "target", "generated.md")
+        os.makedirs(os.path.dirname(vendored))
+        open(vendored, "w").write("# vendored\n")
+        found = github_docs(root=tmp)
+        fixture_walked = _github_docs_by_walk(root=tmp)
+
+        # The census reports CANDIDATES, and this is the direction that matters: a
+        # genuinely unresolved flag of OURS, in a document the wider trigger would newly
+        # admit, must appear. Measured rather than asserted, because the claim in the
+        # output is what stops a reader dismissing a real hit as a known false positive.
+        # `no_harness` names a script and no harness, which is exactly that population.
+        no_harness = os.path.join(tmp, "names_a_script.md")
+        open(no_harness, "w").write(
+            "Run `eval/tools/prune_scan.py` with `--zzq-unresolved-tok` for this.\n")
+        quiet = os.path.join(tmp, "names_nothing.md")
+        open(quiet, "w").write("Run it with `--zzq-unresolved-tok` for this.\n")
+        cens = _harness_trigger_census(docs=[no_harness, quiet])
+        surfaced = [r for r in cens["new_rows"] if "--zzq-unresolved-tok" in r]
+
+    census = _harness_trigger_census()
+    reg_text = open(register, encoding="utf-8", errors="replace").read()
+    reg_lines = reg_text.split("\n")
+    planted = reg_lines + ["```bash", "python3 eval/tools/docstat.py --zzq-not-a-flag", "```"]
+
+    cases = [
+        (f"{rel} is in the reference corpus", register in refs, True),
+        (f"{rel} is NOT in project_docs() - the ratchet's corpus is unmoved",
+         register in project_docs(), False),
+        ("every .md under .github/ is swept, found by walking rather than by the same glob",
+         unswept, []),
+        ("the walk found the register too - neither side is an empty set agreeing",
+         register in walked, True),
+        ("adversarial: a nested and a top-level .github doc, and no .txt",
+         found == sorted([deep, shallow]), True),
+        ("adversarial: a VENDORED nested doc is dropped by the glob",
+         vendored in found, False),
+        ("...and the walking oracle drops exactly the same set",
+         fixture_walked == found, True),
+        ("the census surfaces an unresolved flag of OURS as a candidate, not only "
+         "foreign ones", len(surfaced), 1),
+        ("...and only from the doc the wider trigger would newly admit",
+         [r for r in surfaced if "names_a_script.md" in r] == surfaced, True),
+        # POSITIVE CONTROL for the corpus, not just membership. Being in the list is not
+        # being read: the bare-fenced half must actually fire on a token planted in this
+        # file's own lines. Green membership with a check that never looks is the exact
+        # shape this repair closed.
+        ("the bare-fenced half fires on a flag planted in the register's own lines",
+         "--zzq-not-a-flag" in _bare_fenced_flags(planted, _our_script_names()), True),
+        ("...and says nothing about the register unplanted",
+         [t for t in _bare_fenced_flags(reg_lines, _our_script_names())
+          if t not in _argparse_flags()], []),
+        # THE RECORDED EXCLUSION, pinned so it cannot go stale silently. If this reddens,
+        # the register began naming a harness and the backticked half now reads it - the
+        # docstring table above is then wrong and must be re-measured, not deleted.
+        ("the backticked half still does NOT admit the register (recorded exclusion)",
+         bool(re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", reg_text)),
+         False),
+        # The recorded exclusion rests on the wider trigger costing rows. Asserted
+        # mechanically; whether those rows are FALSE positives is adjudication, and the
+        # census prints them so the next reader adjudicates rather than trusts.
+        ("widening that trigger is not free - it admits more docs and adds rows",
+         census["wide"] > census["narrow"] and len(census["new_rows"]) > 0, True),
+    ]
+    failed = []
+    for name, got, want in cases:
+        ok = got == want
+        if verbose:
+            print(f"{'PASS' if ok else 'FAIL'}  {name}: {got}, expected {want}")
+        if not ok:
+            failed.append(f"corpus pin: {name}: got {got}, want {want}")
+    if verbose:
+        print(f"\n  harness-trigger census over {census['corpus']} reference docs: "
+              f"the shipped 4-name trigger admits {census['narrow']}, "
+              f"`names any script of ours` would admit {census['wide']}")
+        print(f"  and add {len(census['new_rows'])} CANDIDATE row(s). Each needs "
+              f"ADJUDICATING before it counts as a false positive - this census excludes "
+              f"known\n  local and known foreign flags and classifies nothing beyond that, "
+              f"so a genuinely\n  unresolved flag of ours would appear here too:")
+        for row in census["new_rows"]:
+            print(f"    {row}")
+        print("  Last adjudicated 2026-08-24 at 25 rows: none genuine. A count above that, "
+              "or a\n  row naming a script of ours, is unadjudicated and must be read.")
+    return failed
+
+
 def cmd_selftest() -> int:
     """`--selftest`: the pins with their cases printed, plus proof the archive was untouched.
 
@@ -3597,6 +3856,8 @@ def cmd_selftest() -> int:
     failed += _orphan_tail_pins(verbose=True)
     print()
     failed += _duplicate_fragment_pins(verbose=True)
+    print()
+    failed += _corpus_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -3996,7 +4257,8 @@ def cmd_sweep() -> int:
 
     _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
-          f"({len(refs) - len(skills)} project + {len(skills)} skills); {len(flags)} of our "
+          f"({len(project_docs())} project + {len(skills)} skills "
+          f"+ {len(github_docs())} under .github); {len(flags)} of our "
           f"flags, of which {bare_seen} bare occurrence(s) on a fenced command line of one "
           f"of our {len(scripts)} argparse scripts (pinned red and green); "
           f"{len(aspects)} aspects known and every exhaustive census of them checked "
