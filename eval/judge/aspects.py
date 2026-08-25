@@ -90,12 +90,16 @@ class Aspect:
     #: construction, because the question IS which engine's facilities appear in the
     #: source and naming the stack is therefore the measurement rather than a leak of it.
     #:
-    #: WHAT THIS FIELD DOES AND DOES NOT DO TODAY. It is a declaration that
-    #: `field_ranks.report` reads, so every figure it prints for a barred aspect carries
-    #: the reason and is accompanied by the per-stack means. It does NOT change which
-    #: rounds are pooled: `idiomatic` is inside the pooled between-stack figure that
-    #: three live documents quote, and removing it there re-analyses published game
-    #: results, which is a separate ticket rather than a side effect of this one.
+    #: WHAT THIS FIELD DOES. `field_ranks` reads it twice. Every figure printed for a
+    #: barred aspect carries the reason and the per-stack means; and `assert_poolable`
+    #: refuses to pool a barred aspect with any other, exactly as it refuses a control,
+    #: because a pooled figure is a BETWEEN-STACK range and that is the one reading the
+    #: bar withholds. The aspect's own per-aspect pair is still computed and printed -
+    #: barring is not a refusal to measure, it is a refusal to rank across stacks.
+    #:
+    #: It was a declaration nothing acted on from task 135 until `tasks/146`: the bar was
+    #: printed beside a pooled figure that contained the barred rounds, which documents a
+    #: contradiction rather than removing it.
     cross_stack_bar: str = ""
 
 

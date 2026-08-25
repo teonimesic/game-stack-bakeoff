@@ -154,13 +154,17 @@ field has been packed and no round has been run; every word about them is design
 it produces for the aspect together with that aspect's per-stack means, in alphabetical order
 rather than sorted by value. `idiomatic` is barred on measurement (#53); `framework_fluency` is
 barred by construction, because its question *is* which of one engine's APIs appear in the
-source, so naming the stack is the measurement rather than a leak of it. **The bar does not
-change which rounds are pooled** — `idiomatic` is inside the pooled between-stack figure this
-file quotes, and taking it out re-analyses published results. `tasks/146` settles that either
-way.
+source, so naming the stack is the measurement rather than a leak of it.
+
+**The bar decides which rounds are pooled, since 2026-08-24.** A pooled figure *is* a
+between-stack range, so a barred round inside one is the barred reading with extra steps.
+`field_ranks.assert_poolable` now refuses a barred aspect exactly as it refuses a control, and
+`report` names it under `NOT POOLED` with the reason. The aspect's own per-aspect pair and its
+per-stack means are still printed — those are the readings the bar permits. Every pooled figure
+below is over the **4** aspects that remain (`tasks/146`).
 
 It says it is a control **in code**, as `control_for="fun"`, and `field_ranks.assert_poolable`
-raises rather than pooling it with the five opinions. Read it against `fun`, never added to it.
+raises rather than pooling it with the opinions. Read it against `fun`, never added to it.
 Until 2026-08-23 that was a comment naming a field nothing set and nothing read (task 90).
 
 **The frames are not equivalent across arms, and every aspect that reads them is told so.**
@@ -634,9 +638,10 @@ python3 judge/field_ranks.py --rounds runs/wg-tetris-judge-2026-08-17/pre [--per
 ```
 
 10 usable rounds, 5 aspects x 2 presentation orders, 8 submissions, ranked 0 (best) to 7.
-**All five are scored opinions — this field holds no `fun_frames` rounds**, which the tool now
-states in its own output. On a directory that does hold them the pooled figure covers the scored
-aspects only, so the population is a third parameter (`DECISIONS.md`, task 90).
+**8 of the 10 pool.** This field holds no `fun_frames` rounds, and `idiomatic` is cross-stack
+barred, so the pooled population is `architecture`, `audio`, `fun`, `ux` — which the tool states
+in its own output, along with what it left out and why. **The population is a third parameter**
+of this quantity (`DECISIONS.md`, task 90 for the control, `tasks/146` for the bar).
 
 **The quantity has two free parameters and they change the answer.** `value` is what a round
 asserts about a submission — its `score`, or its `rank` in the field. `order` is whether the
@@ -645,26 +650,28 @@ this field:
 
 | value | order | between-stack range | mean within-stack gap | direction |
 |---|---|---|---|---|
-| `score` | `pool` | 0.350 | 0.725 | between **<** within |
-| `score` | `perround` | 0.950 | 0.775 | between **>** within |
-| **`rank`** | **`pool`** | **1.900** | **2.275** | between **<** within |
-| `rank` | `perround` | 3.300 | 2.825 | between **>** within |
+| `score` | `pool` | 0.3750 | 0.8125 | between **<** within |
+| `score` | `perround` | 1.0000 | 0.8750 | between **>** within |
+| **`rank`** | **`pool`** | **1.3125** | **2.5625** | between **<** within |
+| `rank` | `perround` | 2.7500 | 3.1875 | between **<** within |
 
 **`rank` + `pool`, in bold, is the pair this project quotes** when it quotes one — decided in
 `DECISIONS.md`, "The tier-3 separation figure is reported under `rank` + `pool`". The
-post-repair field gives **2.100 against 1.925** the same way.
+post-repair field gives **1.8750 against 2.0938** the same way.
 
 > **The comparison changes direction on a free parameter, so no argument may rest on its
 > direction.** A previous version of this section read a two-row table, 1.70 and 2.05, with no
 > field and no method; it matches none of the four and was **withdrawn** — FINDINGS #113,
 > register entry `WR-tier3-pair`. Do not restore an argument of the form *between is smaller
-> than within*: on this field that inequality is decided by a choice nobody had made
-> deliberately.
+> than within*: it is decided by a choice nobody had made deliberately, and **1** of the **8**
+> readings across the 2 fields still comes out the other way.
 
-What survives the parameter is the magnitude. **On none of the four readings does the
-between-stack range exceed the within-stack gap by more than 23%**, and on two of the four it
-is smaller — against a field the deterministic tiers score identically. A stack effect would
-have to dwarf the within-stack gap. Nothing here does, under any method.
+What survives the parameter is the magnitude. **On none of the 8 readings across the 2
+fields does the between-stack range exceed the within-stack gap by more than 15%** — the maximum
+is `pre` `score`/`perround`, 1.0000 against 0.8750, a factor of 1.143 — and across those 8
+between is strictly smaller on **6**, equal on **1** and larger on **1**. That is
+against a field the deterministic tiers score identically. A stack effect would have to dwarf
+the within-stack gap. Nothing here does, under any method.
 
 Per aspect, **`value=score` `order=perround`** — the one method that reproduces this table, and
 the reason the method could be identified at all (#113):
@@ -674,26 +681,37 @@ the reason the method could be identified at all (#113):
 | `architecture` | 0.50 | 0.50 | no separation |
 | `audio` | 0.75 | 0.62 | marginal |
 | `fun` | 1.25 | **1.50** | no separation |
-| `idiomatic` | 0.75 | 0.38 | nominally separates — but see #53 |
+| `idiomatic` | 0.75 | 0.38 | **not pooled** — cross-stack barred (#53). Read per stack, never across |
 | `ux` | 1.50 | 0.88 | nominally separates — but is redundant with a judge that never saw a frame |
 
-The unrounded column means are **0.950** and **0.775** — exactly the `score`/`perround` row
-above, because `perround` averages the same per-aspect-per-order statistics. **`pool` does not
-decompose that way**, so the bolded `rank`/`pool` pair is *not* the average of any per-aspect
-table and must never be presented as one. That mismatch — a pooled line sitting three lines
-under a table it does not summarise — is how the withdrawn pair survived unchecked.
+Over the **4 pooled** rows the unrounded column means are **1.0000** and **0.8750** — exactly
+the `score`/`perround` row above, because `perround` averages the same per-aspect-per-order
+statistics. **`pool` does not decompose that way**, so the bolded `rank`/`pool` pair is *not*
+the average of any per-aspect table and must never be presented as one. That mismatch — a
+pooled line sitting three lines under a table it does not summarise — is how the withdrawn
+pair survived unchecked.
 
-And the ordering is not stable to which aspects are included:
+And the ordering is not stable to which aspects are included. Stack means under **`rank` +
+`pool`** on this field, best first, from `field_ranks.py`:
 
-| aspects pooled | ordering |
+| aspects pooled | ordering (mean rank, 0 = best) |
 |---|---|
-| all five | rust, godot, ts, unity |
-| minus `idiomatic` | rust, godot, unity = ts |
-| minus `idiomatic` and `fun` | godot, rust, unity, ts |
-| `ux` alone | rust, godot, unity, ts |
+| the **4** pooled | rust 3.63, unity 4.44, ts 4.88, godot 4.94 |
+| minus `fun` as well | rust 3.58, unity 4.42, godot 4.50, ts 5.33 |
+| `ux` alone | rust 3.00, godot 3.50, unity 5.00, ts 6.50 |
 
-The top two swap and `ts` moves from third to last depending on which aspects are counted.
+Positions 2 to 4 permute completely: `godot` runs from second to last and `ts` from second to
+last, on subsets of the same 8 submissions. On the `post` field `ux` alone puts `godot` first.
 **There is no ordering here to report.**
+
+**`idiomatic` has no row here and must never be given one**, however labelled: sorting the
+stacks by its mean is the cross-stack ranking the bar withholds, and a warning beside a ranking
+is still a ranking. `field_ranks.py` prints its per-stack means **alphabetically by stack**, and
+that is the only shape it may be read in.
+
+> This table named **no method** until 2026-08-24 and reproduced under none — the failure #113
+> is about, in the section that warns against it. It is now labelled, and its rows come out of
+> the producer.
 
 ### What was checked and did NOT hold
 

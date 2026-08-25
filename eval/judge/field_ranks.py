@@ -25,15 +25,25 @@ one of four different quantities.
 
 THE POPULATION IS ALSO A PARAMETER
 ----------------------------------
-A directory of rounds is not automatically one population. `fun_frames` is `fun`'s CONTROL
-- the same question with the telemetry withheld - and its scores mean something only against
-`fun`'s. Pooling it with the scored aspects is rule 4 exactly: a mean over a population that
-is heterogeneous by construction. On `runs/wg-aspect-reliability` that was 30 rounds of which
-5 were the control, silently, and the guard against it lived in a comment (task 90).
+A directory of rounds is not automatically one population, and two different things can put a
+round outside it.
 
-So: `assert_poolable` refuses any population mixing a control with another aspect, an aspect
-id `aspects.py` does not define is UNMEASURABLE rather than assumed scored, and every figure
-printed here names the aspects it is over.
+`fun_frames` is `fun`'s CONTROL - the same question with the telemetry withheld - and its
+scores mean something only against `fun`'s. Pooling it with the scored aspects is rule 4
+exactly: a mean over a population that is heterogeneous by construction. On
+`runs/wg-aspect-reliability` that was 30 rounds of which 5 were the control, silently, and the
+guard against it lived in a comment (task 90).
+
+`idiomatic` and `framework_fluency` are CROSS-STACK BARRED (`Aspect.cross_stack_bar`). Their
+scores are commensurable with everything else; what is meaningless is reading them ACROSS
+stacks, because the judge is told which stack each submission is. A pooled figure here is a
+between-stack range, so a barred round inside it is the barred reading with extra steps. The
+bar has been in `JUDGING.md` and `RUBRIC.md` since #53 and in code since task 135; the pooled
+figure ignored it until task 146.
+
+So: `assert_poolable` refuses any population mixing a control or a barred aspect with another
+aspect, an aspect id `aspects.py` does not define is UNMEASURABLE rather than assumed scored,
+and every figure printed here names the aspects it is over.
 
 Usage, from eval/:
     python3 judge/field_ranks.py --rounds runs/<field-dir>
@@ -66,8 +76,8 @@ from aspects import ASPECTS  # noqa: E402
 VALUES = ("score", "rank")
 ORDERS = ("pool", "perround")
 
-#: The three things a round's aspect id can be, and only the first may be pooled with others.
-SCORED, CONTROL, UNKNOWN = "scored", "control", "unknown"
+#: The four things a round's aspect id can be, and only the first may be pooled with others.
+SCORED, CONTROL, BARRED, UNKNOWN = "scored", "control", "barred", "unknown"
 
 
 def load_rounds(d: str) -> list[dict]:
@@ -92,20 +102,33 @@ def load_rounds(d: str) -> list[dict]:
 
 
 def classify(aspect_id: str | None) -> str:
-    """`SCORED`, `CONTROL` or `UNKNOWN` for one round's aspect id.
+    """`SCORED`, `CONTROL`, `BARRED` or `UNKNOWN` for one round's aspect id.
 
     Read from `aspects.ASPECTS`, never from a list here: a membership list in this file is
     a second source of truth that the next aspect silently falsifies (#38).
+
+    `BARRED` is `Aspect.cross_stack_bar`, and it is a SEPARATE exclusion rather than a
+    flavour of the control one. A control's scores are not commensurable with the aspect it
+    controls. A barred aspect's scores are perfectly commensurable; what is meaningless is
+    the BETWEEN-STACK reading of them, because the judge was told which stack it was looking
+    at. Both land out of the pool and the reasons are printed separately, because a reader
+    handed one reason for the other draws the wrong conclusion about what the aspect
+    measures.
+
+    `CONTROL` outranks `BARRED` on an aspect that is somehow both: a control is not a
+    published opinion at all, so its own bar is moot. No aspect is both today.
     """
     aspect = ASPECTS.get(aspect_id or "")
     if aspect is None:
         return UNKNOWN
-    return CONTROL if aspect.control_for else SCORED
+    if aspect.control_for:
+        return CONTROL
+    return BARRED if aspect.cross_stack_bar else SCORED
 
 
 def partition(rounds: list[dict]) -> dict[str, list[dict]]:
-    """Rounds split three ways by what their aspect is. Every key always present."""
-    out: dict[str, list[dict]] = {SCORED: [], CONTROL: [], UNKNOWN: []}
+    """Rounds split four ways by what their aspect is. Every key always present."""
+    out: dict[str, list[dict]] = {SCORED: [], CONTROL: [], BARRED: [], UNKNOWN: []}
     for r in rounds:
         out[classify(r.get("aspect"))].append(r)
     return out
@@ -116,25 +139,43 @@ def assert_poolable(rounds: list[dict]) -> None:
 
     Two shapes are legitimate and everything else is not:
 
-      * every round shares ONE aspect id - the per-aspect case. A control alone is fine;
-        judging it against its treatment is the entire point of having one.
+      * every round shares ONE aspect id AND `aspects.py` defines it - the per-aspect case.
+        A control alone is fine, and so is a barred aspect alone; reading either on its own
+        is the entire point of having it. What neither may do is contribute to a figure over
+        several aspects.
       * more than one aspect, ALL of them scored - the cross-aspect case a pooled figure
         is supposed to be.
+
+    AN UNKNOWN ID IS REFUSED EVEN ALONE, and that is why the check on it comes first. The
+    exemption for a lone aspect rests on knowing what that aspect is: a control's figure is
+    read against its treatment, a barred aspect's per-stack means are read within a stack.
+    For an id `aspects.py` does not define, neither is established - so there is no reading
+    its figure has, and returning one would be the same defect the multi-aspect branch
+    refuses, one aspect smaller.
 
     It lives in `figures()` rather than in `report()` on purpose. `report` is one caller;
     the resource being guarded is "a pooled figure", and a guard placed beside one caller
     is a guard the next caller does not have (rule 13).
     """
     ids = {r.get("aspect") for r in rounds}
+    unknown = sorted(str(i) for i in ids if classify(i) == UNKNOWN)
+    if unknown:
+        raise ValueError(
+            f"refusing to compute a figure for {unknown}: no such aspect in aspects.py, so "
+            f"whether it is a control, a barred aspect or a scored opinion cannot be "
+            f"established, and neither can what a figure over it would mean."
+        )
     if len(ids) <= 1:
         return
     bad = sorted(str(i) for i in ids if classify(i) != SCORED)
     if bad:
+        why = {CONTROL: "a control", BARRED: "cross-stack barred"}
+        named = ", ".join(f"{i} is {why[classify(i)]}" for i in bad)
         raise ValueError(
-            f"refusing to pool {len(ids)} aspects together: {bad} "
-            f"{'is a control or unknown' if len(bad) == 1 else 'are controls or unknown'}. "
-            f"A control's scores mean something only against the aspect it controls, and an "
-            f"aspect id aspects.py does not define cannot be shown to be either. "
+            f"refusing to pool {len(ids)} aspects together: {named}. "
+            f"A control's scores mean something only against the aspect it controls; and a "
+            f"cross-stack-barred aspect's scores mean something only within a stack, while a "
+            f"pooled figure is a between-stack reading. "
             f"Pool the scored aspects, or take one aspect at a time."
         )
 
@@ -227,17 +268,24 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
         print(f"NOT POOLED: {aspect_id} - control for {ASPECTS[aspect_id].control_for} "
               f"[{n} rounds]. Read it against {ASPECTS[aspect_id].control_for}, "
               f"never added to it.")
+    for aspect_id in _ids(parts[BARRED]):
+        n = sum(1 for r in parts[BARRED] if r.get("aspect") == aspect_id)
+        print(f"NOT POOLED: {aspect_id} - cross-stack barred [{n} rounds]. A pooled figure "
+              f"is a BETWEEN-STACK reading, which is the one reading this aspect's bar "
+              f"withholds. Its per-stack means are below.")
     for aspect_id in _ids(parts[UNKNOWN]):
         n = sum(1 for r in parts[UNKNOWN] if r.get("aspect") == aspect_id)
         print(f"NOT POOLED: {aspect_id} - no such aspect in aspects.py [{n} rounds]. "
               f"Whether it is a control cannot be established, so it is unmeasurable here.")
 
     # A CROSS-STACK BARRED ASPECT IS REPORTED PER STACK, HERE, beside every figure this
-    # tool prints for it. The bar is not a refusal to compute: `between` and `within` are
-    # still shown because published tables reproduce from them, and JUDGING.md's own
-    # per-aspect table quotes `idiomatic`'s pair with the bar stated next to it. What was
-    # missing was any way for a reader of THIS output to know, and any way for code to
-    # know at all - the bar lived in two prose documents from #53 onward.
+    # tool prints for it. The bar is not a refusal to compute: the aspect's OWN `between`
+    # and `within` are still shown under `--per-aspect`, because published tables reproduce
+    # from them and JUDGING.md's per-aspect table quotes `idiomatic`'s pair with the bar
+    # stated next to it. What it does refuse is a POOLED figure containing the aspect -
+    # that figure is a between-stack reading and is exactly what the bar withholds
+    # (task 146). Until 2026-08-24 the bar was printed here and the rounds were pooled
+    # anyway, which documented the contradiction instead of removing it.
     #
     # The per-stack means are printed in ALPHABETICAL order, never sorted by value: a
     # sorted list is the ranking the bar exists to withhold.
@@ -253,35 +301,47 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
             print(f"    per stack, {value}: " +
                   "  ".join(f"{st}={m}" for st, m in means.items()))
 
-    if not pooled:
+    # THE POOLED FIGURE AND THE PER-ASPECT TABLE ARE INDEPENDENT, and a directory that has
+    # no poolable population still has per-aspect readings. Returning early here would have
+    # thrown away the ONE reading a barred-only field legitimately has, which is the shape
+    # this tool exists to protect (task 146). Exit 1 reports the missing pooled figure; it
+    # does not mean nothing was measured.
+    if pooled:
+        print()
+        print(f"{'value':<7} {'order':<9} {'between':>9} {'within':>9}   reads as "
+              f"(over {', '.join(_ids(pooled))})")
+        for value in VALUES:
+            for order in ORDERS:
+                b, w = figures(pooled, value, order)
+                verdict = ("no separation" if not (b == b and w == w) or b <= w
+                           else "between exceeds within")
+                print(f"{value:<7} {order:<9} {_fmt(b):>9} {_fmt(w):>9}   {verdict}")
+    else:
         print("\nUNMEASURABLE: no scored-aspect round to pool.")
-        return 1
 
-    print()
-    print(f"{'value':<7} {'order':<9} {'between':>9} {'within':>9}   reads as "
-          f"(over {', '.join(_ids(pooled))})")
-    for value in VALUES:
-        for order in ORDERS:
-            b, w = figures(pooled, value, order)
-            verdict = ("no separation" if not (b == b and w == w) or b <= w
-                       else "between exceeds within")
-            print(f"{value:<7} {order:<9} {_fmt(b):>9} {_fmt(w):>9}   {verdict}")
-    if not per_aspect:
-        return 0
-    for value in VALUES:
-        for order in ORDERS:
-            print(f"\nper aspect, value={value} order={order}")
-            for a in _ids(usable):
-                b, w = figures([r for r in usable if r.get("aspect") == a], value, order)
-                tag = {CONTROL: "  (control, excluded above)",
-                       UNKNOWN: "  (unknown, excluded above)"}.get(classify(a), "")
-                # The bar again, on the row itself. A reader who scrolls to this table
-                # for one number must not have to have read the header to know that this
-                # `between` is not a ranking.
-                if a in ASPECTS and ASPECTS[a].cross_stack_bar:
-                    tag += "  (CROSS-STACK BARRED - read per stack, above)"
-                print(f"   {a:<18} between={_fmt(b):>8}  within={_fmt(w):>8}{tag}")
-    return 0
+    if per_aspect:
+        for value in VALUES:
+            for order in ORDERS:
+                print(f"\nper aspect, value={value} order={order}")
+                for a in _ids(usable):
+                    # NO ROW OF NUMBERS FOR AN ID aspects.py DOES NOT DEFINE. A figure
+                    # carrying a warning label is still a figure, and this table is where
+                    # a reader comes for one number. `assert_poolable` refuses these, so
+                    # the alternative to skipping the call is a traceback mid-table.
+                    if classify(a) == UNKNOWN:
+                        print(f"   {a:<18} between={'-':>8}  within={'-':>8}"
+                              "  (unknown, unmeasurable)")
+                        continue
+                    b, w = figures([r for r in usable if r.get("aspect") == a],
+                                   value, order)
+                    tag = {CONTROL: "  (control, excluded above)"}.get(classify(a), "")
+                    # The bar again, on the row itself. A reader who scrolls to this table
+                    # for one number must not have to have read the header to know that
+                    # this `between` is not a ranking.
+                    if a in ASPECTS and ASPECTS[a].cross_stack_bar:
+                        tag += "  (CROSS-STACK BARRED - excluded above, read per stack)"
+                    print(f"   {a:<18} between={_fmt(b):>8}  within={_fmt(w):>8}{tag}")
+    return 0 if pooled else 1
 
 
 # ---------------------------------------------------------------- selftest
@@ -291,9 +351,14 @@ def report(rounds: list[dict], per_aspect: bool) -> int:
 #: here, so the classification path the guard depends on is the one under test. A fixture
 #: with an invented id would exercise `UNKNOWN` for every check and prove nothing about the
 #: split that matters (rule 12: the address is an input to the check).
-_A_SCORED = sorted(i for i in ASPECTS if not ASPECTS[i].control_for)
-_A_CONTROL = sorted(i for i in ASPECTS if ASPECTS[i].control_for)
-_A_BARRED = sorted(i for i in ASPECTS if ASPECTS[i].cross_stack_bar)
+#:
+#: All three go through `classify`, not through the `Aspect` fields directly. Spelling the
+#: predicate a second time here is what let `_A_SCORED` hold two BARRED aspects while the
+#: guard was being written to exclude them - a fixture disagreeing with the function it is
+#: testing agrees with every bug that function has.
+_A_SCORED = sorted(i for i in ASPECTS if classify(i) == SCORED)
+_A_CONTROL = sorted(i for i in ASPECTS if classify(i) == CONTROL)
+_A_BARRED = sorted(i for i in ASPECTS if classify(i) == BARRED)
 
 
 def _synth(seed: int, table: dict[str, list[float]], usable: bool = True,
@@ -510,6 +575,24 @@ def selftest() -> int:
         rc_only = report([stranger], per_aspect=False)
     check("a directory of nothing poolable exits 1, not 0", rc_only, 1)
     check("and says so", "UNMEASURABLE" in buf.getvalue(), True)
+    # AND IT IS REFUSED EVEN ALONE. The lone-aspect exemption rests on knowing what the
+    # aspect is; for an id aspects.py does not define, nothing is established, so there is
+    # no reading its figure has. Caught by review on PR #24: `--per-aspect` printed a row
+    # of numbers for it three lines under the word UNMEASURABLE.
+    try:
+        figures([stranger], "score", "pool")
+        unmet.append("figures() returned a figure for a lone unknown aspect id")
+        print("  [FAIL] figures() computed a figure for a lone unknown aspect")
+    except ValueError as exc:
+        print(f"  [ok ] a lone unknown aspect is refused: {str(exc)[:60]}...")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        report(rounds + [stranger], per_aspect=True)
+    text = buf.getvalue()
+    check("--per-aspect prints no numbers for it",
+          "retired_aspect_id  between=       -  within=       -" in text, True)
+    check("and the scored rows still carry theirs",
+          f"{_A_SCORED[0]:<18} between=  3.0000" in text, True)
 
     print("14. a cross-stack barred aspect is reported PER STACK, with its reason")
     # `_A_BARRED[0]` is read from `aspects.py`, not spelled here, for the same reason
@@ -531,7 +614,7 @@ def selftest() -> int:
     check("the per-stack means are printed, alphabetically",
           "per stack, score: a=4.0  b=2.0  c=3.0  d=1.0" in text, True)
     check("the per-aspect row carries the bar too",
-          "(CROSS-STACK BARRED - read per stack, above)" in text, True)
+          "(CROSS-STACK BARRED - excluded above, read per stack)" in text, True)
 
     # MUTANT. Clearing the declaration must remove the whole report, or the output was
     # not being driven by the field at all. This is the state `idiomatic` was in from
@@ -559,6 +642,79 @@ def selftest() -> int:
         report([odd], per_aspect=False)
     check("VARIANT: a one-submission stack still appears in the per-stack line",
           "per stack, score: a=4.0  b=2.0  c=3.0  d=1.0" in buf.getvalue(), True)
+
+    print("15. a cross-stack barred aspect is EXCLUDED FROM THE POOL, like a control")
+    # The pooled figure is a BETWEEN-STACK reading, which is the one reading the bar
+    # withholds. Printing the bar beside the figure while the barred rounds are inside it
+    # documents the contradiction rather than removing it (task 146).
+    #
+    # The table is the loud one used for the control in check 10, so the two exclusions
+    # are measured against the same hand-computed numbers: pooled, `between` moves off
+    # 2.0000 to 2.3333.
+    barred_loud = _synth(4, {"a": [0, 0], "b": [0, 0], "c": [0, 0], "d": [9, 9]},
+                         aspect=barred_id)
+    mixed_barred = rounds + [barred_loud]
+    try:
+        figures(mixed_barred, "score", "pool")
+        unmet.append("figures() pooled a cross-stack-barred aspect with scored ones")
+        print("  [FAIL] figures() pooled the barred aspect silently")
+    except ValueError as exc:
+        print(f"  [ok ] figures() raised: {str(exc)[:70]}...")
+    # and the barred aspect ALONE is still measurable - that is the per-stack reading.
+    try:
+        figures([barred_loud], "score", "pool")
+        print("  [ok ] the barred aspect on its own is still measurable")
+    except ValueError:
+        unmet.append("the barred aspect alone was refused: its per-stack reading is lost")
+        print("  [FAIL] the barred aspect alone was refused")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = report(mixed_barred, per_aspect=False)
+    text = buf.getvalue()
+    check("report exit code with a barred aspect present", rc, 0)
+    check("report names it as excluded, with the reason",
+          f"NOT POOLED: {barred_id} - cross-stack barred" in text, True)
+    check("report pooled only the two scored aspects",
+          f"POOLED over 2 scored aspect(s): {_A_SCORED[0]}, {_A_SCORED[1]}" in text, True)
+    check("report printed the scored-only pool figures",
+          "   2.0000    0.5000" in text, True)
+
+    print("16. MUTANT - pooling the barred aspect changes the answer, so it acts")
+    polluted = _round_stats([r for r in mixed_barred if r.get("usable", True)], "score")[0]
+    check("pooling it moves `between` off 2.0", round(polluted, 4), 2.3333)
+
+    print("17. MUTANT - with the bar cleared, the aspect is pooled and the guard stops")
+    #     Patching `ASPECTS` rather than `classify`, for check 11's reason: it proves the
+    #     verdict is read from `aspects.py` and not from a constant baked in here.
+    saved = ASPECTS[barred_id]
+    ASPECTS[barred_id] = dataclasses.replace(saved, cross_stack_bar="")
+    try:
+        moved = figures(mixed_barred, "score", "pool")[0]
+        fired = False
+    except ValueError:
+        moved, fired = None, True
+    finally:
+        ASPECTS[barred_id] = saved
+    if fired:
+        unmet.append("mutant: the guard still fired with the bar cleared - it is not "
+                     "reading cross_stack_bar")
+        print("  [FAIL] the guard fired on a population with no barred aspect in it")
+    else:
+        check("the un-barred aspect is pooled, and the figure moves",
+              round(moved, 4), 2.3333)
+    check("the live classification is restored", classify(barred_id), BARRED)
+
+    print("18. VARIANT - a directory holding ONLY barred aspects is unmeasurable, not 0")
+    #     Rule 15. Not a removal: a real field that ran nothing but barred aspects has a
+    #     per-stack reading and no pooled one, and the difference must be visible.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc_barred_only = report([barred_loud], per_aspect=False)
+    text = buf.getvalue()
+    check("a barred-only directory exits 1, not 0", rc_barred_only, 1)
+    check("and says so", "UNMEASURABLE" in text, True)
+    check("while still printing the per-stack means the bar permits",
+          "per stack, score: a=0.0  b=0.0  c=0.0  d=9.0" in text, True)
 
     print(f"\n{len(unmet)} expectations unmet")
     for u_ in unmet:

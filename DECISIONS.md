@@ -250,16 +250,30 @@ without its method names one of four quantities, which is how a pair matching no
 to be published in four documents at once (#113).
 
 **There is a third parameter and it is the POPULATION.** A directory of rounds is not one
-population: `fun_frames` is `fun`'s control, its scores mean something only against `fun`'s, and
-pooling it is rule 4. Decided 2026-08-23 (task 90): a control **declares itself to code** —
-`Aspect.control_for` in `eval/judge/aspects.py` — a pooled figure covers the **scored aspects
-only**, and `field_ranks` names the aspects each figure is over in its own output. The guard is
-`field_ranks.assert_poolable`, which raises rather than silently dropping, and an aspect id
-`aspects.py` does not define is treated as **unmeasurable rather than scored**. Before this the
-rule was a prose comment naming a field that was never set and read by nothing;
-`runs/wg-aspect-reliability` pooled 30 rounds of which 5 were the control. No published figure
-moved — `wg-tetris-judge-2026-08-17/pre` and `/post` hold no control rounds, and both reproduce
-to the digit.
+population, and **2** different properties put a round outside it. Decided 2026-08-23 (task
+90) and extended 2026-08-24 (`tasks/146`): both properties **declare themselves to code** in
+`eval/judge/aspects.py`, a pooled figure covers what is left, and `field_ranks` names the
+aspects each figure is over — and every aspect it excluded, with the reason — in its own output.
+The guard is `field_ranks.assert_poolable`, which raises rather than silently dropping, and an
+aspect id `aspects.py` does not define is treated as **unmeasurable rather than scored**.
+
+| property | field | why it is out | instance |
+|---|---|---|---|
+| it is a **control** | `Aspect.control_for` | a control's scores mean something only against the aspect it controls, so pooling it is rule 4 | `fun_frames` |
+| it is **cross-stack barred** | `Aspect.cross_stack_bar` | the judge is told which stack it is looking at, so a *between-stack* reading of it is meaningless — and a pooled figure is exactly a between-stack range | `idiomatic` (#53), `framework_fluency` |
+
+**The bar was in prose from #53 and in code from task 135, and the pooled figure ignored both
+until `tasks/146`.** A live document stating an aspect may not be ranked across stacks, beside a
+number that ranked it across stacks, is a disagreement no consistency check can see — the two
+statements are about different things. Excluding it **strengthened every published claim and
+retired no conclusion** — the two superseded pooled pairs themselves are retired, as
+`WR-tier3-pool-pre` and `WR-tier3-pool-post`. Across the 9 stored directories that produced a
+pooled figure, 3 held nothing but barred rounds and now report `UNMEASURABLE` instead of a full
+separation table — **1** of them carried the widest between-over-within reading the tool had
+ever returned anywhere in the stored tree, and it was a pure barred reading. On
+`wg-tetris-judge-2026-08-17` **3 of the 8 readings flip**, every one of them from
+*between exceeds within* to *no separation*. `eval/RUNS.md`'s comparability note for
+2026-08-24 holds the before-and-after figures; they are stated there and nowhere else.
 
 **When one pair is quoted, it is `rank` + `pool`.** Three grounds:
 
@@ -951,15 +965,18 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   decision never rested on it (#54, register `WR-arch-ux-redundancy`). And
   **no aspect separates the stacks at a magnitude that could matter**: recomputed by
   `eval/judge/field_ranks.py` over both stored fields of `wg-tetris-judge-2026-08-17`, the
-  between-stack range **never exceeds the within-stack gap by more than 23%** across the eight
+  between-stack range **never exceeds the within-stack gap by more than 15%** across the **8**
   readings, on a field the deterministic tiers score identically. Reported pair, `rank`+`pool`:
-  **1.900 against 2.275** pre-repair, **2.100 against 1.925** post-repair.
+  **1.3125 against 2.5625** pre-repair, **1.8750 against 2.0938** post-repair. Both are over the
+  **4** poolable aspects; `idiomatic` is cross-stack barred and no longer enters a pooled figure
+  (`tasks/146`, and the population row under "Grading" above).
   **This is a magnitude, not a direction, and the change matters.** The bullet used to read
   *"its between-stack range is smaller than its within-stack spread"* — an inequality that
-  **reverses in four of the eight readings**, including under the one method that reproduces
-  `JUDGING.md`'s own per-aspect table. That argument is retired rather than restated with better
+  **reverses in 1 of the 8 readings**, and reversed in 4 of the 8 while the barred
+  aspect was in the pool. That argument is retired rather than restated with better
   numbers: a comparison whose sign is decided by a free method parameter cannot license a
-  conclusion in either direction. **The weight is unchanged; only its stated reason is.** The
+  conclusion in either direction, and honouring the bar moved the sign on 3 readings without
+  anyone touching the method. **The weight is unchanged; only its stated reason is.** The
   two grounds under "Grading" above never depended on this field at all — a bounded contribution
   of 0.10 against a tightest adjacent gap of 0.0622, and an aggregate noisiest exactly where it
   would matter — and #83 means neither round is defensible as blind regardless. The withdrawn

@@ -2138,6 +2138,44 @@ relabelling. It no longer participates in any decision this sweep makes.
 axes that were already comparable. What changed is what could stop a sweep, and nothing was ever
 stopped.
 
+## THE TIER-3 POOLED POPULATION CHANGED ON 2026-08-24 — a TWENTIETH comparability break, and it changes no stored round
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+**No round moved. Every pooled figure over them did.** `idiomatic` has been barred from a
+cross-stack ranking since #53 and has carried `Aspect.cross_stack_bar` since task 135, but
+`field_ranks.py` kept pooling it into the between-stack figure — which *is* a cross-stack
+ranking. `assert_poolable` now refuses a barred aspect exactly as it refuses a control
+(`tasks/146`).
+
+**A tier-3 separation figure quoted before 2026-08-24 is over a different population than one
+quoted after**, so the two are not comparable, and the older one is not merely rounder — it is a
+different quantity. Recomputed over the whole stored tree, unpiped:
+
+| directory | before — **retired**, and stated here only to say what changed | after |
+|---|---|---|
+| `wg-tetris-judge-2026-08-17/pre` | 5 aspects, 10 rounds, `rank`/`pool` 1.9000 / 2.2750 — `WR-tier3-pool-pre` | 4 aspects, 8 rounds, **1.3125 / 2.5625** |
+| `wg-tetris-judge-2026-08-17/post` | 5 aspects, 10 rounds, `rank`/`pool` 2.1000 / 1.9250 — `WR-tier3-pool-post` | 4 aspects, 8 rounds, **1.8750 / 2.0938** |
+| `wg-aspect-reliability` | 5 aspects, 25 rounds, `score`/`pool` 0.4000 / 0.2400 | 4 aspects, 20 rounds, **0.5250 / 0.4000** |
+| `wg-funframes-crossgame/arena` | 3 aspects, 8 rounds | 2 aspects, **4** rounds |
+| `wg-funframes-crossgame/platformer` | 5 aspects, 10 rounds | 4 aspects, **8** rounds |
+| `wg-g4c-.../judge-blind-2026-08-23` | 2 aspects, 4 rounds | 1 aspect, **2** rounds |
+| `wg-funframes-crossgame/pong` | **1 aspect — `idiomatic` alone** | **UNMEASURABLE**, exit 1 |
+| `wg-g4c-capgate/out/capped` | **1 aspect — `idiomatic` alone**, `rank`/`pool` 5.2500 / 1.7500 | **UNMEASURABLE**, exit 1 |
+| `wg-g4c-capgate/out/uncapped` | **1 aspect — `idiomatic` alone** | **UNMEASURABLE**, exit 1 |
+
+**3 of the 9 were the barred reading and nothing else**, printed as a four-row separation table
+at exit 0. `capped` was the widest between-over-within the tool ever returned anywhere in the
+stored tree: its between-stack range was **3 times** its within-stack gap. That was a ranking of
+an aspect that may not be ranked. Those `before` figures are retired; the tool now answers
+`UNMEASURABLE` on all 3 directories.
+
+**The published result did not move; it got stronger.** On `wg-tetris-judge-2026-08-17`, **3 of
+the 8** value/order readings flip, every one of them from *between exceeds within* to *no
+separation*, and the maximum excess of between over within falls from **+22.6%** to **+14.3%**.
+`README.md`'s tier-3 row states a null and quotes no figure, so it is unchanged.
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
