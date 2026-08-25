@@ -222,7 +222,15 @@ ITERS = 1024
 
 
 def pct(xs: list[float], p: float) -> float:
-    """Nearest-rank percentile over a sorted copy. `p` is 0..100."""
+    """The observed value at the rounded `p/100 * (n-1)` index of a sorted copy. `p` is 0..100.
+
+    **This is not the nearest-rank definition and the two disagree**, which matters because the
+    difference is silent: nearest rank is `ceil(p/100 * n)`, so on `[1,2,3,4]` at p25 it returns
+    `1` where this returns `2`. Both are standard, this one is numpy's `interpolation="nearest"`,
+    and `--selftest` pins that exact pair so the docstring and the formula cannot drift apart
+    again. It always returns a value that was actually observed — never an interpolation between
+    two frames, which is not a frame time anything measured.
+    """
     if not xs:
         raise ValueError("empty series")
     s = sorted(xs)
@@ -302,14 +310,26 @@ def _build(name: str, source: str, compile_cmd) -> Path:
     if exe.exists():
         return exe
     ext = {"gpu": ".swift", "hog": ".c", "rlimit": ".c"}[name]
-    src = _cache_dir() / f"{name}-{tag}{ext}"
+    # Compile to a pid-unique path and publish with os.replace. The cache lives in the shared
+    # system temp directory, so concurrent sessions race here: without this, one probe can see
+    # `exe.exists()` while another is still writing it, and an interrupted compile leaves a
+    # partial executable that every later run reuses. eval/AGENTS.md: one writer per artifact
+    # path, temp file plus os.replace.
+    stem = _cache_dir() / f".{name}-{tag}.{os.getpid()}"
+    src = stem.with_suffix(stem.suffix + ext)
     src.write_text(source)
-    p = subprocess.run(compile_cmd(src, exe), capture_output=True, text=True, check=False)
-    if p.returncode != 0:
-        # The compiler's own message, not a traceback about a subprocess: an embedded
-        # workload that stops compiling is edited in THIS file, and the line number the
-        # compiler prints is the only thing that says where.
-        raise SystemExit(f"could not build {name} from {src}:\n{p.stderr.rstrip()}")
+    tmp_exe = stem.with_suffix(stem.suffix + ".out")
+    try:
+        p = subprocess.run(compile_cmd(src, tmp_exe), capture_output=True, text=True, check=False)
+        if p.returncode != 0:
+            # The compiler's own message, not a traceback about a subprocess: an embedded
+            # workload that stops compiling is edited in THIS file, and the line number the
+            # compiler prints is the only thing that says where.
+            raise SystemExit(f"could not build {name} from {src}:\n{p.stderr.rstrip()}")
+        os.replace(tmp_exe, exe)
+    finally:
+        src.unlink(missing_ok=True)
+        tmp_exe.unlink(missing_ok=True)
     return exe
 
 
@@ -374,7 +394,18 @@ def arm_caps() -> int:
         p = subprocess.run([*prefix, hog, "mem", "2048"], capture_output=True, text=True,
                            check=False)
         got = p.stdout.strip() or f"(no stdout) {p.stderr.strip()[:120]}"
-        verdict = "" if not prefix else ("IGNORED" if p.returncode == 0 else "ENFORCED")
+        # THE HOG'S OWN MARKER DECIDES, NOT THE EXIT CODE. A `taskpolicy` that is missing,
+        # or that rejects a flag, exits non-zero having never launched the hog — and reading
+        # that as ENFORCED would report a working cap from an arm that never ran, which is
+        # the fail-open channel AGENTS.md rule 7 is about.
+        if got.startswith("ALLOCATED_MB 2048"):
+            verdict = "" if not prefix else "IGNORED"
+        elif got.startswith("FAILED_AT_MB"):
+            verdict = "ENFORCED"
+        else:
+            raise SystemExit(f"NOT MEASURED: `{' '.join([*prefix, 'hog', 'mem', '2048'])}` "
+                             f"exited {p.returncode} without either of the hog's own markers. "
+                             f"The arm did not run, so no row of it is a result.\n  {got}")
         print(f"  {label:28s} exit={p.returncode:<4d} {got:22s} {verdict}")
     print("  a bound is ENFORCED only where the hog did NOT reach 2048 MB.")
 
@@ -392,6 +423,13 @@ def arm_caps() -> int:
         for label, prefix in arms.items():
             p = subprocess.run(["/usr/bin/time", "-p", *prefix, hog, "cpu", "6", "16"],
                                capture_output=True, text=True, check=False)
+            # Same guard as the RAM rows: `/usr/bin/time` prints a `user` line whatever the
+            # child did, including not starting, so a policy this host rejects would otherwise
+            # contribute a small and entirely plausible CPU-second figure to the table.
+            if not p.stdout.startswith("SPUN_SECONDS"):
+                raise SystemExit(f"NOT MEASURED: the `{label}` arm exited {p.returncode} without "
+                                 f"the hog's own marker. No row of this arm is a result.\n"
+                                 f"  {p.stdout.strip()[:200]} {p.stderr.strip()[:200]}")
             got[label].append(next(float(line.split()[1]) for line in p.stderr.splitlines()
                                    if line.startswith("user")))
     base = statistics.median(got["control"])
@@ -499,6 +537,10 @@ def arm_selftest() -> int:
     check("pct p50 of 1..9", pct([9, 1, 5, 3, 7, 2, 8, 4, 6], 50), 5)
     check("pct p10 of 1..11", pct(list(range(1, 12)), 10), 2)
     check("pct p90 of 1..11", pct(list(range(1, 12)), 90), 10)
+    # The case where this convention and nearest-rank disagree, pinned so the docstring and
+    # the formula cannot drift apart: nearest rank would return 1 here.
+    check("pct p25 of 1..4 is the rounded-index value, not nearest rank",
+          pct([1, 2, 3, 4], 25), 2)
     check("summarise max", summarise([1.0, 2.0, 30.0])["max"], 30.0)
     check("spread range_pct", spread([8.0, 10.0, 9.0])["range_pct"], 100 * 2 / 9)
     d = drift([(0.0, 8.0), (10.0, 8.0), (70.0, 10.0), (80.0, 10.0)])
@@ -531,6 +573,27 @@ def arm_selftest() -> int:
     # A single-launch spread is 0% range, not a crash and not a division by zero.
     check("single-launch spread range is 0", spread([8.0])["range_pct"], 0.0)
 
+    print("\n== the dispatch and the cache, which decide whether an arm runs at all")
+    for argv, why in ((["--spread", "0"], "--spread 0 must be refused, not fall through to drift"),
+                      (["--drift", "0"], "--drift 0 must be refused, not sample nothing")):
+        p = subprocess.run([sys.executable, __file__, *argv], capture_output=True, text=True,
+                           check=False)
+        ok = p.returncode == 2
+        print(f"  {'ok  ' if ok else 'FAIL'} {why} (exit {p.returncode})")
+        if not ok:
+            failures.append(why)
+    # The cache publishes with os.replace, so a partially written binary can never be reached
+    # under the name a later run looks up. A file named `<name>-<hash>` is the only thing
+    # `_build` returns, and nothing writes to that name except the rename.
+    stale = _cache_dir() / "selftest-partial"
+    stale.write_text("not an executable")
+    ok = not os.access(stale, os.X_OK)
+    print(f"  {'ok  ' if ok else 'FAIL'} a partial cache artifact is not executable "
+          f"(and is never published under a looked-up name)")
+    stale.unlink(missing_ok=True)
+    if not ok:
+        failures.append("partial cache artifact executable")
+
     print("\n== what this selftest does NOT establish")
     print("  anything about this host. --caps, --gpu, --spread and --drift each refuse to")
     print(f"  run off darwin by name; this platform is {platform.system()}.")
@@ -561,8 +624,15 @@ def main() -> int:
         return arm_caps()
     if a.gpu:
         return arm_gpu()
-    if a.spread:
+    # `is not None`, never truthiness: `--spread 0` is falsy, so a truthiness test falls through
+    # to the drift arm with `--drift` unset. Both counts are refused rather than run empty — a
+    # zero-launch spread and a zero-minute drift each produce a number-shaped nothing.
+    if a.spread is not None:
+        if a.spread < 1:
+            ap.error("--spread needs at least 1 launch")
         return arm_spread(a.spread)
+    if a.drift <= 0:
+        ap.error("--drift needs a positive number of minutes")
     return arm_drift(a.drift)
 
 

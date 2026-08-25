@@ -2564,9 +2564,11 @@ underneath holds still. **It cannot be held still by any mechanism on this host,
 need to be.** `eval/PERF-HOST.md` is the report and the authority; `eval/tools/host_perf_probe.py`
 is the producer for every figure in it.
 
-**No cap exists, and one candidate lies about existing.** `taskpolicy -b` cuts CPU throughput to
-0.21x and moves GPU frame time by under 0.1 ms in every interleaved round, so the CPU levers do
-not reach the GPU and nothing else does either. `RLIMIT_AS`, `RLIMIT_DATA` and `RLIMIT_RSS` — the
+**No tested mechanism caps anything that matters, and one candidate lies about doing so.**
+`taskpolicy -b` cuts CPU throughput to 0.20x and moves GPU frame time by under 0.1 ms in every
+interleaved round, so the CPU levers do not reach the GPU. That is a claim about the arms
+`host_perf_probe.py --gpu` runs, not about every mechanism that could exist: a candidate nobody
+has tried is a new row rather than a refutation. `RLIMIT_AS`, `RLIMIT_DATA` and `RLIMIT_RSS` — the
 first and third being the same limit on Darwin — return `EINVAL` from `setrlimit`, with
 `RLIMIT_STACK` set to its own hard limit as the control that proves the refusal is about the limit
 rather than the value. `taskpolicy -m` documents a memory limit in MiB and does not enforce one:
@@ -2602,7 +2604,9 @@ rasteriser, while godot 4.7 and unity 6000.0.45f1 both expose a real GPU-side fr
 Reading each engine's best available clock would compare CPU frame time on 2 arms against GPU
 frame time on the other 2. The engine timers stay useful per stack and as a cross-check.
 
-**To re-open:** a machine that is exclusive and not a laptop, where the spaced and back-to-back
+**To re-open:** a GPU capping or biasing mechanism nobody has tried, which is a new
+`host_perf_probe.py --gpu` arm and would settle the question the existing arms only bound; a
+machine that is exclusive and not a laptop, where the spaced and back-to-back
 arms would come back much closer together and spacing could be dropped; a macOS release that makes
 `setrlimit` accept an address-space limit, or `taskpolicy -m` enforce one, either of which is a new
 `--caps` row; GPU passthrough into a Linux guest on Apple silicon, which would make the container

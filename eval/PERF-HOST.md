@@ -5,12 +5,17 @@ median frame time crosses a budget, report the highest level sustained. That mea
 only if CPU, RAM and GPU are held underneath it. This page reports whether they can be, on the
 machine every existing result came from, and what the alternative is.
 
-**The answer is a null on the GPU and it closes the question.** No mechanism on this host bounds
-GPU work, none biases it either, and one competing GPU process costs more than two ramp levels.
-So the honest design is an **uncapped ramp on an exclusive machine, spaced rather than
-back-to-back, interleaved across arms, with the machine recorded per trial** — and that design is
-buildable today, because the two numbers that decide whether it can mean anything both came back
-small enough.
+**The answer is a null on the GPU and it closes the question.** Every mechanism tested here — and
+they are the ones a search of the host's own tooling turns up — leaves GPU throughput untouched,
+and one competing GPU process costs more than two ramp levels. So the honest design is an
+**uncapped ramp on an exclusive machine, spaced rather than back-to-back, interleaved across arms,
+with the machine recorded per trial** — and that design is buildable today, because the two
+numbers that decide whether it can mean anything both came back small enough.
+
+**What a null here is and is not.** These arms establish that the tested mechanisms do not cap or
+bias GPU work; they cannot establish that no mechanism could. Each arm is one row of
+`host_perf_probe.py --gpu`, and a candidate nobody has thought of is a new row rather than a
+refutation — which is the shape of the re-open conditions in `DECISIONS.md`.
 
 Every figure below names the arm that made it, and all of them were measured on 2026-08-24 on the
 machine described next. The producer is one file, and the arms are fenced here so the doc sweep
@@ -35,11 +40,10 @@ below.
 
 ## Capping, GPU first
 
-### The GPU cannot be bounded, and it cannot be biased either
+### No tested mechanism bounds the GPU, and none biases it either
 
-There is no Metal, Darwin or shell mechanism that bounds a process's GPU throughput, and the
-CPU-side levers that do act on the CPU do not reach the GPU. `--gpu` runs the same fixed workload
-under each candidate, interleaved over 4 rounds:
+The CPU-side levers that demonstrably act on the CPU do not reach the GPU. `--gpu` runs the same
+fixed workload under each candidate, interleaved over 4 rounds:
 
 | arm | median frame time | vs control | per round |
 |---|---|---|---|
@@ -48,10 +52,11 @@ under each candidate, interleaved over 4 rounds:
 | `taskpolicy -c utility` | 9.221 ms | 1.02 | 8.362, 8.454, 9.987, 10.128 |
 | **contended** — one more GPU process | 19.286 ms | **2.13** | 16.321, 18.470, 20.102, 22.748 |
 
-`taskpolicy -b` cuts CPU throughput to 0.21x (below). On the GPU it tracks the control to within
-0.1 ms in **every** round, and so does `-c utility`. The control row moving 8.36 → 10.14 across
-its own rounds is what a ratio has to be read against, and it is why the arms are interleaved
-rather than run in blocks.
+`taskpolicy -b` cuts CPU throughput to 0.20x (below), so it is not an inert arm. On the GPU it
+tracks the control to within **0.1 ms** in every round; `-c utility` tracks it to within
+**0.28 ms**, its widest gap being 9.987 ms against a control of 9.716 ms. Both are far smaller
+than the control row's own movement of 8.36 → 10.14 across the same four rounds, which is what
+any ratio here has to be read against and why the arms are interleaved rather than run in blocks.
 
 **Read the contended row as the isolation figure, not as a cap.** Adding one more GPU process
 roughly doubles frame time — 1.95x, 2.20x, 2.07x, 2.24x against the control of its own round.
@@ -98,20 +103,20 @@ seconds and kills on exceeding them**, which is a kill switch rather than a rate
 The rate levers, measured as CPU-seconds taken in a fixed 6 s wall window by 16 spinning threads,
 interleaved over 3 rounds:
 
-| arm | CPU-seconds | vs control |
-|---|---|---|
-| control | 84.03 | 1.00 |
-| `taskpolicy -b` | 17.75 | 0.21 |
-| `taskpolicy -c background` | 18.10 | 0.22 |
-| `taskpolicy -c utility` | 77.87 | 0.93 |
-| `nice -n 20` | 79.36 | 0.94 |
+| arm | CPU-seconds | vs control | its own run-to-run range |
+|---|---|---|---|
+| control | 89.46 | 1.00 | 0.7% |
+| `taskpolicy -b` | 18.20 | 0.20 | 17.0% |
+| `taskpolicy -c background` | 17.60 | 0.20 | 17.7% |
+| `taskpolicy -c utility` | 87.24 | 0.98 | 2.4% |
+| `nice -n 20` | 89.40 | 1.00 | 0.3% |
 
-Background QoS is a large effect and it is still not a cap, for a reason that does not depend on
-how noisy the number is: **it takes no argument.** There is no way to say *this trial gets 4
-cores*. It is on or off, what it grants is whatever the E-cluster had spare, and a separate
-4-round sample of the same arm ranged 9.29 to 16.89 CPU-seconds — a 57% spread on an unchanged
-workload, against 10.0% in the 3-round sample above. `nice` and `utility` do nothing worth
-reporting.
+**`nice` and `utility` do nothing**, at 1.00x and 0.98x against a control whose own rounds span
+0.7%. Background QoS is a large effect and it is still not a cap, for a reason that does not
+depend on how noisy the number is: **it takes no argument.** There is no way to say *this trial
+gets 4 cores*. It is on or off, and what it grants is whatever the E-cluster had spare — 17% and
+17.7% run-to-run here, and 57% in a separate 4-round sample that ranged 9.29 to 16.89
+CPU-seconds on the unchanged workload.
 
 ## The Linux VM route: real caps, and no GPU at all
 
@@ -137,10 +142,10 @@ experiment, so a container run would compare software rasterisation across four 
 would be a different machine from the one every existing result came from, which is a regime
 boundary rather than a free upgrade.
 
-> The RAM row above is also a worked example of rule 12. The first attempt wrote into `/dev/shm`,
-> whose container default is 64 MB, so **both arms stopped at 64 MB and agreed** — a census
-> returning one value across the population it exists to discriminate. `--shm-size=4g` on both
-> arms is what made the control write 2 GB and the treatment die.
+> **`--shm-size=4g` is required on both arms of the RAM row.** `/dev/shm` is capped at 64 MB by
+> default in a container, so without it the hog stops at the tmpfs limit in the control **and**
+> under the cap, and both arms agree at 64 MB — one value across the population the row exists to
+> discriminate, which is rule 12's tell rather than a result.
 
 ## How much the machine moves, with no cap in the picture
 

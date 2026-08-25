@@ -253,11 +253,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 eval/judge/weight_sensitivity.py --selftest
       # `host_perf_probe` is the producer for every figure in `eval/PERF-HOST.md`. Its four
-      # measuring arms need darwin, a Metal device and an exclusive machine, and each refuses
-      # by name off darwin -- so what runs here is the ARITHMETIC those arms report through,
-      # with a mutant per row. A percentile that quietly returned a mean, or a drift figure
-      # taken against the minimum instead of the first bucket, would change every number in
-      # that document while still printing one.
+      # measuring arms all need darwin and an exclusive machine -- `--caps` additionally needs
+      # `taskpolicy`, and `--gpu`, `--spread` and `--drift` a Metal device -- and each refuses
+      # by name off darwin. So what runs here is the ARITHMETIC those arms report through, with
+      # a mutant per row. A percentile that quietly returned a mean, or a drift figure taken
+      # against the minimum instead of the first bucket, would change every number in that
+      # document while still printing one.
       - name: tools/host_perf_probe --selftest (the analysis the host arms report through)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/host_perf_probe.py --selftest
