@@ -154,11 +154,14 @@ them** — the total is dominated by correct English, and at the last adjudicati
 It prints its population, the range it compared against and the producer of that range, because
 the figure it replaces was published with none of the three and did not reproduce the same day.
 
-**The references half reads the skills too, including this one** — since 2026-08-23 (task
-44). It did not before: the corpus was built with `glob`, `glob` does not descend into
-dot-directories, and every skill lives under one, so for the whole life of the sweep the
-always-loaded instruction documents were the only files it could not see. Measured when
-they were let in: **0 false positives**, after fenced lines stopped counting as claims.
+**The references half reads this file, and every other instruction document a session is told
+to read.** Which corpus each half covers is `docstat.py`'s to state and not this skill's —
+`reference_docs()` and `github_docs()` carry it, with the measurement that admitted each
+directory. Run `python3 eval/tools/docstat.py --selftest` to see the corpus pins and the census.
+
+What matters when you are *doing* an audit: **plant a phantom before believing a green sweep on
+a file you have not seen it fire on.** A corpus that has stopped looking and a corpus with
+nothing to say are the same exit code, and this project has now shipped both.
 
 Prose is executed by a person, and **a person does not get an argparse error**. A file
 naming a flag, path, aspect or criterion that does not exist is worse than one that says
