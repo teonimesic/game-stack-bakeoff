@@ -713,13 +713,15 @@ extras, and a manifest covering a strict subset of the declared events. It also 
 because a check that reads its expectation from the grader goes green on both halves of
 one mistake.
 
-**Changing any of this owes the stored corpus a count.** Run
+**After changing an audio criterion, re-score the stored corpus.** Run:
 
-    python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
+```shell
+python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
+```
 
-which re-applies these criteria offline to every stored grading and names the verdicts
-that move, and record its result in `eval/RUNS.md` — a null with its population as much
-as a hit.
+It re-applies these criteria offline to every stored grading, names the verdicts that
+move, and refuses the records it cannot compare. Record in `eval/RUNS.md` the population
+it checked, how many verdicts moved and which — including zero.
 
 
 Only what is left after those is asked of a judge: does the music suit this game, are

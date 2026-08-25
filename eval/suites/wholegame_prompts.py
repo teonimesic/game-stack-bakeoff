@@ -618,10 +618,10 @@ STACKS = ("rust", "ts", "unity", "godot")
 # knew 6 of the arena's 9 events and none of the platformer's 8, which cost
 # `audio.manifest` its per-event question on one whole game (`tasks/151`).
 
-#: One event name per line, at the start of the line, in double quotes. The block is a
-#: fenced code sample, so a description follows on the same line and prose may follow the
-#: fence - neither can match this.
-_EVENT_LINE = re.compile(r'^"([a-z_][a-z0-9_]*)"')
+#: One declaration: a quoted event name, then nothing, or whitespace and a description.
+#: Matched against the WHOLE stripped line. A prefix match would read `"jump"typo` as
+#: `jump` and a fenced block full of those as a clean parse.
+_EVENT_LINE = re.compile(r'"([a-z_][a-z0-9_]*)"(?:\s+\S.*)?')
 
 
 def _declared_events(task: str, block: str) -> tuple[str, ...]:
@@ -645,7 +645,7 @@ def _declared_events(task: str, block: str) -> tuple[str, ...]:
     for line in lines[fence[0] + 1:fence[1]]:
         if not line.strip():
             continue
-        m = _EVENT_LINE.match(line.strip())
+        m = _EVENT_LINE.fullmatch(line.strip())
         if m is None:
             raise ValueError(f"{task}: {line!r} is inside the events fence and is not "
                              f"an event declaration, so this block can no longer be "

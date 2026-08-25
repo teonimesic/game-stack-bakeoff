@@ -9,8 +9,8 @@ This is the producer for that count. It re-applies the SHIPPED rule - `audio.py`
 `manifest_problems`, `distinct_floor` and `distinct_ok` - to what each stored grading
 wrote down, and reports every verdict that changes. It re-runs no submission and decodes
 no audio - it reconstructs the declared-event grouping from the stored `clips` and
-`distinct_sound_groups`. A census that rebuilt 43 work trees would be a re-grading pass,
-which `eval/judge/AGENTS.md` reserves for a separate decision.
+`distinct_sound_groups`. Rebuilding the work trees would be a re-grading pass, which
+`eval/judge/AGENTS.md` reserves for a separate decision.
 
     ./audio_regrade_census.py --selftest
     ./audio_regrade_census.py --runs-root <main checkout>/eval/runs
@@ -20,14 +20,14 @@ which `eval/judge/AGENTS.md` reserves for a separate decision.
 worktree's copy of that path is empty and the census would report "0 verdicts move" -
 confident, uniform, and about nothing (`AGENTS.md` rule 12).
 
-## Only 2 criteria can move, and the other 3 are stated rather than assumed
+## Which criteria can move, stated rather than assumed
 
 `audio.manifest` and `audio.distinct` are the only criteria that read the declared event
 list. `audio.files_exist`, `audio.not_silent` and `audio.music_loops` range over the
-manifest alone and are untouched by both tickets - EXCEPT through the new fail-closed
-refusal, which fails all 5 at once for a game the suites declare no events for. That case
-is reported as `NO_CONTRACT` and counted separately, because it is a different kind of
-move from a criterion changing its mind.
+manifest alone and are untouched by both tickets - EXCEPT through the fail-closed
+refusal, which fails every criterion at once for a game the suites declare no events for.
+That case is reported as `NO_CONTRACT` and counted separately, because it is a different
+kind of move from a criterion changing its mind.
 
 ## Rebuilding the grouping from stored evidence, and when it refuses
 
@@ -56,6 +56,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -71,7 +72,7 @@ REFUSALS = ("AMBIGUOUS_BASENAMES", "GROUPS_INCOMPLETE", "UNDECLARED_REPRESENTATI
 
 
 def stored_verdicts(audio_block: dict) -> dict[str, bool] | None:
-    """The stored verdict per criterion, or None if the record does not carry all 5.
+    """The stored verdict per criterion, or None unless the record carries every one.
 
     `None` rather than a partial dict, and `bool` rather than truthiness. A row missing
     `audio.distinct` would otherwise contribute no comparison and be counted as
@@ -79,11 +80,18 @@ def stored_verdicts(audio_block: dict) -> dict[str, bool] | None:
     to be evidence for. And `bool("false")` is `True`, so a verdict stored as a string
     would compare as a pass.
     """
+    want = {cid for cid, _q in CRITERIA}
     got: dict[str, bool] = {}
     for c in audio_block.get("criteria", []):
-        if isinstance(c, dict) and isinstance(c.get("passed"), bool):
-            got[c.get("id")] = c["passed"]
-    return got if set(got) >= {cid for cid, _q in CRITERIA} else None
+        if not isinstance(c, dict):
+            continue
+        cid = c.get("id")
+        if not isinstance(cid, str) or cid not in want:
+            continue
+        if cid in got or not isinstance(c.get("passed"), bool):
+            return None
+        got[cid] = c["passed"]
+    return got if set(got) == want else None
 
 
 def sfx_labels_in_scan_order(clips: dict) -> list[str]:
@@ -109,13 +117,20 @@ def regroup(audio_block: dict, expected: tuple[str, ...]
         return None, 0, "AMBIGUOUS_BASENAMES"
 
     group_of: dict[str, int] = {}
-    total = 0
+    seen: Counter[str] = Counter()
     for idx, members in enumerate(groups):
-        total += len(members)
+        if not isinstance(members, list):
+            return None, 0, "GROUPS_INCOMPLETE"
         for name in members:
+            if not isinstance(name, str):
+                return None, 0, "GROUPS_INCOMPLETE"
+            seen[name] += 1
             if group_of.setdefault(name, idx) != idx:
                 return None, 0, "AMBIGUOUS_BASENAMES"
-    if total != len(labels) or any(basename[lab] not in group_of for lab in labels):
+    # MULTISETS, not a total and a membership test. Those two agree with a group list
+    # that drops one occurrence of a repeated basename and adds one of another, which is
+    # a grouping this tool would then score rather than refuse.
+    if seen != Counter(basename.values()):
         return None, 0, "GROUPS_INCOMPLETE"
 
     declared = [lab for lab in labels if lab[len("sfx."):] in set(expected)]
@@ -134,7 +149,8 @@ def rescore(game: str, audio_block: dict) -> dict:
         return {"outcome": "NO_CONTRACT", "now": {c: False for c, _q in audio.CRITERIA}}
     manifest = audio_block.get("manifest")
     if not isinstance(manifest, dict):
-        # The stored grading never got a manifest, so it failed all 5 and still does.
+        # The stored grading never got a manifest, so it failed every criterion and
+        # still does.
         return {"outcome": "NO_MANIFEST",
                 "now": {c: False for c, _q in audio.CRITERIA}}
 
@@ -299,7 +315,7 @@ def selftest() -> int:
         _block("g1_pong", sfx, [[f"{e}.wav"] for e in pong[:-1]], {}),
         "g1_pong", "SCORED", {"audio.manifest": False})
 
-    # A game the suites declare no events for: all 5 refused, fail-closed.
+    # A game the suites declare no events for: every criterion refused, fail-closed.
     row("no_contract", _block("g9_probe", {"a": "a.wav"}, [["a.wav"]], {}),
         "g9_probe", "NO_CONTRACT", {cid: False for cid, _q in audio.CRITERIA})
 
@@ -334,12 +350,15 @@ def selftest() -> int:
     row("ambiguous_basenames", amb, "g1_pong", "AMBIGUOUS_BASENAMES")
 
     # A stored record that cannot be compared is REFUSED, never counted as unchanged.
+    all_crits = [{"id": cid, "passed": True} for cid, _q in audio.CRITERIA]
     for label, crits in (
-            ("a criterion missing from the record",
-             [{"id": cid, "passed": True} for cid, _q in audio.CRITERIA[:-1]]),
+            ("a criterion missing from the record", all_crits[:-1]),
             ("a verdict stored as the string 'false'",
              [{"id": cid, "passed": ("false" if cid == "audio.distinct" else True)}
-              for cid, _q in audio.CRITERIA])):
+              for cid, _q in audio.CRITERIA]),
+            ("a criterion recorded twice", all_crits + [all_crits[0]]),
+            ("an id that is not a string",
+             all_crits[:-1] + [{"id": ["audio.music_loops"], "passed": True}])):
         checks += 1
         b = _block("g1_pong", {e: f"{e}.wav" for e in pong},
                    [[f"{e}.wav"] for e in pong], {})
@@ -349,6 +368,21 @@ def selftest() -> int:
         if (len(out["refused"]), out["unchanged"]) != (1, 0):
             fails.append(f"{label}: refused {len(out['refused'])}, unchanged "
                          f"{out['unchanged']}; expected 1, 0")
+
+    # ...and a grouping whose basename MULTIPLICITIES do not match the recorded clips.
+    # THE VARIANT A TOTAL CANNOT SEE: one occurrence of a repeated name dropped and one
+    # of another added. Same total, every name present, every name in one group only,
+    # and a different partition of the submission.
+    sfx_dup = {e: ("one.wav" if e in pong[:2] else f"{e}.wav") for e in pong}
+    right = [["one.wav", "one.wav"]] + [[f"{e}.wav"] for e in pong[2:]]
+    wrong = [["one.wav"], [f"{pong[2]}.wav"] * 2,
+             [f"{pong[3]}.wav"], [f"{pong[4]}.wav"]]
+    row("groups_wrong_multiplicities",
+        _block("g1_pong", sfx_dup, wrong, {}), "g1_pong", "GROUPS_INCOMPLETE")
+    # GREEN: the same fixture with the multiplicities right is scored, 4 groups, floor 3.
+    row("groups_right_multiplicities",
+        _block("g1_pong", sfx_dup, right, {}),
+        "g1_pong", "SCORED", {"audio.distinct": True})
 
     # And the whole census over a 2-row population: 1 moves, 1 does not.
     sfx_bad = {e: "one.wav" for e in pong}
@@ -406,8 +440,9 @@ def main() -> int:
                 print(f"  {k}: {res[k]}")
         stored = stored_verdicts(block)
         if stored is None:
-            print("  REFUSED INCOMPLETE_STORED_VERDICTS: this record does not carry a "
-                  "boolean verdict for all 5 criteria, so nothing can be compared")
+            print(f"  REFUSED INCOMPLETE_STORED_VERDICTS: this record does not carry "
+                  f"a boolean verdict for each of the {len(CRITERIA)} criteria, so "
+                  f"nothing can be compared")
             return 1
         for cid, now in sorted(res["now"].items()):
             was = stored[cid]

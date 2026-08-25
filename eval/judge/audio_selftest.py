@@ -109,9 +109,10 @@ EVENTS_AS_WRITTEN: dict[str, tuple[str, ...]] = {
 #: `audio.manifest` would go green on both halves of one mistake.
 PONG = EVENTS_AS_WRITTEN["g1_pong"]
 
-#: One event name per line, at the start of the line, in double quotes. Written out here
-#: rather than imported from the parser under test, for the same reason as the list above.
-EVENT_LINE = re.compile(r'^"([a-z_][a-z0-9_]*)"')
+#: A whole declaration line: the quoted event name, then nothing or a description.
+#: Written out here rather than imported from the parser under test, for the same reason
+#: as the list above.
+EVENT_LINE = re.compile(r'"([a-z_][a-z0-9_]*)"(?:\s+\S.*)?')
 
 #: What `_probe_section` says immediately before it renders the events block.
 EVENTS_MARKER = "is a list of strings drawn from:"
@@ -187,9 +188,16 @@ def rendered_event_names(text: str) -> list[str]:
     rest = text[i + len(EVENTS_MARKER):]
     start = rest.index("```") + 3
     body = rest[start:rest.index("```", start)]
-    return [m.group(1) for m in
-            (EVENT_LINE.match(line.strip()) for line in body.splitlines())
-            if m is not None]
+    names = []
+    for line in body.splitlines():
+        if not line.strip():
+            continue
+        m = EVENT_LINE.fullmatch(line.strip())
+        if m is None:
+            raise ValueError(f"{line!r} is inside a rendered events block and is not an "
+                             f"event declaration")
+        names.append(m.group(1))
+    return names
 
 
 def pin_declared_events() -> None:
@@ -247,6 +255,27 @@ def pin_declared_events() -> None:
             check(shown == want,
                   f"{game}/{stack}: the RENDERED prompt declares {shown}, the "
                   f"transcription says {want}")
+
+    # The RENDERED-block reader, in the direction a comparison cannot reach. A prompt
+    # carrying every declaration plus an unreadable extra line still equals the
+    # transcription, so filtering nonmatching lines would agree while the contract the
+    # agent was shown had changed.
+    ok = wp.TASKS["g1_pong"]("rust")
+    check(tuple(rendered_event_names(ok)) == EVENTS_AS_WRITTEN["g1_pong"],
+          "the rendered reader disagrees with the transcription on an untouched prompt")
+    # The insertion point is INSIDE the events fence. The state block a few lines above
+    # holds quoted keys, so a whole-document replace would plant the line where the
+    # reader is not looking and the pin would pass having tested nothing.
+    cut = ok.index("```", ok.index(EVENTS_MARKER)) + 3
+    for label, extra in (("a line that is not a declaration", "jump - the player jumped"),
+                         ("a name with trailing garbage", '"jump"typo')):
+        spoilt = ok[:cut] + "\n" + extra + ok[cut:]
+        try:
+            got = rendered_event_names(spoilt)
+        except ValueError:
+            got = None
+        check(got is None,
+              f"the rendered reader accepted {label} and returned {got!r}")
 
 
 def expect(label: str, got: dict[str, tuple[bool, str]], cid: str, want: bool) -> None:
