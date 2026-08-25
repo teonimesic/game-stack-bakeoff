@@ -840,13 +840,31 @@ def hook_census(list_hook=_list_hook, register_text: str | None = None,
     problems += dec_problems
 
     for tier in HOOK_TIERS:
-        if declared[tier] != tiers[tier] and not dec_problems:
+        # MEMBERSHIP, not sequence. The register claims a fixed LIST per tier and says
+        # nothing about the order of its rows, so comparing ordered would redden the gate on
+        # a table reshuffle that changes nothing a reader acts on -- and a check that fires
+        # where nothing is wrong spends exactly the attention a real firing needs. Sorting
+        # keeps duplicates visible, which is the one ordering-free way the two can differ in
+        # length; the register's own duplicate row is reported separately.
+        if sorted(declared[tier]) != sorted(tiers[tier]) and not dec_problems:
             problems.append(
                 f"the register and {HOOK_RUNNER.relative_to(ROOT)} disagree about `{tier}`."
                 f"\n      register : {declared[tier]}"
                 f"\n      the hook : {tiers[tier]}")
 
     cen = gate_census() if census is None else census
+    # A CENSUS THAT COULD NOT READ `gates.yml` HAS NO TOTAL, and reporting one anyway
+    # misattributes the cause: it comes back `gates: 0, commands: []`, which reads here as
+    # "the hooks run 5 commands gates.yml does not" and "claims 5 of 47, measured 5 of 0".
+    # The exit status would be right and every word of the diagnosis wrong. Raised by
+    # CodeRabbit on PR #33.
+    if cen["gates"].get("malformed"):
+        problems.append(
+            f"`gates.yml` could not be read, so there is no total to count the hooks "
+            f"against: {cen['gates']['malformed']}. The coverage sentence is arithmetic "
+            f"over two populations and one of them is missing")
+        return {"tiers": tiers, "declared": declared, "gate_count": 0,
+                "coverage_claim": None, "orphans": [], "problems": problems}
     gate_cmds = set(cen["gates"]["commands"])
     gate_count = cen["gates"]["gates"]
     orphans = sorted({c for t in HOOK_TIERS for c in tiers[t]} - gate_cmds)
@@ -1221,7 +1239,7 @@ def _selftest() -> int:
                   "python3 eval/tools/tasks.py check",
                   "python3 eval/tools/docstat.py --sweep"]
     _hook_tiers = {"pre-commit": _hook_cmds[:2], "pre-push": _hook_cmds}
-    _hook_gates = {"gates": {"gates": 3, "commands": sorted(_hook_cmds)}}
+    _hook_gates = {"gates": {"gates": 3, "commands": sorted(_hook_cmds), "malformed": []}}
 
     def _fake_register(rows, cover=(3, 3, 2), header=None, delim=True, tail=""):
         head = HOOK_TABLE_HEADER if header is None else header
@@ -1319,6 +1337,10 @@ def _selftest() -> int:
             (_fake_register(_ok_rows, cover=None)
              + "`pre-push` runs **3** of `gates.yml`'s\n**3** checks; `pre-commit` runs "
                "**2**.\n", _lister(_hook_tiers)),
+        # The table's rows are a SET. The register claims a fixed list per tier and no
+        # order, so a reshuffle changes nothing a reader acts on and must not redden.
+        "the table's rows reordered":
+            (_fake_register([_ok_rows[1], _ok_rows[0], _ok_rows[2]]), _lister(_hook_tiers)),
     }
     for _name, (_text, _lh) in {**_hook_mutants, **_hook_variants}.items():
         _want_red = _name in _hook_mutants
@@ -1342,6 +1364,22 @@ def _selftest() -> int:
                                 f"{_name}; want {'nonzero' if _want_red else '0'}")
     counts["mutants"] += len(_hook_mutants)
     counts["variants"] += len(_hook_variants)
+    # AN UNREADABLE `gates.yml` MUST BE NAMED AS ITSELF. It is its own row rather than one
+    # of the mutants above because the assertion is on the DIAGNOSIS, not on the exit
+    # status: without the refusal the run is still red, and every word of why is wrong --
+    # an orphan list and a coverage sentence "measured 5 of 0". Raised by CodeRabbit, PR #33.
+    _bad_gates = {"gates": {"gates": 0, "commands": [],
+                            "malformed": ["gates.yml: pyyaml is missing"]}}
+    _got = hook_census(_lister(_hook_tiers), register_text=_fake_register(_ok_rows),
+                       census=_bad_gates)
+    check("an unreadable gates.yml is refused rather than counted",
+          [p for p in _got["problems"] if "could not be read" in p] != [], True)
+    check("and nothing is blamed on the hooks for it",
+          [p for p in _got["problems"] if "which `gates.yml` does not" in p or
+           "claims pre-push" in p], [])
+    check("and no coverage claim is published over a missing total",
+          (_got["coverage_claim"], _got["gate_count"]), (None, 0))
+    counts["mutants"] += 1
 
     # The live files must be well-formed, and this is the check that says so rather than
     # the census raising on its way past. It runs BEFORE filter_problems, so without it a

@@ -287,10 +287,11 @@ if *no* run yields a job, the endpoint is not answering and the tool reports not
 4. If you leave a gate out, add a row to the table above. A gate excluded and recorded is fine;
    one silently absent is not.
 
-**Adding one to a git hook is a two-file change**: the command goes into
-`.githooks/run-gates.sh` and a row goes into the hook table, and `ci_minutes --selftest` is red
-until both are done. That is deliberate — the hooks are what someone trusts instead of reading
-the workflows, so their published list has to be the list.
+**Adding one to a git hook takes three edits**: the command goes into `.githooks/run-gates.sh`, a
+row goes into the hook table, and the coverage sentence under it gets the new counts.
+`ci_minutes --selftest` is red until all three are done, and it names which one is missing. That
+is deliberate — the hooks are what someone trusts instead of reading the workflows, so their
+published list has to be the list.
 
 Every step uses `set -e`; a `run:` block reports only its last command's status otherwise.
 
