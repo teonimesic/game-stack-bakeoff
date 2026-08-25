@@ -61,9 +61,39 @@ registry as the 6 game aspects and at the same weight, 0.00. 2 things govern usi
   every pooled figure**, since 2026-08-24: a pooled figure is a between-stack range, so
   `assert_poolable` refuses it exactly as it refuses a control (`tasks/146`).
 
-`RUBRIC.md` holds what each scene aspect asks, what `fidelity` cannot see without a
-stack-neutral scene statement in the pack, and why the weight question reads **NOT ASKED**
-rather than "no effect" while there are 0 scene gradings.
+`RUBRIC.md` holds what each scene aspect asks, what `fidelity` is read against, and why the
+weight question reads **NOT ASKED** rather than "no effect" while there are 0 scene gradings.
+
+**A scene pack carries `SCENE.md`, a hand-written stack-neutral statement of the scene, and a
+game pack must not.** `field.SCENE_STATEMENTS` is the text and `field.build_pack` writes it
+**raw** — every other piece of pack text goes through `neutralise`, and this one may not, because
+laundering harness-authored text leaves `verify_blind.py --packs` reading a file the harness has
+already cleaned. `blurb_selftest.py` is the gate: on disk for a scene field and absent for a game
+one, byte-identical to `field.scene_statement`, different for the 2 scenes, free of stack tokens
+under `verify_blind.py --packs`, and free of `tools/prompt_guard.py`'s criterion and threshold
+vocabulary — a tier-3 opinion told what tier 2 measures is a restatement of tier 2.
+
+**Both the packer and the spender refuse.** `build_pack` will not build a pack for a scene the
+module cannot state, and `run_field` will not judge one whose `SCENE.md` is missing, undecodable
+or **not this scene's statement** — a pack is built once and judged later from a directory
+anything may have touched, and an empty or wrong-scene file passes a presence test while buying
+a judge invocation that scores the whole field against the wrong subject. There is no escape
+flag: a pack whose `SCENE.md` differs from this checkout's statement of its scene is refused,
+whatever produced the difference — re-pack it.
+
+**A scene round records `provenance.scene_statement_sha256`, and `brief_sha256` cannot stand in
+for it** — the brief NAMES `SCENE.md` and does not contain it, so two rounds with the same brief
+hash can have been read against two different subjects. `None` on a game round is a third value
+and not an empty statement. `field._provenance` is a function rather than a literal inside
+`run_field` so the record-assembling tail is reachable at all; `blurb_selftest.py` drives it
+through **`run_field` with `field.subprocess` stubbed**, because a direct call to `_provenance`
+proves only that it copies its argument.
+
+**`SCENE.md` is UTF-8 by contract, written and read with the encoding named.** `write_text` and
+`read_text` default to the LOCALE codec, so a packer and a judge host on different code pages
+would disagree about what the statement says with every check still green — and the invalid-byte
+refusal would decode instead of refusing. Each refusal state in the selftest asserts *which*
+branch answered, so the undecodable case cannot pass through the mismatch branch.
 
 **What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
 both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a
@@ -407,10 +437,17 @@ python3 judge/blurb_selftest.py          # unpiped: exit 1 means a claim has dri
 python3 judge/blurb_selftest.py --stored-rounds <main checkout>/eval/runs
 ```
 
-It builds real packs in both completeness states and both blinding modes, carries two mutants, a
-variant (a field whose *stored* drop count is non-zero, which no mutant can manufacture) and a
-fail-closed case, and must stay green. `--stored-rounds` is the producer for every figure in
-`eval/RUNS.md`'s section on this.
+It builds real packs in both completeness states, both blinding modes and both task classes,
+and must stay green. Its own docstring is the register of what it checks; the coverage is
+**7 mutants** — the 2026-08-22 sentence restored, a blurb naming an artifact no pack holds, a
+real suffix in the non-blind pack-path example, the two completeness notes collapsed into one, a
+constant `claude -p` prompt, a stack token in `SCENE.md`, the withheld claim in `SCENE.md` —
+**2 variants** no mutant can manufacture (a field whose *stored* drop count is non-zero; a
+statement naming an engine driven through the real packer) and **2 fail-closed cases**, a
+deleted completeness claim and a scene the packer cannot state. **The claims it reads are not
+all about the packer** — `SCENE.md` claims what the task was, and the frames blurb claims who is
+watching — so each is checked against what it is a function of. `--stored-rounds` is the
+producer for every figure in `eval/RUNS.md`'s section on this.
 
 **Where the caution-vocabulary check is aimed was chosen on the false-positive count, not on
 which address sounded more general** (rule 12, and the census-trigger derivation in

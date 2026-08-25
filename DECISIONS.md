@@ -2539,6 +2539,19 @@ running `--diff` against them: none of the three assertions can see a shared-pre
 because it leaves every rule identical across stacks and names no engine. A deliberate prompt
 edit re-records the snapshot in the same commit.
 
+**The list holds each withheld claim in its plain-English wording as well as its measurement
+wording**, and the same 2 lists govern the scene statement a tier-3 judge is handed. `distinct
+rates`, `declared depth` and `world-horizontal` are the criterion tables' words; `ordered by
+depth` and `stays level` are how `eval/SCENES.md` says the same 2 claims when it says they are
+withheld. Without the second pair the check reads **0 hits on all 8** with either claim planted
+into a rendered prompt — green on a corpus carrying the leak it most exists to prevent. Both are
+at **0** false positives on the 8 shipped prompts and on the 2 packed scene statements, and both
+are in `eval/SCENES.md`, so the anti-invention guard accepts them. **That pair is 2 spellings and
+not a property**, which is the repair this project distrusts (#30, #83, #131): a third phrasing
+walks past. It stands because the list's own definition is *the vocabulary `eval/SCENES.md` uses
+to state a criterion* and these 2 phrases are exactly that; the derived alternative is measured
+and rejected above.
+
 **To re-open:** a scene prompt that cannot be written without a term on either list — which would
 mean the term is functional spec and belongs off it, the way `probe` did; a false positive on a
 correct prompt, which is how a gate gets switched off; or a real leak that ships past both lists,
@@ -2675,6 +2688,54 @@ arms would come back much closer together and spacing could be dropped; a macOS 
 route a real option rather than a different experiment; or the first real scene submission
 measuring a run-to-run spread far above the floor reported here, which would mean the submission
 rather than the machine is what stops a ramp.
+
+## A scene pack carries a hand-written statement of the scene, written raw — decided 2026-08-25
+
+`fidelity` asks whether a strip reads as the scene it was asked for, and that needs what was
+asked for. `field.SCENE_STATEMENTS` holds one statement per scene and `field.build_pack` writes
+it into a scene pack — and only a scene pack — as `SCENE.md`, one text for all 8 submissions.
+Without it the aspect recovers the subject from the field, which finds a submission that omitted
+what 7 others drew and cannot find one where all 8 missed the same requirement — the case a
+fidelity aspect exists for.
+
+**The rendered prompt is not a candidate, and the reason is measurable rather than a worry.** It
+exists per stack: `anonymise.find_stack_names` returns a stack token in every one of the 8
+rendered scene prompts, so handing a judge one names the arm in its own evidence — the leak
+`neutralise` and `blind_extensions` exist to close. The statement is instead written by hand from
+`eval/SCENES.md`.
+
+**Written RAW, and that is the decision most easily got wrong.** Every other piece of pack text
+goes through `neutralise`, because it comes from a submission and is not ours to write. This text
+is ours. Passing it through would rewrite `Bevy` to `engine` and hand `verify_blind.py --packs` a
+clean file — **the gate green over judge-facing text that named an arm until the harness edited
+it**. `blurb_selftest.py` drives a leaking statement through the real `build_pack` and requires
+the leak to survive and the gate to go red — a mutant that edits the built pack instead cannot
+ask that question at all.
+
+**A scene the module cannot state is refused, and both the packer and the spender ask.**
+`build_pack` refuses to build such a pack; `run_field` refuses to judge one whose `SCENE.md` is
+missing, undecodable, or not this scene's statement, because a pack is built once and judged later
+from a directory anything may have touched (rule 13). **Existence is not the resource**: an empty
+file and the other scene's statement both pass a presence test, and a field scored against the
+wrong subject is worse than one scored against none, because it looks like an answer. There is no
+escape flag — a pack whose `SCENE.md` differs from this checkout's statement of its scene is
+refused, whatever produced the difference, and with 0 stored scene packs there is nothing to
+grandfather, so an escape would be a fail-open channel with no measured need (rule 7).
+
+**The statement it validated is recorded**, as `provenance.scene_statement_sha256`. The brief
+names `SCENE.md` and does not contain it, so `brief_sha256` cannot say which subject a round was
+scored against — the question #83 could not answer about what a judge had read.
+
+**No game brief moved.** All 90 `(aspect, game, completeness)` briefs this checkout builds for
+game task ids are byte-identical to the ones built before the statement existed, so no stored
+round's `provenance.brief_sha256` is affected.
+
+**To re-open:** a first real scene field whose judge cites the statement for something no
+submission was asked for, which would mean the statement asks for more than the prompt did and is
+the failure mode that matters most here; a scene added to `eval/suites/scene_prompts.py` whose
+subject cannot be stated without naming a stack, which would say the technique does not
+generalise; or a measured way to blind a rendered prompt, which would replace a hand-written text
+with a derived one and remove the drift risk a hand-written text carries.
 
 ## Reversal conditions — what would re-open a decision
 

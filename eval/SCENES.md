@@ -78,6 +78,10 @@ list must appear in this file, so the list cannot drift into words this file nev
 curated rather than derived from this file's criterion columns, with the false-positive counts
 that decided it.
 
+**The same 2 lists govern the scene statement the tier-3 judge is handed** — `SCENE.md`, below.
+A prompt that names a criterion teaches to the test; a judge's brief that names one turns a
+tier-3 opinion into a restatement of tier 2. `judge/blurb_selftest.py` runs that grep.
+
 ## Grading: what replaces the play-bot
 
 | tier | games | scenes |
@@ -296,12 +300,19 @@ NOT ASKED rather than "no effect".** Two independent reasons: there is no scene 
 over `(tier 2, tier 3)`. `judge/RUBRIC.md` holds the commands and the current counts;
 `tasks/145` asks the question on real data. Do not propose a weight from an argument.
 
-**`fidelity` asks less than its one-line summary suggests, and its number has to say so.**
-"Looks like the thing that was described" needs the description, and no pack carries one — the
-rendered scene prompt exists per stack, so handing a judge one names the arm in its evidence.
-While that is true the aspect recovers the subject from the field of eight and scores how
-completely each realises it: it can find a submission that omits what seven others drew, and it
-cannot find one where all eight missed the same requirement. `tasks/144` closes the gap.
+**`fidelity` is read against a statement of the scene, and that statement is in the pack.**
+"Looks like the thing that was described" needs the description. It is `field.SCENE_STATEMENTS`,
+written into every scene pack as `SCENE.md` by `judge/field.py build_pack` — one hand-written
+statement per scene, the same text in all 8 submissions' packs, so it separates nothing. The
+rendered prompt is not a candidate and never was: it exists per stack, and
+`anonymise.find_stack_names` returns a stack token in every one of the 8.
+
+**Two gates decide what may be in it, and they answer different questions.**
+`judge/verify_blind.py --packs <pack>` asks whether it names a stack; `judge/blurb_selftest.py`
+asks whether it names a criterion, using the 2 closed lists above. **The statement preserves both
+deliberate omissions**, and the plain-English phrasings of them — *rates ordered by depth*, *stays
+level* — are `RUBRIC_TERMS` entries, so the grep can see them in a statement as well as in a
+prompt. It could not before 2026-08-25: planted into a rendered prompt, both read 0 hits on all 8.
 
 ## What scenes are for — the questions, stated so they can come out against us
 

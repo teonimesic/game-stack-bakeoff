@@ -611,13 +611,19 @@ games (#53).
 code content alone — a measured weakness of the blinding rather than a question that names the
 stack by construction. `JUDGING.md` holds it; it is not settled here.
 
-**`fidelity` asks a weaker question than its one-line summary suggests, and the number has to
-carry that.** "Does this look like the thing that was described" needs the description, and no
-pack carries one: the rendered scene prompt exists per stack, so handing a judge one would
-name the arm in the evidence. While that is true the aspect recovers the subject from the field
-— all 8 submissions are attempting it — and scores how completely each realises it. **It can
-find a submission that omits what 7 others drew; it cannot find one where all 8 missed the same
-requirement.** `tasks/144` closes the gap.
+**`fidelity` is read against a written statement of the scene, which every scene pack carries.**
+"Does this look like the thing that was described" needs the description.
+`field.SCENE_STATEMENTS` holds one per scene and `field.build_pack` writes it into a scene pack —
+and only a scene pack — as `SCENE.md`. It is the same text for all 8 submissions, so it separates
+nothing, and the brief names it. The rendered scene prompt is not a candidate: it exists per
+stack, and handing a judge one would name the arm in the evidence.
+
+Because the statement exists, a requirement **no** submission met is a finding about the field
+rather than something the aspect cannot see, and `fidelity`'s notes ask for it in `field_note`.
+Two gates decide what may be in the statement: `judge/verify_blind.py --packs` for stack tokens,
+and `judge/blurb_selftest.py` for `tools/prompt_guard.py`'s criterion and threshold vocabulary,
+because a tier-3 opinion told what tier 2 measures is a restatement of tier 2. Both carry a
+mutant, and the packer refuses a scene it cannot state rather than packing one without.
 
 **The weight question reads NOT ASKED rather than "no effect".** 2 independent reasons, either
 sufficient:

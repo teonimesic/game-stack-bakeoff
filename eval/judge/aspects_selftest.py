@@ -175,8 +175,9 @@ def check_task_class_is_enforced(aspects: dict[str, Aspect]) -> list[str]:
         back off the aspect;
       * `applicability` admits exactly the same-class pairs over the REAL task ids, so
         the guard agrees with the declaration instead of being a second opinion;
-      * an id it cannot classify is REFUSED. A field is eight model calls, and reading
-        an unrecognised id as a game is the fail-open direction (rule 7).
+      * an id it cannot classify is REFUSED. A field is one judge invocation over all 8
+        submissions, and reading an unrecognised id as a game is the fail-open
+        direction (rule 7).
     """
     problems: list[str] = []
     for identifier, aspect in sorted(aspects.items()):

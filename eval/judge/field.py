@@ -29,7 +29,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from anonymise import neutralise  # noqa: E402
-from aspects import ASPECTS, Aspect, applicability  # noqa: E402
+from aspects import ASPECTS, Aspect, applicability, task_class  # noqa: E402
 
 LABELS = "ABCDEFGH"
 DEFAULT_MODEL = "sonnet"
@@ -572,6 +572,10 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
     if len(subs) != 8:
         raise RuntimeError(f"{game}: expected 8 submissions, found {len(subs)}")
 
+    # THE SCENE STATEMENT IS RESOLVED BEFORE ANY WORK, so a scene this module cannot state
+    # costs nothing rather than producing a pack whose brief points at a missing file.
+    statement = scene_statement(game) if task_class(game) == "scene" else ""
+
     knowingly_truncated = False
 
     # GEOMETRY, for aspects that read frames. It INFORMS; it does not refuse.
@@ -840,6 +844,24 @@ def build_pack(run: Path, game: str, dest: Path, order_seed: int,
     # rather than baked into a constant (#69 drift; `COMPLETENESS_NOTE`).
     skill.write_text(pack_skill(knowingly_truncated))
 
+    # THE SCENE STATEMENT, for a scene field and for nothing else. A game pack must not
+    # carry one: it would state a task nobody set, and `fidelity` is not asked of a game.
+    #
+    # Written RAW, like the skill above and unlike everything the submissions contributed.
+    # `_text` exists so a blind aspect cannot be blinded on one channel and not another,
+    # and this channel is not blinded by rewriting - it is blinded by being written that
+    # way and gated by `verify_blind.py --packs`, which reads what is on disk. Passing it
+    # through `neutralise` would launder a stack name out of harness-authored text and
+    # leave the gate unable to see the leak it exists to catch.
+    if statement:
+        # UTF-8 BY CONTRACT, on the write and on the read in `run_field`. `write_text`
+        # and `read_text` default to the LOCALE encoding, so a packer and a judge host
+        # on different code pages would disagree about what the statement says while
+        # every check here stayed green - and the invalid-byte refusal below would
+        # decode instead of refusing (rule 12: the address is an input, and so is the
+        # codec).
+        (dest / SCENE_STATEMENT_FILE).write_text(statement, encoding="utf-8")
+
     leaked = sorted(q.name for q in dest.rglob("*")
                     if q.is_file() and "MAPPING" in q.name)
     if leaked:
@@ -893,6 +915,17 @@ PACK_PATH_EXAMPLE = {
     False: "`sim/03`, `view/02` -- with whatever suffix they carry here",
 }
 
+#: WHO IS WATCHING, in the frames blurb, and it depends on the TASK CLASS.
+#:
+#: A scene has no player (`eval/SCENES.md`), so "everything the player sees" is a claim
+#: about a task nobody set - the same shape as the completeness note describing a cap that
+#: no longer exists. Keyed rather than rewritten in place, so the game wording stays one
+#: string and every stored game round still rebuilds byte-identically.
+FRAMES_AUDIENCE = {
+    "game": "Everything the player sees",
+    "scene": "Everything the scene shows",
+}
+
 EVIDENCE_BLURB = {
     "code": ("`CHANGED.txt` names the files this submission's author actually wrote; "
              "everything else is template code they inherited. The source tree is "
@@ -905,7 +938,7 @@ EVIDENCE_BLURB = {
              "one of them turned out to describe something really in the pack."),
     "frames": ("`frames/` holds PNGs sampled evenly across one real run of this "
                "submission -- the first is the opening state, the last is late in the "
-               "run. Everything the player sees is in these pixels; there is no "
+               "run. {frames_audience} is in these pixels; there is no "
                "second display."),
     "telemetry": ("`telemetry.json` is measured from a real driven run of this "
                   "submission: event counts, intervals, how long the run went quiet. "
@@ -914,6 +947,159 @@ EVIDENCE_BLURB = {
               "decoding every file: duration, RMS, peak, and which clips are the same "
               "sound as each other. You cannot listen to them."),
 }
+
+
+#: THE FILE A SCENE PACK CARRIES SAYING WHAT THE SCENE WAS, and its name in the pack.
+#:
+#: `fidelity` asks "does this read as the scene it was asked for", and until this existed
+#: the pack carried nothing that said what was asked for. The rendered scene prompt is not
+#: a candidate: it exists PER STACK, and handing a judge one names the arm in the evidence
+#: -- measured over the 8 rendered scene prompts, `anonymise.find_stack_names` returns a
+#: stack token in every one of them. So the statement is written by hand, once per scene,
+#: and is the same text for all 8 submissions.
+SCENE_STATEMENT_FILE = "SCENE.md"
+
+#: The header, shared by every scene, and the two things it has to say.
+#:
+#: WHAT IT IS: the task, not any submission's answer to it. A judge that reads this as a
+#: description of a good submission will mark down a field for lacking what nobody asked
+#: for.
+#:
+#: WHAT IT IS NOT: a channel that separates the arms. It is one file, byte-identical in
+#: every pack built for this scene, so it carries no information about which submission is
+#: which -- and saying so is what stops a judge mining it for one.
+SCENE_STATEMENT_HEADER = """# The scene these submissions were asked to build
+
+Every submission in this field was set the same scene, and this is that scene stated
+plainly. Nothing in it names the technology any of them was built with, and it is the
+same text in every pack, so it tells you nothing about which submission is which.
+
+**This is what was ASKED FOR, not what anything here achieved.** It is the standard to
+read your evidence against. An element it describes that NO submission shows is a finding
+about the whole field and belongs in `field_note`; an element it does not describe is
+not something to look for.
+
+Part of what it describes may not be decidable from the evidence you were given. Where it
+is not, say so rather than counting it against a submission.
+
+The craft was asked for as well as the content: the quality of the light, the materials,
+the way things ease into and out of motion, the small details that sell the moment. Every
+submission was told to push as far as it could on all of that, and how any of it was
+achieved was left entirely open.
+
+"""
+
+#: EACH SCENE, STATED WITHOUT NAMING A STACK. Keys must be `scene_prompts.SCENES`.
+#:
+#: SOURCE. `eval/SCENES.md` is the authority for what a scene is, and this is written from
+#: its scene sections -- not from a rendered prompt, which would be laundering an output of
+#: it and could carry a vocabulary dict's words out with it. The element list is what the
+#: scene asks for; a statement that asks for MORE than the prompt did would have `fidelity`
+#: penalise a field for missing something nobody set, which is worse than the narrowing it
+#: replaces.
+#:
+#: WHAT MAY NOT BE IN HERE, and it is the same rule that governs a prompt. `SCENES.md`
+#: states what each criterion catches and none of that may reach a judge: a tier-3 opinion
+#: told what tier 2 measures is a restatement of tier 2, not a second reading. The two
+#: sharpest omissions are the ones the scenes exist for and they look like oversights --
+#: s1 does not say the layers scroll at rates ordered by depth, and s2 does not say the
+#: water surface stays level while the glass tilts. `blurb_selftest.py` greps this text
+#: with `tools/prompt_guard.py`'s own closed lists, which is the same grep the prompts get.
+#:
+#: NOT PUT THROUGH `neutralise`. Every other piece of pack text is, because it comes from a
+#: submission and is not ours to write; this is ours, and a rewrite would launder a stack
+#: name out of it and leave `verify_blind.py --packs` unable to see the leak it exists to
+#: catch. Written raw, exactly as the pack skill is, and gated the same way.
+SCENE_STATEMENTS = {
+    "s1_parallax": """## A car on a road, seen from the side
+
+A car drives from left to right along a road that never ends, while the light around it
+goes from day to night. The run is a fixed length: the first frame is its opening moment
+and the last is near its end.
+
+- The car drives for the whole run. It never stops, it never leaves the frame, and its
+  wheels turn as it goes.
+- Behind it lies a world with real distance in it -- the sky, whatever is far away,
+  whatever is nearer, and the ground the car is on. As the car travels, that world should
+  read as genuinely deep rather than as a picture sliding past.
+- That world is endless, and it is endless because it repeats. Someone watching the
+  horizon should not be able to say the moment a repeat happened.
+- Things pass between the camera and the car -- signs, poles, whatever suits the road --
+  and while one is passing it covers part of the car.
+- The light goes from day to night over a stretch of the run, and it goes there
+  gradually: the scene passes through every shade between the two rather than switching
+  from one to the other. Everything lit changes with it -- the sky, the ground, the car,
+  and what the car itself casts.
+- The run ends at night, and what a car at night looks like was asked to be worth the
+  effort: headlights reaching down the road, the road surface picking them up, whatever
+  the car's own lights do to the world beside it.
+- The wheels, the dust or spray they throw up, whatever hangs in the air, and every other
+  moving detail belong to the scene. Many small things each moving on their own read as
+  alive; a handful of large ones do not.
+- Where the scenery stands and what passes in front of the car are drawn from the run's
+  seeded random source, so a different seed gives a visibly different run of the same
+  scene.
+""",
+    "s2_glass": """## A glass of water that falls, breaks, and comes back together
+
+A transparent glass, most of the way full of water, stands on a table. It empties, it
+tips, it falls, it breaks -- and then the whole thing runs backwards until it is standing
+full again. The run is a fixed length: the first frame is its opening moment and the last
+is near its end.
+
+The sequence, in order:
+
+- **It empties.** Water leaves the glass a drop at a time and what is inside goes down.
+  This is the long, slow part of the run, and it is where the glass gets its good look:
+  what the light does passing through it, what it does to whatever is behind it, and what
+  it throws onto the table around it.
+- **It leans.** The glass tips further and further over, slowly enough to watch, and what
+  it was throwing onto the table moves with it.
+- **It falls.** It goes over the edge and drops, and this part is quick.
+- **It breaks.** It comes apart into many small irregular pieces that fly, tumble and come
+  to rest on the surface below. Each piece moves on its own and each is a different shape.
+  The pieces are still glass: whatever the whole glass did to the light, its pieces do
+  too.
+- **It rests**, for a moment, so there is time to see what it has become.
+- **It runs backwards.** Every part of the sequence plays in reverse, in order, until the
+  glass is standing whole and full on the table exactly as it began. A true reversal, not
+  a fade and not a cut.
+
+The scene was also asked for:
+
+- Something with a pattern to it standing behind the glass, in view of the camera and big
+  enough to be seen past the glass on both sides, with enough going on that one part of it
+  can be told from another.
+- A camera placed so that the glass, the table it stands on, the surface it falls to and
+  the thing behind it are all in frame for the whole run. It may move, and if it does it
+  moves smoothly.
+- Lighting as the scene's other subject. A single flat light on a transparent object
+  wastes the scene.
+- How the glass breaks -- how many pieces, what shape each is, where each one goes --
+  drawn from the run's seeded random source, as is anything else that could vary, so a
+  different seed gives a visibly different run of the same scene.
+""",
+}
+
+
+def scene_statement(game: str) -> str:
+    """The stack-neutral statement of one scene, as the pack carries it.
+
+    RAISES for a scene this module cannot state, and that refusal is the point: a scene
+    field packed without one would hand `fidelity` a brief pointing at a file that is not
+    there, and the aspect would fall back to reading the subject out of the field -- the
+    exact narrowing this text was written to remove, restored silently (rule 7).
+    """
+    body = SCENE_STATEMENTS.get(game)
+    if not body:
+        raise RuntimeError(
+            f"{game}: no stack-neutral statement of this scene in "
+            f"field.SCENE_STATEMENTS (which states {sorted(SCENE_STATEMENTS)}). A scene "
+            f"pack must carry one -- `fidelity` is asked whether a strip reads as the "
+            f"scene it was asked for, and without the statement there is nothing in the "
+            f"pack saying what that was. Write it from eval/SCENES.md; do not pack a "
+            f"rendered prompt, which exists per stack and names the arm.")
+    return SCENE_STATEMENT_HEADER + body
 
 
 #: A skill written INTO the pack, because the judge runs with `cwd=pack` and
@@ -1042,12 +1228,17 @@ def pack_skill(knowingly_truncated: bool = False) -> str:
 def _brief(aspect: Aspect, game: str, geometry: dict[str, str] | None = None,
            knowingly_truncated: bool = False) -> str:
     anchors = "\n".join(f"  {k} = {v}" for k, v in sorted(aspect.anchors.items()))
+    # THE TASK CLASS, read once. A scene has no player and a game has no scene brief, so
+    # 3 things in this document depend on it: what the field is said to implement, who is
+    # said to be watching the frames, and whether `SCENE.md` is named.
+    scene = task_class(game) == "scene"
     blurbs = []
     for k in aspect.sees.split("+"):
         if k not in EVIDENCE_BLURB:
             continue
         text = EVIDENCE_BLURB[k].replace(
-            "{pack_path_example}", PACK_PATH_EXAMPLE[aspect.blind_language])
+            "{pack_path_example}", PACK_PATH_EXAMPLE[aspect.blind_language]).replace(
+            "{frames_audience}", FRAMES_AUDIENCE["scene" if scene else "game"])
         # THE COMPLETENESS NOTE IS CODE-ONLY because the thing that was capped was the
         # code pack: `files_dropped_for_length` counts source files, and frames,
         # telemetry and audio were never filled against a character budget. Attaching it
@@ -1055,6 +1246,17 @@ def _brief(aspect: Aspect, game: str, geometry: dict[str, str] | None = None,
         if k == "code":
             text = f"{text} {COMPLETENESS_NOTE[bool(knowingly_truncated)]}"
         blurbs.append(f"- {text}")
+    # THE SCENE STATEMENT IS EVIDENCE and is named here, because a file in the pack that
+    # the brief does not mention is a file the judge has no reason to open. It is keyed on
+    # the TASK CLASS rather than on the aspect: `build_pack` writes it for every scene
+    # pack, so every aspect asked of a scene has it, and no game brief may name it -- a
+    # game pack does not carry one, and every stored game round rebuilds byte-identically.
+    if scene:
+        blurbs.append(
+            f"- `{SCENE_STATEMENT_FILE}` states the scene every submission in this field "
+            f"was asked to build. It is the same text in every pack and it names no "
+            f"technology, so it tells you nothing about which submission is which. It "
+            f"describes what was ASKED FOR, not what any of them achieved.")
     evidence = "\n".join(blurbs)
     # Do not tell a judge to read code when the pack holds only frames. A stale
     # instruction to open files that are not there burns turns and produces "I could
@@ -1064,6 +1266,8 @@ def _brief(aspect: Aspect, game: str, geometry: dict[str, str] | None = None,
     closing = (" and ".join(looked_at[k] for k in aspect.sees.split("+")
                             if k in looked_at)
                + " before you score. You have the whole field; use it comparatively.")
+    if scene:
+        closing = f"Read `{SCENE_STATEMENT_FILE}` first. " + closing
 
     # TELL THE JUDGE THE GEOMETRY when it varies, and tell it that varying is allowed.
     # Only one stack's film recipe passes an explicit resolution, so the others capture at
@@ -1090,7 +1294,7 @@ dimension. Another specialist is judging those, and double-counting corrupts bot
 
 ## The field
 
-Eight submissions, `A/` through `H/`. All eight implement the same game from the
+Eight submissions, `A/` through `H/`. All eight implement the same {"scene" if scene else "game"} from the
 same brief. They were produced by different starting templates across four
 different technology stacks, two attempts each -- you are not told which is which,
 and you should not guess.
@@ -1160,6 +1364,53 @@ SCHEMA = {
 }
 
 
+
+def _provenance(aspect: Aspect, mapping: dict[str, Any], brief_text: str,
+                statement_sha: str | None, max_turns: int, budget: float
+                ) -> dict[str, Any]:
+    """WHAT THIS ROUND ACTUALLY SAW, so the question is answerable from the record.
+
+    A FUNCTION rather than a dict literal inside `run_field`, because everything else in
+    that function's tail needs a model call to exist and this does not. A field recorded
+    only on the far side of an 8-call spend is a field no offline check can assert;
+    `blurb_selftest.py` drives this directly.
+
+    Two fields were missing before this block existed and both mattered within days.
+    `run` was absent, so a round named only its game - and `g2_tetris3d` is 4 stored
+    fields in different states of repair. `files_opened` was absent until task 09 added it
+    for an unrelated reason, and it is the only thing that bounded #83.
+
+    The rescue that found the missing `run` worked by matching numbers quoted in `fun`'s
+    prose against stored telemetry. **That was luck about one aspect's writing style**:
+    `ux` or `idiomatic` quote no telemetry and would have been unresolvable. Prose is not
+    a substitute for a field.
+
+    So the test applied here is: if someone asks in a month what this round saw, which
+    parts of the answer are gone? Everything below was in that category.
+    """
+    return {
+        "sees": mapping.get("sees"),
+        "blind_language": aspect.blind_language,
+        # The BRIEF is not fixed. A geometry note was added to it on 2026-08-22, and
+        # rounds either side of that saw different text - which is why task 08 had to
+        # re-run seven repeats rather than top up four. Hashing it makes "same brief?"
+        # a comparison instead of an argument.
+        "brief_sha256": hashlib.sha256(brief_text.encode()).hexdigest()[:16],
+        "brief_chars": len(brief_text),
+        # THE SUBJECT A SCENE ROUND WAS SCORED AGAINST, and the brief hash cannot
+        # stand in for it: the brief NAMES `SCENE.md` and does not contain it, so
+        # two rounds with the same `brief_sha256` can have been read against two
+        # different statements. `None` for a game round, which is a third value and
+        # not "the statement was empty".
+        "scene_statement_sha256": statement_sha,
+        "evidence_counts": mapping.get("evidence_counts"),
+        "capture_geometry": mapping.get("capture_geometry"),
+        "knowingly_truncated": mapping.get("knowingly_truncated"),
+        "max_turns": max_turns,
+        "per_call_budget_usd": budget,
+        "judged_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+
 def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
               max_turns: int = 120, budget: float = 12.0,
               timeout_s: int = 3600) -> dict[str, Any]:
@@ -1177,7 +1428,13 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
       2. the aspect must be one this module defines, and must belong to the task class
          the pack was built for -- `applicability()`, ahead of `ASPECTS[aspect_id]`;
       3. the pack must have been built for this aspect's evidence (`sees`);
-      4. the pack must RECORD whether it is complete. A missing key read as falsy would
+      4. a SCENE pack's `SCENE.md` must be on disk AND be this scene's statement.
+         `build_pack` refuses a scene it cannot state, but that guards the packer and
+         this spends the field -- a pack is built once and judged later, from a directory
+         anything may have touched, and an empty or wrong-scene statement passes a
+         presence test. It is asked BEFORE the completeness key so that a pack failing
+         both reports the statement, which is the one a selftest can distinguish;
+      5. the pack must RECORD whether it is complete. A missing key read as falsy would
          assert completeness about a pack nothing on disk describes (#62).
 
     Returns the parsed judge output with `usable: True`, or a refusal naming which of
@@ -1217,6 +1474,54 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         return {"usable": False,
                 "error": f"pack was built with sees={built_for!r} but aspect "
                          f"{aspect_id!r} needs sees={aspect.sees!r}"}
+    # THE SCENE STATEMENT ON DISK MUST BE THIS SCENE'S, checked HERE and not only where
+    # it is written. `build_pack` refuses a scene it cannot state, but that guard is on
+    # the packer and this is the spender: a pack is built once and judged later, possibly
+    # from a copy, and the brief this function is about to write tells the judge to read
+    # `SCENE.md` first.
+    #
+    # EXISTENCE IS NOT THE RESOURCE. An empty file, an edited one, or the OTHER scene's
+    # statement all pass a presence test, and each buys a judge invocation that scores
+    # the whole field against the wrong subject - which is worse than the narrowing the
+    # statement removed, because it looks like an answer. So the content is compared, and every
+    # failure to establish it - unreadable, unstatable, unequal - is a refusal (rule 7,
+    # rule 13).
+    #
+    # NO ESCAPE FLAG. The comparison establishes that the file differs; it does not
+    # establish HOW, and it does not need to (rule 2) - a stale pack, an edited file and
+    # a statement changed since packing are one observable state, and re-packing answers
+    # all three. There are 0 stored scene packs, so there is nothing to grandfather and
+    # an escape would be a fail-open channel with no measured need.
+    statement_sha: str | None = None
+    if task_class(mapping["game"]) == "scene":
+        try:
+            expected = scene_statement(mapping["game"])
+            on_disk = (pack / SCENE_STATEMENT_FILE).read_text(encoding="utf-8")
+        # `UnicodeError` is NOT covered by `OSError`: `read_text` raises
+        # `UnicodeDecodeError`, a `ValueError`, on a file that is not UTF-8. Uncaught it
+        # is a traceback where every sibling here is a stored `usable: False` record.
+        except (OSError, UnicodeError, RuntimeError) as e:
+            return {"usable": False,
+                    "error": f"this pack's {SCENE_STATEMENT_FILE} could not be read "
+                             f"against scene {mapping['game']!r}: {e}. Every brief for "
+                             f"a scene aspect tells the judge to read it first, so "
+                             f"{aspect_id!r} would score each strip against a subject "
+                             f"recovered from the field. Re-pack the run (field.py "
+                             f"pack, or a field_sweep round) rather than judging this "
+                             f"pack."}
+        if on_disk != expected:
+            return {"usable": False,
+                    "error": f"this pack's {SCENE_STATEMENT_FILE} is not the statement "
+                             f"of {mapping['game']!r} that this checkout holds "
+                             f"({len(on_disk)} chars on disk against {len(expected)}). "
+                             f"A judge reading it would score every strip against some "
+                             f"other subject, which is worse than reading none. "
+                             f"Re-pack the run (field.py pack, or a field_sweep round) "
+                             f"rather than judging this pack."}
+        # RECORDED, not merely checked. The brief NAMES `SCENE.md` and does not contain
+        # it, so `brief_sha256` cannot answer "what subject was this round scored
+        # against?" - the question #83 could not answer about what a judge had read.
+        statement_sha = hashlib.sha256(on_disk.encode()).hexdigest()[:16]
     # HOW MUCH OF ITSELF EACH SUBMISSION IS BEING SHOWN IS A THIRD VALUE, not a boolean.
     # `mapping.get("knowingly_truncated")` returning None means the pack was built before
     # `build_pack` recorded it, and a missing key read as falsy would have the brief
@@ -1319,37 +1624,10 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         # record; `run_field` simply never carried it into the stored round.
         "usable": True, "aspect": aspect_id, "game": mapping["game"],
         "run": mapping.get("run"),
-        # PROVENANCE: what this round actually SAW, so the question "what exactly did it
-        # see?" is answerable from the record instead of reconstructed.
-        #
-        # Two fields were missing before this and both mattered within days. `run` was
-        # absent, so a round named only its game - and `g2_tetris3d` is four stored fields
-        # in different states of repair. `files_opened` was absent until task 09 added it
-        # for an unrelated reason, and it is the only thing that bounded #83.
-        #
-        # The rescue that found the missing `run` worked by matching numbers quoted in
-        # `fun`'s prose against stored telemetry. **That was luck about one aspect's
-        # writing style**: `ux` or `idiomatic` quote no telemetry and would have been
-        # unresolvable. Prose is not a substitute for a field.
-        #
-        # So the test applied here is: if someone asks in a month what this round saw,
-        # which parts of the answer are gone? Everything below was in that category.
-        "provenance": {
-            "sees": mapping.get("sees"),
-            "blind_language": aspect.blind_language,
-            # The BRIEF is not fixed. A geometry note was added to it on 2026-08-22, and
-            # rounds either side of that saw different text - which is why task 08 had to
-            # re-run seven repeats rather than top up four. Hashing it makes "same brief?"
-            # a comparison instead of an argument.
-            "brief_sha256": hashlib.sha256(brief_text.encode()).hexdigest()[:16],
-            "brief_chars": len(brief_text),
-            "evidence_counts": mapping.get("evidence_counts"),
-            "capture_geometry": mapping.get("capture_geometry"),
-            "knowingly_truncated": mapping.get("knowingly_truncated"),
-            "max_turns": max_turns,
-            "per_call_budget_usd": budget,
-            "judged_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-        },
+        # PROVENANCE: what this round actually SAW. `_provenance` above holds it and the
+        # reasoning behind every field in it.
+        "provenance": _provenance(aspect, mapping, brief_text,
+                                 statement_sha, max_turns, budget),
         "order_seed": mapping["order_seed"], "model": model,
         "cost_usd": data.get("total_cost_usd"),
         "mapping": mapping["mapping"],
