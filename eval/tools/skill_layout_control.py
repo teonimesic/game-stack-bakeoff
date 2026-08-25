@@ -1,16 +1,59 @@
 #!/usr/bin/env python3
-"""Pin the skill-location gate in BOTH directions, on the live tree.
+"""Pin the skill-location gate in BOTH directions, on the live tree, crash-safely.
 
 A gate relaxed to accept symlinks that also accepts copies has been deleted, not moved.
 This plants each way the layout can break, asserts `docstat.py --sweep` goes RED, removes
-the plant, and asserts it goes GREEN again — so a green sweep is evidence rather than a
+the plant, and asserts it goes GREEN again - so a green sweep is evidence rather than a
 silence that a mis-aimed check would also produce.
 
 Exit status is read UNPIPED from `subprocess.run` (AGENTS.md rule 3).
 
-    python3 eval/tools/skill_layout_control.py
+    python3 eval/tools/skill_layout_control.py             # the five plants, ~2 minutes
+    python3 eval/tools/skill_layout_control.py --repair     # undo an interrupted run
+    python3 eval/tools/skill_layout_control.py --selftest   # offline pins, on a fixture repo
+
+THE PLANTS GO INTO THE REAL WORKING TREE, SO AN INTERRUPTED RUN IS A REPOSITORY STATE.
+A 2-minute Bash timeout killed this at exit 143 and left `.claude/skills` a real directory
+of copies; the next four gate runs were exit 1 with ten rows blaming the skills, for a
+reason that had nothing to do with the change under test, and the repair was written down
+nowhere (`tasks/147`, `tasks/150`). `docstat.py --selftest` avoids the whole class by
+mutating copies in memory. A symlink plant cannot be done in memory, so this file buys the
+same property three other ways:
+
+  RESTORE FROM THE INDEX, NEVER FROM A VARIABLE. `repair()` deletes whatever sits at each
+  planted path and runs `git checkout --` on the tracked ones. A restore held in memory dies
+  with the process holding it; the index outlives the process, so one call repairs a live run
+  between plants AND a tree a previous run abandoned. That is also why there is no separate
+  recovery path to rot: an ordinary run exercises the crash repair five times.
+
+  THE RUN DECLARES ITSELF WHILE IT IS PLANTED. A state file in the git directory - never in
+  the work tree, so it cannot reach `git status`, `.gitignore` or any document corpus -
+  records the paths this run may touch. Written before the first plant, removed after the
+  last restore, so its presence means a run is in flight or died in flight.
+
+  IT SAYS WHAT TO DO. A leftover the state file does not explain is not silently deleted:
+  the tool names the repair command and the interrupted-run hypothesis, and refuses.
+
+SIGTERM, SIGINT and SIGHUP restore before dying, so an ordinary timeout leaves nothing
+behind at all. SIGKILL cannot be caught - that is what the state file is for.
+
+EVERY LINE IS FLUSHED. The interrupted run behind this design wrote a log file that was
+completely EMPTY at exit 143: stdout is block-buffered into a file, so a killed run discards
+the very output that would have named the plant in place. What an instrument did is worth
+more than the confidence you had in it (AGENTS.md), and only if it survives the instrument.
+
+`skill_layout_selftest.py` pins all of it offline, on a throwaway git repository, with a
+real SIGTERM and a real SIGKILL rather than a simulated failure.
 """
-import os, shutil, subprocess, sys
+import contextlib
+import fcntl
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -18,10 +61,309 @@ sys.path.insert(0, HERE)
 from docstat import SKILLS_REAL, SKILLS_LINKS  # the address, not a second spelling of it
 
 SWEEP = [sys.executable, os.path.join(HERE, "docstat.py"), "--sweep"]
+STATE_NAME = "skill_layout_control_state.json"
+LOCK_NAME = "skill_layout_control.lock"
+SELF = "python3 eval/tools/skill_layout_control.py"
 
 
-def sweep() -> int:
-    return subprocess.run(SWEEP, cwd=ROOT, capture_output=True, text=True).returncode
+def say(*a):
+    """Every line, immediately. A killed run's log is the only account of where it died."""
+    print(*a, flush=True)
+
+
+def sweep(root: str = ROOT) -> tuple[int, str]:
+    """Exit status and text of one `docstat.py --sweep`, read unpiped."""
+    r = subprocess.run(SWEEP, cwd=root, capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
+
+
+# ---------------------------------------------------------------------------------------
+# The state file lives in the GIT DIRECTORY, resolved per work tree.
+#
+# Not in the work tree, for three reasons that each rule out the obvious placement: a root
+# dotfile would show up in `git status` and could be committed; ignoring it would need a
+# `.gitignore` entry, and that file's own header says every entry is build output or
+# oversized evidence and this is neither; and a per-checkout fact belongs in the per-checkout
+# directory. `--absolute-git-dir` returns a linked worktree's PRIVATE directory, so two
+# agents planting in two worktrees cannot read each other's state.
+# ---------------------------------------------------------------------------------------
+def _git_dir(root: str = ROOT) -> str:
+    r = subprocess.run(["git", "rev-parse", "--absolute-git-dir"],
+                       cwd=root, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"not a git checkout: {root}\n{r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def state_path(root: str = ROOT) -> str:
+    return os.path.join(_git_dir(root), STATE_NAME)
+
+
+def lock_path(root: str = ROOT) -> str:
+    return os.path.join(_git_dir(root), LOCK_NAME)
+
+
+class Busy(RuntimeError):
+    """Another run of this tool holds this work tree."""
+
+
+@contextlib.contextmanager
+def hold(root: str = ROOT):
+    """Hold this work tree exclusively for the whole run, with an OS lock.
+
+    THE LOCK DECIDES OWNERSHIP; THE STATE FILE ONLY DESCRIBES A CRASH. The first version of
+    this asked whether the pid in the state file was alive, and that is two defects in one:
+    two runs both read `clean` before either had written a state file and both went on to
+    plant, and a reused pid names an unrelated process. Raised by CodeRabbit on PR #28, and it
+    is AGENTS.md rule 2 - a pid read out of an artifact is the artifact's account of a
+    process, not the process.
+
+    `flock` has neither problem. Acquisition is atomic, so there is no window between
+    classifying the tree and owning it; and the kernel releases it when the holder dies,
+    SIGKILL included, so a crashed run leaves the lock free and its state file behind - which
+    is exactly the division of labour: the lock says who owns the tree NOW, the state file
+    says what the last owner was in the middle of.
+    """
+    path = lock_path(root)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            try:
+                held = os.read(fd, 200).decode(errors="replace").strip()
+            except OSError:
+                held = ""
+            # NEVER "delete the lock file". `flock` is held on the open file description's
+            # inode: unlinking the path leaves a live holder's lock exactly where it was, and
+            # the next run creates a NEW inode, locks that, and plants into the same tree -
+            # the failure this lock exists to prevent, reached by following our own advice.
+            # There is nothing to clean up by hand, ever. CodeRabbit, PR #28.
+            raise Busy(
+                f"another run holds this work tree ({held or 'holder unknown'}). Two runs "
+                f"planting into one tree read each other's plants as leftovers. Wait for it "
+                f"to finish - the kernel releases {path} when the holder exits, SIGKILL "
+                f"included, so there is nothing to clean up by hand.") from exc
+        os.ftruncate(fd, 0)
+        os.write(fd, f"pid {os.getpid()} since {time.strftime('%Y-%m-%dT%H:%M:%S')}\n".encode())
+        yield fd
+    finally:
+        os.close(fd)                                 # closing releases the flock
+
+
+def write_state(root: str = ROOT) -> str:
+    p = state_path(root)
+    tmp = p + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump({"pid": os.getpid(), "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                   "creates": [list(pair) for pair in CREATED_FILES],
+                   "from_index": list(FROM_INDEX_PATHS)},
+                  fh, indent=2)
+    os.replace(tmp, p)          # one writer, atomically (eval/AGENTS.md)
+    return p
+
+
+def read_state(root: str = ROOT) -> dict | None:
+    """The record, `{}` if it is unreadable, `None` if there is none.
+
+    Unreadable is not absent. A truncated write still means a run was in flight, and
+    collapsing the two would send the reader down the "something else owns these paths"
+    branch for a file this tool wrote itself.
+    """
+    p = state_path(root)
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p) as fh:
+            return json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def clear_state(root: str = ROOT) -> None:
+    p = state_path(root)
+    if os.path.exists(p):
+        os.unlink(p)
+
+
+# ---------------------------------------------------------------------------------------
+# Repair
+# ---------------------------------------------------------------------------------------
+def _rm(p: str) -> None:
+    if os.path.islink(p) or os.path.isfile(p):
+        os.unlink(p)
+    elif os.path.isdir(p):
+        shutil.rmtree(p)
+
+
+def _differs_from_index(root: str, rel: str) -> bool:
+    """Does the work tree at `rel` disagree with the index?
+
+    Deliberately NOT "is it a symlink resolving to SKILLS_REAL" - that is the subject's own
+    expectation, and a control that imports its expectation from its subject is not a control
+    (AGENTS.md rule 12's corollary). `git status` is an independent second statement of the
+    same fact, and it is the one `git checkout --` restores against.
+    """
+    r = subprocess.run(["git", "status", "--porcelain", "--", rel],
+                       cwd=root, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"git status failed on {rel}: {r.stderr.strip()}")
+    return bool(r.stdout.strip())
+
+
+def assert_inside(root: str, rel: str) -> None:
+    """Refuse to plant or prune through a SYMLINKED path component.
+
+    Every path this tool writes or removes is spelled relative to `root`, and a symlink
+    anywhere in that spelling takes the operation somewhere else: `os.makedirs` follows a
+    `.codex/skills -> /elsewhere` and writes the plant outside the repository, after which the
+    parent walk removes a directory the repository does not contain. The address is an input
+    to the check (AGENTS.md rule 12) and a symlink rewrites it silently, so the components are
+    checked rather than assumed. Raised by CodeRabbit on PR #28.
+
+    Refusing is right rather than resolving: the shipped layout has no symlink on any of these
+    paths - `docstat.py --sweep` must be GREEN before a plant runs, and it requires
+    `.claude/skills` to be a symlink to a REAL `.agents/skills` - so one here is a tree nobody
+    has established the shape of, and this tool is not the thing that should decide about it.
+    """
+    p = os.path.abspath(root)
+    for part in rel.replace(os.sep, "/").split("/"):
+        p = os.path.join(p, part)
+        if os.path.islink(p):
+            raise RuntimeError(
+                f"{rel}: '{os.path.relpath(p, root)}' is a symlink to "
+                f"'{os.readlink(p)}'. Refusing to plant or prune through it - the operation "
+                f"would land outside {root}. Resolve or remove it first.")
+
+
+def _unplant_file(root: str, file_rel: str, stop_rel: str) -> list[str]:
+    """Remove one planted FILE, then only the directories it left empty, up to `stop_rel`.
+
+    THE PLANT IS A FILE; THE DIRECTORIES ARE SCAFFOLDING, AND THEY MAY NOT BE OURS.
+    `rm -rf .codex` was the obvious undo and it is wrong in the one case that matters: a
+    `.codex/` tree somebody else owns is deleted wholesale by a repair the reader was told to
+    run. So the file goes, and a parent goes only while it is EMPTY - anything still holding
+    content stops the walk, whoever put it there. Raised by CodeRabbit on PR #28.
+
+    The residue is a directory that was empty before the plant and is removed after it. An
+    empty directory carries no content and no git object, so nothing is lost; a directory
+    with anything in it survives, which is the property being bought.
+    """
+    assert_inside(root, file_rel)
+    acted = []
+    fp = os.path.join(root, file_rel)
+    if os.path.lexists(fp):
+        # THE LEAF MUST BE A REGULAR FILE. `_rm` would `rmtree` a directory standing where the
+        # plant's file belongs, and that directory is not something this tool put there.
+        if os.path.islink(fp) or not os.path.isfile(fp):
+            what = "a symlink" if os.path.islink(fp) else "a directory"
+            raise RuntimeError(
+                f"{file_rel}: expected the regular file a plant writes, found {what}. "
+                f"Refusing to remove it.")
+        os.unlink(fp)
+        acted.append(f"rm -f {file_rel}")
+    stop = os.path.abspath(os.path.join(root, stop_rel))
+    d = os.path.dirname(os.path.abspath(fp))
+    while os.path.isdir(d) and os.path.commonpath([d, stop]) == stop:
+        if os.listdir(d):
+            break                                    # not ours, or not empty: stop here
+        os.rmdir(d)
+        acted.append(f"rmdir {os.path.relpath(d, root)}")
+        if d == stop:
+            break
+        d = os.path.dirname(d)
+    return acted
+
+
+def leftovers(root: str = ROOT) -> list[str]:
+    """Every path a plant can be left at. Empty means the tree carries no plant."""
+    out = [f for f, _ in CREATED_FILES if os.path.lexists(os.path.join(root, f))]
+    out += [rel for rel in FROM_INDEX_PATHS if _differs_from_index(root, rel)]
+    return out
+
+
+def repair(root: str = ROOT) -> list[str]:
+    """Undo every plant, from the index. Idempotent, and returns what it actually did."""
+    acted = []
+    for file_rel, stop_rel in CREATED_FILES:
+        acted += _unplant_file(root, file_rel, stop_rel)
+    for rel in FROM_INDEX_PATHS:
+        if not _differs_from_index(root, rel):
+            continue
+        p = os.path.join(root, rel)
+        if os.path.lexists(p):
+            _rm(p)
+        r = subprocess.run(["git", "checkout", "--", rel],
+                           cwd=root, capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"git checkout -- {rel} failed: {r.stderr.strip()}")
+        acted.append(f"rm -rf {rel} && git checkout -- {rel}")
+    return acted
+
+
+def recovery_verdict(root: str = ROOT) -> tuple[str, list[str], dict | None]:
+    """What a run must do about the tree it found, ONCE IT HOLDS THE LOCK.
+
+    Three values. Separated from `cmd_run` so the decision can be pinned without a sweep.
+    Whether another run owns the tree is not asked here - `hold()` answers that, atomically,
+    before this is ever called.
+
+    `resume` a leftover this tool's own state file accounts for. We hold the lock, so the
+             process that wrote it is gone: it died mid-plant, and this run repairs it.
+    `refuse` a leftover nothing accounts for. Not deleted for the reader: a path we cannot
+             prove we created is a path something else may own.
+    `clean`  nothing planted.
+    """
+    stale = leftovers(root)
+    if not stale:
+        return "clean", [], None
+    state = read_state(root)
+    return ("refuse" if state is None else "resume"), stale, state
+
+
+def repair_advice(rows_above: bool = False) -> str:
+    """The repair, spelled out.
+
+    `rows_above` is set only where a `--sweep` has just printed its rows, because that is the
+    reader's actual problem: ten rows naming `SKILL.md` files send them to the skills, and the
+    skills are not what is broken. Printing that sentence where no rows were printed would
+    point at output that is not there.
+    """
+    by_hand = "; ".join([f"rm -f {f}" for f, _ in CREATED_FILES]
+                        + [f"rm -rf {r} && git checkout -- {r}" for r in FROM_INDEX_PATHS])
+    lead = ("  LIKELY CAUSE: a previous skill_layout_control.py run was killed between\n"
+            "  planting a breakage and restoring it.")
+    if rows_above:
+        lead += ("\n  The rows above blame the skills; the skills are fine and the working\n"
+                 "  tree is not.")
+    return (f"{lead}\n"
+            f"  REPAIR, one command:  {SELF} --repair\n"
+            f"  or by hand:           {by_hand}")
+
+
+# ---------------------------------------------------------------------------------------
+# The plants
+# ---------------------------------------------------------------------------------------
+def _copy_skill_to(root: str, file_rel: str) -> None:
+    """Write a plant's SKILL.md at `file_rel`, and refuse anything already standing there.
+
+    `shutil.copy` onto an existing DIRECTORY writes `SKILL.md/SKILL.md` inside it, so a plant
+    aimed at a foreign `SKILL.md/` directory silently modifies its contents - and `repair()`
+    then correctly refuses to remove that directory, leaving the modification behind for good.
+    Refusing ANY existing leaf, not merely a directory, because a regular file already there
+    is somebody's and removing it afterwards would be the same loss one step later. Raised by
+    CodeRabbit on PR #28; `leftovers()` reports the same condition, so a run never reaches
+    here with the leaf occupied.
+    """
+    assert_inside(root, file_rel)
+    dest = os.path.join(root, file_rel)
+    if os.path.lexists(dest):
+        raise RuntimeError(
+            f"{file_rel}: something is already there. Refusing to plant over it - "
+            f"this tool would then remove it as if it had written it.")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    shutil.copy(os.path.join(root, SKILLS_REAL, "tasks", "SKILL.md"), dest)
+
 
 
 class PlantRealCopy:
@@ -30,17 +372,15 @@ class PlantRealCopy:
     This is the #99 defect itself. If the gate cannot see this, the gate is gone.
     """
     name = "a real SKILL.md copied to .codex/skills/<name>/"
+    creates = ((".codex/skills/tasks/SKILL.md", ".codex"),)
+    from_index = ()
 
-    def __init__(self):
-        self.dir = os.path.join(ROOT, ".codex", "skills", "tasks")
+    def __init__(self, root: str = ROOT):
+        self.root = root
+        self.dir = os.path.join(root, ".codex", "skills", "tasks")
 
     def plant(self):
-        os.makedirs(self.dir, exist_ok=True)
-        shutil.copy(os.path.join(ROOT, SKILLS_REAL, "tasks", "SKILL.md"),
-                    os.path.join(self.dir, "SKILL.md"))
-
-    def remove(self):
-        shutil.rmtree(os.path.join(ROOT, ".codex"))
+        _copy_skill_to(self.root, self.creates[0][0])
 
 
 class PlantDeepCopy:
@@ -50,17 +390,15 @@ class PlantDeepCopy:
     "is this path a prefix of the root" would pass it. The grandparent test is what fails it.
     """
     name = "a real SKILL.md nested one level too deep inside the authoritative root"
+    creates = ((f"{SKILLS_REAL}/tasks/extra/SKILL.md", f"{SKILLS_REAL}/tasks/extra"),)
+    from_index = ()
 
-    def __init__(self):
-        self.dir = os.path.join(ROOT, SKILLS_REAL, "tasks", "extra")
+    def __init__(self, root: str = ROOT):
+        self.root = root
+        self.dir = os.path.join(root, SKILLS_REAL, "tasks", "extra")
 
     def plant(self):
-        os.makedirs(self.dir, exist_ok=True)
-        shutil.copy(os.path.join(ROOT, SKILLS_REAL, "tasks", "SKILL.md"),
-                    os.path.join(self.dir, "SKILL.md"))
-
-    def remove(self):
-        shutil.rmtree(self.dir)
+        _copy_skill_to(self.root, self.creates[0][0])
 
 
 class BreakPointer:
@@ -68,20 +406,17 @@ class BreakPointer:
 
     The nine skills are still present and still at the authoritative address; every other
     check reads clean; and no agent can load one, because Claude Code does not discover
-    `.agents/skills` on its own. Measured, not assumed — see `_check_skill_location`.
+    `.agents/skills` on its own. Measured, not assumed - see `_check_skill_location`.
     """
     name = "the .claude/skills pointer deleted (skills present but unreachable)"
+    creates = ()
+    from_index = SKILLS_LINKS
 
-    def __init__(self):
-        self.link = os.path.join(ROOT, SKILLS_LINKS[0])
-        self.target = None
+    def __init__(self, root: str = ROOT):
+        self.link = os.path.join(root, SKILLS_LINKS[0])
 
     def plant(self):
-        self.target = os.readlink(self.link)
         os.unlink(self.link)
-
-    def remove(self):
-        os.symlink(self.target, self.link)
 
 
 class DanglingPointer:
@@ -91,71 +426,182 @@ class DanglingPointer:
     entry, git stores a 120000 blob, and it resolves to a path that is not there.
     """
     name = "the .claude/skills pointer aimed at a target that does not exist"
+    creates = ()
+    from_index = SKILLS_LINKS
 
-    def __init__(self):
-        self.link = os.path.join(ROOT, SKILLS_LINKS[0])
-        self.target = None
+    def __init__(self, root: str = ROOT):
+        self.link = os.path.join(root, SKILLS_LINKS[0])
 
     def plant(self):
-        self.target = os.readlink(self.link)
         os.unlink(self.link)
         os.symlink("../.agents/skills-typo", self.link)
-
-    def remove(self):
-        os.unlink(self.link)
-        os.symlink(self.target, self.link)
 
 
 class PointerAsRealCopy:
     """The pointer replaced by a real directory holding real copies.
 
-    This is exactly what a git merge of a branch forked before the move would produce, and
-    it is how the mirror came back on 2026-08-23 in the first place.
+    This is exactly what a git merge of a branch forked before the move would produce, it is
+    how the mirror came back on 2026-08-23 in the first place, and it is the shape an
+    interrupted run of this very file leaves in the tree (`tasks/147`, `tasks/150`).
     """
     name = "the .claude/skills pointer replaced by a real directory of copies"
+    creates = ()
+    from_index = SKILLS_LINKS
 
-    def __init__(self):
-        self.link = os.path.join(ROOT, SKILLS_LINKS[0])
-        self.target = None
+    def __init__(self, root: str = ROOT):
+        self.root = root
+        self.link = os.path.join(root, SKILLS_LINKS[0])
 
     def plant(self):
-        self.target = os.readlink(self.link)
         os.unlink(self.link)
-        shutil.copytree(os.path.join(ROOT, SKILLS_REAL), self.link, symlinks=False)
-
-    def remove(self):
-        shutil.rmtree(self.link)
-        os.symlink(self.target, self.link)
+        shutil.copytree(os.path.join(self.root, SKILLS_REAL), self.link, symlinks=False)
 
 
 PLANTS = [PlantRealCopy, PlantDeepCopy, BreakPointer, DanglingPointer, PointerAsRealCopy]
 
+# The union of what any plant touches, DERIVED from the plants rather than restated beside
+# them: a second list is a second source of truth, and a plant whose path was left out of it
+# would be exactly the un-repaired leftover this file exists to prevent.
+CREATED_FILES = tuple(dict.fromkeys(pair for cls in PLANTS for pair in cls.creates))
+FROM_INDEX_PATHS = tuple(dict.fromkeys(p for cls in PLANTS for p in cls.from_index))
 
-def main() -> int:
-    base = sweep()
-    print(f"{'baseline, no plant':<62} exit={base} {'GREEN' if base == 0 else 'RED'}")
+
+# ---------------------------------------------------------------------------------------
+# Signals
+# ---------------------------------------------------------------------------------------
+_ACTIVE_ROOT: str | None = None
+_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+def _on_signal(signum, _frame):
+    name = signal.Signals(signum).name
+    if _ACTIVE_ROOT:
+        try:
+            acted = repair(_ACTIVE_ROOT)
+            clear_state(_ACTIVE_ROOT)
+            say(f"\n{name}: restored the working tree before dying"
+                f" ({'; '.join(acted) if acted else 'nothing was planted'})")
+        except Exception as exc:                     # never swallow it: say what is left
+            say(f"\n{name}: RESTORE FAILED - {exc}\n{repair_advice()}")
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)                     # die OF the signal, not of exit(1)
+
+
+def install_handlers(root: str) -> None:
+    """Arm the restore. Call BEFORE the first plant, never after."""
+    global _ACTIVE_ROOT
+    _ACTIVE_ROOT = root
+    for sig in _SIGNALS:
+        signal.signal(sig, _on_signal)
+
+
+# ---------------------------------------------------------------------------------------
+def cmd_repair(root: str = ROOT) -> int:
+    # Under the lock: a repair during someone else's run deletes their plant underneath them
+    # and leaves them measuring a restored tree they believe is planted.
+    try:
+        with hold(root):
+            return _repair_held(root)
+    except Busy as exc:
+        say(f"REFUSING TO REPAIR: {exc}")
+        return 1
+
+
+def _repair_held(root: str) -> int:
+    acted = repair(root)
+    clear_state(root)
+    for a in acted:
+        say(f"  {a}")
+    say(f"{len(acted)} planted path(s) undone" if acted
+        else "nothing to repair: no plant is in the tree")
+    return 0
+
+
+def cmd_run(root: str = ROOT, plants=None) -> int:
+    """The normal entry point: take the lock, recover, plant, restore.
+
+    `plants` is a SEAM, not a hook. `skill_layout_selftest.py` passes a stub so that it can
+    drive THIS function - its lock acquisition and its stale-run recovery - against a fixture
+    without the five sweeps, which take two minutes and read the real document corpus rather
+    than the fixture's. Without it the selftest could only reach the pieces, and a change
+    removing the lock from here, or the recovery, would leave every pin green (CodeRabbit,
+    PR #28). It is an argument rather than a patch on the module, so what a test replaced is
+    visible at the call site.
+    """
+    try:
+        with hold(root):
+            return _run_held(root, plants or _run_plants)
+    except Busy as exc:
+        say(f"REFUSING TO RUN: {exc}")
+        return 1
+
+
+def _run_held(root: str, plants) -> int:
+    verdict, stale, state = recovery_verdict(root)
+    if verdict == "refuse":
+        say("REFUSING TO RUN: the tree already carries a plant and no state file "
+            "explains it.")
+        for rel in stale:
+            say(f"  {rel}")
+        say("  Either a run from before this tool recorded its state died mid-plant, or\n"
+            "  something else owns these paths - so they are not deleted for you.")
+        say(repair_advice())
+        return 1
+    if verdict == "resume":
+        say(f"a previous run died mid-plant (state file from pid {state.get('pid', '?')}, "
+            f"started {state.get('started', '?')}) - repairing first:")
+        for a in repair(root):
+            say(f"  {a}")
+        clear_state(root)
+
+    write_state(root)
+    install_handlers(root)
+    try:
+        return plants(root)
+    finally:
+        repair(root)
+        clear_state(root)
+
+
+def _run_plants(root: str) -> int:
+    base, text = sweep(root)
+    say(f"{'baseline, no plant':<62} exit={base} {'GREEN' if base == 0 else 'RED'}")
     if base != 0:
-        print("  the tree is already red; fix that before trusting anything below")
+        say("  the tree is already red; fix that before trusting anything below")
+        if "a real skill file outside" in text or "must be a symlink to" in text:
+            say(repair_advice(rows_above=True))
+        else:
+            say("  the rows do not name the skill layout, so this is a documentation "
+                "defect rather than an abandoned plant. Run docstat.py --sweep to read it.")
         return 1
 
     bad = 0
     for cls in PLANTS:
-        p = cls()
+        p = cls(root)
         p.plant()
         try:
-            red = sweep()
+            red, _ = sweep(root)
         finally:
-            p.remove()
-        back = sweep()
+            repair(root)
+        back, _ = sweep(root)
         ok = (red != 0) and (back == 0)
         bad += not ok
-        print(f"{p.name:<62} exit={red} {'RED' if red else 'GREEN(!)'} "
-              f"-> restored exit={back} {'GREEN' if back == 0 else 'RED(!)'} "
-              f"{'ok' if ok else 'FAILED'}")
+        say(f"{p.name:<62} exit={red} {'RED' if red else 'GREEN(!)'} "
+            f"-> restored exit={back} {'GREEN' if back == 0 else 'RED(!)'} "
+            f"{'ok' if ok else 'FAILED'}")
 
-    print(f"\n{len(PLANTS) - bad}/{len(PLANTS)} plants caught and cleanly restored")
+    say(f"\n{len(PLANTS) - bad}/{len(PLANTS)} plants caught and cleanly restored")
     return 1 if bad else 0
 
 
+def main(argv: list[str]) -> int:
+    if "--repair" in argv:
+        return cmd_repair()
+    if "--selftest" in argv:
+        from skill_layout_selftest import cmd_selftest
+        return cmd_selftest()
+    return cmd_run()
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
