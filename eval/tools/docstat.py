@@ -2025,58 +2025,74 @@ def _regime_ordinal_pins(verbose: bool = False) -> list[str]:
     thing on an input it mishandled, which only a variant asks (AGENTS.md rule 15). So the
     green cases are compound ordinals, an ordinal cited in PROSE beside a heading, and one
     inside a fence.
+
+    EVERY RED CASE NAMES THE DIAGNOSTIC IT EXPECTS, and that is not tidiness. This function
+    has four distinct failure messages, and one of them -- "no comparability-break headings
+    parsed" -- fires whenever the scan finds nothing at all. A red pin asserting only
+    `bool(got)` therefore passes when the parser has stopped recognising headings entirely,
+    which is the exact defect the scan exists to notice. `expect` is the fragment the case
+    is really about, so a pin can only go green for its own reason.
     """
     out: list[str] = []
 
-    def case(name: str, text: str, expect_red: bool):
+    def case(name: str, text: str, expect: str | None):
+        """`expect` is a required fragment of the diagnostic, or None meaning silent."""
         got = _regime_ordinal_problems(text)
-        good = bool(got) == expect_red
+        if expect is None:
+            good, want = not got, "0 hit(s)"
+        else:
+            good, want = any(expect in g for g in got), f"a hit saying {expect!r}"
         if verbose:
             print(f"{'PASS' if good else 'FAIL'}  {name}: {len(got)} hit(s), "
-                  f"expected {'>=1' if expect_red else '0'}")
+                  f"expected {want}")
         if not good:
-            out.append(f"the regime-ordinal pin '{name}' came out wrong: {len(got)} hit(s), "
-                       f"expected {'>=1' if expect_red else '0'} - {got[:1]}")
+            out.append(f"the regime-ordinal pin '{name}' came out wrong: {len(got)} "
+                       f"hit(s), expected {want} - {got[:2]}")
+
+    _COLLISION = "the ordinal is the citation key"
+    _GAP = "a gap means a citation resolves to nothing"
+    _UNKNOWN = "is not an ordinal this check knows"
+    _NOTHING = "this check is reading nothing"
 
     head = os.path.join(ROOT, "eval", "RUNS.md")
     if os.path.exists(head):
         case("green, eval/RUNS.md at HEAD",
-             open(head, encoding="utf-8", errors="replace").read(), False)
+             open(head, encoding="utf-8", errors="replace").read(), None)
 
     run = ["## a FIRST comparability break", "## a SECOND comparability break"]
-    case("green, two consecutive ordinals", "\n".join(run) + "\n", False)
+    case("green, two consecutive ordinals", "\n".join(run) + "\n", None)
     case("red, the same ordinal heads two sections",
-         "\n".join(run + ["## another SECOND comparability break"]) + "\n", True)
+         "\n".join(run + ["## another SECOND comparability break"]) + "\n", _COLLISION)
     case("red, a gap in the middle",
-         "\n".join(run + ["## a FOURTH comparability break"]) + "\n", True)
+         "\n".join(run + ["## a FOURTH comparability break"]) + "\n", _GAP)
     case("red, an ordinal past the end of ORDINALS",
-         "\n".join(run + ["## a FIFTY-FIRST comparability break"]) + "\n", True)
+         "\n".join(run + ["## a FIFTY-FIRST comparability break"]) + "\n", _UNKNOWN)
     case("red, a heading with no ordinal at all",
-         "## the starters changed, a comparability break\n", True)
+         "## the starters changed, a comparability break\n", _UNKNOWN)
     case("red, no comparability-break heading anywhere",
-         "## the starters changed on 2026-08-25\n", True)
+         "## the starters changed on 2026-08-25\n", _NOTHING)
 
     # The variant. Every compound ordinal ends in a word that is itself an ordinal, so a
     # trigger that alternates ORDINALS files `TWENTY-FIRST` under `first` -- and a document
     # whose breaks run 1..21 then reads as a gap at 2, 3, 4. That is what shipped.
     compound = ["## a %s comparability break" % w.upper() for w in ORDINALS[:22]]
     case("green, 22 breaks running first..twenty-second (the compound-ordinal variant)",
-         "\n".join(compound) + "\n", False)
+         "\n".join(compound) + "\n", None)
     case("green, an ordinal cited in prose under its own heading",
          "## a FIRST comparability break\n\nSame starter edit as the first comparability "
-         "break, and unlike the first comparability break it changes no score.\n", False)
+         "break, and unlike the first comparability break it changes no score.\n", None)
     case("green, a heading-shaped line inside a fence",
          "## a FIRST comparability break\n\n```\n## a FIRST comparability break\n```\n",
-         False)
+         None)
 
     # An ATX heading may carry up to three leading spaces. `startswith("#")` read those as
     # prose, so an indented duplicate ordinal was invisible to the collision check while
     # rendering as a heading everywhere else. Three spaces is a heading; four is an indented
     # code block, and must stay invisible -- both directions, or the fix is a new defect.
     case("red, an indented duplicate ordinal (up to 3 spaces is still a heading)",
-         "\n".join(run + ["   ## another SECOND comparability break"]) + "\n", True)
+         "\n".join(run + ["   ## another SECOND comparability break"]) + "\n", _COLLISION)
     case("green, 4 spaces is an indented code block, not a heading",
-         "\n".join(run + ["    ## another SECOND comparability break"]) + "\n", False)
+         "\n".join(run + ["    ## another SECOND comparability break"]) + "\n", None)
     return out
 
 

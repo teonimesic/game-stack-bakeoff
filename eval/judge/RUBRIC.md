@@ -659,9 +659,10 @@ criterion mentioned it. The task prompts now require looping background music, a
 effect for each declared event, and a `just audio-manifest` contract.
 
 **The prompt does not ask for a distinct sound per event, and no criterion here scores
-that.** The manifest section leaves sharing to the agent. `audio.distinct` requires
-distinct decoded content for at least half the declared events, and no more. The tier-3
-`audio` aspect values well-chosen cues over uniqueness for its own sake.
+that.** The manifest section leaves sharing to the agent. `audio.distinct` counts
+distinct decoded sounds across the manifest's `sfx` entries and requires at least half
+as many as the game declares events — no more than that. The tier-3 `audio` aspect
+values well-chosen cues over uniqueness for its own sake.
 
 Deterministic checks come first, because most audio failures are mechanical:
 
@@ -693,6 +694,15 @@ mutant that defeats every cheaper comparison — one beep re-encoded at five dif
 sample rates — is caught. And its floor is half the declared events rather than all of
 them, because the task explicitly permits two events to share a sound; what must fail is
 one clip reused everywhere.
+
+**Its numerator and its denominator come from different sets, and that is a known
+fail-open** (`tasks/152`). The floor is computed from the events the game *declares*,
+while the groups are counted over *every* `sfx` entry the manifest lists — and an entry
+for an undeclared event does not fail `audio.manifest`. So a Pong submission mapping all
+5 declared events to one clip and adding 2 unique extra entries scores 3 groups against
+a floor of 3 and passes, where the same submission without the extras scores 1 and
+fails. Until that is repaired, read a passing `audio.distinct` as *the manifest contains
+enough distinct sounds*, not as *the declared events sound different from each other*.
 
 Only what is left after those is asked of a judge: does the music suit this game, are
 the effects readable and distinguishable in play, is anything harsh or fatiguing.
