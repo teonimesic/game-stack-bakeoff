@@ -886,41 +886,52 @@ def main() -> int:
 
         # AND THE SPENDER GUARDS IT TOO. `build_pack`'s refusal is on the packer; a pack
         # is built once and judged later, from a directory anything may have touched, so
-        # `run_field` asks again before spending 8 model calls (rule 13).
+        # `run_field` asks again before spending 8 model calls (rule 13). EXISTENCE IS
+        # NOT THE RESOURCE: an empty file and the other scene's statement both pass a
+        # presence test and both cost a field scored against the wrong subject.
         #
-        # BOTH COPIES HAVE THEIR COMPLETENESS KEY REMOVED, which is what makes the pair
+        # EVERY COPY HAS ITS COMPLETENESS KEY REMOVED, which is what makes these rows
         # distinguishing without ever running a judge. `run_field` asks for the statement
-        # BEFORE the completeness key, so the copy that HAS a statement stops at the next
-        # guard and the copy that does not stops at this one - two different refusals off
-        # two packs identical but for the one file.
+        # BEFORE the completeness key, so the copy that carries the RIGHT one stops at
+        # the next guard and each broken copy stops at this one - four packs identical
+        # but for one file, and two different refusals.
         _a0, sdest, _sm = scene_packs[("s1_parallax",
                                        aspects.ASPECTS["fidelity"].sees, False)]
-        for name, keep_statement in (("scenepack-no-statement", False),
-                                     ("scenepack-with-statement", True)):
-            copy = root / name
+        STATEMENT_STATES = (
+            ("absent", None),
+            ("empty", ""),
+            ("the other scene's", field.scene_statement("s2_glass")),
+            ("this scene's", field.scene_statement("s1_parallax")),
+        )
+        for state, body in STATEMENT_STATES:
+            copy = root / f"scenepack-statement-{state.replace(' ', '-')}"
             shutil.copytree(sdest, copy)
             # The MAPPING lives OUTSIDE the pack (#32), so copytree does not bring it.
             rec = json.loads(field.mapping_path(sdest).read_text())
             rec.pop("knowingly_truncated")
             field.mapping_path(copy).write_text(json.dumps(rec, indent=2))
-            if not keep_statement:
+            statement = copy / field.SCENE_STATEMENT_FILE
+            if body is None:
                 # `missing_ok`: if the packer wrote none, the rows above already say so
-                # and this loop must still reach its own two.
-                (copy / field.SCENE_STATEMENT_FILE).unlink(missing_ok=True)
+                # and this loop must still reach its own.
+                statement.unlink(missing_ok=True)
+            else:
+                statement.write_text(body)
             err = field.run_field(copy, "fidelity").get("error") or ""
             named = field.SCENE_STATEMENT_FILE in err
-            if keep_statement:
-                expect("a-scene-pack-with-a-statement-is-not-refused-for-it",
+            if state == "this scene's":
+                expect("a-scene-pack-with-the-right-statement-is-not-refused-for-it",
                        not named and "knowingly_truncated" in err,
-                       f"run_field refused a scene pack that DOES carry "
+                       f"run_field refused a scene pack carrying the correct "
                        f"{field.SCENE_STATEMENT_FILE}, or never reached the next guard: "
-                       f"{err[:200]!r}. The row below would pass by refusing every "
+                       f"{err[:200]!r}. The rows above would pass by refusing every "
                        f"scene pack")
             else:
-                expect("run-field-refuses-a-scene-pack-with-no-statement", named,
+                expect(f"run-field-refuses-a-statement-that-is-{state}", named,
                        f"run_field returned {err[:200]!r} for a scene pack whose "
-                       f"{field.SCENE_STATEMENT_FILE} is gone; the brief it is about to "
-                       f"write tells the judge to read that file first")
+                       f"{field.SCENE_STATEMENT_FILE} is {state}; the brief it is about "
+                       f"to write tells the judge to read that file first, and a wrong "
+                       f"subject is worse than none")
 
     if FAILS:
         print(f"BLURB SELFTEST: {len(FAILS)} unmet expectation(s)\n")

@@ -2690,10 +2690,14 @@ the leak to survive and the gate to go red — a mutant that edits the built pac
 ask that question at all.
 
 **A scene the module cannot state is refused, and both the packer and the spender ask.**
-`build_pack` refuses to build such a pack and `run_field` refuses to judge one whose `SCENE.md`
-is not on disk, because a pack is built once and judged later from a directory anything may have
-touched (rule 13). A scene pack with no statement leaves `fidelity`'s brief pointing at a file
-that is not there and silently restores the narrowing (rule 7).
+`build_pack` refuses to build such a pack; `run_field` refuses to judge one whose `SCENE.md` is
+missing, unreadable, or not this scene's statement, because a pack is built once and judged later
+from a directory anything may have touched (rule 13). **Existence is not the resource**: an empty
+file and the other scene's statement both pass a presence test, and a field scored against the
+wrong subject is worse than one scored against none, because it looks like an answer. There is no
+escape flag — a pack whose statement differs from this checkout's was built for a different
+subject, and with 0 stored scene packs there is nothing to grandfather, so an escape would be a
+fail-open channel with no measured need (rule 7).
 
 **No game brief moved.** All 90 `(aspect, game, completeness)` briefs this checkout builds for
 game task ids are byte-identical to the ones built before the statement existed, so no stored

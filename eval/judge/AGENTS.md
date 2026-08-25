@@ -71,8 +71,14 @@ laundering harness-authored text leaves `verify_blind.py --packs` reading a file
 already cleaned. `blurb_selftest.py` is the gate: on disk for a scene field and absent for a game
 one, byte-identical to `field.scene_statement`, different for the 2 scenes, free of stack tokens
 under `verify_blind.py --packs`, and free of `tools/prompt_guard.py`'s criterion and threshold
-vocabulary — a tier-3 opinion told what tier 2 measures is a restatement of tier 2. A scene the
-module cannot state is **refused**, not packed without one.
+vocabulary — a tier-3 opinion told what tier 2 measures is a restatement of tier 2.
+
+**Both the packer and the spender refuse.** `build_pack` will not build a pack for a scene the
+module cannot state, and `run_field` will not judge one whose `SCENE.md` is missing, unreadable
+or **not this scene's statement** — a pack is built once and judged later from a directory
+anything may have touched, and an empty or wrong-scene file passes a presence test while costing
+8 model calls scored against the wrong subject. There is no escape flag: a pack whose statement
+differs from this checkout's was built for a different subject, so re-pack it.
 
 **What each tier has ever DONE is a tool, not a memory.** `tier1_census.py` and `tier2_census.py`
 both take `--runs-root <main checkout>/eval/runs` (required — the path is gitignored, so a

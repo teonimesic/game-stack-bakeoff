@@ -1375,11 +1375,12 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
       2. the aspect must be one this module defines, and must belong to the task class
          the pack was built for -- `applicability()`, ahead of `ASPECTS[aspect_id]`;
       3. the pack must have been built for this aspect's evidence (`sees`);
-      4. a SCENE pack must carry `SCENE.md` on disk. `build_pack` refuses a scene it
-         cannot state, but that guards the packer and this spends the field -- a pack is
-         built once and judged later, from a directory anything may have touched. It is
-         asked BEFORE the completeness key so that a pack failing both reports the
-         missing statement, which is the one a selftest can distinguish;
+      4. a SCENE pack's `SCENE.md` must be on disk AND be this scene's statement.
+         `build_pack` refuses a scene it cannot state, but that guards the packer and
+         this spends the field -- a pack is built once and judged later, from a directory
+         anything may have touched, and an empty or wrong-scene statement passes a
+         presence test. It is asked BEFORE the completeness key so that a pack failing
+         both reports the statement, which is the one a selftest can distinguish;
       5. the pack must RECORD whether it is complete. A missing key read as falsy would
          assert completeness about a pack nothing on disk describes (#62).
 
@@ -1420,22 +1421,45 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
         return {"usable": False,
                 "error": f"pack was built with sees={built_for!r} but aspect "
                          f"{aspect_id!r} needs sees={aspect.sees!r}"}
-    # THE SCENE STATEMENT MUST BE ON DISK, checked HERE and not only where it is written.
-    # `build_pack` refuses a scene it cannot state, but that guard is on the packer and
-    # this is the spender: a pack is built once and judged later, possibly from a copy,
-    # and the brief this function is about to write tells the judge to read `SCENE.md`
-    # first. Missing, the round costs 8 model calls to score strips against a subject
-    # nobody stated - which is the narrowing the statement removed, restored silently
-    # (rule 7, rule 13).
-    if task_class(mapping["game"]) == "scene" and \
-            not (pack / SCENE_STATEMENT_FILE).is_file():
-        return {"usable": False,
-                "error": f"the pack has no {SCENE_STATEMENT_FILE}, and every brief for "
-                         f"a scene aspect tells the judge to read it first. Nothing in "
-                         f"this pack says what scene {mapping['game']!r} was, so "
-                         f"{aspect_id!r} would score each strip against a subject "
-                         f"recovered from the field. Re-pack the run (field.py pack, or "
-                         f"a field_sweep round) rather than judging this pack."}
+    # THE SCENE STATEMENT ON DISK MUST BE THIS SCENE'S, checked HERE and not only where
+    # it is written. `build_pack` refuses a scene it cannot state, but that guard is on
+    # the packer and this is the spender: a pack is built once and judged later, possibly
+    # from a copy, and the brief this function is about to write tells the judge to read
+    # `SCENE.md` first.
+    #
+    # EXISTENCE IS NOT THE RESOURCE. An empty file, an edited one, or the OTHER scene's
+    # statement all pass a presence test and all cost 8 model calls scoring strips
+    # against the wrong subject - which is worse than the narrowing the statement
+    # removed, because it looks like an answer. So the content is compared, and every
+    # failure to establish it - unreadable, unstatable, unequal - is a refusal (rule 7,
+    # rule 13).
+    #
+    # NO ESCAPE FLAG. A pack whose statement differs from this checkout's was judged
+    # against a different subject and is a different experiment; re-pack it. There are 0
+    # stored scene packs, so there is nothing to grandfather and an escape would be a
+    # fail-open channel with no measured need.
+    if task_class(mapping["game"]) == "scene":
+        try:
+            expected = scene_statement(mapping["game"])
+            on_disk = (pack / SCENE_STATEMENT_FILE).read_text()
+        except (OSError, RuntimeError) as e:
+            return {"usable": False,
+                    "error": f"this pack's {SCENE_STATEMENT_FILE} could not be read "
+                             f"against scene {mapping['game']!r}: {e}. Every brief for "
+                             f"a scene aspect tells the judge to read it first, so "
+                             f"{aspect_id!r} would score each strip against a subject "
+                             f"recovered from the field. Re-pack the run (field.py "
+                             f"pack, or a field_sweep round) rather than judging this "
+                             f"pack."}
+        if on_disk != expected:
+            return {"usable": False,
+                    "error": f"this pack's {SCENE_STATEMENT_FILE} is not the statement "
+                             f"of {mapping['game']!r} that this checkout holds "
+                             f"({len(on_disk)} chars on disk against {len(expected)}). "
+                             f"A judge reading it would score every strip against some "
+                             f"other subject, which is worse than reading none. "
+                             f"Re-pack the run (field.py pack, or a field_sweep round) "
+                             f"rather than judging this pack."}
     # HOW MUCH OF ITSELF EACH SUBMISSION IS BEING SHOWN IS A THIRD VALUE, not a boolean.
     # `mapping.get("knowingly_truncated")` returning None means the pack was built before
     # `build_pack` recorded it, and a missing key read as falsy would have the brief
