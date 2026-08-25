@@ -77,24 +77,28 @@ filter is spelled — and writes `relevant=true|false`. Every step below it is g
 closing line is the producer for how many it carries.** The mutants are a `paths:` or
 `paths-ignore:` filter back on either trigger, the scope step deleted, its id renamed, its command
 replaced, its command given a flag `--scope` does not read or a second mode or `--help` or a
-pipeline, one gate losing its guard, the guard flipped to `== 'true'`, the guard conjoined with a
+pipeline, its command echoed or wrapped in `sh -c` instead of run, its command pointed at another
+script whose name ends the same way or at another mode of this one,
+one gate losing its guard, the guard flipped to `== 'true'`, the guard conjoined with a
 constant false, a guarded step placed above the step whose output it reads, a second
 `ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`, a file that does not parse, and
 4 ways off `ubuntu-latest`. The variants — inputs the check must
 **not** redden — are a re-spaced and double-quoted guard, two gates swapped, an unguarded `uses:`
-step, a comment in the job, and the scope step re-spaced or run under another interpreter path.
+step, a comment in the job, and the scope step re-spaced, run under another interpreter path, run
+under `python`, or executed directly with no interpreter named.
 The same closing line also counts the CLI-contract rows below.
 
 **The scope step is held to the invocation `ci_minutes.py` would honour, not to a substring of
-it.** `--scope --json` contains `--scope`, and until 2026-08-25 the tool ran it at exit 0 having
-ignored `--json` while the gate carried that exact command as a variant — a workflow edited to it
-passed every pin. Each of the tool's modes now declares which of `--json`, `--cache` and
-`--no-timing` it reads, refuses anything else with exit 2, and the gate asks the workflow's
-`run:` line the same question. An accepted-but-ignored flag is worse than an unsupported one
-(`AGENTS.md` rule 13): exit 0 is indistinguishable from having done what was asked. `--help` is
-a third outcome and gets its own answer — a `--scope --help` step parses, is not an error, and
-would print a help screen and write no `relevant` at all, so it is reported rather than raised
-on.
+it.** Two commands satisfy the substring and do something else: `--scope --json` contains
+`--scope` and, until 2026-08-25, ran at exit 0 having ignored `--json` while the gate carried it
+as a variant; `echo eval/tools/ci_minutes.py --scope` contains it and runs `echo`. So the gate
+asks the question the substring stood in for — does the shell run **this** script, with arguments
+that produce a scope decision? The accepted forms are the script alone or `python`/`python3` in
+front of it, and each of the tool's modes declares which of `--json`, `--cache` and `--no-timing`
+it reads and refuses anything else with exit 2. An accepted-but-ignored flag is worse than an
+unsupported one (`AGENTS.md` rule 13): exit 0 is indistinguishable from having done what was
+asked. `--help` is a third outcome with its own answer — it parses, it is not an error, and the
+step would print a help screen and write no `relevant`.
 
 **The guard is matched WHOLE, against a closed set of 2 accepted expressions**, not by
 containment. `${{ ... relevant != 'false' && false }}` contains the guard's exact text and skips

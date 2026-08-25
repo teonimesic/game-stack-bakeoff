@@ -1520,7 +1520,10 @@ instance while leaving the shape — `--scope --gates`, `--selftest --json` and
 property failure the rule audit is about. `MODE_ACCEPTS` states which of `--json`, `--cache` and
 `--no-timing` each mode reads; `main` refuses anything outside it with exit 2 before dispatching,
 and the workflow gate asks the scope step's `run:` line the same question instead of matching a
-substring of it.
+substring of it. **The substring was satisfied by two commands that do something else** — the
+second is `echo eval/tools/ci_minutes.py --scope`, which runs `echo` — so the gate now asks
+whether the shell runs *this* script, accepting the script alone or `python`/`python3` in front
+of it and nothing else.
 
 **The lever if latency ever binds is the slow tier's `pull_request` trigger, not its path
 filter.** `python3 eval/tools/ci_minutes.py` is what decides that on current data: it reports

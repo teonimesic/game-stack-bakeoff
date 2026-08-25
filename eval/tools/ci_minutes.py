@@ -82,14 +82,17 @@ the file still contains the string; a filter entry no pin depends on; every mode
 a flag it does not read; and the ways the scope
 guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, the scope step
 deleted, its id renamed, its command replaced, its command given a flag `--scope` does not read
-or a second mode or `--help` or a pipeline, one gate losing its guard, the guard flipped to the
+or a second mode or `--help` or a pipeline, its command echoed or wrapped in `sh -c` instead of
+run, its command pointed at another script whose name ends the same way or at another mode of
+this one, one gate losing its guard, the guard flipped to the
 fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed above
 the step whose output it reads, a second `ubuntu-latest` job carrying an unguarded gate, a
 scalar `steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
-unguarded `uses:` step, a comment in the job, the scope step re-spaced or run under
-another interpreter path, every mode reached with a flag it does read, and `-h`. The variants
+unguarded `uses:` step, a comment in the job, the scope step re-spaced, run under another
+interpreter path, run under `python`, or executed directly with no interpreter named, every
+mode reached with a flag it does read, and `-h`. The variants
 are not decoration -- the substring check this replaced went red on a re-quote, which is a
 gate firing where nothing is wrong.
 
@@ -232,6 +235,20 @@ def matches_filter(path: str,
 # `gates` check runs, 0 `controls`.
 SCOPE_STEP_ID = "scope"
 SCOPE_INVOCATION = "ci_minutes.py --scope"
+
+# THE SCRIPT AS A PATH, and the closed set of ways a `run:` line may EXECUTE it. A step
+# only decides the scope if the shell runs this file; `echo eval/tools/ci_minutes.py
+# --scope` mentions it as an argument to `echo`, writes no `relevant`, and read as a
+# substring is indistinguishable from the real thing. Raised by CodeRabbit on PR #35 --
+# the same substring-versus-parse defect the guard and the `runs-on` census were repaired
+# for, one field away.
+#
+# What the shell accepts, and therefore what this does: an interpreter followed by the
+# script, or the script alone -- which the shell executes because the path contains a
+# slash. Anything else in front of it (`echo`, `sh -c`, `xargs`, an env prefix) is a
+# different program, and a different program is not this gate's subject.
+SCOPE_SCRIPT = "eval/tools/ci_minutes.py"
+SCOPE_INTERPRETERS = ("python3", "python")
 
 # `!= 'false'` and NOT `== 'true'`, and that single choice is the safety argument for the
 # whole shape. A step output that was never written reads as the empty string, so
@@ -410,27 +427,35 @@ def invocation_problems(args: object) -> list[str]:
 def scope_invocation_problems(run: object) -> list[str]:
     """Is one workflow `run:` line an invocation of `--scope` that this tool HONOURS?
 
-    Containment of `ci_minutes.py --scope` was the whole test until 2026-08-25, and
-    `--scope --json` contains it -- so the selftest carried that command as a VARIANT, an
-    input the gate must not redden, and a workflow edited to it passed every pin while the
-    flag did nothing. The gate now asks the question the substring was standing in for.
+    Containment of `ci_minutes.py --scope` was the whole test until 2026-08-25, and it is
+    satisfied by two commands that do something else. `--scope --json` contains it and
+    exited 0 having discarded `--json`, so the selftest carried that command as a VARIANT
+    -- an input the gate must not redden -- and a workflow edited to it passed every pin.
+    `echo eval/tools/ci_minutes.py --scope` contains it and runs `echo`. This asks the
+    question the substring was standing in for: does the shell run THIS script, with
+    arguments that produce a scope decision?
 
-    FAIL-CLOSED ON ANYTHING IT CANNOT PARSE. Tokens after the script name that argparse
-    rejects -- a shell operator, a second command, a flag that does not exist -- are
-    reported rather than skipped, because a scope step whose command this tool cannot read
-    is one whose behaviour it cannot pin. `--help` is a third outcome and it is neither: it
-    parses, it is not an error, and the step would print a help screen and write no
-    `relevant` at all.
+    THREE OUTCOMES, and the third is why `--help` needs naming. Arguments argparse rejects
+    -- a shell operator, a second command, a flag that does not exist -- are reported and
+    not skipped, because a step whose command this tool cannot read is one whose behaviour
+    it cannot pin. `--help` is neither an error nor a decision: it parses, exits 0, prints a
+    help screen and writes no `relevant`.
     """
     text = " ".join(str(run or "").split())
-    if SCOPE_INVOCATION not in text:
-        return [f"does not run `{SCOPE_INVOCATION}`, so whatever writes `relevant` is no "
-                f"longer this tool and is not gated by it"]
     argv = text.split()
-    at = next((i for i, t in enumerate(argv) if t.endswith("ci_minutes.py")), None)
+    at = next((i for i, t in enumerate(argv)
+               if t == SCOPE_SCRIPT or t.endswith("/" + SCOPE_SCRIPT)), None)
     if at is None:
-        return [f"runs `{text}`, in which no token names this script, so what would write "
-                f"`relevant` cannot be identified"]
+        return [f"does not run `{SCOPE_SCRIPT}`, so whatever writes `relevant` is no "
+                f"longer this tool and is not gated by it"]
+    # WHAT IS IN FRONT OF THE SCRIPT DECIDES WHETHER IT RUNS AT ALL. Nothing means the
+    # shell executes the path itself; one interpreter means the interpreter runs it;
+    # anything else is a different program holding this path as an argument.
+    head = argv[:at]
+    if head and (len(head) > 1 or os.path.basename(head[0]) not in SCOPE_INTERPRETERS):
+        return [f"runs `{text}`, in which `{argv[at]}` is an ARGUMENT to "
+                f"`{' '.join(head)}` rather than the program being run. Accepted forms are "
+                f"the script alone or one of {list(SCOPE_INTERPRETERS)} in front of it"]
     rest = argv[at + 1:]
     try:
         parsed = _build_parser(quiet=True).parse_args(rest)
@@ -439,6 +464,9 @@ def scope_invocation_problems(run: object) -> list[str]:
     except _ArgExit as exc:
         return [f"runs `{text}`, which prints a help screen and exits {exc.status} without "
                 f"deciding anything or writing `relevant`"]
+    if not parsed.scope:
+        return [f"runs `{text}`, which does not pass `--scope`, so it produces some other "
+                f"report and writes no `relevant` at all"]
     return [f"runs `{text}`, and {p}" for p in invocation_problems(parsed)]
 
 
@@ -1829,6 +1857,25 @@ def _selftest() -> int:
             "the scope step given --help, which decides nothing":
                 live.replace("ci_minutes.py --scope\n",
                              "ci_minutes.py --scope --help\n", 1),
+            # THE SCRIPT AS AN ARGUMENT TO SOMETHING ELSE. Both of these CONTAIN
+            # `ci_minutes.py --scope` and neither runs it, which is what a substring test
+            # cannot see. Raised by CodeRabbit on PR #35.
+            "the scope step echoing the command instead of running it":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             "run: echo eval/tools/ci_minutes.py --scope\n", 1),
+            "the scope step's command wrapped in sh -c":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             "run: sh -c python3 eval/tools/ci_minutes.py --scope\n", 1),
+            # A DIFFERENT SCRIPT whose name ends the same way. This is what separates the
+            # path match from a suffix test: `endswith("ci_minutes.py")` accepts it, and
+            # then every flag check below is being run against a file nobody here wrote.
+            "the scope step running another script named ...ci_minutes.py":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             "run: python3 tools/vendor_ci_minutes.py --scope\n", 1),
+            # Parses cleanly, names a real mode, and is not the one that writes `relevant`.
+            "the scope step running a different mode of this same tool":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             "run: python3 eval/tools/ci_minutes.py --gates\n", 1),
             "one gate loses its guard": drop(live, gate_guard),
             # The fail-OPEN spelling: an output the scope step never wrote is the empty
             # string, so `== 'true'` skips every suite on a step that did not run.
@@ -1891,6 +1938,15 @@ def _selftest() -> int:
             "the scope step's command re-spaced": live.replace(
                 "run: python3 eval/tools/ci_minutes.py --scope\n",
                 "run: python3   eval/tools/ci_minutes.py   --scope\n", 1),
+            # The other two forms a shell really runs: the second interpreter name, and
+            # the script executed directly because its path contains a slash. Rejecting a
+            # command the shell would run is the gate firing where nothing is wrong.
+            "the scope step run under `python` rather than `python3`": live.replace(
+                "run: python3 eval/tools/ci_minutes.py --scope\n",
+                "run: python eval/tools/ci_minutes.py --scope\n", 1),
+            "the scope step executed directly, with no interpreter named": live.replace(
+                "run: python3 eval/tools/ci_minutes.py --scope\n",
+                "run: eval/tools/ci_minutes.py --scope\n", 1),
         }
         counts["mutants"] += len(mutants)
         counts["variants"] += len(variants)
