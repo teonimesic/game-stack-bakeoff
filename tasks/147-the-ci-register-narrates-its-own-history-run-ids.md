@@ -46,3 +46,81 @@ is a bigger question than a p3 documentation ticket. Either close that gap here 
 that would fail if the corpus shrank to one file, or say in `.github/workflows/README.md` and in
 `docstat.py` exactly which checks read that file and which do not — an exclusion recorded is fine;
 one silently absent is what this whole ticket is about.
+
+## note 2026-08-24
+
+## What the next agent should not re-derive
+
+### The register's prose is done; the interesting half was underneath it
+
+Every run id, commit sha and how-the-number-moved sentence is gone from
+`.github/workflows/README.md`, each replaced by the standing instruction with its producer
+beside it. The check that the register's *job* survived is mechanical rather than asserted:
+diffing the set of backticked names before and after, **the only name the whole diff removes
+is the commit sha `d087994`**. Re-run that diff before believing any future claim that this
+file "still names every step".
+
+### `--sweep` and `linkcheck` were green on a file neither of them opened
+
+`glob("**")` does not descend into a name beginning with a dot, so `.github/` was outside
+`docstat.py`'s corpus exactly as `.claude/` was before task 44. The register is the file
+`AGENTS.md` sends every session to read before adding a gate. This is **#170**, allocated by
+the orchestrator against `main` while this was in flight — do not allocate another.
+
+`github_docs()` now feeds `reference_docs()`. It does **not** widen `project_docs()`, and that
+is deliberate: `project_docs()` feeds the bare-trial-id ratchet, which is pinned to an exact
+count that a larger corpus would move in the **passing** direction.
+
+### The mechanism that `tasks/149` and #170's second paragraph were built on is wrong
+
+**The flag census does not read `project_docs()`.** In `cmd_sweep()` both flag halves are
+inside `for p in refs:` where `refs = reference_docs()`; the only `for p in docs:` loop is the
+bare-trial-id ratchet, scoped to `findings/`. What actually gates the backticked half is
+file-wide, 40 lines into that loop:
+
+    harness = re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", text)
+
+The two hypotheses agree on `DECISIONS.md` and on the register, and **disagree on skills** —
+which are in `reference_docs()` and not in `project_docs()`. Planting the identical backticked
+token in all 10 settles it: `add-game`, `audit-docs`, `evaluate-run`, `run-matrix` name a
+harness and come back **exit 1**; the other 6 do not and come back exit 0; `any SKILL.md in
+project_docs()` is `False`. Under the corpus hypothesis all 10 would be exit 0. Written into
+`tasks/149`; the orchestrator has since corrected #170.
+
+**Do not widen that trigger without re-measuring.** The obvious closed-class replacement,
+`_our_script_names()`, admits 168 documents instead of 43 and adds 25 candidate rows,
+adjudicated 2026-08-24 as **0 genuine** — `gh`, `git`, Godot and Chrome flags and tokens task
+files name as deliberately fake. 9 of the 25 are in skills, which is where coverage is wanted.
+`python3 eval/tools/docstat.py --selftest` is the producer and recounts it live; the rows print
+as **candidates**, because the census applies only the exclusions the check applies and
+classifies nothing beyond them.
+
+### Traps this task walked into, in the order they cost time
+
+1. **`skill_layout_control.py` plants into the real working tree.** A 2-minute Bash timeout
+   killed it at exit 143 and left `.claude/skills` a real directory of copies; the next four
+   gate runs were red with 11 rows blaming the skills, for a reason unrelated to the change.
+   Repair: `rm -rf .claude/skills` then restore the symlink from the index. Filed as
+   **`tasks/150`**. Give it 5+ minutes or do not start it.
+2. **`_DELIBERATELY_FAKE` matches `phantom`, `plant*`, `does not exist`.** A control token
+   named `--zzq-real-phantom` exempted its own line, and the census read 25 → 25 —
+   indistinguishable from a census that had stopped looking. Use a neutral token:
+   `--zzq-unresolved-tok` works.
+3. **A plant's SHAPE decides which half sees it.** Bare-on-a-fenced-command-line and
+   backticked-inline are different checks with different triggers. A single plant shape
+   measures one half and tells you nothing about the other — which is how one observation
+   became a wrong mechanism twice.
+4. **`is_vendored` tests substrings, and 3 of the 5 `VENDORED` entries carry separators.**
+   `is_vendored("target")` is `False`; `is_vendored(".../target/x.md")` is `True`. Any oracle
+   filtering bare directory names disagrees with any subject filtering full paths.
+   **`_all_skill_files()` still has this** — harmless today because neither `.claude/` nor
+   `.agents/` holds a vendored directory, and not fixed here because it is not this ticket.
+
+### Left deliberately
+
+- **`linkcheck.py`'s `LIVE_DOCS` is unchanged.** The register carries no relative markdown link
+  after this change, so widening the corpus would gate nothing. Check it explicitly with
+  `python3 eval/tools/linkcheck.py .github/workflows/README.md`.
+- **`tasks/148`** holds `ci_minutes.py` printing `(PRIVATE -- these minutes are metered)`.
+  `DECISIONS.md` is already repaired here; the tool needs the visibility *read*, not a
+  hardcoded `PUBLIC`, which is the same defect one value later.
