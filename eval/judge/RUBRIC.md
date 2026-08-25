@@ -708,8 +708,11 @@ enough distinct sounds*, not as *the declared events sound different from each o
 
 **Where the grader holds no declared-event list, the denominator falls back to the
 decoded `sfx` entries** and the criterion floors on the submission's own manifest rather
-than on the task. That is the state `g4_platformer` is in today (`tasks/151`), and it
-makes `audio.manifest` unfailable on that game as well, since nothing is then missing.
+than on the task. That is the state `g4_platformer` is in today (`tasks/151`). It also
+costs `audio.manifest` its per-event question on that game: nothing is missing when
+nothing is expected, so the criterion cannot notice an absent cue. It still fails there
+on a manifest that will not run or parse, and on one carrying no `music` or no `sfx`
+object.
 
 Only what is left after those is asked of a judge: does the music suit this game, are
 the effects readable and distinguishable in play, is anything harsh or fatiguing.
