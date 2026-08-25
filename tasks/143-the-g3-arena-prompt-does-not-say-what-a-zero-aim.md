@@ -1,11 +1,12 @@
 ---
 id: 143
 title: The g3_arena prompt does not say what a zero aim vector does, and the reference fixture silently retains the last one
-status: in_review
+status: in_testing
 priority: 2
 refs: eval/suites/wholegame_prompts.py _G3_INPUTS, eval/judge/fixtures/ref_arena/game.py _update_aim, eval/suites/rendered/g3_arena__godot.txt, eval/RUNS.md, PR 19
 done_when: 'Either _G3_INPUTS states what a zero or absent aim vector does and the reference agrees with it, or the ticket records with evidence that no bot input can produce a zero aim so the case is unreachable. If the prompt changes: eval/RUNS.md records the comparability break, prompt_guard.py and prompt_guard_control.py exit 0, judge/bot_mutants.py exits 0, and eval/suites/rendered is re-recorded in the same commit. Either way, state how many stored arena traces contain a zero-aim tick and over what population.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/31
+established_by: 'PR 31, head 2298d8c2: mergeable.py 31 exit 0, gates and controls SUCCESS, branch up to date. Census by eval/judge/aim_contract_control.py (new, 13 rows, 11s in CI): 7,540 ticks sent, 4,636 zero-aim, 33 of those firing, all 33 from _multiplier_falls. Three honest readings return identical verdicts on all 22 criteria, with each arm proven to bite. 8 of 8 stored 3D-arena submissions already hold the last aim; 8 of 8 start it off +x. eval/RUNS.md records the twenty-third comparability break over a population of 8 trials.'
 ---
 
 eval/judge/fixtures/ref_arena/game.py::_update_aim keeps the previous orientation when the aim vector has magnitude below 1e-6 - the comment says 'no aim held: keep facing where we last aimed' - and _fire then fires along it. The rendered g3_arena prompt says only 'The aim fields describe a direction; only its orientation matters, not its length'. A submission that reads a zero aim as 'do not fire' or as 'fire along +x' is consistent with everything the prompt says and inconsistent with the reference the play-bot was written against, so the same bot input produces different traces for two honest submissions and the difference is scored. Found by CodeRabbit on PR 19; it read the fixture and confirmed the reference behaviour. NOT fixed in task 133: _G3_INPUTS is a game prompt, 90 stored whole-game trials ran under this wording, and editing it is a regime boundary that ticket was not scoped for. Check first whether any stored arena trace actually contains a zero-aim tick - if the bot never sends one, this is latent rather than active, and that is a different priority.
@@ -152,3 +153,30 @@ it was re-read from this branch's own `controls` run (32841910162, every step su
 register's own claim about run-to-run spread being larger than the cost of a step, measured on
 the occasion it was written for. `gates` is left at 102s: nothing in `gates.yml`'s step list
 changed here.
+
+## note 2026-08-25
+
+## note 2026-08-25 — review round 2 landed on main's code, not this branch's, and one repair was deferred
+
+Round 2 produced 2 findings and **both were outside this branch's diff** — they name code that
+arrived through a merge of `main` (task 148, PR 32). `git diff origin/main --stat` touches
+`eval/tools/ci_minutes.py` at 2 lines only, the gate counts 7 -> 8.
+
+- **`.github/workflows/README.md` said "one exists"** for the jobless-run count. Fixed here: one
+  word, and a cardinal spelled in words is one no check can read, which is an always-loaded rule
+  rather than a preference.
+- **`ci_minutes.py --scope --json` is accepted and ignored** — `main()` reads `args.json` only in
+  the `--gates` branch. Worse than it first reads: `filter_problems` classifies that exact
+  command as a **VARIANT**, an input the check must not redden, so the selftest asserts that a
+  scope step invoked with a flag it does not honour is a *correct* scope step, and a workflow
+  edited that way passes every pin. **Filed as `tasks/154`** rather than fixed here — the repair
+  changes what task 148's mutant/variant set asserts, on code merged an hour earlier, and it does
+  not belong under a title about the arena aim contract.
+
+**`controls.yml`'s header no longer carries a timing, and this branch's earlier edit to it was
+dropped on purpose.** Task 148 removed those figures with the rule *"read it from the register,
+never from a comment that cannot be disagreed with"*, which supersedes the note above about
+re-reading them into the comment. The measured figures live in `.github/workflows/README.md`
+alone, and the new step's comment carries no number for the same reason.
+
+3 review rounds; rounds 2 and 3 came back with nothing to act on.
