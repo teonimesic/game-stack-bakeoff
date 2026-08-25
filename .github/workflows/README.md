@@ -74,37 +74,48 @@ filter is spelled — and writes `relevant=true|false`. Every step below it is g
 | the scope step prints what it read | the filter, the changed paths and the verdict go into the run log, so a skipped `controls` is auditable afterwards |
 
 `python3 eval/tools/ci_minutes.py --selftest` pins the wiring in both directions, and **its
-closing line is the producer for how many it carries.** The mutants are a `paths:` or
-`paths-ignore:` filter back on either trigger, the scope step deleted, its id renamed, its command
-replaced, its command given a flag `--scope` does not read or a second mode or `--help` or a
-pipeline, its command echoed or wrapped in `sh -c` instead of run, its command pointed at another
-script whose name ends the same way or at another mode of this one, its command left with an
-unbalanced quote, a second command hidden behind a comment on a multi-line step,
-one gate losing its guard, the guard flipped to `== 'true'`, the guard conjoined with a
-constant false, a guarded step placed above the step whose output it reads, a second
-`ubuntu-latest` job carrying an unguarded gate, a scalar `steps:`, a file that does not parse, and
-4 ways off `ubuntu-latest`. The variants — inputs the check must
-**not** redden — are a re-spaced and double-quoted guard, two gates swapped, an unguarded `uses:`
-step, a comment in the job, and the scope step re-spaced, run under another interpreter path, run
-under `python`, executed directly with no interpreter named, given a quoted script path, or
-carrying a trailing shell comment.
-The same closing line also counts the CLI-contract rows below.
+closing line is the producer for how many mutants and variants it carries**, across the workflow
+and the tool's own command line.
 
-**The scope step is held to the invocation `ci_minutes.py` would honour, not to a substring of
-it.** 2 commands satisfy the substring and do something else: `--scope --json` contains
-`--scope` and, until 2026-08-25, ran at exit 0 having ignored `--json` while the gate carried it
-as a variant; `echo eval/tools/ci_minutes.py --scope` contains it and runs `echo`. So the gate
-asks the question the substring stood in for — does the shell run **this** script, with arguments
-that produce a scope decision? The line is tokenised the way a shell tokenises it — including its
-newlines, because a `#` comment ends at its line and flattening a multi-line block first would let
-one hide a second command that overwrites `relevant`. A quoted path and a trailing comment are
-variants rather than failures. The accepted forms are the script
-alone or `python`/`python3` in
-front of it, and each of the tool's modes declares which of `--json`, `--cache` and `--no-timing`
-it reads and refuses anything else with exit 2. An accepted-but-ignored flag is worse than an
-unsupported one (`AGENTS.md` rule 13): exit 0 is indistinguishable from having done what was
-asked. `--help` is a third outcome with its own answer — it parses, it is not an error, and the
-step would print a help screen and write no `relevant`.
+#### What the scope step must be
+
+The gate reads the step's `run:` line as a command rather than as text, and asks 3 things of it.
+
+| | |
+|---|---|
+| the shell must run **this** script | the token is resolved against the repository root and compared with `eval/tools/ci_minutes.py`. A suffix is not enough: `nested/eval/tools/ci_minutes.py` is a file a branch can add, and it can write `relevant=false` and exit 0 |
+| in front of it, nothing or one interpreter | the shell runs a path containing a slash on its own; otherwise `python` or `python3`, named alone or absolutely. A repository-relative `nested/python3` is the same substitution with the roles swapped |
+| the arguments must produce a scope decision | `--scope` must be there, and every other flag must be one `--scope` reads. `--help` parses, is not an error, and would print a help screen and write no `relevant`, so it gets its own answer |
+
+The line is tokenised the way a shell tokenises it, **newlines included** — a `#` comment ends at
+its line, so flattening a multi-line block first would let one hide the second command that
+overwrites `relevant`. Text that does not tokenise is reported rather than guessed at.
+
+**Each mode of the tool declares which of `--json`, `--cache` and `--no-timing` it reads and
+refuses anything else with exit 2.** An accepted-but-ignored flag is worse than an unsupported one
+(`AGENTS.md` rule 13): exit 0 is indistinguishable from having done what was asked.
+
+#### Mutants — inputs the check must redden
+
+- a `paths:` or `paths-ignore:` filter back on either trigger
+- the scope step deleted, or its `id` renamed
+- its command replaced, echoed, or wrapped in `sh -c`
+- its command pointed at a same-named script elsewhere, at a different mode, or run under a
+  repository-relative interpreter
+- its command given a flag `--scope` does not read, a second mode, `--help`, a pipeline, or an
+  unbalanced quote
+- a second command hidden behind a comment on a multi-line step
+- a gate losing its guard, the guard flipped to `== 'true'`, or conjoined with a constant false
+- a guarded step placed above the step whose output it reads
+- a second `ubuntu-latest` job carrying an unguarded gate, and 4 ways off `ubuntu-latest`
+- a scalar `steps:`, and a file that does not parse
+
+#### Variants — inputs it must not redden
+
+- a re-spaced and double-quoted guard, two gates swapped, an unguarded `uses:` step, a comment in
+  the job
+- the scope step re-spaced, given a quoted script path, or carrying a trailing shell comment
+- the scope step run under `python`, under an absolute interpreter path, or executed directly
 
 **The guard is matched WHOLE, against a closed set of 2 accepted expressions**, not by
 containment. `${{ ... relevant != 'false' && false }}` contains the guard's exact text and skips

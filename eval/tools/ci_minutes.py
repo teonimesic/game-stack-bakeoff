@@ -81,10 +81,10 @@ which must be refused rather than scored; the ways a workflow can leave `ubuntu-
 the file still contains the string; a filter entry no pin depends on; every mode reached with
 a flag it does not read; and the ways the scope
 guard can break -- a `paths:` or `paths-ignore:` filter back on either trigger, the scope step
-deleted, its id renamed, its command replaced, its command given a flag `--scope` does not read
-or a second mode or `--help` or a pipeline, its command echoed or wrapped in `sh -c` instead of
-run, its command pointed at another script whose name ends the same way or at another mode of
-this one, its command left with an unbalanced quote, a second command hidden behind a comment
+deleted, its id renamed, its command replaced, echoed or wrapped in `sh -c`, its command given a
+flag `--scope` does not read or a second mode or `--help` or a pipeline or an unbalanced quote,
+its command pointed at a same-named script elsewhere or at another mode or run under a
+repository-relative interpreter, a second command hidden behind a comment
 on a multi-line step, one gate losing its guard, the guard
 flipped to the
 fail-open `== 'true'`, the guard conjoined with a constant false, a guarded step placed above
@@ -92,9 +92,9 @@ the step whose output it reads, a second `ubuntu-latest` job carrying an unguard
 scalar `steps:`, and a file that does not parse at all. What must still
 PASS: an in-flight job, a job of exactly 60s, a 22s job, a filename that merely starts with a
 filtered directory's letters, a re-spaced and double-quoted guard, two gates swapped, an
-unguarded `uses:` step, a comment in the job, the scope step re-spaced, run under another
-interpreter path, run under `python`, executed directly with no interpreter named, given a
-quoted script path, or carrying a trailing shell comment, every
+unguarded `uses:` step, a comment in the job, the scope step re-spaced, given a quoted script
+path, carrying a trailing shell comment, run under `python` or an absolute interpreter path, or
+executed directly, every
 mode reached with a flag it does read, and `-h`. The variants
 are not decoration -- the substring check this replaced went red on a re-quote, which is a
 gate firing where nothing is wrong.
@@ -252,6 +252,7 @@ SCOPE_INVOCATION = "ci_minutes.py --scope"
 # slash. Anything else in front of it (`echo`, `sh -c`, `xargs`, an env prefix) is a
 # different program, and a different program is not this gate's subject.
 SCOPE_SCRIPT = "eval/tools/ci_minutes.py"
+_SCOPE_SCRIPT_ABS = (ROOT / SCOPE_SCRIPT).resolve()
 SCOPE_INTERPRETERS = ("python3", "python")
 
 # `!= 'false'` and NOT `== 'true'`, and that single choice is the safety argument for the
@@ -428,6 +429,21 @@ def invocation_problems(args: object) -> list[str]:
             for m in MODIFIERS if d.get(m) and m not in accepted]
 
 
+def _is_scope_script(token: str) -> bool:
+    """Does this command-line token name THIS file?
+
+    Resolved against `ROOT`, so a relative path is the one a step run from the checkout
+    root would open. NEVER RAISES: a token can be any text a workflow holds, and one that
+    `pathlib` refuses -- a null byte, a path past the system limit -- is not this script,
+    which is the fail-closed answer.
+    """
+    try:
+        path = pathlib.Path(token)
+        return (path if path.is_absolute() else ROOT / path).resolve() == _SCOPE_SCRIPT_ABS
+    except (OSError, ValueError):
+        return False
+
+
 def scope_invocation_problems(run: object) -> list[str]:
     """Is one workflow `run:` line an invocation of `--scope` that this tool HONOURS?
 
@@ -463,8 +479,13 @@ def scope_invocation_problems(run: object) -> list[str]:
     except ValueError as exc:
         return [f"runs `{text}`, which does not tokenise as a shell command ({exc}), so "
                 f"what it would run cannot be established"]
-    at = next((i for i, t in enumerate(argv)
-               if t == SCOPE_SCRIPT or t.endswith("/" + SCOPE_SCRIPT)), None)
+    # THE PATH RESOLVED, not a suffix of it. `endswith("/" + SCOPE_SCRIPT)` accepts
+    # `nested/eval/tools/ci_minutes.py`, which is a different file that can be checked out
+    # beside this one, write `relevant=false` and exit 0 -- and every guard below would
+    # then skip its suite on the say-so of a program nobody here wrote. Raised by
+    # CodeRabbit on PR #35, and it is the same defect the suffix match replaced a substring
+    # match for, one directory level away.
+    at = next((i for i, t in enumerate(argv) if _is_scope_script(t)), None)
     if at is None:
         return [f"does not run `{SCOPE_SCRIPT}`, so whatever writes `relevant` is no "
                 f"longer this tool and is not gated by it"]
@@ -476,6 +497,13 @@ def scope_invocation_problems(run: object) -> list[str]:
         return [f"runs `{text}`, in which `{argv[at]}` is an ARGUMENT to "
                 f"`{' '.join(head)}` rather than the program being run. Accepted forms are "
                 f"the script alone or one of {list(SCOPE_INTERPRETERS)} in front of it"]
+    # AND THE INTERPRETER IS A PATH TOO. `nested/python3` has the right basename and is a
+    # program in the checkout, so it is the script substitution again with the roles
+    # swapped. A name alone goes through `PATH`; an absolute path is the system's.
+    if head and "/" in head[0] and not head[0].startswith("/"):
+        return [f"runs `{text}` under `{head[0]}`, a repository-relative interpreter -- a "
+                f"program that can be checked out beside the script rather than the "
+                f"system's. Name it alone, or absolutely"]
     rest = argv[at + 1:]
     try:
         parsed = _build_parser(quiet=True).parse_args(rest)
@@ -1892,6 +1920,15 @@ def _selftest() -> int:
             "the scope step running another script named ...ci_minutes.py":
                 live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
                              "run: python3 tools/vendor_ci_minutes.py --scope\n", 1),
+            # THE SAME PATH ONE DIRECTORY DOWN, and a suffix match cannot see it. Both of
+            # these are files a branch can add beside the real ones; both can write
+            # `relevant=false` and exit 0, and every guard below would obey them.
+            "the scope step running a same-named script under another directory":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             "run: python3 nested/eval/tools/ci_minutes.py --scope\n", 1),
+            "the scope step run under a repository-relative interpreter":
+                live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",
+                             "run: nested/python3 eval/tools/ci_minutes.py --scope\n", 1),
             # Parses cleanly, names a real mode, and is not the one that writes `relevant`.
             "the scope step running a different mode of this same tool":
                 live.replace("run: python3 eval/tools/ci_minutes.py --scope\n",

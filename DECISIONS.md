@@ -1509,24 +1509,25 @@ rejected twice over: it was arithmetically worse when minutes were metered (+25 
 a second job is a second check that can be absent.
 
 **Every mode of `ci_minutes.py` REFUSES the flags it does not read, rather than making `--scope`
-honour `--json` (task 154).** `--scope --json` exited 0 having ignored `--json`, and the selftest
-carried that command as a variant — an input the gate must not redden — so it asserted that a
-scope step invoked with a flag the tool ignores was a correct scope step. Refusing was chosen
-over honouring for two reasons. `--scope` already has a machine-readable channel, and it is the
-one the workflow reads: `relevant=` in `$GITHUB_OUTPUT`. A second one would be a format with no
-consumer that has to be kept in step with the one that has. And honouring `--json` answers the
-instance while leaving the shape — `--scope --gates`, `--selftest --json` and
-`--path-filter --no-timing` were all exit 0 on a discarded flag, which is the enumeration-versus-
-property failure the rule audit is about. `MODE_ACCEPTS` states which of `--json`, `--cache` and
-`--no-timing` each mode reads; `main` refuses anything outside it with exit 2 before dispatching,
-and the workflow gate asks the scope step's `run:` line the same question instead of matching a
-substring of it. **The substring was satisfied by 2 commands that do something else** — the
-second is `echo eval/tools/ci_minutes.py --scope`, which runs `echo` — so the gate now asks
-whether the shell runs *this* script, accepting the script alone or `python`/`python3` in front
-of it and nothing else. It tokenises the line the way a shell does — **newlines included**, since
-a `#` comment ends at its line and a flattened multi-line block would let one hide the second
-command that overwrites `relevant` — so a quoted script path and a trailing comment pass rather
-than redden.
+honour `--json`.** `MODE_ACCEPTS` states which of `--json`, `--cache` and `--no-timing` each mode
+reads; `main` checks the invocation against it before dispatching and exits **2** naming the
+combination.
+
+Refusing was chosen over honouring for 2 reasons. `--scope` already has a machine-readable
+channel and it is the one the workflow reads — `relevant=` in `$GITHUB_OUTPUT` — so a second
+format would have no consumer and would have to be kept in step with the one that has. And
+honouring `--json` answers the instance while leaving the shape: `--scope --gates`,
+`--selftest --json` and `--path-filter --no-timing` were all exit 0 on a discarded flag, which is
+the enumeration-versus-property failure the rule audit is about.
+
+**The workflow gate asks the scope step's `run:` line the same question**, reading it as a command
+rather than as text: the script token must resolve, against the repository root, to
+`eval/tools/ci_minutes.py`; in front of it there must be nothing or one `python`/`python3` named
+alone or absolutely; and `--scope` must be among the arguments with every other flag one `--scope`
+reads. It tokenises the way a shell does, **newlines included**, because a `#` comment ends at its
+line and a flattened multi-line block would let one hide a second command that overwrites
+`relevant`. A substring test accepted `--scope --json`, `echo eval/tools/ci_minutes.py --scope`
+and `nested/eval/tools/ci_minutes.py`, none of which produces a scope decision from this tool.
 
 **The lever if latency ever binds is the slow tier's `pull_request` trigger, not its path
 filter.** `python3 eval/tools/ci_minutes.py` is what decides that on current data: it reports
