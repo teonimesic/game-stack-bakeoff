@@ -46,7 +46,7 @@ can go red; both are offline and drive nothing.
 
 A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture, never per
 suite - and the population is the 70 criterion instances the four bots report, not the
-36 that carry a mutant. Two of the six pending false negatives are on criteria with no
+36 that carry a mutant. 2 of the 6 pending false negatives are on criteria with no
 mutant at all.
 """
 
@@ -764,11 +764,11 @@ MUTANTS: list[Mutant] = [
 # HAZARDS - one answer per criterion to "what correct game would mis-score this?"
 # --------------------------------------------------------------------------- #
 #
-# THE POPULATION IS 70, NOT 36. Thirty-six criteria carry a mutant; a variant runs the
+# THE POPULATION IS 70, NOT 36. 36 criteria carry a mutant; a variant runs the
 # whole bot on ONE fixture, so a variant on `ref_pong` says nothing about `ref_arena`.
 # The real subject count per criterion is the number of variants on ITS OWN fixture, and
 # before this file was written that was 1 for pong, 1 for arena, 2 for the platformer and
-# **0 for tetris**. Two of the six false negatives found here are on criteria with no
+# **0 for tetris**. 2 of the 6 false negatives found here are on criteria with no
 # mutant at all, so a registry scoped to the 36 would have missed a third of the answer.
 #
 # Every entry names a SHAPE, so the question "does anything cover the shapes #46 names?"
@@ -1361,15 +1361,19 @@ def unmet(got: Verdicts, fixture: str, tolerates: tuple[str, ...] = ()) -> list[
 
     One copy, because `Variant` and `Pending` both need it and two similar policies in
     one file is how #100 came back.
+
+    DEDUPLICATED, because a criterion can be both. `passed=False, scored=False` is a
+    reachable state - the fail-closed path on an unusable probe session sets it - and
+    concatenating the two lists printed that criterion twice in a variant's `UNMET`
+    row. `adjudicate_pending` took a `set` and was unaffected, so the defect lived
+    only where a person reads the output. Raised by CodeRabbit on PR #38.
     """
     diagnostic = getattr(__import__(BOT_FOR[fixture]).BOT,
                          "diagnostic_only", frozenset())
     waived = set(tolerates) | set(diagnostic)
-    failed = sorted(cid for cid, ok in got.passed.items()
-                    if not ok and cid not in waived)
-    unscored = sorted(cid for cid, sc in got.scored.items()
-                      if not sc and cid not in waived)
-    return failed + unscored
+    bad = {cid for cid, ok in got.passed.items() if not ok and cid not in waived}
+    bad |= {cid for cid, sc in got.scored.items() if not sc and cid not in waived}
+    return sorted(bad)
 
 
 def run_bot(repo: Path, fixture: str) -> Verdicts:
@@ -1504,6 +1508,11 @@ def selftest() -> int:
     real = Verdicts(passed={"player.walks": False}, scored={"player.walks": True})
     expect("unmet counts an ordinary one", "['player.walks']",
            str(unmet(real, "ref_platformer")))
+    # The row that catches the concatenation this replaced: a criterion the fail-closed
+    # path marks failed AND unscored appeared twice in a variant's UNMET line.
+    both = Verdicts(passed={"player.walks": False}, scored={"player.walks": False})
+    expect("unmet names a failed-and-unscored criterion once", "['player.walks']",
+           str(unmet(both, "ref_platformer")))
 
     w = max(len(r[0]) for r in rows)
     print(f"{'check':<{w}}  expected")

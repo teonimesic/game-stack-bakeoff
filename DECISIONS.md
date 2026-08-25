@@ -2762,10 +2762,10 @@ with a derived one and remove the drift risk a hand-written text carries.
 
 `bot_mutants.py` now carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
-down; every run asserts the measured set equals the declared one. Six are shipped, on all four
+down; every run asserts the measured set equals the declared one. 6 are shipped, on all 4
 fixtures, each naming the ticket that owns its repair.
 
-**Why the defect is declared rather than repaired here.** Every one of the six is a criterion
+**Why the defect is declared rather than repaired here.** Every one of the 6 is a criterion
 change, and a criterion change moves stored verdicts across 68 graded submissions — a re-scoring
 event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
 *found* it would bundle a measurement change into a coverage change, which is the
@@ -2781,18 +2781,18 @@ exactly one criterion wide, and it closes itself.
 
 **The registry is the other half.** `HAZARDS` holds one answer per criterion to *what
 correct-but-unusual game would mis-score this?* — **70** of them, the criterion instances the
-four bots actually report, not the 36 that carry a mutant. Two of the six false negatives are on
+four bots actually report, not the 36 that carry a mutant. 2 of the 6 false negatives are on
 criteria with **no mutant at all**, so a registry scoped to the mutant set would have missed a
 third of the answer. A criterion added without an entry fails the suite; `no-construction` is a
 legitimate entry and says nobody could build a correct game that fails it.
 
-**A variant's coverage is per FIXTURE.** A variant runs the whole bot on one fixture, so four
-variants over four games is 1, 0, 1 and 2 subjects — `ref_tetris3d` had none, and it is where
-three of the six were found. Never quote a suite-wide variant count as per-criterion coverage.
+**A variant's coverage is per FIXTURE.** A variant runs the whole bot on one fixture, so 4
+variants over 4 games is 1, 0, 1 and 2 subjects — `ref_tetris3d` had none, and it is where 3 of
+the 6 were found. Never quote a suite-wide variant count as per-criterion coverage.
 
-**To re-open:** all six pending entries repaired and promoted, which would leave the mechanism
-carrying nothing and make it worth asking whether it earns its ~5s; or a pending entry that
-survives three tickets, which would mean the declaration is being used to live with a defect
+**To re-open:** all 6 pending entries repaired and promoted, which would leave the mechanism
+carrying nothing and make it worth asking whether it earns its ~7s; or a pending entry that
+survives 3 tickets, which would mean the declaration is being used to live with a defect
 rather than to schedule its repair.
 
 ## Reversal conditions — what would re-open a decision
