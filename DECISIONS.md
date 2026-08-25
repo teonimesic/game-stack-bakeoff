@@ -623,6 +623,20 @@ per-aspect results table over the subset a particular round ran. Nine false posi
 a gap that has never occurred is the trade this file already refused when the path check was
 deleted rather than tuned quiet.
 
+**The flag census refuses the same trade, and the skills are where it costs most (task 149).**
+The backticked-flag half is gated file-wide on 4 harness script names, so it reads 4 of the 10
+`SKILL.md` files and not the other 6 — the documents where commands and flags are most densely
+written. Every candidate widening was measured over the skills corpus on 2026-08-25 and every
+one reddens correct prose: admitting all 10 unconditionally costs **8 correct lines and 0
+genuine hits**, each another tool's flag argued about in prose; requiring one of our scripts on
+the same line reads **2 of the 28** flag mentions a skill really makes and still costs 2;
+requiring one in the same section costs all 8 of the first while reading fewer of the 28.
+`python3 eval/tools/docstat.py --selftest` is the producer for all of those, and its pins go red
+if the trigger is ever widened, so the exclusion cannot become silently false. The bare-fenced
+half is not gated this way and reads all 10, so a flag on a fenced command line — the text a
+reader copies — is covered in every skill. `.agents/skills/audit-docs/SKILL.md` states the same
+split for its readers.
+
 Two boundaries hold the structure half at 0 false positives, and both are the same rule — *a
 gate that fails on correct input gets disabled*:
 

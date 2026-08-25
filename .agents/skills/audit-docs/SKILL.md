@@ -267,10 +267,14 @@ tests nothing. The `printf` above appends an unfenced sentence for exactly that 
 **The flag check does not share that rule, and knowing which you are controlling matters.**
 It has no fence exemption, and it is now **two halves with different triggers**:
 
-| half | trigger | corpus measurement |
-|---|---|---|
-| backticked | `` `--<flag>` `` anywhere, in a doc that names one of our harnesses | 0 hits |
-| bare (task 89) | a `--<flag>` on a **fenced** line, after the name of one of our argparse-owning scripts, before the first shell operator | 0 hits over 56 such lines and 31 in-scope tokens, of which 30 resolve to our argparse and 1 is known-foreign |
+| half | trigger | reads a SKILL.md? | corpus measurement |
+|---|---|---|---|
+| backticked | `` `--<flag>` `` anywhere, in a doc that names one of our harnesses | **only the 4 that name one** | 0 hits |
+| bare (task 89) | a `--<flag>` on a **fenced** line, after the name of one of our argparse-owning scripts, before the first shell operator | all 10 | 0 hits over 56 such lines and 31 in-scope tokens, of which 30 resolve to our argparse and 1 is known-foreign |
+
+**The backticked half's trigger is file-wide, so it skips 6 of the 10 skills** — and that is
+recorded below rather than fixed, because every candidate widening was measured and every one
+reddens correct prose. Run `python3 eval/tools/docstat.py --selftest` for the live split.
 
 Until 2026-08-23 only the first existed, so a **bare** flag on a fenced command line — the
 ordinary way a usage block is written, and the text a reader copies and pastes — was the
@@ -310,6 +314,21 @@ Do not "fix" these by adding them back. Each was measured and removed:
   — that pattern harvests `re.search` and `aspects.py` as criterion ids**, and a check whose
   corpus is junk goes quiet rather than wrong, which is the harder failure to see.
 - **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.
+- **A backticked flag in a document that names none of our 4 harness scripts — including
+  6 of the 10 skills.** Skills are in the corpus and the bare-fenced half reads all of
+  them; this half reads only `add-game`, `audit-docs`, `evaluate-run` and `run-matrix`, so
+  a phantom `` `--flag` `` written in prose in `dispatch`, `prune`, `refine`, `tasks`,
+  `update-readme` or `work` is unseen. Measured over the skills corpus, 2026-08-25, and
+  every widening loses. Admitting all 10 reddens **8 correct lines, 0 genuine** — gh's
+  --auto, --body, --body-file and --merge, git's --ours and --theirs, and just's
+  --offline, each backticked in prose that argues about another tool's flag. *Those seven
+  are written bare here on purpose: backticked, in a file that names a harness, this
+  sentence would redden the gate under the very widening it is describing.* Requiring one
+  of our scripts on the same line reads **2 of the 28** flag mentions a skill really
+  makes and still reddens 2; requiring one in the same section costs all 8 of the first
+  while reading fewer. `python3 eval/tools/docstat.py --selftest` is the producer and
+  re-derives every figure here, and its pins go red if the trigger is ever widened —
+  which is what stops this paragraph from quietly becoming false.
 - **A bare flag in unfenced PROSE, and a bare flag on a fenced line that names no script
   of ours.** Both were built and measured on 2026-08-23 (task 89). Prose: 2 false
   positives, 0 true — a sentence naming `field.py` and then the claude CLI's

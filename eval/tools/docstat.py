@@ -234,16 +234,18 @@ def reference_docs() -> list[str]:
     an input to a check (#60), so each check names the one it wants rather than inheriting
     whatever a shared helper happens to return.
 
-    Measured with this code, 2026-08-23, over the 7 SKILL.md files:
+    BEING IN THIS LIST IS NECESSARY AND NOT SUFFICIENT, and for the skills the gap is
+    recorded rather than implied. The bare-fenced flag half and the aspect check read
+    every skill; the backticked flag half reads only those naming a harness, leaving 6 of
+    the 10 unread as `python3 eval/tools/docstat.py --selftest` prints them.
+    `_backticked_flags()` states that exclusion and why every candidate widening was
+    measured and rejected; `_skill_flag_coverage()` is its producer and
+    `_skill_flag_pins()` holds it red and green, so it cannot go stale silently.
 
-      flag check    0 hits, backticked half. The bare fenced half (task 89) reads 13
-                    in-scope tokens across these 9 files and resolves every one; before
-                    it existed the bare flags here were unseen either way.
-      aspect check  2 hits before fence-masking, 0 after. Both were the same line of
-                    `audit-docs/SKILL.md` - the shell command that plants the phantom
-                    aspects `feel` and `tuning` as this sweep's own positive control.
-      ratchet       0 trial ids appear in any skill, and it is scoped to `findings/`
-                    regardless, so the count is unmoved.
+    The aspect check finds 2 hits over the skills before fence-masking and 0 after, both
+    on the same line of `audit-docs/SKILL.md` - the shell command that plants the phantom
+    aspects `feel` and `tuning` as this sweep's own positive control. The ratchet is
+    scoped to `findings/`, so no skill can move it.
     """
     return sorted(set(project_docs()) | set(_all_skill_files()) | set(github_docs()))
 
@@ -3789,6 +3791,237 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+HARNESS_TRIGGER = re.compile(r"(wholegame|runner|judge/|evaluate|regrade)\.py")
+
+
+def _backticked_flags(text: str, flags: set[str]) -> set[str]:
+    """Backticked `--flag` tokens in one document that match no argparse of ours.
+
+    Only flags this repo's own harnesses would own, so the whole check is gated on
+    `HARNESS_TRIGGER` - a FILE-WIDE search for 4 harness script names. A document that
+    names none of them is naming someone else's flags, and checking those produced 40
+    false positives on the first run of this sweep.
+
+    LINE-SCOPED EXEMPTION, so a line can exempt itself the way the aspect check allows.
+    It could not before, and on 2026-08-23 that turned the sweep red for a correct
+    document: task 77's own write-up names the phantom flag it PLANTED as a control, in a
+    file that also mentions `judge/runner.py`. A gate that fails on correct input is a gate
+    that gets disabled - the reason recorded twice already in this file.
+
+    NOT FENCE-EXEMPT, and the asymmetry with the aspect check is deliberate. The aspect
+    rule reasons that a fenced line is a command and asserts nothing about its own
+    arguments; that does not transfer here, because a fenced command line is exactly where
+    someone COPIES a flag.
+
+    THIS HALF SEES ONLY INLINE CODE, measured 2026-08-23 rather than assumed, and the
+    prediction was wrong before the controls corrected it: the pattern requires BACKTICKS.
+    A backticked flag inside ``` is caught (no fence exemption); a BARE one on a fenced
+    command line was invisible - the ordinary way a usage block is written, and the
+    highest-damage place a phantom flag can sit, because it is the text a reader copies and
+    pastes. That was task 89, and `_bare_fenced_flags()` covers it with its own trigger and
+    its own false-positive measurement; read its docstring before changing either half.
+
+    THE RECORDED EXCLUSION: the SKILL.md files this trigger does not admit.
+    ----------------------------------------------------------------------
+    Every skill is in `reference_docs()`, and the bare-fenced half reads all of them. This
+    half reads only those naming a harness, and skills are where commands and flags are
+    most densely written - so the exclusion is stated here rather than left to be
+    rediscovered. `_skill_flag_coverage()` is the producer and recounts it live;
+    `_skill_flag_pins()` drives this function over both sides of the split.
+
+    It is an exclusion and not a gap because every candidate widening was measured and
+    every one costs correct documents. Adjudicated 2026-08-25 over the skills corpus:
+
+      trigger                                     reads   candidate rows   genuine
+      the shipped 4 harness names, file-wide       10/28        0             -
+      one of our scripts named on the LINE          2/28        2             0
+      one of our scripts in the same SECTION       26/28        8             0
+      every skill admitted unconditionally         28/28        8             0
+
+    The 8 are `gh`'s `--auto`, `--body`, `--body-file` and `--merge`, `git`'s `--ours` and
+    `--theirs`, and `just`'s `--offline` - each written backticked in prose that argues
+    about a foreign tool's flag, which is the case `FOREIGN_FLAGS_EXACT` exists for and
+    which grows every time another tool is discussed. The other two lose to it rather than
+    to each other: the line-scoped trigger reads 2 of the 28 flag mentions a skill really
+    makes and still reddens 2 correct lines, and the section-scoped one costs every row
+    admitting all 10 costs while reading fewer of them. `_harness_trigger_census()`
+    measures the fourth candidate - the closed class `_our_script_names()`, file-wide, over
+    the whole reference corpus - and it loses the same way, at a row count that grows with
+    the corpus.
+
+    THE COST IS NOT HYPOTHETICAL, and it showed up in the act of writing this down.
+    `.agents/skills/audit-docs/SKILL.md` names a harness, so it is already admitted;
+    recording those 7 foreign flags there backticked took the shipped trigger from 0
+    candidate rows to 7 on a paragraph whose whole subject is that they are foreign. They
+    are written bare in that file for exactly that reason. A widening whose own
+    documentation trips it is a widening that will keep tripping on correct prose.
+
+    So the honest report is that a phantom backticked flag in `dispatch`, `prune`,
+    `refine`, `tasks`, `update-readme` or `work` is UNSEEN by this half, and seen by the
+    bare-fenced half only if it is written bare on a fenced line after one of our scripts.
+    `.agents/skills/audit-docs/SKILL.md` carries the same statement for its readers.
+    """
+    if not HARNESS_TRIGGER.search(text):
+        return set()
+    bad: set[str] = set()
+    for ln in text.split("\n"):
+        if re.search(_DELIBERATELY_FAKE, ln, re.I):
+            continue
+        for tok in re.findall(r"`(--[a-z0-9-]{2,})`", ln):
+            if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in FOREIGN_FLAGS_EXACT or tok in flags:
+                continue
+            bad.add(tok)
+    return bad
+
+
+def _skill_flag_coverage(skills: list[str] | None = None) -> dict:
+    """Which skills `_backticked_flags()` reads, and what admitting the rest would cost.
+
+    THE PRODUCER for the exclusion table in that function's docstring and for the row in
+    `.agents/skills/audit-docs/SKILL.md`. A count with no producer goes stale forever, so
+    these are recomputed on the live corpus every `--selftest`.
+
+    `reads` counts backticked mentions of flags that DO resolve - the population each
+    candidate trigger would look at, which is the recall half of the choice. `rows` counts
+    the tokens that do not resolve - the cost half. Both are needed: a trigger can be
+    cheap because it reads almost nothing, and the line-scoped one is.
+
+    IT REPORTS CANDIDATES, NOT VERDICTS, for the same reason `_harness_trigger_census()`
+    does. The only exclusions applied are the ones the check itself applies, so a genuinely
+    unresolved flag of ours appears here exactly as a `gh` flag does. Calling the list
+    false positives in the OUTPUT would be a reason not to count a failure (`AGENTS.md`
+    rule 7).
+
+    `skills` exists for the pins that drive this over a synthetic corpus.
+    """
+    flags, scripts = _argparse_flags(), _our_script_names()
+    wide_rx = re.compile(r"\b(" + "|".join(re.escape(s) for s in sorted(scripts)) + r")\b")
+    skills = _all_skill_files() if skills is None else skills
+    triggers = ("shipped", "line", "section", "all")
+    reads = {t: 0 for t in triggers}
+    rows: dict[str, set[str]] = {t: set() for t in triggers}
+    mentions = 0
+    unread: list[str] = []
+
+    for q in skills:
+        rel = os.path.relpath(q, ROOT)
+        text = open(q, encoding="utf-8", errors="replace").read()
+        lines = text.split("\n")
+        narrow = bool(HARNESS_TRIGGER.search(text))
+        if not narrow:
+            unread.append(rel)
+        # Section = from one ATX heading to the next. Numbered rather than keyed by title,
+        # so two sections that happen to share a heading cannot merge into one.
+        sec, sec_of = 0, []
+        for ln in lines:
+            if ln.startswith("#"):
+                sec += 1
+            sec_of.append(sec)
+        named = {sec_of[i] for i, ln in enumerate(lines) if wide_rx.search(ln)}
+        for i, ln in enumerate(lines):
+            toks = re.findall(r"`(--[a-z0-9-]{2,})`", ln)
+            if not toks:
+                continue
+            fires = {"shipped": narrow, "line": bool(wide_rx.search(ln)),
+                     "section": sec_of[i] in named, "all": True}
+            exempt = bool(re.search(_DELIBERATELY_FAKE, ln, re.I))
+            for tok in toks:
+                if tok in flags:
+                    mentions += 1
+                    for t in triggers:
+                        reads[t] += fires[t]
+                    continue
+                if exempt or tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in FOREIGN_FLAGS_EXACT:
+                    continue
+                for t in triggers:
+                    if fires[t]:
+                        rows[t].add(f"{rel}: {tok}")
+    return {"skills": len(skills), "unread": sorted(unread), "mentions": mentions,
+            "reads": reads, "rows": {t: sorted(rows[t]) for t in triggers}}
+
+
+def _skill_flag_pins(verbose: bool = False) -> list[str]:
+    """The recorded exclusion is a measurement, driven through the real check.
+
+    An exclusion written only as a comment is a claim about code that nothing re-reads. If
+    someone widens `HARNESS_TRIGGER`, or every skill starts naming a harness, the docstring
+    table and the audit-docs row become wrong SILENTLY - the sweep stays green either way,
+    because a gate that reads more is not a gate that fails. These pins turn that into a
+    red row instead.
+
+    Both directions on a SYNTHETIC pair, because green on the live tree proves only that
+    the live tree is clean. The two fixtures differ in exactly one thing - whether the text
+    names a harness - so what they measure is the trigger and not the document.
+
+    The expectation is stated here, never imported from the subject: `_backticked_flags()`
+    is called, its answer compared against a literal. A control that computes its expected
+    value by calling the function under test agrees with every mutant of that function
+    (task 113).
+    """
+    flags = _argparse_flags()
+    plant = "Pass `--zzq-unresolved-tok` when you do this.\n"
+    with_harness = "Run `python3 eval/judge/runner.py` first.\n" + plant
+    without = "Run `python3 eval/tools/prune_scan.py` first.\n" + plant
+    fake = "We planted `--zzq-unresolved-tok` here as a control.\n"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        a = os.path.join(tmp, "names_a_harness", "SKILL.md")
+        b = os.path.join(tmp, "names_no_harness", "SKILL.md")
+        for path, body in ((a, with_harness), (b, without)):
+            os.makedirs(os.path.dirname(path))
+            open(path, "w").write(body)
+        cov = _skill_flag_coverage(skills=[a, b])
+        fixture_unread = cov["unread"]
+
+    live = _skill_flag_coverage()
+    cases = [
+        # RED: the half can fail at all, on the shape the exclusion is about.
+        ("a phantom backticked flag in a doc that names a harness is caught",
+         _backticked_flags(with_harness, flags), {"--zzq-unresolved-tok"}),
+        # THE EXCLUSION ITSELF, as a measurement rather than a comment. If this reddens,
+        # the trigger was widened and both write-ups must be re-measured, not deleted.
+        ("...and the identical plant in a doc that names none is NOT",
+         _backticked_flags(without, flags), set()),
+        # GREEN: the exemption still works inside an admitted document, so the red above
+        # is the trigger doing its job rather than the check firing on everything.
+        ("a line saying the flag is planted exempts itself in an admitted doc",
+         _backticked_flags(with_harness.replace(plant, fake), flags), set()),
+        ("the coverage producer sees the fixture split, so it is reading the trigger",
+         [os.path.basename(os.path.dirname(q)) for q in fixture_unread],
+         ["names_no_harness"]),
+        # The live statement the docstring and the audit-docs skill both make.
+        ("some live SKILL.md is unread by this half - the recorded exclusion is real",
+         bool(live["unread"]), True),
+        ("...and admitting them all would read more mentions than the shipped trigger",
+         live["reads"]["all"] > live["reads"]["shipped"], True),
+        ("...at a cost in rows, which is why it is not done",
+         len(live["rows"]["all"]) > len(live["rows"]["shipped"]), True),
+        ("the line-scoped alternative reads FEWER mentions and still costs rows",
+         live["reads"]["line"] <= live["reads"]["shipped"]
+         and len(live["rows"]["line"]) > 0, True),
+    ]
+    failed = []
+    for name, got, want in cases:
+        ok = got == want
+        if verbose:
+            print(f"{'PASS' if ok else 'FAIL'}  {name}: {got}, expected {want}")
+        if not ok:
+            failed.append(f"skill flag pin: {name}: got {got}, want {want}")
+    if verbose:
+        print(f"\n  backticked-flag coverage over {live['skills']} SKILL.md, "
+              f"{live['mentions']} backticked mention(s) of flags that resolve:")
+        for t in ("shipped", "line", "section", "all"):
+            print(f"    {t:8s} reads {live['reads'][t]:3d}/{live['mentions']} "
+                  f"and adds {len(live['rows'][t]):2d} candidate row(s)")
+        print(f"  unread by the shipped trigger: {', '.join(live['unread'])}")
+        print("  Rows admitting every skill, last adjudicated 2026-08-25 at 8: none "
+              "genuine.\n  A count above that, or a row naming a script of ours, is "
+              "unadjudicated and must be read:")
+        for row in live["rows"]["all"]:
+            print(f"    {row}")
+    return failed
+
+
 def _harness_trigger_census(docs: list[str] | None = None) -> dict:
     """What widening the backticked-flag half's file-wide trigger would cost.
 
@@ -3998,6 +4231,8 @@ def cmd_selftest() -> int:
     failed += _regime_ordinal_pins(verbose=True)
     print()
     failed += _corpus_pins(verbose=True)
+    print()
+    failed += _skill_flag_pins(verbose=True)
     after = _size_mtime(index_path)
     untouched = before == after
     print(f"\n{'PASS' if untouched else 'FAIL'}  eval/FINDINGS.md size and mtime unchanged "
@@ -4037,41 +4272,13 @@ def cmd_sweep() -> int:
 
         lines = text.split("\n")
 
-        # Only flags this repo's own harnesses would own.
-        #
-        # LINE-SCOPED, so a line can exempt itself the way the aspect check below allows.
-        # It could not before, and on 2026-08-23 that turned the sweep red for a correct
-        # document: task 77's own write-up names the phantom flag it PLANTED as a control,
-        # in a file that also mentions `judge/runner.py`. A gate that fails on correct input
-        # is a gate that gets disabled -- the reason recorded twice already in this file.
-        #
-        # NOT FENCE-EXEMPT, and the asymmetry with the aspect check is deliberate. The
-        # aspect rule reasons that a fenced line is a command and asserts nothing about its
-        # own arguments; that does not transfer here, because a fenced command line is
-        # exactly where someone COPIES a flag.
-        #
-        # BUT THIS HALF SEES ONLY INLINE CODE, measured 2026-08-23 rather than assumed,
-        # and the prediction was wrong before the controls corrected it: the pattern
-        # requires BACKTICKS. A backticked flag inside ``` is caught (no fence exemption);
-        # a BARE one on a fenced command line was invisible -- the ordinary way a usage
-        # block is written, and the highest-damage place a phantom flag can sit, because
-        # it is the text a reader copies and pastes. That was task 89, and it is now
-        # covered by `_bare_fenced_flags()` below, which carries its own trigger and its
-        # own false-positive measurement; read its docstring before changing either half.
+        # The backticked half. Its trigger, its exclusions and what widening either
+        # would cost are in `_backticked_flags()`; read that before changing this line.
         #
         # Dedup is per DOCUMENT and the output sorted, preserving the old `set(...)` count
         # of one problem per token however often it occurs -- and fixing that set's
         # iteration order, which varied between runs under hash randomisation.
-        harness = re.search(r"(wholegame|runner|judge/|evaluate|regrade)\.py", text)
-        bad_flags: set[str] = set()
-        if harness:  # a doc that never mentions our harness names someone else's flags
-            for ln in lines:
-                if re.search(_DELIBERATELY_FAKE, ln, re.I):
-                    continue
-                for tok in re.findall(r"`(--[a-z0-9-]{2,})`", ln):
-                    if tok.startswith(FOREIGN_FLAG_PREFIXES) or tok in FOREIGN_FLAGS_EXACT or tok in flags:
-                        continue
-                    bad_flags.add(tok)
+        bad_flags: set[str] = set(_backticked_flags(text, flags))
         # The bare half. Deliberately OUTSIDE the `harness` gate: its trigger is the
         # script name on the line itself, which is stronger evidence than the file-wide
         # test, and the file-wide form is the one that hid a false positive for three
