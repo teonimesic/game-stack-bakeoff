@@ -5,12 +5,12 @@ median frame time crosses a budget, report the highest level sustained. That mea
 only if CPU, RAM and GPU are held underneath it. This page reports whether they can be, on the
 machine every existing result came from, and what the alternative is.
 
-**The answer is a null on the GPU and it closes the question.** Every mechanism tested here — and
-they are the ones a search of the host's own tooling turns up — leaves GPU throughput untouched,
-and one competing GPU process costs more than two ramp levels. So the honest design is an
-**uncapped ramp on an exclusive machine, spaced rather than back-to-back, interleaved across arms,
-with the machine recorded per trial** — and that design is buildable today, because the two
-numbers that decide whether it can mean anything both came back small enough.
+**The answer is a null on the GPU and it closes the question.** Every capping or biasing mechanism
+tested here leaves GPU throughput untouched, and 1 competing GPU process costs more than 2 ramp
+levels. So the honest design is an **uncapped ramp on an exclusive machine, spaced rather than
+back-to-back, interleaved across arms, with the machine recorded per trial** — and that design is
+buildable today, because the 2 numbers that decide whether it can mean anything both came back
+small enough.
 
 **What a null here is and is not.** These arms establish that the tested mechanisms do not cap or
 bias GPU work; they cannot establish that no mechanism could. Each arm is one row of
@@ -50,19 +50,20 @@ fixed workload under each candidate, interleaved over 4 rounds:
 | control | 9.052 ms | 1.00 | 8.359, 8.387, 9.716, 10.138 |
 | `taskpolicy -b` | 9.106 ms | 1.01 | 8.358, 8.402, 9.811, 10.053 |
 | `taskpolicy -c utility` | 9.221 ms | 1.02 | 8.362, 8.454, 9.987, 10.128 |
-| **contended** — one more GPU process | 19.286 ms | **2.13** | 16.321, 18.470, 20.102, 22.748 |
+| **contended** — 1 more GPU process | 19.286 ms | **2.13** | 16.321, 18.470, 20.102, 22.748 |
 
 `taskpolicy -b` cuts CPU throughput to 0.20x (below), so it is not an inert arm. On the GPU it
 tracks the control to within **0.1 ms** in every round; `-c utility` tracks it to within
 **0.28 ms**, its widest gap being 9.987 ms against a control of 9.716 ms. Both are far smaller
-than the control row's own movement of 8.36 → 10.14 across the same four rounds, which is what
+than the control row's own movement of 8.36 → 10.14 across the same 4 rounds, which is what
 any ratio here has to be read against and why the arms are interleaved rather than run in blocks.
 
-**Read the contended row as the isolation figure, not as a cap.** Adding one more GPU process
+**Read the contended row as the isolation figure, not as a cap.** It is not a capping
+candidate: it measures what this host does when something else wants the GPU. Adding 1 more process
 roughly doubles frame time — 1.95x, 2.20x, 2.07x, 2.24x against the control of its own round.
 The GPU time-slices between clients and gives no client a floor.
 
-### RAM: nothing on this host bounds it, and one flag lies about it
+### RAM: no tested mechanism bounds it, and 1 flag lies about it
 
 `setrlimit` was asked directly rather than through the shell builtin, so `EINVAL` separates "this
 limit does not exist here" from "you may not raise it":
@@ -77,7 +78,7 @@ limit does not exist here" from "you may not raise it":
 
 `RLIMIT_AS` and `RLIMIT_RSS` are **the same number on Darwin** (both `5`), so there is one
 address-space limit and it is unsettable. `RLIMIT_STACK` is the control that makes the other rows
-readable: it is set to its own hard limit and succeeds, so `EINVAL` on the three above is the
+readable: it is set to its own hard limit and succeeds, so `EINVAL` on the 3 above is the
 kernel refusing the limit rather than refusing the value.
 
 **`taskpolicy -m` documents "memory limit (in MiB)" and does not enforce one.** A hog asked for
@@ -94,7 +95,7 @@ A 64x overshoot, with a jetsam priority and application resource policies, at ex
 anything a script can see — so it is named here rather than left for someone to discover by
 building a cap on it.
 
-### CPU: one enforceable rlimit, one large bias, and no way to ask for a core count
+### CPU: 1 enforceable rlimit, 1 large bias, and no way to ask for a core count
 
 `RLIMIT_CPU` is real: set to 2 seconds against a hog wanting 8, the process died of `SIGXCPU` at
 exit 152, where the unrestricted control ran to completion at exit 0. It bounds **cumulative CPU
@@ -120,7 +121,7 @@ CPU-seconds on the unchanged workload.
 
 ## The Linux VM route: real caps, and no GPU at all
 
-The one configuration where all three caps are real is a Linux guest with cgroups v2. A VM is
+The 1 configuration where all 3 caps are real is a Linux guest with cgroups v2. A VM is
 already installed here, so this was measured rather than assumed. Inside it:
 
 - `/sys/fs/cgroup` is `cgroup2fs` — real cgroups v2.
@@ -138,7 +139,7 @@ That is what a cap looks like: a number you ask for and get back. Compare `taskp
 has no number to ask for.
 
 **And it is still the wrong machine.** A GPU-bound scene rendered without a GPU is not the
-experiment, so a container run would compare software rasterisation across four stacks — and it
+experiment, so a container run would compare software rasterisation across 4 stacks — and it
 would be a different machine from the one every existing result came from, which is a regime
 boundary rather than a free upgrade.
 
@@ -154,7 +155,7 @@ Two numbers decide whether a ramp can mean anything, and they answer differently
 ### Spaced launches are stable to about 1%
 
 `--spread` runs the same fixed workload in separate processes with a 25 s idle gap between them.
-Three independent runs, one of them started hot straight after the 10-minute drift arm:
+3 independent runs, 1 of them started hot straight after the 10-minute drift arm:
 
 | run | n | median of per-launch medians | range as a share of the median |
 |---|---|---|---|
@@ -162,8 +163,7 @@ Three independent runs, one of them started hot straight after the 10-minute dri
 | second, started hot | 12 | 8.3821 ms | 2.485% |
 | third, through the committed tool | 3 | 8.3839 ms | 0.766% |
 
-The three medians agree to **0.074%**, across runs separated by fifteen minutes and a ten-minute
-GPU burn. The second run's wider range is its **first** launch alone (8.567 ms); launches 1–11
+The 3 medians agree to **0.074%**, across runs separated by 15 minutes and a 10-minute GPU burn. The second run's wider range is its **first** launch alone (8.567 ms); launches 1–11
 span 8.358–8.407 ms, a 0.585% range. So a 25 s idle gap fully recovers a machine that had been
 reading 11.5 ms back-to-back moments earlier — **the drift below is about sustained load, not
 about accumulated heat.**
@@ -203,12 +203,12 @@ A ramp reports the highest level sustained, so a frame time inflated by `r` cost
 | one competing GPU process | 2.130 | 3.39 | 1.86 | 1.09 |
 
 **Spaced, the host costs about a tenth of a level and a ramp can separate stacks. Back-to-back or
-shared, it costs one to three levels and no stack comparison survives.** That is the whole result,
+shared, it costs 1 to 3 levels and no stack comparison survives.** That is the whole result,
 and it is a design constraint rather than a blocker.
 
 ## Frame timing, per stack
 
-A ramp has to read a clock, and the four stacks do not offer the same one. Every row was read
+A ramp has to read a clock, and the 4 stacks do not offer the same one. Every row was read
 from the installed toolchain or the starter, not from documentation:
 
 | stack | GPU-side frame timer here | what it offers | source |
@@ -219,8 +219,8 @@ from the installed toolchain or the starter, not from documentation:
 | unity 6000.0.45f1 | **yes** | `FrameTimingManager` with `CaptureFrameTimings`, `GetLatestTimings`, `cpuFrameTime`, `gpuFrameTime` | `strings` on `UnityEngine.CoreModule.dll` |
 
 **So a cross-stack ramp must read a stack-neutral clock — wall time per presented frame, taken by
-the harness outside the engine — or it compares a CPU frame time on one arm against a GPU frame
-time on another.** The engines' own timers stay useful per stack and as a cross-check; they are
+the harness outside the engine — or it compares a CPU frame time on 2 arms against a GPU frame
+time on the other 2.** The engines' own timers stay useful per stack and as a cross-check; they are
 not the comparable quantity.
 
 ### The real-time path is not the capture path, and it differs per stack
@@ -246,17 +246,17 @@ Two of these need work before a ramp can run at all:
 - **rust and godot want a window.** Bevy's real-time path is refused under the harness for focus
   stealing, and godot's rendering path needs a real display by measurement. `just film` is
   windowless on rust and unity and windowed on godot, so a perf harness that drives `film`-shaped
-  invocations still puts a window on the operator's desk for one arm of four (rule 13).
+  invocations still puts a window on the operator's desk for 1 arm of 4 (rule 13).
 
 ## What a performance pass must do, given all of the above
 
-1. **Do not build a cap.** None exists for the GPU, none exists for RAM, and the CPU has a kill
-   switch and a bias with no argument. Report the machine instead: `host_perf_probe.py --spread`
+1. **Do not build a cap.** No tested mechanism caps the GPU or RAM, and on the CPU there is a
+   kill switch on cumulative seconds and a bias that takes no argument. Report the machine instead: `host_perf_probe.py --spread`
    is a cheap before-and-after witness that the host was in its usual state.
 2. **Space the trials.** A 25 s idle gap between measured runs recovered this machine completely;
-   back-to-back costs one to three ramp levels. Spacing is the single highest-value design choice
+   back-to-back costs 1 to 3 ramp levels. Spacing is the single highest-value design choice
    here and it is free.
-3. **Require exclusivity.** One competing GPU process costs 2.13x. Nothing else may run — not the
+3. **Require exclusivity.** 1 competing GPU process costs 2.13x. Nothing else may run — not the
    correctness pass, not a second trial, not a judge call. The GPU gives no client a floor.
 4. **Interleave the arms and record when each trial ran**, as `eval/SCENES.md` already asks. The
    drift arm's shape is why: it is not monotone, so a block design cannot be corrected afterwards

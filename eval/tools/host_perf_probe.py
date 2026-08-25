@@ -398,16 +398,25 @@ def arm_caps() -> int:
         # or that rejects a flag, exits non-zero having never launched the hog — and reading
         # that as ENFORCED would report a working cap from an arm that never ran, which is
         # the fail-open channel AGENTS.md rule 7 is about.
-        if got.startswith("ALLOCATED_MB 2048"):
-            verdict = "" if not prefix else "IGNORED"
-        elif got.startswith("FAILED_AT_MB"):
-            verdict = "ENFORCED"
-        else:
+        reached = got.startswith("ALLOCATED_MB 2048")
+        if not reached and not got.startswith("FAILED_AT_MB"):
             raise SystemExit(f"NOT MEASURED: `{' '.join([*prefix, 'hog', 'mem', '2048'])}` "
                              f"exited {p.returncode} without either of the hog's own markers. "
                              f"The arm did not run, so no row of it is a result.\n  {got}")
+        if not prefix:
+            # THE CONTROL DECIDES WHETHER THE OTHER ROWS MEAN ANYTHING. A host too short of
+            # memory to reach 2048 MB unrestricted makes every policy row below read ENFORCED
+            # while the policy did nothing — a positive control failing, reported as a result.
+            if not reached:
+                raise SystemExit(f"NOT MEASURED: the UNRESTRICTED control did not reach 2048 MB "
+                                 f"({got}). Until it does, a capped row failing says nothing "
+                                 f"about the cap. No verdict is printed.")
+            verdict = ""
+        else:
+            verdict = "IGNORED" if reached else "ENFORCED"
         print(f"  {label:28s} exit={p.returncode:<4d} {got:22s} {verdict}")
-    print("  a bound is ENFORCED only where the hog did NOT reach 2048 MB.")
+    print("  a bound is ENFORCED only where the hog did NOT reach 2048 MB and the")
+    print("  unrestricted control did.")
 
     print("\n== CPU: CPU-seconds taken in a fixed 6 s wall window, 16 spinning threads.")
     print("   Interleaved over 3 rounds, because the machine's own load moves between arms.")
@@ -582,17 +591,52 @@ def arm_selftest() -> int:
         print(f"  {'ok  ' if ok else 'FAIL'} {why} (exit {p.returncode})")
         if not ok:
             failures.append(why)
-    # The cache publishes with os.replace, so a partially written binary can never be reached
-    # under the name a later run looks up. A file named `<name>-<hash>` is the only thing
-    # `_build` returns, and nothing writes to that name except the rename.
-    stale = _cache_dir() / "selftest-partial"
-    stale.write_text("not an executable")
-    ok = not os.access(stale, os.X_OK)
-    print(f"  {'ok  ' if ok else 'FAIL'} a partial cache artifact is not executable "
-          f"(and is never published under a looked-up name)")
-    stale.unlink(missing_ok=True)
-    if not ok:
-        failures.append("partial cache artifact executable")
+    # THE CACHE ROWS GO THROUGH `_build` ITSELF, with a stand-in compiler. A row that writes a
+    # file and asks whether it is executable tests nothing `_build` does: it would stay green
+    # if `_build` compiled straight to the looked-up name, and green is the reassuring answer.
+    #
+    # The expected path is spelled out here rather than taken from `_build`. A control that
+    # imports its expectation from its subject is not a control (rule 12's corollary), and the
+    # mutant that matters — publishing to the looked-up name without the rename — is exactly
+    # the one a shared helper would hide.
+    def expected(src: str) -> Path:
+        return _cache_dir() / f"hog-{hashlib.sha256(src.encode()).hexdigest()[:12]}"
+
+    # The stand-in compiler WRITES ITS OUTPUT AND THEN FAILS, which is what an interrupted
+    # compile looks like. A compiler that merely exits non-zero leaves nothing behind, so it
+    # would keep this row green against the very mutant it exists for — `_build` compiling
+    # straight to the looked-up name.
+    failing_src = f"/* selftest, compiler writes then fails: {os.getpid()} */\n"
+    want = expected(failing_src)
+    want.unlink(missing_ok=True)
+    try:
+        _build("hog", failing_src,
+               lambda s, e: ["sh", "-c", 'cp /bin/echo "$1"; exit 1', "_", str(e)])
+        raised = False
+    except SystemExit:
+        raised = True
+    for name, got in (("a failed build raises rather than returning", raised),
+                      ("a failed build leaves the looked-up path ABSENT", not want.exists())):
+        print(f"  {'ok  ' if got else 'FAIL'} {name}")
+        if not got:
+            failures.append(name)
+    want.unlink(missing_ok=True)
+
+    ok_src = f"/* selftest, compiler succeeds: {os.getpid()} */\n"
+    want_ok = expected(ok_src)
+    want_ok.unlink(missing_ok=True)
+    built = _build("hog", ok_src, lambda s, e: ["cp", "/bin/echo", str(e)])
+    rows = [
+        ("_build returns the path this selftest computed independently", built == want_ok),
+        ("a successful build publishes an executable there", os.access(built, os.X_OK)),
+        ("the intermediate paths are cleaned up",
+         not list(_cache_dir().glob(f".hog-*.{os.getpid()}*"))),
+    ]
+    for name, got in rows:
+        print(f"  {'ok  ' if got else 'FAIL'} {name}")
+        if not got:
+            failures.append(name)
+    want_ok.unlink(missing_ok=True)
 
     print("\n== what this selftest does NOT establish")
     print("  anything about this host. --caps, --gpu, --spread and --drift each refuse to")

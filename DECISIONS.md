@@ -2564,18 +2564,21 @@ underneath holds still. **It cannot be held still by any mechanism on this host,
 need to be.** `eval/PERF-HOST.md` is the report and the authority; `eval/tools/host_perf_probe.py`
 is the producer for every figure in it.
 
-**No tested mechanism caps anything that matters, and one candidate lies about doing so.**
-`taskpolicy -b` cuts CPU throughput to 0.20x and moves GPU frame time by under 0.1 ms in every
-interleaved round, so the CPU levers do not reach the GPU. That is a claim about the arms
+**No tested mechanism gives a usable GPU, RAM or CPU-rate cap, and 1 candidate lies about doing
+so.** `taskpolicy -b` cuts CPU throughput to 0.20x and moves GPU frame time by under 0.1 ms in
+every interleaved round, so the CPU levers do not reach the GPU. That is a claim about the arms
 `host_perf_probe.py --gpu` runs, not about every mechanism that could exist: a candidate nobody
-has tried is a new row rather than a refutation. `RLIMIT_AS`, `RLIMIT_DATA` and `RLIMIT_RSS` — the
-first and third being the same limit on Darwin — return `EINVAL` from `setrlimit`, with
-`RLIMIT_STACK` set to its own hard limit as the control that proves the refusal is about the limit
-rather than the value. `taskpolicy -m` documents a memory limit in MiB and does not enforce one:
-a hog asked for 2048 MB got all of it at exit 0 under `-m 512`, and again under `-m 64 -j 10 -a`.
-That is #61's shape — an accepted-but-ignored flag — and it is written down so nobody builds a cap
-on it. `RLIMIT_CPU` is the one enforceable rlimit here and it kills on cumulative CPU seconds,
-which is a kill switch rather than a rate.
+has tried is a new row rather than a refutation. **The 1 exception is `RLIMIT_CPU`**, which is
+genuinely enforced — it killed a hog with `SIGXCPU` at exit 152 where the unrestricted control
+finished at exit 0 — but it bounds cumulative CPU seconds and kills on exceeding them, so it can
+end a trial and cannot hold one to a rate or a core count.
+
+`RLIMIT_AS`, `RLIMIT_DATA` and `RLIMIT_RSS` — the first and third being the same limit on Darwin —
+return `EINVAL` from `setrlimit`, with `RLIMIT_STACK` set to its own hard limit as the control that
+proves the refusal is about the limit rather than the value. `taskpolicy -m` documents a memory
+limit in MiB and does not enforce one: a hog asked for 2048 MB got all of it at exit 0 under
+`-m 512`, and again under `-m 64 -j 10 -a`. That is #61's shape — an accepted-but-ignored flag —
+and it is written down so nobody builds a cap on it.
 
 **The container route is rejected on the GPU, not on the caps.** A Linux guest with cgroups v2 was
 started and measured: `--memory=512m` OOM-kills the same hog at exit 137 where the control writes
