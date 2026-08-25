@@ -2176,6 +2176,60 @@ the 8** value/order readings flip, every one of them from *between exceeds withi
 separation*, and the maximum excess of between over within falls from **+22.6%** to **+14.3%**.
 `README.md`'s tier-3 row states a null and quotes no figure, so it is unchanged.
 
+## THE GAME TASK PROMPT CHANGED ON 2026-08-25 — a TWENTY-FIRST comparability break
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+**One word left the game preamble's definition of done**, in `suites/wholegame_prompts.py`
+`_preamble()`:
+
+| | text |
+|---|---|
+| before | *looping background music, and a **distinct** sound effect for each of the events listed below* |
+| after | *looping background music, and a sound effect for each of the events listed below* |
+
+**Why:** the same prompt permitted the opposite 40 lines later. The audio-manifest section of
+`_probe_section()` says *"Whether two events share a sound, and what the sounds are, is yours to
+design"*, so a submission mapping three events to one clip satisfied the manifest contract and
+failed the stated definition of done. `judge/` adjudicates for the manifest clause and against
+the preamble — `audio.distinct` sets its floor at half the declared events *because the task
+permits sharing*, `audio.manifest` asks for an entry per event and never for a distinct file,
+`audio.triggered` asks only that each fired event have an audible cue, and the tier-3 `audio`
+aspect prefers *"three well-chosen"* cues to *"five technically distinct clips that are all the
+same bright square-wave blip"*. Nothing in `judge/` has ever scored one distinct sound per event
+(`tasks/142`; found by review on PR 19, reviewable only because task 133 checked the rendered
+prompts in).
+
+**16 rendered prompts moved and no scene prompt did.** That was measured, not reasoned.
+`python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` exited 1 against the pre-edit
+snapshot and named **16 of 24** files: 4 games x 4 stacks, 4 lines each. It named **0 of the 8**
+scene prompts, because scenes render from `scene_prompts.py`'s own `_scene_preamble()`. The
+snapshot is re-recorded in the same commit.
+
+### What it invalidates, and what it does not
+
+**Invalidated: pooling whole-game trials across this date on anything derived from the task
+text.** The **91** stored whole-game trial records
+(`python3 eval/tools/census.py`, population *stored trial records carrying a `game` field*, read
+2026-08-25) were built from the old wording. A trial built after it was asked for something
+weaker, and turns, cost and every audio score are downstream of what was asked.
+
+**Not invalidated, and this is the larger half:**
+
+- **No stored trial changes and no stored score changes.** No criterion, threshold or weight moved
+  — `judge/audio.py` is untouched by this break, and the RUBRIC edit corrects a sentence that
+  described the prompt, not a rule that scores one.
+- **Re-grading a stored trial returns what it returned before.** This is a task-text boundary, not
+  a grader-side one, so it is unlike the fifth and the nineteenth.
+- **The scene suite is untouched**, and has no stored trials to be cross-regime with in any case.
+- **The starters are untouched**, so every starter-keyed boundary above is unaffected.
+
+**What it plausibly changes in a future run, stated as a prediction rather than a result:** less
+agent effort spent synthesising one clip per event, and `audio.distinct` — already floored at half
+the declared events — closer to its floor. Nothing here measures that; the first post-boundary run
+is what would.
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
