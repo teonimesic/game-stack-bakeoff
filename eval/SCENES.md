@@ -233,8 +233,8 @@ host does to a frame-time number, and it decides the design. The short form:
 - **Space the trials, and require an exclusive machine.** Spaced 25 s apart, the same fixed
   workload holds to ~1% and costs about a tenth of a ramp level. Run back to back it swings
   **1.975x**, and the report's isolation measurement — 1 competing GPU process — costs **2.13x**.
-  Either is 1 to 3 ramp levels of host contribution, which is larger than any stack gap
-  smaller than that — and no stack gap here has been measured yet.
+  Either is 1.0 to 3.4 ramp levels of host contribution depending on the step size chosen,
+  which is larger than any stack gap smaller than it — and no stack gap here is measured yet.
 - **Hold the machine, per arm, and prove it.** A perf number is far more machine-sensitive than a
   correctness one. AGENTS.md rule 10 was bought by a system daemon that gated `execve` for ten
   days and split a run's results by whether the arm linked new binaries (#49). Capture machine

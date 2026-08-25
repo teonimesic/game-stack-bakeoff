@@ -212,9 +212,10 @@ A ramp reports the highest level sustained, so a frame time inflated by `r` cost
 | back-to-back over 10 min | 1.975 | 3.05 | 1.68 | 0.98 |
 | 1 competing GPU process | 2.130 | 3.39 | 1.86 | 1.09 |
 
-**Spaced, the host contributes about a tenth of a level. Back-to-back or shared, it contributes
-1 to 3.** A ramp can only separate stacks by more than the host contributes, so at 1 to 3 levels
-the host is the larger term for any stack gap smaller than that — and how large a stack gap is,
+**Spaced, the host contributes 0.04 to 0.11 of a level. Back-to-back or shared, it contributes
+1.0 to 3.4**, the wide range being the step size a ramp chooses. A ramp can only separate stacks
+by more than the host contributes, so at those levels the host is the larger term for any stack
+gap smaller than it — and how large a stack gap is,
 like the spread a real submission adds on top, is unmeasured until a scene exists. That is why
 spacing and exclusivity are requirements: they are what make the host term small enough that the
 question becomes about the submissions.
@@ -269,7 +270,7 @@ Two of these need work before a ramp can run at all:
    kill switch on cumulative seconds and a bias that takes no argument. Report the machine instead: `host_perf_probe.py --spread`
    is a cheap before-and-after witness that the host was in its usual state.
 2. **Space the trials.** A 25 s idle gap between measured runs recovered this machine completely;
-   back-to-back costs 1 to 3 ramp levels. Spacing is the single highest-value design choice
+   back-to-back costs 1.0 to 3.4 ramp levels. Spacing is the single highest-value design choice
    here and it is free.
 3. **Require exclusivity.** 1 competing GPU process costs 2.13x. Nothing else may run — not the
    correctness pass, not a second trial, not a judge call. The GPU gives no client a floor.
