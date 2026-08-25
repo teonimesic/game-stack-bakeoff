@@ -407,3 +407,43 @@ body of prose here that no pass had read.
 
 No tasks filed. Nothing here is dead weight, and the one gap was a missing row rather than a
 missing check.
+
+## 2026-08-24 (third pass) — which documents does a gate actually open?
+
+Area chosen from the previous hour's discovery rather than from the rotation: task 147 found that
+`docstat.py` had never read `.github/workflows/README.md`. The obvious next question — **what else
+is invisible?** — had never been asked, and it is answerable in one command.
+
+Read-only throughout: `docstat.py` was being edited by task 147 at the time, so nothing here
+touched it.
+
+### Found
+
+- **Every `SKILL.md` escapes the flag census.** All 10 are inside `reference_docs()` and none is
+  inside `project_docs()`, which is the corpus the *"flag matches no argparse"* check reads. Proved
+  with one plant and a positive control: `` `--zzqwerty-nonexistent` `` in
+  `.agents/skills/prune/SKILL.md` gives **exit 0**; the identical plant in `DECISIONS.md` gives
+  exit 1 naming the flag. **Skills are where commands and flags are most densely written.** Filed
+  as `tasks/149` at p2, with the trap that makes it awkward — `project_docs()` feeds an exact-count
+  ratchet a larger corpus would move in the passing direction — copied in from `tasks/147`.
+- **The hazard was documented inside the file that had it.** `_all_skill_files()`'s docstring says
+  *"`glob` does not descend into dot-directories, and every skill here lives under one. A `**`
+  spelling of this returned zero files while reporting clean."* — forty lines below
+  `project_docs()`, which globs `**`. Added to **#170**, because it is #169's shape a second time:
+  a fact in prose beside a predicate that contradicts it is not a check.
+
+### Examined and judged sound
+
+- **The dot-directory census is now complete and small.** 11 tracked `.md` files live under
+  dot-directories: 10 skills and the CI register. The register is task 147's; the skills are
+  `tasks/149`. **There is no third case** — this is the whole population, so the class is closed
+  once those two land.
+- **`.agents/skills/` is a symlink target with one real copy**, and `skill_layout_control.py` pins
+  that five ways. Nothing here is duplicated prose.
+
+### Method note
+
+The first plant used the token `zzphantomflag` and came back green in **both** files — the word
+`phantom` matches the checker's own deliberately-fake allowlist, so the probe was disarmed by the
+thing it was probing. A neutral token separated the two files immediately. **Name a probe after
+nothing the system knows about.**
