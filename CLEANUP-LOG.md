@@ -486,3 +486,39 @@ pass.
 **The hook is the mechanism that would have stopped this reaching `main`, and it is not installed
 by default** — deliberately, since `core.hooksPath` is shared config and arms every worktree at
 once. So the thing that catches this class is a command the operator has to have run.
+
+## 2026-08-25 (second pass) — `eval/judge/`: the tier that carries the whole weight
+
+No previous pass had read `eval/judge/`, which is where the play-bots live — the tier weighted
+**1.00**, with tier 1 a gate and tier 3 at 0.00. Rather than skim 1,100 lines of `bot_arena.py`,
+the pass asked one question it could answer: **does the tier carrying the score have the coverage
+the rules demand of it?**
+
+### Found
+
+- **The play-bot suite has 4 variant subjects for 36 criteria; the scene probe has 8 for 15.**
+  Both run mutants and variants, both exit 0, both are gated. The difference is the variant half —
+  the one `AGENTS.md` rule 15 says has found *every* false negative ever adjudicated here, sixteen
+  of them in one sweep (#46). Filed as **`tasks/155`** at p2, framed as a question rather than a
+  defect: four well-chosen variants can beat eight badly chosen, and the four here are pointed at
+  real shapes. **Concluding that 4 is sufficient, with per-criterion reasoning, closes it.**
+- **The asymmetry has a cause worth naming.** The scene probe's ticket carried the mutant/variant
+  rule explicitly, because it was written into the brief; the play-bot suite predates that. The
+  discipline was applied to new work and never retrofitted — which is what a rule written into
+  tickets rather than into a gate will always do.
+
+### A correction the pass made against itself
+
+The first reading was *"32 of 36 criteria have no variant"*, and that is **wrong**. Each variant is
+a whole correct game run against **all** criteria, so every criterion is exercised by every
+variant. The honest metric is *how many correct-but-different subjects each criterion has faced* —
+4 against 8, not 4 against 36. **A ratio computed from two counts whose units were never checked
+is a number with no referent**, and it would have made the ticket claim a hole that does not exist.
+
+### Examined and judged sound
+
+- `bot_mutants.py` exits 0 with **36 criteria pinned in both directions, 4 variants, 3 session-lock
+  controls, 0 expectations unmet**. Nothing here is unpinned.
+- The session-lock controls include *"every session refused, forever → every criterion NOT
+  MEASURED, not FALSE"*, which is the fail-closed shape rule 7 asks for, tested rather than
+  asserted.

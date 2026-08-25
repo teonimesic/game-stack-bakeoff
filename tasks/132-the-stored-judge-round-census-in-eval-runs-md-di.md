@@ -1,7 +1,7 @@
 ---
 id: 132
 title: The stored-judge-round census in eval/RUNS.md disagrees with the producer printed above it, on three rows of four
-status: todo
+status: in_progress
 priority: 2
 refs: 'eval/RUNS.md, eval/judge/blurb_selftest.py, #83, tasks/130'
 done_when: Every row of that table is re-read from `python3 eval/judge/blurb_selftest.py --stored-rounds <checkout>/eval/runs` and states the population it counted; the two sentences that make claims about the 10 (single-directory, and 10-of-10 byte-identical) either still hold for the new population or are replaced by what does; and the paragraph beneath still supports its conclusion or says what changed. BLOCKED BEHIND 130 - both edit eval/RUNS.md.
