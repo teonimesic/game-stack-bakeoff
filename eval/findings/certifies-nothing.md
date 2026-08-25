@@ -5665,3 +5665,98 @@ here, the *evaluator* is destroyed by the defect it is evaluating. Both fail tow
 report", and both read as success.
 
 ---
+
+## 182. The scene probe's first contact with a real submission produced a false negative, and only a real submission could have
+
+`eval/judge/scene_probe.py` shipped with 15 criteria, 20 mutants and 8 variants, all green, and a
+sentence in four documents saying no criterion had met a submission. The first one it met broke a
+criterion.
+
+`layers.depth_ordered` computes a layer's travel as `abs(offset_last - offset_first)`. The scene
+contract asks submissions to **wrap** that field. So on a submission that wraps, the criterion
+measures a **modular residue** and calls it a scroll rate.
+
+The evidence is a property of the numbers rather than a reading of the source — **all 7 layers
+returned a value below their own declared span** (road 120.1 of 240 … sky 84.6 of 1800) while
+**37 `wrap` events** fired in the same trace. The submission's own `layerFactor = 1/(1+depth)`
+agrees with the criterion's direction, so a sign-convention reading does not rescue it.
+
+> **A mutant removes a mechanism; it cannot produce an input the mechanism mishandles.** Every
+> fixture was written by the hand that wrote the criteria, and none of them wrapped — because the
+> author who wrote *"wrap the offset"* into the contract did not write a fixture that exercises
+> it. **The first submission written by somebody else did.**
+
+This is rule 15 arriving on schedule. It was predicted in the ticket, in the probe's own docstring
+and in `eval/SCENES.md` — *"the probe's first real run is also its first real test"* — and
+predicting it did not prevent it, because nothing but a foreign submission could.
+
+### Two more things first contact established
+
+**2 of 8 criteria came back `scored=False`.** The image-side estimator read 2 of 7 declared layers,
+against 8 missed frame pairs of 132 on fixtures. The probe's docstring had predicted the
+direction — *"expect the rate to be worse on a submission that fills its foreground"* — and that
+submission's mean ink coverage is **0.966**. A prediction that names the mechanism and the
+direction is worth more than a threshold, because it survives the number changing.
+
+**`render.nonempty` failed a scene at 0.966** against a window calibrated on games. A gate tuned on
+one task class refuses a correct member of another, and nothing said so until a scene met it.
+
+**The trial never reached `completed`** — it was killed externally at 3599 s and salvaged by hand,
+stored as `harness_kill_external` with `num_turns` and every token total `null`, not `0`. So the
+probe has still not met a *finished* submission, and the 5-of-8 above is from work interrupted
+mid-polish.
+
+---
+
+## 183. Six false negatives in the tier carrying the whole weight, and the first two are a repair that was never carried across
+
+The play-bot tier is weighted **1.00**. Asked whether its 4 variant subjects were enough, the answer
+is **no**, with six reproducible false negatives — each a correct game under the task prompt:
+
+| fixture / criterion | the correct game it fails | measured |
+|---|---|---|
+| `ref_arena/gameover.triggers` | a game-over card; the control restarts | `after 300 more ticks of input: game_over=False, alive=True` |
+| `ref_platformer/gameover.triggers` | the same | `after 200 more ticks: game_over=False, alive=True` |
+| `ref_tetris3d/piece.falls` | a 96-tick card, frozen well | `lowest cell height went from 11 to 11 without input` |
+| `ref_tetris3d/piece.spawns` +3 | a 96-tick card, empty well | `first piece has 0 cells: []` |
+| `ref_arena/fire.rate_limited` | a spread weapon | `90 bullets from 120 ticks of held fire (30 fire events)` |
+| `ref_pong/rally.counts` | counter settles one tick late | reads `rally` only on the `paddle_hit` tick |
+
+**The first two are pong's own repair, never carried across.** `bot_pong._match_ends` presses
+nothing after the win *because of a real Rust submission* with `GAME_OVER_LOCKOUT_TICKS = 96`. `g3`
+and `g4` carry the **identical prompt sentence** and hold a control down for 200–300 ticks.
+
+> **A fix learned from a real submission was applied to the bot that met it and to none of its
+> siblings.** The prompt sentence is shared; the repair was not. Nothing compares one bot's
+> handling of a shared requirement with another's, so the knowledge stayed where it was bought.
+
+**One of them passes for the wrong reason, which is worse than failing.** On `ref_tetris3d` the
+same game-over card *passes* — the game restarted and stacked out again inside the window, and the
+score resetting to 0 satisfied `frozen`. A pass obtained by two errors cancelling is not evidence,
+and nothing distinguishes it from a pass.
+
+**And `fire.rate_limited` prints the right number beside the wrong verdict**: it asks about *shots*
+and counts *bullet ids*, so a spread weapon firing 30 times emits 90 bullets and fails — with `30
+fire events` in its own evidence string.
+
+### What the question was asked over, and why the framing was wrong twice
+
+The ticket asked *"is 4 variants enough for 36 criteria"*. Both numbers were the wrong population:
+
+- **A variant runs the whole bot on one fixture**, so coverage is per fixture — **1** on `ref_pong`,
+  **0** on `ref_tetris3d`, **1** on `ref_arena`, **2** on `ref_platformer`. Three of the six defects
+  are in the game with no variant subject at all.
+- **The criteria carrying weight are the 70 instances the four bots report**, not the 36 that carry
+  a mutant. **2 of the 6 defects are on criteria with no mutant**, so a registry scoped to 36 would
+  have missed a third of the answer.
+
+> **A coverage ratio is two counts, and each one is a population claim.** The orchestrator wrote
+> this ticket, corrected the numerator mid-pass, shipped it with the denominator still wrong, and
+> the agent had to fix the question before it could answer it.
+
+**No criterion was repaired.** Each repair moves stored verdicts across 68 graded submissions and
+needs its own census; `tasks/157`–`160` carry them. The blast radius was measured rather than
+assumed: all 6 stored `gameover.triggers` failures are probe-unusable session failures, none of
+this shape.
+
+---
