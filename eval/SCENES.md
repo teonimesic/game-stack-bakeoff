@@ -195,26 +195,23 @@ a criterion that can read only 1 of them is measuring the encoding rather than t
 
 **The prompt is not changed, and that is the decision rather than an omission from it.** Naming an
 encoding would be a regime boundary against every scene trial, and it would buy no measurement —
-`[0, span)` is what a renderer wants, which is why the first real submission chose it, and the
-scene asks for a background that repeats, which is what makes the choice available at all.
+`[0, span)` is what a renderer wants, and the scene asks for a background that repeats, which is
+what makes the choice available at all.
 
 **What it costs the probe: nothing in `ParallaxScene` may subtract two reported `offset` values.**
 `_walk` reads the per-tick series and unwraps each step against that layer's own `span`, and
 `layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` all read the unwrapped walk.
-The unwrap is exact while a layer moves less than half a span in 1 tick, and is arithmetically a
-no-op on a scene that already accumulates — measured on the reference fixture, where all 4 layers
-return their old travel to the last bit. It has to be per tick and cannot be per captured frame:
-2 captures are 60 ticks apart and the first real submission's road crosses **1.6–2.25 spans**
-between them.
+The unwrap is exact while a layer moves less than half a span in 1 tick, and is a no-op on a scene
+that already accumulates. It has to be per tick and cannot be per captured frame: 2 captures are
+60 ticks apart, which is long enough for a near layer to cross more than half its span.
 
 **A layer that stops being reported and comes back is FAILED, not bridged.** Unwrapping across a
 hole returns a plausible smaller travel instead of refusing, and `state.shape` reads tick 0 only,
-so nothing else would see it. `scene_mutants.py`'s `the sky stops being reported for 19 ticks`
-mutant pins that: its window holds no captured frame, so the picture is untouched, and a bridging
-unwrap returns PASS on it.
+so nothing else would see it.
 
-`scene_mutants.py`'s `` `offset` is reported inside its own span `` variant is what holds this —
-the reference scene, the identical picture, the other encoding, every verdict unchanged.
+`scene_mutants.py` holds both in its own directions: a variant reporting `offset` inside its own
+span, and a mutant that stops reporting a layer for a window holding no captured frame.
+`eval/RUNS.md` holds what the first submission measured.
 
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks
 
