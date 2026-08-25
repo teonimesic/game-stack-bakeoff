@@ -97,7 +97,8 @@ def write_state(root: str = ROOT) -> str:
     tmp = p + ".tmp"
     with open(tmp, "w") as fh:
         json.dump({"pid": os.getpid(), "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                   "created": list(CREATED_PATHS), "from_index": list(FROM_INDEX_PATHS)},
+                   "creates": [list(pair) for pair in CREATED_FILES],
+                   "from_index": list(FROM_INDEX_PATHS)},
                   fh, indent=2)
     os.replace(tmp, p)          # one writer, atomically (eval/AGENTS.md)
     return p
@@ -151,9 +152,40 @@ def _differs_from_index(root: str, rel: str) -> bool:
     return bool(r.stdout.strip())
 
 
+def _unplant_file(root: str, file_rel: str, stop_rel: str) -> list[str]:
+    """Remove one planted FILE, then only the directories it left empty, up to `stop_rel`.
+
+    THE PLANT IS A FILE; THE DIRECTORIES ARE SCAFFOLDING, AND THEY MAY NOT BE OURS.
+    `rm -rf .codex` was the obvious undo and it is wrong in the one case that matters: a
+    `.codex/` tree somebody else owns is deleted wholesale by a repair the reader was told to
+    run. So the file goes, and a parent goes only while it is EMPTY - anything still holding
+    content stops the walk, whoever put it there. Raised by CodeRabbit on PR #28.
+
+    The residue is a directory that was empty before the plant and is removed after it. An
+    empty directory carries no content and no git object, so nothing is lost; a directory
+    with anything in it survives, which is the property being bought.
+    """
+    acted = []
+    fp = os.path.join(root, file_rel)
+    if os.path.lexists(fp):
+        _rm(fp)
+        acted.append(f"rm -f {file_rel}")
+    stop = os.path.abspath(os.path.join(root, stop_rel))
+    d = os.path.dirname(os.path.abspath(fp))
+    while os.path.isdir(d) and os.path.commonpath([d, stop]) == stop:
+        if os.listdir(d):
+            break                                    # not ours, or not empty: stop here
+        os.rmdir(d)
+        acted.append(f"rmdir {os.path.relpath(d, root)}")
+        if d == stop:
+            break
+        d = os.path.dirname(d)
+    return acted
+
+
 def leftovers(root: str = ROOT) -> list[str]:
     """Every path a plant can be left at. Empty means the tree carries no plant."""
-    out = [rel for rel in CREATED_PATHS if os.path.lexists(os.path.join(root, rel))]
+    out = [f for f, _ in CREATED_FILES if os.path.lexists(os.path.join(root, f))]
     out += [rel for rel in FROM_INDEX_PATHS if _differs_from_index(root, rel)]
     return out
 
@@ -161,11 +193,8 @@ def leftovers(root: str = ROOT) -> list[str]:
 def repair(root: str = ROOT) -> list[str]:
     """Undo every plant, from the index. Idempotent, and returns what it actually did."""
     acted = []
-    for rel in CREATED_PATHS:
-        p = os.path.join(root, rel)
-        if os.path.lexists(p):
-            _rm(p)
-            acted.append(f"rm -rf {rel}")
+    for file_rel, stop_rel in CREATED_FILES:
+        acted += _unplant_file(root, file_rel, stop_rel)
     for rel in FROM_INDEX_PATHS:
         if not _differs_from_index(root, rel):
             continue
@@ -203,7 +232,7 @@ def repair_advice(rows_above: bool = False) -> str:
     skills are not what is broken. Printing that sentence where no rows were printed would
     point at output that is not there.
     """
-    by_hand = "; ".join([f"rm -rf {r}" for r in CREATED_PATHS]
+    by_hand = "; ".join([f"rm -f {f}" for f, _ in CREATED_FILES]
                         + [f"rm -rf {r} && git checkout -- {r}" for r in FROM_INDEX_PATHS])
     lead = ("  LIKELY CAUSE: a previous skill_layout_control.py run was killed between\n"
             "  planting a breakage and restoring it.")
@@ -224,7 +253,7 @@ class PlantRealCopy:
     This is the #99 defect itself. If the gate cannot see this, the gate is gone.
     """
     name = "a real SKILL.md copied to .codex/skills/<name>/"
-    created = (".codex",)
+    creates = ((".codex/skills/tasks/SKILL.md", ".codex"),)
     from_index = ()
 
     def __init__(self, root: str = ROOT):
@@ -244,7 +273,7 @@ class PlantDeepCopy:
     "is this path a prefix of the root" would pass it. The grandparent test is what fails it.
     """
     name = "a real SKILL.md nested one level too deep inside the authoritative root"
-    created = (os.path.join(SKILLS_REAL, "tasks", "extra"),)
+    creates = ((f"{SKILLS_REAL}/tasks/extra/SKILL.md", f"{SKILLS_REAL}/tasks/extra"),)
     from_index = ()
 
     def __init__(self, root: str = ROOT):
@@ -265,7 +294,7 @@ class BreakPointer:
     `.agents/skills` on its own. Measured, not assumed - see `_check_skill_location`.
     """
     name = "the .claude/skills pointer deleted (skills present but unreachable)"
-    created = ()
+    creates = ()
     from_index = SKILLS_LINKS
 
     def __init__(self, root: str = ROOT):
@@ -282,7 +311,7 @@ class DanglingPointer:
     entry, git stores a 120000 blob, and it resolves to a path that is not there.
     """
     name = "the .claude/skills pointer aimed at a target that does not exist"
-    created = ()
+    creates = ()
     from_index = SKILLS_LINKS
 
     def __init__(self, root: str = ROOT):
@@ -301,7 +330,7 @@ class PointerAsRealCopy:
     interrupted run of this very file leaves in the tree (`tasks/147`, `tasks/150`).
     """
     name = "the .claude/skills pointer replaced by a real directory of copies"
-    created = ()
+    creates = ()
     from_index = SKILLS_LINKS
 
     def __init__(self, root: str = ROOT):
@@ -318,7 +347,7 @@ PLANTS = [PlantRealCopy, PlantDeepCopy, BreakPointer, DanglingPointer, PointerAs
 # The union of what any plant touches, DERIVED from the plants rather than restated beside
 # them: a second list is a second source of truth, and a plant whose path was left out of it
 # would be exactly the un-repaired leftover this file exists to prevent.
-CREATED_PATHS = tuple(dict.fromkeys(p for cls in PLANTS for p in cls.created))
+CREATED_FILES = tuple(dict.fromkeys(pair for cls in PLANTS for pair in cls.creates))
 FROM_INDEX_PATHS = tuple(dict.fromkeys(p for cls in PLANTS for p in cls.from_index))
 
 

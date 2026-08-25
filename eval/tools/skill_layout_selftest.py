@@ -101,7 +101,7 @@ class Pins:
 def pin_each_plant_is_seen_and_repaired(p: Pins, tmp: str) -> None:
     """Every plant, one at a time: leftovers() sees it, repair() undoes it, git agrees.
 
-    This is also the guard on a NEW plant. `CREATED_PATHS`/`FROM_INDEX_PATHS` are derived
+    This is also the guard on a NEW plant. `CREATED_FILES`/`FROM_INDEX_PATHS` are derived
     from the plant classes, so a plant that declares neither is invisible to the repair - and
     it would be invisible here too, as a red row, which is the point.
     """
@@ -130,6 +130,46 @@ def pin_clean_tree_is_left_alone(p: Pins, tmp: str) -> None:
     p.check("repair() acts on nothing", slc.repair(root), [])
     p.check("git status still clean", dirty(root), "")
     p.check("recovery_verdict is 'clean'", slc.recovery_verdict(root)[0], "clean")
+
+
+def pin_a_foreign_tree_survives_the_repair(p: Pins, tmp: str) -> None:
+    """VARIANT: `.codex/` is not ours, and `--repair` is a command the tool tells people to run.
+
+    The plant is a FILE. `rm -rf .codex` undoes it and also deletes a `.codex/` tree another
+    agent owns, which is the wrong answer for the one input that matters. Raised by CodeRabbit
+    on PR #28. The pin is that the planted file goes, the foreign content stays, and the
+    directories the plant created are pruned only while they are empty.
+    """
+    print("\na pre-existing .codex tree survives the repair; only the plant is removed")
+    root = make_fixture(os.path.join(tmp, "foreign"))
+    keep = os.path.join(root, ".codex", "config.toml")
+    keep_deep = os.path.join(root, ".codex", "skills", "other", "SKILL.md")
+    os.makedirs(os.path.dirname(keep_deep))
+    for f in (keep, keep_deep):
+        with open(f, "w") as fh:
+            fh.write("not ours\n")
+
+    slc.PlantRealCopy(root).plant()
+    p.check("the plant is seen", bool(slc.leftovers(root)), True)
+    acted = slc.repair(root)
+    p.check("repair() removed the planted file",
+            any("rm -f .codex/skills/tasks/SKILL.md" in a for a in acted), True)
+    p.check("the foreign config survives", os.path.exists(keep), True)
+    p.check("the foreign skill survives", os.path.exists(keep_deep), True)
+    p.check("the foreign .codex root survives", os.path.isdir(os.path.join(root, ".codex")),
+            True)
+    p.check("the empty scaffolding the plant made is pruned",
+            os.path.exists(os.path.join(root, ".codex", "skills", "tasks")), False)
+    p.check("leftovers() clear", slc.leftovers(root), [])
+
+    # And the same for the deep plant: `.agents/skills/tasks/` is real and must not be pruned
+    # when its `extra/` child goes.
+    slc.PlantDeepCopy(root).plant()
+    slc.repair(root)
+    p.check("the authoritative skill directory survives the deep plant's repair",
+            os.path.exists(os.path.join(root, SKILLS_REAL, "tasks", "SKILL.md")), True)
+    p.check("only the extra/ scaffolding went",
+            os.path.exists(os.path.join(root, SKILLS_REAL, "tasks", "extra")), False)
 
 
 def pin_state_file_is_outside_the_work_tree(p: Pins, tmp: str) -> None:
@@ -193,7 +233,11 @@ def pin_sigkill_is_recovered_next_run(p: Pins, tmp: str) -> None:
     verdict, stale, state = slc.recovery_verdict(root)
     p.check("recovery_verdict is 'resume'", verdict, "resume")
     p.check("it names the leftover", bool(stale), True)
-    p.check("and the state file names the dead pid", isinstance(state.get("pid"), int), True)
+    # `(state or {})` because `recovery_verdict` returns None for `state` on the refuse path.
+    # A pin must report a wrong answer, never raise one: an AttributeError here would abort
+    # the run and the remaining pins and the summary count would never print. CodeRabbit, #28.
+    p.check("and the state file names the dead pid",
+            isinstance((state or {}).get("pid"), int), True)
     p.check("repair() acts", bool(slc.repair(root)), True)
     slc.clear_state(root)
     p.check("tree clean after the resume", dirty(root), "")
@@ -217,7 +261,7 @@ def pin_the_advice_says_what_to_do(p: Pins) -> None:
                "skill_layout_control.py --repair")
     p.contains("names the interrupted run as the likely cause", advice,
                "was killed between")
-    for rel in slc.CREATED_PATHS + slc.FROM_INDEX_PATHS:
+    for rel in [f for f, _ in slc.CREATED_FILES] + list(slc.FROM_INDEX_PATHS):
         p.contains(f"names {rel}", advice, rel)
     p.contains("names the index restore by hand", advice, "git checkout --")
     # The sentence that redirects a reader away from the skills belongs only where a sweep
@@ -235,6 +279,7 @@ def cmd_selftest() -> int:
     try:
         pin_each_plant_is_seen_and_repaired(p, tmp)
         pin_clean_tree_is_left_alone(p, tmp)
+        pin_a_foreign_tree_survives_the_repair(p, tmp)
         pin_state_file_is_outside_the_work_tree(p, tmp)
         pin_sigterm_restores(p, tmp)
         pin_sigkill_is_recovered_next_run(p, tmp)
