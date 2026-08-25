@@ -209,7 +209,7 @@ below their own declared span**, and 37 `wrap` events fired in the same trace.
 The submission's own convention agrees with the criterion's — `layerFactor(depth) = 1/(1+depth)`,
 larger depth scrolling slower — so a sign-convention reading does not rescue the result either.
 **A mutant could not have found this.** Only a submission that wraps could, which is rule 15 and
-the shape of #46, and it took the first real one. `tasks/162` carries the repair.
+the shape of [#46], and it took the first real one. `tasks/162` carries the repair.
 
 ### 2 of 8 criteria could not be set up at all
 
@@ -236,9 +236,15 @@ always is between edits.
 Build **≥ 3599 s** — the kill landed at 3599 s with the cell still working, so that is what it
 had used and not what it needed. **Stated in seconds because that is the measurement**: 3599 s is
 59.98 min, and writing "≥ 60 min" rounds past the only evidence there is. Evaluation **58 s**,
-complete. ts is the cheapest stack on the game table and the other three are unmeasured for
-scenes, so a full 2-scene × 4-stack × 2-trial matrix has a build floor of **≥ 15.99 h serial,
-≥ 4.0 h at parallelism 4** — a bound, not an estimate.
+complete.
+
+**One cell is measured, so a matrix figure is CONDITIONAL and is written that way.** Only
+`s1_parallax × ts × t0` has a lower bound; the other 3 stacks and the second scene are unmeasured,
+and ts is the cheapest stack on the game table. *If* no other cell is cheaper, a 2-scene ×
+4-stack × 2-trial matrix has a build floor of **≥ 57 584 s serial** and **≥ 14 396 s at
+parallelism 4**. In seconds because 14 396 s is 3.999 h and "≥ 4.0 h" rounds above it — the same
+error one unit down. **The condition is the load-bearing part**: this is 16 × one observation, not
+a measurement of 16 cells.
 `wholegame.py plan --scenes …` prints this beside the cost table, which is scaled from game
 trials and says nothing about a scene.
 

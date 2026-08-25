@@ -1290,6 +1290,7 @@ project evidence belongs. Every evidence file is under 50 MB, so an external dis
 GitHub repo would each work without LFS; both need the operator's go-ahead.
 
 ---
+
 ## A wrong stored manifest is marked, never repaired — decided 2026-08-23
 
 **Configuration records in `eval/runs/` are append-only when written and read-only afterwards.**
@@ -1315,6 +1316,7 @@ the overwrite. Then promoting it is a restoration rather than a reconstruction, 
 distinction this decision rests on disappears.
 
 ---
+
 ## Append-only has two shapes, and the directory decides which — decided 2026-08-23
 
 The guard from the decision above is stated as a resource: *any durable record of what a
@@ -1353,6 +1355,7 @@ directory was given a reconstructed history, for the same reason no stored manif
 The guard is forward-only.
 
 ---
+
 ## The harness lint baseline is a recipe, not a gate — decided 2026-08-23
 
 **`python3 eval/tools/lint.py` is the recipe.** It runs the pinned rule set over the harness and
@@ -1386,6 +1389,7 @@ contributed 14 of the 30 `BLE001` and 3 of the 11 `B905`, every one of them an i
 needs.
 
 ---
+
 ## The gates run in CI and in git hooks, in three tiers — decided 2026-08-23
 
 Every verification command here used to run only when somebody remembered to. That is a check
@@ -1535,6 +1539,7 @@ minutes by workflow and by workflow x event, and the `controls` x `pull_request`
 the lever acts on.
 
 ---
+
 ## The four `template*/` trees and the spec-change suite are retired — decided 2026-08-23 [user]
 
 **The four original trees — `template/`, `template-ts/`, `template-unity/`, `template-godot/` —
@@ -1603,6 +1608,7 @@ nothing; without it, the same command un-deletes all three.
 > re-add lands in the next one — where it reads as an unrelated file, not as a botched deletion.
 
 ---
+
 ## A blind pack's `CHANGED.txt` is rebuilt from the manifest; the code half is not rewritten — decided 2026-08-23
 
 **The question the ticket left open (task 95): map `CHANGED.txt` through the pack's own manifest,
@@ -1664,6 +1670,7 @@ none. Every `architecture` round stored in this repository read a `CHANGED.txt` 
 authored tree.
 
 ---
+
 ## Pull requests are reviewed by CodeRabbit, and the config is exclusion-only — decided 2026-08-23
 
 **[user]** that agent work should be reviewed before it is merged. **[agent]** everything below
@@ -1809,6 +1816,7 @@ and it is not 1 per push**; anything that assumes a fixed rate should read the c
 > on finding.
 
 ---
+
 ## An agent hands back a pull request, and the queue has 5 statuses — decided 2026-08-23
 
 **The operator's specification:** *"agents should pick up tasks, then submit PRs, then trigger
@@ -1942,6 +1950,7 @@ rather than a silence to mistake for one.
 | A quiet timeout long enough to cover a slow review | It is the deadlock detector. Making it generous makes the *paused* and *limit reached* cases slow instead of the slow case fast |
 
 ---
+
 ## The review poll is a tool that asserts its own address — decided 2026-08-24
 
 **Decided [agent], `tasks/127`, on measurement.** The poll above was a shell recipe agents copied
@@ -1988,6 +1997,7 @@ actually stored. A short interval with a verification at the end of it is not th
 an interval with none.
 
 ---
+
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23, second test added 2026-08-24
 
 > **This entry's reversal condition has fired: the repository is squash-only.** Ancestry alone
@@ -2121,6 +2131,7 @@ before it held:
 | Reading merge state from refs at all | `delete_branch_on_merge` being turned off, which would leave every merged branch present and make ancestry-plus-content the routine path rather than the residue |
 
 ---
+
 ## An unreachable private method in `eval/judge/` is deleted, never exempted — decided 2026-08-23
 
 `eval/tools/dead_private_control.py` is a gate over `eval/judge/`: 0 unreachable private methods
@@ -2149,6 +2160,7 @@ reads live — a genuine miss, and the price of the rule that keeps `getattr(sel
 alive. Both are variant rows, so widening the string handling cannot lose either silently.
 
 ---
+
 ## What the judge is told about the pack is a function of the pack, and both wordings are kept — decided 2026-08-23
 
 **The question (task 104): the brief told every code judge the pack "may not contain every file
@@ -2179,6 +2191,7 @@ brief hash demonstrably read the stale sentence and cannot be re-run for it; `ev
 records that, and the other 26 code rounds stored no hash and are unassessable.
 
 ---
+
 ## A ticket's body is appended to by `tasks.py note`, and a control never imports its expectation — decided 2026-08-23
 
 `.claude/skills/work/SKILL.md` has told every dispatched agent to *write back what the next one
@@ -2210,6 +2223,7 @@ expectation from its subject is not a control. Where the two must be kept in ste
 row that compares them — never by making them the same object.
 
 ---
+
 ## `-` means stdin in every `tasks.py` subcommand that takes durable text — decided 2026-08-23
 
 `note` was given `-` because of #80: a backtick in an argv string is command substitution before
@@ -2242,6 +2256,7 @@ standard.
 still store the one-character record on the same harness.
 
 ---
+
 ## A finding cited in a live document is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
 
 A bare `(#68)` is honest and useless: a reader who cannot click it has been told nothing. Making
@@ -2833,6 +2848,7 @@ for a single `--tasks` with an explicit class filter; a measured reason to launc
 default, which would mean the scene and game populations had become comparable enough to want in
 one directory; or a tier-2 instrument that serves both classes, which would retire
 `TIER2_INSTRUMENT` as a per-task table.
+
 ## A known play-bot false negative is declared as a red subject, not fixed in passing — decided 2026-08-25
 
 `bot_mutants.py` now carries a third kind of subject beside its mutants and its variants. A
