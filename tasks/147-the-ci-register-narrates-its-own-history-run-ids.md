@@ -1,11 +1,12 @@
 ---
 id: 147
 title: 'The CI register narrates its own history: run ids, past timings and variance history in a document that states what runs'
-status: in_review
+status: done
 priority: 3
 refs: ''
 done_when: every dated timing, run id and change-history sentence in .github/workflows/README.md either states a standing instruction with its producer command beside it, or has moved to eval/findings/ or eval/RUNS.md; the register's own job - what runs in which tier and every gate deliberately left out with the reason - is intact and still names every workflow step; and docstat.py --sweep and linkcheck.py are green
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/25
+established_by: 'PR #25 squash-merged as d3484a7. Verified independently: diffing the set of backticked names in the register before and after, the whole diff removes exactly two - the commit sha d087994 and ''18 mutants died, 5 variants passed'' - both dated history, and no workflow or gate name was lost, which is the ticket''s ''register''s job intact'' clause. The corpus repair is real and confirmed on main: the register is now in reference_docs() and github_docs() returns it. It remains outside project_docs() and outside the backticked-flag half, because that half is gated file-wide on a harness name and this file names tools - that exclusion is deliberate, measured (widening the trigger costs 25 candidate rows with 0 adjudicated genuine) and recorded in three places. My own plant still exits 0 there, which is the documented state rather than a defect.'
 ---
 
 CodeRabbit flagged .github/workflows/README.md lines 19-32 and 41-42 on PR #23 (task 140) under the .coderabbit.yaml rule that a live document states the choices in force and is not a log of what happened. The finding is valid and was declined THERE rather than acted on, because git log -L 19,32 and -L 41,42 both name c29429a (task 135, PR #22), which landed on main while #23 was open - editing a section another task had just landed, inside an unrelated pull request, is what .agents/skills/work/SKILL.md section 4 forbids. The content at issue: a floor timing dated 2026-08-24 with per-tool step times, a named CI run id, and a sentence recording that two selftests became gated. What a reader needs is what runs in which tier and how to re-derive the timings (ci_minutes.py), not the history of how the numbers moved.
