@@ -3791,6 +3791,20 @@ def _bare_flag_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+# THE BOUNDARY IS DELIBERATELY LOOSE, and it is load-bearing rather than sloppy.
+# `wholegame\.py` unanchored is the only alternative that admits a document naming
+# `eval/judge/regrade_wholegame.py`, which is one of this repository's own harnesses and
+# appears in 8 places across the reference corpus. Requiring a complete path component -
+# the obvious tightening, raised by CodeRabbit on PR #29 - drops it, and buys nothing
+# measurable in exchange: over the reference corpus the tightened form changes admission
+# for 0 documents, and the near-misses it exists to exclude (`myrunner.py`, `runner.pyc`)
+# occur 0 times. Both directions are pinned in `_skill_flag_pins()`.
+#
+# THE `judge/` ALTERNATIVE IS INERT and every write-up here says 4 names for that reason:
+# the `\.py` applies to the whole group, so it requires the literal text `judge/.py`,
+# which occurs 0 times. `eval/judge/blind_dir.py` does not admit through it. Recorded
+# rather than repaired, because making it mean `judge/<anything>.py` would WIDEN the
+# trigger and move every published figure below, which needs its own re-adjudication.
 HARNESS_TRIGGER = re.compile(r"(wholegame|runner|judge/|evaluate|regrade)\.py")
 
 
@@ -4089,6 +4103,19 @@ def _skill_flag_pins(verbose: bool = False) -> list[str]:
         # other structure check here does. A fenced `#` is a shell comment.
         ("a fenced `#` does not split a section away from the script name above it",
          len(hash_cov["rows"]["section"]), 1),
+        # THE TRIGGER'S BOUNDARY, both directions. The loose match is what admits a real
+        # harness of ours whose name merely ENDS in one of the four; the tightened form
+        # would not, which is why it is not shipped.
+        ("a doc naming eval/judge/regrade_wholegame.py is admitted",
+         _backticked_flags("Run `python3 eval/judge/regrade_wholegame.py`.\n" + plant,
+                           flags), {"--zzq-unresolved-tok"}),
+        ("...and a complete-path-component boundary would not admit it",
+         bool(re.search(r"(?<![\w.-])(wholegame|runner|judge/|evaluate|regrade)\.py(?![\w-])",
+                        "eval/judge/regrade_wholegame.py")), False),
+        # The recorded dead alternative. If this reddens, `judge/` started matching and
+        # the trigger widened without anyone saying so.
+        ("the `judge/` alternative is inert - it requires the literal `judge/.py`",
+         bool(HARNESS_TRIGGER.search("Run `python3 eval/judge/blind_dir.py` now.")), False),
         # The live statement the docstring and the audit-docs skill both make.
         ("some live SKILL.md is unread by this half - the recorded exclusion is real",
          bool(live["unread"]), True),
