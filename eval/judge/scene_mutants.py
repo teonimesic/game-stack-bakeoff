@@ -111,6 +111,17 @@ P_DRAWN_FLAT = Patch("film.py",
                      '        phase = (st["layers"][-1]["offset"] * SCALE) % span'
                      '  # MUTANT: every band is drawn at the nearest layer\'s offset')
 
+#: A HOLE IN THE TELEMETRY, and it is invisible to every frame. The sky layer stops being
+#: reported for ticks 101-119 - a window holding no captured frame, so the picture is
+#: untouched and the only thing removed is the contract's one record per tick. An unwrap
+#: that bridged the hole would return a plausible smaller travel for that layer instead of
+#: refusing, which is the fail-open direction `_walk` names.
+P_LAYER_GAP = Patch("game.py",
+                    "                       for lid, depth, span in LAYERS],",
+                    "                       for lid, depth, span in LAYERS\n"
+                    "                       if not (lid == 1 and 101 <= self.tick <= 119)"
+                    "],  # MUTANT: the sky stops being reported")
+
 P_JUMPY_WRAP = Patch("film.py",
                      '        phase = (layer["offset"] * SCALE) % span',
                      '        _o = layer["offset"] * SCALE  # MUTANT: the loop jumps\n'
@@ -381,6 +392,12 @@ MUTANTS: list[Mutant] = [
            collateral=("layers.image_parallax",),
            notes="one flat background scrolled as a unit - the naive implementation "
                  "`eval/SCENES.md` names"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "the sky stops being reported for 19 ticks", (P_LAYER_GAP,),
+           notes="the other half of reading `offset` through an unwrap: the window holds "
+                 "no captured frame, so nothing in the picture changes and only the "
+                 "contract's one record per tick is gone. Bridging the hole would return "
+                 "a smaller travel for that layer and pass"),
     Mutant("layers.image_parallax", "s1_parallax",
            "the telemetry reports parallax the renderer does not draw", (P_DRAWN_FLAT,),
            notes="THE MUTANT NO TELEMETRY-SIDE CHECK CAN FIND. Every offset the "

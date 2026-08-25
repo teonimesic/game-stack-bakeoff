@@ -521,8 +521,9 @@ class ParallaxScene(Scene):
         return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
     @staticmethod
-    def _walk(r: SceneRun) -> dict[Any, dict[int, float]]:
-        """Per layer id, its `offset` at every tick, UNWRAPPED against its own `span`.
+    def _walk(r: SceneRun) -> tuple[dict[Any, dict[int, float]], list[Any]]:
+        """Per layer id, its `offset` at every tick, UNWRAPPED against its own `span`,
+        and the ids of the layers this could not be done for.
 
         NOTHING IN THIS CLASS MAY SUBTRACT TWO REPORTED `offset` VALUES. The trace
         contract says `offset` is how far a layer has been displaced so far and `span`
@@ -542,11 +543,22 @@ class ParallaxScene(Scene):
         before. On the submission that provoked this the widest step is 4.0% of its
         layer's span; between two captured frames, 60 ticks apart, the same layer moves
         1.6-2.25 spans and no per-frame unwrap could recover it.
+
+        THE UNWRAP IS ONLY DEFINED ACROSS CONSECUTIVE TRACE LINES, so a layer that stops
+        being reported and comes back is DROPPED rather than bridged. Bridging is the
+        fail-open direction and it is silent: with `span` 100, offsets `0`, missing,
+        `120` unwrap to a step of 20 and the layer's real 120 units of travel disappear
+        into a plausible number. `state.shape` reads tick 0 only, so nothing upstream
+        catches it. The second return value names the dropped layers and every
+        caller reports them - a layer the contract's one-record-per-tick was not held to
+        cannot have a rate read off it, and it must not quietly acquire a smaller one.
         """
         walk: dict[Any, dict[int, float]] = {}
         prev: dict[Any, float] = {}
         acc: dict[Any, float] = {}
-        for t in r.trace_a:
+        last_seen: dict[Any, int] = {}
+        holed: set[Any] = set()
+        for line, t in enumerate(r.trace_a):
             for row in ParallaxScene._layers(t.state):
                 lid = row.get("id")
                 offset, span = num(row, "offset"), num(row, "span")
@@ -554,14 +566,18 @@ class ParallaxScene(Scene):
                     continue
                 if lid not in walk:
                     walk[lid], acc[lid] = {}, offset
-                else:
+                elif last_seen[lid] == line - 1:
                     step = offset - prev[lid]
                     if span is not None and span > 0:
                         step -= span * round(step / span)
                     acc[lid] += step
-                prev[lid] = offset
+                else:
+                    holed.add(lid)
+                prev[lid], last_seen[lid] = offset, line
                 walk[lid][t.tick] = acc[lid]
-        return walk
+        for lid in holed:
+            walk.pop(lid, None)
+        return walk, sorted(holed, key=str)
 
     @staticmethod
     def _travelled(walk: dict[Any, dict[int, float]], lid: Any) -> float | None:
@@ -592,7 +608,10 @@ class ParallaxScene(Scene):
         whose reported offsets cannot be subtracted.
         """
         out: dict[int, list[dict]] = {}
-        walk = self._walk(r)
+        # A layer with a hole in its trace is absent from `walk`, so its `d_offset` is
+        # None on every pair and `_reliable` reports it as unreadable. The hole itself is
+        # FAILED by `layers.depth_ordered`, which is where the whole scene is judged.
+        walk, _ = self._walk(r)
         limit = self._shift_limit(r.frames_a[0])
         for layer in self._layers(r.state_at(r.frame_ticks[0])):
             lid = layer.get("id")
@@ -700,7 +719,15 @@ class ParallaxScene(Scene):
         return out
 
     def _depth_ordered(self, r: SceneRun) -> Criterion:
-        walk = self._walk(r)
+        walk, holed = self._walk(r)
+        if holed:
+            # FAIL, not unscored. The contract asks for one record per captured tick; a
+            # layer that stops appearing and comes back has no readable displacement
+            # across the hole, and excusing it is a channel a real bug widens (rule 7).
+            return self.ok("layers.depth_ordered", False,
+                           f"layer(s) {holed} vanish from the trace and return, so no "
+                           f"displacement can be read across the gap; the contract asks "
+                           f"for one telemetry record per captured tick")
         rows = []
         for row in self._layers(r.trace_a[0].state):
             depth = num(row, "depth")
@@ -763,7 +790,7 @@ class ParallaxScene(Scene):
             # empty `shifts` whenever the frames are unusable, so a count taken from
             # there is 0 by construction - a number in the evidence that cannot be
             # anything else, which is this repository's most-repeated defect.
-            walk = self._walk(r)
+            walk, holed = self._walk(r)
             looped = 0
             for row in self._layers(r.trace_a[0].state):
                 span = num(row, "span")
@@ -773,7 +800,10 @@ class ParallaxScene(Scene):
             return self.ok(cid, wraps_fired > 0,
                            f"{r.why_frames_unusable()}; scored on telemetry alone: "
                            f"{wraps_fired} `wrap` events, and {looped} layers whose "
-                           f"offset passed their own span")
+                           f"offset passed their own span"
+                           + (f"; layer(s) {holed} vanish from the trace and return, so "
+                              f"no displacement can be read across the gap" if holed
+                              else ""))
         reliable, skipped = self._reliable(shifts)
         width = r.frames_a[0].width
         bad, checked, blind, notes = 0, 0, 0, []

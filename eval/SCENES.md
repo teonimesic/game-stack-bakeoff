@@ -190,9 +190,8 @@ differences are what makes them measurable at 12 frames.**
 The prompt says `offset` is *"how far that layer has been displaced sideways so far"* and `span` is
 *"the width after which the layer repeats itself"*. It does not say whether the number keeps
 growing or stays inside `[0, span)`, and **the decision is that it may do either**. A layer
-declares the `span` that converts one encoding into the other, so the two are the same series
-written two ways; a criterion that can read only one of them is measuring the encoding rather than
-the scene.
+declares the `span` that converts 1 encoding into the other, so the 2 encodings describe 1 series;
+a criterion that can read only 1 of them is measuring the encoding rather than the scene.
 
 **The prompt is not changed, and that is the decision rather than an omission from it.** Naming an
 encoding would be a regime boundary against every scene trial, and it would buy no measurement —
@@ -202,11 +201,17 @@ scene asks for a background that repeats, which is what makes the choice availab
 **What it costs the probe: nothing in `ParallaxScene` may subtract two reported `offset` values.**
 `_walk` reads the per-tick series and unwraps each step against that layer's own `span`, and
 `layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` all read the unwrapped walk.
-The unwrap is exact while a layer moves less than half a span in one tick, and is arithmetically a
+The unwrap is exact while a layer moves less than half a span in 1 tick, and is arithmetically a
 no-op on a scene that already accumulates — measured on the reference fixture, where all 4 layers
 return their old travel to the last bit. It has to be per tick and cannot be per captured frame:
-two captures are 60 ticks apart and the first real submission's road crosses **1.6–2.25 spans**
+2 captures are 60 ticks apart and the first real submission's road crosses **1.6–2.25 spans**
 between them.
+
+**A layer that stops being reported and comes back is FAILED, not bridged.** Unwrapping across a
+hole returns a plausible smaller travel instead of refusing, and `state.shape` reads tick 0 only,
+so nothing else would see it. `scene_mutants.py`'s `the sky stops being reported for 19 ticks`
+mutant pins that: its window holds no captured frame, so the picture is untouched, and a bridging
+unwrap returns PASS on it.
 
 `scene_mutants.py`'s `` `offset` is reported inside its own span `` variant is what holds this —
 the reference scene, the identical picture, the other encoding, every verdict unchanged.

@@ -2893,26 +2893,31 @@ rather than to schedule its repair.
 The `s1_parallax` trace contract calls `offset` *"how far that layer has been displaced sideways
 so far"* and `span` *"the width after which the layer repeats itself"*, and it does not say
 whether the number keeps growing or stays inside `[0, span)`. The first real submission chose
-`[0, span)`; `layers.depth_ordered` subtracted two of them and scored a perfectly ordered scene
+`[0, span)`; `layers.depth_ordered` subtracted 2 of them and scored a perfectly ordered scene
 FALSE on a modular residue. **Both encodings are contracted.**
 
 **The decision is against changing the prompt.** Naming an encoding is a regime boundary over
 every scene trial, and it would buy no measurement: the layer declares the `span` that converts
-one encoding into the other, so the two are one series written two ways. What it would buy is a
+1 encoding into the other, so the 2 encodings describe 1 series. What it would buy is a
 deduction for choosing the representation a renderer wants.
 
-**So the cost falls on the instrument, and it is one address.** `ParallaxScene._walk` reads the
+**So the cost falls on the instrument, and it is 1 address.** `ParallaxScene._walk` reads the
 per-tick series and unwraps each step against that layer's own `span`; nothing else in the class
-may subtract two reported offsets. The unwrap is arithmetically a **no-op** where a scene already
+may subtract 2 reported offsets. The unwrap is arithmetically a **no-op** where a scene already
 accumulates — measured on the reference fixture, all 4 layers returning their old travel to the
 last bit — and it has to be per tick rather than per captured frame, because 2 captures are 60
 ticks apart and the first submission's road crosses **1.6–2.25 spans** between them.
 
-`eval/SCENES.md` states it where a prompt author will look; `scene_mutants.py`'s `` `offset` is
-reported inside its own span `` variant is what holds it, and it was **red before the repair and
-green after** on `layers.depth_ordered` and `loop.seamless`.
+**A hole in a layer's telemetry is FAILED rather than bridged.** An unwrap across a hole is
+silently wrong in the fail-open direction — it returns a plausible smaller travel — and
+`state.shape` reads tick 0 only, so nothing else would catch it. The pin is a mutant whose gap
+holds no captured frame, so the picture is identical and a bridging unwrap returns PASS on it.
 
-**To re-open:** a scene whose layers can move more than half a span in one tick, which is where
+`eval/SCENES.md` states all of this where a prompt author will look. `scene_mutants.py`'s
+`` `offset` is reported inside its own span `` variant is what holds the decision, and it was
+**red before the repair and green after** on `layers.depth_ordered` and `loop.seamless`.
+
+**To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
 all.
 
