@@ -2892,23 +2892,21 @@ rather than to schedule its repair.
 
 The `s1_parallax` trace contract calls `offset` *"how far that layer has been displaced sideways
 so far"* and `span` *"the width after which the layer repeats itself"*, and it does not say
-whether the number keeps growing or stays inside `[0, span)`. **Both encodings are contracted.**
+whether the number keeps growing or stays inside `[0, span)`. **A submission may report either.**
 
-**The prompt does not change.** Naming an encoding is a regime boundary over every scene trial,
-and it would buy no measurement: the layer declares the `span` that converts 1 encoding into the
-other, so the 2 encodings describe 1 series. What it would buy is a deduction for choosing the
-representation a renderer wants.
+**The prompt does not change.** A layer declares its own `span`, so a wrapped series and a
+cumulative one carry the same information. Naming an encoding would be a regime boundary across
+every scene trial, and it would deduct marks for reporting `offset` the way a renderer wants it.
 
-**So the cost falls on the instrument, at 1 address.** `ParallaxScene._walk` reads the per-tick
-series and unwraps each step against that layer's own `span`; nothing else in the class may
-subtract 2 reported offsets. Two properties make that safe rather than merely convenient: it is
-arithmetically a **no-op** on a scene that already accumulates, and it must be per **tick**
-rather than per captured frame, because 2 captures are 60 ticks apart and a layer can cross more
-than half a span between them.
+**The probe absorbs it, in 1 place.** `ParallaxScene._walk` rebuilds each layer's offset series
+from the per-tick trace, mapping every step into `(-span/2, span/2]` before adding it;
+`layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that series, and nothing
+in the class subtracts 2 reported offsets. Per tick, not per captured frame: captures are 60 ticks
+apart, and a near layer can cross more than half its span in that time.
 
-**A hole in a layer's telemetry is FAILED rather than bridged.** An unwrap across a hole returns
-a plausible smaller travel instead of refusing, and `state.shape` reads tick 0 only, so nothing
-else would catch it.
+**A layer that stops being reported and comes back is failed, not bridged.** Unwrapping across
+the hole returns a smaller travel that looks plausible, and `state.shape` reads tick 0 only, so
+nothing else would catch it.
 
 `eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds it in
 both directions: a variant reporting `offset` inside its own span, and a mutant that stops

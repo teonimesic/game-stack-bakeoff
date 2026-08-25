@@ -189,25 +189,23 @@ differences are what makes them measurable at 12 frames.**
 
 The prompt says `offset` is *"how far that layer has been displaced sideways so far"* and `span` is
 *"the width after which the layer repeats itself"*. It does not say whether the number keeps
-growing or stays inside `[0, span)`, and **the decision is that it may do either**. A layer
-declares the `span` that converts 1 encoding into the other, so the 2 encodings describe 1 series;
-a criterion that can read only 1 of them is measuring the encoding rather than the scene.
+growing or stays inside `[0, span)`, and **a submission may report either.**
 
-**The prompt is not changed, and that is the decision rather than an omission from it.** Naming an
-encoding would be a regime boundary against every scene trial, and it would buy no measurement —
-`[0, span)` is what a renderer wants, and the scene asks for a background that repeats, which is
-what makes the choice available at all.
+**The prompt is not changed, and that is the decision rather than an omission from it.** A layer
+declares its own `span`, so a wrapped series and a cumulative one carry the same information.
+Naming an encoding would be a regime boundary against every scene trial, and it would deduct marks
+for reporting `offset` the way a renderer wants it.
 
-**What it costs the probe: nothing in `ParallaxScene` may subtract two reported `offset` values.**
-`_walk` reads the per-tick series and unwraps each step against that layer's own `span`, and
-`layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` all read the unwrapped walk.
-The unwrap is exact while a layer moves less than half a span in 1 tick, and is a no-op on a scene
-that already accumulates. It has to be per tick and cannot be per captured frame: 2 captures are
-60 ticks apart, which is long enough for a near layer to cross more than half its span.
+**Nothing in `ParallaxScene` may subtract two reported `offset` values.** `_walk` rebuilds each
+layer's series from the per-tick trace, mapping every step into `(-span/2, span/2]` before adding
+it, and `layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that series. It
+is exact while a layer moves less than half a span in 1 tick, and a no-op on a scene that already
+accumulates. Per tick, not per captured frame: 2 captures are 60 ticks apart, which is long enough
+for a near layer to cross more than half its span.
 
-**A layer that stops being reported and comes back is FAILED, not bridged.** Unwrapping across a
-hole returns a plausible smaller travel instead of refusing, and `state.shape` reads tick 0 only,
-so nothing else would see it.
+**A layer that stops being reported and comes back is failed, not bridged.** Unwrapping across the
+hole returns a smaller travel that looks plausible, and `state.shape` reads tick 0 only, so
+nothing else would see it.
 
 `scene_mutants.py` holds both in its own directions: a variant reporting `offset` inside its own
 span, and a mutant that stops reporting a layer for a window holding no captured frame.
