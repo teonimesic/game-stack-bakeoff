@@ -136,7 +136,7 @@ def regroup(audio_block: dict, expected: tuple[str, ...]
 
     by_name: dict[str, set[str]] = {}
     for lab in labels:
-        by_name.setdefault(basename[lab], set()).add(str(clips[lab].get("path", "")))
+        by_name.setdefault(basename[lab], set()).add(clips[lab]["path"])
     if any(len(paths) > 1 for paths in by_name.values()):
         return None, 0, "AMBIGUOUS_BASENAMES"
 
