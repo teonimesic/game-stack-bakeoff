@@ -14,6 +14,40 @@ Three tiers. The building agent must see none of them.
 
 `evaluate.py` runs all three. `regrade_wholegame.py` recomputes scores from stored tier files.
 
+## The play-bot tier carries the whole weight, and `bot_mutants.py` asks 3 questions of it
+
+```bash
+python3 judge/bot_mutants.py               # all 3, ~90s, needs `just`
+python3 judge/bot_mutants.py --hazards     # the per-criterion registry, offline
+python3 judge/bot_mutants.py --selftest    # can the registry gate go red? offline
+```
+
+| | asks | subject |
+|---|---|---|
+| **mutant** | can this criterion FAIL? | the reference with the behaviour surgically removed |
+| **variant** | can it still PASS on a correct game the reference does not resemble? | a correct game; **every** criterion must pass |
+| **pending** | a correct game it FAILS today, with the failing ids declared | a correct game; the measured set must equal the declared one |
+
+**A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture and not per
+suite.** "4 variants for 36 criteria" is the wrong shape twice: the population is the **70**
+criterion instances the four bots report rather than the 36 that carry a mutant, and a
+`ref_pong` variant says nothing about `ref_arena`. Read the per-fixture count, and read it out
+of `--hazards` rather than off a total.
+
+**`HAZARDS` is one recorded answer per criterion to *what correct-but-unusual game would
+mis-score this?*, and the gate is that there are 70 of them.** A criterion added without an
+answer fails the suite; "nobody could construct one" is an answer and has a shape id for it.
+Each entry names a shape — the families #34, #29 and #46 adjudicated — so *"is anything covering
+the shapes #46 names?"* is a group-by rather than a memory.
+
+**A `Pending` is a DECLARED false negative and it is not a tolerance.** `Variant.tolerates`
+waives a criterion silently and is the one field in the suite where a failure is allowed not to
+count; a pending entry names the criterion, names the ticket that owns the repair, and goes red
+on any set but the declared one — **including the empty set**, which is what a landed repair
+looks like and which is the only thing that makes the entry get promoted into `VARIANTS`.
+Repairing the criterion instead is a **re-scoring event** and belongs to its own ticket with a
+`tier2_census.py` before-and-after, which is why the entry exists rather than a quiet fix.
+
 ## Scenes are the second task class, and tier 2 is a different instrument
 
 A scene has no player, so `bot_*.py` has no referent. **`scene_probe.py` replaces it** and

@@ -265,6 +265,13 @@ jobs:
       - name: judge/weight_sensitivity --selftest (can the sweep find a constructed flip?)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/weight_sensitivity.py --selftest
+      # The play-bot suite itself lives in controls.yml because it drives fixtures through
+      # `just`. This half needs neither: it asks whether `bot_mutants`'s own registry gate
+      # and its pending-subject adjudication can go RED. A registry that cannot fail would
+      # print a complete per-criterion census of a file that had drifted out from under it.
+      - name: judge/bot_mutants --selftest (the hazard registry's gate, both ways)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/bot_mutants.py --selftest
       # `audio_regrade_census` is the producer for "how many stored verdicts does this
       # grader change move", which every change to the audio criteria owes. Its fixtures
       # are dicts and it decodes nothing, so it needs neither ffmpeg nor `just` -- unlike

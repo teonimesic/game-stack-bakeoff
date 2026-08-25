@@ -109,7 +109,11 @@ jobs:
       # others. Without it a broken run reports one failure per push, and clearing three
       # takes three pushes, and a required check cleared one failure at a time is a merge
       # blocked for as many round trips as it has defects.
-      - name: judge/bot_mutants (36 criteria both ways, 4 variants, 3 session-lock controls)
+      # NOT a count. The step name used to carry three cardinals and they were stale the
+      # first time the suite grew -- a cardinal in a step name has no producer, which is
+      # the failure AGENTS.md's counts rule is about. The suite's own closing line is the
+      # producer, and `--hazards` prints the per-criterion registry behind it.
+      - name: judge/bot_mutants (mutants, variants, pending subjects, session-lock controls)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/bot_mutants.py
       # A mutant asks whether a criterion can fail; this asks the other question --
