@@ -53,9 +53,10 @@ the working tree survives.
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `aim_contract_control`, `scene_mutants` and its `--census-selftest`, `scene_runner_control`,
 `tasks_mutants`, `audio_selftest`, `rusage_selftest`, `skill_layout_control`.
-`scene_runner_control` is the runner's half of the scene question — 6 named routes from an
-operator's command to a grading instrument or a judge pack, each with a mutant — and it drives
-`judge/fixtures/ref_parallax` through `just`, about 10s. `aim_contract_control` is there
+`scene_runner_control` is the runner's half of the scene question. It names 6 routes from an
+operator's command to a grading instrument or a judge pack and drives each one. Every group of
+rows carries a mutant or a variant. It grades `judge/fixtures/ref_parallax` through `just`, which
+is why it is here rather than in `gates.yml`, and takes about 10s. `aim_contract_control` is there
 for the toolchain reason rather than the wall-clock one — 11s, and it drives the arena
 fixture through `just probe`.
 

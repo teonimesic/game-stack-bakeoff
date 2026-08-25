@@ -12,12 +12,13 @@ Three populations live under `eval/runs/**/trials/*.json` and must never be summ
 
 | population | test | what it is |
 |---|---|---|
-| whole-game | `task_class` is `game`, or absent | `wholegame.py` game submissions — the bake-off |
+| whole-game | `task_class` is `game`, or the key is ABSENT | `wholegame.py` game submissions — the bake-off |
 | scene | `task_class` is `scene` | a timed sequence with no player (`eval/SCENES.md`) |
 | spec-change | record has no `game` field | the retired `runner.py` suite (`eval/AGENTS.md`) |
 
-Any other `task_class` is **refused by name**, not read as a game: a partition keyed on
-one recognised value puts every unrecognised one inside the published bake-off figure.
+Any other `task_class` is **refused by name**, not read as a game — including `null`,
+which is a present value rather than an absence: a partition keyed on one recognised value
+puts every unrecognised one inside the published bake-off figure.
 
 **A scene record carries a `game` field like every other**, so the `game`-field test alone
 put it in the whole-game count — one population's trials inside another population's
@@ -97,6 +98,15 @@ TASK_CLASS_KEY = "task_class"
 #: Every class this census knows how to partition. A PRESENT value outside it is refused.
 TASK_CLASSES = frozenset({"game", "scene"})
 
+#: Distinguishes an ABSENT `task_class` from one stored as `null`.
+#:
+#: `record.get(KEY)` returns `None` for both, and they are opposite claims: absent means
+#: "written by a harness that could not launch a scene" and is read as `game`; `null` is a
+#: record that HAS the field and did not say what it holds. `dict.get`'s second argument
+#: is the only thing that separates them, and it has to be a value no stored record can
+#: carry - `None` cannot be, which is exactly the collision.
+_ABSENT = object()
+
 
 def task_class_of(record: dict) -> str:
     """`"game"` or `"scene"` for one stored record. Raises on a class it does not know.
@@ -112,9 +122,15 @@ def task_class_of(record: dict) -> str:
     task class, or `"Scene"` off a typo, would land inside the published bake-off count
     and its tokval total with nothing saying so. A partition whose trigger enumerates the
     values it happened to know about is the failure this repository has a rule for.
+
+    `null` IS A PRESENT VALUE AND IS REFUSED WITH THE REST. `record.get(KEY)` answers
+    `None` for an absent key and for `"task_class": null`, so the default that makes the
+    absent case a `game` would silently make the null case one too - a record that has
+    the field and did not say what it holds, counted inside the bake-off figure. The
+    sentinel is what separates them.
     """
-    klass = record.get(TASK_CLASS_KEY)
-    if klass is None:
+    klass = record.get(TASK_CLASS_KEY, _ABSENT)
+    if klass is _ABSENT:
         return "game"
     if klass not in TASK_CLASSES:
         raise CensusError(f"`{TASK_CLASS_KEY}` is {klass!r}, which is not one of "
@@ -553,6 +569,24 @@ def selftest() -> int:
                       "c1__ts__t0.json" in str(exc), True)
                 check("and names the class it could not place",
                       "'cutscene'" in str(exc), True)
+
+        # Direction 8d: `"task_class": null` is a PRESENT value, not an absence.
+        # `record.get(KEY)` answers `None` to both, so the default that reads an absent
+        # field as `game` reads a null one as `game` too - a record that has the field
+        # and did not say what it holds, inside the published bake-off figure.
+        with tempfile.TemporaryDirectory() as tmp3:
+            nulled = Path(tmp3) / "runs"
+            _write(nulled / "wg-n" / "trials" / "n1__ts__t0.json",
+                   {"game": "g1", "task_class": None, "stack": "ts",
+                    "agent": {"cost_usd": 5.0, "terminal_reason": "completed"}})
+            try:
+                census(nulled)
+                failures.append("an explicit `task_class: null` was read as a game - "
+                                "`.get(KEY)` cannot tell it from an absent field")
+            except CensusError:
+                pass
+        check("an ABSENT task_class still reads as a game",
+              task_class_of({"game": "g1_pong"}), "game")
         check("wholegame.trial_records", wg["trial_records"], 9)
         check("wholegame.run_directories", wg["run_directories"], 3)
         check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})
