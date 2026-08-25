@@ -1051,9 +1051,11 @@ def hook_census(list_hook=_list_hook, register_text: str | None = None,
     """Does `.github/workflows/README.md` state what the git hooks actually run?
 
     WHY THIS EXISTS. The register said `pre-push` runs "the full `gates.yml` set". It ran
-    5 of 47, all of them documentation and queue checks, and the sentence had been true of
-    nothing since it was written -- so someone pushing on a green hook believed they had
-    run what CI runs and had run about a ninth of it (task 153). The failure is the shape
+    5 of them -- all documentation and queue checks, and about a tenth of the workflow --
+    and the sentence had been true of nothing since it was written, so someone pushing on
+    a green hook believed they had run what CI runs (task 153). The ratio is written here
+    rather than the count, because the count is what `gate_census` produces and a second
+    hand-written copy of it in a docstring is the drift this function exists to catch. The failure is the shape
     `AGENTS.md` names twice over: a description by ADJECTIVE, which no check can read, and
     one fact spelled in two files with a comment promising they agree.
 
@@ -1427,7 +1429,7 @@ def _selftest() -> int:
     # The count `.github/workflows/README.md` publishes. Pinned so the register cannot
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
-    check("gates.yml gate count", _cen["gates"]["gates"], 47)
+    check("gates.yml gate count", _cen["gates"]["gates"], 49)
     check("controls.yml gate count", _cen["controls"]["gates"], 8)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
