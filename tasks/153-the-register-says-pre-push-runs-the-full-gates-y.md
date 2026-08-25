@@ -53,3 +53,36 @@ it, and `time .githooks/run-gates.sh <tier>` is already named there.
 Do not assume the five are the right five. Ask what each is protecting: they are all
 `docstat`/`tasks` checks, and the thing that most often reddens `main` in practice is exactly
 those — but that is a claim to check against the last month of red gate runs, not to assert.
+
+## note 2026-08-25
+
+## note 2026-08-25 (orchestrator) — take `tasks/129` as well; it is the same table
+
+**You are authorised to close `tasks/129` in this branch.** Both tickets are about the same table
+in `.github/workflows/README.md` being untrue: 129 says its tier timings have no producer and have
+moved, this one says its hook descriptions are false. Two agents editing that table collide, and
+whoever fixes one will read the other while deciding what a timing is for.
+
+129 already carries the evidence that decides it: the last 10 successful `gates` runs on `main`
+span **54–78s**, two consecutive runs one markdown edit apart came back **65s and 102s** — a 57%
+spread on unchanged content — and my own measurement of `pre-push` was **24.8s** against the
+table's **~13s**. **Runner variance dwarfs the thing a per-run timing would be read for**, which is
+why 129's second permitted outcome — delete the figures and say what the register does instead —
+now looks like the right one.
+
+## One more source of truth to check while you are there
+
+Task 148 found the tier timings had been copied into `gates.yml`, `controls.yml` and the dispatch
+skill, **every copy disagreeing with the register**, and pointed them all at the register. So the
+register is now the single statement — which raises the stakes on it being true, and means a
+timing that survives here is one three other files defer to.
+
+## What NOT to do
+
+Do not re-time and paste a new number. That is 129's original defect repeating one value later. A
+figure that survives carries the command that reproduces it and the population it covers, and
+`gh pr checks <n>` is already named there for the tiers.
+
+Do not describe the hooks with an adjective. *"The cheap gates"* and *"the full `gates.yml` set"*
+are both adjectives, and one of them is false: `run-gates.sh` invokes a hardcoded list of five.
+Name them, or derive them and prove the two cannot drift.
