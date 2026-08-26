@@ -491,7 +491,7 @@ class PongBot(Bot):
         stayed = end.passed and max(end_l, end_r) == 11
         return Criterion("match.ends", self._q("match.ends"), stayed,
                          f"reached {peak_l}-{peak_r} at tick {capped_at}; "
-                         f"{end.detail('score')}")
+                         f"{end.detail('(left, right) score')}")
 
 
 BOT = PongBot()

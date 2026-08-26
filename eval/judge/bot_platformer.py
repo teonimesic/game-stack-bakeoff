@@ -1012,7 +1012,7 @@ class PlatformerBot(Bot):
                     sample=lambda t: _i(t, "score"))
                 over = Criterion(
                     "gameover.triggers", self._q("gameover.triggers"), end.passed,
-                    f"game over at tick {over_at}; {end.detail()}")
+                    f"game over at tick {over_at}; {end.detail('score')}")
                 return [dmg, invuln, knock, over]
         except ProbeError as e:
             return list(unusable_criteria([(c, self._q(c)) for c in ids], e,

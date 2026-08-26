@@ -1105,7 +1105,7 @@ class ArenaBot(Bot):
                     sample=lambda t: (_i(t, "score"), _i(t, "kills")))
                 return [dmg_c, Criterion(
                     "gameover.triggers", self._q("gameover.triggers"), end.passed,
-                    f"game over at tick {over_at}; {end.detail()}")]
+                    f"game over at tick {over_at}; {end.detail('(score, kills)')}")]
         except ProbeError as e:
             return list(unusable_criteria([(cid, self._q(cid)) for cid in ids], e,
                                           "the death session"))

@@ -2874,10 +2874,11 @@ exactly one criterion wide, and it closes itself.
 
 **The registry is the other half.** `HAZARDS` holds one answer per criterion to *what
 correct-but-unusual game would mis-score this?* — **70** of them, the criterion instances the
-four bots actually report, not the smaller set that carries a mutant. 2 of the 6 false
-negatives were on criteria with **no mutant at all**, so a registry scoped to the mutant set
-would have missed a third of the answer. A criterion added without an entry fails the suite; `no-construction` is a
-legitimate entry and says nobody could build a correct game that fails it.
+4 bots actually report, not the smaller set that carries a mutant. 2 of the 6 false negatives
+were on criteria with **no mutant at all**, so a registry scoped to the mutant set would have
+missed 1/3 of the answer. A criterion added without an entry fails the suite;
+`no-construction` is a legitimate entry and says nobody could build a correct game that
+fails it.
 
 **Variant coverage is per fixture.** Each variant runs the whole bot on one fixture, so a
 suite-wide variant count is not the number of observations any one criterion has. Read the

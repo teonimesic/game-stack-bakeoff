@@ -270,8 +270,8 @@ NO_CONTACT_DAMAGE = ("""        if self.invuln > 0:
 #: prompt spends its second clause on. Each fixture needs its own, because what a
 #: still-running simulation MOVES differs per game, and each one is why its bot guards
 #: the value it does: `kills` on the arena (the player is dead, so nothing earns points
-#: and the score sits still), `heights` on tetris (the well is full, so no layer clears
-#: and the score sits still), the score on the platformer, the score on pong.
+#: and the score sits still), the well's filled-cell total on tetris (the well is full, so
+#: no layer clears and the score sits still), the score on the platformer and on pong.
 ARENA_KEEPS_STEPPING = ("""        if self.game_over:
             return events
 
@@ -859,9 +859,9 @@ MUTANTS: list[Mutant] = [
            "the well stacked out and the game keeps stepping",
            (TETRIS_KEEPS_STEPPING,),
            notes="the score cannot express this either - a full well clears no layer - "
-                 "so `_gameover_check` guards `heights`. Measured over 400 ticks of "
-                 "input: 199 `lock` events and a moving `heights`, with the score "
-                 "unchanged at 0"),
+                 "so `_gameover_check` guards the well's filled-cell total. Measured "
+                 "over 400 ticks of input: 199 `lock` events and `(0, 62) -> (0, 84)`, "
+                 "with the score unchanged at 0"),
 ]
 
 

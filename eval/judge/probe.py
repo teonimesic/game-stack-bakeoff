@@ -569,8 +569,9 @@ def unusable_criteria(pairs: list[tuple[str, str]], err: BaseException, what: st
 # "The score" is the obvious choice and it is the wrong one in half the games here: a
 # dead arena player earns nothing and a full tetris well clears no layer, so in both
 # the score is a constant whatever the game does. Each bot picks a value its own game
-# advances - `kills` beside the arena's score, `heights` beside tetris's - and the
-# mutant that ends the game and keeps stepping is what says whether the pick works.
+# advances - `kills` beside the arena's score, the filled-cell total beside tetris's -
+# and the mutant that ends the game and keeps stepping is what says whether the pick
+# works.
 #
 # THERE IS ONE COPY OF THIS BECAUSE THERE USED TO BE FOUR. Pong's `match.ends` was
 # repaired to idle and the other three bots kept holding fire, aim, move, jump, attack
@@ -598,6 +599,8 @@ class EndCondition:
     #: phase 2
     press_ticks: int
     reset_at: int | None
+    #: ticks idled after a detected reset before reading it; 0 when none was detected
+    settle_ticks: int
     at_start: Any
     after_press: Any
     alive_after_press: Any
@@ -623,10 +626,17 @@ class EndCondition:
     def passed(self) -> bool:
         return self.held_while_idle and self.answered_the_press
 
-    def detail(self, label: str = "score") -> str:
+    def detail(self, label: str) -> str:
+        """`label` names what the caller sampled, and it is REQUIRED.
+
+        It used to default to `"score"` while 3 of the 4 bots sample a pair, so the
+        stored evidence read `score (0, 3) -> (0, 4)` about a `(score, kills)` tuple.
+        An audit trail that mislabels what the instrument read is worse than one that
+        says nothing (raised by CodeRabbit on PR #40).
+        """
         pressed = (
-            f"reset at tick {self.reset_at} and {label} came back to "
-            f"{self.after_press} against a tick-0 {self.at_start}"
+            f"reset at tick {self.reset_at}, settled {self.settle_ticks} ticks, and "
+            f"{label} came back to {self.after_press} against a tick-0 {self.at_start}"
             if self.reset_at is not None else
             f"still over, {label} {self.after_idle} -> {self.after_press}, "
             f"alive={self.alive_after_press}")
@@ -641,19 +651,29 @@ def _alive(t: Tick) -> Any:
     return p.get("alive") if isinstance(p, dict) else None
 
 
+#: Ticks to let a detected reset settle before reading it against tick 0. Clearing the
+#: card and re-initialising the world need not land on the same tick, and reading the
+#: transition tick would fail a correct game that takes two (raised by CodeRabbit on
+#: PR #40). It is SMALL on purpose and the smallness is the safety: a freshly reset game
+#: cannot move any bot's guarded value this fast - the arena needs a kill, tetris needs a
+#: lock at a fall interval of 48, pong and the platformer need a point.
+RESET_SETTLE_TICKS = 4
+
+
 def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
                         inputs: dict[str, Any] | Callable[[int], dict[str, Any]],
                         sample: Callable[[Tick], Any]) -> EndCondition:
     """Drive both phases of the end condition. See the block comment above.
 
     Call it once the end condition has fired. `sample` reads the value that must not
-    move while play is stopped - the score in every game here.
+    move while play is stopped, and choosing it is the caller's job: it has to be
+    something this game's simulation ADVANCES, which the score is not in half of them.
 
     `inputs` is the bot's own busy set, the controls a player would be holding. Pass a
     CALLABLE of the press-phase tick index where the game reads an input as a rising
     edge rather than as a held control: `bot_tetris3d`'s `hard_drop` is `_edge`-driven,
     so a set held flat for the whole window drops once and then does nothing, and a
-    game that kept playing would have nothing to move its score.
+    game that kept playing would have nothing left to move.
     """
     press = inputs if callable(inputs) else (lambda _i: inputs)
     at_start = sample(s.history[0])
@@ -664,16 +684,20 @@ def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
     alive_after_idle = _alive(s.last)
 
     reset_at: int | None = None
+    settled = 0
     for i in range(press_ticks):
         t = s.step_raw(dict(press(i)))
         if t.state.get("game_over") is not True:
             reset_at = t.tick
+            settled = RESET_SETTLE_TICKS
+            s.idle(settled)
             break
     return EndCondition(
         idle_ticks=idle_ticks, over_after_idle=over_after_idle,
         frozen_while_idle=after_idle == at_end, at_end=at_end,
         after_idle=after_idle, alive_after_idle=alive_after_idle,
-        press_ticks=press_ticks, reset_at=reset_at, at_start=at_start,
+        press_ticks=press_ticks, reset_at=reset_at, settle_ticks=settled,
+        at_start=at_start,
         after_press=sample(s.last), alive_after_press=_alive(s.last))
 
 

@@ -71,6 +71,18 @@ def _extent(cells: list[tuple[int, int, int]]) -> int:
     return max(c[1] for c in cells) - min(c[1] for c in cells)
 
 
+def _filled(t: Tick) -> int | None:
+    """Total filled cells in the well, summed out of the CONTRACTED `heights` grid.
+
+    `settled` carries the same number directly and is not in the state contract
+    `state.shape` checks, so a submission may omit it - and a guard that reads a
+    missing field gets 0 on every tick, which is a check that cannot fail. `None` when
+    the grid is unreadable, which is a third value and not a zero.
+    """
+    h = _heights(t)
+    return None if h is None else sum(sum(row) for row in h)
+
+
 def _int(t: Tick, key: str, default: int = 0) -> int:
     v = t.state.get(key, default)
     try:
@@ -655,14 +667,19 @@ class Tetris3DBot(Bot):
                                       if i % 2 == 0 else {}),
                     # THE WELL AS WELL AS THE SCORE. A stacked-out game that keeps
                     # stepping leaves the score alone - clearing a layer is what pays,
-                    # and the well is full - but it goes on locking and spawning:
-                    # measured on a reference with the step function's `game_over`
-                    # early-out deleted, `heights` moves and the score does not. Both
-                    # come back to their tick-0 values on a reset.
-                    sample=lambda t: (_int(t, "score"), t.state.get("heights")))
+                    # and the well is full - but it goes on locking: measured on a
+                    # reference with the step function's `game_over` early-out deleted,
+                    # 199 `lock` events over 400 ticks with the score unchanged at 0.
+                    # The filled-cell TOTAL rather than the `heights` grid, because the
+                    # grid prints ~250 characters twice and `Criterion.evidence` is
+                    # stored truncated at 600 - an audit trail whose tail is cut off is
+                    # the half that carries the pressed-phase verdict. Both terms come
+                    # back to their tick-0 values on a reset.
+                    sample=lambda t: (_int(t, "score"), _filled(t)))
                 return Criterion(
                     "gameover.triggers", self._q("gameover.triggers"), end.passed,
-                    f"game over at tick {over_at}; {end.detail()}")
+                    f"game over at tick {over_at}; "
+                    f"{end.detail('(score, filled cells)')}")
         except ProbeError as e:
             return unusable_criteria(
                 [("gameover.triggers", self._q("gameover.triggers"))], e,
