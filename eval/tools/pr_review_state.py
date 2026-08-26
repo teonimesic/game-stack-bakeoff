@@ -100,6 +100,11 @@ USE
     python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-asserts-its-branch \\
         --expect-head "$(git rev-parse HEAD)" --wait
 
+    # the poll you start AFTER posting `@coderabbitai review`, so the comment the reviewer
+    # has not rewritten yet cannot stop you the moment you look
+    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-asserts-its-branch \\
+        --expect-head "$(git rev-parse HEAD)" --wait --ignore-notice
+
     python3 eval/tools/pr_review_state.py --census      # every PR, which arm fires
     python3 eval/tools/pr_review_state.py --selftest    # offline, no network
 
