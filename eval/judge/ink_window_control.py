@@ -58,6 +58,11 @@ W, H = 640, 400            # the geometry every stored grading was captured at
 
 
 def expect(name: str, cond: bool, detail: str = "") -> None:
+    """Record one expectation and print it. `detail` is what a reader needs to adjudicate.
+
+    `CHECKS` is what `phases()` reads to prove a phase ran at all, so every row must go
+    through here rather than being asserted inline.
+    """
     global CHECKS
     CHECKS += 1
     print(f"  {'PASS' if cond else 'FAIL'}  {name}" + (f"  -- {detail}" if detail else ""))
@@ -67,6 +72,11 @@ def expect(name: str, cond: bool, detail: str = "") -> None:
 
 @contextlib.contextmanager
 def patched(obj: Any, name: str, value: Any):
+    """Replace one module attribute for the duration of the block, then restore it.
+
+    Restoration is in a `finally`, because a mutant that raises would otherwise leave the
+    module broken for every row after it and turn one red into a cascade.
+    """
     old = getattr(obj, name)
     setattr(obj, name, value)
     try:
@@ -80,6 +90,7 @@ def patched(obj: Any, name: str, value: Any):
 # --------------------------------------------------------------------------- #
 
 def _flat() -> bytearray:
+    """A frame of nothing but the background colour: ink coverage 0.0 by construction."""
     return bytearray(bytes(BG) * (W * H))
 
 
@@ -93,6 +104,7 @@ def _rect(px: bytearray, w: int, h: int) -> bytearray:
 
 
 def blank() -> bytes:
+    """What a submission that rendered nothing produces. It must fail in BOTH classes."""
     return bytes(_flat())
 
 
@@ -142,6 +154,12 @@ def measure(make: Any, tmp: Path) -> dict[str, Any]:
 
 
 def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> None:
+    """Does the reader still see the picture each fixture was written to be?
+
+    Every row below asks its question of these numbers, so a fixture that drifted out of
+    its stated band would leave the whole file measuring something else while staying
+    green. The last row refuses a set that collapsed to one value (rule 12).
+    """
     print("\n[the fixtures measure what they are stated to measure]")
     for name, _make, lo, hi in FIXTURES:
         got = inks[name]["mean_ink"]
@@ -171,6 +189,11 @@ WINDOW_ROWS = [
 
 
 def test_the_window(inks: dict[str, dict[str, Any]]) -> None:
+    """The criterion itself: `WINDOW_ROWS` both ways per class, then the two refusals.
+
+    The floor is asked of both classes and the ceiling of one, which is the entire content
+    of the change - so a row that moved would be visible here before anywhere else.
+    """
     print("\n[the window, both directions, per task class]")
     for fixture, klass, want in WINDOW_ROWS:
         ok, ev = static.nonempty_verdict(inks[fixture], klass, 2)
@@ -218,6 +241,7 @@ def stubbed_toolchain(mean_ink: float, ran_commands: list[str]):
                      out="12 passed, 12 total", err="")
 
     def record(repo, name, argv, *a, **k):
+        """Stand in for `static.run`, recording the recipe name instead of spawning it."""
         ran_commands.append(name)
         return cmd
 
@@ -258,6 +282,11 @@ def drive_collect(task_class: str, mean_ink: float) -> dict[str, Any]:
 
 
 def test_collect_uses_the_class_it_was_given() -> None:
+    """Does the class the runner handed down actually reach the criterion?
+
+    `test_the_window` passes the class explicitly, so it stays green against a `collect`
+    that ignores its argument entirely. This phase is the only one that would not.
+    """
     print("\n[collect passes its task_class through to the criterion]")
     scene = drive_collect("scene", 0.96561)
     game = drive_collect("game", 0.96561)
@@ -281,6 +310,11 @@ EXPECTED_TALLY = {"no_bound": 8, "starter": 1, "capture_contract": 1,
 
 
 def test_bound_census() -> None:
+    """Has every tier-1 criterion answered *which population was your bound calibrated on?*
+
+    The tally is both printed (the documents state 8/5/1 in prose and a prose count with no
+    producer goes stale forever) and pinned against `EXPECTED_TALLY`.
+    """
     print("\n[TIER1_BOUND_POPULATION: every tier-1 criterion answers the question]")
     problems = static.assert_tier1_bounds_declared()
     expect("the live registry is clean", problems == [], "; ".join(problems)[:200])
@@ -313,6 +347,12 @@ def test_bound_census() -> None:
 # --------------------------------------------------------------------------- #
 
 def mutants(inks: dict[str, dict[str, Any]]) -> None:
+    """Each removes one mechanism a row above names; that row must go red.
+
+    A window that cannot fail is worse than no window, because it looks like a pass. Each
+    block states which row it is aimed at, so a mutant that stops being load-bearing is
+    readable rather than merely green.
+    """
     print("\n[mutants: can these checks fail?]")
     filled_ink, blank_ink = inks["filled"], inks["blank"]
 
@@ -479,17 +519,28 @@ def corpus(runs_root: Path) -> None:
 
 
 def _class_of(game: str) -> str:
+    """The id-shape fallback for a stored record written before `task_class` was stamped.
+
+    A SECOND channel and not the same fact as the stored field, which is why the caller
+    counts what it had to fall back on rather than silently reading it as a game.
+    """
     import aspects
     return aspects.task_class(game)
 
 
 def _with_verdict(tier1: dict[str, Any], passed: bool) -> dict[str, Any]:
+    """A COPY of one stored tier-1 record with `render.nonempty` re-decided.
+
+    Nothing under `eval/runs` is written: the re-grade is computed for the report and the
+    stored record keeps the verdict it was given (`eval/RUNS.md` holds both).
+    """
     crits = [{**c, "passed": passed} if c["id"] == "render.nonempty" else c
              for c in tier1.get("criteria", [])]
     return {**tier1, "criteria": crits}
 
 
 def _gate(g: dict[str, Any]) -> str:
+    """One gate verdict as a line. `NOT USABLE` is a third value and is never a pass."""
     if not g.get("usable"):
         return "NOT USABLE"
     if g.get("passed"):
@@ -520,6 +571,9 @@ def phases(inks: dict[str, dict[str, Any]]) -> list[tuple[str, Any, int]]:
 
 
 def main() -> int:
+    """Run every phase, then the corpus arm if a runs-root was given. Exit 0 only if
+    every phase contributed the count it declares and every expectation held.
+    """
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs-root", type=Path,
