@@ -135,8 +135,9 @@ threshold was still chosen against fixtures written by the same hand as the crit
 what a scene result must be read against.
 
 **First contact with a real submission found a false negative and 2 criteria it could not set
-up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`; the repair
-is `tasks/162` and the calibration question is `tasks/163`. The standing limit is the sentence
+up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`.
+`layers.depth_ordered` is repaired and re-graded (`tasks/162`, and the decision it forced is
+below); the tier-1 calibration question is `tasks/163`. The standing limit is the sentence
 above: every threshold was chosen against fixtures, and a scene result is read against
 `scene_mutants.py --census` until that stops being true.
 
@@ -183,6 +184,36 @@ differences are what makes them measurable at 12 frames.**
 - `seed.pair` compares the captured PNG **bytes**, not a frame hash. A hash a submission computes
   about its own frames is another field it can get wrong or quietly stop updating; the files on
   disk are not.
+
+### `layers[].offset` may ACCUMULATE or WRAP, and both are contracted
+
+The prompt says `offset` is *"how far that layer has been displaced sideways so far"* and `span` is
+*"the width after which the layer repeats itself"*. It does not say whether the number keeps
+growing or stays inside `[0, span)`, and **a submission may report either.**
+
+**The prompt is not changed, and that is the decision rather than an omission from it.** A layer
+declares its own `span`, so a wrapped series and a cumulative one carry the same information.
+Naming an encoding would be a regime boundary against every scene trial, and it would deduct marks
+for reporting `offset` the way a renderer wants it.
+
+**No criterion in `ParallaxScene` may difference two reported `offset` values.** `_walk` rebuilds
+each layer's series from the per-tick trace, mapping every step into `(-span/2, span/2]` before
+adding it, and `layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that
+series. `_walk` is the only place that subtracts 2 reported offsets, and only ever consecutive
+ones: that difference is a modular residue anywhere else. It is exact while a layer moves less
+than half a span in 1 tick, and a no-op on a scene that already accumulates. Per tick, not per
+captured frame: 2 captures are 60 ticks apart, which is long enough for a near layer to cross more
+than half its span.
+
+**A layer earns a walk by carrying a finite `offset` and a positive `span` on every trace line,
+and `layers.depth_ordered` fails one that does not.** `state.shape` reads tick 0 only, so all 3
+ways of falling short are silent and all 3 read as a smaller, plausible travel: a hole between 2
+reported ticks, a layer that stops reporting and never resumes, and a row that declares no usable
+`span` to unwrap against.
+
+`scene_mutants.py` holds both directions: a variant reporting `offset` inside its own span, and 3
+mutants that break a layer's reporting — a hole, a truncation, and a row with no span.
+`eval/RUNS.md` holds what the first submission measured.
 
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks
 

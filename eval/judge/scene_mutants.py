@@ -111,6 +111,38 @@ P_DRAWN_FLAT = Patch("film.py",
                      '        phase = (st["layers"][-1]["offset"] * SCALE) % span'
                      '  # MUTANT: every band is drawn at the nearest layer\'s offset')
 
+#: A HOLE IN THE TELEMETRY, and it is invisible to every frame. The sky layer stops being
+#: reported for ticks 101-119 - a window holding no captured frame, so the picture is
+#: untouched and the only thing removed is the contract's one record per tick. An unwrap
+#: that bridged the hole would return a plausible smaller travel for that layer instead of
+#: refusing, which is the fail-open direction `_walk` names.
+P_LAYER_GAP = Patch("game.py",
+                    "                       for lid, depth, span in LAYERS],",
+                    "                       for lid, depth, span in LAYERS\n"
+                    "                       if not (lid == 1 and 101 <= self.tick <= 119)"
+                    "],  # MUTANT: the sky stops being reported")
+
+#: The same layer, gone for good from tick 501 on. Distinct from the hole above and it
+#: needs its own subject: a walk built from the prefix looks perfectly continuous, so only
+#: counting a layer's rows against the trace's own length refuses it.
+P_LAYER_TRUNCATED = Patch(
+    "game.py",
+    "                       for lid, depth, span in LAYERS],",
+    "                       for lid, depth, span in LAYERS\n"
+    "                       if not (lid == 1 and self.tick > 500)"
+    "],  # MUTANT: the sky stops being reported for good")
+
+#: `span` declared only at tick 0. `state.shape` reads tick 0, so the layer looks
+#: contracted; without a `span` there is nothing to unwrap against, and accumulating the
+#: raw difference is the modular residue `_walk` exists to avoid. Same 19-tick window as
+#: the hole mutant, so the picture is untouched.
+P_SPAN_DROPPED = Patch(
+    "game.py",
+    '                        "offset": _r(self.offsets[lid]), "span": span,',
+    '                        "offset": _r(self.offsets[lid]),\n'
+    '                        "span": (0.0 if (lid == 1 and 101 <= self.tick <= 119)\n'
+    "                                 else span),  # MUTANT: the sky stops declaring one")
+
 P_JUMPY_WRAP = Patch("film.py",
                      '        phase = (layer["offset"] * SCALE) % span',
                      '        _o = layer["offset"] * SCALE  # MUTANT: the loop jumps\n'
@@ -209,6 +241,22 @@ V_SHORT_RAMP = (Patch("game.py", "LIGHT_BEGIN = 240", "LIGHT_BEGIN = 590  # VARI
 #: every verdict to be unchanged.
 V_BIGGER_FRAMES = (Patch("film.py", "WIDTH = 640", "WIDTH = 960  # VARIANT"),
                    Patch("film.py", "HEIGHT = 360", "HEIGHT = 540  # VARIANT"))
+
+#: THE VARIANT THAT WAS NOT HERE WHEN THE FIRST REAL SUBMISSION ARRIVED, and the reason
+#: three criteria misread it (`tasks/162`). The reference lets `offset` accumulate
+#: forever; `eval/SCENES.md` decides that reporting it inside `[0, span)` is equally
+#: contracted, and that is what a renderer wants, so it is what the first submission
+#: did. The picture is unchanged - `film.py` already draws `offset % span` - so every
+#: verdict must be unchanged too.
+#:
+#: NO MUTANT COULD HAVE FOUND THIS. A mutant removes the mechanism a criterion names;
+#: what was needed was an INPUT the criterion mishandles, and only a scene that wraps is
+#: one (rule 15, #46's shape).
+V_WRAPPED_OFFSET = Patch(
+    "game.py",
+    '                        "offset": _r(self.offsets[lid]), "span": span,',
+    '                        "offset": _r(self.offsets[lid] % span), "span": span,'
+    '  # VARIANT: reported inside its own span')
 
 
 # --------------------------------------------------------------------------- #
@@ -365,6 +413,23 @@ MUTANTS: list[Mutant] = [
            collateral=("layers.image_parallax",),
            notes="one flat background scrolled as a unit - the naive implementation "
                  "`eval/SCENES.md` names"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "the sky stops being reported for 19 ticks", (P_LAYER_GAP,),
+           notes="the other half of reading `offset` through an unwrap: the window holds "
+                 "no captured frame, so nothing in the picture changes and only the "
+                 "contract's one record per tick is gone. Bridging the hole would return "
+                 "a smaller travel for that layer and pass"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "the sky stops being reported for good after tick 500", (P_LAYER_TRUNCATED,),
+           notes="a hole is visible as a resumption; this one never resumes, so a walk "
+                 "built from the prefix is perfectly continuous and reads a travel off "
+                 "it. Measured: no other criterion flips, so the band going unpainted "
+                 "in the last 3 frames costs the image side nothing here"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "the sky declares no span for 19 ticks", (P_SPAN_DROPPED,),
+           notes="`state.shape` reads tick 0, where the span is still there. Without one "
+                 "there is nothing to unwrap against, and accumulating the raw "
+                 "difference is exactly the residue this criterion was scored on"),
     Mutant("layers.image_parallax", "s1_parallax",
            "the telemetry reports parallax the renderer does not draw", (P_DRAWN_FLAT,),
            notes="THE MUTANT NO TELEMETRY-SIDE CHECK CAN FIND. Every offset the "
@@ -458,6 +523,13 @@ VARIANTS: list[Variant] = [
                   "captured frame lands inside a ramp that short, so the image half "
                   "cannot be established and the criterion must fall back rather than "
                   "fail a correct scene for being quick"),
+    Variant("s1_parallax", "`offset` is reported inside its own span",
+            (V_WRAPPED_OFFSET,), ("layers.depth_ordered", "layers.image_parallax",
+                                  "loop.seamless"),
+            notes="the same scene, the same picture, `offset` wrapped into `[0, span)` "
+                  "instead of accumulating. A criterion that subtracts two reported "
+                  "offsets reads a modular residue rather than a scroll rate, which is "
+                  "what the first real submission was scored on (`tasks/162`)"),
     Variant("s1_parallax", "the same scene filmed 1.5x larger", V_BIGGER_FRAMES,
             ("layers.image_parallax", "loop.seamless", "light.monotonic"),
             notes="submissions choose their own capture geometry, so every image-side "
