@@ -3859,14 +3859,14 @@ def _backticked_flags(text: str, flags: set[str], is_skill: bool = False) -> set
     for it.
 
     Measured over the skills corpus, 2026-08-25, after that merge. `reads` is how many of
-    the 28 backticked mentions of a real flag of ours a trigger would look at; `rows` is
+    the 29 backticked mentions of a real flag of ours a trigger would look at; `rows` is
     how many correct lines it turns red:
 
       trigger                                     reads   rows
-      the retired 4 harness names, file-wide       10/28     0
-      one of our scripts named on the same line     2/28     0
-      one of our scripts in the same section       26/28     0
-      SHIPPED: every skill                         28/28     0
+      the retired 4 harness names, file-wide       10/29     0
+      one of our scripts named on the same line     2/29     0
+      one of our scripts in the same section       26/29     0
+      SHIPPED: every skill                         29/29     0
 
     Every candidate now costs nothing, so recall decides, and admitting every skill has
     all of it. `_skill_flag_coverage()` is the producer and recounts this live;
@@ -4121,7 +4121,7 @@ def _skill_flag_pins(verbose: bool = False) -> list[str]:
          live["reads"]["harness"] < live["mentions"], True),
     ]
     # Every published figure, against the document that publishes it. An inequality lets a
-    # trigger change move `10/28` or a row count while every case above stays green.
+    # trigger change move `10/29` or a row count while every case above stays green.
     cases += [(f"{rel} still says: {phrase}", phrase in texts[rel], True)
               for rel, phrase in published]
 

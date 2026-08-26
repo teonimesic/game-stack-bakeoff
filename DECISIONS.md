@@ -627,15 +627,15 @@ deleted rather than tuned quiet.
 (task 149).** The backticked-flag half is gated file-wide on 4 harness script names, which
 admitted 4 of the 10 `SKILL.md` files — leaving the documents where commands and flags are most
 densely written mostly unchecked. It now reads all 10 `SKILL.md` files, at a cost of 0 correct
-lines. *reads* is how many of the 28 backticked mentions of a real flag of ours a trigger would
+lines. *reads* is how many of the 29 backticked mentions of a real flag of ours a trigger would
 look at; *rows* is how many correct lines it turns red:
 
 | trigger | reads | rows |
 |---|---|---|
-| the retired 4 harness names, file-wide | 10/28 | 0 |
-| one of our scripts named on the same line | 2/28 | 0 |
-| one of our scripts in the same section | 26/28 | 0 |
-| SHIPPED: every skill | 28/28 | 0 |
+| the retired 4 harness names, file-wide | 10/29 | 0 |
+| one of our scripts named on the same line | 2/29 | 0 |
+| one of our scripts in the same section | 26/29 | 0 |
+| SHIPPED: every skill | 29/29 | 0 |
 
 **Every row cost something when this was measured six hours earlier, and admitting all 10 cost
 8** — `gh`, `git` and `just` flags argued about in prose, which is the shape this file refuses
@@ -1981,9 +1981,11 @@ where both arms correctly read false. It returns **3** distinct verdicts over 17
 6 `LANDED_REVIEW`, 6 `LANDED_COMMENT`, 5 `NOTICE` — so it is discriminating rather than
 reporting the instrument.
 
-`--selftest` is **54** offline checks including **8** variants; `eval/tools/pr_review_state_mutants.py`
-removes **25** mechanisms one at a time and every one goes red. Both counts are `len()` of what
-ran, printed by the tools.
+`python3 eval/tools/pr_review_state.py --selftest` is **100** offline checks including **21**
+variants; `python3 eval/tools/pr_review_state_mutants.py` removes **51** mechanisms one at a time
+and every one goes red. The selftest reports the checks and the variants, the mutant tool
+reports the mechanisms, and all 3 are `len()` of what ran — run them rather than quoting this
+line.
 
 **The same question was asked of every other recipe in `.agents/skills/` that writes a file it
 later reads back.** Only one other had the shared-mutable-address shape:
@@ -1995,6 +1997,52 @@ which cannot collide. The rest are safe for a reason worth naming: `git commit -
 next command in the same block**, and each is already followed by a read-back of what the command
 actually stored. A short interval with a verification at the end of it is not the same defect as
 an interval with none.
+
+---
+
+## A failed review round is a verdict of its own, and `--ignore-notice` governs stopping only — decided 2026-08-26
+
+**Decided [agent], `tasks/165`, on measurement.** A round that starts and dies leaves a `Review
+failed` alert callout and a rewritten summary comment. That summary carries no in-progress marker
+and the failure block **writes the new head sha into its own body**, so the pair satisfies the
+comment arm exactly and a dead round is indistinguishable from a clean one (#185). The procedure's
+next step is to act on the review, so the branch proceeds as though it had been read.
+
+**The flag named the mechanism, not the property.** `--ignore-notice` exists so a pool-exhaustion
+pause cannot stop every poll instantly, and that reasoning stands. It also covered a notice with
+the opposite meaning, because what it tested was *is there a notice* rather than *was this head
+reviewed* — this file's own rule about triggers, inside the tool written to fix the previous
+instance of it.
+
+| Decided | Rejected, and why |
+|---|---|
+| `REVIEW_FAILED`, a **verdict** at exit 14, ranked above the comment arm | A kind of `NOTICE`. A notice is a diagnostic the landed arms outrank; this one has to *outrank* a landing, which is the opposite precedence |
+| Ranked **below** `LANDED_REVIEW` and `IN_FLIGHT` | Ranking it first. A review object at the head means the head was reviewed whatever callout is beside it, and CodeRabbit edits comments in place; a marker at the head means the replacement round is already running, so the wait should wait rather than ask again |
+| `--ignore-notice` decides **stopping** and nothing else — it can never produce a landing | Removing the flag, or adding a second one for this heading. Removing it trades a false landing for a poll that never returns; a second flag repeats the defect at a new name |
+| A failed round is detected by its HTML marker **or** its alert heading — 2 signals, for the same reason a landing is read 2 ways: either alone can be wrong later | Either alone. A reworded heading and a renamed marker are both plausible, and each arm covers the other's failure |
+| **Each failure block is dated by the last sha in it** — *"the head commit changed during the review from `<old>` to `<new>`"* — and a comment suppresses the comment arm when any of its blocks is about the head | Reading every failure on the pull request: a **previous** round's callout then suppresses a landing that really happened. Or scoping to the comment carrying the head: a failure posted in a comment of its own then reads as a clean landing, which is the defect itself. The block says which head it died on, so neither trade-off has to be made. It must come from the BLOCK — CodeRabbit writes the failure into the same summary comment that names the current head elsewhere |
+| **A block naming no sha counts**, because it cannot be dated | Dropping it. That is fail-open exactly where the evidence is missing; the cost of keeping it is a wait that expires loudly (rule 7) |
+| **The ambiguous case stays a landing**: no notice, a summary naming the head, no review object is `LANDED_COMMENT` | Requiring a review object. A clean round creates none, and the table above counts 3 of 6 reviewed heads reaching only that arm — the requirement would spend the full bound on the common good outcome |
+
+**So the comment arm keeps its authority and is narrowed by exclusion, one observed mechanism at
+a time**: not a landing while the in-progress marker is on it, and not a landing while a failure
+callout is on the pull request. That decision is written beside `--ignore-notice` in
+`pr_review_state.py`, which is where the next reader will be standing.
+
+**The extraction is pinned against the real artifact, not against a fixture describing it.**
+`pr_review_state.selftest` holds a verbatim `coderabbitai[bot]` failure block and classifies it at
+the head that block names; `tasks/165` records where those bytes were read from and what a live
+reconstruction did and did not show.
+
+> **When one artifact serves two states, the repair is an exclusion, never a flag.** Every hole
+> found in this poll has been the same shape — an artifact that exists for more than one reason,
+> read as though it existed for one: a sha with no run (#162), a head the API had not caught up
+> to (#165), a paused pool that reads as silence, and a failed round that reads as a clean one.
+
+| Would re-open this | The observation |
+|---|---|
+| Dating a failure by its own block | A failure block naming a sha that is not the head it died on, so a real failure goes unseen at the head it belongs to. A block with no sha cannot go unseen — undated blocks count |
+| `--ignore-notice` covering the failure for stopping | A round that dies twice in a row, where the second failure is invisible because the flag carried the wait past it. The remedy is `@coderabbitai review` **once**, and the poll after it is the flagged one |
 
 ---
 

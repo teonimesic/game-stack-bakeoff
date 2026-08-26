@@ -44,15 +44,45 @@ good outcome. Neither arm alone covers this repository's own pull requests.
 | `LANDED_REVIEW` | 0 | a `coderabbitai[bot]` review object with a **non-empty body** whose `commit_id` is the head. A reply to a comment also creates a review object, stamped with the current head and with an empty body — without the body guard that is indistinguishable from a review |
 | `LANDED_COMMENT` | 0 | a `coderabbitai[bot]` issue comment naming the head and **not** carrying the review-in-progress marker. This is the clean outcome, and it creates no review object at all |
 | `IN_FLIGHT` | 11 | a `coderabbitai[bot]` comment naming the head **with** the marker. The round is running; the verdict printed below it is the previous round's |
-| `NOTICE` | 12 | a GitHub alert callout heading in a bot comment — `Reviews paused`, `Review limit reached`, `Review skipped`. Read the body; each states its own remedy |
+| `REVIEW_FAILED` | 14 | a `Review failed` alert heading. A round started and died, and the summary it left behind is a comment at the head that looks exactly like a clean one. Post `@coderabbitai review` |
+| `NOTICE` | 12 | any other GitHub alert callout heading in a bot comment — a pause, a spent allowance, a skip. Read the body; each states its own remedy |
 | `NOT_YET` | 10 | none of the above |
 | — | 1 | a guard refused, or `gh` failed |
 | `UNRESOLVED` | 13 | `--wait` gave up. A loud outcome, never a quiet "no review" |
 
-`LANDED_*` outranks `IN_FLIGHT` outranks `LANDED_COMMENT` outranks `NOTICE`. A notice is
-last because CodeRabbit **edits its comments in place**: PR #6's `Review limit reached`
-heading was measured on 2026-08-23 and is no longer extractable from PR #6 today. A notice
-is a diagnostic; the two landed arms are the authority.
+`LANDED_REVIEW` outranks `IN_FLIGHT` outranks `REVIEW_FAILED` outranks `LANDED_COMMENT`
+outranks `NOTICE`. A notice is last because CodeRabbit **edits its comments in place**: PR
+#6's `Review limit reached` heading was measured on 2026-08-23 and is no longer extractable
+from PR #6 today. A notice is a diagnostic; the two landed arms are the authority.
+
+WHY A FAILED ROUND IS A VERDICT AND NOT A NOTICE
+------------------------------------------------
+A notice heading used to be one thing, and the poll asked only whether one existed. That is
+the mechanism, not the property — and the property is *has this head been reviewed*.
+`Reviews paused` and `Review limit reached` say a round has not **started**, and they sit
+beside whatever the previous round left, so they leave the comment arm alone. **`Review
+failed — the head commit changed during the review` says a round started and DIED**, and it
+rewrites the summary comment at the head, so the artifact is byte-for-byte the shape of a
+clean landing. Merging `main` into a branch mid-review produces it.
+
+Measured on PR #39 (`tasks/162`): `--wait --ignore-notice` returned `LANDED_COMMENT` at
+`elapsed=0s` with `notice=Review failed` on the same line, and the real review arrived
+**540 s** later (#185). The procedure's next step is to act on the review, so *nothing to
+say* and *the reviewer was interrupted* produced the same behaviour.
+
+So a failed round gets its own verdict, ranked **above** the comment arm and **below** both a
+real review object and a round in flight. A review object at the head means the head was
+reviewed whatever a stale callout beside it says; an in-progress marker at the head means a
+new round is already running and the wait should keep waiting.
+
+It is detected by **its HTML marker or its alert heading** — 2 signals, for the same reason a
+landing is read 2 ways: either alone can be wrong later, and each arm covers the other. Both
+strings come from a real `coderabbitai[bot]` failure block, which also shows *why* the comment
+arm was satisfied: the block **writes the new head sha into its own body**.
+
+That sha is also what dates it. A failure suppresses the comment arm at the head its own block
+names and at no other, so a previous round's callout cannot hold up a landing that really
+happened. A block naming no sha cannot be dated and counts.
 
 WHY THE WAIT IS NOT A CLOCK
 ---------------------------
@@ -78,6 +108,11 @@ USE
     # wait for the round, printing a line every 30s
     python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-asserts-its-branch \\
         --expect-head "$(git rev-parse HEAD)" --wait
+
+    # the poll you start AFTER posting `@coderabbitai review`, so the comment the reviewer
+    # has not rewritten yet cannot stop you the moment you look
+    python3 eval/tools/pr_review_state.py --pr 18 --branch task-127-poll-asserts-its-branch \\
+        --expect-head "$(git rev-parse HEAD)" --wait --ignore-notice
 
     python3 eval/tools/pr_review_state.py --census      # every PR, which arm fires
     python3 eval/tools/pr_review_state.py --selftest    # offline, no network
@@ -112,7 +147,27 @@ INPROGRESS_MARKER = "auto-generated comment: review in progress by coderabbit.ai
 # heading, because the pause notice is a NOTE and the limit notice is a WARNING.
 ALERT_HEADING = re.compile(r"> \[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n> ## ([^\n]*)")
 
+# A failed round is read two ways, for the same reason the landed arms are: either signal
+# alone can be wrong later. The HTML comment is the machine one, bracketing the block exactly
+# as INPROGRESS_MARKER brackets a running round; the heading is what a reader sees and what
+# the poll line prints. Both are taken from the real artifact on meshery/meshery#21612 — this
+# repository's own instance was rewritten in place and is no longer extractable from PR #39.
+FAILURE_MARKER = "auto-generated comment: failure by coderabbit.ai"
+
+# The quoted alert block a failed round leaves, captured so the shas INSIDE it can be read
+# apart from any other sha in the same comment — CodeRabbit writes the failure into the very
+# summary comment that names the current head elsewhere.
+#
+# The heading is ANCHORED: `> ## Review failed`, so a heading that merely mentions a failed
+# review is not one. It is left open at the end, because the reason CodeRabbit gives ("The
+# head commit changed during the review from <sha> to <sha>.") is in the block body today and
+# could be appended to the heading tomorrow.
+FAILURE_ALERT_BLOCK = re.compile(
+    r"> \[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n> ## Review failed[^\n]*\n((?:>[^\n]*\n?)*)",
+    re.IGNORECASE)
+
 FULL_SHA = re.compile(r"\A[0-9a-f]{40}\Z")
+SHA_ANYWHERE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")
 
 QUIET_TIMEOUT = 20 * 60
 FLIGHT_TIMEOUT = 60 * 60
@@ -128,6 +183,12 @@ GH_TIMEOUT = 60
 # cap is a census reporting the cap, so the cap is high and reaching it is a REFUSAL.
 CENSUS_LIMIT = 1000
 
+# What a poll result must carry. `wait_for` takes a callback, so this is the boundary a
+# caller-supplied `poll_fn` enters through: without the check, a result of the wrong shape
+# reaches `render` and dies as a bare `KeyError`, which says nothing about whose fault it is.
+# A named refusal and an unconverted traceback are different defects and must say which.
+RESULT_FIELDS = ("verdict", "by_review", "by_comment", "in_flight", "failed", "headings")
+
 EXIT = {
     "LANDED_REVIEW": 0,
     "LANDED_COMMENT": 0,
@@ -135,6 +196,7 @@ EXIT = {
     "IN_FLIGHT": 11,
     "NOTICE": 12,
     "UNRESOLVED": 13,
+    "REVIEW_FAILED": 14,
 }
 
 
@@ -261,6 +323,47 @@ def alert_headings(comments: Iterable[dict]) -> list[str]:
     return out
 
 
+def failed_rounds(comments: Iterable[dict], head: str | None = None) -> list[dict]:
+    """The bot comments saying a round STARTED AND DIED at `head`.
+
+    Splitting the notices by what they imply is the whole repair. A pause or a spent
+    allowance says a round has not started, and it sits beside whatever the previous round
+    left — so it must not touch the comment arm, or every paused branch stops landing. A
+    failed round writes *"The head commit changed during the review from <old> to <new>"*
+    into its own body, so the artifact it leaves satisfies the comment arm exactly and the
+    comment arm must not read it as a landing.
+
+    **Each block is dated by the LAST sha in it, and a comment counts if any of its blocks
+    is about `head`.**
+    Both cheaper answers are wrong in one direction each: reading every failure on the pull
+    request lets a previous round's callout suppress a landing that really happened, and
+    scoping to the comment that names the head misses a failure posted in a comment of its
+    own — which is `LANDED_COMMENT` at exit 0 on an unreviewed head, the defect itself.
+    Reading the sha out of the block answers both, because the block says which head it died
+    on. It has to come from the BLOCK: CodeRabbit writes the failure into the same summary
+    comment that names the current head elsewhere.
+
+    **A block that names no sha cannot be dated, so it counts.** That is fail-closed where
+    the evidence is missing (rule 7), and its cost is a wait that expires loudly.
+    """
+    # `head=None` asks the question without a head, which is what the extraction rows below
+    # use: is this comment a failed round at all?
+    out: list[dict] = []
+    for c in _by_bot(comments):
+        body = c.get("body") or ""
+        blocks = FAILURE_ALERT_BLOCK.findall(body)
+        if not blocks and FAILURE_MARKER not in body:
+            continue
+        if head is not None and blocks:
+            dated = [(SHA_ANYWHERE.findall(b) or [None])[-1] for b in blocks]
+            # Each block is its own round. Flattening them and reading one sha lets a block
+            # that names this head be overruled by a later block that names another.
+            if not any(d is None or d == head for d in dated):
+                continue
+        out.append(c)
+    return out
+
+
 def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> dict:
     """Decide the verdict at `head`. Raises if `head` is not a full sha.
 
@@ -279,11 +382,14 @@ def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> di
     in_flight = [c for c in naming if INPROGRESS_MARKER in (c.get("body") or "")]
     finished = [c for c in naming if INPROGRESS_MARKER not in (c.get("body") or "")]
     headings = alert_headings(comments)
+    failed = failed_rounds(comments, head)
 
     if by_review:
         verdict = "LANDED_REVIEW"
     elif in_flight:
         verdict = "IN_FLIGHT"
+    elif failed:
+        verdict = "REVIEW_FAILED"
     elif finished:
         verdict = "LANDED_COMMENT"
     elif headings:
@@ -291,11 +397,16 @@ def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> di
     else:
         verdict = "NOT_YET"
 
+    # `by_comment` still counts the summary at the head under `REVIEW_FAILED`, and `failed`
+    # sits beside it. Both are true — a comment does name the head, and it is not evidence
+    # of a review — and the verdict says which won. Zeroing the count instead would hide
+    # the artifact the verdict is about.
     return {
         "verdict": verdict,
         "by_review": len(by_review),
         "by_comment": len(finished),
         "in_flight": len(in_flight),
+        "failed": len(failed),
         "headings": headings,
     }
 
@@ -318,7 +429,8 @@ def render(result: dict, elapsed: float | None = None) -> str:
     """Every line names the pull request, the branch and the full head sha."""
     line = (f"#{result['pr']} {result['branch']} head={result['head']} "
             f"verdict={result['verdict']} by_review={result['by_review']} "
-            f"by_comment={result['by_comment']} in_flight={result['in_flight']}")
+            f"by_comment={result['by_comment']} in_flight={result['in_flight']} "
+            f"failed={result['failed']}")
     if result.get("headings"):
         line += " notice=" + " | ".join(result["headings"])
     if elapsed is not None:
@@ -359,6 +471,17 @@ def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.
     `@coderabbitai review`. With the flag the notice is still printed on every line; it just
     stops being a stop condition, and a genuinely new pause then costs the quiet bound —
     loud, not silent.
+
+    **The flag governs STOPPING, and it can never turn anything into a landing.** That
+    distinction is the repair for #185: `--ignore-notice` used to make `REVIEW_FAILED`'s
+    artifact — a rewritten summary comment sitting at the head — return `LANDED_COMMENT` at
+    exit 0, because the flag named the mechanism (a notice exists) rather than the property
+    (was this head reviewed). `REVIEW_FAILED` is now a verdict above the comment arm, so no
+    flag reaches it; the flag only decides whether the wait stops to let you act. Un-flagged
+    it stops, because you have not asked for the round again yet. Flagged — the poll you run
+    after posting `@coderabbitai review` — it keeps waiting, so the callout the reviewer has
+    not rewritten yet cannot deadlock you, and if nothing ever comes the bound expires as
+    `UNRESOLVED`.
     """
     started = now_fn()
     seen_in_flight = False
@@ -366,11 +489,16 @@ def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.
     last: dict = {}
     while True:
         last = poll_fn()
+        missing = [f for f in RESULT_FIELDS if f not in last]
+        if missing:
+            raise PrReviewStateError(
+                f"poll_fn returned a result missing {missing}. A poll result carries "
+                f"{list(RESULT_FIELDS)}. This is a caller error, not a poll result.")
         polls += 1
         elapsed = now_fn() - started
         emit(render(last, elapsed))
         stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (
-            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")
+            "LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")
         if last["verdict"] in stop:
             return {**last, "polls": polls, "elapsed": elapsed,
                     "seen_in_flight": seen_in_flight}
@@ -407,7 +535,7 @@ def census(repo: str = REPO, runner: Callable[..., Any] = subprocess.run) -> lis
         refusal = check_address(n, view, branch)
         if refusal:
             rows.append({"pr": n, "branch": branch, "head": "", "verdict": "REFUSED",
-                         "by_review": 0, "by_comment": 0, "in_flight": 0,
+                         "by_review": 0, "by_comment": 0, "in_flight": 0, "failed": 0,
                          "headings": [refusal]})
             continue
         rows.append(poll(n, branch, repo=repo, runner=runner))
@@ -430,7 +558,37 @@ PAUSED = ("> [!NOTE]\n> ## Reviews paused\n>\n> It looks like this branch is und
           "development.\n")
 LIMIT = ("> [!WARNING]\n> ## Review limit reached\n>\n> You've used all 10 included "
          "reviews currently available.\n")
+# The state this file's `REVIEW_FAILED` arm exists for, constructed rather than waited for.
+# These are the REAL bytes, read from `coderabbitai[bot]` on meshery/meshery#21612 — this
+# repository's own instance on PR #39 was rewritten in place and is gone. Note that the body
+# writes the NEW head sha into itself, which is why a failed round satisfied the comment arm
+# exactly and was indistinguishable from a clean landing (#185).
+REAL_HEAD = "ff9816d00a90fffb86e5fd602bf3e37f035084ba"
+REAL_FAILED = (
+    "<!-- This is an auto-generated comment: failure by coderabbit.ai -->\n"
+    "\n"
+    "> [!CAUTION]\n"
+    "> ## Review failed\n"
+    "> \n"
+    "> The head commit changed during the review from "
+    "b7a7fde482ff94828c2e9253315e381f80808ff7 to "
+    f"{REAL_HEAD}.\n"
+    "\n"
+    "<!-- end of auto-generated comment: failure by coderabbit.ai -->\n")
+def _failed_at(new_head: str, old_head: str = HEAD_B) -> str:
+    """A failure alert block for a named head, in the real one's shape."""
+    return ("> [!CAUTION]\n> ## Review failed\n> \n"
+            f"> The head commit changed during the review from {old_head} to "
+            f"{new_head}.\n\n")
+
+
+# The two halves on their own, so each arm of the disjunction has a row only it covers.
+FAILED = ("> [!WARNING]\n> ## Review failed\n>\n> The head commit changed during the "
+          "review.\n")
+FAILED_MARKER_ONLY = ("<!-- This is an auto-generated comment: failure by coderabbit.ai -->\n"
+                      "\n> The head commit changed during the review.\n")
 SUMMARY_DONE = f"Actionable comments posted: 0\n\n...between base and {HEAD_A}.\n"
+SUMMARY_FAILED = FAILED + SUMMARY_DONE
 SUMMARY_RUNNING = (f"<!-- This is an {INPROGRESS_MARKER} -->\n"
                    f"Reviewing files that changed from the base of the PR and between "
                    f"{HEAD_B} and {HEAD_A}.\nNo actionable comments were generated.\n")
@@ -558,6 +716,102 @@ def selftest() -> int:
     raises("B12 classify refuses an empty head",
            lambda: classify("", [], [_comment(body="anything at all")]))
 
+    # --- the round that started and DIED. Before this arm, every row here read
+    # LANDED_COMMENT at exit 0, which is #185.
+    check("B13 a failed round is not a landing",
+          v([], [_comment(body=SUMMARY_FAILED)]), "REVIEW_FAILED")
+    check("B13 and its exit code is not 0", EXIT["REVIEW_FAILED"] != 0, True)
+    check("B13 the summary is still counted, honestly",
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=SUMMARY_FAILED)])["by_comment"]), 1)
+    check("B13 and the failure is counted beside it",
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=SUMMARY_FAILED)])["failed"]), 1)
+    # Variant I: the failure and the summary in SEPARATE comments, which is the same state
+    # reached by CodeRabbit posting rather than rewriting. A check scoped to one comment
+    # body would read this as clean.
+    check("B14 variant — the failure sits in its own comment",
+          v([], [_comment(body=FAILED), _comment(body=SUMMARY_DONE)]), "REVIEW_FAILED")
+    # Variant J: the pause must keep landing. Narrowing the comment arm by "a notice
+    # exists" would stop every paused branch resolving — the flag this repairs was added
+    # because that case deadlocks.
+    check("B15 variant — a paused notice still leaves the comment arm alone",
+          v([], [_comment(body=PAUSED), _comment(body=SUMMARY_DONE)]), "LANDED_COMMENT")
+    check("B15b variant — a spent allowance likewise",
+          v([], [_comment(body=LIMIT), _comment(body=SUMMARY_DONE)]), "LANDED_COMMENT")
+    # Variant K: a real review object outranks a stale failure callout. CodeRabbit edits in
+    # place, so the callout of a round that later succeeded can still be on the page.
+    check("B16 variant — a real review beside a stale failure",
+          v([_review(commit=HEAD_A)], [_comment(body=SUMMARY_FAILED)]), "LANDED_REVIEW")
+    # Variant L: the replacement round is already running. Keep waiting, do not ask again.
+    check("B17 variant — a new round in flight beside the failure",
+          v([], [_comment(body=SUMMARY_RUNNING), _comment(body=FAILED)]), "IN_FLIGHT")
+    check("B18 a human quoting the failure is not a failure",
+          v([], [_comment(login="teonimesic", body=SUMMARY_FAILED)]), "NOT_YET")
+    # --- the REAL artifact. The extraction proved on one row whose answer is known in
+    # advance: this head was NOT reviewed, because the round reading it died.
+    check("B19 the real failure comment, verbatim, at the head it names",
+          attempt(lambda: classify(REAL_HEAD, [], [_comment(body=REAL_FAILED)])["verdict"]),
+          "REVIEW_FAILED")
+    check("B19 and the comment arm WAS satisfied — this is why it read as clean",
+          attempt(lambda: classify(REAL_HEAD, [], [_comment(body=REAL_FAILED)])["by_comment"]),
+          1)
+    # Variant O: a PREVIOUS round's failure beside a clean summary for the head you are
+    # asking about. The block says which head it died on, so it is not yours and the
+    # landing stands. Reading every failure on the pull request reddens this.
+    check("B20 variant — a previous round's failure does not suppress this landing",
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=REAL_FAILED),
+                                               _comment(body=SUMMARY_DONE)])["verdict"]),
+          "LANDED_COMMENT")
+    # Variant P: the same 2 artifacts in ONE comment, which is the shape CodeRabbit
+    # actually writes. Dating the failure by the comment's last sha rather than by its own
+    # block's reddens this.
+    check("B21 variant — failure and summary in one comment, failure is the older head",
+          attempt(lambda: classify(HEAD_A, [],
+                                   [_comment(body=REAL_FAILED + SUMMARY_DONE)])["verdict"]),
+          "LANDED_COMMENT")
+    # And the case comment-scoping would miss: a CURRENT failure posted on its own, with a
+    # clean summary of the same head beside it. Suppressed, because the block names it.
+    check("B22 a current failure in its own comment still suppresses",
+          attempt(lambda: classify(REAL_HEAD, [],
+                                   [_comment(body=REAL_FAILED),
+                                    _comment(body=f"...between base and {REAL_HEAD}.\n")]
+                                   )["verdict"]),
+          "REVIEW_FAILED")
+    # Variant Q: a failure block naming no sha cannot be dated, so it counts. Fail-closed
+    # where the evidence is missing, and the direction rule 7 asks for.
+    check("B23 variant — an undatable failure still suppresses",
+          v([], [_comment(body=FAILED), _comment(body=SUMMARY_DONE)]), "REVIEW_FAILED")
+
+    check("C5 the marker alone is a failed round",
+          len(failed_rounds([_comment(body=FAILED_MARKER_ONLY)])), 1)
+    check("C6 the heading alone is a failed round",
+          len(failed_rounds([_comment(body=FAILED)])), 1)
+    check("C7 a pause is neither", failed_rounds([_comment(body=PAUSED)]), [])
+    check("C8 a clean summary is neither", failed_rounds([_comment(body=SUMMARY_DONE)]), [])
+    # Variant R: 2 failure blocks in one comment, the FIRST about this head. Flattening
+    # the blocks and reading one sha lets the second overrule the first.
+    check("B24 variant — a head-matching block followed by another head's",
+          attempt(lambda: classify(HEAD_A, [],
+                                   [_comment(body=_failed_at(HEAD_A) + REAL_FAILED)]
+                                   )["verdict"]),
+          "REVIEW_FAILED")
+    check("B25 variant — two blocks, neither about this head, and the landing stands",
+          attempt(lambda: classify(HEAD_A, [],
+                                   [_comment(body=_failed_at("c" * 40) + REAL_FAILED),
+                                    _comment(body=SUMMARY_DONE)])["verdict"]),
+          "LANDED_COMMENT")
+    check("C11 the real block is dated to the head it died on",
+          len(failed_rounds([_comment(body=REAL_FAILED)], REAL_HEAD)), 1)
+    check("C12 and not to any other head",
+          failed_rounds([_comment(body=REAL_FAILED)], HEAD_A), [])
+    # Variant M: the reason moved into the heading. It is in the body today, and the poll
+    # must not go quietly fail-open if CodeRabbit appends it.
+    check("C9 variant — the reason appended to the heading",
+          len(failed_rounds([_comment(
+              body="> [!CAUTION]\n> ## Review failed — the head commit changed\n")])), 1)
+    check("C10 a heading merely containing the words is not a failure",
+          failed_rounds([_comment(body="> [!NOTE]\n> ## Why your review failed to post\n")]),
+          [])
+
     check("C1 pause heading", alert_headings([_comment(body=PAUSED)]), ["Reviews paused"])
     check("C2 limit heading", alert_headings([_comment(body=LIMIT)]), ["Review limit reached"])
     check("C3 no callout", alert_headings([_comment(body=SUMMARY_DONE)]), [])
@@ -606,7 +860,8 @@ def selftest() -> int:
                 if clock[0] >= at:
                     verdict = val
             return {"pr": 15, "branch": "task-130", "head": HEAD_A, "verdict": verdict,
-                    "by_review": 0, "by_comment": 0, "in_flight": 0, "headings": []}
+                    "by_review": 0, "by_comment": 0, "in_flight": 0, "failed": 0,
+                    "headings": []}
         return poll_fn, now, sleep
 
     def run_wait(events, **kw):
@@ -652,6 +907,24 @@ def selftest() -> int:
     out = run_wait([(60, "NOTICE")], ignore_notice=True)
     check("F7 variant — an ignored notice still expires loudly", out["verdict"], "UNRESOLVED")
     check("F7 on the quiet bound", int(out["elapsed"]), QUIET_TIMEOUT)
+    # F8: the failed round stops the wait, so the agent finds out and can ask again. This
+    # is the wait-level half of #185 — before it, the same timeline returned at 60s calling
+    # itself LANDED_COMMENT.
+    out = run_wait([(60, "REVIEW_FAILED"), (600, "LANDED_REVIEW")])
+    check("F8 a failed round stops the wait", out["verdict"], "REVIEW_FAILED")
+    check("F8 at the poll that saw it", int(out["elapsed"]), 60)
+    # F9: the poll started AFTER `@coderabbitai review`. The callout is still on the page
+    # until CodeRabbit rewrites the summary, so the flag has to carry the wait past it —
+    # and the review that lands 540s later is what the wait returns.
+    out = run_wait([(60, "REVIEW_FAILED"), (600, "LANDED_REVIEW")], ignore_notice=True)
+    check("F9 the answered failure does not stop the wait", out["verdict"], "LANDED_REVIEW")
+    check("F9 and it waited for the real review", int(out["elapsed"]), 600)
+    # Variant N: the flag must not become "wait for ever" here either, and it must never
+    # convert the failure into a landing. Silence expires loudly instead.
+    out = run_wait([(60, "REVIEW_FAILED")], ignore_notice=True)
+    check("F10 variant — an ignored failure still expires loudly",
+          out["verdict"], "UNRESOLVED")
+    check("F10 on the quiet bound", int(out["elapsed"]), QUIET_TIMEOUT)
 
     # --- the poll line reaches the reader while the wait is still running
     class Recorder:
@@ -665,6 +938,15 @@ def selftest() -> int:
 
         def flush(self) -> None:
             self.flushed += 1
+
+    # E5: the callback boundary. The pre-repair result shape, which has no `failed`, must
+    # come back as a NAMED refusal rather than as a KeyError out of `render`.
+    raises("E5 wait_for refuses a poll result of the wrong shape",
+           lambda: wait_for(lambda: {"pr": 18, "branch": "b", "head": HEAD_A,
+                                     "verdict": "NOT_YET", "by_review": 0, "by_comment": 0,
+                                     "in_flight": 0, "headings": []},
+                            now_fn=lambda: 0.0, sleep_fn=lambda _s: None,
+                            emit=lambda _s: None))
 
     rec = Recorder()
     with contextlib.redirect_stdout(rec):  # type: ignore[arg-type]
@@ -724,8 +1006,8 @@ def selftest() -> int:
     def fake_wait(_poll_fn, **kw):
         forwarded.append(kw.get("ignore_notice"))
         return {"pr": 18, "branch": "b", "head": HEAD_A, "verdict": "LANDED_COMMENT",
-                "by_review": 0, "by_comment": 1, "in_flight": 0, "headings": [],
-                "polls": 1, "elapsed": 0.0, "seen_in_flight": False}
+                "by_review": 0, "by_comment": 1, "in_flight": 0, "failed": 0,
+                "headings": [], "polls": 1, "elapsed": 0.0, "seen_in_flight": False}
 
     globals()["wait_for"] = fake_wait
     try:
@@ -737,10 +1019,15 @@ def selftest() -> int:
 
     # --- the drift guard: a field the rows above read, by name.
     r = classify(HEAD_A, [_review(commit=HEAD_A)], [])
-    for field in ("verdict", "by_review", "by_comment", "in_flight", "headings"):
+    # G3 compares the 2 statements of the contract with a ROW rather than making them one
+    # object: a control that imports its expectation from its subject is not a control.
+    check("G3 RESULT_FIELDS is what classify returns",
+          sorted(RESULT_FIELDS),
+          sorted(["verdict", "by_review", "by_comment", "in_flight", "failed", "headings"]))
+    for field in ("verdict", "by_review", "by_comment", "in_flight", "failed", "headings"):
         check(f"G1 classify still returns {field!r}", field in r, True)
     line = attempt(lambda: render({**r, "pr": 18, "branch": "task-127-poll", "head": HEAD_A}))
-    for token in ("#18", "task-127-poll", HEAD_A):
+    for token in ("#18", "task-127-poll", HEAD_A, "failed="):
         check(f"G2 render still names {token!r}", token in str(line), True)
 
     for f in fails:
@@ -767,10 +1054,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                     help="seconds of never having seen a round in flight")
     ap.add_argument("--flight-timeout", type=int, default=FLIGHT_TIMEOUT,
                     help="seconds once a round HAS been seen in flight")
+    # THE AMBIGUOUS CASE IS DECIDED HERE, beside the flag that used to swallow it.
+    #
+    # No notice, a summary comment naming the head, no review object: that is
+    # `LANDED_COMMENT`, and it is a real landing. It has to be. When CodeRabbit finds
+    # nothing actionable it creates NO review object at all, and `DECISIONS.md` counted 3
+    # of 6 reviewed heads reaching only that arm — requiring a review object would spend
+    # the full bound on the common good outcome.
+    #
+    # So the comment arm keeps its authority and is narrowed by EXCLUSION, one observed
+    # mechanism at a time: a comment at the head is not a landing while the in-progress
+    # marker is on it (the round is running), and not a landing while a `Review failed`
+    # callout is on the pull request (the round died). When a third way is found for a
+    # comment to sit at a head nobody reviewed, the answer is a third exclusion — not
+    # discarding the arm, and not a flag that hides it.
     ap.add_argument("--ignore-notice", action="store_true",
-                    help="do not stop --wait on a deadlock notice. Use it for the poll you "
-                         "start after acting on one: the notice comment outlives the state "
-                         "it described, so it would stop every wait instantly")
+                    help="do not stop --wait on a deadlock notice or a failed round. Use it "
+                         "for the poll you start after acting on one: the comment outlives "
+                         "the state it described, so it would stop every wait instantly. It "
+                         "governs stopping only — it can never turn either into a landing")
     ap.add_argument("--census", action="store_true",
                     help="every pull request, and which arm fires at its head")
     ap.add_argument("--selftest", action="store_true")
@@ -794,6 +1096,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lambda: poll(args.pr, args.branch, args.expect_head, repo=args.repo),
                 poll_seconds=args.poll_seconds, quiet_timeout=args.quiet_timeout,
                 flight_timeout=args.flight_timeout, ignore_notice=args.ignore_notice)
+            if out["verdict"] == "REVIEW_FAILED":
+                print(f"REVIEW_FAILED: #{args.pr} {args.branch} head={out['head']} — a "
+                      "round started and died, and the summary it left at this head is not "
+                      "a review. Post `@coderabbitai review`, then poll again with "
+                      "--ignore-notice so the callout it has not rewritten yet cannot stop "
+                      "you. Do not request a second review because the same callout is "
+                      "still there.")
             if out["verdict"] == "UNRESOLVED":
                 print(f"UNRESOLVED: #{args.pr} {args.branch} head={out['head']} — "
                       f"{out['polls']} polls over {int(out['elapsed'])}s, budget "

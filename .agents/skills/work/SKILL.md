@@ -194,7 +194,9 @@ python3 eval/tools/pr_review_state.py --pr <n> --branch task-<id>-<slug> \
 It prints 1 line per poll, and every line names the pull request, the branch and the full head
 sha:
 
-    #18 task-127-poll-asserts-its-branch head=<40 hex> verdict=IN_FLIGHT by_review=0 by_comment=0 in_flight=1 elapsed=90s
+```text
+#18 task-127-poll-asserts-its-branch head=<40 hex> verdict=IN_FLIGHT by_review=0 by_comment=0 in_flight=1 failed=0 elapsed=90s
+```
 
 **Read the word.** `DECISIONS.md`, *An agent hands back a pull request*, is the authority on what
 counts as reviewed and holds the per-pull-request evidence; the tool's docstring states every
@@ -204,6 +206,7 @@ guard and why it is there. If they disagree, `DECISIONS.md` wins.
 |---|---|---|
 | `LANDED_REVIEW` | 0 | the reviewer wrote comments. Read them and work the round |
 | `LANDED_COMMENT` | 0 | it finished and had nothing to say. You are done unless you have pushed since |
+| `REVIEW_FAILED` | 14 | a round started and **died**. This head has not been reviewed. See the table below |
 | `NOTICE` | 12 | a deadlock notice, printed after `notice=`. See the table below |
 | `UNRESOLVED` | 13 | the wait expired. Say so in the thread, hand back `in_testing` with that fact |
 | — | 1 | a refusal — `WRONG PR`, `STALE HEAD`, `NO HEAD SHA`, `EXPECTED HEAD NOT A FULL SHA`, or `gh` failed. **Stop.** None of these is a poll result |
@@ -244,25 +247,36 @@ pull request from before the tool existed — that is the known-good row rule 12
 
 ### The ways this deadlocks, and what you do
 
-`NOTICE` means a `coderabbitai[bot]` comment carried a GitHub alert callout, and the tool prints
-its heading. **Every one of these notices states its own remedy in its body — read it.** The
-table is its own census: a heading that is not a row here is new, and the row to add is what you
-learn from that comment.
+A `coderabbitai[bot]` comment carrying a GitHub alert callout is what produces both `NOTICE` and
+`REVIEW_FAILED`, and the tool prints the heading after `notice=`. **Every one of these states its
+own remedy in its body — read it.** The table is its own census: a heading that is not a row here
+is new, and the row to add is what you learn from that comment.
 
-| heading | why | what you do |
+**The middle column is the one to read**, because the headings do not mean the same kind of thing.
+Three of them say a round has **not started**; one says a round started and **died**, and that one
+leaves behind exactly the artifact a clean review leaves — a summary comment sitting at your head
+sha.
+
+| heading | what it implies about your head | what you do |
 |---|---|---|
-| **Reviews paused** — *"this branch is under active development … to avoid overwhelming you with review comments"* | **triggered by being productive** | post `@coderabbitai review` (or `@coderabbitai resume` to restore automatic reviews), then poll again |
-| **Review limit reached** — *"you've used all N included reviews currently available"* | the org's allowance is spent; the body says how long until one frees up | wait out the stated interval, post `@coderabbitai review`, poll again — **do not restart the round budget** |
-| **Review skipped** — *"No new commits to review since the last review"* | not a deadlock: you asked for a review of a head that has already had one | nothing. Push first, then ask |
+| **Reviews paused** — *"this branch is under active development … to avoid overwhelming you with review comments"* | not reviewed, nothing is coming. **Triggered by being productive** | post `@coderabbitai review` (or `@coderabbitai resume` to restore automatic reviews), then poll again |
+| **Review limit reached** — *"you've used all N included reviews currently available"* | not reviewed; the org's allowance is spent and the body says how long until one frees up | wait out the stated interval, post `@coderabbitai review`, poll again — **do not restart the round budget** |
+| **Review skipped** — *"No new commits to review since the last review"* | already reviewed. Not a deadlock: you asked for a review of a head that has had one | nothing. Push first, then ask |
+| **Review failed** — *"the head commit changed during the review"* | **a round started and died. Not reviewed, and the summary it left at your head looks clean** | post `@coderabbitai review` **once**, then poll again with `--ignore-notice` |
 
-**Once you have acted on a notice, poll again with `--ignore-notice`** — otherwise the wait
-stops on the notice you just answered. The tool's docstring says why.
+**Merging `main` into your branch mid-review produces the last row**, and §6 asks you to keep the
+branch current — so expect it. The poll answers `REVIEW_FAILED` at exit 14, never a landing: the
+summary a dead round leaves behind names your head and reads as clean.
+
+**Once you have acted on any of these, poll again with `--ignore-notice`** — otherwise the wait
+stops on the comment you just answered, which CodeRabbit leaves in place until it next rewrites
+the summary. The flag governs **stopping only**: it can never turn a notice or a failed round into
+a landing, and a remedy that never takes expires as `UNRESOLVED`. The tool's docstring says why.
 
 **A notice is a diagnostic, and it is stale the moment anything changes.** CodeRabbit edits its
-comments in place, so a heading can outlive the state it described — PR #6's *Review limit
-reached* was measured on 2026-08-23 and is no longer extractable from PR #6 at all. That is why
-`LANDED_REVIEW` and `LANDED_COMMENT` outrank `NOTICE`: PR #9 today carries a stale *Reviews
-paused* beside the review it really has.
+comments in place, so a heading outlives the state it described. That is why `LANDED_REVIEW`
+outranks everything: a stale *Reviews paused* or *Review failed* beside a real review object is
+still a review.
 
 **Push once per round, not once per fix.** Batching is what keeps the pause from firing at all,
 and under a spent allowance it is the difference between one round and none.
