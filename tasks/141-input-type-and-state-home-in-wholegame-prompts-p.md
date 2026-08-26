@@ -1,10 +1,11 @@
 ---
 id: 141
 title: INPUT_TYPE and STATE_HOME in wholegame_prompts.py are defined and referenced by nothing
-status: todo
+status: done
 priority: 3
 refs: eval/suites/wholegame_prompts.py, eval/tools/prompt_guard.py --identity, tasks/133
 done_when: Either both dicts are gone and prompt_guard.py --identity reports 6 in scope and 6 referenced for wholegame_prompts, or each is referenced by at least one task template and --identity reports no DEFINED AND UNUSED row. Either way prompt_guard.py exits 0, prompt_guard_control.py exits 0, and prompt_guard.py --diff eval/suites/rendered is re-recorded in the same commit if any rendered byte moved.
+established_by: 'Deleted, and the deletion is the decision rather than a tidy-up. Both dicts named real per-stack distinctions - input struct/interface/class, and SimState/World for where state lives - and no template referenced either, so no rendered prompt has ever contained them. The ticket''s alternative was to USE them where the prose inlines the concept, and it does not: a game prompt says ''inputs'' generically 4 times and names no input type and no state home in any stack. That is deliberate - where the agent''s input plumbing lives is what the STARTER tells it in eval/starters/<stack>/AGENTS.md, and a prompt saying it too would be a second statement of the same fact in the file whose job is what to build rather than what it is built with. The reasoning replaces them in the source, naming prompt_guard.py --identity as the producer that catches a reintroduction. Verified: --identity reports 6 in scope and 6 referenced with no DEFINED AND UNUSED row, prompt_guard exit 0, --diff against the snapshot exit 0 so no rendered byte moved, one rendered prompt byte-identical by diff, and prompt_guard_control 25 rows as declared.'
 ---
 
 prompt_guard.py --identity reports 8 vocabulary dicts in scope for the games and 6 referenced by a template. INPUT_TYPE and STATE_HOME each appear exactly once in eval/suites/wholegame_prompts.py - their own definition - so no rendered prompt has ever contained them. They were left alone in task 133 because that ticket was scoped to the scene prompts and deleting them changes no rendered byte, which is exactly why nobody notices them. A dict that looks like part of the stack vocabulary and is not will be edited by someone who believes it reaches a prompt. Decide: delete them, or use them where the prose currently inlines the concept.
