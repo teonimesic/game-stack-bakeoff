@@ -130,6 +130,26 @@ BALL_FROZEN = ("""        nx = self.ball_x + self.ball_vx * DT
                """        nx = self.ball_x  # MUTANT: the ball never actually moves
         ny = self.ball_y""")
 
+#: `match.ends` had NO mutant of its own until 2026-08-25 - it appeared only as
+#: collateral - so the one criterion pong's `Bot.end_condition` names was pinned in one
+#: direction. Two patches, because one is not enough to express the defect: the
+#: reference zeroes the ball's velocity when the match is won, so deleting the early-out
+#: alone leaves a game that steps a stationary ball and is indistinguishable from a
+#: stopped one. The match is won, the ball plays on, and the score keeps climbing past
+#: eleven with nobody touching a paddle.
+MATCH_PLAYS_ON = ("""        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""", """        # MUTANT: the match is won and play carries on regardless
+"""), ("""            self.over = True
+            self.ball_x = 0.0
+            self.ball_y = 0.0
+            self.ball_vx = 0.0
+            self.ball_vy = 0.0
+            self.speed = BALL_SPEED_START""",
+       """            self.over = True
+            self._serve(serve_dir)  # MUTANT: the winning point serves another ball""")
+
 # NOT a mutant - a VARIANT that must still PASS. An opening title card holding the ball
 # for 104 ticks, copied from what an agent-built Godot submission actually shipped
 # (`OPENING_DELAY = 104`, "so the title card is readable"). The old `ball.moves` idled a
@@ -244,6 +264,33 @@ NO_CONTACT_DAMAGE = ("""        if self.invuln > 0:
         return  # MUTANT: enemies pass straight through the player
         reach = PLAYER_RADIUS + ENEMY_RADIUS""")
 
+#: EVERY END CONDITION HAS TWO WAYS TO BE WRONG and only one of them was pinned. The
+#: flag-raising half is `NEVER_ENDS` and `PF_NEVER_ENDS`: does the game ever say it is
+#: over? The other half is this - does saying so STOP THE GAME - and it is the half the
+#: prompt spends its second clause on. Each fixture needs its own, because what a
+#: still-running simulation MOVES differs per game, and each one is why its bot guards
+#: the value it does: `kills` on the arena (the player is dead, so nothing earns points
+#: and the score sits still), the well's filled-cell total on tetris (the well is full, so
+#: no layer clears and the score sits still), the score on the platformer and on pong.
+ARENA_KEEPS_STEPPING = ("""        if self.game_over:
+            return events
+
+        grazed = self._move_player(inputs)""",
+                        """        # MUTANT: game over is reported and the simulation keeps stepping
+        grazed = self._move_player(inputs)""")
+
+PF_KEEPS_STEPPING = ("""        if self.game_over or self.victory:
+            return events
+""", """        # MUTANT: the run is over and the simulation keeps stepping
+""")
+
+TETRIS_KEEPS_STEPPING = ("""        if self.game_over:
+            return events
+
+        if self._edge("rotate_x")""",
+                         """        # MUTANT: the well stacked out and the game keeps stepping
+        if self._edge("rotate_x")""")
+
 
 
 # -- ref_platformer (g4, 2026-08-15) ----------------------------------------- #
@@ -327,7 +374,8 @@ PF_NEVER_ENDS = ("""                if self.hp <= 0:
 # reference is a frozen answer to the task as its author read it, so a criterion is
 # unvalidated on any behaviour the reference never exhibits (FINDINGS #34, #39, #46).
 #
-# Both entries below were paid for:
+# Every entry below was paid for by a real submission, and each one's `#:` block says
+# which. Two are worth reading before adding another:
 #
 # * the title card is what a real Godot submission shipped, and the old `ball.moves`
 #   failed it for doing the presentation work the task asks for. The constant sat in
@@ -385,6 +433,93 @@ PIT_UNDER_LEDGE = (
     'starts at x=220, so the opening ledge overlooks a bottomless 100-unit pit',
 )
 
+#: THE CLOSING CARD ON THE FIXTURE IT WAS PAID FOR. `MATCH_PLAYS_ON` asks whether
+#: `match.ends` can fail; only this asks whether it can still pass on the very
+#: submission that bought the repair - `g1_pong__rust`, which holds its card for
+#: `GAME_OVER_LOCKOUT_TICKS = 96` and then takes any control as the reset. Pong went
+#: without one for the whole of `tasks/157` because the pending entries were on the
+#: other three fixtures, which is the per-fixture coverage trap this file exists to
+#: name (raised by CodeRabbit on PR #40).
+#:
+#: `_match_ends` runs LAST on the shared session - `_paddle_mechanics` and the
+#: determinism criteria open their own - so a restart inside its pressed phase reaches
+#: no other criterion.
+PONG_RESTART_ON_A_CONTROL = ("""        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""", """        if self.over:
+            # VARIANT: a game-over card for 96 ticks, then any control starts a new
+            # match - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+            return events
+""")
+
+#: THE CLOSING CARD, on the three games whose end condition is a loss. The task prompt
+#: says an ended game "stops accepting play until it is reset", which contemplates a
+#: reset existing, and an agent is free to bind it to a control: `g1_pong__rust` holds a
+#: game-over card for `GAME_OVER_LOCKOUT_TICKS = 96` and then lets any control start a
+#: new run. Pong's `match.ends` idled after the win; the other three bots pressed
+#: straight away, so this shape was red on `ref_arena` and `ref_platformer` and passed
+#: on `ref_tetris3d` for a reason that was not evidence. `probe.end_condition_holds` is
+#: now the single copy of that policy - it idles, then presses and reads the pressed
+#: phase THROUGH the reset - and these three are what keeps it from drifting back
+#: (`tasks/157`).
+ARENA_RESTART_ON_A_CONTROL = ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            # VARIANT: a game-over card for 96 ticks, then any control starts a new
+            # run - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+            return events
+""")
+
+PF_RESTART_ON_A_CONTROL = ("""        if self.game_over or self.victory:
+            return events
+""", """        if self.game_over or self.victory:
+            # VARIANT: a game-over card for 96 ticks, then any control starts a new
+            # run - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+            return events
+""")
+
+#: THE CARD IS 190 TICKS HERE, AND THE LENGTH IS THE POINT. At 96 this fixture PASSED
+#: the unrepaired bot, and the pass was not evidence: the bot's 200 ticks of held
+#: `hard_drop` restarted the run at tick 96 and then stacked it out again inside the
+#: remaining window, with the restart's own score reset making `frozen` true. A card
+#: longer than the window the criterion presses into removes that luck - the restarted
+#: run has too few ticks left to lose again - so this is the one length at which the
+#: fixture reports the bot rather than the arithmetic. A longer card is no less correct
+#: than a shorter one; nothing in the prompt bounds it.
+TETRIS_RESTART_ON_A_CONTROL = ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            # VARIANT: a game-over card for 190 ticks, then any control starts a new
+            # run - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 190 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+                return ["spawn"]
+            return events
+""")
+
 
 @dataclass(frozen=True)
 class Variant:
@@ -438,6 +573,31 @@ VARIANTS: list[Variant] = [
                   "bot could have crossed it. Both are fixed: one shared `_walk_toward` "
                   "builds the inputs for all three loops, and the pit is the 100 units "
                   "the real submissions shipped"),
+    Variant("ref_pong", "a game-over card, then a control starts a new match",
+            (PONG_RESTART_ON_A_CONTROL,), ("match.ends",),
+            notes="the shape `g1_pong__rust` shipped, and the one that bought the whole "
+                  "repair - pong had no variant for it until `tasks/157`'s review, "
+                  "because the pending entries sat on the other 3 fixtures"),
+    Variant("ref_arena", "a game-over card, then a control starts a new run",
+            (ARENA_RESTART_ON_A_CONTROL,), ("gameover.triggers",),
+            notes="declared PENDING for eleven weeks, measured `after 300 more ticks "
+                  "of input: game_over=False, alive=True`. `_death` pressed fire, aim "
+                  "and move straight after the player died, which pressed this game's "
+                  "own reset. Repaired in `probe.end_condition_holds`, which every "
+                  "bot's end-condition criterion now calls (`tasks/157`)"),
+    Variant("ref_platformer", "a game-over card, then a control starts a new run",
+            (PF_RESTART_ON_A_CONTROL,), ("gameover.triggers",),
+            notes="the same defect in `_hurt`, which pressed move_right, jump and "
+                  "attack for 200 ticks: `after 200 more ticks of input: "
+                  "game_over=False, alive=True`"),
+    Variant("ref_tetris3d", "a 190-tick game-over card, then a control restarts",
+            (TETRIS_RESTART_ON_A_CONTROL,), ("gameover.triggers",),
+            notes="the third copy, in `_gameover_check`, and the one that was never "
+                  "declared PENDING because at a 96-tick card it PASSED - the "
+                  "restarted run stacked out again inside the same window and the "
+                  "restart's own score reset satisfied the frozen test. At 190 the "
+                  "unrepaired bot reads `still over after 200 more ticks of input: "
+                  "False`, so this length is what makes the row report the bot"),
 ]
 
 
@@ -455,7 +615,7 @@ VARIANTS: list[Variant] = [
 # red on any set but the declared one - including the EMPTY set, which is what a landed
 # repair looks like and which asks the next agent to promote the entry into `VARIANTS`.
 #
-# All four shapes below are a correct game under the task prompt, whose shared preamble
+# Every shape below is a correct game under the task prompt, whose shared preamble
 # asks for one in every game:
 #
 #     The game presents itself: a player who has never seen it can tell what to do,
@@ -466,42 +626,6 @@ VARIANTS: list[Variant] = [
 # takes a control as a reset both stop the sim from stepping, so the play-bot sees them;
 # a paddle that bobs, a screen that shakes and a score that counts up on screen live in
 # the view layer, which the prompt puts in a different module and the probe never reads.
-
-#: The reference stops stepping forever once the well stacks out. The task prompt says
-#: an ended game "stops accepting play until it is reset", and an agent is free to bind
-#: that reset to a control - one did, in `g1_pong__rust`, whose
-#: `GAME_OVER_LOCKOUT_TICKS = 96` holds a card and then lets a control start a new
-#: match. That submission is why pong's `match.ends` presses NOTHING after the win. The
-#: repair was never carried to the other three games, all of which hold a control down
-#: for 200-300 ticks after death and then ask whether the game is still over.
-ARENA_RESTART_ON_A_CONTROL = ("""        if self.game_over:
-            return events
-""", """        if self.game_over:
-            # VARIANT: a game-over card for 96 ticks, then any control starts a new
-            # run - the reset the task's own "until it is reset" contemplates.
-            self._over = getattr(self, "_over", 0) + 1
-            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
-                t = self.tick
-                self.reset()
-                self.tick = t
-                self._over = 0
-                return ["wave_start"]
-            return events
-""")
-
-PF_RESTART_ON_A_CONTROL = ("""        if self.game_over or self.victory:
-            return events
-""", """        if self.game_over or self.victory:
-            # VARIANT: a game-over card for 96 ticks, then any control starts a new
-            # run - the reset the task's own "until it is reset" contemplates.
-            self._over = getattr(self, "_over", 0) + 1
-            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
-                t = self.tick
-                self.reset()
-                self.tick = t
-                self._over = 0
-            return events
-""")
 
 #: `bot_pong.LIVE_BUDGET` is 512 ticks and `bot_platformer._CONTROL_TICKS` is 512,
 #: both of them bought by a Godot submission that held the ball for `OPENING_DELAY =
@@ -601,17 +725,6 @@ class Pending:
 
 
 PENDING_VARIANTS: list[Pending] = [
-    Pending("ref_arena", "a game-over card, then a control starts a new run",
-            (ARENA_RESTART_ON_A_CONTROL,), ("gameover.triggers",), task="tasks/157",
-            notes="`_death` holds fire, aim and move for 300 ticks after the player "
-                  "dies and then asks whether the game is still over. Measured: "
-                  "`game over at tick 533; after 300 more ticks of input: "
-                  "game_over=False, alive=True, score frozen: True`"),
-    Pending("ref_platformer", "a game-over card, then a control starts a new run",
-            (PF_RESTART_ON_A_CONTROL,), ("gameover.triggers",), task="tasks/157",
-            notes="`_hurt` holds move_right, jump and attack for 200 ticks after the "
-                  "player dies. Measured: `game over at tick 364; after 200 more ticks "
-                  "of input: game_over=False, alive=True, score frozen: True`"),
     Pending("ref_tetris3d", "a 96-tick card over a frozen well",
             (TETRIS_CARD_OVER_A_FROZEN_WELL,), ("piece.falls",), task="tasks/158",
             notes="`piece.falls` steps 120 ticks and requires the piece to descend, "
@@ -757,6 +870,28 @@ MUTANTS: list[Mutant] = [
            (PF_NO_SCORE,)),
     Mutant("gameover.triggers", "ref_platformer", "zero health never ends the game",
            (PF_NEVER_ENDS,), collateral=("invuln.window",)),
+    Mutant("match.ends", "ref_pong", "the match is won and the ball plays on",
+           MATCH_PLAYS_ON,
+           notes="the first mutant `match.ends` has ever had of its own; it appeared "
+                 "only as collateral until 2026-08-25"),
+    Mutant("gameover.triggers", "ref_arena",
+           "game over is reported and the simulation keeps stepping",
+           (ARENA_KEEPS_STEPPING,),
+           notes="the score cannot express this - a dead player earns nothing - so "
+                 "`_death` guards `kills` beside it. Measured: `(0, 3) -> (0, 4)` over "
+                 "the idle window, against `(0, 3) -> (0, 3)` on the reference"),
+    Mutant("gameover.triggers", "ref_platformer",
+           "the run is over and the simulation keeps stepping",
+           (PF_KEEPS_STEPPING,),
+           notes="the one fixture where the score alone says it: `0 -> 200` over the "
+                 "pressed window, because the corpse can still swing at an enemy"),
+    Mutant("gameover.triggers", "ref_tetris3d",
+           "the well stacked out and the game keeps stepping",
+           (TETRIS_KEEPS_STEPPING,),
+           notes="the score cannot express this either - a full well clears no layer - "
+                 "so `_gameover_check` guards the well's filled-cell total. Measured "
+                 "over 400 ticks of input: 199 `lock` events and `(0, 62) -> (0, 84)`, "
+                 "with the score unchanged at 0"),
 ]
 
 
@@ -818,7 +953,9 @@ _V_CARD = "a 104-tick opening title card holds the ball"
 _V_FAST = "enemies faster than the player, so one reaches it mid-leg"
 _V_SWING = "`active` spans the whole swing, hitbox only the middle"
 _V_PIT = "the opening ledge overlooks a bottomless pit"
-_P_RESTART = "a game-over card, then a control starts a new run"
+_V_PONG_RESTART = "a game-over card, then a control starts a new match"
+_V_RESTART = "a game-over card, then a control starts a new run"
+_V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
 _P_FROZEN = "a 96-tick card over a frozen well"
 _P_EMPTY = "a 96-tick card over an empty well"
 _P_SPREAD = "a faster three-round spread weapon"
@@ -887,9 +1024,10 @@ HAZARDS: list[Hazard] = [
            "shape no submission has shipped"),
     Hazard("ref_pong", "match.ends", "closing-card",
            "a game-over card that a control clears into a new match",
-           "the criterion presses NOTHING for 600 ticks after the win. It is the ONLY "
-           "one of the four end-condition criteria that does, and carrying that repair "
-           "to the other three is tasks/157"),
+           "the variant, which is the shape `g1_pong__rust` shipped. The criterion "
+           "idles 600 ticks after the win and only then presses, reading the pressed "
+           "phase THROUGH the reset via `probe.end_condition_holds`",
+           _V_PONG_RESTART),
     Hazard("ref_pong", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_pong", "determinism.seed", "engine-session",
@@ -953,13 +1091,13 @@ HAZARDS: list[Hazard] = [
            "DIAGNOSTIC ONLY, with `layer.clears`"),
     Hazard("ref_tetris3d", "gameover.triggers", "closing-card",
            "a game-over card that a control clears into a new run",
-           "MEASURED, and the answer is not a clean pass. The same 96-tick card that "
-           "fails `ref_arena` and `ref_platformer` PASSES here, on a game that restarted "
-           "and stacked out AGAIN inside the window - `still over after 200 more ticks "
-           "of input: True` - with `frozen` satisfied because the restart put the score "
-           "back to 0. Raise the card to 190 ticks and the verdict flips to False on a "
-           "game no less correct, so the verdict is a function of the card length rather "
-           "than of the property. tasks/157"),
+           "the variant, and its card is 190 ticks for a reason. At 96 this fixture "
+           "PASSED the unrepaired bot - the run restarted and stacked out AGAIN inside "
+           "the 200-tick input window, and the restart's own score reset satisfied the "
+           "frozen test - so the verdict was a function of the card length rather than "
+           "of the game, and only the longer card can tell a repair from the luck. "
+           "`_gameover_check` now goes through `probe.end_condition_holds`",
+           _V_TETRIS_RESTART),
     Hazard("ref_tetris3d", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_tetris3d", "determinism.seed", "engine-session",
@@ -1064,9 +1202,11 @@ HAZARDS: list[Hazard] = [
            "idle player in 9000 ticks has not met the prompt's patrol behaviour"),
     Hazard("ref_arena", "gameover.triggers", "closing-card",
            "a game-over card that a control clears into a new run",
-           "PENDING, measured red: `_death` holds fire, aim and move for 300 ticks "
-           "after the player dies and then asks whether the game is still over. "
-           "tasks/157", _P_RESTART),
+           "the variant. `_death` used to press fire, aim and move straight after "
+           "the player died, which pressed this game's own reset and then read "
+           "the fresh run as a failure to end. It now goes through "
+           "`probe.end_condition_holds`, which idles first and reads the pressed "
+           "phase THROUGH the reset", _V_RESTART),
     Hazard("ref_arena", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_arena", "determinism.seed", "engine-session",
@@ -1153,8 +1293,9 @@ HAZARDS: list[Hazard] = [
            "'the score did not rise'", _V_PIT),
     Hazard("ref_platformer", "gameover.triggers", "closing-card",
            "a game-over card that a control clears into a new run",
-           "PENDING, measured red: `_hurt` holds move_right, jump and attack for 200 "
-           "ticks after the player dies. tasks/157", _P_RESTART),
+           "the variant. `_hurt` used to press move_right, jump and attack "
+           "straight after the player died; it now goes through "
+           "`probe.end_condition_holds`", _V_RESTART),
     Hazard("ref_platformer", "stage.completes", "late-unlock",
            "any correct stage the bot cannot cross end to end",
            "DIAGNOSTIC ONLY, and the reason a variant must read `Bot.diagnostic_only` "

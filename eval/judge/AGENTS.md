@@ -29,10 +29,22 @@ python3 judge/bot_mutants.py --selftest    # can the registry gate go red? offli
 | **pending** | a correct game it FAILS today, with the failing ids declared | a correct game; the measured set must equal the declared one |
 
 **A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture and not per
-suite.** "4 variants for 36 criteria" is the wrong shape twice: the population is the **70**
-criterion instances the four bots report rather than the 36 that carry a mutant, and a
-`ref_pong` variant says nothing about `ref_arena`. Read the per-fixture count, and read it out
+suite.** "N variants for M criteria" is the wrong shape twice: the population is the **70**
+criterion instances the 4 bots report rather than the smaller set that carries a mutant, and
+a `ref_pong` variant says nothing about `ref_arena`. Read the per-fixture count, and read it out
 of `--hazards` rather than off a total.
+
+**An end condition has 2 ways to be wrong and both need pinning.** *Does the game ever say it
+is over*, and *does saying so stop it* — the prompt's own second clause. Every bot reaches the
+second through `probe.end_condition_holds`, 1 copy for all 4: it idles with nothing
+pressed, then presses the bot's controls and reads that phase **through the reset**, because the
+prompt's "until it is reset" contemplates a reset existing and an agent may bind it to a
+control. **Every tick of both phases is read, never the endpoints** — a value that moves and
+comes back passes an endpoint comparison — and the first tick that broke goes in the evidence
+with why. The value each bot guards is its own and must be one its simulation MOVES — a dead
+arena player earns nothing and a full tetris well clears no layer, so in both the score is a
+constant whatever the game does, and `_death` guards `kills` and `_gameover_check` the
+well's filled-cell total beside it (`tasks/157`).
 
 **`HAZARDS` is one recorded answer per criterion to *what correct-but-unusual game would
 mis-score this?*, and the gate is that there are 70 of them.** A criterion added without an

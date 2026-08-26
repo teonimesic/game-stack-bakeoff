@@ -24,7 +24,7 @@ from typing import Any
 
 from checks import determinism_criteria, idle_tape
 from probe import (Bot, Criterion, ProbeError, ProbeSession, Tick,
-                   unusable_criteria)
+                   end_condition_holds, unusable_criteria)
 
 Vec = tuple[float, float, float]
 
@@ -146,7 +146,9 @@ class ArenaBot(Bot):
     play_ticks = 3000
     #: The criterion that checks THIS GAME'S END CONDITION, whatever it is called.
     #: Named explicitly because the concept has two spellings across the suite:
-    #: `gameover.triggers` in three games and `match.ends` in pong, where the player's health reaches zero.
+    #: `gameover.triggers` in three games and `match.ends` in pong, which is
+    #: first-to-11, so its end condition is a WIN rather than a loss. This game
+    #: ends when the player's health reaches zero.
     #: A cross-game audit asking "does every game verify its own end condition?"
     #: would grep for `gameover` and report a false gap for pong - a mechanical sweep
     #: reporting something untrue, which this project has lost time to before (#38).
@@ -1083,18 +1085,27 @@ class ArenaBot(Bot):
                         "gameover.triggers", self._q("gameover.triggers"), False,
                         f"the player never died in {s.ticks_sent} idle ticks "
                         f"(hp {hp1})")]
-                score_at_death = _i(s.last, "score")
-                for _ in range(300):
-                    s.step_raw({"fire": True, **_aim((1.0, 0.0, 0.0)),
-                                **_move((-1.0, 0.0, 0.0))})
-                still_over = s.last.state.get("game_over") is True
-                frozen = _i(s.last, "score") == score_at_death
-                alive = _player(s.last).get("alive")
+                # IDLE FIRST, THEN PRESS AND READ THROUGH THE RESET -
+                # `probe.end_condition_holds` holds the reason, and holds it once for
+                # all four bots. This loop used to press fire, aim and move straight
+                # away, which pressed the restart control of a correct game that clears
+                # its game-over card on any input, and then scored the fresh run's live
+                # state as a failure to end (`tasks/157`).
+                end = end_condition_holds(
+                    s, idle_ticks=300, press_ticks=300,
+                    inputs={"fire": True, **_aim((1.0, 0.0, 0.0)),
+                            **_move((-1.0, 0.0, 0.0))},
+                    # KILLS AS WELL AS SCORE. The score alone cannot express this game
+                    # ending and carrying on: with the player dead there is nobody to
+                    # earn points, so a simulation that keeps stepping leaves it at
+                    # whatever it was. `kills` moves - measured on a reference with the
+                    # step function's `game_over` early-out deleted, the last enemy dies
+                    # inside the idle window - and both come back to their tick-0 values
+                    # on a reset, which is what the pressed phase reads them against.
+                    sample=lambda t: (_i(t, "score"), _i(t, "kills")))
                 return [dmg_c, Criterion(
-                    "gameover.triggers", self._q("gameover.triggers"),
-                    still_over and frozen and alive is not True,
-                    f"game over at tick {over_at}; after 300 more ticks of input: "
-                    f"game_over={still_over}, alive={alive}, score frozen: {frozen}")]
+                    "gameover.triggers", self._q("gameover.triggers"), end.passed,
+                    f"game over at tick {over_at}; {end.detail('(score, kills)')}")]
         except ProbeError as e:
             return list(unusable_criteria([(cid, self._q(cid)) for cid in ids], e,
                                           "the death session"))
