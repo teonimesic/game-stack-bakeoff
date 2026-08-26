@@ -122,6 +122,27 @@ P_LAYER_GAP = Patch("game.py",
                     "                       if not (lid == 1 and 101 <= self.tick <= 119)"
                     "],  # MUTANT: the sky stops being reported")
 
+#: The same layer, gone for good from tick 501 on. Distinct from the hole above and it
+#: needs its own subject: a walk built from the prefix looks perfectly continuous, so only
+#: counting a layer's rows against the trace's own length refuses it.
+P_LAYER_TRUNCATED = Patch(
+    "game.py",
+    "                       for lid, depth, span in LAYERS],",
+    "                       for lid, depth, span in LAYERS\n"
+    "                       if not (lid == 1 and self.tick > 500)"
+    "],  # MUTANT: the sky stops being reported for good")
+
+#: `span` declared only at tick 0. `state.shape` reads tick 0, so the layer looks
+#: contracted; without a `span` there is nothing to unwrap against, and accumulating the
+#: raw difference is the modular residue `_walk` exists to avoid. Same 19-tick window as
+#: the hole mutant, so the picture is untouched.
+P_SPAN_DROPPED = Patch(
+    "game.py",
+    '                        "offset": _r(self.offsets[lid]), "span": span,',
+    '                        "offset": _r(self.offsets[lid]),\n'
+    '                        "span": (0.0 if (lid == 1 and 101 <= self.tick <= 119)\n'
+    "                                 else span),  # MUTANT: the sky stops declaring one")
+
 P_JUMPY_WRAP = Patch("film.py",
                      '        phase = (layer["offset"] * SCALE) % span',
                      '        _o = layer["offset"] * SCALE  # MUTANT: the loop jumps\n'
@@ -398,6 +419,17 @@ MUTANTS: list[Mutant] = [
                  "no captured frame, so nothing in the picture changes and only the "
                  "contract's one record per tick is gone. Bridging the hole would return "
                  "a smaller travel for that layer and pass"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "the sky stops being reported for good after tick 500", (P_LAYER_TRUNCATED,),
+           notes="a hole is visible as a resumption; this one never resumes, so a walk "
+                 "built from the prefix is perfectly continuous and reads a travel off "
+                 "it. Measured: no other criterion flips, so the band going unpainted "
+                 "in the last 3 frames costs the image side nothing here"),
+    Mutant("layers.depth_ordered", "s1_parallax",
+           "the sky declares no span for 19 ticks", (P_SPAN_DROPPED,),
+           notes="`state.shape` reads tick 0, where the span is still there. Without one "
+                 "there is nothing to unwrap against, and accumulating the raw "
+                 "difference is exactly the residue this criterion was scored on"),
     Mutant("layers.image_parallax", "s1_parallax",
            "the telemetry reports parallax the renderer does not draw", (P_DRAWN_FLAT,),
            notes="THE MUTANT NO TELEMETRY-SIDE CHECK CAN FIND. Every offset the "

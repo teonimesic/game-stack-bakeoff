@@ -205,12 +205,14 @@ than half a span in 1 tick, and a no-op on a scene that already accumulates. Per
 captured frame: 2 captures are 60 ticks apart, which is long enough for a near layer to cross more
 than half its span.
 
-**A layer that stops being reported and comes back is failed, not bridged.** Unwrapping across the
-hole returns a smaller travel that looks plausible, and `state.shape` reads tick 0 only, so
-nothing else would see it.
+**A layer earns a walk by carrying a finite `offset` and a positive `span` on every trace line,
+and `layers.depth_ordered` fails one that does not.** `state.shape` reads tick 0 only, so all 3
+ways of falling short are silent and all 3 read as a smaller, plausible travel: a hole between 2
+reported ticks, a layer that stops reporting and never resumes, and a row that declares no usable
+`span` to unwrap against.
 
-`scene_mutants.py` holds both in its own directions: a variant reporting `offset` inside its own
-span, and a mutant that stops reporting a layer for a window holding no captured frame.
+`scene_mutants.py` holds both directions: a variant reporting `offset` inside its own span, and 3
+mutants that break a layer's reporting — a hole, a truncation, and a row with no span.
 `eval/RUNS.md` holds what the first submission measured.
 
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks

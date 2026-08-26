@@ -547,40 +547,54 @@ class ParallaxScene(Scene):
         layer's span; between two captured frames, 60 ticks apart, the same layer moves
         1.6-2.25 spans and no per-frame unwrap could recover it.
 
-        THE UNWRAP IS ONLY DEFINED ACROSS CONSECUTIVE TRACE LINES, so a layer that stops
-        being reported and comes back is DROPPED rather than bridged. Bridging is the
-        fail-open direction and it is silent: with `span` 100, offsets `0`, missing,
-        `120` unwrap to a step of 20 and the layer's real 120 units of travel disappear
-        into a plausible number. `state.shape` reads tick 0 only, so nothing upstream
-        catches it. The second return value names the dropped layers and every
-        caller reports them - a layer the contract's one-record-per-tick was not held to
-        cannot have a rate read off it, and it must not quietly acquire a smaller one.
+        THE UNWRAP IS ONLY DEFINED ACROSS CONSECUTIVE TRACE LINES, so a layer earns a
+        walk only by carrying a finite `offset` and a finite `span > 0` on EVERY line of
+        the trace. Anything less is named in the second return value and failed by
+        `layers.depth_ordered`; nothing is bridged, truncated or guessed. All 3 ways of
+        falling short are silent and all 3 are fail-open:
+
+        | | what a bridge or a prefix would return |
+        |---|---|
+        | a hole - reported, missing, reported | `span` 100 with offsets `0`, missing, `120` unwraps to a step of 20, and 120 units of travel become a plausible smaller number |
+        | truncation - reported, then never again | the layer's travel is read off the prefix, so a background that stopped moving when it stopped reporting still looks ordered |
+        | a row with no usable `span` | the raw difference is accumulated, which is the modular residue this whole method exists to avoid |
+
+        `state.shape` reads tick 0 only, so nothing upstream catches any of them. Only
+        the layers DECLARED at tick 0 are walked, because those are the only ones any
+        criterion here reads.
         """
+        declared = [row["id"] for row in ParallaxScene._layers(r.trace_a[0].state)
+                    if row.get("id") is not None]
         walk: dict[Any, dict[int, float]] = {}
         prev: dict[Any, float] = {}
         acc: dict[Any, float] = {}
-        last_seen: dict[Any, int] = {}
-        holed: set[Any] = set()
-        for line, t in enumerate(r.trace_a):
+        lines: dict[Any, int] = dict.fromkeys(declared, 0)
+        for t in r.trace_a:
             for row in ParallaxScene._layers(t.state):
                 lid = row.get("id")
                 offset, span = num(row, "offset"), num(row, "span")
-                if lid is None or offset is None:
+                if lid not in lines or offset is None or span is None or span <= 0:
                     continue
                 if lid not in walk:
                     walk[lid], acc[lid] = {}, offset
-                elif last_seen[lid] == line - 1:
-                    step = offset - prev[lid]
-                    if span is not None and span > 0:
-                        step -= span * round(step / span)
-                    acc[lid] += step
                 else:
-                    holed.add(lid)
-                prev[lid], last_seen[lid] = offset, line
+                    step = offset - prev[lid]
+                    # Into `(-span/2, span/2]`. NOT `round`, which is half-to-even and
+                    # leaves a step of exactly `-span/2` where it was, outside the
+                    # interval this line is documented to produce.
+                    step -= span * math.ceil(step / span - 0.5)
+                    acc[lid] += step
+                prev[lid] = offset
                 walk[lid][t.tick] = acc[lid]
-        for lid in holed:
+                lines[lid] += 1
+        # A layer contributing a row to every trace line, exactly once, is the only one
+        # whose walk is continuous - which covers the hole, the truncation and the
+        # duplicate id in one comparison rather than in three guards.
+        broken = sorted((lid for lid in declared if lines[lid] != len(r.trace_a)),
+                        key=str)
+        for lid in broken:
             walk.pop(lid, None)
-        return walk, sorted(holed, key=str)
+        return walk, broken
 
     @staticmethod
     def _travelled(walk: dict[Any, dict[int, float]], lid: Any) -> float | None:
@@ -722,15 +736,17 @@ class ParallaxScene(Scene):
         return out
 
     def _depth_ordered(self, r: SceneRun) -> Criterion:
-        walk, holed = self._walk(r)
-        if holed:
+        walk, broken = self._walk(r)
+        if broken:
             # FAIL, not unscored. The contract asks for one record per captured tick; a
-            # layer that stops appearing and comes back has no readable displacement
-            # across the hole, and excusing it is a channel a real bug widens (rule 7).
+            # layer that misses one, or reports it without a usable `span`, has no
+            # readable displacement there, and excusing it is a channel a real bug
+            # widens (rule 7).
             return self.ok("layers.depth_ordered", False,
-                           f"layer(s) {holed} vanish from the trace and return, so no "
-                           f"displacement can be read across the gap; the contract asks "
-                           f"for one telemetry record per captured tick")
+                           f"layer(s) {broken} do not carry a finite `offset` and a "
+                           f"positive `span` on all {len(r.trace_a)} trace lines, so "
+                           f"their displacement cannot be read; the contract asks for "
+                           f"one telemetry record per captured tick")
         rows = []
         for row in self._layers(r.trace_a[0].state):
             depth = num(row, "depth")
@@ -793,7 +809,7 @@ class ParallaxScene(Scene):
             # empty `shifts` whenever the frames are unusable, so a count taken from
             # there is 0 by construction - a number in the evidence that cannot be
             # anything else, which is this repository's most-repeated defect.
-            walk, holed = self._walk(r)
+            walk, broken = self._walk(r)
             looped = 0
             for row in self._layers(r.trace_a[0].state):
                 span = num(row, "span")
@@ -804,8 +820,8 @@ class ParallaxScene(Scene):
                            f"{r.why_frames_unusable()}; scored on telemetry alone: "
                            f"{wraps_fired} `wrap` events, and {looped} layers whose "
                            f"offset passed their own span"
-                           + (f"; layer(s) {holed} vanish from the trace and return, so "
-                              f"no displacement can be read across the gap" if holed
+                           + (f"; layer(s) {broken} do not carry a finite `offset` and "
+                              f"a positive `span` on every trace line" if broken
                               else ""))
         reliable, skipped = self._reliable(shifts)
         width = r.frames_a[0].width

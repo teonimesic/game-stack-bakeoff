@@ -2906,13 +2906,15 @@ that differences 2 arbitrary offsets is reading a modular residue. Per tick, not
 frame: captures are 60 ticks apart, and a near layer can cross more than half its span in that
 time.
 
-**A layer that stops being reported and comes back is failed, not bridged.** Unwrapping across
-the hole returns a smaller travel that looks plausible, and `state.shape` reads tick 0 only, so
-nothing else would catch it.
+**A layer earns a walk by carrying a finite `offset` and a positive `span` on every trace line,
+and `layers.depth_ordered` fails one that does not.** `state.shape` reads tick 0 only, so all 3
+ways of falling short are silent and all 3 read as a smaller, plausible travel: a hole between 2
+reported ticks, a layer that stops reporting and never resumes, and a row declaring no usable
+`span`.
 
-`eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds it in
-both directions: a variant reporting `offset` inside its own span, and a mutant that stops
-reporting a layer for a window holding no captured frame.
+`eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds both
+directions: a variant reporting `offset` inside its own span, and 3 mutants that break a layer's
+reporting in each of those ways.
 
 **To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
