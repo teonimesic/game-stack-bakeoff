@@ -39,7 +39,9 @@ is over*, and *does saying so stop it* — the prompt's own second clause. Every
 second through `probe.end_condition_holds`, 1 copy for all 4: it idles with nothing
 pressed, then presses the bot's controls and reads that phase **through the reset**, because the
 prompt's "until it is reset" contemplates a reset existing and an agent may bind it to a
-control. The value each bot guards is its own and must be one its simulation MOVES — a dead
+control. **Every tick of both phases is read, never the endpoints** — a value that moves and
+comes back passes an endpoint comparison — and the first tick that broke goes in the evidence
+with why. The value each bot guards is its own and must be one its simulation MOVES — a dead
 arena player earns nothing and a full tetris well clears no layer, so in both the score is a
 constant whatever the game does, and `_death` guards `kills` and `_gameover_check` the
 well's filled-cell total beside it (`tasks/157`).
