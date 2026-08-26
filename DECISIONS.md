@@ -2001,25 +2001,25 @@ an interval with none.
 
 ## A failed review round is a verdict of its own, and `--ignore-notice` governs stopping only — decided 2026-08-26
 
-**Decided [agent], `tasks/165`, on measurement.** Merging `main` into a branch mid-review makes
-CodeRabbit post a `Review failed` alert callout and rewrite its summary comment. That summary
-names the head and carries no in-progress marker, so it satisfied the comment arm exactly:
-`--wait --ignore-notice` on PR #39 returned **`LANDED_COMMENT` in 1 second** while the real review
-was **540 s** away (#185). The procedure's next step is to act on the review, so the branch
-proceeded as though it had been read.
+**Decided [agent], `tasks/165`, on measurement.** A round that starts and dies leaves a `Review
+failed` alert callout and a rewritten summary comment. That summary carries no in-progress marker
+and the failure block **writes the new head sha into its own body**, so the pair satisfies the
+comment arm exactly and a dead round is indistinguishable from a clean one (#185). The procedure's
+next step is to act on the review, so the branch proceeds as though it had been read.
 
-**The flag named the mechanism, not the property.** `--ignore-notice` was added so a
-pool-exhaustion pause could not stop every poll instantly, and that reasoning stands. It then
-covered a notice with the opposite meaning, because what it tested was *is there a notice* rather
-than *was this head reviewed* — this file's own rule about triggers, inside the tool written to
-fix the previous instance of it.
+**The flag named the mechanism, not the property.** `--ignore-notice` exists so a pool-exhaustion
+pause cannot stop every poll instantly, and that reasoning stands. It also covered a notice with
+the opposite meaning, because what it tested was *is there a notice* rather than *was this head
+reviewed* — this file's own rule about triggers, inside the tool written to fix the previous
+instance of it.
 
 | Decided | Rejected, and why |
 |---|---|
 | `REVIEW_FAILED`, a **verdict** at exit 14, ranked above the comment arm | A kind of `NOTICE`. A notice is a diagnostic the landed arms outrank; this one has to *outrank* a landing, which is the opposite precedence |
 | Ranked **below** `LANDED_REVIEW` and `IN_FLIGHT` | Ranking it first. A review object at the head means the head was reviewed whatever callout is beside it, and CodeRabbit edits comments in place; a marker at the head means the replacement round is already running, so the wait should wait rather than ask again |
 | `--ignore-notice` decides **stopping** and nothing else — it can never produce a landing | Removing the flag, or adding a second one for this heading. Removing it trades a false landing for a poll that never returns; a second flag repeats the defect at a new name |
-| The failure is read across the pull request's bot comments, not scoped to the comment naming the head | Scoping it. The callout and the summary were one comment on PR #39 and need not be. The cost of the wider read is a stale callout expiring the wait as `UNRESOLVED` — loud, and rule 7's direction |
+| A failed round is detected by its HTML marker **or** its alert heading — 2 signals, for the same reason a landing is read 2 ways: either alone can be wrong later | Either alone. A reworded heading and a renamed marker are both plausible, and each arm covers the other's failure |
+| The failure is read across the pull request's bot comments, not scoped to the comment carrying the head | Scoping it. A failure that lands in its own comment then reads as a clean landing, which is the defect restored. The cost of the wider read is a stale callout expiring the wait as `UNRESOLVED` — loud, and rule 7's direction |
 | **The ambiguous case stays a landing**: no notice, a summary naming the head, no review object is `LANDED_COMMENT` | Requiring a review object. A clean round creates none, and the table above counts 3 of 6 reviewed heads reaching only that arm — the requirement would spend the full bound on the common good outcome |
 
 **So the comment arm keeps its authority and is narrowed by exclusion, one observed mechanism at
@@ -2027,21 +2027,10 @@ a time**: not a landing while the in-progress marker is on it, and not a landing
 callout is on the pull request. That decision is written beside `--ignore-notice` in
 `pr_review_state.py`, which is where the next reader will be standing.
 
-**The extraction is proved on the real artifact, not on the fixture that describes it.** PR #39's
-notice was rewritten in place and is no longer extractable, so the bytes come from
-`coderabbitai[bot]` on `meshery/meshery#21612`, found through `gh api search/issues`. They settle
-2 things the ticket could only assert: the block is bracketed by its own HTML marker,
-`auto-generated comment: failure by coderabbit.ai`, exactly as a running round is — so the failed
-round is read by **marker or heading**, the same disjunction the landed arms use — and the body
-**writes the new head sha into itself**, which is the mechanism by which a dead round satisfied
-the comment arm. The selftest classifies those verbatim bytes at the head they name.
-
-**The live reconstruction was attempted and did not reproduce**, which is worth recording because
-it narrows the trigger. Pushing an ordinary commit into PR #41 while a round was in flight — the
-marker observed present through `gh api`, not through this poll — produced no failure callout: the
-marker went absent for ~100 s and returned for a new round against the new head. `tasks/162`'s
-instance came from a **merge** of `main` mid-review. So *a push mid-round* is not sufficient, and
-what distinguishes the 2 is unmeasured.
+**The extraction is pinned against the real artifact, not against a fixture describing it.**
+`pr_review_state.selftest` holds a verbatim `coderabbitai[bot]` failure block and classifies it at
+the head that block names; `tasks/165` records where those bytes were read from and what a live
+reconstruction did and did not show.
 
 > **When one artifact serves two states, the repair is an exclusion, never a flag.** Every hole
 > found in this poll has been the same shape — an artifact that exists for more than one reason,

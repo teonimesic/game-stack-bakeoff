@@ -75,11 +75,10 @@ real review object and a round in flight. A review object at the head means the 
 reviewed whatever a stale callout beside it says; an in-progress marker at the head means a
 new round is already running and the wait should keep waiting.
 
-It is read by **marker or heading**, the same disjunction the landed arms use and for the same
-reason — either signal alone can be wrong later. Both come from the real bytes on
-`meshery/meshery#21612`, since PR #39's own instance was rewritten in place and is gone. Those
-bytes also show *why* the comment arm was satisfied: the failure block **writes the new head
-sha into itself**.
+It is detected by **its HTML marker or its alert heading** — 2 signals, for the same reason a
+landing is read 2 ways: either alone can be wrong later, and each arm covers the other. Both
+strings come from a real `coderabbitai[bot]` failure block, which also shows *why* the comment
+arm was satisfied: the block **writes the new head sha into its own body**.
 
 WHY THE WAIT IS NOT A CLOCK
 ---------------------------

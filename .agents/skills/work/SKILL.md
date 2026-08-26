@@ -194,7 +194,9 @@ python3 eval/tools/pr_review_state.py --pr <n> --branch task-<id>-<slug> \
 It prints 1 line per poll, and every line names the pull request, the branch and the full head
 sha:
 
-    #18 task-127-poll-asserts-its-branch head=<40 hex> verdict=IN_FLIGHT by_review=0 by_comment=0 in_flight=1 failed=0 elapsed=90s
+```text
+#18 task-127-poll-asserts-its-branch head=<40 hex> verdict=IN_FLIGHT by_review=0 by_comment=0 in_flight=1 failed=0 elapsed=90s
+```
 
 **Read the word.** `DECISIONS.md`, *An agent hands back a pull request*, is the authority on what
 counts as reviewed and holds the per-pull-request evidence; the tool's docstring states every
@@ -262,9 +264,9 @@ sha.
 | **Review skipped** — *"No new commits to review since the last review"* | already reviewed. Not a deadlock: you asked for a review of a head that has had one | nothing. Push first, then ask |
 | **Review failed** — *"the head commit changed during the review"* | **a round started and died. Not reviewed, and the summary it left at your head looks clean** | post `@coderabbitai review` **once**, then poll again with `--ignore-notice` |
 
-**Merging `main` into your branch mid-review is what produces the last row**, and §6 asks you to
-keep the branch current — so expect it. The poll answers `REVIEW_FAILED` at exit 14; it used to
-answer `LANDED_COMMENT` at exit 0 in 1 second while the real review was 540 s away (#185).
+**Merging `main` into your branch mid-review produces the last row**, and §6 asks you to keep the
+branch current — so expect it. The poll answers `REVIEW_FAILED` at exit 14, never a landing: the
+summary a dead round leaves behind names your head and reads as clean.
 
 **Once you have acted on any of these, poll again with `--ignore-notice`** — otherwise the wait
 stops on the comment you just answered, which CodeRabbit leaves in place until it next rewrites
@@ -272,10 +274,9 @@ the summary. The flag governs **stopping only**: it can never turn a notice or a
 a landing, and a remedy that never takes expires as `UNRESOLVED`. The tool's docstring says why.
 
 **A notice is a diagnostic, and it is stale the moment anything changes.** CodeRabbit edits its
-comments in place, so a heading can outlive the state it described — PR #6's *Review limit
-reached* was measured on 2026-08-23 and is no longer extractable from PR #6 at all. That is why
-`LANDED_REVIEW` outranks everything: PR #9 today carries a stale *Reviews paused* beside the
-review it really has, and a stale *Review failed* beside a real review object is the same shape.
+comments in place, so a heading outlives the state it described. That is why `LANDED_REVIEW`
+outranks everything: a stale *Reviews paused* or *Review failed* beside a real review object is
+still a review.
 
 **Push once per round, not once per fix.** Batching is what keeps the pause from firing at all,
 and under a spent allowance it is the difference between one round and none.

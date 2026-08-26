@@ -83,7 +83,8 @@ restating a number here. Each is paired with the mutant that proves its row can 
 | `B15`, `B15b` | a pause or a spent allowance beside a clean summary — these must still land | `failed_is_any_notice` |
 | `B16` | a real review beside a stale failure callout | `failed_before_review` |
 | `B17` | the replacement round already in flight | `failed_before_inflight` |
-| `C9` | the failure reason appended to the heading | `failed_heading_unanchored` |
+| `C9` | the failure reason appended to the heading | `failed_kind_ignored` |
+| `C10` | a heading that merely mentions a failed review | `failed_heading_unanchored` |
 | `F10` | an answered failure that never resolves — loud, not silent | `failed_stops_under_ignore_notice` |
 
 **Needs no corpus and no network.** `pr_review_state.py --selftest` injects its own `gh`
