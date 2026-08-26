@@ -183,6 +183,12 @@ GH_TIMEOUT = 60
 # cap is a census reporting the cap, so the cap is high and reaching it is a REFUSAL.
 CENSUS_LIMIT = 1000
 
+# What a poll result must carry. `wait_for` takes a callback, so this is the boundary a
+# caller-supplied `poll_fn` enters through: without the check, a result of the wrong shape
+# reaches `render` and dies as a bare `KeyError`, which says nothing about whose fault it is.
+# A named refusal and an unconverted traceback are different defects and must say which.
+RESULT_FIELDS = ("verdict", "by_review", "by_comment", "in_flight", "failed", "headings")
+
 EXIT = {
     "LANDED_REVIEW": 0,
     "LANDED_COMMENT": 0,
@@ -483,6 +489,11 @@ def wait_for(poll_fn: Callable[[], dict], *, now_fn: Callable[[], float] = time.
     last: dict = {}
     while True:
         last = poll_fn()
+        missing = [f for f in RESULT_FIELDS if f not in last]
+        if missing:
+            raise PrReviewStateError(
+                f"poll_fn returned a result missing {missing}. A poll result carries "
+                f"{list(RESULT_FIELDS)}. This is a caller error, not a poll result.")
         polls += 1
         elapsed = now_fn() - started
         emit(render(last, elapsed))
@@ -928,6 +939,15 @@ def selftest() -> int:
         def flush(self) -> None:
             self.flushed += 1
 
+    # E5: the callback boundary. The pre-repair result shape, which has no `failed`, must
+    # come back as a NAMED refusal rather than as a KeyError out of `render`.
+    raises("E5 wait_for refuses a poll result of the wrong shape",
+           lambda: wait_for(lambda: {"pr": 18, "branch": "b", "head": HEAD_A,
+                                     "verdict": "NOT_YET", "by_review": 0, "by_comment": 0,
+                                     "in_flight": 0, "headings": []},
+                            now_fn=lambda: 0.0, sleep_fn=lambda _s: None,
+                            emit=lambda _s: None))
+
     rec = Recorder()
     with contextlib.redirect_stdout(rec):  # type: ignore[arg-type]
         _emit("#18 task-127 head=x verdict=NOT_YET")
@@ -999,6 +1019,11 @@ def selftest() -> int:
 
     # --- the drift guard: a field the rows above read, by name.
     r = classify(HEAD_A, [_review(commit=HEAD_A)], [])
+    # G3 compares the 2 statements of the contract with a ROW rather than making them one
+    # object: a control that imports its expectation from its subject is not a control.
+    check("G3 RESULT_FIELDS is what classify returns",
+          sorted(RESULT_FIELDS),
+          sorted(["verdict", "by_review", "by_comment", "in_flight", "failed", "headings"]))
     for field in ("verdict", "by_review", "by_comment", "in_flight", "failed", "headings"):
         check(f"G1 classify still returns {field!r}", field in r, True)
     line = attempt(lambda: render({**r, "pr": 18, "branch": "task-127-poll", "head": HEAD_A}))

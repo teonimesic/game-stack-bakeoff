@@ -64,6 +64,7 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `render_drops_the_branch` | the branch from the output line | the audit trail loses the thing the assertion is about — and printing was one of the two things `tasks/127` asked for |
 | `emit_not_flushed` | the `flush=True` on the poll line | Python block-buffers stdout when it is not a terminal, so a `--wait` under a harness prints **0 bytes** for the whole round and the lines arrive after the answer does. Measured on this pull request's own first round |
 | `wait_emits_through_print` | `wait_for` using the flushing emitter | the same silence, reached through the default argument instead of through the function |
+| `wait_result_unchecked` | the shape check on what `poll_fn` returns | a caller's result of the wrong shape dies as a bare `KeyError` inside `render`, which names neither the boundary it crossed nor whose fault it is |
 | `drop_field` | a field the selftest reads, renamed | a row silently reading a field that is no longer there. **It must redden a named row, not raise** — a mutant that only crashes exits non-zero without saying which check it defeated, so the harness rejects a mutant that produced no red row |
 
 WHAT THIS DOES NOT DO
@@ -305,6 +306,9 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "render_drops_the_branch": (
         "    line = (f\"#{result['pr']} {result['branch']} head={result['head']} \"",
         "    line = (f\"#{result['pr']} head={result['head']} \""),
+    "wait_result_unchecked": (
+        "        missing = [f for f in RESULT_FIELDS if f not in last]",
+        "        missing = []"),
     "drop_field": (
         '        "by_comment": len(finished),',
         '        "by_comment_RENAMED": len(finished),'),
