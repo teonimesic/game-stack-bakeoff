@@ -376,25 +376,217 @@ CRITERIA = [
 ]
 
 MIN_OWN_TESTS = 8          # the starter already ships more than this
-# Aligned with the floor the four render harnesses already use in their own
-# "renders a non-empty frame" test (>0.001). Measured: the starter's placeholder marker
-# covers 0.0015 of a 640x400 frame, so a tighter floor would be measuring "the
-# placeholder is small" rather than "something is drawn".
-INK_MIN, INK_MAX = 0.001, 0.85
 DELTA_MIN = 0.0005
+
+#: The `render.nonempty` window, `(floor, ceiling, why)`, INCLUSIVE at both ends, PER
+#: TASK CLASS - and the ceiling is the half that does not transfer between them.
+#:
+#: THE FLOOR IS A PROPERTY OF THE STARTER and is the same number for every class. It is
+#: the floor the four render harnesses already use in their own `renders a non-empty
+#: frame` test, and the starter's placeholder marker covers 0.0015 of a 640x400 frame,
+#: so anything tighter measures "the placeholder is small" rather than "something is
+#: drawn". Every class is built from those same four starters, so it transfers.
+#:
+#: THE CEILING WAS A PROPERTY OF NOTHING. 0.85 applied to every task from this
+#: repository's first commit and is derived in no document, no comment and no commit
+#: message - the same shape as the 0.31/0.69 split that task 29 retired. What it has
+#: actually done, over every grading this project has stored:
+#:
+#:   python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
+#:
+#: 85 gradings over 69 submissions, 4 `render.nonempty` failures. The 2 floor firings
+#: are `wg-arena3d`'s rust cells, which produced **0 frames** because `just check` exited
+#: 101 - a fact `render.frames` reports in the same record. The 2 ceiling firings are
+#: both submissions that drew what they were asked to draw: `wg-g4c`
+#: `g4_platformer__godot__t1` at 0.881, a night platformer over a gradient sky that
+#: scored **1.000** on tier 2 (#123), and `wg-scene-s1ts` `s1_parallax__ts__t0` at
+#: 0.966. So the ceiling has 0 true
+#: positives and 2 false negatives, and tier 1 is a GATE: a false negative here does not
+#: cost a fraction of a score, it stops a correct submission being scored at all.
+#:
+#: FOR A SCENE THE CEILING'S SIGN IS INVERTED, which is why this is a per-class table
+#: rather than a wider number. `eval/SCENES.md` contracts a scene to fill the frame -
+#: `s1_parallax` asks for a layered background with real distance in it, `s2_glass` for
+#: a full 3D render - and a large flat region is the NAIVE implementation `scene_probe`
+#: exists to catch. There is no ink level from which a scene can be inferred defective
+#: from above, so a scene gets a floor and no ceiling. That is read off the task
+#: contract, not off the one submission: 0.966 passes, and so would 0.87 or 0.999.
+#:
+#: THE GAME CEILING IS LEFT WHERE IT IS, deliberately and not because it is right.
+#: Moving it changes a stored GAME gate verdict (`g4_platformer__godot__t1`, FAIL ->
+#: PASS) and the figure quoted in `RUBRIC.md`, `DECISIONS.md` and `eval/RUNS.md`; that
+#: is a re-scoring event on the game population and it has a ticket of its own
+#: (`tasks/168`).
+INK_WINDOW: dict[str, tuple[float, float, str]] = {
+    "game": (0.001, 0.85,
+             "a game draws a subject against a background"),
+    "scene": (0.001, 1.0,
+              "a scene is contracted to fill the frame (eval/SCENES.md), so it has a "
+              "floor and no ceiling"),
+}
+
+
+def ink_window(task_class: str) -> tuple[float, float, str]:
+    """`render.nonempty`'s window for one task class, or raise.
+
+    FAILS CLOSED on a class it cannot place rather than falling back to the game
+    window. A fallback here is invisible: it returns a plausible number and fails a
+    correct submission of whatever class nobody registered, which is the defect this
+    function exists to remove rather than to relocate.
+    """
+    try:
+        return INK_WINDOW[task_class]
+    except KeyError:
+        raise ValueError(
+            f"{task_class!r} is not a task class this module has an ink window for. "
+            f"Known: {sorted(INK_WINDOW)}. Refusing rather than grading it as a game: "
+            f"the ceiling is calibrated per class and a wrong one fails a correct "
+            f"submission at a tier that GATES.") from None
+
+
+def nonempty_verdict(frame_info: dict[str, Any], task_class: str,
+                     n_frames: int) -> tuple[bool, str]:
+    """`(passed, evidence)` for `render.nonempty`, with the class in the evidence.
+
+    Separate from `collect` so the decision can be driven without a toolchain, and so
+    the class it was asked about is in every stored record rather than in a comment
+    here - `judge/ink_window_control.py` pins both directions per class.
+    """
+    lo, hi, why = ink_window(task_class)
+    mean_ink = float(frame_info.get("mean_ink", 0.0))
+    return lo <= mean_ink <= hi, (
+        f"mean ink coverage {frame_info.get('mean_ink')} over {n_frames} frames "
+        f"({task_class} window {lo}-{hi}: {why}); "
+        f"per frame {frame_info.get('per_frame_ink')}")
+
+
+#: Every tier-1 criterion, and the POPULATION the bound it applies was calibrated on.
+#:
+#: THE CENSUS `tasks/163` ASKED FOR, kept as code so it is answered again every time a
+#: criterion is added rather than once by whoever happened to look. The question is
+#: *is this bound a property of the artifact, or of games?* - and it is worth asking of
+#: all 14, because the one criterion whose answer was "of games" had gone 69 gradings
+#: without anybody asking.
+#:
+#: The 5 values are a CLOSED class, and `no_bound` is a real answer rather than a gap:
+#: a criterion that reads an exit status has nothing to calibrate and cannot acquire a
+#: class-dependence later without acquiring a number first.
+#:
+#:   no_bound          reads an exit status, a count of files or a boolean. No number.
+#:   starter           a property of the 4 starters, which BOTH classes are built from.
+#:   capture_contract  a property of `just film`, which is identical in both classes.
+#:   audio_signal      a property of digital audio (dBFS, spectral similarity). The
+#:                     audio criteria are not asked of a scene at all (`tasks/156`).
+#:   task_class        differs by class. The bound lives in a per-class table, and
+#:                     `TASK_CLASS_BOUND_TABLES` names it.
+#:
+#: The answer today: 9 carry no bound, 4 carry one that transfers, and exactly 1 -
+#: `render.nonempty` - carries one that does not.
+BOUND_POPULATIONS = ("no_bound", "starter", "capture_contract", "audio_signal",
+                     "task_class")
+
+TIER1_BOUND_POPULATION: dict[str, str] = {
+    "build.compiles": "no_bound",       # `just check` exit status
+    "verify.green": "no_bound",         # `just verify` exit status
+    "lint.clean": "no_bound",           # `just lint` exit status
+    "tests.exist": "starter",           # MIN_OWN_TESTS; every starter ships more
+    "tests.green": "no_bound",          # exit status plus its own reported counts
+    "render.frames": "no_bound",        # PNGs on disk, floor 0
+    "render.nonempty": "task_class",    # INK_WINDOW - the ceiling does not transfer
+    "render.animates": "capture_contract",   # DELTA_MIN; a scene is a timed sequence
+    "probe.responds": "no_bound",       # the probe answered, or it did not
+    "audio.manifest": "no_bound",       # `just audio-manifest` exit status plus JSON
+    "audio.files_exist": "no_bound",    # the file decoded, or it did not
+    "audio.not_silent": "audio_signal",     # SILENCE_RMS / SILENCE_PEAK, in dBFS
+    "audio.distinct": "audio_signal",       # SAME_SOUND_COSINE over spectra
+    "audio.music_loops": "audio_signal",    # MUSIC_MIN_SECONDS
+}
+
+#: The per-class tables, keyed by the criterion that reads them. Every id declared
+#: `task_class` above must appear here and nothing else may, so the registry cannot
+#: claim a class-dependence that no table implements.
+TASK_CLASS_BOUND_TABLES: dict[str, dict[str, Any]] = {
+    "render.nonempty": INK_WINDOW,
+}
+
+
+def assert_tier1_bounds_declared() -> list[str]:
+    """Refuse an UNDECLARED BOUND rather than an unusual task class.
+
+    Returns a list of problems; empty means every tier-1 criterion has answered
+    *which population was your bound calibrated on?* Discovery is mechanical and comes
+    from the two `CRITERIA` lists that define the tier, so a criterion added without an
+    answer FAILS - the failure mode of every hand-maintained list.
+
+    The audio half is imported lazily: `audio` decodes with `ffmpeg` and this function
+    is called from `precampaign_smoke.py`, where dragging a decoder in to read a list
+    of strings would make a documentation gate depend on a media toolchain.
+    """
+    ids = [cid for cid, _ in CRITERIA]
+    try:
+        import audio as _audio
+        ids += [cid for cid, _ in _audio.CRITERIA]
+    except Exception as e:  # noqa: BLE001 - see the docstring; an import is not a verdict
+        return [f"judge/audio.py could not be imported, so 5 of the 14 tier-1 criteria "
+                f"were not asked the question: {type(e).__name__}: {e}"]
+    problems = []
+    for cid in ids:
+        pop = TIER1_BOUND_POPULATION.get(cid)
+        if pop is None:
+            problems.append(
+                f"{cid} is a tier-1 criterion and is not in TIER1_BOUND_POPULATION. "
+                f"State which population its bound was calibrated on, one of "
+                f"{list(BOUND_POPULATIONS)}. Tier 1 GATES, so a bound calibrated on "
+                f"one task class refuses a correct member of another (tasks/163).")
+        elif pop not in BOUND_POPULATIONS:
+            problems.append(
+                f"{cid} declares population {pop!r}, which is not one of "
+                f"{list(BOUND_POPULATIONS)}. The list is closed on purpose: an open "
+                f"vocabulary is an enumeration in disguise.")
+    for cid in sorted(set(TIER1_BOUND_POPULATION) - set(ids)):
+        problems.append(
+            f"{cid} is registered in TIER1_BOUND_POPULATION and is no longer a tier-1 "
+            f"criterion. Remove it, or the registry describes code that does not "
+            f"exist (#38).")
+    declared = {c for c, p in TIER1_BOUND_POPULATION.items() if p == "task_class"}
+    if declared != set(TASK_CLASS_BOUND_TABLES):
+        problems.append(
+            f"the criteria declared 'task_class' are {sorted(declared)} but the "
+            f"per-class tables are {sorted(TASK_CLASS_BOUND_TABLES)}. A declared "
+            f"class-dependence with no table is a promise nothing keeps.")
+    for cid, table in TASK_CLASS_BOUND_TABLES.items():
+        missing = sorted({"game", "scene"} - set(table))
+        if missing:
+            problems.append(
+                f"{cid}'s per-class table has no entry for {missing}. Both task "
+                f"classes are graded by tier 1 (eval/SCENES.md).")
+    return problems
 
 
 def collect(repo: Path, seed: int = 7, film_ticks: int = 900,
             env: dict[str, str] | None = None,
             run_coverage: bool = False,
             frames_out: Path | None = None,
-            audio_game: str | None = None) -> dict[str, Any]:
+            audio_game: str | None = None,
+            task_class: str = "game") -> dict[str, Any]:
     """`audio_game` adds the five tier-1 audio criteria for that game.
 
     It is None by default and must stay that way for any submission built before audio
     entered the task set: scoring those against audio criteria would measure the task
     change rather than the work (RUBRIC.md).
+
+    `task_class` selects the bounds that differ by class - today `render.nonempty`'s
+    ink window alone, and `TIER1_BOUND_POPULATION` is the census that says so for all
+    14 criteria. The caller hands it over the way it already hands over `film_ticks`
+    and `audio_game`, and for the same reason: the class is the runner's fact, and a
+    tier that re-derives it from a task id is a second place for the two to disagree.
+    `eval/tools/scene_runner_control.py` pins that the runner passes all three.
+
+    The default is `"game"` because that is the STRICTER window, so a caller that
+    forgets it fails a correct scene rather than passing a broken one. An unknown class
+    raises (`ink_window`).
     """
+    ink_window(task_class)   # refuse an unknown class BEFORE spending a toolchain on it
     cmds: list[Cmd] = []
 
     c_check = run(repo, "check", ["just", "check"], timeout_s=1800, env=env)
@@ -449,9 +641,7 @@ def collect(repo: Path, seed: int = 7, film_ticks: int = 900,
         f"`just film` exit {c_film.code}, produced {len(frames)} PNGs; "
         f"decode errors: {frame_info.get('errors') or 'none'}")
     add("render.nonempty",
-        INK_MIN <= float(frame_info.get("mean_ink", 0.0)) <= INK_MAX,
-        f"mean ink coverage {frame_info.get('mean_ink')} over {len(frames)} frames "
-        f"(window {INK_MIN}-{INK_MAX}); per frame {frame_info.get('per_frame_ink')}")
+        *nonempty_verdict(frame_info, task_class, len(frames)))
     add("render.animates", float(frame_info.get("mean_frame_delta", 0.0)) > DELTA_MIN,
         f"mean fraction of pixels changing between consecutive frames "
         f"{frame_info.get('mean_frame_delta')} (floor {DELTA_MIN})")

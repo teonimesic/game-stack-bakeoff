@@ -179,7 +179,7 @@ record does, and it was not asked to build pong.
 | how it ended | **killed from outside at 3599s** by the session's background-task manager, mid-agent-turn — the transcript's last entry is `[Request interrupted by user]`. `terminal_reason` is **`harness_kill_external`**, a value outside the harness's own enumeration, because nothing in the trial ended it |
 | resource | **not reconstructable.** `num_turns` and the token totals come off the CLI's terminal result event, which never arrived, so all of them and `cost_usd` are `null`. The transcript alone gives 198 assistant messages and 137 tool-use blocks, recorded in a field of their own as a scale rather than as the harness's counters |
 | what was salvaged | the work tree survived the kill, so the submission was captured by hand — `diff.patch`, `diff.stat`, `status.txt`, `tree.txt`, `submission.tar.gz`, 24 files changed, all four capture exits 0 |
-| tier 1 | **GATE FAIL, 4 of 9**: `verify.green`, `lint.clean`, `tests.green`, `render.nonempty` |
+| tier 1 | **GATE FAIL, 4 of 9** as graded on the day: `verify.green`, `lint.clean`, `tests.green`, `render.nonempty`. Re-graded after the `tasks/163` repair it is **GATE FAIL, 3 of 9** — `render.nonempty` moves FAIL to PASS and the other 3 are the interruption. The verdict does not move |
 | tier 2 | `scene_probe`, **5 of 6 scored = 0.833** as graded on the day; **6 of 7 = 0.857** re-graded after the `tasks/162` repair. The stored `playbot.json` holds the first, this table holds both, and neither is a completed trial |
 | evaluate | 58s for the whole grading, tier 1 plus the probe's 3 traces and 3 films |
 
@@ -254,12 +254,34 @@ down**: the road wraps on **every one of the 11 captured pairs**, so the criteri
 away-from-the-wrap baseline to compare a crossing against, and the layers that do have one — sky
 and clouds — never wrap at all. 12 frames over 660 ticks cannot see this scene's seam.
 
-### `render.nonempty` is a game criterion applied to a scene
+### `render.nonempty` was a game criterion applied to a scene — SINCE REPAIRED
 
-Tier 1 failed it at **0.966 against a window of 0.001–0.85**. That window is calibrated on games,
-which draw a subject against a background; a scene that fills the frame with sky, road and
-scenery exceeds it by drawing what it was asked to draw. It is the same shape as the audio
-criteria, which this change already stops asking of a scene. `tasks/163` carries it.
+Tier 1 failed it at **0.966 against a window of 0.001–0.85**. That window's ceiling was
+calibrated on games, which draw a subject against a background; a scene that fills the frame
+with sky, road and scenery exceeds it by drawing what it was asked to draw. Same shape as the
+audio criteria, which `tasks/156` had already stopped asking of a scene.
+
+`tasks/163` made the window per task class — a scene gets the floor and no ceiling — and re-graded
+this trial offline from its stored frames:
+
+    python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs
+
+| | as graded | re-graded |
+|---|---|---|
+| `render.nonempty` | FAIL (0.966 against 0.001–0.85) | **PASS** (0.966 against the scene window 0.001–1.00) |
+| gate | FAIL, 4 of 9 | **FAIL, 3 of 9** |
+
+**The gate verdict does not move, and that is the result rather than a disappointment.** The
+other three failures — `verify.green`, `lint.clean`, `tests.green` — are the interruption and
+not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
+and the trial is not `completed` either way.
+
+**The same producer reports what the ceiling has ever done**, over 85 gradings / 69 submissions:
+4 `render.nonempty` failures, of which the 2 floor firings are `wg-arena3d`'s rust cells at
+**0 frames** — a fact `render.frames` reports in the same record — and the 2 ceiling firings are
+this trial and `wg-g4c` `g4_platformer__godot__t1` at 0.881, a night platformer over a gradient
+sky that scored **1.000** on tier 2. The game ceiling is unchanged here because moving it is a
+re-scoring event on the game population; `judge/RUBRIC.md` holds the derivation.
 
 **`verify.green`, `lint.clean` and `tests.green` are the interruption, not the submission.** 118
 of 119 of its own tests pass and the lint finding is `'previous' is never reassigned. Use
