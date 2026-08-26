@@ -327,7 +327,8 @@ def failed_rounds(comments: Iterable[dict], head: str | None = None) -> list[dic
     into its own body, so the artifact it leaves satisfies the comment arm exactly and the
     comment arm must not read it as a landing.
 
-    **It is dated by the LAST sha in its own alert block, not by the comment it sits in.**
+    **Each block is dated by the LAST sha in it, and a comment counts if any of its blocks
+    is about `head`.**
     Both cheaper answers are wrong in one direction each: reading every failure on the pull
     request lets a previous round's callout suppress a landing that really happened, and
     scoping to the comment that names the head misses a failure posted in a comment of its
@@ -339,15 +340,19 @@ def failed_rounds(comments: Iterable[dict], head: str | None = None) -> list[dic
     **A block that names no sha cannot be dated, so it counts.** That is fail-closed where
     the evidence is missing (rule 7), and its cost is a wait that expires loudly.
     """
+    # `head=None` asks the question without a head, which is what the extraction rows below
+    # use: is this comment a failed round at all?
     out: list[dict] = []
     for c in _by_bot(comments):
         body = c.get("body") or ""
         blocks = FAILURE_ALERT_BLOCK.findall(body)
         if not blocks and FAILURE_MARKER not in body:
             continue
-        if head is not None:
-            shas = [sha for b in blocks for sha in SHA_ANYWHERE.findall(b)]
-            if shas and shas[-1] != head:
+        if head is not None and blocks:
+            dated = [(SHA_ANYWHERE.findall(b) or [None])[-1] for b in blocks]
+            # Each block is its own round. Flattening them and reading one sha lets a block
+            # that names this head be overruled by a later block that names another.
+            if not any(d is None or d == head for d in dated):
                 continue
         out.append(c)
     return out
@@ -559,6 +564,13 @@ REAL_FAILED = (
     f"{REAL_HEAD}.\n"
     "\n"
     "<!-- end of auto-generated comment: failure by coderabbit.ai -->\n")
+def _failed_at(new_head: str, old_head: str = HEAD_B) -> str:
+    """A failure alert block for a named head, in the real one's shape."""
+    return ("> [!CAUTION]\n> ## Review failed\n> \n"
+            f"> The head commit changed during the review from {old_head} to "
+            f"{new_head}.\n\n")
+
+
 # The two halves on their own, so each arm of the disjunction has a row only it covers.
 FAILED = ("> [!WARNING]\n> ## Review failed\n>\n> The head commit changed during the "
           "review.\n")
@@ -764,6 +776,18 @@ def selftest() -> int:
           len(failed_rounds([_comment(body=FAILED)])), 1)
     check("C7 a pause is neither", failed_rounds([_comment(body=PAUSED)]), [])
     check("C8 a clean summary is neither", failed_rounds([_comment(body=SUMMARY_DONE)]), [])
+    # Variant R: 2 failure blocks in one comment, the FIRST about this head. Flattening
+    # the blocks and reading one sha lets the second overrule the first.
+    check("B24 variant — a head-matching block followed by another head's",
+          attempt(lambda: classify(HEAD_A, [],
+                                   [_comment(body=_failed_at(HEAD_A) + REAL_FAILED)]
+                                   )["verdict"]),
+          "REVIEW_FAILED")
+    check("B25 two blocks, neither about this head",
+          attempt(lambda: classify(HEAD_A, [],
+                                   [_comment(body=_failed_at("c" * 40) + REAL_FAILED),
+                                    _comment(body=SUMMARY_DONE)])["verdict"]),
+          "LANDED_COMMENT")
     check("C11 the real block is dated to the head it died on",
           len(failed_rounds([_comment(body=REAL_FAILED)], REAL_HEAD)), 1)
     check("C12 and not to any other head",

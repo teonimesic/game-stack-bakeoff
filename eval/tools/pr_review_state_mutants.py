@@ -35,6 +35,7 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `failed_heading_arm` | the heading half | a dropped or renamed HTML marker does the same |
 | `failed_rounds_bot_filter` | the login filter on the failure read | the agent trips it by quoting the notice while explaining a decline — §6 tells it to reply |
 | `failed_head_unscoped` | dating the failure by the head its own block names | a **previous** round's callout suppresses a landing that really happened, and the wait expires on a review already on the page |
+| `failed_blocks_flattened` | evaluating each failure block on its own | 2 blocks in one comment, and the one naming your head is overruled by the one that does not |
 | `failed_dated_by_first_sha` | reading the LAST sha of *"from &lt;old&gt; to &lt;new&gt;"* | the block is dated to the head the round started on, so the failure it reports is invisible at the head it died on |
 | `failed_undatable_dropped` | counting a failure block that names no sha | a failure with any other reason is silently ignored — fail-open where the evidence is simply missing |
 | `failed_dated_by_whole_comment` | reading the sha out of the failure BLOCK | CodeRabbit writes the failure into the summary comment that names the current head elsewhere, so the whole-comment read dates every stale failure to the head you are asking about |
@@ -93,6 +94,7 @@ restating a number here. Each is paired with the mutant that proves its row can 
 | `B20` | a previous round's failure beside a clean summary of your head | `failed_head_unscoped` |
 | `B21` | both of those in ONE comment, which is the shape CodeRabbit writes | `failed_dated_by_whole_comment` |
 | `B23` | a failure block naming no sha — undatable, so it counts | `failed_undatable_dropped` |
+| `B24` | a head-matching block followed by another head's, in one comment | `failed_blocks_flattened` |
 
 **Needs no corpus and no network.** `pr_review_state.py --selftest` injects its own `gh`
 runner and its own clock.
@@ -172,15 +174,24 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "failed_head_unscoped": (
         "    failed = failed_rounds(comments, head)",
         "    failed = failed_rounds(comments)"),
+    "failed_blocks_flattened": (
+        "            dated = [(SHA_ANYWHERE.findall(b) or [None])[-1] for b in blocks]\n"
+        "            # Each block is its own round. Flattening them and reading one sha lets"
+        " a block\n"
+        "            # that names this head be overruled by a later block that names"
+        " another.\n"
+        "            if not any(d is None or d == head for d in dated):",
+        "            flat = [sha for b in blocks for sha in SHA_ANYWHERE.findall(b)]\n"
+        "            if flat and flat[-1] != head:"),
     "failed_dated_by_first_sha": (
-        "            if shas and shas[-1] != head:",
-        "            if shas and shas[0] != head:"),
+        "            dated = [(SHA_ANYWHERE.findall(b) or [None])[-1] for b in blocks]",
+        "            dated = [(SHA_ANYWHERE.findall(b) or [None])[0] for b in blocks]"),
     "failed_undatable_dropped": (
-        "            if shas and shas[-1] != head:",
-        "            if not shas or shas[-1] != head:"),
+        "            if not any(d is None or d == head for d in dated):",
+        "            if not any(d == head for d in dated):"),
     "failed_dated_by_whole_comment": (
-        "            shas = [sha for b in blocks for sha in SHA_ANYWHERE.findall(b)]",
-        "            shas = SHA_ANYWHERE.findall(body)"),
+        "            dated = [(SHA_ANYWHERE.findall(b) or [None])[-1] for b in blocks]",
+        "            dated = [(SHA_ANYWHERE.findall(body) or [None])[-1] for b in blocks]"),
     "failed_is_any_notice": (
         "        if not blocks and FAILURE_MARKER not in body:",
         "        if not ALERT_HEADING.findall(body) and FAILURE_MARKER not in body:"),
