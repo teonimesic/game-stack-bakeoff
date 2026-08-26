@@ -1981,8 +1981,8 @@ where both arms correctly read false. It returns **3** distinct verdicts over 17
 6 `LANDED_REVIEW`, 6 `LANDED_COMMENT`, 5 `NOTICE` — so it is discriminating rather than
 reporting the instrument.
 
-`python3 eval/tools/pr_review_state.py --selftest` is **91** offline checks including **16**
-variants; `python3 eval/tools/pr_review_state_mutants.py` removes **45** mechanisms one at a time
+`python3 eval/tools/pr_review_state.py --selftest` is **96** offline checks including **19**
+variants; `python3 eval/tools/pr_review_state_mutants.py` removes **49** mechanisms one at a time
 and every one goes red. Both counts are `len()` of what ran, printed by the tools — run them
 rather than quoting this line.
 
@@ -2019,7 +2019,8 @@ instance of it.
 | Ranked **below** `LANDED_REVIEW` and `IN_FLIGHT` | Ranking it first. A review object at the head means the head was reviewed whatever callout is beside it, and CodeRabbit edits comments in place; a marker at the head means the replacement round is already running, so the wait should wait rather than ask again |
 | `--ignore-notice` decides **stopping** and nothing else — it can never produce a landing | Removing the flag, or adding a second one for this heading. Removing it trades a false landing for a poll that never returns; a second flag repeats the defect at a new name |
 | A failed round is detected by its HTML marker **or** its alert heading — 2 signals, for the same reason a landing is read 2 ways: either alone can be wrong later | Either alone. A reworded heading and a renamed marker are both plausible, and each arm covers the other's failure |
-| The failure is read across the pull request's bot comments, not scoped to the comment carrying the head | Scoping it. A failure that lands in its own comment then reads as a clean landing, which is the defect restored. The cost of the wider read is a stale callout expiring the wait as `UNRESOLVED` — loud, and rule 7's direction |
+| **A failure is dated by the last sha in its OWN alert block** — *"the head commit changed during the review from `<old>` to `<new>`"* — and suppresses the comment arm only at that head | Reading every failure on the pull request: a **previous** round's callout then suppresses a landing that really happened. Or scoping to the comment carrying the head: a failure posted in a comment of its own then reads as a clean landing, which is the defect itself. The block says which head it died on, so neither trade-off has to be made. It must come from the BLOCK — CodeRabbit writes the failure into the same summary comment that names the current head elsewhere |
+| **A block naming no sha counts**, because it cannot be dated | Dropping it. That is fail-open exactly where the evidence is missing; the cost of keeping it is a wait that expires loudly (rule 7) |
 | **The ambiguous case stays a landing**: no notice, a summary naming the head, no review object is `LANDED_COMMENT` | Requiring a review object. A clean round creates none, and the table above counts 3 of 6 reviewed heads reaching only that arm — the requirement would spend the full bound on the common good outcome |
 
 **So the comment arm keeps its authority and is narrowed by exclusion, one observed mechanism at
@@ -2039,7 +2040,7 @@ reconstruction did and did not show.
 
 | Would re-open this | The observation |
 |---|---|
-| The wider read of the failure callout | A branch where a stale `Review failed` outlives a round that then landed clean with no review object, so the wait expires on a review that had arrived |
+| Dating a failure by its own block | A failure whose block names no sha, or names one that is not the head it died on, so a real failure goes unseen at the head it belongs to |
 | `--ignore-notice` covering the failure for stopping | A round that dies twice in a row, where the second failure is invisible because the flag carried the wait past it. The remedy is `@coderabbitai review` **once**, and the poll after it is the flagged one |
 
 ---

@@ -80,6 +80,10 @@ landing is read 2 ways: either alone can be wrong later, and each arm covers the
 strings come from a real `coderabbitai[bot]` failure block, which also shows *why* the comment
 arm was satisfied: the block **writes the new head sha into its own body**.
 
+That sha is also what dates it. A failure suppresses the comment arm at the head its own block
+names and at no other, so a previous round's callout cannot hold up a landing that really
+happened. A block naming no sha cannot be dated and counts.
+
 WHY THE WAIT IS NOT A CLOCK
 ---------------------------
 A fixed 15-minute bound was measured wrong. Task 130's agent polled PR #15 29 times, said
@@ -149,13 +153,21 @@ ALERT_HEADING = re.compile(r"> \[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n> ##
 # the poll line prints. Both are taken from the real artifact on meshery/meshery#21612 — this
 # repository's own instance was rewritten in place and is no longer extractable from PR #39.
 FAILURE_MARKER = "auto-generated comment: failure by coderabbit.ai"
-# Applied with `.match`, so it is ANCHORED at the start of the heading: a heading that merely
-# mentions a failed review is not one. Left open at the end, because the reason CodeRabbit
-# gives ("The head commit changed during the review from <sha> to <sha>.") is in the body
-# today and could be appended to the heading tomorrow.
-FAILED_HEADING = re.compile(r"Review failed", re.IGNORECASE)
+
+# The quoted alert block a failed round leaves, captured so the shas INSIDE it can be read
+# apart from any other sha in the same comment — CodeRabbit writes the failure into the very
+# summary comment that names the current head elsewhere.
+#
+# The heading is ANCHORED: `> ## Review failed`, so a heading that merely mentions a failed
+# review is not one. It is left open at the end, because the reason CodeRabbit gives ("The
+# head commit changed during the review from <sha> to <sha>.") is in the block body today and
+# could be appended to the heading tomorrow.
+FAILURE_ALERT_BLOCK = re.compile(
+    r"> \[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n> ## Review failed[^\n]*\n((?:>[^\n]*\n?)*)",
+    re.IGNORECASE)
 
 FULL_SHA = re.compile(r"\A[0-9a-f]{40}\Z")
+SHA_ANYWHERE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")
 
 QUIET_TIMEOUT = 20 * 60
 FLIGHT_TIMEOUT = 60 * 60
@@ -305,21 +317,39 @@ def alert_headings(comments: Iterable[dict]) -> list[str]:
     return out
 
 
-def failed_rounds(comments: Iterable[dict]) -> list[dict]:
-    """The bot comments saying a round STARTED AND DIED.
+def failed_rounds(comments: Iterable[dict], head: str | None = None) -> list[dict]:
+    """The bot comments saying a round STARTED AND DIED at `head`.
 
     Splitting the notices by what they imply is the whole repair. A pause or a spent
     allowance says a round has not started, and it sits beside whatever the previous round
     left — so it must not touch the comment arm, or every paused branch stops landing. A
-    failed round writes the NEW head sha into its own body, so the artifact it leaves
-    satisfies the comment arm exactly and the comment arm must not read it as a landing.
+    failed round writes *"The head commit changed during the review from <old> to <new>"*
+    into its own body, so the artifact it leaves satisfies the comment arm exactly and the
+    comment arm must not read it as a landing.
+
+    **It is dated by the LAST sha in its own alert block, not by the comment it sits in.**
+    Both cheaper answers are wrong in one direction each: reading every failure on the pull
+    request lets a previous round's callout suppress a landing that really happened, and
+    scoping to the comment that names the head misses a failure posted in a comment of its
+    own — which is `LANDED_COMMENT` at exit 0 on an unreviewed head, the defect itself.
+    Reading the sha out of the block answers both, because the block says which head it died
+    on. It has to come from the BLOCK: CodeRabbit writes the failure into the same summary
+    comment that names the current head elsewhere.
+
+    **A block that names no sha cannot be dated, so it counts.** That is fail-closed where
+    the evidence is missing (rule 7), and its cost is a wait that expires loudly.
     """
     out: list[dict] = []
     for c in _by_bot(comments):
         body = c.get("body") or ""
-        if FAILURE_MARKER in body or any(FAILED_HEADING.match(h.strip())
-                                         for h in ALERT_HEADING.findall(body)):
-            out.append(c)
+        blocks = FAILURE_ALERT_BLOCK.findall(body)
+        if not blocks and FAILURE_MARKER not in body:
+            continue
+        if head is not None:
+            shas = [sha for b in blocks for sha in SHA_ANYWHERE.findall(b)]
+            if shas and shas[-1] != head:
+                continue
+        out.append(c)
     return out
 
 
@@ -341,7 +371,7 @@ def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> di
     in_flight = [c for c in naming if INPROGRESS_MARKER in (c.get("body") or "")]
     finished = [c for c in naming if INPROGRESS_MARKER not in (c.get("body") or "")]
     headings = alert_headings(comments)
-    failed = failed_rounds(comments)
+    failed = failed_rounds(comments, head)
 
     if by_review:
         verdict = "LANDED_REVIEW"
@@ -701,12 +731,32 @@ def selftest() -> int:
     check("B19 and the comment arm WAS satisfied — this is why it read as clean",
           attempt(lambda: classify(REAL_HEAD, [], [_comment(body=REAL_FAILED)])["by_comment"]),
           1)
-    # The read is deliberately NOT scoped to the comment naming the head: a failure callout
-    # anywhere on the pull request suppresses the comment arm. The cost is a stale callout
-    # expiring the wait loudly; the alternative fails open (`DECISIONS.md`).
-    check("B19 a failure callout anywhere suppresses the comment arm",
-          attempt(lambda: classify(HEAD_A, [], [_comment(body=REAL_FAILED)])["verdict"]),
+    # Variant O: a PREVIOUS round's failure beside a clean summary for the head you are
+    # asking about. The block says which head it died on, so it is not yours and the
+    # landing stands. Reading every failure on the pull request reddens this.
+    check("B20 variant — a previous round's failure does not suppress this landing",
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=REAL_FAILED),
+                                               _comment(body=SUMMARY_DONE)])["verdict"]),
+          "LANDED_COMMENT")
+    # Variant P: the same 2 artifacts in ONE comment, which is the shape CodeRabbit
+    # actually writes. Dating the failure by the comment's last sha rather than by its own
+    # block's reddens this.
+    check("B21 variant — failure and summary in one comment, failure is the older head",
+          attempt(lambda: classify(HEAD_A, [],
+                                   [_comment(body=REAL_FAILED + SUMMARY_DONE)])["verdict"]),
+          "LANDED_COMMENT")
+    # And the case comment-scoping would miss: a CURRENT failure posted on its own, with a
+    # clean summary of the same head beside it. Suppressed, because the block names it.
+    check("B22 a current failure in its own comment still suppresses",
+          attempt(lambda: classify(REAL_HEAD, [],
+                                   [_comment(body=REAL_FAILED),
+                                    _comment(body=f"...between base and {REAL_HEAD}.\n")]
+                                   )["verdict"]),
           "REVIEW_FAILED")
+    # Variant Q: a failure block naming no sha cannot be dated, so it counts. Fail-closed
+    # where the evidence is missing, and the direction rule 7 asks for.
+    check("B23 variant — an undatable failure still suppresses",
+          v([], [_comment(body=FAILED), _comment(body=SUMMARY_DONE)]), "REVIEW_FAILED")
 
     check("C5 the marker alone is a failed round",
           len(failed_rounds([_comment(body=FAILED_MARKER_ONLY)])), 1)
@@ -714,6 +764,10 @@ def selftest() -> int:
           len(failed_rounds([_comment(body=FAILED)])), 1)
     check("C7 a pause is neither", failed_rounds([_comment(body=PAUSED)]), [])
     check("C8 a clean summary is neither", failed_rounds([_comment(body=SUMMARY_DONE)]), [])
+    check("C11 the real block is dated to the head it died on",
+          len(failed_rounds([_comment(body=REAL_FAILED)], REAL_HEAD)), 1)
+    check("C12 and not to any other head",
+          failed_rounds([_comment(body=REAL_FAILED)], HEAD_A), [])
     # Variant M: the reason moved into the heading. It is in the body today, and the poll
     # must not go quietly fail-open if CodeRabbit appends it.
     check("C9 variant — the reason appended to the heading",
