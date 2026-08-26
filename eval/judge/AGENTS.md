@@ -80,8 +80,10 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   chosen against fixtures written by the same hand as the criterion. Treat a scene score as
   fixture-validated until a matrix has run, and say so wherever one is reported. First contact
   scored 5 of 6, left 2 of 8 criteria unscored, and produced a false negative in
-  `layers.depth_ordered`, which reads a wrapped `offset` as a scroll rate (`tasks/162`) — #46's
-  shape, and a mutant could not have found it.
+  `layers.depth_ordered`, which read a wrapped `offset` as a scroll rate — #46's shape, and a
+  mutant could not have found it. **`tasks/162` repaired it and left the next one open**:
+  `ParallaxScene._walk` is now the only way to read an `offset`, the re-grade is 6 of 7, and the
+  reliability filter it unblocked is `tasks/164`.
 - **`--census` reports over FIXTURES and says so.** It answers whether a criterion can take both
   values on material this repository wrote. `--runs-root` looks for stored scene gradings and
   prints `NOT ASKED` when there are none, never `0 separated` — the 2 are different claims

@@ -2890,6 +2890,38 @@ carrying nothing and make it worth asking whether it earns its ~7s; or a pending
 survives 3 tickets, which would mean the declaration is being used to live with a defect
 rather than to schedule its repair.
 
+## A scene layer's `offset` may accumulate or wrap, and the probe reads both — decided 2026-08-25
+
+The `s1_parallax` trace contract calls `offset` *"how far that layer has been displaced sideways
+so far"* and `span` *"the width after which the layer repeats itself"*, and it does not say
+whether the number keeps growing or stays inside `[0, span)`. **A submission may report either.**
+
+**The prompt does not change.** A layer declares its own `span`, so a wrapped series and a
+cumulative one carry the same information. Naming an encoding would be a regime boundary across
+every scene trial, and it would deduct marks for reporting `offset` the way a renderer wants it.
+
+**The probe absorbs it, in 1 place.** `ParallaxScene._walk` rebuilds each layer's offset series
+from the per-tick trace, mapping every step into `(-span/2, span/2]` before adding it;
+`layers.depth_ordered`, `layers.image_parallax` and `loop.seamless` read that series. **`_walk` is
+the only place that subtracts 2 reported offsets, and only ever consecutive ones** — a criterion
+that differences 2 arbitrary offsets is reading a modular residue. Per tick, not per captured
+frame: captures are 60 ticks apart, and a near layer can cross more than half its span in that
+time.
+
+**A layer earns a walk by carrying a finite `offset` and a positive `span` on every trace line,
+and `layers.depth_ordered` fails one that does not.** `state.shape` reads tick 0 only, so all 3
+ways of falling short are silent and all 3 read as a smaller, plausible travel: a hole between 2
+reported ticks, a layer that stops reporting and never resumes, and a row declaring no usable
+`span`.
+
+`eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds both
+directions: a variant reporting `offset` inside its own span, and 3 mutants that break a layer's
+reporting in each of those ways.
+
+**To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
+a per-tick unwrap stops being decidable and the contract would have to name an encoding after
+all.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).

@@ -45,7 +45,8 @@ grading instrument or a judge pack, each guarded by `judge/aspects.applicability
 **1 scene has been built and graded** (`RUNS.md`), and every threshold in `judge/scene_probe.py`
 was still chosen against fixtures its own author wrote. Read the honest expectation in that
 docstring before quoting a scene score, and see `judge/AGENTS.md` for what the tiers are. First
-contact found a false negative in `layers.depth_ordered` and left 2 of 8 criteria unscored.
+contact found a false negative in `layers.depth_ordered` and left 2 of 8 criteria unscored;
+`tasks/162` repaired the first and `tasks/164` carries what the repair uncovered.
 
 **`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
 suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded
