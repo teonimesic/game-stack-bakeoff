@@ -207,10 +207,13 @@ frame still fails**, and `judge/ink_window_control.py` pins that row.
 first commit and is derived in no document, no comment and no commit message — the same shape
 as the 0.31/0.69 split retired above. What it has done, from the producer:
 
-    python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
+```bash
+python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
+```
 
-Over 85 stored gradings / **69 submissions** (68 games and 1 scene), `render.nonempty` has
-fired **4** times:
+The population is **69 submissions** — 68 games and 1 scene, the most recent grading of each,
+from 85 on disk with 16 superseded and held out, which is `tier1_census`'s population and its
+walker rather than a fifth glob. Among those 69, `render.nonempty` has fired **4** times:
 
 | trial | mean ink | hit | what it was |
 |---|---|---|---|

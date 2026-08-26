@@ -394,7 +394,8 @@ DELTA_MIN = 0.0005
 #:
 #:   python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 #:
-#: 85 gradings over 69 submissions, 4 `render.nonempty` failures. The 2 floor firings
+#: 69 submissions - the most recent grading of each, from 85 on disk - and 4
+#: `render.nonempty` failures among them. The 2 floor firings
 #: are `wg-arena3d`'s rust cells, which produced **0 frames** because `just check` exited
 #: 101 - a fact `render.frames` reports in the same record. The 2 ceiling firings are
 #: both submissions that drew what they were asked to draw: `wg-g4c`
@@ -480,7 +481,7 @@ def nonempty_verdict(frame_info: dict[str, Any], task_class: str,
 #:   task_class        differs by class. The bound lives in a per-class table, and
 #:                     `TASK_CLASS_BOUND_TABLES` names it.
 #:
-#: The answer today: 9 carry no bound, 4 carry one that transfers, and exactly 1 -
+#: The answer today: 8 carry no bound, 5 carry one that transfers, and exactly 1 -
 #: `render.nonempty` - carries one that does not.
 BOUND_POPULATIONS = ("no_bound", "starter", "capture_contract", "audio_signal",
                      "task_class")

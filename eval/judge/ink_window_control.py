@@ -36,6 +36,7 @@ are different claims.
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import json
 import shutil
@@ -188,16 +189,57 @@ def test_the_window(inks: dict[str, dict[str, Any]]) -> None:
         expect("ink_window refuses a class it cannot place", False, "it returned")
     except ValueError as e:
         expect("ink_window refuses a class it cannot place", True, str(e)[:90])
-    try:
-        static.collect(Path("/nonexistent"), task_class="film")
-        expect("collect refuses before spending a toolchain", False, "it returned")
-    except ValueError:
-        expect("collect refuses before spending a toolchain", True)
+    # COUNT THE COMMANDS, do not merely catch the exception. `except ValueError` accepts
+    # one raised from anywhere in `collect`, including after `just check` has run - so
+    # the row would report "refused before spending" about a refusal that spent.
+    ok, spent = refuses_before_spending("film")
+    expect("collect refuses before spending a toolchain", ok,
+           f"{len(spent)} command(s) ran first: {spent}")
 
 
 # --------------------------------------------------------------------------- #
 # collect() end to end, with the toolchain stubbed
 # --------------------------------------------------------------------------- #
+
+@contextlib.contextmanager
+def stubbed_toolchain(mean_ink: float, spent: list[str]):
+    """Everything `collect` would spawn, replaced - and every command it ran, recorded.
+
+    `spent` is what separates *refused before spending a toolchain* from *refused after
+    it*: an exception alone cannot tell those apart, and the stronger one is the claim
+    worth making.
+    """
+    cmd = static.Cmd(name="x", argv=["x"], code=0, seconds=0.0,
+                     out="12 passed, 12 total", err="")
+
+    def record(repo, name, argv, *a, **k):
+        spent.append(name)
+        return cmd
+
+    frame_info = {"count": 12, "errors": [], "mean_ink": mean_ink,
+                  "per_frame_ink": [mean_ink], "mean_frame_delta": 0.5}
+    with contextlib.ExitStack() as st:
+        st.enter_context(patched(static, "run", record))
+        st.enter_context(patched(static, "film",
+                                 lambda *a, **k: (cmd, [], Path(tempfile.mkdtemp()))))
+        st.enter_context(patched(static, "analyse_frames", lambda frames: frame_info))
+        st.enter_context(patched(static, "probe_throughput",
+                                 lambda *a, **k: {"ok": True}))
+        st.enter_context(patched(static, "repo_stats", lambda repo: {}))
+        yield
+
+
+def refuses_before_spending(task_class: str) -> tuple[bool, list[str]]:
+    """`(refused with nothing run, the commands it ran)` for one unplaceable class."""
+    spent: list[str] = []
+    refused = False
+    with stubbed_toolchain(0.5, spent):
+        try:
+            static.collect(Path("/nonexistent"), task_class=task_class)
+        except ValueError as e:
+            refused = task_class in str(e)
+    return refused and not spent, spent
+
 
 def drive_collect(task_class: str, mean_ink: float) -> dict[str, Any]:
     """The real `collect`, offline: every subprocess it makes is replaced.
@@ -205,18 +247,7 @@ def drive_collect(task_class: str, mean_ink: float) -> dict[str, Any]:
     Driving the decision function alone would not answer whether `collect` PASSES ITS
     ARGUMENT ON, which is the edge the change adds and the edge a mutant can remove.
     """
-    cmd = static.Cmd(name="x", argv=["x"], code=0, seconds=0.0,
-                     out="12 passed, 12 total", err="")
-    frame_info = {"count": 12, "errors": [], "mean_ink": mean_ink,
-                  "per_frame_ink": [mean_ink], "mean_frame_delta": 0.5}
-    with contextlib.ExitStack() as st:
-        st.enter_context(patched(static, "run", lambda *a, **k: cmd))
-        st.enter_context(patched(static, "film",
-                                 lambda *a, **k: (cmd, [], Path(tempfile.mkdtemp()))))
-        st.enter_context(patched(static, "analyse_frames", lambda frames: frame_info))
-        st.enter_context(patched(static, "probe_throughput",
-                                 lambda *a, **k: {"ok": True}))
-        st.enter_context(patched(static, "repo_stats", lambda repo: {}))
+    with stubbed_toolchain(mean_ink, []):
         rec = static.collect(Path("/nonexistent"), task_class=task_class)
     return next(c for c in rec["criteria"] if c["id"] == "render.nonempty")
 
@@ -242,7 +273,14 @@ def test_bound_census() -> None:
     problems = static.assert_tier1_bounds_declared()
     expect("the live registry is clean", problems == [], "; ".join(problems)[:200])
     pops = static.TIER1_BOUND_POPULATION
+    # THE TALLY IS PRINTED, because the documents state it in prose and a prose count
+    # with no producer goes stale forever. This is the producer.
+    tally = collections.Counter(pops.values())
+    print("       tally: " + ", ".join(f"{k}={tally[k]}"
+                                       for k in static.BOUND_POPULATIONS))
     expect("all 14 tier-1 criteria are declared", len(pops) == 14, str(len(pops)))
+    expect("the tally partitions every one of them", sum(tally.values()) == len(pops),
+           f"{sum(tally.values())} vs {len(pops)}")
     class_dep = sorted(c for c, p in pops.items() if p == "task_class")
     expect("exactly one criterion's bound is class-dependent, and it is this one",
            class_dep == ["render.nonempty"], str(class_dep))
@@ -271,14 +309,13 @@ def mutants(inks: dict[str, dict[str, Any]]) -> None:
     expect("mutant 'the scene floor is removed' is caught by the blank-scene row",
            caught)
 
+    # The mutant installs the fallback and the row RE-RUNS `collect`'s pre-flight - the
+    # only caller that spends anything. Asserting that the patched lambda does not raise
+    # would be true for every input and would exercise no check in this file.
     with patched(static, "ink_window", lambda k: static.INK_WINDOW["game"]):
-        try:
-            static.ink_window("film")
-            caught = True
-        except ValueError:
-            caught = False
+        ok, spent = refuses_before_spending("film")
     expect("mutant 'an unknown class falls back to the game window' is caught by the "
-           "refusal row", caught)
+           "refusal row", not ok, f"it graded an unplaceable class, running {spent}")
 
     # THE WIRING, NOT THE TABLE. This one is only reachable through `collect`: a
     # `nonempty_verdict` that ignores the class it was handed leaves every row above
@@ -368,10 +405,20 @@ def corpus(runs_root: Path) -> None:
           f"{len(rows)} carry render.nonempty, {len(skipped)} skipped")
     for name, why in skipped:
         print(f"    skipped {name}: {why}")
+    # A record with no `frames.mean_ink` is PARTITIONED OUT and counted, never sorted
+    # among the floats: `sorted()` over a mix of None and numbers raises, so the arm that
+    # produces every published ink figure would die rather than report.
     for klass in sorted({r[0] for r in rows}):
-        inks = sorted(r[2].get("frames", {}).get("mean_ink") for r in rows
-                      if r[0] == klass)
-        print(f"  {klass}: n={len(inks)}  mean_ink min={inks[0]} max={inks[-1]}")
+        have = [r for r in rows if r[0] == klass]
+        inks = sorted(v for r in have
+                      if (v := r[2].get("frames", {}).get("mean_ink")) is not None)
+        missing = len(have) - len(inks)
+        if not inks:
+            print(f"  {klass}: 0 of {len(have)} record(s) carry frames.mean_ink - "
+                  f"NO RANGE, which is not a range of 0")
+            continue
+        print(f"  {klass}: n={len(inks)}  mean_ink min={inks[0]} max={inks[-1]}"
+              + (f"  ({missing} carry no mean_ink)" if missing else ""))
 
     print("\n  every render.nonempty FAILURE on record, and what it hit:")
     fired = [r for r in rows if not r[3]["passed"]]
@@ -437,6 +484,15 @@ def main() -> int:
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
+    # A CONTROL THAT ASKED NOTHING IS NOT A CONTROL THAT PASSED. `0/0 expectations held`
+    # reads exactly like a clean run, which is the shape this file exists to refuse.
+    # The floor is the rows this module's own tables STATE, so it moves when they do.
+    floor = len(FIXTURES) + 1 + len(WINDOW_ROWS)
+    if CHECKS < floor:
+        print(f"\nONLY {CHECKS} expectation(s) ran, against the {floor} the fixture and "
+              f"window tables state. A check that was not asked is not a check that "
+              f"held.")
+        return 1
     print(f"\n{CHECKS - len(FAILS)}/{CHECKS} expectations held")
     if FAILS:
         print("FAILED: " + ", ".join(FAILS))

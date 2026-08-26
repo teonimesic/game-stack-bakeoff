@@ -276,7 +276,8 @@ other three failures — `verify.green`, `lint.clean`, `tests.green` — are the
 not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
 and the trial is not `completed` either way.
 
-**The same producer reports what the ceiling has ever done**, over 85 gradings / 69 submissions:
+**The same producer reports what the ceiling has ever done**, over the 69 stored submissions —
+the most recent grading of each, from 85 on disk with 16 superseded and held out. Among those 69,
 4 `render.nonempty` failures, of which the 2 floor firings are `wg-arena3d`'s rust cells at
 **0 frames** — a fact `render.frames` reports in the same record — and the 2 ceiling firings are
 this trial and `wg-g4c` `g4_platformer__godot__t1` at 0.881, a night platformer over a gradient
