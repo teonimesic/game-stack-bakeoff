@@ -52,3 +52,20 @@ false LANDED for a poll that never returns.
 Do not verify the fix with this poll. That is #37's shape and this ticket's own subject — build the
 expectation from the API by a different route, and construct a failed-review state deliberately
 (merge `main` into a branch mid-review, which is how this one was found).
+
+## note 2026-08-26
+
+## note 2026-08-26 — the agent was KILLED by an account limit, not by the work
+
+Terminated mid-task: *"You've hit your weekly limit · resets 6pm (America/Sao_Paulo)"*. Its last
+line was **"Both are real. Fixing."** — so it had confirmed two findings and was part-way through
+repairing them. What those two are is not recorded anywhere durable, which is the cost of the
+interruption.
+
+State left behind: **PR #41 is open**, `gates` and `controls` both **SUCCESS**. Green here means
+the tree is consistent, **not** that the ticket is done — the fix was in progress.
+
+**Whoever resumes: re-establish the broken state before trusting anything on the branch.** The
+ticket's own `done_when` requires constructing the `Review failed — the head commit changed` state
+deliberately, and a half-applied repair is exactly the tree where a control run after the fact
+tests the fix rather than the claim (#60).

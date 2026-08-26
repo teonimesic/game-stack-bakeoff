@@ -41,3 +41,25 @@ criteria that are already not asked of scenes** — someone decided that correct
 question of every tier-1 criterion: is its bound a property of the artifact, or of games? A census
 answering that for all of them is worth more than one repaired window, and is a complete answer
 even if it finds this is the only one.
+
+## note 2026-08-26
+
+## note 2026-08-26 — the agent was KILLED by an account limit, not by the work
+
+Terminated mid-task: *"You've hit your weekly limit · resets 6pm (America/Sao_Paulo)"*. Its last
+line was **"Now verify the three new guards in both directions"**, so the guards exist and are
+**unverified**. Nothing about the work had failed.
+
+State left behind, read from the artifacts:
+
+- **PR #42 is open**, branch `task-163-ink-window-per-task-class`.
+- `controls` **SUCCESS**, `gates` **FAILURE** on one named step:
+  `tokenvalue --selftest (no producer prints a money sigil)`.
+
+That failure is diagnosable without re-running anything: a `$` next to a digit has entered a file
+in `PRODUCERS`. It is the same gate that reddened `main` at the start of 2026-08-24 (#162's
+origin), and the repair is the unit rather than the number — `tokval`, not `$` (`#159`).
+
+**Do not treat the three guards as verified because CI later goes green.** Green would only mean
+the sigil is gone. The guards still need both directions, and the ticket's own instruction stands:
+do not widen the window until the stored scene passes.
