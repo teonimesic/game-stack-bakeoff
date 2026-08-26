@@ -8,3 +8,35 @@ done_when: the tier-1 ink window is decided per task class rather than once - a 
 ---
 
 static.collect scores render.nonempty on mean ink coverage inside a 0.001-0.85 window calibrated on games, which draw a subject against a background. A scene fills the frame by design. The first scene ever graded failed it at 0.966 - sky, road and scenery covering the frame - so the criterion deducted for compliance, the same shape as the stale-cache defect and as the audio criteria that task 156 already stopped asking of a scene. The floor still has work to do (a blank frame must fail); the CEILING is what does not transfer.
+
+## note 2026-08-26
+
+## note 2026-08-26 (orchestrator) — tier 1 is a GATE, which is what makes this urgent
+
+`render.nonempty` is tier 1, and tier 1 is not a weighted term — it is a **gate**. So a false
+negative here does not cost a fraction of a score; it can stop a correct submission being scored at
+all. That is a different severity from the tier-2 scene defects (`tasks/162`, `tasks/164`) and is
+why this sits above them despite the same p2.
+
+**The scene it failed drew what it was asked to draw**, at 0.966 mean ink against a window
+calibrated on games. A gate tuned on one task class refusing a correct member of another is the
+shape #123 already found once, when tier 1's 7 failures in 68 trials turned out to be 5 lint
+findings on a game that played perfectly.
+
+## Calibrate on the population, and say which population
+
+The window exists to catch a submission that renders nothing. **A scene that fills the frame is not
+that**, and the fix is not to widen the window until this one passes — that is the tolerance error
+`tasks/162` was told to avoid, one criterion over.
+
+State which population each bound was calibrated on, and where a scene bound differs from a game
+bound, say so **in the criterion** rather than in a comment. `aspects.applicability()` is the
+existing precedent for a check that knows the task class it is being asked about.
+
+## What NOT to do
+
+Do not assume the only affected criterion is this one. The scene run exercised **5 tier-1 audio
+criteria that are already not asked of scenes** — someone decided that correctly. Ask the same
+question of every tier-1 criterion: is its bound a property of the artifact, or of games? A census
+answering that for all of them is worth more than one repaired window, and is a complete answer
+even if it finds this is the only one.
