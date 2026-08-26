@@ -89,11 +89,11 @@ What the census found tier 1 actually doing, across every trial it has ever scor
 
 - **2 trials** failed a criterion tier 2 depends on — both the `syspolicyd` build failure
   of #49 — and both scored 0.00 on tier 2, which is the same fact told twice.
-- **6 trials** failed only other criteria: one Godot lint finding, one Unity lint finding,
-  3 of a TypeScript submission's own unit tests, 1 frame whose ink coverage was
-  0.881 against a window ending at 0.85, and the first scene, which failed 3 criteria
-  to an interrupted build and `render.nonempty` to a ceiling that was a game's. The 5
-  games among them scored **1.000** on tier 2.
+- **6 trials** failed only other criteria: 1 Godot lint finding; 1 Unity lint finding; 3 of a
+  TypeScript submission's own unit tests; 1 frame whose ink coverage was 0.881 against a
+  window ending at 0.85; and the first scene, which failed 4 criteria — 3 because its build
+  was interrupted, and `render.nonempty` because it was measured against a game's ceiling. The
+  5 games among the 6 scored **1.000** on tier 2.
 - Every one of the 14 criteria has failed at least once, so none is dead weight. What
   `render.nonempty` in particular has ever done is below, and it is not what it looks like
   from this count.

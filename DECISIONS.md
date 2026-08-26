@@ -203,9 +203,9 @@ paragraph somebody re-derives. **8 carry no bound, 5 carry one that transfers, 1
 
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
 repository's first commit, derived in no document, no comment and no commit message. The producer
-is `python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs`. Its population is
-`tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on disk with 16
-superseded and held out. Among those 69 the criterion has fired **4** times:
+is `python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`. Its
+population is `tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on
+disk with 16 superseded and held out. Among those 69 the criterion has fired **4** times:
 
 | | mean ink | what it was |
 |---|---|---|
@@ -228,10 +228,10 @@ than off the submission that produced the firing: 0.966 passes, and so would 0.8
 *game* gate verdict and the figure three live documents quote, which is a re-scoring event on the
 game population and has its own ticket.
 
-**What re-opens it.** `ink_window_control.py --runs-root` printing a ceiling firing that is a real
-defect — a rendered frame with no flat region that the play-bot or the scene probe also condemns.
-Today it prints 2 firings and neither is one. `judge/RUBRIC.md` holds the table; `eval/RUNS.md`
-holds the re-grade of the one affected trial.
+**What re-opens it.** `eval/judge/ink_window_control.py --runs-root` printing a ceiling firing
+that is a real defect — a rendered frame with no flat region that the play-bot or the scene
+probe also condemns. Today it prints 2 firings and neither is one. `eval/judge/RUBRIC.md`
+holds the table; `eval/RUNS.md` holds the re-grade of the one affected trial.
 
 ### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23
 
