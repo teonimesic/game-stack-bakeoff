@@ -14,7 +14,7 @@ from typing import Any
 
 from checks import determinism_criteria, idle_tape
 from probe import (Bot, Criterion, ProbeError, ProbeSession, Tick,
-                   unusable_criteria)
+                   end_condition_holds, unusable_criteria)
 
 
 def _ball(t: Tick) -> dict[str, Any]:
@@ -63,7 +63,9 @@ class PongBot(Bot):
     game = "g1_pong"
     #: The criterion that checks THIS GAME'S END CONDITION, whatever it is called.
     #: Named explicitly because the concept has two spellings across the suite:
-    #: `gameover.triggers` in three games and `match.ends` in pong, where pong is first-to-11, so its end condition is a MATCH win rather than a loss.
+    #: `gameover.triggers` in three games and `match.ends` in pong, which is
+    #: first-to-11, so its end condition is a WIN rather than a loss. This game
+    #: ends when one side reaches eleven points.
     #: A cross-game audit asking "does every game verify its own end condition?"
     #: would grep for `gameover` and report a false gap for pong - a mechanical sweep
     #: reporting something untrue, which this project has lost time to before (#38).
@@ -475,29 +477,21 @@ class PongBot(Bot):
                              f"nobody reached 11 within the budget; final score "
                              f"{_score(s.last, 'left')}-{_score(s.last, 'right')}")
         peak_l, peak_r = _score(s.last, "left"), _score(s.last, "right")
-        # AFTER THE WIN, PRESS NOTHING.
-        #
-        # The task says the match "stops accepting play until it is reset" - which
-        # contemplates a reset existing. An agent is free to bind it to a control, and one
-        # did: a Rust submission holds a game-over card for `GAME_OVER_LOCKOUT_TICKS = 96`
-        # and then lets a control start a new match. Continuing to hold `right_up` and the
-        # tracking inputs for 600 ticks pressed that control, restarted the match, and the
-        # criterion then failed the submission for a reset the spec itself describes -
-        # observed as "reached 11-0 ... the score is 2-0 and game_over is False".
-        #
-        # What must be tested is that PLAY stops, not that reset is impossible. Idling
-        # tests exactly that and is strictly stronger against the failure this criterion
-        # exists to catch: a game that keeps playing changes the score with no input at
-        # all.
-        s.idle(600)
-        end_l, end_r = _score(s.last, "left"), _score(s.last, "right")
-        over = s.last.state.get("game_over") is True
-        stayed = ((end_l, end_r) == (peak_l, peak_r) and max(end_l, end_r) == 11
-                  and over)
+        # IDLE FIRST, THEN PRESS AND READ THROUGH THE RESET -
+        # `probe.end_condition_holds` holds the reason, and holds it once for all four
+        # bots. Pong is where the idle half was first paid for, by a Rust submission
+        # that clears its game-over card on any control (`tasks/157`); the pressed half
+        # is what keeps a match that ends and keeps playing from passing on the strength
+        # of nobody touching it.
+        end = end_condition_holds(
+            s, idle_ticks=600, press_ticks=600,
+            inputs={"left_up": True, "right_up": True},
+            sample=lambda t: (_score(t, "left"), _score(t, "right")))
+        end_l, end_r = end.after_idle
+        stayed = end.passed and max(end_l, end_r) == 11
         return Criterion("match.ends", self._q("match.ends"), stayed,
-                         f"reached {peak_l}-{peak_r} at tick {capped_at}; after 600 "
-                         f"further ticks with NO input the score is {end_l}-{end_r} "
-                         f"and game_over is {over}")
+                         f"reached {peak_l}-{peak_r} at tick {capped_at}; "
+                         f"{end.detail('score')}")
 
 
 BOT = PongBot()

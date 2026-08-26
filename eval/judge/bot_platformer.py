@@ -30,7 +30,7 @@ from typing import Any
 
 from checks import determinism_criteria, idle_tape
 from probe import (Bot, Criterion, ProbeError, ProbeSession, Tick,
-                   unusable_criteria)
+                   end_condition_holds, unusable_criteria)
 
 
 def _player(t: Tick) -> dict[str, Any]:
@@ -95,7 +95,9 @@ class PlatformerBot(Bot):
 
     #: The criterion that checks THIS GAME'S END CONDITION, whatever it is called.
     #: Named explicitly because the concept has two spellings across the suite:
-    #: `gameover.triggers` in three games and `match.ends` in pong, where the player's health reaches zero.
+    #: `gameover.triggers` in three games and `match.ends` in pong, which is
+    #: first-to-11, so its end condition is a WIN rather than a loss. This game
+    #: ends when the player's health reaches zero.
     #: A cross-game audit asking "does every game verify its own end condition?"
     #: would grep for `gameover` and report a false gap for pong - a mechanical sweep
     #: reporting something untrue, which this project has lost time to before (#38).
@@ -998,17 +1000,19 @@ class PlatformerBot(Bot):
                         f"into enemies (hp {hp1})")
                     return [dmg, invuln, knock, over]
                 over_at = s.last.tick
-                score_at_death = _i(s.last, "score")
-                for _ in range(200):
-                    s.step_raw({"move_right": True, "jump": True, "attack": True})
-                still = s.last.state.get("game_over") is True
-                frozen = _i(s.last, "score") == score_at_death
-                alive = _player(s.last).get("alive")
+                # IDLE FIRST, THEN PRESS AND READ THROUGH THE RESET -
+                # `probe.end_condition_holds` holds the reason, and holds it once for
+                # all four bots. This loop used to press move_right, jump and attack
+                # straight away, which pressed the restart control of a correct game
+                # that clears its game-over card on any input, and then scored the
+                # fresh run's live state as a failure to end (`tasks/157`).
+                end = end_condition_holds(
+                    s, idle_ticks=200, press_ticks=200,
+                    inputs={"move_right": True, "jump": True, "attack": True},
+                    sample=lambda t: _i(t, "score"))
                 over = Criterion(
-                    "gameover.triggers", self._q("gameover.triggers"),
-                    still and frozen and alive is not True,
-                    f"game over at tick {over_at}; after 200 more ticks of input: "
-                    f"game_over={still}, alive={alive}, score frozen: {frozen}")
+                    "gameover.triggers", self._q("gameover.triggers"), end.passed,
+                    f"game over at tick {over_at}; {end.detail()}")
                 return [dmg, invuln, knock, over]
         except ProbeError as e:
             return list(unusable_criteria([(c, self._q(c)) for c in ids], e,

@@ -306,15 +306,15 @@ Three are genre-defining and none can be settled from a frame:
   The bot finds an enemy on the tick it appears and fires into that window, so a game
   that reports the flag and ignores it fails.
 
-**Twelve of the twenty-two are pinned by a mutant** (`bot_mutants.py`, 36 criteria
-across four games, 2 variants, 3 session-lock controls, 0 expectations unmet): snapped
+**Thirteen of the twenty-two are pinned by a mutant** (`bot_mutants.py`, 40 criteria
+across four games, 7 variants, 3 session-lock controls, 0 expectations unmet): snapped
 analog input, enemies that appear fully formed, one kind wearing three names, a multiplier
 that never rises, one that survives damage, a boundary that is never reported, a dropped
-depth axis, a volume that does not hold, a bullet every tick, a kill worth nothing, and
-enemies that pass through the player. The unpinned ten are `state.shape`, `player.moves`,
-`enemies.spawn`, `fire.spawns_bullets`, `aim.independent`, `bullets.kill`, `wave.advances`,
-`gameover.triggers` and the two determinism criteria — the last two are pinned on
-`ref_pong` over shared code.
+depth axis, a volume that does not hold, a bullet every tick, a kill worth nothing,
+enemies that pass through the player, and a game that reports itself over and keeps
+stepping. The unpinned nine are `state.shape`, `player.moves`, `enemies.spawn`,
+`fire.spawns_bullets`, `aim.independent`, `bullets.kill`, `wave.advances` and the two
+determinism criteria — the last two are pinned on `ref_pong` over shared code.
 
 **`enemy.kinds` and `enemies.chase` were rewritten on 2026-08-16 (FINDINGS #46).** Both had
 failed 6 of 6 driveable submissions, and all six ship four enemy kinds unlocked over
@@ -446,8 +446,10 @@ Three are genre-defining and invisible in a still frame:
 - `invuln.window` — hits are counted per tick *in contact*, so it measures the window
   rather than the size of the health pool.
 
-**All 17 non-determinism criteria are pinned by a mutant** (`bot_mutants.py`: 36 across
-four games, 0 expectations unmet). The suite earned its place immediately — `player.falls`
+**Sixteen of the twenty are pinned by a mutant** (`bot_mutants.py`: 40 across four games,
+0 expectations unmet); the four that are not are `state.shape`, `stage.completes` and the
+two determinism criteria, which are pinned on `ref_pong` over shared code. The suite
+earned its place immediately — `player.falls`
 originally accepted "grounded went false" as evidence of falling, and the zero-gravity
 mutant **escaped**, because a character hanging in the air off a ledge is not grounded and
 has not fallen. The criterion now asserts a loss of height, which is the property in its
@@ -488,7 +490,8 @@ submission; and enemies faster than the player, which is the only way to reach t
 branch of `enemies.chase`. **A mutant asks whether a criterion can fail; only a variant asks
 whether it can still pass**, and every false negative adjudicated in this project has been of
 the second kind. The contact branch is the case in point: the reference never takes it, so the
-reference, all 36 mutants and the three lock controls were green while it raised `KeyError`
+reference, every mutant then shipped and the three lock controls were green while it raised
+`KeyError`
 and scored a correct submission 0.000 (FINDINGS #46).
 
 ---

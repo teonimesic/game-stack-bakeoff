@@ -32,7 +32,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 try:                                   # POSIX only; absent on Windows
     import fcntl
@@ -522,6 +522,159 @@ def unusable_criteria(pairs: list[tuple[str, str]], err: BaseException, what: st
     return [Criterion(cid, q, False, reason,
                       scored=(not lock) and cid not in diagnostic)
             for cid, q in pairs]
+
+
+# --------------------------------------------------------------------------- #
+# The end condition, in two phases
+# --------------------------------------------------------------------------- #
+#
+# THE CLAIM EVERY GAME'S END CONDITION MAKES is the task prompt's: an ended game
+# "stops accepting play until it is reset". That sentence has two halves, and a
+# criterion that tests only one of them is wrong in a direction:
+#
+#   PRESS THE CONTROLS and ask whether the game is still over, and a submission that
+#   binds the reset the sentence itself contemplates fails for obeying the spec.
+#   `g1_pong__rust` holds a game-over card for `GAME_OVER_LOCKOUT_TICKS = 96` and then
+#   lets any control start a new match; the bot's held inputs pressed that control and
+#   the criterion read the fresh match's live state as a failure to end.
+#
+#   PRESS NOTHING and a game that reports `game_over` while its simulation keeps
+#   running passes, because with the player dead there is nobody left to earn points
+#   and the score sits still. Measured on `ref_arena` with the step function's
+#   `game_over` early-out deleted: an idle-only reading returns `score 0 -> 0` and the
+#   mutant SURVIVES.
+#
+# So both phases run, in this order, and the second one is READ THROUGH THE RESET.
+#
+#   1. IDLE. Nothing is pressed. The end state must hold on its own - still over, the
+#      guarded value unmoved, the player not back. This is the half that says play
+#      STOPPED rather than that input was refused.
+#   2. PRESS. The bot's own controls go down, one tick at a time, and the phase stops
+#      at the first tick the game is no longer over. Reaching that tick is a RESET, and
+#      a reset is correct: what it must then show is the game's own tick-0 state. Never
+#      reaching it means the game refused play, which is equally correct, and then the
+#      guarded value must not have moved.
+#
+# What fails is the third case: the game stayed over and kept playing anyway, or it
+# came back without resetting.
+#
+# WHAT "RESET" IS READ AGAINST IS THE GAME'S OWN TICK 0, which is the only definition
+# available to a bot that knows nothing about the submission. The stated limit: a game
+# whose new run carries its score forward would read as a resume rather than a reset and
+# fail. Nothing in the prompt asks for that and the submission this shape came from zeroes
+# its score, so it is a limit rather than a known false negative - if one turns up, it is
+# a `Pending` with a fixture, not an argument.
+#
+# THE GUARDED VALUE IS THE CALLER'S, AND IT MUST BE SOMETHING THE SIMULATION MOVES.
+# "The score" is the obvious choice and it is the wrong one in half the games here: a
+# dead arena player earns nothing and a full tetris well clears no layer, so in both
+# the score is a constant whatever the game does. Each bot picks a value its own game
+# advances - `kills` beside the arena's score, `heights` beside tetris's - and the
+# mutant that ends the game and keeps stepping is what says whether the pick works.
+#
+# THERE IS ONE COPY OF THIS BECAUSE THERE USED TO BE FOUR. Pong's `match.ends` was
+# repaired to idle and the other three bots kept holding fire, aim, move, jump, attack
+# and hard_drop, so two of them were red on a correct game and the third passed only
+# because the restarted run lost again inside the same window (`tasks/157`). A per-bot
+# copy of a policy is a policy that gets repaired once; every bot reaches this through
+# its `Bot.end_condition` criterion, so the next repair cannot reach only one of them.
+
+
+@dataclass(frozen=True)
+class EndCondition:
+    """What an ended game did across the idle phase and then the pressed phase.
+
+    `alive` is the player's own flag where the game has a player and `None` where it
+    does not - a third value, not `False`, and every test here reads it that way.
+    """
+
+    #: phase 1
+    idle_ticks: int
+    over_after_idle: bool
+    frozen_while_idle: bool
+    at_end: Any
+    after_idle: Any
+    alive_after_idle: Any
+    #: phase 2
+    press_ticks: int
+    reset_at: int | None
+    at_start: Any
+    after_press: Any
+    alive_after_press: Any
+
+    @property
+    def held_while_idle(self) -> bool:
+        """The end state survived with nothing pressed: still over, nothing moved,
+        nothing brought the player back."""
+        return (self.over_after_idle and self.frozen_while_idle
+                and self.alive_after_idle is not True)
+
+    @property
+    def answered_the_press(self) -> bool:
+        """Either the game reset - and came back to its own tick-0 state - or it
+        refused the input and did not move."""
+        if self.reset_at is not None:
+            return (self.after_press == self.at_start
+                    and self.alive_after_press is not False)
+        return (self.after_press == self.after_idle
+                and self.alive_after_press is not True)
+
+    @property
+    def passed(self) -> bool:
+        return self.held_while_idle and self.answered_the_press
+
+    def detail(self, label: str = "score") -> str:
+        pressed = (
+            f"reset at tick {self.reset_at} and {label} came back to "
+            f"{self.after_press} against a tick-0 {self.at_start}"
+            if self.reset_at is not None else
+            f"still over, {label} {self.after_idle} -> {self.after_press}, "
+            f"alive={self.alive_after_press}")
+        return (f"after {self.idle_ticks} ticks with NO input: "
+                f"game_over={self.over_after_idle}, alive={self.alive_after_idle}, "
+                f"{label} {self.at_end} -> {self.after_idle}; then under "
+                f"{self.press_ticks} ticks of input: {pressed}")
+
+
+def _alive(t: Tick) -> Any:
+    p = t.state.get("player")
+    return p.get("alive") if isinstance(p, dict) else None
+
+
+def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
+                        inputs: dict[str, Any] | Callable[[int], dict[str, Any]],
+                        sample: Callable[[Tick], Any]) -> EndCondition:
+    """Drive both phases of the end condition. See the block comment above.
+
+    Call it once the end condition has fired. `sample` reads the value that must not
+    move while play is stopped - the score in every game here.
+
+    `inputs` is the bot's own busy set, the controls a player would be holding. Pass a
+    CALLABLE of the press-phase tick index where the game reads an input as a rising
+    edge rather than as a held control: `bot_tetris3d`'s `hard_drop` is `_edge`-driven,
+    so a set held flat for the whole window drops once and then does nothing, and a
+    game that kept playing would have nothing to move its score.
+    """
+    press = inputs if callable(inputs) else (lambda _i: inputs)
+    at_start = sample(s.history[0])
+    at_end = sample(s.last)
+    s.idle(idle_ticks)
+    after_idle = sample(s.last)
+    over_after_idle = s.last.state.get("game_over") is True
+    alive_after_idle = _alive(s.last)
+
+    reset_at: int | None = None
+    for i in range(press_ticks):
+        t = s.step_raw(dict(press(i)))
+        if t.state.get("game_over") is not True:
+            reset_at = t.tick
+            break
+    return EndCondition(
+        idle_ticks=idle_ticks, over_after_idle=over_after_idle,
+        frozen_while_idle=after_idle == at_end, at_end=at_end,
+        after_idle=after_idle, alive_after_idle=alive_after_idle,
+        press_ticks=press_ticks, reset_at=reset_at, at_start=at_start,
+        after_press=sample(s.last), alive_after_press=_alive(s.last))
 
 
 class Bot:

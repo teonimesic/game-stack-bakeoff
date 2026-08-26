@@ -15,7 +15,7 @@ from typing import Any
 
 from checks import determinism_criteria, idle_tape
 from probe import (Bot, Criterion, ProbeError, ProbeSession, Tick,
-                   unusable_criteria)
+                   end_condition_holds, unusable_criteria)
 
 
 def _piece(t: Tick) -> dict[str, Any] | None:
@@ -86,7 +86,9 @@ class Tetris3DBot(Bot):
     game = "g2_tetris3d"
     #: The criterion that checks THIS GAME'S END CONDITION, whatever it is called.
     #: Named explicitly because the concept has two spellings across the suite:
-    #: `gameover.triggers` in three games and `match.ends` in pong, where the well fills up and play stops.
+    #: `gameover.triggers` in three games and `match.ends` in pong, which is
+    #: first-to-11, so its end condition is a WIN rather than a loss. This game
+    #: ends when the well fills up and play stops.
     #: A cross-game audit asking "does every game verify its own end condition?"
     #: would grep for `gameover` and report a false gap for pong - a mechanical sweep
     #: reporting something untrue, which this project has lost time to before (#38).
@@ -635,17 +637,32 @@ class Tetris3DBot(Bot):
                         "gameover.triggers", self._q("gameover.triggers"), False,
                         f"stacked into one corner for {s.ticks_sent} ticks without the "
                         f"game ending; game_over={s.last.state.get('game_over')}")
-                score_at_end = _int(s.last, "score")
-                for _ in range(100):
-                    s.step_raw({"hard_drop": True, "move_pos_x": True})
-                    s.step_raw({})
-                still_over = s.last.state.get("game_over") is True
-                frozen = _int(s.last, "score") == score_at_end
+                # IDLE FIRST, THEN PRESS AND READ THROUGH THE RESET -
+                # `probe.end_condition_holds` holds the reason, and holds it once for
+                # all four bots. This loop used to press hard_drop and move_pos_x
+                # straight away, which pressed the restart control of a correct game
+                # that clears its game-over card on any input. Here that read as a PASS
+                # rather than a failure, and the pass was not evidence: the run
+                # restarted and stacked out again inside the window, with the restart's
+                # own score reset making the frozen test true. Lengthening the card
+                # flipped the verdict on a game that had not changed (`tasks/157`).
+                # `hard_drop` is an EDGE, so the press set is released every other tick:
+                # held flat it drops once and a game that kept playing would have
+                # nothing left to move its score with.
+                end = end_condition_holds(
+                    s, idle_ticks=200, press_ticks=200,
+                    inputs=lambda i: ({"hard_drop": True, "move_pos_x": True}
+                                      if i % 2 == 0 else {}),
+                    # THE WELL AS WELL AS THE SCORE. A stacked-out game that keeps
+                    # stepping leaves the score alone - clearing a layer is what pays,
+                    # and the well is full - but it goes on locking and spawning:
+                    # measured on a reference with the step function's `game_over`
+                    # early-out deleted, `heights` moves and the score does not. Both
+                    # come back to their tick-0 values on a reset.
+                    sample=lambda t: (_int(t, "score"), t.state.get("heights")))
                 return Criterion(
-                    "gameover.triggers", self._q("gameover.triggers"),
-                    still_over and frozen,
-                    f"game over at tick {over_at}; still over after 200 more ticks of "
-                    f"input: {still_over}; score frozen at {score_at_end}: {frozen}")
+                    "gameover.triggers", self._q("gameover.triggers"), end.passed,
+                    f"game over at tick {over_at}; {end.detail()}")
         except ProbeError as e:
             return unusable_criteria(
                 [("gameover.triggers", self._q("gameover.triggers"))], e,
