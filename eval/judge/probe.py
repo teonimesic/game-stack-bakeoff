@@ -628,11 +628,17 @@ class EndCondition:
     def answered_the_press(self) -> bool:
         """Either the game reset - and came back to its own tick-0 state, and stayed
         reset - or it refused the input and did not move."""
+        # `press_broke_at is None` guards BOTH branches. A reset does not excuse a
+        # tick before it: a game that kept playing under the first few presses and
+        # then restarted would otherwise be read as a clean reset, because the reset
+        # branch only looks at where it landed (raised by CodeRabbit on PR #40).
+        if self.press_broke_at is not None:
+            return False
         if self.reset_at is not None:
             return (not self.reset_reverted
                     and self.after_press == self.at_start
                     and self.alive_after_press == self.alive_at_start)
-        return self.press_broke_at is None
+        return True
 
     @property
     def passed(self) -> bool:
