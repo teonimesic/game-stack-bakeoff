@@ -564,3 +564,39 @@ into a loop that did not produce it is the narration this project removes from l
 `ls -dt eval/runs/*/` returned nothing under zsh and I nearly read that as "no runs". The directory
 holds **30**. Two glob failures in two days from the same shell (#164); the habit that catches it
 is asking *"is this answer the same for every subject?"* before believing it.
+
+## 2026-08-25 (fourth pass) — the open queue's own collision structure
+
+Chosen because the queue went from 5 to 12 tickets in a few hours, almost all filed by different
+agents as consequences of first contact, and the prune skill's own rule is to check the queue
+before filing. Nobody had audited it **as a set**.
+
+### Found — four tickets serialise on one file, and one may reframe two others
+
+`158`, `159`, `160` and `166` all edit `eval/judge/bot_mutants.py`. They cannot run concurrently,
+so that is **four sequential rounds however they are ordered**.
+
+Worse, the ordering is not free: **`166` says the bots locate a game's end from the state flag *or*
+a `game_over` event and score it from the flag alone**, and `158` (tetris) and `160` (arena) repair
+criteria sitting on top of that. If the two-signal defect is real it may change what those two
+should do. Settling `166` re-scores every g2/g3/g4 submission, so *last* is defensible — but only
+if `158` and `160` are **shown** not to depend on it. Written into `166`, with batching named as an
+option, because `151`/`152` were merged into one branch for exactly this reason and it worked.
+
+**No duplicates found.** `163` and `164` both concern scene thresholds but touch disjoint files —
+`163` is a tier-1 game criterion refusing a scene, `164` is the probe's reliability filter — and
+each carries its own reproduction. The rest are independent.
+
+### Examined and judged sound
+
+- **Disk is fine and the heartbeat's 7.9G was transient.** The tree is back to **4.9G**; the
+  spike was agent worktrees, which are full checkouts and vanish on removal. The first scene run
+  is **9 MB** — 8.8 MB of it artifacts. A scene matrix will not be what fills this disk.
+- The queue lint is green, and `tasks.py check` passes on the merged tree with 154 done.
+
+### Method note
+
+The disk figure came from the hourly heartbeat and was **already stale when it printed** — worktrees
+had been removed between the measurement and the report. A number sampled from a directory that
+several processes are creating and deleting is a reading of the moment, not of the tree; the useful
+version is measured when nothing is running, which is what this pass did.
