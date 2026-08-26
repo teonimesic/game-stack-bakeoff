@@ -783,7 +783,7 @@ def selftest() -> int:
                                    [_comment(body=_failed_at(HEAD_A) + REAL_FAILED)]
                                    )["verdict"]),
           "REVIEW_FAILED")
-    check("B25 two blocks, neither about this head",
+    check("B25 variant — two blocks, neither about this head, and the landing stands",
           attempt(lambda: classify(HEAD_A, [],
                                    [_comment(body=_failed_at("c" * 40) + REAL_FAILED),
                                     _comment(body=SUMMARY_DONE)])["verdict"]),

@@ -1981,7 +1981,7 @@ where both arms correctly read false. It returns **3** distinct verdicts over 17
 6 `LANDED_REVIEW`, 6 `LANDED_COMMENT`, 5 `NOTICE` — so it is discriminating rather than
 reporting the instrument.
 
-`python3 eval/tools/pr_review_state.py --selftest` is **98** offline checks including **20**
+`python3 eval/tools/pr_review_state.py --selftest` is **98** offline checks including **21**
 variants; `python3 eval/tools/pr_review_state_mutants.py` removes **50** mechanisms one at a time
 and every one goes red. Both counts are `len()` of what ran, printed by the tools — run them
 rather than quoting this line.
