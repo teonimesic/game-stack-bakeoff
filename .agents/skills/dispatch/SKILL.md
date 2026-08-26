@@ -132,6 +132,10 @@ means one started and ran past an hour. Merge on your own verification as you wo
 the flow existed, and if it happens twice in a row that is evidence about the reviewer — a task,
 with the 2 PR numbers in it.
 
+**`REVIEW_FAILED` is the same kind of hand-back and says something narrower**: a round started and
+died — merging `main` mid-review does it — so that head was never reviewed, whatever summary
+comment sits at it (#185). Treat the pull request as unreviewed rather than as reviewed-clean.
+
 ### Merging
 
 **Merge through the pull request, not with a local `git merge`.** The PR is the durable record

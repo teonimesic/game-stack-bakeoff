@@ -30,6 +30,16 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `headings_bot_filter` | the login filter on the notice extractor | a human quoting a deadlock notice becomes a deadlock |
 | `inprogress_detect` | the in-progress marker match | a round that is **running** reads as finished. The "No actionable comments" line under that marker is the PREVIOUS round's verdict |
 | `inprogress_exclude` | the marker exclusion from the finished COUNT | the verdict is still right and `by_comment` says a review exists that does not — the audit trail disagreeing with the verdict it accompanies |
+| `failed_kind_ignored` | the split of headings by what they IMPLY | #185: a round that started and **died** rewrites the summary comment at the head, so the comment arm reads it as a clean landing — measured at `LANDED_COMMENT` in 1 second while the real review was 540 s away |
+| `failed_is_any_notice` | the narrowing of that split to the failure heading | the opposite over-reach: a **paused** branch stops landing, which is the deadlock `--ignore-notice` was added for |
+| `failed_heading_unanchored` | the anchor on the failure heading | a heading that merely mentions a failed review becomes a failed round |
+| `failed_exit_is_zero` | the non-zero exit for `REVIEW_FAILED` | a caller reading exit 0 as "reviewed" is fail-open again, one layer down from the verdict |
+| `render_drops_failed` | the failure count from the output line | the audit trail stops saying why the verdict is not `LANDED_COMMENT` |
+| `failed_before_review` | the precedence of a real review over a failure callout | CodeRabbit edits in place, so the callout of a round that later succeeded outranks the review sitting beside it |
+| `failed_before_inflight` | the precedence of a running round over a failure callout | the replacement round is already running and the wait stops to ask for another one |
+| `failed_after_comment` | the precedence of a failure callout over the comment arm | the defect itself, restored: the summary at the head wins and the verdict is a landing |
+| `failed_never_stops` | `REVIEW_FAILED` ending the wait | the round died and the agent is never told, so it waits out the full bound instead of asking for another |
+| `failed_stops_under_ignore_notice` | `--ignore-notice` covering the failure callout too | the poll you start **after** `@coderabbitai review` stops on the callout the reviewer has not rewritten yet — the `--ignore-notice` deadlock, at a different heading |
 | `notice_before_landed` | the precedence of a real review over a notice | a stale `Review limit reached` — CodeRabbit edits comments in place, and PR #6's is already gone — outranks the review sitting next to it |
 | `inflight_before_review` | the precedence of a review object over a running round | a landed review is reported as still in flight, and the wait runs to its bound with the answer already on the page |
 | `gh_exit_ignored` | the `gh` returncode check | a failing API becomes a poll result (rule 2), and empty stdout parses as "no reviews" |
@@ -66,6 +76,12 @@ restating a number here. Each is paired with the mutant that proves its row can 
 | `B10` | a running round beside a landed review | `inflight_before_review` |
 | `B11` | a round running against a different head | `inprogress_detect` |
 | `F2` | the marker disappearing mid-round | `latch_not_sticky` |
+| `B14` | the failure callout and the summary in separate comments | `failed_kind_ignored` |
+| `B15`, `B15b` | a pause or a spent allowance beside a clean summary — these must still land | `failed_is_any_notice` |
+| `B16` | a real review beside a stale failure callout | `failed_before_review` |
+| `B17` | the replacement round already in flight | `failed_before_inflight` |
+| `C7` | the failure reason appended to the heading | `failed_kind_ignored` |
+| `F10` | an answered failure that never resolves — loud, not silent | `failed_stops_under_ignore_notice` |
 
 **Needs no corpus and no network.** `pr_review_state.py --selftest` injects its own `gh`
 runner and its own clock.
@@ -138,6 +154,23 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '    finished = [c for c in naming if INPROGRESS_MARKER not in (c.get("body") or "")]',
         "    finished = list(naming)"),
 
+    # ---- the round that started and DIED (#185)
+    "failed_kind_ignored": (
+        "    failed = failed_headings(headings)",
+        "    failed = []"),
+    "failed_is_any_notice": (
+        "    return [h for h in headings if FAILED_HEADING.match(h.strip())]",
+        "    return list(headings)"),
+    "failed_heading_unanchored": (
+        "    return [h for h in headings if FAILED_HEADING.match(h.strip())]",
+        "    return [h for h in headings if FAILED_HEADING.search(h.strip())]"),
+    "failed_exit_is_zero": (
+        '    "REVIEW_FAILED": 14,',
+        '    "REVIEW_FAILED": 0,'),
+    "render_drops_failed": (
+        '            f"failed={result[\'failed\']}")',
+        '            "")'),
+
     # ---- precedence between the arms
     "notice_before_landed": (
         '    if by_review:\n        verdict = "LANDED_REVIEW"',
@@ -148,6 +181,20 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '    elif in_flight:\n        verdict = "IN_FLIGHT"',
         '    if in_flight:\n        verdict = "IN_FLIGHT"\n'
         '    elif by_review:\n        verdict = "LANDED_REVIEW"'),
+    "failed_before_review": (
+        '    if by_review:\n        verdict = "LANDED_REVIEW"',
+        '    if failed:\n        verdict = "REVIEW_FAILED"\n'
+        '    elif by_review:\n        verdict = "LANDED_REVIEW"'),
+    "failed_before_inflight": (
+        '    elif in_flight:\n        verdict = "IN_FLIGHT"\n'
+        '    elif failed:\n        verdict = "REVIEW_FAILED"',
+        '    elif failed:\n        verdict = "REVIEW_FAILED"\n'
+        '    elif in_flight:\n        verdict = "IN_FLIGHT"'),
+    "failed_after_comment": (
+        '    elif failed:\n        verdict = "REVIEW_FAILED"\n'
+        '    elif finished:\n        verdict = "LANDED_COMMENT"',
+        '    elif finished:\n        verdict = "LANDED_COMMENT"\n'
+        '    elif failed:\n        verdict = "REVIEW_FAILED"'),
 
     # ---- reading the API at all
     "gh_exit_ignored": (
@@ -176,12 +223,23 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "                  else quiet_timeout)"),
     "notice_does_not_stop": (
         '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
-        '            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")',
-        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT")'),
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")',
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED")'),
     "notice_always_stops": (
         '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
-        '            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")',
-        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")'),
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")',
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")'),
+    "failed_never_stops": (
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")',
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "NOTICE")'),
+    "failed_stops_under_ignore_notice": (
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT") if ignore_notice else (\n'
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")',
+        '        stop = ("LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED") '
+        'if ignore_notice else (\n'
+        '            "LANDED_REVIEW", "LANDED_COMMENT", "REVIEW_FAILED", "NOTICE")'),
 
     "cli_drops_ignore_notice": (
         "flight_timeout=args.flight_timeout, ignore_notice=args.ignore_notice)",
