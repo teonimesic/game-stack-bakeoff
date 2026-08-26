@@ -54,19 +54,21 @@ VIEW_HOME = {
     "godot": "`view/`",
 }
 
-INPUT_TYPE = {
-    "rust": "the input struct the starter already threads through the simulation",
-    "ts": "the input interface the starter already threads through the simulation",
-    "unity": "the input struct the starter already threads through the simulation",
-    "godot": "the input class the starter already threads through the simulation",
-}
-
-STATE_HOME = {
-    "rust": "the simulation world",
-    "ts": "the simulation world object",
-    "unity": "`SimState`",
-    "godot": "the `World` class",
-}
+# INPUT_TYPE and STATE_HOME were deleted 2026-08-26 (task 141) and the deletion is the
+# decision, not a tidy-up. They named a stack's input type and where its state lives -- real
+# per-stack distinctions -- and no template ever referenced them, so no rendered prompt has
+# ever contained them.
+#
+# The alternative the ticket offered was to USE them where the prose inlines the concept. It
+# does not: a game prompt says "inputs" generically 4 times and names no input type and no
+# state home in any stack. That is deliberate. Where the agent's own input plumbing lives is
+# something the STARTER tells it, in `eval/starters/<stack>/AGENTS.md`; a prompt that also said
+# it would be a second statement of the same fact, in the file whose job is to say what to
+# build rather than what it is being built with.
+#
+# A vocabulary dict that looks like part of the stack vocabulary and reaches no prompt will be
+# edited by someone who believes it does. `prompt_guard.py --identity` is the producer that
+# would catch a reintroduction: it reports every dict in scope against every dict referenced.
 
 RENDER_NOTE = {
     "rust": (
