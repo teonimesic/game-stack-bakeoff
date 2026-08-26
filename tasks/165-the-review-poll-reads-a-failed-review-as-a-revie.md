@@ -1,11 +1,12 @@
 ---
 id: 165
 title: The review poll reads a FAILED review as a review that found nothing
-status: in_review
+status: in_testing
 priority: 1
 refs: 'eval/tools/pr_review_state.py, .agents/skills/work/SKILL.md, tasks/127, tasks/162, #185, #165'
 done_when: A branch in the 'Review failed - the head commit changed' state does NOT return LANDED from pr_review_state.py, proved by constructing that state deliberately rather than waiting for it; the notice table in work/SKILL.md names each notice with what it implies for the poll; --ignore-notice keeps working for the paused case, pinned; and the ambiguous case - no notice, summary comment only, no review object - is decided and the decision written where the flag is defined.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/41
+established_by: 'PR #41 at 1a606d3, gates+controls green: the ticket''s state returns REVIEW_FAILED exit 14 where the pre-repair file returns LANDED_COMMENT exit 0 in 0s, measured side by side on one command; --selftest 100 checks 21 variants, 51 mutants all caught; 5 review rounds, 3 declines all withdrawn'
 ---
 
 `pr_review_state.py --wait --ignore-notice` returned **`LANDED_COMMENT` in 1 second** on a branch
@@ -121,3 +122,55 @@ cheap.
 40 pull requests, `failed=0` on every row, agreeing with `DECISIONS.md`'s 6-row known-answer table.
 The repair is **inert on the stored corpus** — no live pull request carries a failure callout today
 — which is the whole reason the state has to be constructed rather than sampled.
+
+## note 2026-08-26
+
+## note 2026-08-26 — what landed, and the one thing the review changed my mind about
+
+**PR #41, 5 review rounds, `1a606d3`.** `DECISIONS.md`, *A failed review round is a verdict of its
+own, and `--ignore-notice` governs stopping only*, is the authority; the tool's docstring states
+every arm. This note is the part that is not in either.
+
+### The one finding that replaced a decision I had already recorded as decided
+
+I weighed 2 ways to scope a failure callout and shipped the fail-closed one:
+
+| | fails how |
+|---|---|
+| read every failure on the pull request | **closed** — a previous round's callout expires the wait as `UNRESOLVED`, exit 13, loud |
+| scope to the comment carrying the head | **open** — a failure posted in a comment of its own reads as a clean landing at exit 0, which is #185 restored |
+
+Round 1 asked for the second and I declined it with that evidence. **Round 2 asked for a third
+thing I had not considered, and it dominates both**: the failure block writes *"The head commit
+changed during the review from `<old>` to `<new>`"* into itself, so **date the failure by the last
+sha in its own block**. A previous round's callout no longer holds up a real landing, and a
+failure in a comment of its own is still caught. Round 3 then found the per-block half — a comment
+can carry more than one block, and flattening them lets the block naming your head be overruled by
+a later one that does not.
+
+> **A trade-off you have written down as decided is still only the best of the options you
+> enumerated.** Both of mine were wrong in one direction each, and the artifact carried the
+> evidence to avoid choosing — I had read those bytes and not seen what they were for.
+
+**It must come from the BLOCK, not the comment.** CodeRabbit writes the failure into the same
+summary comment that names the current head elsewhere, so a whole-comment read dates every stale
+failure to the head you are asking about. `failed_dated_by_whole_comment` pins that.
+
+### What NOT to re-derive
+
+- **`.get("failed", 0)` in `render` is wrong on purpose.** It would print a plausible zero and
+  defeat the drift guard the field exists for. The wrong shape is caught at the callback boundary
+  instead: `RESULT_FIELDS` + a named refusal in `wait_for`, with `wait_result_unchecked` proving
+  the row reads *"raised KeyError instead of a named refusal"*.
+- **The live reconstruction does not come from an ordinary push.** Recorded in the note above with
+  the numbers. Do not spend review rounds re-testing it.
+- **`--census` cannot exercise this arm** — `failed=0` across 40 pull requests. The corpus has no
+  live failure callout, which is why the state is constructed from real bytes rather than sampled.
+
+### Rounds, and what the reviewer was worth
+
+3 findings declined with evidence, all 3 withdrawn by the reviewer. Everything else acted on,
+including 2 that were defects in this project's own terms: a variant table mapping a mutant to a
+row that could not redden it, and a `wait_for` result contract that turned a caller error into a
+stray traceback. **Round 5's fixes were not themselves reviewed** — that would be round 6, past
+the ceiling in `.agents/skills/work/SKILL.md`.
