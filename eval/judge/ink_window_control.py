@@ -268,6 +268,13 @@ def test_collect_uses_the_class_it_was_given() -> None:
 # the bound census - every tier-1 criterion answers where its bound came from
 # --------------------------------------------------------------------------- #
 
+#: What `static.TIER1_BOUND_POPULATION` must tally to, written out INDEPENDENTLY of it.
+#: This is the 8/5/1 that `judge/RUBRIC.md`, `DECISIONS.md` and `eval/judge/AGENTS.md`
+#: state in prose, and it is the only place that count is checked rather than repeated.
+EXPECTED_TALLY = {"no_bound": 8, "starter": 1, "capture_contract": 1,
+                  "audio_signal": 3, "task_class": 1}
+
+
 def test_bound_census() -> None:
     print("\n[TIER1_BOUND_POPULATION: every tier-1 criterion answers the question]")
     problems = static.assert_tier1_bounds_declared()
@@ -281,6 +288,13 @@ def test_bound_census() -> None:
     expect("all 14 tier-1 criteria are declared", len(pops) == 14, str(len(pops)))
     expect("the tally partitions every one of them", sum(tally.values()) == len(pops),
            f"{sum(tally.values())} vs {len(pops)}")
+    # THE WHOLE TALLY, not just its total and its class-dependent entry. Reclassifying
+    # `tests.exist` from `starter` to `no_bound` leaves both of those green while the
+    # policy moves, and this row is where the documents' 8/5/1 is actually checked.
+    # It is written out here rather than derived from `pops`: an expectation imported
+    # from its subject is not an expectation (AGENTS.md rule 12's corollary).
+    expect(f"the tally is exactly {EXPECTED_TALLY}", dict(tally) == EXPECTED_TALLY,
+           str(dict(tally)))
     class_dep = sorted(c for c, p in pops.items() if p == "task_class")
     expect("exactly one criterion's bound is class-dependent, and it is this one",
            class_dep == ["render.nonempty"], str(class_dep))
@@ -360,6 +374,16 @@ def mutants(inks: dict[str, dict[str, Any]]) -> None:
     expect("mutant 'the registry describes a criterion that does not exist' is caught",
            caught)
 
+    # THE POLICY MOVING WITHOUT THE COUNT MOVING. `tests.exist` reclassified from
+    # `starter` to `no_bound` keeps the registry legal, keeps the total at 14 and keeps
+    # exactly one class-dependent entry - everything except the tally.
+    moved = {**static.TIER1_BOUND_POPULATION, "tests.exist": "no_bound"}
+    with patched(static, "TIER1_BOUND_POPULATION", moved):
+        legal = static.assert_tier1_bounds_declared() == []
+        tally = dict(collections.Counter(moved.values()))
+    expect("mutant 'a bound is silently reclassified' is caught by the exact tally",
+           legal and len(moved) == 14 and tally != EXPECTED_TALLY, str(tally))
+
 
 # --------------------------------------------------------------------------- #
 # the corpus arm - the producer for every ink figure the documents quote
@@ -428,7 +452,16 @@ def corpus(runs_root: Path) -> None:
         f = tier1.get("frames", {})
         ink, n = f.get("mean_ink"), f.get("count")
         lo, hi, _why = static.ink_window(klass)
-        which = "floor" if (ink is None or ink < lo) else "ceiling"
+        # NOT REGRADABLE is a third value, and it is not a FAIL. `nonempty_verdict`
+        # would raise on `float(None)` and take the whole report with it; inventing a
+        # 0.0 would be worse, because a fabricated floor failure is indistinguishable
+        # from a measured one.
+        if ink is None:
+            print(f"    {r['run']}/{r['trial']}  class={klass}  mean_ink=absent  "
+                  f"frames={n}  NOT REGRADABLE - the stored record carries no "
+                  f"frames.mean_ink, so which bound it hit cannot be established")
+            continue
+        which = "floor" if ink < lo else "ceiling"
         now, _ev = static.nonempty_verdict(f, klass, n or 0)
         before = evaluate.gate_verdict(tier1)
         after = evaluate.gate_verdict(_with_verdict(tier1, now))
@@ -462,6 +495,24 @@ def _gate(g: dict[str, Any]) -> str:
 
 # --------------------------------------------------------------------------- #
 
+def phases(inks: dict[str, dict[str, Any]]) -> list[tuple[str, Any, int]]:
+    """Every mandatory phase and **how many expectations it must contribute**.
+
+    A single total cannot see a phase that stopped running: drop the mutant sweep and
+    the remaining 25 still print as a clean pass. Counts derived from a table move with
+    it; the rest are written out, because an expectation taken from its subject is not
+    an expectation.
+    """
+    return [
+        ("fixtures", lambda: test_fixtures_measure_what_they_claim(inks),
+         len(FIXTURES) + 1),
+        ("window", lambda: test_the_window(inks), len(WINDOW_ROWS) + 4),
+        ("collect propagation", test_collect_uses_the_class_it_was_given, 3),
+        ("bound census", test_bound_census, 5 + len(static.TASK_CLASS_BOUND_TABLES)),
+        ("mutants", lambda: mutants(inks), 10),
+    ]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -470,13 +521,15 @@ def main() -> int:
     args = ap.parse_args()
 
     tmp = Path(tempfile.mkdtemp(prefix="inkwin-"))
+    short: list[str] = []
     try:
         inks = {name: measure(make, tmp) for name, make, _lo, _hi in FIXTURES}
-        test_fixtures_measure_what_they_claim(inks)
-        test_the_window(inks)
-        test_collect_uses_the_class_it_was_given()
-        test_bound_census()
-        mutants(inks)
+        for name, phase, want in phases(inks):
+            before = CHECKS
+            phase()
+            got = CHECKS - before
+            if got != want:
+                short.append(f"{name}: {got} of {want}")
         if args.runs_root:
             corpus(args.runs_root)
         else:
@@ -485,13 +538,13 @@ def main() -> int:
         shutil.rmtree(tmp, ignore_errors=True)
 
     # A CONTROL THAT ASKED NOTHING IS NOT A CONTROL THAT PASSED. `0/0 expectations held`
-    # reads exactly like a clean run, which is the shape this file exists to refuse.
-    # The floor is the rows this module's own tables STATE, so it moves when they do.
-    floor = len(FIXTURES) + 1 + len(WINDOW_ROWS)
-    if CHECKS < floor:
-        print(f"\nONLY {CHECKS} expectation(s) ran, against the {floor} the fixture and "
-              f"window tables state. A check that was not asked is not a check that "
-              f"held.")
+    # reads exactly like a clean run, which is the shape this file exists to refuse -
+    # and so does a run where one PHASE stopped executing, which a single total cannot
+    # see. Every phase declares its own count in `phases()`, so a mutant that removes
+    # the whole mutant sweep is caught as loudly as one that empties the file.
+    if short:
+        print(f"\nPHASES SHORT: {'; '.join(short)}. A check that was not asked is not a "
+              f"check that held.")
         return 1
     print(f"\n{CHECKS - len(FAILS)}/{CHECKS} expectations held")
     if FAILS:

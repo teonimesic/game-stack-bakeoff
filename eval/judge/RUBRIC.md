@@ -90,9 +90,9 @@ What the census found tier 1 actually doing, across every trial it has ever scor
 - **2 trials** failed a criterion tier 2 depends on — both the `syspolicyd` build failure
   of #49 — and both scored 0.00 on tier 2, which is the same fact told twice.
 - **6 trials** failed only other criteria: one Godot lint finding, one Unity lint finding,
-  three of a TypeScript submission's own unit tests, one frame whose ink coverage was
-  0.881 against a window ending at 0.85, and the first scene, which failed three criteria
-  to an interrupted build and `render.nonempty` to a ceiling that was a game's. The five
+  3 of a TypeScript submission's own unit tests, 1 frame whose ink coverage was
+  0.881 against a window ending at 0.85, and the first scene, which failed 3 criteria
+  to an interrupted build and `render.nonempty` to a ceiling that was a game's. The 5
   games among them scored **1.000** on tier 2.
 - Every one of the 14 criteria has failed at least once, so none is dead weight. What
   `render.nonempty` in particular has ever done is below, and it is not what it looks like
@@ -229,7 +229,8 @@ than a wider number. `eval/SCENES.md` contracts a scene to fill the frame — `s
 for a layered background with real distance in it, `s2_glass` for a full 3D render — and a
 large flat region is the naive implementation `scene_probe` exists to catch. There is no ink
 level from which a scene can be inferred defective from above. That is read off the task
-contract, not off the one submission that exists: 0.966 passes, and so would 0.87 or 0.999.
+contract rather than off the submission that produced the firing: 0.966 passes, and so would
+0.87 or 0.999.
 
 **The game ceiling is left where it is, and not because it is right.** Moving it changes a
 stored *game* gate verdict and the figure three live documents quote, which is a re-scoring

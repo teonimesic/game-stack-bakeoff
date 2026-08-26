@@ -221,8 +221,8 @@ is a property of the four starters — their own `renders a non-empty frame` tes
 placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank scene frame
 still fails. The ceiling's *sign* is inverted for a scene: `eval/SCENES.md` contracts a scene to
 fill the frame and a large flat region is the naive implementation `scene_probe` exists to catch,
-so no ink level makes a scene defective from above. That is read off the task contract, not off
-the one submission: 0.966 passes, and so would 0.87 or 0.999.
+so no ink level makes a scene defective from above. That is read off the task contract rather
+than off the submission that produced the firing: 0.966 passes, and so would 0.87 or 0.999.
 
 **The game ceiling is left where it is, and not because it is right.** Moving it flips a stored
 *game* gate verdict and the figure three live documents quote, which is a re-scoring event on the
@@ -230,7 +230,7 @@ game population and has its own ticket.
 
 **What re-opens it.** `ink_window_control.py --runs-root` printing a ceiling firing that is a real
 defect — a rendered frame with no flat region that the play-bot or the scene probe also condemns.
-Today it prints two firings and neither is one. `judge/RUBRIC.md` holds the table; `eval/RUNS.md`
+Today it prints 2 firings and neither is one. `judge/RUBRIC.md` holds the table; `eval/RUNS.md`
 holds the re-grade of the one affected trial.
 
 ### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23

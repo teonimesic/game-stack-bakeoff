@@ -179,7 +179,7 @@ boundary. `NOT ASKED` (fewer than two gate-green stacks) is a third value and is
 **Because tier 1 GATES, a bound calibrated on one task class does not cost the other a
 fraction of a score — it stops a correct submission being scored at all.** So every tier-1
 criterion declares which population its bound came from, in `static.TIER1_BOUND_POPULATION`,
-and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. One
+and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. **1**
 bound is class-dependent today: `render.nonempty`'s ink CEILING is a game's, so a scene gets
 the floor and no ceiling. The floor is a property of the starter and transfers, and a blank
 scene frame still fails. **Before changing either bound, run the producer** —
