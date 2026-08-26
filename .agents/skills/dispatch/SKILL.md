@@ -49,6 +49,31 @@ closes it; and any regime boundary the work would cross.
 **A ticket that only you could work is not a ticket.** Fix it now, in the file — the next agent,
 and every future reader, gets it for free.
 
+### Mark what you MEASURED and what you GUESSED, in the note itself
+
+A ticket note is read as a brief, and the agent following it treats a stated cause as settled.
+**On 2026-08-25/26 three orchestrator-written causes were wrong**, each corrected by the agent that
+measured instead of complying:
+
+| the note said | it actually was |
+|---|---|
+| skills escape the flag census because they are outside `project_docs()` | a file-wide harness gate; skills are in the corpus |
+| carry pong's repair across — press nothing after the end | fail-open: with the player dead nothing moves the score |
+| `gates` is red because a `$` entered a producer | a local named `spent` matched a discovery regex keyed on the identifier NAME |
+
+None was careless. Each was a plausible reading of real evidence, written to save the agent time —
+and **that is the mechanism**: a cause offered helpfully is indistinguishable, in the ticket, from
+a cause established.
+
+> **Write the measurement, and label the inference as an inference.** *"`gates` is red on
+> `tokenvalue --selftest`, one named step; I have not run it"* costs one clause and cannot mislead.
+> *"a `$` entered a producer"* is a conclusion the reader has no reason to re-derive, and they will
+> not.
+
+The agent is the one holding the tree. **Where a cause is cheap for them to measure and expensive
+for you to verify from outside, state the symptom and let them find it** — the ticket's job is to
+say what is wrong and how you know, not to pre-solve it.
+
 ## 2. Check it is safe to run now
 
 - **Dependencies.** The ticket's `refs` may say "blocked by". Do not launch behind an unmet one.
