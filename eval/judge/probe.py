@@ -591,33 +591,38 @@ class EndCondition:
 
     #: phase 1
     idle_ticks: int
-    over_after_idle: bool
-    frozen_while_idle: bool
     at_end: Any
     after_idle: Any
     alive_after_idle: Any
+    #: EVERY idle tick is read, not only the last. A game that clears `game_over`,
+    #: brings the player back or moves the guarded value and then returns to where it
+    #: started passes an endpoint comparison and has not held (raised by CodeRabbit on
+    #: PR #40). This is the first idle tick at which it did not hold, and why.
+    idle_broke_at: int | None
+    idle_broke_why: str
     #: phase 2
     press_ticks: int
     reset_at: int | None
     #: ticks idled after a detected reset before reading it; 0 when none was detected
     settle_ticks: int
+    #: the reset did not survive its settle window - it was a flicker, not a new run
+    reset_reverted: bool
     at_start: Any
     after_press: Any
     alive_after_press: Any
 
     @property
     def held_while_idle(self) -> bool:
-        """The end state survived with nothing pressed: still over, nothing moved,
-        nothing brought the player back."""
-        return (self.over_after_idle and self.frozen_while_idle
-                and self.alive_after_idle is not True)
+        """The end state survived every tick of the window with nothing pressed."""
+        return self.idle_broke_at is None
 
     @property
     def answered_the_press(self) -> bool:
-        """Either the game reset - and came back to its own tick-0 state - or it
-        refused the input and did not move."""
+        """Either the game reset - and came back to its own tick-0 state, and stayed
+        reset - or it refused the input and did not move."""
         if self.reset_at is not None:
-            return (self.after_press == self.at_start
+            return (not self.reset_reverted
+                    and self.after_press == self.at_start
                     and self.alive_after_press is not False)
         return (self.after_press == self.after_idle
                 and self.alive_after_press is not True)
@@ -634,15 +639,18 @@ class EndCondition:
         An audit trail that mislabels what the instrument read is worse than one that
         says nothing (raised by CodeRabbit on PR #40).
         """
+        idled = (f"the end state held every tick, {label} {self.at_end} -> "
+                 f"{self.after_idle}, alive={self.alive_after_idle}"
+                 if self.idle_broke_at is None else
+                 f"BROKE at tick {self.idle_broke_at}: {self.idle_broke_why}")
         pressed = (
-            f"reset at tick {self.reset_at}, settled {self.settle_ticks} ticks, and "
-            f"{label} came back to {self.after_press} against a tick-0 {self.at_start}"
+            f"reset at tick {self.reset_at}, settled {self.settle_ticks} ticks"
+            f"{' and went over again' if self.reset_reverted else ''}, and {label} "
+            f"came back to {self.after_press} against a tick-0 {self.at_start}"
             if self.reset_at is not None else
             f"still over, {label} {self.after_idle} -> {self.after_press}, "
             f"alive={self.alive_after_press}")
-        return (f"after {self.idle_ticks} ticks with NO input: "
-                f"game_over={self.over_after_idle}, alive={self.alive_after_idle}, "
-                f"{label} {self.at_end} -> {self.after_idle}; then under "
+        return (f"over {self.idle_ticks} ticks with NO input: {idled}; then under "
                 f"{self.press_ticks} ticks of input: {pressed}")
 
 
@@ -678,26 +686,39 @@ def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
     press = inputs if callable(inputs) else (lambda _i: inputs)
     at_start = sample(s.history[0])
     at_end = sample(s.last)
-    s.idle(idle_ticks)
+
+    broke_at: int | None = None
+    broke_why = ""
+    for _ in range(idle_ticks):
+        t = s.idle(1)[0]
+        if broke_at is not None:
+            continue          # keep stepping: the window's length is part of the claim
+        if t.state.get("game_over") is not True:
+            broke_at, broke_why = t.tick, "game_over went False with nothing pressed"
+        elif sample(t) != at_end:
+            broke_at, broke_why = t.tick, f"the guarded value moved to {sample(t)}"
+        elif _alive(t) is True:
+            broke_at, broke_why = t.tick, "the player was alive again"
+
     after_idle = sample(s.last)
-    over_after_idle = s.last.state.get("game_over") is True
     alive_after_idle = _alive(s.last)
 
     reset_at: int | None = None
     settled = 0
+    reverted = False
     for i in range(press_ticks):
         t = s.step_raw(dict(press(i)))
         if t.state.get("game_over") is not True:
             reset_at = t.tick
             settled = RESET_SETTLE_TICKS
-            s.idle(settled)
+            reverted = any(st.state.get("game_over") is True for st in s.idle(settled))
             break
     return EndCondition(
-        idle_ticks=idle_ticks, over_after_idle=over_after_idle,
-        frozen_while_idle=after_idle == at_end, at_end=at_end,
-        after_idle=after_idle, alive_after_idle=alive_after_idle,
+        idle_ticks=idle_ticks, at_end=at_end, after_idle=after_idle,
+        alive_after_idle=alive_after_idle,
+        idle_broke_at=broke_at, idle_broke_why=broke_why,
         press_ticks=press_ticks, reset_at=reset_at, settle_ticks=settled,
-        at_start=at_start,
+        reset_reverted=reverted, at_start=at_start,
         after_press=sample(s.last), alive_after_press=_alive(s.last))
 
 

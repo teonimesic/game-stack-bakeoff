@@ -307,7 +307,7 @@ Three are genre-defining and none can be settled from a frame:
   that reports the flag and ignores it fails.
 
 **13 of the 22 are pinned by a mutant** (`bot_mutants.py`, 40 criteria across
-4 games, 7 variants, 3 session-lock controls, 0 expectations unmet): snapped
+4 games, 8 variants, 3 session-lock controls, 0 expectations unmet): snapped
 analog input, enemies that appear fully formed, one kind wearing three names, a multiplier
 that never rises, one that survives damage, a boundary that is never reported, a dropped
 depth axis, a volume that does not hold, a bullet every tick, a kill worth nothing,

@@ -2851,12 +2851,12 @@ one directory; or a tier-2 instrument that serves both classes, which would reti
 
 ## A known play-bot false negative is declared as a red subject, not fixed in passing — decided 2026-08-25
 
-`bot_mutants.py` now carries a third kind of subject beside its mutants and its variants. A
+`bot_mutants.py` carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
-down; every run asserts the measured set equals the declared one. 6 were shipped, on all 4
-fixtures, each naming the ticket that owns its repair; **4 are left** — `tasks/157` landed
-and its 2 entries were promoted into `VARIANTS`, which is the mechanism working as
-designed.
+down; every run asserts the measured set equals the declared one, and each entry names the
+ticket that owns its repair. **4 are live**, on `ref_tetris3d`, `ref_arena` and `ref_pong`;
+`python3 eval/judge/bot_mutants.py` is the producer for that count and prints it beside the
+variant count on its last line.
 
 **Why the defect is declared rather than repaired here.** Every one is a criterion change,
 and a criterion change moves stored verdicts across 68 graded submissions — a re-scoring
@@ -2882,9 +2882,9 @@ fails it.
 
 **Variant coverage is per fixture.** Each variant runs the whole bot on one fixture, so a
 suite-wide variant count is not the number of observations any one criterion has. Read the
-per-fixture counts out of `bot_mutants.py --hazards`, never off the total. `ref_tetris3d` had
-**0** variants when this was decided and is where 3 of the 6 false negatives were found; it
-has 1 since `tasks/157`.
+per-fixture counts out of `bot_mutants.py --hazards`, never off the total — a fixture can sit
+at **0** while the total looks healthy, which is how 3 of the 6 declared false negatives came
+to be found on the one fixture that had none.
 
 **To re-open:** every pending entry repaired and promoted, which would leave the mechanism
 carrying nothing and make it worth asking whether it earns its ~7s; or a pending entry that

@@ -433,6 +433,32 @@ PIT_UNDER_LEDGE = (
     'starts at x=220, so the opening ledge overlooks a bottomless 100-unit pit',
 )
 
+#: THE CLOSING CARD ON THE FIXTURE IT WAS PAID FOR. `MATCH_PLAYS_ON` asks whether
+#: `match.ends` can fail; only this asks whether it can still pass on the very
+#: submission that bought the repair - `g1_pong__rust`, which holds its card for
+#: `GAME_OVER_LOCKOUT_TICKS = 96` and then takes any control as the reset. Pong went
+#: without one for the whole of `tasks/157` because the pending entries were on the
+#: other three fixtures, which is the per-fixture coverage trap this file exists to
+#: name (raised by CodeRabbit on PR #40).
+#:
+#: `_match_ends` runs LAST on the shared session - `_paddle_mechanics` and the
+#: determinism criteria open their own - so a restart inside its pressed phase reaches
+#: no other criterion.
+PONG_RESTART_ON_A_CONTROL = ("""        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""", """        if self.over:
+            # VARIANT: a game-over card for 96 ticks, then any control starts a new
+            # match - the reset the task's own "until it is reset" contemplates.
+            self._over = getattr(self, "_over", 0) + 1
+            if self._over > 96 and any(inputs.get(f) for f in INPUT_FIELDS):
+                t = self.tick
+                self.reset()
+                self.tick = t
+                self._over = 0
+            return events
+""")
+
 #: THE CLOSING CARD, on the three games whose end condition is a loss. The task prompt
 #: says an ended game "stops accepting play until it is reset", which contemplates a
 #: reset existing, and an agent is free to bind it to a control: `g1_pong__rust` holds a
@@ -548,6 +574,11 @@ VARIANTS: list[Variant] = [
                   "bot could have crossed it. Both are fixed: one shared `_walk_toward` "
                   "builds the inputs for all three loops, and the pit is the 100 units "
                   "the real submissions shipped"),
+    Variant("ref_pong", "a game-over card, then a control starts a new match",
+            (PONG_RESTART_ON_A_CONTROL,), ("match.ends",),
+            notes="the shape `g1_pong__rust` shipped, and the one that bought the whole "
+                  "repair - pong had no variant for it until `tasks/157`'s review, "
+                  "because the pending entries sat on the other 3 fixtures"),
     Variant("ref_arena", "a game-over card, then a control starts a new run",
             (ARENA_RESTART_ON_A_CONTROL,), ("gameover.triggers",),
             notes="declared PENDING for eleven weeks, measured `after 300 more ticks "
@@ -923,6 +954,7 @@ _V_CARD = "a 104-tick opening title card holds the ball"
 _V_FAST = "enemies faster than the player, so one reaches it mid-leg"
 _V_SWING = "`active` spans the whole swing, hitbox only the middle"
 _V_PIT = "the opening ledge overlooks a bottomless pit"
+_V_PONG_RESTART = "a game-over card, then a control starts a new match"
 _V_RESTART = "a game-over card, then a control starts a new run"
 _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
 _P_FROZEN = "a 96-tick card over a frozen well"
@@ -993,9 +1025,10 @@ HAZARDS: list[Hazard] = [
            "shape no submission has shipped"),
     Hazard("ref_pong", "match.ends", "closing-card",
            "a game-over card that a control clears into a new match",
-           "the criterion presses NOTHING for 600 ticks after the win. It is the ONLY "
-           "one of the four end-condition criteria that does, and carrying that repair "
-           "to the other three is tasks/157"),
+           "the variant, which is the shape `g1_pong__rust` shipped. The criterion "
+           "idles 600 ticks after the win and only then presses, reading the pressed "
+           "phase THROUGH the reset via `probe.end_condition_holds`",
+           _V_PONG_RESTART),
     Hazard("ref_pong", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_pong", "determinism.seed", "engine-session",
