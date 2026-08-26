@@ -5845,3 +5845,46 @@ for `.agents/skills/work/SKILL.md`.
 > clean one.
 
 ---
+
+## 186. An end-condition check that only idles cannot see a game that ends and keeps playing, and the guarded value has to be one the simulation moves
+
+`tasks/157` prescribed a repair: three end-condition criteria hold a control down after the game
+ends, so do what pong does and **press nothing**. That is the fix pong received from a real
+submission, and the ticket — written by the orchestrator — asked for it to be carried across.
+
+**The agent measured the prescribed repair before shipping it, and it is fail-open.** Against an
+out-of-band mutant that reports `game_over` and keeps the simulation stepping:
+
+| fixture | before | **idle only — the prescribed fix** | shipped |
+|---|---|---|---|
+| `ref_arena` | FAIL | **PASS — the mutant survived** | FAIL |
+| `ref_platformer` | FAIL | FAIL | FAIL |
+| `ref_tetris3d` | PASS — never caught it | PASS | FAIL |
+
+The mechanism is worth stating exactly, because it is not obvious and it generalises: **with the
+player dead there is nobody to earn points**, so a criterion that presses nothing and then watches
+the *score* is watching a quantity that has no way to move. It cannot distinguish a game that
+stopped from a game that is still running with nothing to do.
+
+So the shipped check has **two phases** — idle, then press and read the pressed phase *through the
+reset* — and the guarded value is one **the simulation itself moves**: `kills` beside the arena's
+score, the well's filled-cell total beside tetris's. That is why it catches the shape on all three
+fixtures where the prescribed version caught one.
+
+> **A guard needs a quantity that changes for the reason you are testing, not merely a quantity
+> that would change if the thing worked.** Score is the obvious end-condition witness and it is the
+> wrong one, because the input that would move it is the input you have just withheld.
+
+> **And a repair that is correct where it was learned is a hypothesis everywhere else.** Pong's fix
+> was bought with a real submission and is right for pong. Carrying it across is what the ticket
+> asked for and what #183 said was missing — and carrying it across *unmeasured* would have closed
+> two pending entries while opening a hole in a third game. **The ticket was wrong, and it was the
+> orchestrator's ticket.**
+
+**Blast radius measured, not assumed:** `tier2_census.py` over the stored tree is byte-identical
+before and after across 69 trials, and all 6 stored `gameover.triggers` failures are Unity
+probe-unusable sessions, so no stored FALSE can turn TRUE. What could not be established offline is
+whether any of the 62 stored PASSes would move — that needs a live probe against the submissions,
+and the ticket says so rather than implying the census covers it.
+
+---
