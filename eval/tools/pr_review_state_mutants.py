@@ -31,7 +31,10 @@ None of these crashes. Every one returns a verdict that looks exactly like a ver
 | `inprogress_detect` | the in-progress marker match | a round that is **running** reads as finished. The "No actionable comments" line under that marker is the PREVIOUS round's verdict |
 | `inprogress_exclude` | the marker exclusion from the finished COUNT | the verdict is still right and `by_comment` says a review exists that does not — the audit trail disagreeing with the verdict it accompanies |
 | `failed_kind_ignored` | the split of headings by what they IMPLY | #185: a round that started and **died** rewrites the summary comment at the head, so the comment arm reads it as a clean landing — measured at `LANDED_COMMENT` in 1 second while the real review was 540 s away |
-| `failed_is_any_notice` | the narrowing of that split to the failure heading | the opposite over-reach: a **paused** branch stops landing, which is the deadlock `--ignore-notice` was added for |
+| `failed_marker_arm` | the HTML marker half of the failure read | a reworded heading stops being a failed round, silently, and the poll is fail-open again |
+| `failed_heading_arm` | the heading half | a dropped or renamed HTML marker does the same |
+| `failed_rounds_bot_filter` | the login filter on the failure read | the agent trips it by quoting the notice while explaining a decline — §6 tells it to reply |
+| `failed_is_any_notice` | the narrowing of that split to the failure signals | the opposite over-reach: a **paused** branch stops landing, which is the deadlock `--ignore-notice` was added for |
 | `failed_heading_unanchored` | the anchor on the failure heading | a heading that merely mentions a failed review becomes a failed round |
 | `failed_exit_is_zero` | the non-zero exit for `REVIEW_FAILED` | a caller reading exit 0 as "reviewed" is fail-open again, one layer down from the verdict |
 | `render_drops_failed` | the failure count from the output line | the audit trail stops saying why the verdict is not `LANDED_COMMENT` |
@@ -80,7 +83,7 @@ restating a number here. Each is paired with the mutant that proves its row can 
 | `B15`, `B15b` | a pause or a spent allowance beside a clean summary — these must still land | `failed_is_any_notice` |
 | `B16` | a real review beside a stale failure callout | `failed_before_review` |
 | `B17` | the replacement round already in flight | `failed_before_inflight` |
-| `C7` | the failure reason appended to the heading | `failed_kind_ignored` |
+| `C9` | the failure reason appended to the heading | `failed_heading_unanchored` |
 | `F10` | an answered failure that never resolves — loud, not silent | `failed_stops_under_ignore_notice` |
 
 **Needs no corpus and no network.** `pr_review_state.py --selftest` injects its own `gh`
@@ -156,14 +159,29 @@ MUTANTS: dict[str, tuple[str, str]] = {
 
     # ---- the round that started and DIED (#185)
     "failed_kind_ignored": (
-        "    failed = failed_headings(headings)",
+        "    failed = failed_rounds(comments)",
         "    failed = []"),
     "failed_is_any_notice": (
-        "    return [h for h in headings if FAILED_HEADING.match(h.strip())]",
-        "    return list(headings)"),
+        "        if FAILURE_MARKER in body or any(FAILED_HEADING.match(h.strip())\n"
+        "                                         for h in ALERT_HEADING.findall(body)):",
+        "        if ALERT_HEADING.findall(body):"),
+    "failed_marker_arm": (
+        "        if FAILURE_MARKER in body or any(FAILED_HEADING.match(h.strip())\n"
+        "                                         for h in ALERT_HEADING.findall(body)):",
+        "        if any(FAILED_HEADING.match(h.strip())\n"
+        "               for h in ALERT_HEADING.findall(body)):"),
+    "failed_heading_arm": (
+        "        if FAILURE_MARKER in body or any(FAILED_HEADING.match(h.strip())\n"
+        "                                         for h in ALERT_HEADING.findall(body)):",
+        "        if FAILURE_MARKER in body:"),
     "failed_heading_unanchored": (
-        "    return [h for h in headings if FAILED_HEADING.match(h.strip())]",
-        "    return [h for h in headings if FAILED_HEADING.search(h.strip())]"),
+        "        if FAILURE_MARKER in body or any(FAILED_HEADING.match(h.strip())\n"
+        "                                         for h in ALERT_HEADING.findall(body)):",
+        "        if FAILURE_MARKER in body or any(FAILED_HEADING.search(h.strip())\n"
+        "                                         for h in ALERT_HEADING.findall(body)):"),
+    "failed_rounds_bot_filter": (
+        "    for c in _by_bot(comments):\n        body = c.get(\"body\") or \"\"",
+        "    for c in comments:\n        body = c.get(\"body\") or \"\""),
     "failed_exit_is_zero": (
         '    "REVIEW_FAILED": 14,',
         '    "REVIEW_FAILED": 0,'),

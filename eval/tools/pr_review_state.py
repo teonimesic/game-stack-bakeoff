@@ -70,10 +70,16 @@ Measured on PR #39 (`tasks/162`): `--wait --ignore-notice` returned `LANDED_COMM
 **540 s** later (#185). The procedure's next step is to act on the review, so *nothing to
 say* and *the reviewer was interrupted* produced the same behaviour.
 
-So the failure heading gets its own verdict, ranked **above** the comment arm and **below**
-both a real review object and a round in flight. A review object at the head means the head
-was reviewed whatever a stale callout beside it says; a marker at the head means a new round
-is already running and the wait should keep waiting.
+So a failed round gets its own verdict, ranked **above** the comment arm and **below** both a
+real review object and a round in flight. A review object at the head means the head was
+reviewed whatever a stale callout beside it says; an in-progress marker at the head means a
+new round is already running and the wait should keep waiting.
+
+It is read by **marker or heading**, the same disjunction the landed arms use and for the same
+reason — either signal alone can be wrong later. Both come from the real bytes on
+`meshery/meshery#21612`, since PR #39's own instance was rewritten in place and is gone. Those
+bytes also show *why* the comment arm was satisfied: the failure block **writes the new head
+sha into itself**.
 
 WHY THE WAIT IS NOT A CLOCK
 ---------------------------
@@ -138,12 +144,16 @@ INPROGRESS_MARKER = "auto-generated comment: review in progress by coderabbit.ai
 # heading, because the pause notice is a NOTE and the limit notice is a WARNING.
 ALERT_HEADING = re.compile(r"> \[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n> ## ([^\n]*)")
 
-# The one heading that says a round STARTED AND DIED rather than never started. It is
-# Applied with `.match`, so it is ANCHORED at the start of the heading and a heading that
-# merely mentions a failed review is not one — and left open at the end, because the reason CodeRabbit gives ("the head
-# commit changed during the review") is in the body today and could be appended to the
-# heading tomorrow. Measured heading text, from the tool's own output on PR #39:
-# `Review failed` (`tasks/162`).
+# A failed round is read two ways, for the same reason the landed arms are: either signal
+# alone can be wrong later. The HTML comment is the machine one, bracketing the block exactly
+# as INPROGRESS_MARKER brackets a running round; the heading is what a reader sees and what
+# the poll line prints. Both are taken from the real artifact on meshery/meshery#21612 — this
+# repository's own instance was rewritten in place and is no longer extractable from PR #39.
+FAILURE_MARKER = "auto-generated comment: failure by coderabbit.ai"
+# Applied with `.match`, so it is ANCHORED at the start of the heading: a heading that merely
+# mentions a failed review is not one. Left open at the end, because the reason CodeRabbit
+# gives ("The head commit changed during the review from <sha> to <sha>.") is in the body
+# today and could be appended to the heading tomorrow.
 FAILED_HEADING = re.compile(r"Review failed", re.IGNORECASE)
 
 FULL_SHA = re.compile(r"\A[0-9a-f]{40}\Z")
@@ -296,16 +306,22 @@ def alert_headings(comments: Iterable[dict]) -> list[str]:
     return out
 
 
-def failed_headings(headings: Iterable[str]) -> list[str]:
-    """The subset of headings that say a round STARTED AND DIED.
+def failed_rounds(comments: Iterable[dict]) -> list[dict]:
+    """The bot comments saying a round STARTED AND DIED.
 
-    Splitting the headings by what they imply is the whole repair. A pause or a spent
+    Splitting the notices by what they imply is the whole repair. A pause or a spent
     allowance says a round has not started, and it sits beside whatever the previous round
     left — so it must not touch the comment arm, or every paused branch stops landing. A
-    failed round rewrote the summary comment at the head, so the artifact it leaves is the
-    shape of a clean landing and the comment arm must not read it as one.
+    failed round writes the NEW head sha into its own body, so the artifact it leaves
+    satisfies the comment arm exactly and the comment arm must not read it as a landing.
     """
-    return [h for h in headings if FAILED_HEADING.match(h.strip())]
+    out: list[dict] = []
+    for c in _by_bot(comments):
+        body = c.get("body") or ""
+        if FAILURE_MARKER in body or any(FAILED_HEADING.match(h.strip())
+                                         for h in ALERT_HEADING.findall(body)):
+            out.append(c)
+    return out
 
 
 def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> dict:
@@ -326,7 +342,7 @@ def classify(head: str, reviews: Iterable[dict], comments: Iterable[dict]) -> di
     in_flight = [c for c in naming if INPROGRESS_MARKER in (c.get("body") or "")]
     finished = [c for c in naming if INPROGRESS_MARKER not in (c.get("body") or "")]
     headings = alert_headings(comments)
-    failed = failed_headings(headings)
+    failed = failed_rounds(comments)
 
     if by_review:
         verdict = "LANDED_REVIEW"
@@ -497,11 +513,28 @@ PAUSED = ("> [!NOTE]\n> ## Reviews paused\n>\n> It looks like this branch is und
           "development.\n")
 LIMIT = ("> [!WARNING]\n> ## Review limit reached\n>\n> You've used all 10 included "
          "reviews currently available.\n")
-# The state this file's `REVIEW_FAILED` arm exists for, constructed rather than waited for:
-# ONE summary comment, rewritten by the round that died, carrying the callout AND naming the
-# head. That is why it was indistinguishable from a clean landing (#185).
+# The state this file's `REVIEW_FAILED` arm exists for, constructed rather than waited for.
+# These are the REAL bytes, read from `coderabbitai[bot]` on meshery/meshery#21612 — this
+# repository's own instance on PR #39 was rewritten in place and is gone. Note that the body
+# writes the NEW head sha into itself, which is why a failed round satisfied the comment arm
+# exactly and was indistinguishable from a clean landing (#185).
+REAL_HEAD = "ff9816d00a90fffb86e5fd602bf3e37f035084ba"
+REAL_FAILED = (
+    "<!-- This is an auto-generated comment: failure by coderabbit.ai -->\n"
+    "\n"
+    "> [!CAUTION]\n"
+    "> ## Review failed\n"
+    "> \n"
+    "> The head commit changed during the review from "
+    "b7a7fde482ff94828c2e9253315e381f80808ff7 to "
+    f"{REAL_HEAD}.\n"
+    "\n"
+    "<!-- end of auto-generated comment: failure by coderabbit.ai -->\n")
+# The two halves on their own, so each arm of the disjunction has a row only it covers.
 FAILED = ("> [!WARNING]\n> ## Review failed\n>\n> The head commit changed during the "
           "review.\n")
+FAILED_MARKER_ONLY = ("<!-- This is an auto-generated comment: failure by coderabbit.ai -->\n"
+                      "\n> The head commit changed during the review.\n")
 SUMMARY_DONE = f"Actionable comments posted: 0\n\n...between base and {HEAD_A}.\n"
 SUMMARY_FAILED = FAILED + SUMMARY_DONE
 SUMMARY_RUNNING = (f"<!-- This is an {INPROGRESS_MARKER} -->\n"
@@ -661,17 +694,35 @@ def selftest() -> int:
           v([], [_comment(body=SUMMARY_RUNNING), _comment(body=FAILED)]), "IN_FLIGHT")
     check("B18 a human quoting the failure is not a failure",
           v([], [_comment(login="teonimesic", body=SUMMARY_FAILED)]), "NOT_YET")
-    check("C5 the failure heading is extracted",
-          failed_headings(alert_headings([_comment(body=SUMMARY_FAILED)])), ["Review failed"])
-    check("C6 a pause is not a failure",
-          failed_headings(alert_headings([_comment(body=PAUSED)])), [])
-    # Variant M: the reason moved into the heading. It is in the body today; the poll must
-    # not turn silently fail-open if CodeRabbit appends it.
-    check("C7 variant — the reason appended to the heading",
-          failed_headings(["Review failed — the head commit changed during the review"]),
-          ["Review failed — the head commit changed during the review"])
-    check("C8 a heading merely containing the words is not a failure",
-          failed_headings(["Why your review failed to post"]), [])
+    # --- the REAL artifact. The extraction proved on one row whose answer is known in
+    # advance: this head was NOT reviewed, because the round reading it died.
+    check("B19 the real failure comment, verbatim, at the head it names",
+          attempt(lambda: classify(REAL_HEAD, [], [_comment(body=REAL_FAILED)])["verdict"]),
+          "REVIEW_FAILED")
+    check("B19 and the comment arm WAS satisfied — this is why it read as clean",
+          attempt(lambda: classify(REAL_HEAD, [], [_comment(body=REAL_FAILED)])["by_comment"]),
+          1)
+    # The read is deliberately NOT scoped to the comment naming the head: a failure callout
+    # anywhere on the pull request suppresses the comment arm. The cost is a stale callout
+    # expiring the wait loudly; the alternative fails open (`DECISIONS.md`).
+    check("B19 a failure callout anywhere suppresses the comment arm",
+          attempt(lambda: classify(HEAD_A, [], [_comment(body=REAL_FAILED)])["verdict"]),
+          "REVIEW_FAILED")
+
+    check("C5 the marker alone is a failed round",
+          len(failed_rounds([_comment(body=FAILED_MARKER_ONLY)])), 1)
+    check("C6 the heading alone is a failed round",
+          len(failed_rounds([_comment(body=FAILED)])), 1)
+    check("C7 a pause is neither", failed_rounds([_comment(body=PAUSED)]), [])
+    check("C8 a clean summary is neither", failed_rounds([_comment(body=SUMMARY_DONE)]), [])
+    # Variant M: the reason moved into the heading. It is in the body today, and the poll
+    # must not go quietly fail-open if CodeRabbit appends it.
+    check("C9 variant — the reason appended to the heading",
+          len(failed_rounds([_comment(
+              body="> [!CAUTION]\n> ## Review failed — the head commit changed\n")])), 1)
+    check("C10 a heading merely containing the words is not a failure",
+          failed_rounds([_comment(body="> [!NOTE]\n> ## Why your review failed to post\n")]),
+          [])
 
     check("C1 pause heading", alert_headings([_comment(body=PAUSED)]), ["Reviews paused"])
     check("C2 limit heading", alert_headings([_comment(body=LIMIT)]), ["Review limit reached"])

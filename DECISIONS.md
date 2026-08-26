@@ -1981,8 +1981,8 @@ where both arms correctly read false. It returns **3** distinct verdicts over 17
 6 `LANDED_REVIEW`, 6 `LANDED_COMMENT`, 5 `NOTICE` — so it is discriminating rather than
 reporting the instrument.
 
-`python3 eval/tools/pr_review_state.py --selftest` is **86** offline checks including **16**
-variants; `python3 eval/tools/pr_review_state_mutants.py` removes **42** mechanisms one at a time
+`python3 eval/tools/pr_review_state.py --selftest` is **91** offline checks including **16**
+variants; `python3 eval/tools/pr_review_state_mutants.py` removes **45** mechanisms one at a time
 and every one goes red. Both counts are `len()` of what ran, printed by the tools — run them
 rather than quoting this line.
 
@@ -2026,6 +2026,22 @@ fix the previous instance of it.
 a time**: not a landing while the in-progress marker is on it, and not a landing while a failure
 callout is on the pull request. That decision is written beside `--ignore-notice` in
 `pr_review_state.py`, which is where the next reader will be standing.
+
+**The extraction is proved on the real artifact, not on the fixture that describes it.** PR #39's
+notice was rewritten in place and is no longer extractable, so the bytes come from
+`coderabbitai[bot]` on `meshery/meshery#21612`, found through `gh api search/issues`. They settle
+2 things the ticket could only assert: the block is bracketed by its own HTML marker,
+`auto-generated comment: failure by coderabbit.ai`, exactly as a running round is — so the failed
+round is read by **marker or heading**, the same disjunction the landed arms use — and the body
+**writes the new head sha into itself**, which is the mechanism by which a dead round satisfied
+the comment arm. The selftest classifies those verbatim bytes at the head they name.
+
+**The live reconstruction was attempted and did not reproduce**, which is worth recording because
+it narrows the trigger. Pushing an ordinary commit into PR #41 while a round was in flight — the
+marker observed present through `gh api`, not through this poll — produced no failure callout: the
+marker went absent for ~100 s and returned for a new round against the new head. `tasks/162`'s
+instance came from a **merge** of `main` mid-review. So *a push mid-round* is not sufficient, and
+what distinguishes the 2 is unmeasured.
 
 > **When one artifact serves two states, the repair is an exclusion, never a flag.** Every hole
 > found in this poll has been the same shape — an artifact that exists for more than one reason,
