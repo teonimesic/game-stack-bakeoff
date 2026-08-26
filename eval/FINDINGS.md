@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#183 from building and running this evaluator. **Check whether a
+Findings #19-#185 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -259,6 +259,8 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **181** | A POPULATION with no producer goes stale exactly as a quantity does, and the row that did NOT move is the tell — adding 4 everywhere would have been consistent and wrong | [documentation](findings/documentation.md) |
 | **182** | The scene probe's first contact with a real submission produced a false negative, and only a real submission could have — every fixture was written by the hand that wrote the criteria | [certifies-nothing](findings/certifies-nothing.md) |
 | **183** | Six false negatives in the tier weighted 1.00, and the first two are pong's own repair never carried across to the games sharing its prompt sentence | [certifies-nothing](findings/certifies-nothing.md) |
+| **184** | Whether a wrapped series can be unwrapped is a property of the SAMPLING RATE — per capture impossible, per tick comfortable, same algorithm | [certifies-nothing](findings/certifies-nothing.md) |
+| **185** | A review that FAILED reported as a review that found nothing, in one second — every hole in this poll has been an artifact that exists for more than one reason | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

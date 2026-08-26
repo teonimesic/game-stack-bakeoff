@@ -5760,3 +5760,88 @@ assumed: all 6 stored `gameover.triggers` failures are probe-unusable session fa
 this shape.
 
 ---
+
+## 184. Whether a wrapped series can be unwrapped at all is a property of the SAMPLING RATE, not of the algorithm
+
+The repair for #182 has to recover a scroll rate from an offset field the submission wraps. Unwrapping
+is textbook — map each step into `(-span/2, span/2]` and accumulate — and it is **only correct while
+no true step exceeds half a span**. Past that, the reconstruction is not approximate; it is a
+different, confidently wrong number.
+
+The measurements that decide it:
+
+| | |
+|---|---|
+| captured frames | **12**, at 60-tick spacing |
+| what the submission's road crosses between two captures | **1.6–2.25 spans** |
+| widest **per-tick** step | **4.0%** of its span |
+
+So unwrapping **per captured frame is impossible for this submission** and unwrapping **per tick is
+comfortable**, and the same algorithm is right or wrong depending only on which series it is handed.
+The trace carries every tick; the capture path carries 12 frames. Reading the wrong one would have
+produced a plausible travel figure with no error anywhere.
+
+> **Aliasing is not a property of the data or of the method — it is a property of the interval
+> between samples.** Before reconstructing anything from a periodic series, measure the largest step
+> against the period. Where the answer is *"more than half"*, no algorithm recovers it and the only
+> repair is to sample the source that was never decimated.
+
+**The scene contract deliberately does not say which encoding a submission must use**, and that
+survived this repair rather than being changed by it: `offset` is *"how far that layer has been
+displaced sideways so far"*, `span` is *"the width after which the layer repeats"*, and **because
+each layer declares its own span, a wrapped series and a cumulative one carry the same
+information**. Naming an encoding would be a regime boundary across every scene trial and would
+deduct marks for a representation the renderer wants anyway. Recorded in `DECISIONS.md` with a
+re-open condition.
+
+> **A contract may be silent about representation exactly when the receiver declares its own scale.**
+> The silence was not an oversight, and the defect was never in the prompt — it was a grader that
+> read one encoding and was handed the other.
+
+### The half the repair could not fix, and why it was left
+
+`layers.image_parallax` moved `scored=False` → **FAIL**, and that FAIL is **not trustworthy**: the
+repair promoted an aliased band past a reliability filter whose slack is a floor in *ratio* units —
+0.15 against a median ratio of 0.053 — so nearly any shift agrees with any other. Filed as
+`tasks/164` with the per-pair numbers rather than repaired here, because **a second threshold change
+in the same branch would confound this one's before/after**. That is rule 8 applied to a repair
+rather than to an experiment.
+
+The other direction was measured too: on the cumulative reference fixture all 4 layers return their
+old travel with delta `0.00e+00`, which is why no pre-existing verdict moved.
+
+---
+
+## 185. A review that failed reported as a review that found nothing, in one second
+
+`pr_review_state.py` was built (`tasks/127`) to stop the review poll reporting a landing it had not
+seen. It has a hole of the same family.
+
+Merging `main` mid-review makes CodeRabbit post **`Review failed — the head commit changed during
+the review`**. That notice is not in the `work` skill's table of review shapes, and the poll —
+`--wait --ignore-notice` — returned **`LANDED_COMMENT` in 1 second**, because the summary comment
+does sit at the expected head. The real review arrived **540 s** later.
+
+> **The tool asked "is there a comment at this head" and answered a different question: "has this
+> head been reviewed".** A failed review leaves exactly the artifact a successful one leaves — a
+> comment at the right sha — and the only thing distinguishing them is text nobody parsed.
+
+It is fail-open, and in the expensive direction: the procedure's next step is to act on the review,
+so *"nothing to say"* is indistinguishable from *"the reviewer was interrupted"*, and the branch
+proceeds as though it had been read.
+
+**`--ignore-notice` is the flag that made it worse**, and it was added for a good reason — *Reviews
+paused* is a pool-exhaustion notice that should not block a poll forever. `Review failed` is a
+different notice with the opposite meaning, and one flag covers both because the flag names the
+mechanism (a notice) rather than the property (whether the head was actually reviewed).
+
+The workaround is known and manual: request `@coderabbitai review` and then wait on a **review
+object** at the expected head, not on a comment. Written into `tasks/162`'s note as a candidate row
+for `.agents/skills/work/SKILL.md`.
+
+> **Every hole found in this poll has been the same shape — an artifact that exists for more than
+> one reason, read as though it existed for one.** A sha with no run (#162), a head the API had not
+> caught up to (#165), a paused pool that reads as silence, and now a failed review that reads as a
+> clean one.
+
+---
