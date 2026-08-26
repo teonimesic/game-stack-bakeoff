@@ -2882,9 +2882,8 @@ fails it.
 
 **Variant coverage is per fixture.** Each variant runs the whole bot on one fixture, so a
 suite-wide variant count is not the number of observations any one criterion has. Read the
-per-fixture counts out of `bot_mutants.py --hazards`, never off the total — a fixture can sit
-at **0** while the total looks healthy, which is how 3 of the 6 declared false negatives came
-to be found on the one fixture that had none.
+per-fixture counts out of `bot_mutants.py --hazards`; do not infer them from the suite
+total. A fixture can have **0** variants while the suite total is non-zero.
 
 **To re-open:** every pending entry repaired and promoted, which would leave the mechanism
 carrying nothing and make it worth asking whether it earns its ~7s; or a pending entry that

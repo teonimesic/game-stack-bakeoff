@@ -480,7 +480,6 @@ ARENA_RESTART_ON_A_CONTROL = ("""        if self.game_over:
                 self.reset()
                 self.tick = t
                 self._over = 0
-                return ["wave_start"]
             return events
 """)
 

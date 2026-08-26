@@ -608,6 +608,11 @@ class EndCondition:
     #: the reset did not survive its settle window - it was a flicker, not a new run
     reset_reverted: bool
     at_start: Any
+    #: the player's flag AT TICK 0, so a reset is read against this game's own opening
+    #: state rather than against "not dead". `None` there and `None` after is a game
+    #: with no player; `True` there and `None` after is a game that dropped the field,
+    #: which is not the tick-0 state (raised by CodeRabbit on PR #40)
+    alive_at_start: Any
     after_press: Any
     alive_after_press: Any
 
@@ -623,7 +628,7 @@ class EndCondition:
         if self.reset_at is not None:
             return (not self.reset_reverted
                     and self.after_press == self.at_start
-                    and self.alive_after_press is not False)
+                    and self.alive_after_press == self.alive_at_start)
         return (self.after_press == self.after_idle
                 and self.alive_after_press is not True)
 
@@ -646,7 +651,8 @@ class EndCondition:
         pressed = (
             f"reset at tick {self.reset_at}, settled {self.settle_ticks} ticks"
             f"{' and went over again' if self.reset_reverted else ''}, and {label} "
-            f"came back to {self.after_press} against a tick-0 {self.at_start}"
+            f"came back to {self.after_press} (alive={self.alive_after_press}) "
+            f"against a tick-0 {self.at_start} (alive={self.alive_at_start})"
             if self.reset_at is not None else
             f"still over, {label} {self.after_idle} -> {self.after_press}, "
             f"alive={self.alive_after_press}")
@@ -719,6 +725,7 @@ def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
         idle_broke_at=broke_at, idle_broke_why=broke_why,
         press_ticks=press_ticks, reset_at=reset_at, settle_ticks=settled,
         reset_reverted=reverted, at_start=at_start,
+        alive_at_start=_alive(s.history[0]),
         after_press=sample(s.last), alive_after_press=_alive(s.last))
 
 
