@@ -1,12 +1,12 @@
 ---
 id: 165
 title: The review poll reads a FAILED review as a review that found nothing
-status: in_testing
+status: done
 priority: 1
 refs: 'eval/tools/pr_review_state.py, .agents/skills/work/SKILL.md, tasks/127, tasks/162, #185, #165'
 done_when: A branch in the 'Review failed - the head commit changed' state does NOT return LANDED from pr_review_state.py, proved by constructing that state deliberately rather than waiting for it; the notice table in work/SKILL.md names each notice with what it implies for the poll; --ignore-notice keeps working for the paused case, pinned; and the ambiguous case - no notice, summary comment only, no review object - is decided and the decision written where the flag is defined.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/41
-established_by: 'PR #41 at 1a606d3, gates+controls green: the ticket''s state returns REVIEW_FAILED exit 14 where the pre-repair file returns LANDED_COMMENT exit 0 in 0s, measured side by side on one command; --selftest 100 checks 21 variants, 51 mutants all caught; 5 review rounds, 3 declines all withdrawn'
+established_by: 'PR #41 squash-merged. Verified the defect and the repair on one constructed input, both directions: the same ''Review failed'' callout classifies as LANDED_COMMENT on origin/main''s pre-repair code and REVIEW_FAILED on the shipped one, confirmed again on merged main. Un-flagged it stops at exit 14 so the agent acts; it never lands under any flag. The mechanism fix is the right shape - --ignore-notice named the mechanism (a notice exists) rather than the property (was this head reviewed), so REVIEW_FAILED is now a ranked verdict and the flag governs stopping only. 100 selftest checks with 21 variants, 51 mutants all caught. Two gaps reported rather than papered over: the live reconstruction did not reproduce (162''s callout came from a MERGE, an ordinary push mid-round produced none, and what separates them is unmeasured), and --census cannot exercise the new arm at all with failed=0 across 40 pull requests, which is why the fixture is built from real bytes captured elsewhere. My own probe took three attempts - wrong marker format, a 7-char sha where 40 was needed, then a missing author - and each wrong version returned NOT_YET for BOTH code versions, which looks like a result.'
 ---
 
 `pr_review_state.py --wait --ignore-notice` returned **`LANDED_COMMENT` in 1 second** on a branch
