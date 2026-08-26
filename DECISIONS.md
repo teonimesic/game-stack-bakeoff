@@ -230,9 +230,10 @@ game population and has its own ticket.
 
 **What re-opens it.** `python3 eval/judge/ink_window_control.py --runs-root <main
 checkout>/eval/runs` printing a ceiling firing that is a real defect — a rendered frame with
-no flat region that the play-bot or the scene probe also condemns. Today it prints 2 firings
-and neither is one. `eval/judge/RUBRIC.md` holds the table; `eval/RUNS.md` holds the re-grade
-of the 1 affected trial.
+no flat region that the play-bot or the scene probe also condemns. Its output recorded on
+2026-08-26 holds 2 ceiling firings, and neither firing is a real defect.
+`eval/judge/RUBRIC.md` holds the table; `eval/RUNS.md` holds the re-grade of the 1 affected
+trial.
 
 ### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23
 
