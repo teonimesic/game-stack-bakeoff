@@ -191,10 +191,10 @@ def test_the_window(inks: dict[str, dict[str, Any]]) -> None:
         expect("ink_window refuses a class it cannot place", True, str(e)[:90])
     # COUNT THE COMMANDS, do not merely catch the exception. `except ValueError` accepts
     # one raised from anywhere in `collect`, including after `just check` has run - so
-    # the row would report "refused before spending" about a refusal that spent.
-    ok, spent = refuses_before_spending("film")
+    # the row would report "refused before spending" about a refusal that spent one.
+    ok, ran_commands = refuses_before_spending("film")
     expect("collect refuses before spending a toolchain", ok,
-           f"{len(spent)} command(s) ran first: {spent}")
+           f"{len(ran_commands)} command(s) ran first: {ran_commands}")
 
 
 # --------------------------------------------------------------------------- #
@@ -202,18 +202,23 @@ def test_the_window(inks: dict[str, dict[str, Any]]) -> None:
 # --------------------------------------------------------------------------- #
 
 @contextlib.contextmanager
-def stubbed_toolchain(mean_ink: float, spent: list[str]):
+def stubbed_toolchain(mean_ink: float, ran_commands: list[str]):
     """Everything `collect` would spawn, replaced - and every command it ran, recorded.
 
-    `spent` is what separates *refused before spending a toolchain* from *refused after
-    it*: an exception alone cannot tell those apart, and the stronger one is the claim
-    worth making.
+    `ran_commands` is what separates *refused before spending a toolchain* from *refused
+    after it*: an exception alone cannot tell those apart, and the stronger one is the
+    claim worth making.
+
+    NOT NAMED `spent`. `tools/tokenvalue.py`'s `_VALUE` reads that word as a token
+    valuation, so the name alone made this module a money PRODUCER that was not in
+    `PRODUCERS` and turned `tokenvalue --selftest` red. The gate is right and the name
+    was wrong: what is spent here is a toolchain, and #159 reserves the vocabulary.
     """
     cmd = static.Cmd(name="x", argv=["x"], code=0, seconds=0.0,
                      out="12 passed, 12 total", err="")
 
     def record(repo, name, argv, *a, **k):
-        spent.append(name)
+        ran_commands.append(name)
         return cmd
 
     frame_info = {"count": 12, "errors": [], "mean_ink": mean_ink,
@@ -231,14 +236,14 @@ def stubbed_toolchain(mean_ink: float, spent: list[str]):
 
 def refuses_before_spending(task_class: str) -> tuple[bool, list[str]]:
     """`(refused with nothing run, the commands it ran)` for one unplaceable class."""
-    spent: list[str] = []
+    ran_commands: list[str] = []
     refused = False
-    with stubbed_toolchain(0.5, spent):
+    with stubbed_toolchain(0.5, ran_commands):
         try:
             static.collect(Path("/nonexistent"), task_class=task_class)
         except ValueError as e:
             refused = task_class in str(e)
-    return refused and not spent, spent
+    return refused and not ran_commands, ran_commands
 
 
 def drive_collect(task_class: str, mean_ink: float) -> dict[str, Any]:
@@ -327,9 +332,10 @@ def mutants(inks: dict[str, dict[str, Any]]) -> None:
     # only caller that spends anything. Asserting that the patched lambda does not raise
     # would be true for every input and would exercise no check in this file.
     with patched(static, "ink_window", lambda k: static.INK_WINDOW["game"]):
-        ok, spent = refuses_before_spending("film")
+        ok, ran_commands = refuses_before_spending("film")
     expect("mutant 'an unknown class falls back to the game window' is caught by the "
-           "refusal row", not ok, f"it graded an unplaceable class, running {spent}")
+           "refusal row", not ok,
+           f"it graded an unplaceable class, running {ran_commands}")
 
     # THE WIRING, NOT THE TABLE. This one is only reachable through `collect`: a
     # `nonempty_verdict` that ignores the class it was handed leaves every row above

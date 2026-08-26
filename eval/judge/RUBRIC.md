@@ -89,11 +89,22 @@ What the census found tier 1 actually doing, across every trial it has ever scor
 
 - **2 trials** failed a criterion tier 2 depends on — both the `syspolicyd` build failure
   of #49 — and both scored 0.00 on tier 2, which is the same fact told twice.
-- **6 trials** failed only other criteria: 1 Godot lint finding; 1 Unity lint finding; 3 of a
-  TypeScript submission's own unit tests; 1 frame whose ink coverage was 0.881 against a
-  window ending at 0.85; and the first scene, which failed 4 criteria — 3 because its build
-  was interrupted, and `render.nonempty` because it was measured against a game's ceiling. The
-  5 games among the 6 scored **1.000** on tier 2.
+- **6 trials** failed only criteria tier 2 does not depend on. One row per trial, because
+  counting some of them as trials and others as criteria is what made the earlier wording
+  irreconcilable — it listed 4 items for 5 trials, collapsing the two arena TypeScript trials
+  into one:
+
+  | trial | what it failed | tier 2 |
+  |---|---|---|
+  | `wg-arena3d` `g3_arena__ts__t0` | `verify.green`, `tests.green` — 3 of its own 103 unit tests | 1.000 |
+  | `wg-arena3d` `g3_arena__ts__t1` | `verify.green`, `tests.green` — 3 of its own 109 unit tests | 1.000 |
+  | `wg-audio` `g1_pong__godot__t1` | `verify.green`, `lint.clean` | 1.000 |
+  | `wg-g4c` `g4_platformer__unity__t1` | `verify.green`, `lint.clean` | 1.000 |
+  | `wg-g4c` `g4_platformer__godot__t1` | `render.nonempty` — ink 0.881 against a ceiling ending at 0.85 | 1.000 |
+  | `wg-scene-s1ts` `s1_parallax__ts__t0` | `verify.green`, `lint.clean`, `tests.green` to an interrupted build, and `render.nonempty` to a game's ceiling | 0.833 |
+
+  The 5 games scored **1.000** on tier 2; the scene is not a `completed` trial and is not
+  pooled with them.
 - Every one of the 14 criteria has failed at least once, so none is dead weight. What
   `render.nonempty` in particular has ever done is below, and it is not what it looks like
   from this count.
