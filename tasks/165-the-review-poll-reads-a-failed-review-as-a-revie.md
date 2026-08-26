@@ -1,10 +1,11 @@
 ---
 id: 165
 title: The review poll reads a FAILED review as a review that found nothing
-status: todo
+status: in_review
 priority: 1
 refs: 'eval/tools/pr_review_state.py, .agents/skills/work/SKILL.md, tasks/127, tasks/162, #185, #165'
 done_when: A branch in the 'Review failed - the head commit changed' state does NOT return LANDED from pr_review_state.py, proved by constructing that state deliberately rather than waiting for it; the notice table in work/SKILL.md names each notice with what it implies for the poll; --ignore-notice keeps working for the paused case, pinned; and the ambiguous case - no notice, summary comment only, no review object - is decided and the decision written where the flag is defined.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/41
 ---
 
 `pr_review_state.py --wait --ignore-notice` returned **`LANDED_COMMENT` in 1 second** on a branch
