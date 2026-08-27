@@ -138,6 +138,30 @@ def _mutant(script: Path) -> Path:
     return out
 
 
+def _refused(r: subprocess.CompletedProcess[str], want: list[str]) -> tuple[bool, list[str]]:
+    """Did this run refuse, and refuse with exactly the lines a repair needs? -> (ok, missing).
+
+    TWO THINGS BEYOND THE EXIT CODE, both of which a row asserting less would let through.
+
+    **Nothing on stdout.** The guard's own refusal ends *"No count is reported"*, and a row
+    that checks only the exit code cannot see that promise break: move the guard below
+    `collect()` and every count is printed, the process still exits nonzero, and the row goes
+    on passing while an unusable checkout produces a number. Counts are the thing being
+    guarded, so their absence is part of the claim.
+
+    **WHOLE LINES, not fragments.** A repair naming the WRONG checkout still contains the
+    right path, because the diagnostic header above it names the right one -- so
+    `str(main_ck) in stderr` and `"config core.bare false" in stderr` can both be true of a
+    command pointed somewhere else. `AGENTS.md` rule 12: the address is an input to the check,
+    and a caller passes the full `git -C <path> config ...` line it expects. Both raised by
+    CodeRabbit on PR #64.
+    """
+    missing = [w for w in want if w not in r.stderr]
+    if r.stdout:
+        missing.append(f"stdout should be empty, carries {len(r.stdout)} bytes")
+    return (r.returncode != 0 and not missing), missing
+
+
 def main() -> int:
     """Run every row, print each with its measurement, and exit 1 if any came out wrong."""
     rows: list[tuple[str, bool, str]] = []
@@ -151,7 +175,12 @@ def main() -> int:
     row("live_green", r.returncode == 0 and "project_lines=" in r.stdout,
         f"this checkout, unmodified: exit {r.returncode}")
 
-    base = Path(tempfile.mkdtemp(prefix="heartbeat_control_"))
+    # RESOLVED, and that is not tidiness. On darwin `$TMPDIR` is `/var/folders/...`
+    # while `/var` is a symlink to `/private/var`, so `git worktree list` reports the
+    # resolved path and `mkdtemp` returns the unresolved one -- two addresses for one
+    # directory, which is `AGENTS.md` rule 12. The whole-line assertions below compare
+    # this path against what git prints, so they must be the same spelling.
+    base = Path(tempfile.mkdtemp(prefix="heartbeat_control_")).resolve()
     try:
         main_ck, wt = _build_fixture(base)
         hb_main = main_ck / "eval" / "tools" / "heartbeat.py"
@@ -180,12 +209,15 @@ def main() -> int:
         # ---- red: the main checkout is bare ---------------------------------------------
         _git(main_ck, "config", "core.bare", "true")
         try:
+            # Every line a reader needs in order to repair THIS checkout, spelled whole.
+            want_bare = [*WANT_IN_REFUSAL, f"    {main_ck}\n",
+                         "    core.bare        = true\n",
+                         f"    git -C {main_ck} config core.bare false\n"]
+
             # The state is set here and read by a process that did not set it.
             r = _run_heartbeat(hb_main)
-            missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
-            row("bare_red_from_main",
-                r.returncode != 0 and not missing and str(main_ck) in r.stderr
-                and "config core.bare false" in r.stderr,
+            ok, missing = _refused(r, want_bare)
+            row("bare_red_from_main", ok,
                 f"exit {r.returncode}; missing from the refusal: {missing or 'nothing'}")
 
             # The variant a naive probe misses: from a linked worktree `git rev-parse
@@ -195,10 +227,8 @@ def main() -> int:
             # would go on passing if linked worktrees stopped working.
             wt_status = _git(wt, "status", "--porcelain")
             r = _run_heartbeat(hb_wt)
-            missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
-            row("bare_red_from_linked_worktree",
-                r.returncode != 0 and not missing and str(main_ck) in r.stderr
-                and wt_status.returncode == 0,
+            ok, missing = _refused(r, want_bare)
+            row("bare_red_from_linked_worktree", ok and wt_status.returncode == 0,
                 f"exit {r.returncode} while `git status` in that worktree is exit "
                 f"{wt_status.returncode}; missing: {missing or 'nothing'}")
 
@@ -221,16 +251,18 @@ def main() -> int:
             status = _git(main_ck, "status", "--porcelain")
             marker = _git(main_ck, "worktree", "list", "--porcelain")
             r = _run_heartbeat(hb_main)
-            missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
+            ok, missing = _refused(r, [
+                *WANT_IN_REFUSAL, f"    {main_ck}\n",
+                "    core.bare        = false\n",
+                f"    core.worktree    = {gone}\n",
+                f"    git -C {main_ck} config --unset core.worktree\n"])
             # `marker.returncode == 0` IS PART OF THE CLAIM, not housekeeping. A failed
             # `git worktree list` returns empty stdout, and `"bare" not in ""` is true — so
             # without it this row could pass by the probe erroring rather than by the marker
             # being absent, which is a reason not to count a failure (`AGENTS.md` rule 7).
             # Raised by CodeRabbit on PR #64.
             row("core_worktree_missing_red",
-                r.returncode != 0 and not missing and str(main_ck) in r.stderr
-                and "config --unset core.worktree" in r.stderr
-                and status.returncode == 128 and marker.returncode == 0
+                ok and status.returncode == 128 and marker.returncode == 0
                 and "bare" not in marker.stdout.split("\n\n")[0],
                 f"exit {r.returncode} while `git status` there is exit {status.returncode} "
                 f"and `git worktree list` (exit {marker.returncode}) reports no `bare` "
@@ -252,8 +284,9 @@ def main() -> int:
         shutil.copy2(hb_main, loose / "eval" / "tools" / "heartbeat.py")
         shutil.copy2(main_ck / "eval/tools/tasks.py", loose / "eval" / "tools" / "tasks.py")
         r = _run_heartbeat(loose / "eval" / "tools" / "heartbeat.py")
-        row("not_a_repo_red", r.returncode != 0 and "git worktree list" in r.stderr,
-            f"no repository at the root: exit {r.returncode}")
+        ok, missing = _refused(r, ["`git worktree list` failed", "No count is reported"])
+        row("not_a_repo_red", ok,
+            f"no repository at the root: exit {r.returncode}; missing: {missing or 'nothing'}")
     finally:
         shutil.rmtree(base, ignore_errors=True)
 
