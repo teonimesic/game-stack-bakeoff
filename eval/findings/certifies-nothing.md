@@ -6171,3 +6171,43 @@ it is the third time in this repository that an error has been turned into a pla
 value.
 
 ---
+## #199 - a literal printed beside a computed header, whose own parts never summed
+
+`capability.py` swept the records of whatever run it was pointed at, printed how many it found, and
+then printed `62 of 68 stored submissions captured at exactly the starter default` - **a string
+literal**. Pointed at one run it printed `11 stored submissions` and `62 of 68` in the same output.
+Pointed at the whole tree the 68 sat under a header reading 69.
+
+> **A hardcoded figure printed beside a computed one is worse than a hardcoded figure alone.** With
+> no producer, a reader knows to check. Here the surrounding output *is* produced, so the literal
+> inherits the credibility of its neighbours - and the only tell was that the two disagreed with each
+> other, which nothing was comparing.
+
+**And it was wrong when it was written, not merely stale** - which is the part that separates this
+from #194's CURRENT-versus-DATED problem. The census over the 68 game submissions it named is **63**,
+not 62. Worse, the archived paragraph states all three parts in one place: **62 at the default, 3
+varied, 2 without geometry**, and `62 + 3 + 2 = 67` never reached 68. The document contradicted
+itself on the page, and had done since it was written.
+
+The figure is counted now, partitioned over the records the invocation actually swept, with every
+trial not at the default named: over `eval/runs` on 2026-08-27, **64 of 69 at 640x400, 3 varied
+(420x640, 720x540, 768x576), 2 with no geometry because their own `film` failed**. Registered as
+`WR-capture-default-62-of-68`.
+
+**The extraction was proved before the census was believed**, and proved the right way: on a row
+whose answer was known in advance, with an instrument sharing no code with the subject. `sips` reads
+720x540 on `wg-audio` `g2_tetris3d__ts__t1`'s first frame and 640x400 on `__t0`, agreeing with the
+IHDR read. That is the discipline rule 12 asks for, applied to a census rather than to a path.
+
+> **A mutation harness must clear `__pycache__` and run `python3 -B`.** Restoring a mutant to a file
+> of the *same byte length* inside the *same mtime second* leaves CPython importing the mutant's
+> `.pyc`: the stat-based invalidation cannot see the change. It cost a false RED here, and the same
+> mechanism produces a false SURVIVED - a mutant that appears to have been caught, or one that
+> appears not to exist, decided by whether two writes landed in the same second.
+
+Filed rather than fixed: `capability.TRIAL_RE` does not match a **scene** trial id, so the stored
+scene reports as stack `?` and is dropped from every per-stack partition including the four-arm gate,
+which therefore answers over 68 of 69 records without saying so. Nothing is wrong today; it is a
+silent-exclusion channel, and that is `tasks/185`.
+
+---
