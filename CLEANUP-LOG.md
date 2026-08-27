@@ -693,6 +693,25 @@ a producer for *"which controls does no gate run, and which does the register ex
   it per commit would be the wrong tier. What is not defensible is that its two children are
   reachable *only* through it while the register says nothing.
 
+### Disk, examined and deliberately NOT pruned
+
+The monitor flags gitignored build output as invisible to `git status`, so it was measured:
+`eval/runs` is **4.5G**, and the largest single items are `node_modules` trees inside stored trial
+work directories — 173M each for the two `t2_net__typescript_three` trials alone. `.godot` caches
+are trivial (24K). Outside the repo, `~/game-research-work` is 175M. The live agent worktree under
+`.claude/worktrees` is 3.0G, which is one full checkout and disappears when that agent finishes.
+
+**Deleting the `node_modules` trees would be wrong, and the reason is #45.** They are
+reconstructible from `package.json`, so the naive prune test passes — but #45 is precisely a
+toolchain that vanished between building and grading, and six TypeScript submissions then scored
+an identical 6/14 that read as a stack characteristic. A stored trial whose dependencies are gone
+does not fail loudly on re-grade; it fails in a way that looks like a property of the stack. The
+prune test that matters here is the log's own: *would removing this make a future wrong conclusion
+possible?* — and for this specific class of file the answer is yes, with a numbered instance.
+
+Not pressing regardless: 593Gi free against 7.9G used. Recorded so the next pass does not
+re-derive it, and so nobody deletes them for space later without meeting #45 first.
+
 ### Not opened, and the next pass should take one
 
 `eval/suites/` (the task prompts), `eval/wholegame.py` and `eval/runner.py` (the harness itself),
