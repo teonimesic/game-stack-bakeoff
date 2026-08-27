@@ -797,6 +797,18 @@ RELIABILITY_CASES: list[ReliabilityCase] = [
         "tighter floor fails in: the band is correct and the estimator is doing the "
         "best a whole-pixel answer can do"),
     ReliabilityCase(
+        "a layer that reports no offset change at all",
+        (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 0.0, 400.0, False,
+        "a layer whose reported offset never moves. It is UNREADABLE for the same "
+        "reason an aliased one is - there is no reported rate to compare the drawn "
+        "shift against - and it must say so. Before 2026-08-27 `_reliable` dropped "
+        "these rows at the confidence filter, one line ABOVE the classifier, so "
+        "`no_offset` was a declared key of UNRESOLVED_REASONS that no evidence string "
+        "could ever contain and the layer was reported as `only 0 readable frame "
+        "pairs` with no reason attached. Note the ratio is also undefined here, which "
+        "is why the classifier has to run before `usable` rather than after",
+        reason="no_offset"),
+    ReliabilityCase(
         "a background reported as moving and drawn stationary",
         (0,) * 11, 8.0, 900.0, True,
         "READABLE on purpose, and the one thing `layers.image_parallax` exists to catch. "
@@ -894,7 +906,18 @@ def _reliability_verdicts(mod) -> dict[str, tuple[bool, str]]:
     scene = mod.SCENES["s1_parallax"]()
     out = {}
     for case in RELIABILITY_CASES:
-        good, notes = scene._reliable({"L": _reliability_rows(case)})
+        # A MUTANT THAT RAISES IS CAUGHT, NOT A HARNESS FAILURE. The `usable = list(read)`
+        # mutant drops the resolvability filter, and since 2026-08-27 `read` carries the
+        # rows with no reported offset - so that mutant now divides by zero instead of
+        # returning a wrong verdict. Letting the exception escape would take the whole
+        # selftest down at exit 1 with a traceback, which is indistinguishable from the
+        # suite being broken. It is recorded as a distinct verdict instead, which differs
+        # from every real one and so reads as caught.
+        try:
+            good, notes = scene._reliable({"L": _reliability_rows(case)})
+        except Exception as e:  # noqa: BLE001 - the verdict IS "it raised"
+            out[case.label] = (False, f"RAISED {type(e).__name__}: {e}")
+            continue
         out[case.label] = ("L" in good, " ".join(notes))
     return out
 

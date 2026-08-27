@@ -745,7 +745,7 @@ class ParallaxScene(Scene):
         d = row.get("d_offset")
         if span is None or not math.isfinite(span) or span <= 0:
             return "no_span"
-        if d is None:
+        if d is None or d == 0:
             return "no_offset"
         return None if abs(d) < span * share else "aliased"
 
@@ -781,9 +781,14 @@ class ParallaxScene(Scene):
         good: dict[Any, dict] = {}
         notes: list[str] = []
         for lid, rows in shifts.items():
-            read = [x for x in rows
-                    if x["confidence"] >= self.MIN_CONFIDENCE
-                    and x["d_offset"] not in (None, 0.0)]
+            # Confidence only. A pair with no reported offset change is CLASSIFIED by
+            # `_unresolved` rather than filtered out here: dropping it first made
+            # `no_offset` a declared reason that could never appear in any evidence
+            # string, so a layer whose offsets never move was reported as "only N
+            # readable frame pairs" with no reason given. `_unresolved` returns a key
+            # for those rows, so they are still excluded from `usable` and the ratio
+            # below never divides by zero.
+            read = [x for x in rows if x["confidence"] >= self.MIN_CONFIDENCE]
             why = [self._unresolved(x, self.NYQUIST_SHARE) for x in read]
             usable = [x for x, w in zip(read, why, strict=True) if w is None]
             unresolved = len(read) - len(usable)
