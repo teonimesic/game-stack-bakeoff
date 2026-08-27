@@ -139,6 +139,30 @@ def _nearest(t: Tick, only_live: bool = True) -> dict[str, Any] | None:
     return best
 
 
+#: How long the bot waits at the START of a session for the game to hand play over.
+#: Eight seconds at 64 Hz covers an opening title card, a countdown and a pause, and a
+#: game that has not handed control over by then is not withholding play for
+#: presentation.
+#:
+#: ONE CONSTANT, TEN PLACES - the main session and every one of the nine sibling
+#: sessions this bot opens. A card gates the SIMULATION, so it gates each fresh session
+#: from that session's own tick 0; a budget spent only on the criteria that happen to be
+#: shortest leaves the rest red on the same card, which is `tasks/158`'s finding on
+#: `bot_tetris3d` and the reason that repair reached four call sites rather than two.
+#:
+#: What it was worth here, measured on `ref_arena` before the repair by lengthening a
+#: card until each criterion broke (`tasks/173`): 30 ticks failed `player.moves` and
+#: `move.analog`, 120 added `fire.spawns_bullets`, `fire.rate_limited` and
+#: `aim.independent`, 300 added `enemy.materialises`, 360 `aim.three_axis`, 368
+#: `enemies.chase`, 390 `enemies.spawn`, and by 800 `player.bounded` and `wall.graze`
+#: took it to eleven of twenty-two. Nine of those eleven break at or under this budget.
+#:
+#: `bot_pong.LIVE_BUDGET`, `bot_tetris3d.OPENING_BUDGET` and
+#: `bot_platformer._CONTROL_TICKS` are this same 512, bought by a Godot submission that
+#: held the ball for `OPENING_DELAY = 104` so its title card would be readable (#34).
+OPENING_BUDGET = 512
+
+
 class ArenaBot(Bot):
     game = "g3_arena"
     #: Long enough to meet several waves, so pacing is a property of the game rather
@@ -229,6 +253,15 @@ class ArenaBot(Bot):
         half = (_f(arena, "half_x") or 400.0, _f(arena, "half_y") or 250.0,
                 _f(arena, "half_z") or 400.0)
 
+        # WAIT FOR PLAY TO BE HANDED OVER before anything is concluded. `state.shape` is
+        # above this line because it reads tick 0, which a card answers as truthfully as
+        # a running game does; everything below needs the simulation.
+        live, _, note = self._take_control(s)
+        if not live:
+            for cid, q in self.criteria[1:]:
+                add(Criterion(cid, q, False, note))
+            return out
+
         # ORDER MATTERS. Standing around costs health, so everything that needs a LIVE
         # player runs first and briefly; the long walks into the wall run last, in
         # their own sessions. The first version of this bot did a 1200-tick walk up
@@ -280,6 +313,41 @@ class ArenaBot(Bot):
     def _q(self, cid: str) -> str:
         return next(q for c, q in self.criteria if c == cid)
 
+    @staticmethod
+    def _take_control(s: ProbeSession) -> tuple[bool, int, str]:
+        """Step until the player actually answers a movement input.
+
+        Not a fixed delay and not a flag: the property is "the game has handed control
+        over", so that is what is measured. A title card, a countdown and a "press any
+        key" screen all pass through here identically, and
+        `bot_platformer._take_control` is the same check on the same budget.
+
+        IT RETURNS ON THE FIRST ANSWERING TICK, which is what keeps it out of the
+        measurements that follow. A game already playing pays one tick of movement -
+        3.4 units on the reference, against a 400-unit half-extent - so `move.analog`
+        still opens its two pushes from the same place, `_walls` still has the whole
+        volume to cross, and `_death` still stands still for all but that tick. The
+        displacement is bounded by the threshold rather than by the budget: a game that
+        accelerates is past 1.0 unit while it is still barely moving.
+
+        Any axis answers. The push is +x because that is the axis `player.moves` reads
+        first, but the test is on the DISTANCE moved, so a game that maps the axes
+        differently hands control over here and fails `player.moves` on its own account
+        rather than through this.
+        """
+        p0 = _xyz(_player(s.last))
+        for i in range(OPENING_BUDGET):
+            t = s.step_raw(_move((1.0, 0.0, 0.0)))
+            p1 = _xyz(_player(t))
+            if _dist(p1, p0) > 1.0:
+                return True, i + 1, (
+                    f"the player answered a movement input after {i + 1} tick(s) "
+                    f"({p0} -> {p1})")
+        return False, OPENING_BUDGET, (
+            f"the player never answered a movement input in {OPENING_BUDGET} ticks "
+            f"({OPENING_BUDGET / 64:.1f}s), so play was never handed over "
+            f"(it stayed at {p0})")
+
     # -- movement --------------------------------------------------------- #
 
     def _moves(self, s: ProbeSession) -> Criterion:
@@ -307,21 +375,34 @@ class ArenaBot(Bot):
         only in the input. Measuring both inside one session would compare a player at
         the origin with one already displaced - and, near a wall, with one that cannot
         move at all.
+
+        `_take_control` runs first in each of them and it does not break that: it holds
+        the same full push in all three, ends on the same tick against the same card,
+        and the start is recorded AFTER it. What it costs is the one answering tick of
+        displacement, which both magnitudes pay identically.
         """
         cid = "move.analog"
+        note = ""
         try:
-            def push(vec: Vec) -> Vec:
+            def push(vec: Vec) -> Vec | None:
+                nonlocal note
                 with ProbeSession(repo=repo, env=env, seed=7) as s:
+                    live, _, note = self._take_control(s)
+                    if not live:
+                        return None
                     start = _xyz(_player(s.last))
                     for _ in range(self._ANALOG_TICKS):
                         s.step_raw(_move(vec))
                     return _sub(_xyz(_player(s.last)), start)
 
-            full = push((1.0, 0.0, 0.0))
-            half = push((0.5, 0.0, 0.0))
-            skew = push((1.0, 0.0, 0.25))
+            pushes = [push(v) for v in ((1.0, 0.0, 0.0), (0.5, 0.0, 0.0),
+                                        (1.0, 0.0, 0.25))]
         except ProbeError as e:
             return (unusable_criteria([(cid, self._q(cid))], e, "the analog session")[0],)
+
+        if any(p is None for p in pushes):
+            return (Criterion(cid, self._q(cid), False, note),)
+        full, half, skew = pushes
 
         d_full, d_half = full[0], half[0]
         if d_full <= 1.0:
@@ -355,6 +436,9 @@ class ArenaBot(Bot):
         ids = ("player.bounded", "wall.graze")
         try:
             with ProbeSession(repo=repo, env=env, seed=7) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return [Criterion(c, self._q(c), False, note) for c in ids]
                 pts: list[Vec] = []
                 grazed = False
                 for _ in range(900):
@@ -447,6 +531,9 @@ class ArenaBot(Bot):
         try:
             with ProbeSession(repo=repo, env=env, seed=7,
                               total_timeout_s=1200.0) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return Criterion(cid, self._q(cid), False, note)
                 first_wave: dict[str, int] = {}
                 waves: list[int] = [_i(s.last, "wave", 1)]
                 prev = s.last
@@ -499,6 +586,9 @@ class ArenaBot(Bot):
         cid = "enemy.materialises"
         try:
             with ProbeSession(repo=repo, env=env, seed=7) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return Criterion(cid, self._q(cid), False, note)
                 # Step to the first wave and take the enemy that is spawning.
                 target = None
                 for _ in range(300):
@@ -729,6 +819,9 @@ class ArenaBot(Bot):
         try:
             with ProbeSession(repo=repo, env=env, seed=7,
                               total_timeout_s=900.0) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return Criterion(cid, q, False, note)
                 e0 = _nearest(s.last)
                 for _ in range(400):
                     if e0 is not None:
@@ -858,6 +951,10 @@ class ArenaBot(Bot):
                "aim.three_axis")
         try:
             with ProbeSession(repo=repo, env=env, seed=7) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    a, b, c, d = (Criterion(x, self._q(x), False, note) for x in ids)
+                    return a, b, c, d
                 return self._firing_in(s)
         except ProbeError as e:
             a, b, c, d = unusable_criteria([(cid, self._q(cid)) for cid in ids], e,
@@ -980,6 +1077,9 @@ class ArenaBot(Bot):
         try:
             with ProbeSession(repo=repo, env=env, seed=7,
                               total_timeout_s=1200.0) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return [Criterion(c, self._q(c), False, note) for c in ids]
                 kills_evt = 0
                 score_pairs: list[tuple[int, int]] = []
                 waves_seen: list[int] = [_i(s.last, "wave", 1)]
@@ -1094,6 +1194,9 @@ class ArenaBot(Bot):
         try:
             with ProbeSession(repo=repo, env=env, seed=7,
                               total_timeout_s=1200.0) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return Criterion(cid, self._q(cid), False, note)
                 base = _i(s.last, "multiplier", 1)
                 mult = base
                 prev = s.last
@@ -1178,6 +1281,9 @@ class ArenaBot(Bot):
         try:
             with ProbeSession(repo=repo, env=env, seed=7,
                               total_timeout_s=900.0) as s:
+                live, _, note = self._take_control(s)
+                if not live:
+                    return [Criterion(c, self._q(c), False, note) for c in ids]
                 hp0 = _f(_player(s.last), "hp", 0.0) or 0.0
                 hits = 0
                 over_at = None
