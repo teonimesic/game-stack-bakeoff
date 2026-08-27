@@ -27,7 +27,8 @@ did until 2026-08-23, agreeing to the digit with a `RUNS.md` figure produced the
 > the second wrapper is invisible to any check keyed on the first one's shape. The three tree
 > walkers are now depth-independent and each prints what it skipped — `tools/census.py`,
 > `tools/manifest.py audit` (19 run directories before, **23** after, no verdict changed) and
-> `judge/tier1_census.py` (68 submissions before and after, over **84** gradings on disk).
+> `judge/tier1_census.py` (68 submissions before and after the fix, over **84** gradings on disk,
+> measured 2026-08-23 — the corpus has since grown to 69 over 85).
 > Any new walker over `runs/` gets the same treatment and a fixture with a nested run in it.
 
 **There are 2 TASK CLASSES and they are graded separately.** `suites/wholegame_prompts.py`
@@ -47,7 +48,9 @@ was still chosen against fixtures its own author wrote. Read the honest expectat
 docstring before quoting a scene score, and see `judge/AGENTS.md` for what the tiers are. First
 contact found a false negative in `layers.depth_ordered` and left 2 of 8 criteria unscored;
 `tasks/162` repaired it, and `tasks/164` repaired the reliability filter that repair unblocked.
-The re-grade stands at 6 of 6, and 2 criteria are still unscored.
+The re-grade stands at 6 of 6, and 2 criteria are still unscored — but nothing under `runs/` was
+rewritten, so `judge/tier2_census.py` reads the as-graded 5 of 6 and its `layers.depth_ordered`
+FAIL. `RUNS.md` holds all 3 gradings side by side.
 
 **`suites/*.toml`, `suites/prompts.py`, `holdout*/` and `variants/` are evidence, not a live
 suite.** They are the ONLY record of what the 71 spec-change trials were asked to do and graded
