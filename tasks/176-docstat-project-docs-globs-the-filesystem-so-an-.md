@@ -27,3 +27,134 @@ than re-recording the output.
 
 The ratchet your ticket names is the case to lead with: a pin to an exact count over a corpus that
 can silently grow is a pin that reports the corpus, not the property.
+
+## note 2026-08-27
+
+## What landed
+
+`project_docs()` reads `git ls-files`, not the filesystem. It and `_live_corpus()` share one
+helper, `_tracked_md()`, and `_corpus_pins` asserts they agree about tree membership — 46
+documents on both sides after removing the deliberate differences (`project_docs` keeps the
+archive and drops dot-directories and `runs/`; `_live_corpus` does the opposite on the
+archive).
+
+**The dot-directory exclusion is now stated rather than inherited from `glob` not descending
+into a dotted name.** It was always a choice; it just was not written down, and a mutant
+could not remove it.
+
+## NO PINNED COUNT MOVED, and that is the answer to the orchestrator's note
+
+On a clean checkout the glob and the index return the **same 238** project documents — the
+set difference is empty in both directions. So nothing in `--sweep`'s summary was
+re-recorded to match a new number: 249 / 238 / 10 / 1 / 198 / 177 / 57 / 36 before and
+after.
+
+**That is also why the live tree cannot pin the new filter.** A mutant restoring the glob
+passes every live row. The discriminating input has to be built:
+`docstat._tree_fixture(tmp)` makes a throwaway git repository holding markdown that is not
+in it, and `eval/tools/corpus_control.py` runs the pins with one mechanism removed.
+
+## The measurements, in both directions
+
+| planted | before the repair | after |
+|---|---|---|
+| `staging/task-176-note.md`, no ids | corpus 249 → **250** (238 → 239 project), exit 0 | corpus **249**, exit 0 |
+| `staging/findings/scratch-note.md`, 3 bare trial ids | ratchet 18 → **21**, **exit 1** | ratchet **18**, exit 0 |
+| the same bare id in a **tracked** file | ratchet 18 → 19, exit 1 | ratchet 18 → **19, exit 1** |
+
+Row 3 is the positive control: the ratchet still fires. Rows 1 and 2 going quiet is the
+corpus being right, not the check being off. Row 3 was produced by appending under a **fresh
+`## ` heading** to `eval/findings/documentation.md` and restoring with `git checkout --`;
+appending at the end of the file does nothing, because the ratchet excuses an id whose
+section already names a `wg-` run.
+
+## THREE DEFECTS FOUND ON THE WAY, and the third is the one to know about
+
+**1. `git ls-files` C-quotes any path outside ASCII unless `-z` is passed.** `café.md` comes
+back as `"caf\303\251.md"` and fails `endswith(".md")`. The obvious replacement would have
+dropped such a document from the corpus silently — and `_live_corpus` and the
+renumbered-citation check had **already** been reading git that way. Fixed with `-z`
+everywhere. The corpus holds **0** non-ASCII paths today, so no published number was wrong;
+this is latent, not live. Pinned as a variant, killed by the `no_nul` mutant.
+
+**2. `_git` folded a non-zero exit into `""`.** A failed listing and an empty tree were the
+same answer, so every check downstream would have reported itself clean over 0 documents.
+`_git_at` keeps the status; `_tracked_md` raises. Killed by `empty_on_failure`.
+
+**3. `git -C <dir>` names a DIRECTORY, NOT A REPOSITORY, and an inherited `GIT_DIR` outranks
+it at exit 0 throughout.** This is worth the next agent's attention because nothing about it
+is visible in a transcript:
+
+    GIT_DIR=<other>/.git  git -C <tmp> init -q     ->  rc 0, and <tmp>/.git IS NEVER CREATED
+    GIT_DIR=<other>/.git  git -C <tmp> add doc.md  ->  rc 0, staged in <other>'s INDEX
+    GIT_DIR=<other>/.git  git -C <tmp> ls-files    ->  <other>'s index, not <tmp>'s
+
+It happened. On 2026-08-27 the fixture ran once that way and left 6 fixture paths staged in
+**this worktree's index** with `.gitignore` replaced there. The working tree was untouched,
+so nothing but `git status` could see it; `git reset -q HEAD` recovered it. It reached the
+**reader** too: `project_docs()` and `_tracked_md()` would have built the corpus from
+whatever repository `GIT_DIR` named, and the first symptom was `--sweep` reporting 255
+markdown paths where the tree had 249.
+
+Two repairs, deliberately separate so a control can remove either alone:
+
+- `_git_at` drops **every** `GIT_*` variable from the child. All of them, not the four that
+  steer discovery — a list of variable names is an enumeration and the next reader meets
+  `GIT_COMMON_DIR`. Nothing this module runs needs any of them.
+- `_assert_own_repo` refuses in front of the one `git` call that writes, on
+  `--absolute-git-dir`. **`--show-toplevel` does not work here**: under an inherited
+  `GIT_DIR` with no `GIT_WORK_TREE` the work tree is the current directory, so it answers
+  `<tmp>` and *agrees* on exactly the input the guard exists to catch. That was measured, not
+  reasoned about — the first version of the guard used it and was green on the defect.
+
+Pinned by 3 rows in `_corpus_pins` run with a hostile `GIT_DIR` and a victim repository to
+write into, and killed by `inherit_git_env`, which removes both mechanisms because either
+alone hides the other (with the guard in place the write never happens, so the row about the
+victim's index stays green).
+
+**`inherit_git_env` scrubs `GIT_*` from the PROCESS before rebinding anything**, or the
+mutant that reproduces the incident would cause it: an operator with `GIT_DIR` exported
+would have had it stage fixture files into their own index. Controlled with `GIT_DIR`
+exported in both runs — with the scrub, exit 0, 7 of 7 dead, victim index `['victim.md']`
+before and after; without it, the victim comes back holding all 6 fixture paths.
+
+## A FINDING TO NUMBER (the orchestrator allocates it)
+
+**Claim.** A gate that discovers its git repository rather than naming it can read, and
+write, a repository the caller's environment chose. `docstat`'s corpus helper and its test
+fixture both did; the fixture staged 6 paths into a live worktree's index at exit 0, and the
+corpus reader would have answered about another tree.
+
+**Measurement.** The 3-line table above, reproduced on demand by `python3
+eval/tools/corpus_control.py --mutate inherit_git_env` (all 3 hostile-`GIT_DIR` rows red,
+including the victim's index holding `.gitignore`, `doc.md`, `sub/nested.md`,
+`"sub/n\303\270te.md"`, `.dotdir/hidden.md`, `runs/stored.md` and `gone.md` beside its own
+file).
+
+**Control.** The same run with the scrub in place: exit 0, 7 of 7 mutants dead, victim index
+`['victim.md']` unchanged, worktree status unchanged.
+
+**Why it is not just a bug.** `AGENTS.md` rule 12 says the address is an input to the check
+and to assert a path spelled in two files. Every instance recorded there is an address
+written in *our* code. This one was supplied by the process environment, so there was no
+second spelling to compare — the defence is to refuse the environment, not to reconcile two
+copies of an address.
+
+## Behaviour change worth knowing
+
+The corpus is the **INDEX**, not `HEAD` and not the disk. A document written and `git
+add`ed is swept before it is committed, which is what the pre-commit hook needs and why
+`.agents/skills/work` tells you to stage before running the gates. A document written and
+never staged is not swept — it is not in the repository yet.
+
+## Small thing
+
+The ratchet's failure message said `Newest:` over a list ordered by path. It says `Last by
+path:`.
+
+## Register
+
+`gates.yml` went 53 → 56. Task 183 added one on `main` while this was in review and this
+adds `corpus_control`, so the merged count is **neither side's pinned number** — `python3
+eval/tools/ci_minutes.py --gates` decided it, and both pins and both register sentences
+state what it read.
