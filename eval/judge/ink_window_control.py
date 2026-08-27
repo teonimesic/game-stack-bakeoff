@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Can `render.nonempty` fail, per task class - and can it still pass what it should?
+"""Can `render.nonempty` fail - and can it still pass everything it should?
 
 `render.nonempty` is TIER 1, and tier 1 is a GATE rather than a weighted term
 (`RUBRIC.md`). A false negative here does not cost a fraction of a score; it stops a
-correct submission being scored at all. Its window was `0.001-0.85` for every task from
-this repository's first commit, and the ceiling is calibrated on games - a subject drawn
-against a background. A scene is contracted to FILL the frame, so the ceiling's sign is
-inverted there (`tasks/163`).
+correct submission being scored at all. The criterion is a FLOOR with no ceiling: it was
+`0.001-0.85` for every task from this repository's first commit, `tasks/163` took the
+ceiling off scenes, and `tasks/168` took it off entirely.
+
+**The derivation is a measurement in this file, not a paragraph elsewhere**, because it
+is what the removal rests on. `png.Image.ink_coverage` counts pixels differing from
+`dominant_background()` - the frame's OWN modal quantised colour - so the quantity runs
+backwards from what a ceiling wants: a solid flood, the "the render broke and filled the
+screen" defect, measures 0.0 and lands on the FLOOR, while what reads near 1.0 is the
+absence of a modal region, which is a gradient. `MECHANISM_ROWS` states both before
+anything runs.
 
 Three halves, because a gate needs all three:
 
@@ -15,23 +22,25 @@ Three halves, because a gate needs all three:
              stated in `FIXTURES` before anything runs - the one known-good row rule 12
              asks for, since a census that returns one value for every subject is
              reporting the instrument.
-  MUTANTS    remove a mechanism the window names and require a named expectation to go
-             red. A window that cannot fail is worse than none: it looks like a pass.
+  MUTANTS    remove a mechanism the criterion names and require a named expectation to
+             go red - including RESTORING the 0.85 ceiling, which is literally the
+             pre-change code. A bound that cannot fail is worse than none: it looks
+             like a pass.
   VARIANTS   correct inputs the implementation does not resemble, where the criterion
-             must still PASS - a dark scene that does NOT fill the frame, the starter's
-             own placeholder marker, and an ordinary game. Every false negative
-             adjudicated in this project has been of that kind (rule 15), and the one
-             this file exists for was too.
+             must still PASS - a scene that fills the frame, a night game over a
+             gradient, the starter's own placeholder marker. Every false negative
+             adjudicated in this project has been of that kind (rule 15), and the two
+             this file exists for were too.
 
     python3 judge/ink_window_control.py
     python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 
 `--runs-root` adds the corpus arm, which is also the PRODUCER for every ink figure the
 documents quote: the per-class distribution of `mean_ink`, every `render.nonempty`
-firing with the bound it hit, and the re-grade of each firing under the per-class
-window - including the gate verdict before and after. `eval/runs` is gitignored, so a
-worktree's copy is empty and the arm prints `NOT ASKED` rather than `0 firings`; the two
-are different claims.
+firing with the bound it hit, and the re-grade of each firing under the floor - the gate
+verdict before and after included. `eval/runs` is gitignored, so a worktree's copy is
+empty and the arm prints `NOT ASKED` rather than `0 firings`; the two are different
+claims.
 """
 from __future__ import annotations
 
@@ -55,6 +64,12 @@ FAILS: list[str] = []
 CHECKS = 0
 BG = (56, 56, 48)          # the background the first stored scene actually reported
 W, H = 640, 400            # the geometry every stored grading was captured at
+
+#: The bound `tasks/168` removed. Used ONLY to explain the historical firings in the
+#: corpus report and by the mutant that restores it - never by a verdict. A record
+#: graded before 2026-08-27 was decided against it, so a report that printed only
+#: today's floor would call those firings unexplained.
+RETIRED_GAME_CEILING = 0.85
 
 
 def expect(name: str, cond: bool, detail: str = "") -> None:
@@ -108,6 +123,17 @@ def blank() -> bytes:
     return bytes(_flat())
 
 
+def whisper() -> bytes:
+    """An 8x8 mark: 0.00025 of a 640x400 frame, and the only fixture BELOW the floor.
+
+    The floor's subject. `blank` and `flood` are below it too, but they are also
+    entirely flat, so they fail on BOTH halves and cannot tell which one acted - a
+    mutant that deletes the floor leaves them red for the other reason, which is a
+    control that passes for the wrong reason (#37).
+    """
+    return bytes(_rect(_flat(), 8, 8))
+
+
 def placeholder() -> bytes:
     """The starter's own placeholder marker: 0.0015 of a 640x400 frame."""
     return bytes(_rect(_flat(), 24, 16))
@@ -119,7 +145,11 @@ def sparse() -> bytes:
 
 
 def filled() -> bytes:
-    """A frame with no flat region at all: what a scene is contracted to draw."""
+    """A frame with no flat region at all: a gradient, which reads near 1.0.
+
+    What a scene is contracted to draw, and also what a night game's sky looks like -
+    `wg-g4c` `g4_platformer__godot__t1` measured 0.881 with its subject drawn on top.
+    """
     px = bytearray(W * H * 3)
     for y in range(H):
         for x in range(W):
@@ -130,15 +160,71 @@ def filled() -> bytes:
     return bytes(px)
 
 
+def flood() -> bytes:
+    """THE DEFECT A CEILING WOULD NAME: every pixel one colour that is not the clear
+    colour, i.e. the render broke and filled the screen.
+
+    It measures 0.0, not 1.0, because `analyse_frames` takes its reference colour from
+    frame 0 and every frame here IS frame 0's colour. So this fails on the FLOOR, and
+    removing the ceiling opened no hole for it. `BLANK_RENDERS` below asks the harder
+    version, where the frames are uniform in DIFFERENT colours.
+    """
+    return bytes(bytes((255, 0, 255)) * (W * H))
+
+
+def _uniform(rgb: tuple[int, int, int]) -> bytes:
+    return bytes(bytes(rgb) * (W * H))
+
+
+BLACK, WHITE = (0, 0, 0), (255, 255, 255)
+
+#: A RENDER THAT DREW NOTHING, in the 4 ways 12 uniform frames can be arranged, with
+#: `(name, per-frame pixels, mean_ink stated in advance, did 0.001-0.85 catch it)`.
+#:
+#: This is the measurement that settles the ceiling, and it comes out against the
+#: ceiling rather than for it. Every row has drawn nothing; `mean_ink` reads anywhere
+#: from 0.0 to 0.91667 depending only on how the colours are ARRANGED against frame
+#: 0's, and the retired window admitted 2 of the 3 non-zero arrangements. So a bound on
+#: `mean_ink` was never the guard against a blank render, and `render.nonempty` asks
+#: the question directly via `flat_frames` instead. Every row must FAIL today.
+BLANK_RENDERS: list[tuple[str, Any, float, bool]] = [
+    ("all one colour", lambda i: _uniform(BLACK), 0.0, True),
+    ("frame 0, then 11 of another", lambda i: _uniform(BLACK if i == 0 else WHITE),
+     0.91667, True),
+    ("alternating 2 colours", lambda i: _uniform(BLACK if i % 2 == 0 else WHITE),
+     0.5, False),
+    ("6 of one, then 6 of another", lambda i: _uniform(BLACK if i < 6 else WHITE),
+     0.5, False),
+]
+
+
 #: `(name, pixels, low, high)` - the coverage each fixture must measure at, STATED
 #: HERE rather than read off the run. A fixture whose measured ink drifts out of its
 #: stated band means the reader moved, and every row below would then be asking its
 #: question of a different picture.
 FIXTURES: list[tuple[str, Any, float, float]] = [
     ("blank", blank, 0.0, 0.0),
+    ("flood", flood, 0.0, 0.0),
+    ("whisper", whisper, 0.0002, 0.0003),
     ("placeholder", placeholder, 0.001, 0.005),
     ("sparse", sparse, 0.015, 0.030),
     ("filled", filled, 0.950, 1.000),
+]
+
+#: The derivation, as two rows that are checked rather than asserted: what the measure
+#: does to a frame that is entirely full, and what it does to a frame with no modal
+#: region. `(fixture, at most / at least, bound, what it establishes)`.
+#:
+#: These are the sentences `static.INK_FLOOR`'s comment, `judge/RUBRIC.md` and
+#: `DECISIONS.md` all rest on. Written out here so that a change to `ink_coverage`
+#: turns the derivation red instead of leaving three documents confidently wrong.
+MECHANISM_ROWS = [
+    ("flood", "at most", 0.001,
+     "a frame that is entirely frame 0's colour reads 0.0 - so 'the render filled the "
+     "screen' hits the FLOOR, never a ceiling"),
+    ("filled", "at least", 0.950,
+     "a frame with no modal region reads near 1.0 whatever is drawn on it - so a high "
+     "reading is a property of the palette, not of how much was drawn"),
 ]
 
 
@@ -153,6 +239,47 @@ def measure(make: Any, tmp: Path) -> dict[str, Any]:
     return static.analyse_frames(sorted(d.glob("*.png")))
 
 
+def measure_sequence(per_frame: Any, tmp: Path, n: int = 12) -> dict[str, Any]:
+    """`n` frames whose pixels come from `per_frame(i)`, through the real reader.
+
+    Separate from `measure` because the arrangement across frames is the whole subject
+    of `BLANK_RENDERS`: a set of identical frames cannot express it, and `analyse_frames`
+    takes its reference colour from frame 0.
+    """
+    d = tmp / "seq"
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True, exist_ok=True)
+    for i in range(n):
+        png.write_rgb(d / f"frame_{i:04d}.png", W, H, per_frame(i))
+    return static.analyse_frames(sorted(d.glob("*.png")))
+
+
+def test_a_blank_render_fails_however_its_colours_are_arranged(tmp: Path) -> None:
+    """12 frames, each one colour, in the 4 ways they can be arranged. All must FAIL.
+
+    Each row also prints what the retired `0.001-0.85` window said, which is the
+    measurement the ceiling decision rests on: it caught 1 of these 3 non-zero
+    arrangements of the SAME blank render, so a bound on `mean_ink` was never the guard.
+    """
+    print("\n[a render that drew nothing, in the 4 ways 12 uniform frames arrange]")
+    for name, per_frame, want_ink, caught_by_ceiling in BLANK_RENDERS:
+        info = measure_sequence(per_frame, tmp)
+        got = info["mean_ink"]
+        n = info["count"]
+        passed, ev = static.nonempty_verdict(info, n)
+        then = static.INK_FLOOR <= got <= RETIRED_GAME_CEILING
+        expect(f"{name}: mean_ink {want_ink}, and render.nonempty FAILS",
+               got == want_ink and passed is False and info["flat_frames"] == n,
+               f"mean_ink={got} flat_frames={info['flat_frames']}/{n}; "
+               f"the retired {RETIRED_GAME_CEILING} ceiling "
+               f"{'caught' if not then else 'ADMITTED'} it "
+               f"(stated in advance: {'caught' if caught_by_ceiling else 'ADMITTED'})"
+               f" -- {ev[:60]}")
+        expect(f"{name}: and the ceiling's verdict is what BLANK_RENDERS states",
+               (not then) is caught_by_ceiling,
+               f"stated caught={caught_by_ceiling}, measured caught={not then}")
+
+
 def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> None:
     """Does the reader still see the picture each fixture was written to be?
 
@@ -164,54 +291,77 @@ def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> No
     for name, _make, lo, hi in FIXTURES:
         got = inks[name]["mean_ink"]
         expect(f"{name} measures {lo}-{hi}", lo <= got <= hi, f"mean_ink={got}")
-    expect("the fixtures are not all one value",
-           len({round(inks[n]["mean_ink"], 5) for n, *_ in FIXTURES}) == len(FIXTURES),
-           "a census returning one value across a population it exists to "
-           "discriminate is reporting the instrument (rule 12)")
+    # `blank` and `flood` coincide at 0.0 BY CONSTRUCTION and that coincidence is the
+    # derivation, so the row asks for one collision and no more - a set that collapsed
+    # further would mean the reader stopped discriminating (rule 12).
+    seen = {round(inks[n]["mean_ink"], 5) for n, *_ in FIXTURES}
+    expect("the fixtures separate, except blank and flood which coincide at 0.0",
+           len(seen) == len(FIXTURES) - 1
+           and inks["blank"]["mean_ink"] == inks["flood"]["mean_ink"] == 0.0,
+           f"{len(seen)} distinct of {len(FIXTURES)}: {sorted(seen)}")
 
 
 # --------------------------------------------------------------------------- #
-# the window itself, both directions, per class
+# the criterion itself, both directions
 # --------------------------------------------------------------------------- #
 
-#: `(fixture, task class, must pass)`. The FLOOR is asked of both classes and the
-#: CEILING of one, which is the whole content of the change.
-WINDOW_ROWS = [
-    ("blank", "game", False),
-    ("blank", "scene", False),          # a BLANK scene frame still fails
-    ("placeholder", "game", True),
-    ("placeholder", "scene", True),
-    ("sparse", "game", True),
-    ("sparse", "scene", True),          # VARIANT: a scene that does not fill the frame
-    ("filled", "game", False),
-    ("filled", "scene", True),          # what the game ceiling refused (tasks/163)
+#: `(fixture, must pass)`. One table, no task class: since `tasks/168` the bound is a
+#: property of the four starters and is the same number for every class.
+#:
+#: The two rows that carry the change are `flood` and `filled`. `flood` is the defect a
+#: ceiling would have been for and it FAILS, on the floor. `filled` is a frame with no
+#: modal region - a scene filling the frame, or a night game over a gradient sky - and
+#: it PASSES, which is what the 0.85 ceiling refused twice.
+CRITERION_ROWS = [
+    ("blank", False),          # nothing drawn
+    ("flood", False),          # VARIANT: the screen is full, and the floor catches it
+    ("whisper", False),        # below the floor, and the only row the floor decides
+    ("placeholder", True),     # the starter's own marker
+    ("sparse", True),          # a subject against a background
+    ("filled", True),          # VARIANT: no modal region (tasks/163, tasks/168)
 ]
 
 
-def test_the_window(inks: dict[str, dict[str, Any]]) -> None:
-    """The criterion itself: `WINDOW_ROWS` both ways per class, then the two refusals.
+def test_the_criterion(inks: dict[str, dict[str, Any]]) -> None:
+    """`CRITERION_ROWS` both ways, then the evidence, then the mechanism it rests on."""
+    print("\n[the criterion, both directions]")
+    for fixture, want in CRITERION_ROWS:
+        ok, ev = static.nonempty_verdict(inks[fixture], 2)
+        expect(f"{fixture}: {'PASS' if want else 'FAIL'}", ok is want, ev[:150])
 
-    The floor is asked of both classes and the ceiling of one, which is the entire content
-    of the change - so a row that moved would be visible here before anywhere else.
+    print("\n[the evidence names the floor and says there is no ceiling]")
+    _ok, ev = static.nonempty_verdict(inks["sparse"], 2)
+    expect("the stored evidence names the floor, not a window",
+           f"floor {static.INK_FLOOR}, no ceiling" in ev
+           and static.INK_FLOOR_WHY in ev, ev[:160])
+
+    # THE DERIVATION, MEASURED. Without these two rows the removal of the ceiling is an
+    # argument in a comment; with them, a change to `ink_coverage` that made a flood
+    # read high turns this file red rather than leaving three documents wrong.
+    print("\n[the mechanism the removal rests on]")
+    for fixture, direction, bound, why in MECHANISM_ROWS:
+        got = inks[fixture]["mean_ink"]
+        ok = got <= bound if direction == "at most" else got >= bound
+        expect(f"{fixture} measures {direction} {bound}", ok, f"{got} - {why}")
+
+
+def test_an_unplaceable_class_is_refused() -> None:
+    """Tier 1 refuses a task class it does not grade, before spending a toolchain.
+
+    No tier-1 BOUND differs by class any more, which is exactly why this row matters:
+    nothing downstream would read differently if the class were wrong, so the only
+    place it can be caught is the door. The class still picks the capture length and
+    the audio criterion set (`judge/evaluate.py`), and
+    `eval/tools/scene_runner_control.py` pins that the runner hands all three over.
     """
-    print("\n[the window, both directions, per task class]")
-    for fixture, klass, want in WINDOW_ROWS:
-        ok, ev = static.nonempty_verdict(inks[fixture], klass, 2)
-        expect(f"{fixture} on a {klass}: {'PASS' if want else 'FAIL'}", ok is want,
-               ev[:150])
-    print("\n[the class reaches the stored evidence, not just the verdict]")
-    for klass in ("game", "scene"):
-        _ok, ev = static.nonempty_verdict(inks["sparse"], klass, 2)
-        lo, hi, why = static.ink_window(klass)
-        expect(f"a {klass}'s evidence names its class and its window",
-               f"{klass} window {lo}-{hi}" in ev and why in ev, ev[:120])
-
     print("\n[an unknown class is refused, not defaulted]")
     try:
-        static.ink_window("film")
-        expect("ink_window refuses a class it cannot place", False, "it returned")
+        static.assert_task_class("film")
+        expect("assert_task_class refuses a class tier 1 does not grade", False,
+               "it returned")
     except ValueError as e:
-        expect("ink_window refuses a class it cannot place", True, str(e)[:90])
+        expect("assert_task_class refuses a class tier 1 does not grade", True,
+               str(e)[:90])
     # COUNT THE COMMANDS, do not merely catch the exception. `except ValueError` accepts
     # one raised from anywhere in `collect`, including after `just check` has run - so
     # the row would report "refused before spending" about a refusal that spent one.
@@ -219,13 +369,24 @@ def test_the_window(inks: dict[str, dict[str, Any]]) -> None:
     expect("collect refuses before spending a toolchain", ok,
            f"{len(ran_commands)} command(s) ran first: {ran_commands}")
 
+    # THE ADDRESS IS AN INPUT TO THE CHECK (rule 12). `static.TASK_CLASSES` and the
+    # classes `judge/aspects.py` recognises are the same fact in two files; asserted
+    # equal here rather than promised equal in a comment.
+    import aspects
+    from_aspects = ({a.task_class for a in aspects.ASPECTS.values()}
+                    | set(aspects.INSTRUMENTS.values()))
+    expect("static.TASK_CLASSES is the set judge/aspects.py recognises",
+           set(static.TASK_CLASSES) == from_aspects,
+           f"{sorted(static.TASK_CLASSES)} vs {sorted(from_aspects)}")
+
 
 # --------------------------------------------------------------------------- #
 # collect() end to end, with the toolchain stubbed
 # --------------------------------------------------------------------------- #
 
 @contextlib.contextmanager
-def stubbed_toolchain(mean_ink: float, ran_commands: list[str]):
+def stubbed_toolchain(mean_ink: float, ran_commands: list[str],
+                      flat_frames: int = 0):
     """Everything `collect` would spawn, replaced - and every command it ran, recorded.
 
     `ran_commands` is what separates *refused before spending a toolchain* from *refused
@@ -246,11 +407,19 @@ def stubbed_toolchain(mean_ink: float, ran_commands: list[str]):
         return cmd
 
     frame_info = {"count": 12, "errors": [], "mean_ink": mean_ink,
+                  "flat_frames": flat_frames,
                   "per_frame_ink": [mean_ink], "mean_frame_delta": 0.5}
     with contextlib.ExitStack() as st:
         st.enter_context(patched(static, "run", record))
+        # 12 frame PATHS, never read: `analyse_frames` is stubbed below. `collect`
+        # passes `len(frames)` to `nonempty_verdict` as `n_frames`, and the all-flat
+        # half is a comparison against that count - returning `[]` here would make it
+        # unaskable and the row would pass for the wrong reason.
         st.enter_context(patched(static, "film",
-                                 lambda *a, **k: (cmd, [], Path(tempfile.mkdtemp()))))
+                                 lambda *a, **k: (cmd,
+                                                  [Path(f"frame_{i:04d}.png")
+                                                   for i in range(12)],
+                                                  Path(tempfile.mkdtemp()))))
         st.enter_context(patched(static, "analyse_frames", lambda frames: frame_info))
         st.enter_context(patched(static, "probe_throughput",
                                  lambda *a, **k: {"ok": True}))
@@ -270,32 +439,47 @@ def refuses_before_spending(task_class: str) -> tuple[bool, list[str]]:
     return refused and not ran_commands, ran_commands
 
 
-def drive_collect(task_class: str, mean_ink: float) -> dict[str, Any]:
+def drive_collect(task_class: str, mean_ink: float,
+                  flat_frames: int = 0) -> dict[str, Any]:
     """The real `collect`, offline: every subprocess it makes is replaced.
 
-    Driving the decision function alone would not answer whether `collect` PASSES ITS
-    ARGUMENT ON, which is the edge the change adds and the edge a mutant can remove.
+    Driving the decision function alone leaves a `collect` that never calls it - or
+    calls something else - entirely green, so the wiring gets its own rows.
     """
-    with stubbed_toolchain(mean_ink, []):
+    with stubbed_toolchain(mean_ink, [], flat_frames):
         rec = static.collect(Path("/nonexistent"), task_class=task_class)
     return next(c for c in rec["criteria"] if c["id"] == "render.nonempty")
 
 
-def test_collect_uses_the_class_it_was_given() -> None:
-    """Does the class the runner handed down actually reach the criterion?
+def test_collect_reaches_the_criterion() -> None:
+    """Does `collect` decide `render.nonempty` with `nonempty_verdict`, in both classes?
 
-    `test_the_window` passes the class explicitly, so it stays green against a `collect`
-    that ignores its argument entirely. This phase is the only one that would not.
+    The rows above call the decision function directly and stay green against a
+    `collect` that inlined its own comparison. These are the only ones that would not,
+    and both stored ceiling firings are used as the input - 0.96561 and 0.88137, the two
+    coverages the retired 0.85 refused.
     """
-    print("\n[collect passes its task_class through to the criterion]")
-    scene = drive_collect("scene", 0.96561)
-    game = drive_collect("game", 0.96561)
-    expect("collect(scene) passes the first stored scene's 0.96561",
-           scene["passed"] is True, scene["evidence"][:120])
-    expect("collect(game) fails the same coverage", game["passed"] is False,
-           game["evidence"][:120])
+    print("\n[collect decides the criterion with the same floor, in both classes]")
+    for klass, ink, label in (("scene", 0.96561, "the stored scene's"),
+                              ("game", 0.88137, "the stored platformer's")):
+        got = drive_collect(klass, ink)
+        expect(f"collect({klass}) passes {label} {ink}", got["passed"] is True,
+               got["evidence"][:120])
+    expect("collect(game) still fails a blank frame",
+           drive_collect("game", 0.0)["passed"] is False)
     expect("collect(scene) still fails a blank frame",
            drive_collect("scene", 0.0)["passed"] is False)
+    # THE ALL-FLAT HALF, THROUGH `collect`. Ink 0.91667 clears the floor, so only the
+    # second half can fail this - and only if `collect` carries `flat_frames` through.
+    flat = drive_collect("game", 0.91667, flat_frames=12)
+    expect("collect fails 12 frames that each hold one colour, at ink 0.91667",
+           flat["passed"] is False, flat["evidence"][:150])
+    # A RECORD THAT NEVER MEASURED IT is not a record of zero flat frames. Same ink,
+    # `flat_frames` absent: the floor alone decides and the evidence says so.
+    absent = static.nonempty_verdict({"mean_ink": 0.91667, "per_frame_ink": []}, 12)
+    expect("a record with no flat_frames is graded on the floor alone, and says so",
+           absent[0] is True and "not measured on this record" in absent[1],
+           absent[1][:150])
 
 
 # --------------------------------------------------------------------------- #
@@ -303,16 +487,31 @@ def test_collect_uses_the_class_it_was_given() -> None:
 # --------------------------------------------------------------------------- #
 
 #: What `static.TIER1_BOUND_POPULATION` must tally to, written out INDEPENDENTLY of it.
-#: This is the 8/5/1 that `judge/RUBRIC.md`, `DECISIONS.md` and `eval/judge/AGENTS.md`
-#: state in prose, and it is the only place that count is checked rather than repeated.
-EXPECTED_TALLY = {"no_bound": 8, "starter": 1, "capture_contract": 1,
-                  "audio_signal": 3, "task_class": 1}
+#: This is the 8-carry-none / 6-that-transfer / 0-that-do-not that `judge/RUBRIC.md`,
+#: `DECISIONS.md` and `eval/judge/AGENTS.md` state in prose, and it is the only place
+#: that count is checked rather than repeated.
+EXPECTED_TALLY = {"no_bound": 8, "starter": 2, "capture_contract": 1,
+                  "audio_signal": 3, "task_class": 0}
+
+
+def _tally(pops: dict[str, str]) -> tuple[dict[str, int], list[str]]:
+    """`(one count per population EXPECTED_TALLY names, populations it does not)`.
+
+    `Counter` omits a population with no members, so a raw comparison would report
+    `task_class: 0` as a MISSING KEY and go red for the wrong reason - and would then
+    also go red the day the count legitimately returned to 0. The zero is part of the
+    expectation, so it is filled in here; anything outside the expected vocabulary is
+    returned separately rather than quietly dropped.
+    """
+    counted = collections.Counter(pops.values())
+    return ({k: counted.get(k, 0) for k in EXPECTED_TALLY},
+            sorted(set(counted) - set(EXPECTED_TALLY)))
 
 
 def test_bound_census() -> None:
     """Has every tier-1 criterion answered *which population was your bound calibrated on?*
 
-    The tally is both printed (the documents state 8/5/1 in prose and a prose count with no
+    The tally is both printed (the documents state it in prose and a prose count with no
     producer goes stale forever) and pinned against `EXPECTED_TALLY`.
     """
     print("\n[TIER1_BOUND_POPULATION: every tier-1 criterion answers the question]")
@@ -327,65 +526,95 @@ def test_bound_census() -> None:
     expect("all 14 tier-1 criteria are declared", len(pops) == 14, str(len(pops)))
     expect("the tally partitions every one of them", sum(tally.values()) == len(pops),
            f"{sum(tally.values())} vs {len(pops)}")
-    # THE WHOLE TALLY, not just its total and its class-dependent entry. Reclassifying
-    # `tests.exist` from `starter` to `no_bound` leaves both of those green while the
-    # policy moves, and this row is where the documents' 8/5/1 is actually checked.
-    # It is written out here rather than derived from `pops`: an expectation imported
-    # from its subject is not an expectation (AGENTS.md rule 12's corollary).
-    expect(f"the tally is exactly {EXPECTED_TALLY}", dict(tally) == EXPECTED_TALLY,
-           str(dict(tally)))
+    # THE WHOLE TALLY, not just its total. Reclassifying `tests.exist` from `starter`
+    # to `no_bound` leaves the total green while the policy moves, and this row is
+    # where the documents' breakdown is actually checked. It is written out rather than
+    # derived from `pops`: an expectation imported from its subject is not an
+    # expectation (AGENTS.md rule 12's corollary).
+    #
+    # `EXPECTED_TALLY` carries `task_class: 0` explicitly. A tally written as "the
+    # populations that have members" would go green the moment a criterion quietly
+    # acquired a class-dependence, which is the state `tasks/168` removed.
+    got, unexpected = _tally(pops)
+    expect(f"the tally is exactly {EXPECTED_TALLY}",
+           got == EXPECTED_TALLY and not unexpected,
+           f"{got}; populations outside the expectation: {unexpected}")
     class_dep = sorted(c for c, p in pops.items() if p == "task_class")
-    expect("exactly one criterion's bound is class-dependent, and it is this one",
-           class_dep == ["render.nonempty"], str(class_dep))
-    for cid, table in static.TASK_CLASS_BOUND_TABLES.items():
-        expect(f"{cid}'s table covers both classes",
-               {"game", "scene"} <= set(table), str(sorted(table)))
+    expect("no tier-1 bound is class-dependent", class_dep == [], str(class_dep))
+    expect("and no per-class table is left behind claiming otherwise",
+           static.TASK_CLASS_BOUND_TABLES == {},
+           str(sorted(static.TASK_CLASS_BOUND_TABLES)))
 
 
 # --------------------------------------------------------------------------- #
 # mutants
 # --------------------------------------------------------------------------- #
 
-def mutants(inks: dict[str, dict[str, Any]]) -> None:
+def mutants(inks: dict[str, dict[str, Any]], mutant_tmp: Path) -> None:
     """Each removes one mechanism a row above names; that row must go red.
 
-    A window that cannot fail is worse than no window, because it looks like a pass. Each
+    A bound that cannot fail is worse than none, because it looks like a pass. Each
     block states which row it is aimed at, so a mutant that stops being load-bearing is
     readable rather than merely green.
     """
     print("\n[mutants: can these checks fail?]")
     filled_ink, blank_ink = inks["filled"], inks["blank"]
 
-    with patched(static, "INK_WINDOW",
-                 {**static.INK_WINDOW, "scene": static.INK_WINDOW["game"]}):
-        caught = static.nonempty_verdict(filled_ink, "scene", 2)[0] is False
-    expect("mutant 'the scene window is the game window again' is caught by the "
-           "filled-scene row", caught)
+    # THE PRE-CHANGE CODE, restored verbatim. This is the mutant the whole file turns
+    # on: if `tasks/168` had widened the ceiling to admit the subject that exposed it
+    # rather than removing it, this row would still be green at some larger number.
+    with patched(static, "nonempty_verdict",
+                 lambda fi, n: (static.INK_FLOOR
+                                <= float(fi.get("mean_ink", 0.0))
+                                <= RETIRED_GAME_CEILING, "mutant: the 0.85 ceiling")):
+        caught = drive_collect("game", filled_ink["mean_ink"])["passed"] is False
+    expect(f"mutant 'the {RETIRED_GAME_CEILING} ceiling is restored' is caught by the "
+           "filled row", caught)
 
-    with patched(static, "INK_WINDOW",
-                 {**static.INK_WINDOW, "scene": (0.0, 1.0, "no floor")}):
-        caught = static.nonempty_verdict(blank_ink, "scene", 2)[0] is True
-    expect("mutant 'the scene floor is removed' is caught by the blank-scene row",
-           caught)
+    with patched(static, "INK_FLOOR", 0.0):
+        caught = static.nonempty_verdict(inks["whisper"], 2)[0] is True
+    expect("mutant 'the floor is removed' is caught by the whisper row", caught)
+
+    # THE TWO HALVES ARE INDEPENDENTLY LOAD-BEARING, which is what makes the row above
+    # a fair test of the floor. With the floor gone, `blank` and `flood` are still
+    # refused - by the all-flat half - so neither of them could have told you which
+    # half acted (#37: a control that shares its subject's assumptions).
+    with patched(static, "INK_FLOOR", 0.0):
+        still = [n for n in ("blank", "flood")
+                 if static.nonempty_verdict(inks[n], 2)[0] is False]
+    expect("with no floor at all, blank and flood are still refused by the all-flat "
+           "half", still == ["blank", "flood"], str(still))
+
+    # THE HALF THE FLOOR CANNOT CARRY. `png.Image.is_flat` is what `analyse_frames`
+    # counts, so a mutant that makes nothing look flat has to go through it - and only
+    # the 3 non-zero BLANK_RENDERS rows can see the difference, because the all-one-
+    # colour row still fails on the floor.
+    with patched(png.Image, "is_flat", lambda self, tolerance=8: False):
+        survived = []
+        for name, per_frame, _ink, _caught in BLANK_RENDERS:
+            info = measure_sequence(per_frame, mutant_tmp)
+            if static.nonempty_verdict(info, info["count"])[0]:
+                survived.append(name)
+    expect("mutant 'no frame is ever flat' is caught by the blank-render rows",
+           len(survived) == 3,
+           f"{len(survived)} of {len(BLANK_RENDERS)} blank renders would then PASS: "
+           f"{survived} - the 4th still fails on the floor")
 
     # The mutant installs the fallback and the row RE-RUNS `collect`'s pre-flight - the
     # only caller that spends anything. Asserting that the patched lambda does not raise
     # would be true for every input and would exercise no check in this file.
-    with patched(static, "ink_window", lambda k: static.INK_WINDOW["game"]):
+    with patched(static, "assert_task_class", lambda k: "game"):
         ok, ran_commands = refuses_before_spending("film")
-    expect("mutant 'an unknown class falls back to the game window' is caught by the "
-           "refusal row", not ok,
-           f"it graded an unplaceable class, running {ran_commands}")
+    expect("mutant 'an unknown class falls back to game' is caught by the refusal row",
+           not ok, f"it graded an unplaceable class, running {ran_commands}")
 
-    # THE WIRING, NOT THE TABLE. This one is only reachable through `collect`: a
-    # `nonempty_verdict` that ignores the class it was handed leaves every row above
-    # green, because they all pass the class explicitly.
+    # THE WIRING, NOT THE CONSTANT. A `collect` that inlined its own comparison instead
+    # of calling `nonempty_verdict` leaves every direct row above green.
     with patched(static, "nonempty_verdict",
-                 lambda fi, tc, n: (0.001 <= float(fi.get("mean_ink", 0.0)) <= 0.85,
-                                    "mutant: the class argument is ignored")):
-        caught = drive_collect("scene", 0.96561)["passed"] is False
-    expect("mutant 'the criterion ignores the class collect handed it' is caught by "
-           "the collect drive", caught)
+                 lambda fi, n: (False, "mutant: the criterion always fails")):
+        caught = drive_collect("game", 0.5)["passed"] is False
+    expect("mutant 'collect stops using nonempty_verdict' is caught by the collect "
+           "drive", caught)
 
     print("\n[mutants: can the bound census fail?]")
     without = {k: v for k, v in static.TIER1_BOUND_POPULATION.items()
@@ -407,10 +636,14 @@ def mutants(inks: dict[str, dict[str, Any]]) -> None:
                      for p in static.assert_tier1_bounds_declared())
     expect("mutant 'a declared class-dependence with no table' is caught", caught)
 
-    with patched(static, "TASK_CLASS_BOUND_TABLES",
-                 {"render.nonempty": {"game": static.INK_WINDOW["game"]}}):
-        caught = any("no entry for ['scene']" in p
-                     for p in static.assert_tier1_bounds_declared())
+    # The table is empty today, so the mutant has to CONSTRUCT the shape it guards
+    # against: a criterion declaring `task_class` with a table that names one class.
+    with patched(static, "TIER1_BOUND_POPULATION",
+                 {**static.TIER1_BOUND_POPULATION, "lint.clean": "task_class"}):
+        with patched(static, "TASK_CLASS_BOUND_TABLES",
+                     {"lint.clean": {"game": (0.0, 1.0, "game only")}}):
+            caught = any("no entry for ['scene']" in p
+                         for p in static.assert_tier1_bounds_declared())
     expect("mutant 'a per-class table that forgot a class' is caught", caught)
 
     with patched(static, "TIER1_BOUND_POPULATION",
@@ -422,11 +655,11 @@ def mutants(inks: dict[str, dict[str, Any]]) -> None:
 
     # THE POLICY MOVING WITHOUT THE COUNT MOVING. `tests.exist` reclassified from
     # `starter` to `no_bound` keeps the registry legal, keeps the total at 14 and keeps
-    # exactly one class-dependent entry - everything except the tally.
+    # nothing class-dependent - everything except the tally.
     moved = {**static.TIER1_BOUND_POPULATION, "tests.exist": "no_bound"}
     with patched(static, "TIER1_BOUND_POPULATION", moved):
         legal = static.assert_tier1_bounds_declared() == []
-        tally = dict(collections.Counter(moved.values()))
+        tally, _unexpected = _tally(moved)
     expect("mutant 'a bound is silently reclassified' is caught by the exact tally",
            legal and len(moved) == 14 and tally != EXPECTED_TALLY, str(tally))
 
@@ -475,7 +708,7 @@ def corpus(runs_root: Path) -> None:
             klass = _class_of(str(rec.get("game")))
             inferred_class += 1
         crit = next((c for c in r["criteria"] if c["id"] == "render.nonempty"), None)
-        if crit is None or klass not in static.INK_WINDOW:
+        if crit is None or klass not in static.TASK_CLASSES:
             skipped.append((r["trial"], "no render.nonempty" if crit is None
                             else f"unplaceable class {klass!r}"))
             continue
@@ -510,7 +743,6 @@ def corpus(runs_root: Path) -> None:
     for klass, r, tier1, _crit in fired:
         f = tier1.get("frames", {})
         ink, n = f.get("mean_ink"), f.get("count")
-        lo, hi, _why = static.ink_window(klass)
         # NOT REGRADABLE is a third value, and it is not a FAIL. `nonempty_verdict`
         # would raise on `float(None)` and take the whole report with it; inventing a
         # 0.0 would be worse, because a fabricated floor failure is indistinguishable
@@ -520,13 +752,18 @@ def corpus(runs_root: Path) -> None:
                   f"frames={n}  NOT REGRADABLE - the stored record carries no "
                   f"frames.mean_ink, so which bound it hit cannot be established")
             continue
-        which = "floor" if ink < lo else "ceiling"
-        now, _ev = static.nonempty_verdict(f, klass, n or 0)
+        # WHICH BOUND THE STORED VERDICT HIT is a question about the bound that was in
+        # force when it was graded, not about today's. Every stored record predates
+        # `tasks/168`, so a firing above the floor hit the ceiling that has since been
+        # retired - and printing only today's floor would leave it unexplained.
+        which = "floor" if ink < static.INK_FLOOR \
+            else f"the retired {RETIRED_GAME_CEILING} ceiling"
+        now, _ev = static.nonempty_verdict(f, n or 0)
         before = evaluate.gate_verdict(tier1)
         after = evaluate.gate_verdict(_with_verdict(tier1, now))
         print(f"    {r['run']}/{r['trial']}  class={klass}  mean_ink={ink}  "
               f"frames={n}  hit={which}  tier2={r['t2']}")
-        print(f"      re-graded under the {klass} window {lo}-{hi}: "
+        print(f"      re-graded under the floor {static.INK_FLOOR}, no ceiling: "
               f"{'PASS' if now else 'FAIL'}")
         print(f"      gate: {_gate(before)}  ->  {_gate(after)}")
 
@@ -565,21 +802,27 @@ def _gate(g: dict[str, Any]) -> str:
 
 # --------------------------------------------------------------------------- #
 
-def phases(inks: dict[str, dict[str, Any]]) -> list[tuple[str, Any, int]]:
+def phases(inks: dict[str, dict[str, Any]],
+           tmp: Path) -> list[tuple[str, Any, int]]:
     """Every mandatory phase and **how many expectations it must contribute**.
 
     A single total cannot see a phase that stopped running: drop the mutant sweep and
-    the remaining 25 still print as a clean pass. Counts derived from a table move with
-    it; the rest are written out, because an expectation taken from its subject is not
-    an expectation.
+    the rest still print as a clean pass. Counts derived from a table move with it; the
+    rest are written out, because an expectation taken from its subject is not an
+    expectation.
     """
     return [
         ("fixtures", lambda: test_fixtures_measure_what_they_claim(inks),
          len(FIXTURES) + 1),
-        ("window", lambda: test_the_window(inks), len(WINDOW_ROWS) + 4),
-        ("collect propagation", test_collect_uses_the_class_it_was_given, 3),
-        ("bound census", test_bound_census, 5 + len(static.TASK_CLASS_BOUND_TABLES)),
-        ("mutants", lambda: mutants(inks), 10),
+        ("criterion", lambda: test_the_criterion(inks),
+         len(CRITERION_ROWS) + 1 + len(MECHANISM_ROWS)),
+        ("blank renders",
+         lambda: test_a_blank_render_fails_however_its_colours_are_arranged(tmp),
+         2 * len(BLANK_RENDERS)),
+        ("class refusal", test_an_unplaceable_class_is_refused, 3),
+        ("collect wiring", test_collect_reaches_the_criterion, 6),
+        ("bound census", test_bound_census, 6),
+        ("mutants", lambda: mutants(inks, tmp), 12),
     ]
 
 
@@ -597,7 +840,7 @@ def main() -> int:
     short: list[str] = []
     try:
         inks = {name: measure(make, tmp) for name, make, _lo, _hi in FIXTURES}
-        for name, phase, want in phases(inks):
+        for name, phase, want in phases(inks, tmp):
             before = CHECKS
             phase()
             got = CHECKS - before

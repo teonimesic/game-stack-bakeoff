@@ -99,14 +99,22 @@ a per-stack mean over both describes neither. Tier 2 for a scene is `scene_probe
 record says so in `tier2_instrument` and in the tier's own `tier` field; the SLOT keeps the name
 `playbot`, because that is what `WEIGHTS`, the completeness gate and every stored grading spell.
 
-3 things about tier 1 are class-dependent, and the runner hands all 3 to `static.collect`:
-a scene is filmed at its own contracted tick count rather than the game default; the 5 tier-1
-audio criteria are not asked of it, because every rendered scene prompt says the scene has no
-sound; and **`render.nonempty`'s ink window is a floor with no ceiling**, because a scene is
-contracted to fill the frame and the 0.85 ceiling is a game's. All 3 would otherwise deduct for
-compliance. `judge/RUBRIC.md` holds the window per class with the measurement behind it, and
-`static.TIER1_BOUND_POPULATION` answers the same question for the other 13 criteria — a
-registry rather than a paragraph, so a criterion added without an answer fails.
+2 tier-1 inputs are class-dependent, and the runner hands both to `static.collect`:
+
+| input | for a scene | what goes wrong otherwise |
+|---|---|---|
+| `film_ticks` | the scene's own contracted tick count, not the game default | the capture runs past the end of the sequence, and those frames are what `fidelity` and `motion` read |
+| `audio_game` | `None` | the 5 tier-1 audio criteria are asked of a scene whose prompt tells it to spend no effort on sound, so the grader deducts for compliance |
+
+**No tier-1 BOUND differs by class.** `static.TIER1_BOUND_POPULATION` answers that for all 14
+criteria — a registry rather than a paragraph, so a criterion added without an answer fails, and
+`judge/ink_window_control.py` prints the tally. `render.nonempty` is a floor with no ceiling in
+both classes; `judge/RUBRIC.md` holds the rule and its derivation.
+
+The runner hands the class itself over as a third argument, and the 2 ways it can be wrong are
+caught in 2 different places: `static.assert_task_class` refuses an **unregistered** class before
+a toolchain is spent, and `eval/tools/scene_runner_control.py` catches a **registered but wrong**
+one — a scene routed as a game — by spying on what the runner passes down.
 
 ## Grading: what replaces the play-bot
 
@@ -142,7 +150,7 @@ what a scene result must be read against.
 **First contact with a real submission found a false negative and 2 criteria it could not set
 up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`.
 `layers.depth_ordered` is repaired and re-graded (`tasks/162`, and the decision it forced is
-below); so is the tier-1 ink ceiling (`tasks/163`, and the window is now per class). The
+below); so is the tier-1 ink ceiling, which no longer exists (`judge/RUBRIC.md`). The
 standing limit is the sentence above: every threshold was chosen against fixtures, and a scene
 result is read against `scene_mutants.py --census` until that stops being true.
 

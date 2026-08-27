@@ -361,14 +361,14 @@ def check_tier1_shape(rows: Rows) -> None:
                    f"the game default films 240 ticks past the end of it")
         rows.check(f"{task}: task_class={want_class!r}",
                    seen.get("task_class") == want_class,
-                   f"got {seen.get('task_class')!r}. `render.nonempty`'s ink CEILING is "
-                   f"calibrated per class, and tier 1 gates - a scene graded against the "
-                   f"game ceiling is refused for filling the frame (tasks/163)")
+                   f"got {seen.get('task_class')!r}. Tier 1 refuses a class it cannot "
+                   f"place before spending a toolchain, and since `tasks/168` no tier-1 "
+                   f"BOUND reads the class - so a wrong one is only catchable here")
 
     # MUTANT: the class test is dropped and a scene is filmed at the game default. Those
     # frames are also what `fidelity` and `motion` read, and their brief says the last
-    # frame is late in the run - and tier 1 then asks the scene for a ceiling it is
-    # contracted to exceed.
+    # frame is late in the run - and tier 1 then asks the scene for the five audio
+    # criteria every rendered scene prompt tells it not to spend effort on.
     seen.clear()
     with patched(ev, "resolve_instrument", lambda t: ("game", "playbot")):
         with patched(static, "collect", spy):
@@ -376,7 +376,7 @@ def check_tier1_shape(rows: Rows) -> None:
                 ev.evaluate(FIXTURE, FIXTURE, SCENE, _tmp("t1m"), audio=True)
     rows.mutant("MUTANT: a scene graded as a game films at the game's tick count",
                 seen.get("film_ticks") is None and seen.get("audio_game") == SCENE)
-    rows.mutant("MUTANT: a scene graded as a game gets the game's ink ceiling",
+    rows.mutant("MUTANT: a scene reaches tier 1 declared as a game",
                 seen.get("task_class") == "game")
 
 
