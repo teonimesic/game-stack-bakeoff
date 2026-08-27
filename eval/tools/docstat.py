@@ -4499,9 +4499,19 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
     # so a reader steered this way answers about another tree and a writer WRITES to one.
     # `$TMPDIR` is where this is provable without touching anything that matters.
     with tempfile.TemporaryDirectory() as hostile:
-        _git_at(hostile, "init", "-q")
+        # BOTH STATUSES READ, as `_tree_fixture` reads its own. A failed setup leaves
+        # `hostile_index` holding something other than `["victim.md"]`, and the row below
+        # would then report a harness failure as a scrub failure. Raised by CodeRabbit on
+        # PR #54.
+        ok, out = _git_at(hostile, "init", "-q")
+        if not ok:
+            raise RuntimeError(f"the hostile-GIT_DIR fixture could not be built: git init "
+                               f"failed in {hostile}: {out.strip()[:200]}")
         open(os.path.join(hostile, "victim.md"), "w", encoding="utf-8").write("# v\n")
-        _git_at(hostile, "add", "--", "victim.md")
+        ok, out = _git_at(hostile, "add", "--", "victim.md")
+        if not ok:
+            raise RuntimeError(f"the hostile-GIT_DIR fixture could not be built: git add "
+                               f"failed in {hostile}: {out.strip()[:200]}")
         saved = os.environ.get("GIT_DIR")
         os.environ["GIT_DIR"] = os.path.join(hostile, ".git")
         try:

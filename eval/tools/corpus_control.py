@@ -144,6 +144,17 @@ def apply_mutant(name: str) -> None:
         DS._tracked_md = quoted
 
     elif name == "inherit_git_env":
+        # THIS MUTANT RE-ENABLES THE INCIDENT, so it first makes the incident impossible to
+        # reach from outside. It hands `os.environ` to a `git` that WRITES, and the run that
+        # produced this defect had `GIT_DIR` set in exactly that environment - so an
+        # operator with a `GIT_DIR` exported would have the mutant stage fixture files into
+        # their own index, which is the thing being pinned against. Scrubbing the PROCESS
+        # leaves the mutation faithful (the child still inherits everything) while the only
+        # `GIT_DIR` that can ever reach it is the one `_corpus_pins` sets deliberately,
+        # pointing at a repository it made in $TMPDIR. Raised by CodeRabbit on PR #54.
+        for k in [k for k in os.environ if k.startswith("GIT_")]:
+            del os.environ[k]
+
         def leaky(root: str, *args: str,
                   extra_env: dict[str, str] | None = None) -> tuple[bool, str]:
             child = dict(os.environ)          # GIT_* kept, which is the whole mutation
