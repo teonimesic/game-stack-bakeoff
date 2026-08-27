@@ -144,18 +144,18 @@ def _nearest(t: Tick, only_live: bool = True) -> dict[str, Any] | None:
 #: game that has not handed control over by then is not withholding play for
 #: presentation.
 #:
-#: ONE CONSTANT, TEN PLACES - the main session and every one of the nine sibling
-#: sessions this bot opens. A card gates the SIMULATION, so it gates each fresh session
-#: from that session's own tick 0; a budget spent only on the criteria that happen to be
-#: shortest leaves the rest red on the same card, which is `tasks/158`'s finding on
-#: `bot_tetris3d` and the reason that repair reached four call sites rather than two.
+#: ONE CONSTANT, 10 PLACES - the main session and every one of the 9 sibling sessions
+#: this bot opens. A card gates the SIMULATION, so it gates each fresh session from that
+#: session's own tick 0; a budget spent only on the criteria that happen to be shortest
+#: leaves the rest red on the same card, which is `tasks/158`'s finding on
+#: `bot_tetris3d` and the reason that repair reached 4 call sites rather than 2.
 #:
 #: What it was worth here, measured on `ref_arena` before the repair by lengthening a
 #: card until each criterion broke (`tasks/173`): 30 ticks failed `player.moves` and
 #: `move.analog`, 120 added `fire.spawns_bullets`, `fire.rate_limited` and
 #: `aim.independent`, 300 added `enemy.materialises`, 360 `aim.three_axis`, 368
 #: `enemies.chase`, 390 `enemies.spawn`, and by 800 `player.bounded` and `wall.graze`
-#: took it to eleven of twenty-two. Nine of those eleven break at or under this budget.
+#: took it to 11 of 22. 9 of those 11 break at or under this budget.
 #:
 #: `bot_pong.LIVE_BUDGET`, `bot_tetris3d.OPENING_BUDGET` and
 #: `bot_platformer._CONTROL_TICKS` are this same 512, bought by a Godot submission that

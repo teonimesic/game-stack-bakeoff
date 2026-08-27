@@ -293,14 +293,14 @@ ANALOG_SNAPPED = ("""    mag = math.sqrt(x * x + y * y + z * z)
         return x / mag, y / mag, z / mag
     return x, y, z""")
 
-#: A 96-tick opening title card over `ref_arena`, the same length as the two tetris
-#: cards and the platformer reference's own `OPENING_TICKS`. It gates the SIMULATION, so
-#: it meets every one of the ten sessions this bot opens from that session's own tick 0.
+#: A 96-tick opening title card over `ref_arena`, the same length as the 2 tetris cards
+#: and the platformer reference's own `OPENING_TICKS`. It gates the SIMULATION, so it
+#: meets every one of the 10 sessions this bot opens from that session's own tick 0.
 #:
 #: Before `bot_arena.OPENING_BUDGET` it failed `player.moves` and `move.analog` - both
-#: read a 30-tick push - and lengthening the card walked nine more criteria red before
-#: 400 ticks (`tasks/173`). Keep it at 96: the boundary was exact, a 29-tick card
-#: passing and a 30-tick one failing, so a shorter one would stop biting.
+#: read a 30-tick push - and lengthening the card took that to 9 criteria by 400 ticks,
+#: 7 more than these 2 (`tasks/173`). Keep it at 96: the boundary was exact, a 29-tick
+#: card passing and a 30-tick one failing, so a shorter one would stop biting.
 ARENA_OPENING_TITLE_CARD = ("""        if self.game_over:
             return events
 """, """        if self.game_over:
@@ -876,14 +876,14 @@ VARIANTS: list[Variant] = [
             ("player.moves", "move.analog", "fire.spawns_bullets",
              "fire.rate_limited", "aim.independent", "aim.three_axis",
              "enemy.materialises", "enemies.chase", "enemies.spawn"),
-            notes="the fourth game to get one, and the one whose bot had no opening "
-                  "budget anywhere. Measured before `bot_arena.OPENING_BUDGET`: this "
-                  "card failed `player.moves` (`displacement along each axis after 30 "
-                  "ticks of full push: x=0.0, y=0.0, z=0.0`) and `move.analog` (`a full "
-                  "push moved only 0.00 units`), and lengthening it walked the other "
-                  "seven red by 400 ticks. The nine listed are every criterion a card "
-                  "at or under the 512-tick budget used to break; the sweep is in "
-                  "`tasks/173`"),
+            notes="the 4th game to get one, and the one whose bot had no opening budget "
+                  "anywhere. Measured before `bot_arena.OPENING_BUDGET`: this card "
+                  "failed `player.moves` (`displacement along each axis after 30 ticks "
+                  "of full push: x=0.0, y=0.0, z=0.0`) and `move.analog` (`a full push "
+                  "moved only 0.00 units`), and lengthening it took that to 9 by 400 "
+                  "ticks. Those 9 are every criterion a card at or under the 512-tick "
+                  "budget used to break, and they are the 9 listed here; the sweep is "
+                  "in `tasks/173`"),
     Variant("ref_tetris3d", "a 96-tick card over an empty well",
             TETRIS_CARD_OVER_AN_EMPTY_WELL,
             ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),

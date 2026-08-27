@@ -34,16 +34,15 @@ criterion instances the 4 bots report rather than the smaller set that carries a
 a `ref_pong` variant says nothing about `ref_arena`. Read the per-fixture count, and read it out
 of `--hazards` rather than off a total.
 
-**A TITLE CARD GATES THE SIMULATION, so it gates every session from that session's own tick 0
-— and the opening budget belongs at every session head, never at the criteria that happen to be
-shortest.** Each bot spends one constant on it, all four of them 512 ticks, bought by a Godot
-submission that held the ball for `OPENING_DELAY = 104` so its card would be readable (#34):
-`bot_pong.LIVE_BUDGET`, `bot_tetris3d.OPENING_BUDGET`, `bot_platformer._CONTROL_TICKS` and
-`bot_arena.OPENING_BUDGET`. **The number is the easy half; where it is SPENT is what both
-repairs got wrong.** `tasks/158` found tetris had 4 opening budgets rather than the 2 its ticket
-named, because 2 criteria open a fresh session and meet the card again; `tasks/173` found the
-arena had none anywhere, and a card no longer than the platformer reference's own failed 2 of
-its 22 criteria at 30 ticks and 9 by 400. Count the sessions, not the criteria.
+**A TITLE CARD GATES THE SIMULATION, so it gates every session from that session's own tick 0.
+The opening budget goes at every session head — count the sessions, not the criteria.** Each bot
+spends 1 constant on it and all 4 are 512 ticks: `bot_pong.LIVE_BUDGET`,
+`bot_tetris3d.OPENING_BUDGET`, `bot_platformer._CONTROL_TICKS` and `bot_arena.OPENING_BUDGET`,
+the length bought by a Godot submission that held the ball for `OPENING_DELAY = 104` so its card
+would be readable (#34). **Where the budget is spent is the half that has been got wrong
+twice**: a criterion that opens a fresh session meets the card again from tick 0 (`tasks/158`),
+and a bot with no budget anywhere fails 2 of 22 criteria on a 96-tick card and 9 by 400
+(`tasks/173`).
 
 **An end condition has 2 ways to be wrong and both need pinning.** *Does the game ever say it
 is over*, and *does saying so stop it* — the prompt's own second clause. Every bot reaches the
