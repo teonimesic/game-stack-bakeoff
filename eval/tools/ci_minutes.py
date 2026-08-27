@@ -1949,9 +1949,9 @@ def _selftest() -> int:
         check("the hook refuses to run past depth 2", _deep.returncode, 3)
         check("it refuses before listing, so no caller reads a gate list from it",
               _deep.stdout, "")
-        check("and says which variable stopped it, so the diagnosis is not re-derived",
-              [w for w in ("GATES_DEPTH", "depth 3", "ceiling 2") if w not in _deep.stderr],
-              [])
+        check("and says which value stopped it, so the diagnosis is not re-derived",
+              [w for w in ("GATES_DEPTH=2", "depth 3", "ceiling 2")
+               if w not in _deep.stderr], [])
         counts["mutants"] += 1
         # A VALUE THE HOOK NEVER WRITES IS REFUSED, not arithmetic'd. Under /bin/sh a
         # negative reading makes the ceiling reachable only after a thousand levels and a
@@ -1961,8 +1961,12 @@ def _selftest() -> int:
             _off = _run_hook_at(_bad)
             check(f"GATES_DEPTH={_bad!r} is refused rather than counted from",
                   (_off.returncode, _off.stdout), (3, ""))
-            check(f"and the refusal for {_bad!r} names GATES_DEPTH",
-                  "GATES_DEPTH" in _off.stderr, True)
+            # THE VALUE, not just the variable. A message naming only `GATES_DEPTH` leaves
+            # the reader to find which of the several places that set it sent the bad one,
+            # which is the diagnosis this guard exists to hand over. Raised by CodeRabbit
+            # on PR #60.
+            check(f"and the refusal for {_bad!r} quotes the value it rejected",
+                  f"GATES_DEPTH={_bad}" in _off.stderr, True)
             counts["mutants"] += 1
         # The variant, and it is the one that matters: depth 2 is what a HOOK-DRIVEN
         # selftest reaches, so a ceiling one lower would redden `run-gates.sh pre-push` on
