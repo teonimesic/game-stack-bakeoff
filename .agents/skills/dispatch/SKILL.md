@@ -111,8 +111,9 @@ because the verdict fails on a HIGH count and the lower signal always excuses.
   ticket**.
 - **Shared, non-branchable state.** `eval/runs/`, the operator's machine, anything outside the
   repo: only one agent at a time, and say so in the ticket.
-- **Irreversible or outward-facing work** — deleting evidence, spending money, anything touching
-  the operator's machine — is **not** dispatchable on your own authority. Ask first.
+- **Irreversible or outward-facing work** — deleting evidence, spending account capacity at
+  scale, anything touching the operator's machine — is **not** dispatchable on your own
+  authority. Ask first.
 
 ## 3. Launch
 
@@ -188,6 +189,12 @@ with the 2 PR numbers in it.
 **`REVIEW_FAILED` is the same kind of hand-back and says something narrower**: a round started and
 died, so that head was never reviewed whatever summary comment sits at it. Treat the pull request
 as unreviewed rather than as reviewed-clean.
+
+**Do not use the `CodeRabbit` row of `gh pr checks` as the review verdict.** It reads `pass`
+whether a round completed, was rate-limited or was paused. Run `python3 eval/tools/mergeable.py
+<n>` and read its **REVIEW STATE** block, then run the `pr_review_state.py` command it prints for
+the verdict. Review state is reported and not gated. `DECISIONS.md`, *A review is reported against
+the head it was written at, and never gated*, is the authority.
 
 ### Merging
 

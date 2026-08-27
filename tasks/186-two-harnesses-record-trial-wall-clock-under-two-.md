@@ -1,11 +1,12 @@
 ---
 id: 186
 title: Two harnesses record trial wall-clock under two names, and the one nothing reads holds 4.4 hours of it
-status: in_review
+status: done
 priority: 3
 refs: eval/runner.py,eval/wholegame.py,eval/RUNS.md,eval/judge/capability.py
 done_when: 'The two names are reconciled - one quantity, one name, or an explicit statement in `eval/RUNS.md` that they are the same measurement recorded by two harnesses with the conversion written down. If `duration_ms` is kept, something must read it or the register must say why it is captured and not read; if it is dropped, the 47 stored records that carry it are evidence and the entry must say where that reading now lives. State which of the two the whole-game and spec-change suites each use after the change, and whether any published wall-clock figure moves - the expected answer is none, because nothing reads the one being changed, and that expectation should be checked rather than assumed. A null result closes this: if the two quantities turn out NOT to be the same measurement - different start points, different inclusions - say so with the two definitions side by side, because that is a sharper answer than renaming them.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/63
+established_by: 'Merged as PR #63. THE TICKET''S PREMISE WAS WRONG AND THE CORRECTION IS THE SHARPER ANSWER IT ASKED FOR - I filed it as ''two harnesses record the same quantity under two names, and only one is read''. Both harnesses record wall_s and it IS read. duration_ms is a THIRD quantity held by a different party: the agent CLI''s report of its own internal run, nested inside the timing script''s stopwatch. The conversion over 157 paired observations is wall_s minus duration_ms/1000 = min 0.9s, median 1.1s, max 6.5s, negative on none - additive overhead, not a second name. AND MY CENSUS WAS WRONG BY A DOCUMENTED TRAP: I globbed runs/*/trials/*.json and reported 47 of 55 records and 4.4 hours; the deep walk gives 71 of 71 and 7.36 hours. Reproduced independently at merge time - shallow 139 files / 47 carrying, deep 163 / 71. eval/AGENTS.md names that undercount by file and number (#126/#127), and no shipped walker was at fault: the defect was in my one-off shell analysis, which is the population no gate covers. The second correction is the same shape: I wrote that the self-report is absent from the live harness, and wholegame.py leaves it in artifacts/<tid>/agent_result.json, present in 86 of 91 whole-game records, with each of the 6 unpaired ones explained (4 wedged arena trials with an empty result object, 1 prime-agent probe, 1 killed scene trial). Both suites use wall_s unchanged and no published figure moves, checked rather than assumed. Control: wallclock.py --selftest ok, 13 mutants all caught with a named failure, and two known-good rows read by hand first. THE AGENT CAUGHT ITS OWN ERROR BEFORE REVIEW: it wrote that the self-report is 97.4-99.9 percent of the harness figure, a spec-change-only range stated over all 157, where the full corpus runs 0.2347-0.9998 - the low tail being one run the API refused in under 2 seconds. The overhead is additive and is now quoted only in seconds. Review changed three mechanisms, including a Major fail-open that returned ''0 paired, 0 negative, exit 0'' on an all-unpaired corpus, and a mutant that SURVIVED once that fix landed because a second guard raising the same exception class disarmed a type-only check - both refusals assert their cause now. Incidental: gates.yml 56 to 58, a stale lint.py count 72 to 100 predating the branch, and .github/workflows/README.md''s opening table is now asserted against gate_census(), having been the third copy of a number only two of whose copies were checked. Findings #203.'
 ---
 
 Found by the cleanup pass of 2026-08-27, the first to open `eval/runner.py`.
@@ -121,3 +122,68 @@ seconds** — min 0.9 s, median 1.1 s, max 6.5 s over 157 — and never the frac
 
 `eval/RUNS.md` and `eval/tools/wallclock.py`'s docstring both say so now. **No measured figure
 moved:** the tool has always reported the delta and reports no ratio; the defect was prose.
+
+## note 2026-08-27
+
+## The review, 5 rounds, 12 comments — what it changed, for the next agent
+
+The ceiling was reached and round 5 was still finding real defects. **3 comments changed a
+measurement or a mechanism**, not prose:
+
+1. **Round 1, Major — `wallclock.py` was fail-open on an all-unpaired corpus.** It returned
+   `paired_observations: 0, negative_deltas: 0` at exit 0, so its ONLY assertion was vacuously
+   green. Reachable: a tree of prime-agent records has no self-report anywhere, and neither does
+   one whose `artifacts/` was never synced. It now raises `CensusError` naming the
+   per-population address counters.
+2. **Adding the mutant for that fix made an existing mutant SURVIVE.** `empty_is_zero` fell into
+   the new refusal, because both raise `CensusError` and direction 1 asserted only the exception
+   **type**. Both exits are correct; only one is the right diagnosis. Directions 1 and 1a now
+   assert the **cause** (`no runs directory at`, `holds no **/trials/*.json`). **A second guard
+   raising the same exception class silently disarms the first guard's check** — worth
+   remembering anywhere a tool grows a second refusal.
+3. **Round 3 — the address table's denominator was keyed on the wrong thing.** It read
+   `86 of 91 whole-game`, summing to 157 paired of 162 against 6 explained unpaired. **The
+   address is a property of the writing script, not of the task class**: `wholegame.py` wrote
+   the 91 whole-game records AND the 1 scene record, so its denominator is 92. Now
+   `86 of its 92`, with `163 stored records, 157 paired, 6 with no self-report` stated outright.
+
+**One decline, with evidence, and it was accepted.** Round 3 asked to rename `wallclock.py`
+from producer to "validator" because it does not produce the 71/86/91 counts. It does — they
+are three lines of its own output. The useful half was taken: it imports `census.load_records`
+and `census.task_class_of` rather than reimplementing them, so its record counts cannot
+disagree with `census.py`, and that was true in the code and stated nowhere.
+
+**Round 4 sharpened the negative-delta diagnosis.** Both writers store `round(wall_s, 1)` while
+`duration_ms` is unrounded, so a genuine overhead under 50 ms can read as a delta down to
+**-0.05 s** — an artefact of stored precision, not a moved clock. Magnitude separates the two
+causes. **The tool still fails on both**: a 0.05 s tolerance would be a reason not to count a
+failure, and the observed minimum is +0.9 s, 18x the artefact bound.
+
+**Round 4 also fixed a terminology collision this repository already carries.** `eval/AGENTS.md`
+opens with *"Two harnesses share this directory"* (`wholegame.py`, `runner.py`) and later states
+*"A harness is an ARM"* (`claude`, `prime-agent`). The section had both senses in one table.
+Resolved by **naming the scripts** — "timing script", never `harness` or `arm` — rather than by
+minting a term; "evaluation suite" was rejected because `eval/` already spends `suite` on the
+retired spec-change suite and on `eval/suites/`.
+
+**Round 5 found the same fact at 3 addresses with only 2 asserted equal.**
+`.github/workflows/README.md` states `gates.yml`'s check count in its opening table AND in the
+coverage sentence ~180 lines below, and `ci_minutes.py` pins it a third time. Only the sentence
+and the pin were checked against each other, so the table drifted — and it drifted in the merge
+from `main`, which touched the sentence and not the table. `CHECKS_ROW_RE` now reads the row and
+`_selftest` compares **both** its numbers against `gate_census()`. Proved red on the live
+register in 3 directions (gates count wrong, controls count wrong, row deleted), restored after.
+
+### Two operational things worth not re-deriving
+
+- **CodeRabbit's included-review allowance was spent when this pull request opened**, and a
+  rate-limited notice reports `CodeRabbit pass / Review rate limited` as a green check. `tasks/187`
+  already covers that. The remedy that worked: wait the stated interval, post `@coderabbitai
+  review`, poll again. It then re-reviews only NEW commits — a review of an already-reviewed head
+  returns "Review skipped".
+- **The scratchpad is shared between concurrent sessions and files there get overwritten.** One
+  of this session's scratch files was replaced by another session's content mid-task. Every
+  commit message, pull request body and thread reply here was read back after writing
+  (`git log -1`, `gh pr view --json body` diffed, and each reply fetched and compared byte for
+  byte against what was sent). That discipline is not optional at this parallelism — `#80` and
+  `tasks/120` are the same hazard.

@@ -98,4 +98,4 @@ instrument can detect an ordering but **cannot statistically prove a tie** (~96 
 
 **A null is a result.** Three suites of increasing difficulty have failed to separate
 these four templates, and every deviation has been a grader defect. Lead with it plainly.
-Do not manufacture a separation from a small spread because money was spent.
+Do not manufacture a separation from a small spread because the run consumed real capacity.

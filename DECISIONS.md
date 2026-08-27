@@ -473,9 +473,9 @@ any per-aspect table, so the two must never be presented as summarising one anot
 ### A harder task is PRICED here, and gated behind a free pre-test — decided 2026-08-23
 
 Tier 2 is the only scored tier and it saturates, so the remedy proposed has been a harder task.
-**A harder task costs a matrix, so this entry brings the price and the one measurement that
-decides whether the money would buy anything. The spend itself is the operator's call and is not
-taken here.**
+**A harder task costs a matrix, so this entry records the account capacity it would take and
+the one measurement that decides whether those extra trials would produce evidence.
+Committing that capacity is the operator's call and is not made here.**
 
 **First, the corpus is flatter than the group count says.** Tier 2 has produced **no selective
 failure anywhere in the 69-trial corpus that survives adjudication.** `wg-matrix-2026-08-13` is
@@ -2304,6 +2304,48 @@ reconstruction did and did not show.
 
 ---
 
+## A review is reported against the head it was written at, and never gated — decided 2026-08-27
+
+**Decided [agent], `tasks/187`, on measurement.** `CodeRabbit` reaches `mergeable.py` as a
+`StatusContext`, whose verdict is `state` and whose `description` the `statusCheckRollup` field
+does not carry. So the row a human reads as `pass ... Review rate limited` arrived as a row with
+no conclusion and no status, and `report()` printed only the two names in `REQUIRED` — the
+reviewer appeared in **no line of the tool's output**. The orchestrator's judgement *has this
+branch been reviewed* was being made against silence.
+
+Three heads, read from the API on 2026-08-27 and stored verbatim in `mergeable.selftest`:
+
+| | `gh pr checks` | status description at head | review object at head | what was true |
+|---|---|---|---|---|
+| PR #60 | `CodeRabbit pass` | `Review rate limited` | none; last 2 commits back | no round ran |
+| PR #62 | `CodeRabbit pass` | `Review completed` | none; last 1 commit back | `pr_review_state.py` answers `NOTICE / Reviews paused` |
+| PR #63 | `CodeRabbit pass` | `Review completed` | at the head | reviewed |
+
+| Decided | Rejected, and why |
+|---|---|
+| The description is **quoted, never matched on** | A set of strings meaning *no review happened*. PR #62's row says `Review completed` at a head no round finished on, so the set would have to contain a wording indistinguishable from #63's — the open-class trigger this file's census-trigger section rejects, with a live counterexample rather than an argument |
+| The reading is the **review timeline**: `REVIEWER`'s last `commit_id` against `headRefOid`, with the intervening commits' subjects | Trusting the status alone. Both rows above read `success`; only the sha comparison separates them |
+| Stated as *"the head carries no review of its own"*, with `pr_review_state.py` named as the producer of the verdict | Stating *"the head was not reviewed"*. A clean incremental round writes no review object — 3 of 6 reviewed heads in the table under *The review poll is a tool that asserts its own address* reach only the comment arm — so the sha comparison is evidence, not a verdict, and one tool must not re-derive another's |
+| **Reported, never gated.** The exit code is unchanged | Refusing the merge on an unreviewed head. The merge procedure in `.agents/skills/dispatch/SKILL.md` **ends** by merging `main` into the branch and re-running CI, so the head that lands is unreviewed by construction. A gate red on every pull request at the moment it is merged spends exactly the attention a gate firing correctly needs |
+| A **non-required row with no verdict is named**, not passed over | Printing only `REQUIRED`. That is what hid the row for four merges: absence of a line is indistinguishable from absence of a problem |
+| `REVIEWER = "coderabbitai[bot]"`, with a selftest row proving the suffix-less login selects nothing | Reading the App by the name on its status context. `AGENTS.md` rule 12 records the same filter returning empty on every pull request and being read as *no review exists* |
+| The **combined** status endpoint, `/commits/<sha>/status`, at the head already read | `/commits/<sha>/statuses`, which returns the full history and would make the answer depend on list order; or resolving "the current head" a second time inside the reader |
+
+**Both directions are pinned from those payloads.** `python3 eval/tools/mergeable.py --selftest`
+drives them, and the three pull requests above must not receive the same answer — the row that
+catches a reading that reports the instrument. `python3 eval/tools/mergeable_mutants.py` removes
+one mechanism at a time — the description fold-in, `state` as a verdict, the sha comparison, the
+`[bot]` suffix, the `None` refusal on an unreadable timeline, the commit list ending at the head,
+the verdict caveat — and every one must turn a **named** selftest row red; a mutant caught only by
+a crash is reported as NOT CAUGHT. Run both rather than quoting a count from here.
+
+| Would re-open this | The observation |
+|---|---|
+| Reported rather than gated | A merge procedure that does not end with an unreviewed head — a rebase-and-merge policy, or a base-update that CodeRabbit re-reviews. Then the drift can be gated without firing on every pull request |
+| The sha comparison being evidence rather than a verdict | An API field that distinguishes *a round ran and found nothing* from *no round ran*. Today only `pr_review_state.py`'s comment arm does, and it does it by reading prose |
+
+---
+
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23, second test added 2026-08-24
 
 > **This entry's reversal condition has fired: the repository is squash-only.** Ancestry alone
@@ -2650,6 +2692,47 @@ enumeration, and one has already failed here on a single inflection of one verb.
 **What re-opens this:** moving to per-token billing, at which point the figures become real and a
 ceiling becomes a real protection. Then the build-side reasoning still applies — a cap the agent
 can see is an instruction, so it belongs outside the agent's view or not at all.
+
+### A prose expenditure claim carries no figure and is NOT gated — decided 2026-08-27
+
+`--money` needs a `$` beside the predicate, so a claim made in words alone is invisible to it.
+`eval/RUNS.md` headed its judge ledger *"Specialist-judge calls — a separate ledger, because
+they spend money too"* directly above the table of valuations it mislabelled — the exact
+claim `#159` retires — and the gate was green on it. Widening the trigger was measured
+over the 57 live documents, not argued:
+
+| candidate | red blocks | after the repairs below |
+|---|---|---|
+| the predicate alone, `$` requirement dropped | 76 | 71 |
+| the predicate **and** a money noun (`money`/`dollar`/`cash`), no `$` | 13 | **5** |
+| **shipped**: the predicate **and** a `$` figure | 0 | 0 |
+
+8 of the narrow candidate's 13 named this project's own resource in the retired vocabulary and
+are repaired — the heading, 2 more lines of `eval/RUNS.md`, 3 skills, this file and
+`judge/JUDGING.md`. Re-running it over the repaired corpus is what decides the gate: **5 red
+blocks, 0 true positives.** 2 are this file explaining the money gate and denying that the
+figures are real, which `#159` exempts by design. The other 3 cannot be exempted honestly,
+because the money in them is somebody else's — GitHub's billed Actions minutes,
+`--max-budget-usd` as its vendor documents it, and published advice about API spend.
+`research/AGENTS.md` requires a brief to source every claim, so rewording 2 of them to suit an
+internal unit gate would alter a source.
+
+**The distinguishing property is WHOSE money, and a possessor is not a closed class of
+English.** The predicate is closed and the money nouns are closed, and it does not help: every
+candidate that reaches the heading also reaches the outside prices `research/` exists to quote.
+A candidate at 0 true positives on the live corpus loses to the trigger it was meant to widen,
+which is the census-trigger result in `AGENTS.md` reached a second way. **No trigger was
+added**, and the prose claim is caught by reading.
+
+`tokenvalue.py --selftest` is not the place for it either. Its 2 expenditure-word pins run over
+`UNIT` and a formatted figure — module constants, not documents — and widening that population
+to prose would put a second #159 corpus scan beside `--money`'s, and one policy kept in two
+places is a defect this project has already paid for twice. The trigger is what fails here, not
+the population.
+
+**What re-opens this:** a live document acquiring one again. Re-run the narrow candidate —
+predicate plus money noun, no `$` required, over `docstat._live_corpus` and `_claim_blocks` —
+and read it against the 5 recorded here, 3 of which are permanent.
 
 ## The cost route is adjudicated and does not resolve, and a group is `(run, game)` — decided 2026-08-23
 

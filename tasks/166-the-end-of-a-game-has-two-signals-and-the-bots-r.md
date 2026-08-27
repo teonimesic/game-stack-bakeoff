@@ -1,10 +1,12 @@
 ---
 id: 166
 title: The end of a game has two signals and the bots read one to find it and the other to score it
-status: todo
+status: in_testing
 priority: 3
 refs: eval/judge/probe.py, eval/judge/bot_arena.py, eval/judge/bot_tetris3d.py, eval/suites/wholegame_prompts.py, tasks/157
 done_when: 'One of the two signals is authoritative and every reader agrees: either `probe.end_condition_holds` takes the end signal as an argument so an event-detected end is not read as "game_over went False", or every caller detects the end from the state flag only and the event branches are deleted. Whichever way it goes, `eval/suites/wholegame_prompts.py` states it in the contract the submissions are held to, a mutant exists for the losing signal, `bot_mutants.py` exits 0, and `tier2_census.py --runs-root <main checkout>/eval/runs` is recorded before and after because the choice can move a stored verdict.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/66
+established_by: 'PR #66, 3 review rounds then a clean one, gates+controls+CodeRabbit all pass. bot_mutants.py exit 0 at 52 mutants over 45 criteria, 15 variants, 0 pending, 3 session-lock controls, 70 hazards, 0 unmet, against a 50/45/13/0/3/70/0 baseline re-run at 24b9fb8. tier2_census.py --runs-root <main>/eval/runs byte-identical before and after. Both directions on both fixtures: a correct game announcing the end 6 ticks before entering it went FAIL to PASS; a broken game announcing and never entering stayed FAIL with evidence that now names the real defect. Guard pinned by 3 mutants that each turn --selftest red. Needs a FINDINGS number - see the note.'
 ---
 
 Two bots detect the end by EITHER the state flag or a game_over EVENT - bot_arena._death and bot_tetris3d._gameover_check both break on `t.state.get("game_over") is True or "game_over" in t.events` - and then every verdict that follows is computed from the state flag alone. A submission that raises the event and leaves the flag False is therefore located as ended and then scored as not ended, on both the pre-repair criterion (`still_over = s.last.state.get("game_over") is True`) and the two-phase one that replaced it in tasks/157, which reports `BROKE at tick N: game_over went False with nothing pressed`. It is pre-existing and neither version introduced it. The event branch was itself paid for: bot_tetris3d carries a comment saying the no-falling-piece path failed two correct submissions until it started reading the event. So the two signals disagree about which one means "over", and the answer decides what the criterion measures for every g2, g3 and g4 submission. Raised by CodeRabbit on PR #40, declined there because settling it is a re-scoring event and belongs with its own tier2_census.py before-and-after rather than inside a repair to a different defect.
@@ -167,3 +169,148 @@ what a criterion measures for every g2, g3 and g4 submission:
 
 **Say what must still FAIL after your change**, and check it does. That clause is what the last three
 tickets in this cluster were missing when they were written.
+
+## note 2026-08-27
+
+## The choice, and why the other branch of `done_when` was not taken
+
+**The state flag wins; the `game_over` event branches are deleted.** Three reasons, in the
+order they decided it:
+
+1. The prompt already defined the field as the CONDITION and the event as a thing that
+   happened on a tick, and `probe.end_condition_holds` — the one shared end-condition
+   policy for all 4 bots since `tasks/157` — already scored the field.
+2. **2 of the 4 bots already resolved it that way.** `bot_pong` and `bot_platformer`
+   never read the event. Only `bot_arena._death` and `bot_tetris3d._gameover_check` did,
+   the latter in **2** places (the post-drop history scan and the no-falling-piece
+   branch), which the ticket counted as one.
+3. **#190.** `flag OR event` is the union — the reading that locates an end soonest. The
+   criterion fails on the ABSENCE of an end, so the union is the signal that excuses.
+
+The other branch — passing the end signal into `end_condition_holds` — would have kept
+two readings alive and made every future caller choose between them. What landed instead
+makes the function REFUSE the wrong one.
+
+## What was measured, before and after, on both fixtures
+
+A scratch harness drove `bot_arena.BOT._death` and `bot_tetris3d.BOT._gameover_check`
+against patched fixture copies. The before-column was read at `24b9fb8`, before any edit.
+
+| subject | before | after |
+|---|---|---|
+| `ref_arena` untouched | PASS | PASS |
+| `ref_arena`, announced then entered 6 ticks later — CORRECT | **FAIL** `BROKE at tick 537: game_over went False with nothing pressed` | **PASS** |
+| `ref_arena`, announced and never entered — BROKEN | FAIL, same sentence | FAIL `the player never died in 9001 idle ticks (hp 0.0)` |
+| `ref_tetris3d` untouched | PASS | PASS |
+| `ref_tetris3d`, announced then entered 6 ticks later | **FAIL** `BROKE at tick 54: …` | **PASS** |
+| `ref_tetris3d`, announced and never entered | FAIL, same sentence | FAIL `stacked into one corner for 169 ticks without the game ending; game_over=False` |
+
+**The verdict on a BROKEN game never moved, and that is the part worth knowing.** An
+event-only game failed before and fails now. What the defect cost was a **false negative
+of the second kind** — rows 2 and 5, a correct game the criterion could not pass — and an
+evidence string that described a different defect from the one present. Both fixtures now
+carry a `VARIANT` (must pass) and a `MUTANT` (must fail).
+
+**6 ticks, and the length is load-bearing.** At 1 tick both bots pass either way, because
+`end_condition_holds` reads its first idle tick AFTER the one it was handed.
+
+## The guard on `end_condition_holds`, and the control that could not fail
+
+`end_condition_holds` now reads `s.last.state["game_over"]` first and returns a failed
+`EndCondition` naming what it found, driving neither window. **The branch is unreachable
+from any fixture** — all 4 callers locate on the flag — so it is pinned offline by
+`EndTapeSession` in `--selftest`.
+
+**The first version of that control was green against a deleted guard.** It compared the
+verdict and the evidence string, and both are byte-identical either way: `detail()` reads
+`flag_at_entry`, which is recorded on both paths. The row now carries **ticks driven** — 0
+on the refusal, 8 when the windows run — and 3 mutants of the guard turn `--selftest` red:
+the early return deleted, `held_while_idle` no longer reading `flag_at_entry`, and the
+guard testing falsiness so `None` slips through. Pristine is exit 0.
+
+**`idle_broke_at` is None on the refusal path on purpose.** Setting it to the entry tick
+would have made `held_while_idle` False by that route instead, leaving
+`flag_at_entry is True and …` unkillable by any mutant — dead weight that reads as a
+defence.
+
+## `Hazard.covered_by` is a tuple now
+
+One criterion can have more than one constructed answer while the registry keeps one entry
+per criterion. `gameover.triggers` is mis-scored by a closing card AND by a game that
+announces the end before entering it, and the single-label field made the second subject
+unclaimable — `hazard_gate` reports it as *claimed by no criterion*. 21 call sites moved
+from `_V_X` to `(_V_X,)`, and 2 selftest rows cover the ways a second entry goes wrong.
+
+## The FINDING this produced, for the orchestrator to number
+
+**A criterion can locate a condition with one signal and score it with another, and every
+verdict it returns is still right.** `gameover.triggers` on 2 of 4 bots read
+`flag OR event` to find the end and the flag alone to judge it. On every game either
+signal can produce, the two readings return the SAME verdict — the disagreement is
+entirely in the evidence, and the evidence named a defect (`game_over went False`) that
+was not the one present (`game_over was never True`). The cost is not a wrong score; it is
+a **false negative on a game neither reading was designed for** — a correct game whose
+flag lands a few ticks after its event, which FAILED on both fixtures and now passes.
+
+> A split between how a check LOCATES its subject and how it SCORES it is invisible in
+> every verdict and visible only in the evidence, so nothing that reads verdicts can find
+> it. #200 said a stored evidence string is not a check on the verdict beside it. This is
+> the converse and it is worse: **a verdict is not a check on the evidence beside it
+> either, and a criterion can be right for a reason it did not measure.**
+
+Measured: 6 subjects across 2 fixtures, 0 verdict changes on the 4 that are broken or
+untouched, 2 verdict changes on the 2 correct games nothing had constructed before.
+
+## What could NOT be established
+
+**Whether any stored submission carries this shape.** Not answerable from
+`eval/runs/**`: no probe trace is kept, so what a submission published on its end tick
+cannot be read back. The 2 fixtures are the whole evidence and `eval/RUNS.md` says so
+rather than implying a corpus measurement.
+
+## Filed: `tasks/191`
+
+`bot_pong._match_ends` locates the end from the **SCORE** (`max(score) >= 11`) and hands
+the session to `end_condition_holds`, which scores the flag. Same defect shape, a third
+signal. Out of scope here because the obvious repair is **fail-open**: breaking on the flag
+lets a game that reaches 11 and keeps playing pass, provided no further point lands. The
+guard added here already makes pong's evidence honest; the verdict is FAIL either way.
+
+## What the review found that the measurements could not
+
+3 rounds, 5 comments, 2 of them real defects in prose I had written:
+
+- **The contract paragraph contradicted itself** — the event *"announces the tick the game
+  ended on"*, the field is what *"the game has ended"* means, and the two *"need not be the
+  same tick"*. It also bound the field to *"the tick the game stops accepting play"*, which
+  made the new variants non-conforming under my own wording.
+- **The replacement then over-reached** — *"nothing else establishes that"* is FALSE on g4,
+  where `victory` beside `stage_clear` is a second terminal condition, and
+  `_probe_section()` renders into all 4 game prompts. The shipped claim is about the
+  field/event DISTINCTION, true of all 4 pairs in the suite and specifying none of their
+  triggers.
+- **`eval/RUNS.md` cited a command that could not run** — `<the commit before>` is not a
+  revision and the pathspec swept in `index.json`. Replaced with a corpus measurement
+  needing no revision, because the repository squash-merges and any SHA written there would
+  resolve to the WRONG commit rather than to none.
+
+**Declined, with the evidence:** reshaping the 2 new variants. One remedy offered makes the
+fixture identical to the reference in the property under test; the other swaps one
+incidental difference for another. A closing flourish that gates the simulation is the same
+shape as the 4 opening-card variants this suite already declares correct.
+
+**Declined after testing the reason and finding it wrong:** renaming the RUNS.md heading out
+of the series format. I expected `docstat.py --sweep` to go red on the suggested heading and
+planted it to check — **exit 0, `regime ordinals: 40 known` unchanged.** No gate objects. What
+survived is that other documents cite these sections by heading and the suggested title drops
+both the ordinal and the measured result. The *other* half of that comment was right and was
+acted on: the `Check the ordinal before citing it` boilerplate is gone from this section.
+
+## A hazard for whoever runs a control next
+
+`eval/tools/skill_layout_control.py` plants broken skill layouts and restores them with
+`git checkout -- .claude/skills`, which reads the **index**. A `git add -A` running in another
+shell during that window makes the restore fail with *pathspec did not match any file(s) known
+to git*, and it leaves `.claude/skills` deleted — the symlink `AGENTS.md` calls load-bearing.
+Its own lock guards against a second copy of itself and cannot see a concurrent index write.
+Recovered with `git checkout HEAD -- .claude/skills`; re-run clean at 5/5.

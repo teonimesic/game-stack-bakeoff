@@ -171,6 +171,60 @@ floor or range is computed.
 **Never pool this record with a game population.** It carries `game: g1_pong` because every
 record does, and it was not asked to build pong.
 
+## THE TWO CLOCKS THAT TIME A TRIAL, and they agree to a measured median 1.1 s — 2026-08-27
+
+**Not a comparability break, and no figure in this file moves.**
+
+**Use `wall_s` for every wall-clock figure**, and both harnesses record it on every trial. Where
+the agent CLI reports a duration, `duration_ms` is stored separately — the CLI's own account of
+the same trial. **6 stored records have no self-report**, enumerated at the end of this section.
+
+**The two are not one quantity under two names. They are two stopwatches on nested intervals,
+held by different parties:**
+
+| | who holds the stopwatch | interval | clock |
+|---|---|---|---|
+| `wall_s`, `wholegame.py` | `wholegame.py` itself, around its own `run_agent()` | subprocess spawn, the CLI's whole life, reading its stdout, parsing it | `time.monotonic()` |
+| `wall_s`, `runner.py` | `runner.py` itself, around the same call | the same span | `datetime.now()`, which an NTP step or a DST change moves under it |
+| `duration_ms` | the `claude` CLI, in its own result object | its internal run alone | the CLI's own |
+
+**The conversion.** Over **157** paired observations `wall_s - duration_ms/1000` is min
+**0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on none of them**. That difference is
+the timing script's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` produces
+every figure in this section, and it **fails on any negative delta**. It takes its tree walk and
+its population partition from `census.py` rather than reimplementing them, so its record counts
+cannot disagree with `python3 eval/tools/census.py`.
+
+> **A negative delta has 2 possible causes and its magnitude separates them.** `wall_s` is
+> stored rounded to 0.1 s and `duration_ms` is not, so a genuine overhead under 50 ms can read
+> as a delta down to **-0.05 s** — an artefact, not a defect. **Anything larger is a clock that
+> moved**, which `runner.py` is exposed to and `wholegame.py` is not: only the second brackets
+> with `time.monotonic()`. The observed minimum is +0.9 s, so neither has happened yet.
+
+> **The overhead is additive, not proportional**: ~1 s on a 1.6 s trial and ~1 s on a 4961 s
+> one. **Report the distribution in seconds. Do not subtract the median from an individual
+> trial, and do not report a ratio** — as a ratio it runs 0.2347 to 0.9998, and the 5 lowest are
+> all `wg-g4b-2026-08-17T19-50-43`, whose 8 trials the API refused in under 2 seconds each. That
+> range measures trial length, not the two clocks.
+
+**The self-report is at two addresses, one per timing script**, so the producer reports which
+one each record used rather than guessing. **The denominator is the writing script's own output,
+not a task class**: `wholegame.py` wrote the 91 whole-game records and the 1 scene record
+alike.
+
+| address | written by | paired |
+|---|---|---|
+| `trials/<tid>.json` -> `agent.duration_ms` | `runner.py`, the retired spec-change suite | 71 of its 71 |
+| `artifacts/<tid>/agent_result.json` -> `duration_ms` | `wholegame.py`, which stores the CLI's whole result object and lifts no duration out of it | 86 of its 92 |
+
+**163 stored records, 157 paired, 6 with no self-report.**
+
+**The 6 records with no self-report are explained, not a gap.** 4 are
+`archive-arena2d-wg-audio48`'s wedged arena trials, whose `agent_result.json` is an empty
+object; 1 is the prime-agent probe, whose CLI reports no such field at all; 1 is the scene
+trial, killed externally before any result object was written. **Every trial whose agent
+process terminated and reported carries both clocks.**
+
 ## THE FIRST SCENE EVER BUILT AND GRADED — `wg-scene-s1ts-2026-08-25`. INTERRUPTED, and NOT a submission
 
 | | |
@@ -805,8 +859,8 @@ Moved to `runs/archive-arena2d-wg-audio48/` with its records, artifacts and work
 `wg-audio48` (pong and tetris only), 0 arena records, 8 tarballs each opened and counted.
 Full rationale in that directory's `README.md`.
 
-`wg-audio48` is therefore now a **16-trial, two-game run**, and its spend line above is the
-16 records only. The arena money moved with the arena trials.
+`wg-audio48` is therefore now a **16-trial, two-game run**, and the reported tokval covers only
+those 16 records. The arena tokval moved with the arena trials.
 
 ## Two arena trials were killed, and their `terminal_reason` is `None`
 
@@ -1070,8 +1124,8 @@ from the stored tier files.
 | ts t0, t1 | 0.8957 | **0.9557** |
 | rust t0, t1 | 0.000 | **0.000** — unchanged, and required |
 
-No agent trial was re-run and no money was spent. `bot_mutants.py`: 36 criteria pinned in both
-directions, 2 variants, 3 session-lock controls, 0 expectations unmet, exit 0.
+No agent trial was re-run and no tokval was generated. `bot_mutants.py`: 36 criteria pinned in
+both directions, 2 variants, 3 session-lock controls, 0 expectations unmet, exit 0.
 `verify_blind.py` re-run unpiped after the fixture change: **BLIND**, exit 0, 74 ids, 8 trees.
 
 ## `wg-g4c-2026-08-21` — the platformer, COMPLETE. 8/8 `completed`, $421.00
@@ -1500,7 +1554,7 @@ What it does establish is that the number has a **mechanism** rather than being 
 split, which is the bar this project sets before a stack-correlated reading may be discussed at
 all. Godot and Unity will either fit the pattern or break it.
 
-## Specialist-judge calls — a separate ledger, because they spend money too
+## Specialist-judge calls — a separate ledger, because they consume account capacity too
 
 This file's opening line claims every run, and judge calls were never in it. Read from the
 stored result files on 2026-08-16.
