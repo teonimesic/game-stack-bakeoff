@@ -2902,7 +2902,7 @@ one directory; or a tier-2 instrument that serves both classes, which would reti
 `bot_mutants.py` carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
 down; every run asserts the measured set equals the declared one, and each entry names the
-ticket that owns its repair. **3 are live**, on `ref_tetris3d` and `ref_arena`;
+ticket that owns its repair. **1 is live**, on `ref_arena`;
 `python3 eval/judge/bot_mutants.py` is the producer for that count and prints it beside the
 variant count on its last line.
 
@@ -2911,7 +2911,15 @@ and a criterion change moves stored verdicts across 68 graded submissions — a 
 event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
 *found* it would bundle a measurement change into a coverage change, which is the
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
-reproduces it, and the open repairs are `tasks/158` and `tasks/160`.
+reproduces it, and the open repair is `tasks/160`.
+
+**A closed entry may re-score 0 stored verdicts. That does not weaken the declaration.**
+The 2 `ref_tetris3d` opening-card subjects are in `VARIANTS`, and their promotion moved 0 stored
+verdicts. `piece.spawns` and `piece.falls` each have 0 failures over the 19 stored `g2_tetris3d`
+trials (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`). That game's only
+2 tier-2 failures come from a Unity probe-session abort, not an opening card. Whether a repair
+re-scores anything is knowable only once it lands, so the split is what keeps the coverage change
+and the measurement change separable in both outcomes.
 
 **A pending entry has a second way to close: the subject is not a correct game.**
 `ref_pong/rally.counts` carries no pending entry, and `tasks/159` is where the decision is
