@@ -70,3 +70,30 @@ AFTER 158 and 160 have merged, not from a number recorded earlier in this file.
 **Not batched, and that is deliberate.** The standing instruction on this project is one agent per
 task. 158 and 160 serialise on `bot_mutants.py` regardless, so this costs an extra round and buys
 a reviewable branch per repair.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — correction: the cluster is FIVE tickets, not three
+
+The note above says `158`, `160` and `166` serialise on `eval/judge/bot_mutants.py`. That
+population was wrong. `grep -l bot_mutants tasks/*.md` over the todo tickets returns **158, 160,
+166, 170, 171** — and I wrote an ordering over three of them without running the grep that
+enumerates the file's users. This is the failure `AGENTS.md` names in the rule audit: a trigger
+written as the instances I happened to have in mind rather than as the property (*edits
+`bot_mutants.py`*), and it was committed by someone who had just re-read that rule.
+
+**What survives the correction:** 158 and 160 are independent of this ticket, shown from their
+loop bounds, and that showing stands. **What does not:** "158, then 160, then 166" is not a
+complete order, because two more tickets queue on the same file.
+
+**The independence check has NOT been run for 170 and 171, and must not be assumed from the
+other two.** 170 is `multiplier.falls` in `bot_arena`, the same module whose wave/kills loop at
+lines 465-472 does break on `game_over` — so it is the one cluster member with a prior reason to
+be entangled with end-detection, and it needs the loop-bound check run against it specifically
+before it is ordered. 171 is `rally.counts` in `bot_pong`, which this ticket's own filing note
+already called probably independent.
+
+**Standing order until that check is run:** 158 first (in flight), then 160, then 170 and 171 in
+either order, and this ticket **last** — the before/after census argument applies against all four,
+not just two. Whoever runs 170's check should record the result here and fix the order if it comes
+out the other way.

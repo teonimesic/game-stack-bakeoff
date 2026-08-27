@@ -1,7 +1,7 @@
 ---
 id: 158
 title: The tetris bot allows 20 ticks for the first piece and 120 for it to descend; the same shape bought pong and the platformer 512
-status: todo
+status: in_progress
 priority: 2
 refs: eval/judge/bot_tetris3d.py, eval/judge/bot_mutants.py, eval/judge/bot_pong.py, tasks/155
 done_when: Both opening budgets are set from one named constant on the bot, sized like the 512 the same shape bought the other two games; both tetris entries in PENDING_VARIANTS come back with an empty failing set and are promoted into VARIANTS; bot_mutants.py exits 0; and the stored g2_tetris3d verdicts are re-derived with eval/judge/tier2_census.py against the main checkout's eval/runs and the before and after counts recorded here.
