@@ -474,7 +474,7 @@ any per-aspect table, so the two must never be presented as summarising one anot
 
 Tier 2 is the only scored tier and it saturates, so the remedy proposed has been a harder task.
 **A harder task costs a matrix, so this entry brings the price and the one measurement that
-decides whether the money would buy anything. The spend itself is the operator's call and is not
+decides whether the capacity would buy anything. The spend itself is the operator's call and is not
 taken here.**
 
 **First, the corpus is flatter than the group count says.** Tier 2 has produced **no selective
@@ -2605,6 +2605,47 @@ enumeration, and one has already failed here on a single inflection of one verb.
 **What re-opens this:** moving to per-token billing, at which point the figures become real and a
 ceiling becomes a real protection. Then the build-side reasoning still applies — a cap the agent
 can see is an instruction, so it belongs outside the agent's view or not at all.
+
+### A prose expenditure claim carries no figure and is NOT gated — decided 2026-08-27
+
+`--money` needs a `$` beside the predicate, so a claim made in words alone is invisible to it.
+`eval/RUNS.md` headed its judge ledger *"Specialist-judge calls — a separate ledger, because
+they spend money too"* directly above the table of valuations it mislabelled — the exact claim
+#159 retires — and the gate was green on it. Widening the trigger was measured over the 57
+live documents, not argued:
+
+| candidate | red blocks | after the repairs below |
+|---|---|---|
+| the predicate alone, `$` requirement dropped | 76 | 73 |
+| the predicate **and** a money noun (`money`/`dollar`/`cash`), no `$` | 13 | **5** |
+| **shipped**: the predicate **and** a `$` figure | 0 | 0 |
+
+8 of the narrow candidate's 13 named this project's own resource in the retired vocabulary and
+are repaired — the heading, 2 more lines of `eval/RUNS.md`, 3 skills, this file and
+`judge/JUDGING.md`. Re-running it over the repaired corpus is what decides the gate: **5 red
+blocks, 0 true positives.** 2 are this file explaining the money gate and denying that the
+figures are real, which `#159` exempts by design. The other 3 cannot be exempted honestly,
+because the money in them is somebody else's — GitHub's billed Actions minutes,
+`--max-budget-usd` as its vendor documents it, and published advice about API spend.
+`research/AGENTS.md` requires a brief to source every claim, so rewording 2 of them to suit an
+internal unit gate would alter a source.
+
+**The distinguishing property is WHOSE money, and a possessor is not a closed class of
+English.** The predicate is closed and the money nouns are closed, and it does not help: every
+candidate that reaches the heading also reaches the outside prices `research/` exists to quote.
+A candidate at 0 true positives on the live corpus loses to the trigger it was meant to widen,
+which is the census-trigger result in `AGENTS.md` reached a second way. **No trigger was
+added**, and the prose claim is caught by reading.
+
+`tokenvalue.py --selftest` is not the place for it either. Its 2 expenditure-word pins run over
+`UNIT` and a formatted figure — module constants, not documents — and widening that population
+to prose would put a second #159 corpus scan beside `--money`'s, and one policy kept in two
+places is a defect this project has already paid for twice. The trigger is what fails here, not
+the population.
+
+**What re-opens this:** a live document acquiring one again. Re-run the narrow candidate —
+predicate plus money noun, no `$` required, over `docstat._live_corpus` and `_claim_blocks` —
+and read it against the 5 recorded here, 3 of which are permanent.
 
 ## The cost route is adjudicated and does not resolve, and a group is `(run, game)` — decided 2026-08-23
 

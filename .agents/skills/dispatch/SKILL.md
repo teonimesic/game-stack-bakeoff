@@ -111,8 +111,9 @@ because the verdict fails on a HIGH count and the lower signal always excuses.
   ticket**.
 - **Shared, non-branchable state.** `eval/runs/`, the operator's machine, anything outside the
   repo: only one agent at a time, and say so in the ticket.
-- **Irreversible or outward-facing work** — deleting evidence, spending money, anything touching
-  the operator's machine — is **not** dispatchable on your own authority. Ask first.
+- **Irreversible or outward-facing work** — deleting evidence, spending account capacity at
+  scale, anything touching the operator's machine — is **not** dispatchable on your own
+  authority. Ask first.
 
 ## 3. Launch
 
