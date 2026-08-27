@@ -1,7 +1,7 @@
 ---
 id: 166
 title: The end of a game has two signals and the bots read one to find it and the other to score it
-status: todo
+status: in_progress
 priority: 3
 refs: eval/judge/probe.py, eval/judge/bot_arena.py, eval/judge/bot_tetris3d.py, eval/suites/wholegame_prompts.py, tasks/157
 done_when: 'One of the two signals is authoritative and every reader agrees: either `probe.end_condition_holds` takes the end signal as an argument so an event-detected end is not read as "game_over went False", or every caller detects the end from the state flag only and the event branches are deleted. Whichever way it goes, `eval/suites/wholegame_prompts.py` states it in the contract the submissions are held to, a mutant exists for the losing signal, `bot_mutants.py` exits 0, and `tier2_census.py --runs-root <main checkout>/eval/runs` is recorded before and after because the choice can move a stored verdict.'
