@@ -614,7 +614,7 @@ def cmd_build(a: argparse.Namespace) -> int:
     work_root.mkdir(parents=True, exist_ok=True)
 
     stacks = a.stacks or list(P.STACKS)
-    games = select_tasks(a.games, getattr(a, "scenes", None))
+    games = select_tasks(a.games, a.scenes)
     missing = [s for s in stacks if not STARTERS[s].exists()]
     if missing:
         print(f"missing starters: {missing} - build them first")
@@ -676,7 +676,7 @@ def cmd_build(a: argparse.Namespace) -> int:
     # THE HARNESS IS PART OF WHAT THE RUN WAS CONFIGURED TO BE, so it goes in the record
     # that is append-only for exactly that reason. A run directory whose manifest does not
     # name its harness is a run nobody can place in the ledger's harness dimension.
-    harness = agent_harness.get(getattr(a, "harness", None) or HARNESS)
+    harness = agent_harness.get(a.harness)
     _manifest.write_manifest(run_dir, {
         "stacks": stacks, "games": games,
         # THE TASK CLASS OF EVERY SELECTED TASK, in the append-only record of what this
@@ -702,18 +702,18 @@ def cmd_build(a: argparse.Namespace) -> int:
     if not pristine.exists():
         pristine = HERE / "runs" / "_cargo-target-pristine"
     prompt_override = None
-    if getattr(a, "prompt_file", None):
+    if a.prompt_file:
         prompt_override = a.prompt_file.read_text()
         print(f"--prompt-file: sending {len(prompt_override)} bytes verbatim from "
               f"{a.prompt_file}")
     jobs = [(run_dir, work_root, s, g, i, caps, pristine if pristine.exists() else None,
-             prompt_override, getattr(a, "turn_limit", None), harness.name)
+             prompt_override, a.turn_limit, harness.name)
             for g in games for s in stacks for i in range(a.trials)]
 
     # `--only` FILTERS, and refuses an id it cannot see. A filter that silently matches
     # nothing is the shape this project has been burned by twelve times: it would report
     # "0 trials" and look like a completed run.
-    if getattr(a, "only", None):
+    if a.only:
         wanted = list(dict.fromkeys(a.only))
         # Index positionally, not by unpacking: the job tuple has gained fields twice
         # and a fixed-arity unpack breaks the moment it does. The filter below already
@@ -1194,7 +1194,7 @@ JUDGE_COST_PER_TRIAL = 1.75   # MEASURED: two Sonnet-5 passes over a 95 KB pack 
 
 def cmd_plan(a: argparse.Namespace) -> int:
     stacks = a.stacks or list(P.STACKS)
-    games = select_tasks(a.games, getattr(a, "scenes", None))
+    games = select_tasks(a.games, a.scenes)
     classes = {aspects.task_class(t) for t in games}
     n = len(stacks) * len(games) * a.trials
     print(f"matrix: {len(games)} tasks x {len(stacks)} stacks x {a.trials} trials "
@@ -1257,7 +1257,15 @@ def cmd_plan(a: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The command line, as a value, so a checker can read the dests it produces.
+
+    EVERY FLAG BELOW IS BOUND TO THE CODE BY ITS `dest`, and a `dest` is a name the
+    reader has to keep in step by hand. `tools/flag_binding.py` asserts that every
+    `a.<name>` a command function reads is a dest this parser really produces for the
+    subcommand that dispatches to it, so a rename is caught by a check rather than at
+    the moment of a launch - or, worse, not at all.
+    """
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -1354,11 +1362,25 @@ def main() -> int:
     cc.add_argument("--game", required=True, choices=sorted(ALL_TASKS))
     cc.add_argument("--k", type=int, default=3)
 
-    a = ap.parse_args()
-    return {
-        "plan": cmd_plan, "build": cmd_build, "evaluate": cmd_evaluate,
-        "report": cmd_report, "concurrency-check": cmd_concurrency_check,
-    }[a.cmd](a)
+    return ap
+
+
+#: Subcommand -> the function that runs it. Module level, not an expression inside
+#: `main`, so a checker can walk each function against its own subparser's dests.
+DISPATCH = {
+    "plan": cmd_plan, "build": cmd_build, "evaluate": cmd_evaluate,
+    "report": cmd_report, "concurrency-check": cmd_concurrency_check,
+}
+
+#: Where a command function hands the SAME namespace to another one. A read inside the
+#: callee must bind under the caller's subparser too, and `evaluate` is the live case:
+#: it ends in `return cmd_report(a)`.
+DELEGATES_TO = {"cmd_evaluate": "cmd_report"}
+
+
+def main() -> int:
+    a = build_parser().parse_args()
+    return DISPATCH[a.cmd](a)
 
 
 if __name__ == "__main__":
