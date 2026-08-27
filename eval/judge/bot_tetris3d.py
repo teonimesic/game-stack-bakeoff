@@ -99,8 +99,8 @@ def _int(t: Tick, key: str, default: int = 0) -> int:
 #: criterion: the first piece appearing, the first piece descending, and the first piece
 #: of each of the two fresh sessions `_play_for_a_clear` and `_gameover_check` open. The
 #: budgets were 20, 120, 60 and 60, so a repair to any one of them left the others red -
-#: which is why the two card subjects in `bot_mutants.VARIANTS` declared different
-#: failing sets against the same card while they were still pending.
+#: which is why the two card subjects now in `bot_mutants.VARIANTS` declared different
+#: failing sets against the same card while they were pending.
 #:
 #: `bot_pong.LIVE_BUDGET` and `bot_platformer._CONTROL_TICKS` are this same 512, both
 #: bought by a Godot submission that held the ball for `OPENING_DELAY = 104` so its title
