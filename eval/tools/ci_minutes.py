@@ -942,6 +942,27 @@ HOOK_RUNNER = ROOT / ".githooks" / "run-gates.sh"
 REGISTER = WORKFLOW_DIR / "README.md"
 HOOK_TIERS = ("pre-commit", "pre-push")
 
+
+def read_register() -> str:
+    """The CI register's text, or a refusal -- never a traceback.
+
+    ONE READER, because two callers ask the same question of the same address and both
+    reported it as an unhandled `OSError`: a register that is missing, unreadable or
+    renamed came out of `--hooks` and `--controls` as a stack trace rather than as the
+    exit-2 refusal both modes already have a path for. Raised by CodeRabbit on PR #49.
+    """
+    try:
+        return REGISTER.read_text(encoding="utf-8")
+    except OSError as exc:
+        # THE MESSAGE MUST NOT RAISE. `relative_to(ROOT)` is what every other diagnostic
+        # here uses and it throws `ValueError` on a path outside the root -- which is the
+        # one address this handler can be reached with. An error path that raises is the
+        # traceback it was written to replace, one level down. `exc` already names the file.
+        raise DataError(
+            f"the CI register could not be read ({exc.__class__.__name__}: {exc}). It is "
+            f"what runs in which tier and what is deliberately left out, so nothing here "
+            f"can be checked against it") from exc
+
 # The header the hook table must carry, and the only one this reads. A table found by
 # position would move the moment a section is added above it (rule 12: the address is an
 # input to the check), so it is found by its own header cells.
@@ -1097,7 +1118,7 @@ def hook_census(list_hook=_list_hook, register_text: str | None = None,
                             f"a hook that agrees with an empty table")
         tiers[tier] = cmds
 
-    text = REGISTER.read_text(encoding="utf-8") if register_text is None else register_text
+    text = read_register() if register_text is None else register_text
     declared, dec_problems = register_hook_table(text)
     problems += dec_problems
 
@@ -1264,7 +1285,21 @@ def register_exclusions(text: str) -> tuple[list[str], list[str]]:
         if cells is None:
             break
         if len(cells) == len(EXCLUSION_TABLE_HEADER):
-            spans += [_norm_command(s) for s in _BACKTICKED.findall(cells[0])]
+            names = [_norm_command(s) for s in _BACKTICKED.findall(cells[0])]
+            # AN EXCLUSION IS A NAME AND A REASON. The register's promise, and the one
+            # `AGENTS.md` sends a session here for, is "every gate deliberately left out
+            # WITH THE REASON" -- so a row whose `why` cell is empty records a name and
+            # excuses nothing, while making the census exit 0. That is the fail-open
+            # direction, on the one table that exists to be believed. Raised by CodeRabbit
+            # on PR #49.
+            if names and not cells[1].strip():
+                problems.append(
+                    f"{REGISTER.relative_to(ROOT)} line {i + 1}: "
+                    f"{', '.join('`' + n + '`' for n in names)} is left out with no reason "
+                    f"in the `why` column. A gate excluded and recorded is fine; a name "
+                    f"with an empty reason records that somebody noticed, not why")
+            else:
+                spans += names
         else:
             problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the exclusion "
                             f"table row has {len(cells)} cells, want "
@@ -1420,7 +1455,7 @@ def controls_census(scripts: list[str] | None = None,
     scripts = sorted(control_scripts() if scripts is None else scripts)
     commands = gate_command_lines() if commands is None else list(commands)
     if register_text is None:
-        register_text = REGISTER.read_text(encoding="utf-8")
+        register_text = read_register()
 
     problems: list[str] = []
     if not scripts:
@@ -2228,6 +2263,45 @@ def _selftest() -> int:
             check(f"an empty `{_tier}` hook listing is refused by name",
                   _tier in str(_exc), True)
         counts["mutants"] += 1
+    # MUTANT: the register itself is missing, renamed or unreadable. Both offline register
+    # modes reported that as an unhandled `OSError` -- a stack trace where each already had
+    # an exit-2 refusal path (CodeRabbit, PR #49). Driven by pointing the module's address
+    # at a directory that holds no such file, so nothing on disk is renamed and no reader
+    # is stubbed: the failure is the real one `read_register` meets.
+    _real_register = REGISTER
+    try:
+        with tempfile.TemporaryDirectory() as _td:
+            globals()["REGISTER"] = pathlib.Path(_td) / "README.md"
+            try:
+                read_register()
+                failures.append("read_register returned text for a register that does not "
+                                "exist -- a missing register must be a refusal")
+            except DataError as _exc:
+                check("a missing register is a DataError naming the file and the cause",
+                      ("the CI register could not be read" in str(_exc),
+                       "FileNotFoundError" in str(_exc),
+                       "README.md" in str(_exc)), (True, True, True))
+            except OSError:
+                failures.append("read_register raised OSError -- `main` catches DataError, "
+                                "so this is the traceback the refusal exists to replace")
+            counts["mutants"] += 1
+            for _mode in ("--hooks", "--controls"):
+                with contextlib_redirect_all():
+                    try:
+                        _code = main([_mode])
+                    except Exception as _exc:      # noqa: BLE001 - the defect IS the raise
+                        _code = f"raised {_exc.__class__.__name__}"
+                check(f"`{_mode}` on an unreadable register exits 2, not a traceback",
+                      _code, 2)
+                counts["mutants"] += 1
+    finally:
+        globals()["REGISTER"] = _real_register
+    # VARIANT: the address is back, and the live register still reads. Without this the
+    # rows above could have left the module pointed at a temporary directory.
+    check("the register address is restored and readable",
+          (REGISTER == _real_register, bool(read_register().strip())), (True, True))
+    counts["variants"] += 1
+
     # VARIANT: with both producers healthy it returns the live list, sorted and unioned,
     # and it must contain a workflow-only gate AND a hook command. A refusal that fired
     # here would take the whole mode out.
@@ -2279,10 +2353,33 @@ def _selftest() -> int:
         ("a header with no delimiter row", "| left out | why |\n| `x` | y |\n"),
         ("a table whose left-out column has no backticked name",
          "| left out | why |\n|---|---|\n| trials | they drive the CLI |\n"),
+        # AN EXCLUSION IS A NAME AND A REASON, and the register's whole promise is the
+        # second half. A row with an empty `why` records that somebody noticed, excuses
+        # nothing, and made the census exit 0 (CodeRabbit, PR #49).
+        ("a row naming a control with an empty reason",
+         "| left out | why |\n|---|---|\n| `fragment_control` | |\n"),
+        ("a row naming a control with a whitespace-only reason",
+         "| left out | why |\n|---|---|\n| `fragment_control` |   |\n"),
     ):
         check(f"the exclusion table: {_label} is refused",
               bool(register_exclusions(_bad)[1]), True)
         counts["mutants"] += 1
+    # ...and the reasonless row must not excuse the control it names, which is the thing
+    # the row above only shows is REPORTED. Two fields, two assertions (rule 12's addendum).
+    _reasonless = controls_census(
+        scripts=["eval/tools/fragment_control.py"], commands=[],
+        register_text="| left out | why |\n|---|---|\n| `fragment_control` | |\n")
+    check("a reasonless row records nothing and the census refuses",
+          (_reasonless["recorded"], _reasonless["unrecorded"], bool(_reasonless["problems"])),
+          ([], ["eval/tools/fragment_control.py"], True))
+    counts["mutants"] += 1
+    # VARIANT: a reason is prose, and anything non-blank is one. A reader demanding more
+    # than that would redden rows the register really carries.
+    check("a one-word reason is a reason",
+          register_exclusions(
+              "| left out | why |\n|---|---|\n| `a_control` | network |\n"),
+          (["a_control"], []))
+    counts["variants"] += 1
     # VARIANT: a re-spaced table, an extra column of prose in the why cell, and a row whose
     # left-out cell holds several names must all still read. A reader that reddened on
     # whitespace would fire where nothing is wrong.
@@ -3181,15 +3278,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.gates:
         return gates_report(gate_census(), as_json=args.json)
 
-    if args.hooks:
-        return hooks_report(hook_census(), as_json=args.json)
-
-    if args.controls:
+    # BOTH OFFLINE REGISTER MODES REFUSE THE SAME WAY. Each reads an input that can be
+    # missing -- the register, the workflows, the hook listing -- and a mode that answers
+    # with a traceback where its sibling answers with exit 2 is a contract nobody can rely
+    # on. Exit 2 is "I could not measure this", which is neither a pass nor a failure.
+    if args.hooks or args.controls:
         try:
+            if args.hooks:
+                return hooks_report(hook_census(), as_json=args.json)
             return controls_report(controls_census(), as_json=args.json)
         except DataError as exc:
             print(f"ci_minutes: {exc}", file=sys.stderr)
-            print("ci_minutes: refusing to report a population it could not read. "
+            print("ci_minutes: refusing to report on an input it could not read. "
                   "An empty census is indistinguishable from a clean one.", file=sys.stderr)
             return 2
 

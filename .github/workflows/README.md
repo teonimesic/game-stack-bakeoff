@@ -253,6 +253,9 @@ which of them no workflow step and no git hook **names**, and requires each of t
 in the `left out` column below. Exit 1 names any that does not, and `ci_minutes --selftest`
 runs the live census, so the gate is CI's rather than a command someone has to remember.
 
+**An exclusion is a name AND a reason**, so a row whose `why` cell is blank records that
+somebody noticed and goes red — that half is the whole promise this table makes.
+
 Three things it deliberately does not do. It reads the **`left out` column only**, because a
 name appearing in a neighbouring row's reason excuses nothing. A span carrying a flag —
 `tasks_control --live-squash-refs` — excuses **that mode**, never the script, so a bare row is
@@ -267,10 +270,10 @@ row that outlived its exclusion, and a reader trusting it concludes a live check
 PATH resolved against the repository root** — so a quote, a trailing comment, a `./` prefix or
 an absolute path all name the same script, while `nested/eval/tools/x_control.py` is a different
 address and does not. Text that will not tokenise is reported rather than split on whitespace and
-answered anyway. **And when the command producers cannot be read at all
-— an unparseable workflow, a hook tier that lists nothing — this refuses with exit 2 naming the
-cause**, because reading them for their command lists alone turns one broken file into a report
-that every control in the repository is ungated.
+answered anyway. **And when an input cannot be read at all — an unparseable workflow, a hook
+tier that lists nothing, this file itself missing — both `--controls` and `--hooks` exit 2
+naming the cause**, because reading a producer for its output alone turns one broken file into a
+report that every control in the repository is ungated.
 
 | left out | why |
 |---|---|
