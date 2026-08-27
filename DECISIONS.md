@@ -3210,9 +3210,9 @@ also carries the point is counted in neither half** — the point zeroes `rally`
 and the verdict requires a non-empty denominator, so the exclusion cannot swallow the criterion
 (rule 7).
 
-**To re-open this rule:** a correct submission whose rally counter rises on some but not all of
-its non-scoring `paddle_hit` ticks. The comparability statement, and why no stored grading can be
-re-read against this, are in `eval/RUNS.md`.
+**To re-open the all-or-nothing reading:** a correct submission whose rally counter rises on some
+but not all of its non-scoring `paddle_hit` ticks. The comparability statement, and why no stored
+grading can be re-read against this, are in `eval/RUNS.md`.
 
 **The same reading was declined for the arena and it went the other way** (`tasks/170`).
 `ref_arena/multiplier.falls` reads the multiplier across the `player_hit` tick and looks
@@ -3258,7 +3258,7 @@ reason to retire the mechanism** — the pending loop iterates it, so it costs n
 and what it buys is the alternative to a silent `Variant.tolerates` on the next false negative
 found.
 
-**To re-open the `rally.counts` decline specifically:** a real submission whose counter settles
+**To re-open the one-tick reading of `rally.counts`:** a real submission whose counter settles
 a tick late. It would be a submission that violates the state contract, so the question it
 raises is whether tier 2 should fail it or whether the g1 prompt should say the ordering out
 loud — and only a submission can raise it, because the decline rests on reading the contract
