@@ -1326,9 +1326,9 @@ def controls_census(scripts: list[str] | None = None,
     GATED MEANS NAMED, and the transitive reading was measured and rejected. Following
     string literals from script to script makes `starter_gate_control` and
     `disclosure_mutants` children of `precampaign_smoke.py` -- itself ungated, so it changes
-    no answer today -- while opening a channel that fails OPEN: of the 21 non-docstring
-    literals under `eval/` that mention a control by name, 3 are prose and 3 are this file's
-    own selftest fixtures, and any of them could mark a control gated that nothing runs. A
+    no answer today -- while opening a channel that fails OPEN: of the 21 places where a
+    non-docstring string literal under `eval/` names a control, 3 are prose and 3 are this
+    file's own selftest fixtures, and any could mark a control gated that nothing runs. A
     control no gate NAMES is one that has to be recorded, and "run as a side effect of
     `precampaign_smoke.py`" is exactly the sort of reason the exclusion table exists to hold.
     """

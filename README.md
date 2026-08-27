@@ -147,7 +147,7 @@ above — agent time and rate-limit capacity, not money ([#159]).
   separate them — and a retired earlier suite already failed to separate four stacks that all
   scored 6/6 on it.
 - **Do not assume the criteria have no false negatives left.** They are pinned in both directions
-  — `python3 eval/judge/bot_mutants.py` reports **43 criteria pinned, 10 variants, 3 session-lock
+  — `python3 eval/judge/bot_mutants.py` reports **44 criteria pinned, 11 variants, 3 session-lock
   controls, 0 expectations unmet** — and that has never yet been enough. Every false negative
   found here was found by adjudicating a failure against source, never by the suite.
 
