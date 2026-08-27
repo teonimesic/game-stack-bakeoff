@@ -99,17 +99,22 @@ a per-stack mean over both describes neither. Tier 2 for a scene is `scene_probe
 record says so in `tier2_instrument` and in the tier's own `tier` field; the SLOT keeps the name
 `playbot`, because that is what `WEIGHTS`, the completeness gate and every stored grading spell.
 
-2 tier-1 inputs are class-dependent, and the runner hands both to `static.collect` as
-`film_ticks` and `audio_game`: a scene is filmed at its own contracted tick count rather than the
-game default, and the 5 tier-1 audio criteria are not asked of it, because every rendered scene
-prompt says the scene has no sound. Both would otherwise deduct for compliance.
+2 tier-1 inputs are class-dependent, and the runner hands both to `static.collect`:
+
+| input | for a scene | what goes wrong otherwise |
+|---|---|---|
+| `film_ticks` | the scene's own contracted tick count, not the game default | the capture runs past the end of the sequence, and those frames are what `fidelity` and `motion` read |
+| `audio_game` | `None` | the 5 tier-1 audio criteria are asked of a scene whose prompt tells it to spend no effort on sound, so the grader deducts for compliance |
 
 **No tier-1 BOUND differs by class.** `static.TIER1_BOUND_POPULATION` answers that for all 14
 criteria — a registry rather than a paragraph, so a criterion added without an answer fails, and
 `judge/ink_window_control.py` prints the tally. `render.nonempty` is a floor with no ceiling in
-both classes; `judge/RUBRIC.md` holds the rule and its derivation. The runner hands the class over
-as a third argument and `static.collect` refuses one it cannot place before spending a toolchain,
-which is the only place a wrong class can be caught now that no bound reads it.
+both classes; `judge/RUBRIC.md` holds the rule and its derivation.
+
+The runner hands the class itself over as a third argument, and the 2 ways it can be wrong are
+caught in 2 different places: `static.assert_task_class` refuses an **unregistered** class before
+a toolchain is spent, and `eval/tools/scene_runner_control.py` catches a **registered but wrong**
+one — a scene routed as a game — by spying on what the runner passes down.
 
 ## Grading: what replaces the play-bot
 

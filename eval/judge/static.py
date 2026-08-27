@@ -440,11 +440,12 @@ DELTA_MIN = 0.0005
 #: Tier 1 GATES, so a false negative here does not cost a fraction of a score, it stops
 #: a correct submission being scored at all.
 #:
-#: AND THE 68 GAME VALUES ARE A CONTINUUM, not 2 populations with a gap between them:
-#: 0.679, 0.703, 0.736, 0.772, 0.828, 0.881 are the top 6, the largest gap among them
-#: is 0.053, and all 7 of the highest are `g4_platformer` - the one game whose
-#: background scrolls across the whole frame. 0.85 landed inside that continuum, so what
-#: it separated was a TASK, not a quality.
+#: AND THE 68 GAME VALUES ARE A CONTINUUM, not 2 populations with a gap between them.
+#: The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of them
+#: `g4_platformer` - the one game whose background scrolls across the whole frame - and
+#: the largest gap among those 6 is 0.0555. 0.85 fell in a gap of 0.0536, between 2
+#: trials of that same game, so what it separated was a TASK and not a quality. (The
+#: 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.)
 #:
 #: 0.85 was not moved to admit the submission that exposed it; it was removed, because
 #: no number on this measure means "too full". `judge/ink_window_control.py` keeps the

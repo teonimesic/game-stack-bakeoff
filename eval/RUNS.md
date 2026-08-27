@@ -1086,7 +1086,7 @@ Two further grader defects were adjudicated and repaired, and one template defec
 | trial | overall | prog | bot | remaining failures |
 |---|---|---|---|---|
 | `godot__t0` | **1.000** | 1.00 | 1.00 | — |
-| `godot__t1` | 0.978 | 0.93 | 1.00 | **as graded:** `render.nonempty` (ink 0.881 vs a ceiling since retired). The **offline re-grade** under today's rule passes it, gate PASS 14/14 — see *`render.nonempty` lost its ink ceiling* |
+| `godot__t1` | 0.978 | 0.93 | 1.00 | `render.nonempty` — ink 0.881 vs a ceiling since retired. **Only the gate verdict was re-graded**, offline: PASS 14/14. The 0.978 and 0.93 in this row are as graded, under the pre-gate weighted scheme, and were not recomputed — see *`render.nonempty` lost its ink ceiling* |
 | `rust__t0` | **1.000** | 1.00 | 1.00 | — |
 | `rust__t1` | **1.000** | 1.00 | 1.00 | — |
 | `ts__t0` | **1.000** | 1.00 | 1.00 | — |
@@ -2510,9 +2510,10 @@ are rows in the control.
 sessions that could not see each other. Cite the heading, not the number.
 
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
-repository's first commit. `tasks/163` took the ceiling off scenes; `tasks/168` removed it
-outright and replaced it with a direct test. **The criterion is now a floor of 0.001, plus a
-refusal of a frame set every one of whose frames holds a single colour, for every task class.**
+repository's first commit until `tasks/163`, which removed the ceiling for **scenes** on
+2026-08-26. `tasks/168` removes it for **every** task class and replaces it with a direct test.
+**The criterion is now a floor of 0.001, plus a refusal of a frame set every one of whose frames
+holds a single colour.**
 
 **The derivation is that `mean_ink` cannot carry a ceiling.** `ink_coverage` counts pixels
 differing from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's**
@@ -2543,10 +2544,11 @@ floor alone and says so in its evidence.
 Every number in both tables is a checked row in `judge/ink_window_control.py`, so the derivation
 goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
 
-**The 68 stored game values are a continuum, not 2 populations.** The top 6 are 0.679, 0.703,
-0.736, 0.772, 0.828, 0.881, the largest gap among them is 0.053, and the 7 highest are all
-`g4_platformer` — the one game whose background scrolls across the whole frame. 0.85 landed inside
-that continuum, so what it separated was a **task**, not a quality.
+**The 68 stored game values are a continuum, not 2 populations.** The 6 highest are 0.679, 0.703,
+0.736, 0.772, 0.828 and 0.881, every one of them `g4_platformer` — the one game whose background
+scrolls across the whole frame — and the largest gap among those 6 is 0.0555. **0.85 fell in a gap
+of 0.0536, between 2 trials of that same game**, so what it separated was a **task**, not a
+quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
 
 **What the bounds had ever done**, from the producer, over the 69 stored submissions — the most
 recent grading of each, from 85 on disk with 16 superseded and held out:

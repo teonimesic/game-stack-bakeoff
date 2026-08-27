@@ -239,23 +239,22 @@ Every row has drawn nothing, and 0.001–0.85 admitted 2 of the 3 non-zero arran
 all-flat half fails all 4. **0 of the 67 stored frame sets contain a flat frame**, so it moves no
 stored verdict.
 
-Every number in both tables is a checked row in `judge/ink_window_control.py` (`MECHANISM_ROWS`,
-`BLANK_RENDERS`, and a `flood` fixture that must still FAIL), so a change to `ink_coverage` turns
-the derivation red instead of leaving this table wrong. It also pins the criterion in both
-directions on real pixels, drives `collect` end to end with the toolchain stubbed, and carries a
-mutant per mechanism — including the restored 0.85, so the widen-instead-of-remove alternative
-stays visible and fails.
-
 **`flat_frames` absent is a third value**, not zero: a record written before 2026-08-27 does not
 carry it, and re-grading one asks the floor alone and says so in its evidence.
+
+**The control.** Run it before changing either half:
 
 ```bash
 python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 ```
 
-is the producer for every ink figure and for what the bounds have ever done over the 69 stored
-submissions. `eval/RUNS.md`'s *`render.nonempty` lost its ink ceiling* break holds that history and
-the one gate verdict the removal re-grades; `DECISIONS.md` holds the decision.
+It verifies every number in both tables above on real pixels, pins the criterion in both
+directions, drives `collect` end to end with the toolchain stubbed, and requires a mutant per
+mechanism to go red — the restored 0.85 among them. With `--runs-root` it is also the producer for
+every ink figure and for what the bounds have ever done over the 69 stored submissions.
+
+`eval/RUNS.md`'s *`render.nonempty` lost its ink ceiling* break holds that history and the one gate
+verdict the removal re-grades; `DECISIONS.md` holds the decision.
 
 ### The performance fields — captured since 2026-08-23, scored by nothing
 

@@ -186,13 +186,13 @@ without a per-class table fails.
 
 `render.nonempty` held that slot until 2026-08-27. It is now a **floor of 0.001 and no ceiling**,
 plus a refusal of a frame set every one of whose frames holds a single colour — both the same in
-either class, both properties of the 4 starters. The ceiling went because `mean_ink` measures
-departure from **frame 0's** modal colour, so the same blank render reads 0.0, 0.5 or 0.91667
-depending only on how its colours are arranged, and `0.001–0.85` admitted 2 of the 3 non-zero
-arrangements. **Before changing the floor, run the producer** — `python3
-judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which prints what the bounds
-have ever done over the stored corpus and re-grades every firing under today's rule. `RUBRIC.md`
-holds the table and the derivation.
+either class, both properties every starter shares. The ceiling was removed because `mean_ink`
+measures departure from **frame 0's** modal colour rather than how much was drawn, so the same
+blank render reads 0.0, 0.5 or 0.91667 depending only on how its colours are arranged, and
+`0.001–0.85` admitted 2 of the 3 non-zero arrangements. **Before changing the floor, run the
+producer** — `python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which
+prints what the bounds have ever done over the stored corpus and re-grades every firing under
+today's rule. `RUBRIC.md` holds the table and the derivation.
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two

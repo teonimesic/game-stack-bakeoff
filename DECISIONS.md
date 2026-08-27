@@ -207,19 +207,22 @@ repository's first commit, derived in no document, no comment and no commit mess
 decision: the floor stays, the ceiling is removed, and an all-flat test replaces it — for every
 task class.**
 
-**The floor is a property of the 4 starters** — their own `renders a non-empty frame` test, and a
-placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank frame fails
+**The floor is a property every starter shares** — their own `renders a non-empty frame` test, and
+a placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank frame fails
 in either class.
 
-**The ceiling went because `mean_ink` cannot carry one.** `ink_coverage` counts pixels differing
-from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's** mode. So
-the quantity is departure from the first frame's mode — a property of the palette rather than of
-how much was drawn — and it runs backwards from what a ceiling wants:
+**The ceiling was removed because `mean_ink` does not measure how much was drawn.**
+`ink_coverage` counts pixels differing from **one** reference colour, and `analyse_frames` takes
+that colour from **frame 0's** mode. The quantity is therefore departure from the first frame's
+mode, which is a property of the palette:
 
 | frames | measures | which half decides |
 |---|---|---|
 | solid white, magenta or black, all frames the same — "the render broke and filled the screen" | **0.0** | the **floor** |
 | a gradient with a subject on it — a night platformer's sky | **0.881** | neither; it passes |
+
+A high reading means the palette has no dominant colour, and a full screen reads at the bottom of
+the scale rather than the top.
 
 **And the ceiling was not a blank-frame guard either, which is the measurement that settles it
 rather than the argument.** 12 frames each holding a single colour have drawn nothing, and
@@ -254,10 +257,11 @@ true positives and are counted separately — both are the #49 build failure at 
 `render.frames` reports in the same record, so the floor has never fired on a frame that was
 rendered at all.
 
-The 68 stored game values are also a continuum rather than 2 populations — top 6 are 0.679, 0.703,
-0.736, 0.772, 0.828, 0.881, largest gap among them 0.053, and the 7 highest all `g4_platformer`,
-the one game whose background scrolls across the whole frame. 0.85 landed inside that continuum,
-so what it separated was a **task**.
+The 68 stored game values are also a continuum rather than 2 populations. The 6 highest are 0.679,
+0.703, 0.736, 0.772, 0.828 and 0.881, every one of them `g4_platformer` — the one game whose
+background scrolls across the whole frame — and the largest gap among those 6 is 0.0555. **0.85
+fell in a gap of 0.0536, between 2 trials of that same game**, so what it separated was a **task**
+and not a quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
 
 **It was removed, not widened.** Widening it to admit `g4_platformer__godot__t1` would have been a
 threshold chosen from the subject that exposed it; no number on this measure means *too full*, so
@@ -275,10 +279,14 @@ the table.
 
 **`task_class` stays in `BOUND_POPULATIONS` with 0 members.** It is the value a future
 class-dependent bound declares, and `assert_tier1_bounds_declared()` is what makes declaring it
-safe — a criterion that claims one without a per-class table fails. `static.collect` still takes
-the class and refuses one it cannot place before spending a toolchain: the class picks the capture
-length and the audio criterion set, and now that no bound reads it, the door is the only place a
-wrong one can be caught.
+safe — a criterion that claims one without a per-class table fails.
+
+**`static.collect` still takes the class**, because it also picks the capture length and the audio
+criterion set. Two different wrong-class failures, caught in two different places: an
+**unregistered** class is refused by `static.assert_task_class` before a toolchain is spent, and a
+**registered but wrong** one — a scene routed as a game — is caught by
+`eval/tools/scene_runner_control.py`, which spies on what the runner hands down. Neither is a
+tier-1 bound reading the class, because none does.
 
 ### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23
 
