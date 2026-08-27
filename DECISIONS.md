@@ -2913,20 +2913,22 @@ event with its own `tier2_census.py` before-and-after. Landing the repair inside
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
 reproduces it, and the open repairs are `tasks/158` and `tasks/160`.
 
-**A pending entry has a second way to close, and it closed one: the subject was not a correct
-game.** `ref_pong/rally.counts` was declared against a sim that raises `paddle_hit` where the
-collision resolves and settles its counter a tick later. That is DECLINED (`tasks/159`), on the
-contract rather than on taste: all four starter guides put a tick's trace line **after** its
-step — the probe prints a tick-0 line before anything is stepped, then one line per stepped
-tick — and the g1 prompt defines `rally` as *"the number of consecutive paddle hits since the
-last point was scored"*. `rally` is therefore a **count of the very events the line carries**,
-so a line raising `paddle_hit` with a `rally` that excludes it contradicts itself. Where the sim
+**A pending entry has a second way to close: the subject is not a correct game.** A trace line
+must publish a `rally` that counts its own line's `paddle_hit`, so a sim settling that counter a
+tick later fails `rally.counts` correctly and `ref_pong` carries no pending entry for it
+(`tasks/159`). The contract decides it, not taste: all four starter guides put a tick's line
+**after** its step — the probe prints a tick-0 line before anything is stepped, then one line
+per stepped tick — and the g1 prompt defines `rally` as *"the number of consecutive paddle hits
+since the last point was scored"*. `rally` is a **count of the very events the line carries**, so
+a line raising `paddle_hit` with a `rally` that excludes it contradicts itself. Where the sim
 increments stays free; what the tick's line **publishes** does not. `bot_pong._rally` holds the
-derivation, and the criterion now reports whether the increment arrived on the hit tick or the
-one after, so a failure says which. **The declining move that was available and was not taken
-was widening the criterion to a window** — a reason not to count a failure (rule 7), accepting
-an increment caused by anything, and re-meaning 25 stored `g1_pong` gradings
-(`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass the
+derivation and records the same-tick and following-tick observations separately, so a failure
+says which one it saw.
+
+**The criterion stays exact rather than accepting an increment within a window**, which would be
+a reason not to count a failure (rule 7), would accept an increment caused by anything, and would
+re-mean 25 stored `g1_pong` gradings
+(`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
 criterion has never once withheld.
 
 **This settles pong and settles nothing else.** `ref_arena/multiplier.falls` reads the

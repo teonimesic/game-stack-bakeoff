@@ -432,6 +432,12 @@ class PongBot(Bot):
         `rose_late` counts hit ticks whose increment arrived on the following tick, so an
         adjudicator can tell "settles a tick late" from "never moves". It is DIAGNOSTIC
         ONLY and enters no verdict.
+
+        THE VERDICT IS STILL `rose_on_hit > 0`, which passes a counter that moves once
+        and stops — weaker than the question the criterion asks and weaker than
+        `deflect_ok` beside it. Tightening it changes stored verdicts, which is a
+        re-scoring event with its own `tier2_census.py` before-and-after (`tasks/171`),
+        so it is not bundled in here.
         """
         start = len(s.history)
         prev = s.last
@@ -451,6 +457,14 @@ class PongBot(Bot):
             r_a, r_b = prev.state.get("rally"), t.state.get("rally")
             numeric = (isinstance(r_a, (int, float))
                        and isinstance(r_b, (int, float)))
+            # Settle the outstanding watch FIRST, on every tick. Reading it only on a
+            # hitless tick loses the observation whenever two hits land back to back,
+            # and back-to-back is exactly the arrangement that hides a late counter:
+            # the deferred increment arrives on the second hit's tick and gets read as
+            # that hit's own.
+            if late_watch is not None and numeric and r_b > late_watch:
+                rose_late += 1
+            late_watch = None
             if "paddle_hit" in t.events:
                 hits += 1
                 vx_a, vx_b = _f(_ball(prev), "vx"), _f(_ball(t), "vx")
@@ -458,13 +472,8 @@ class PongBot(Bot):
                     deflect_ok = False
                 if numeric and r_b > r_a:
                     rose_on_hit += 1
-                    late_watch = None
                 else:
                     late_watch = r_b if numeric else None
-            else:
-                if late_watch is not None and numeric and r_b > late_watch:
-                    rose_late += 1
-                late_watch = None
             if "score_left" in t.events or "score_right" in t.events:
                 if t.state.get("rally") == 0:
                     rally_reset = True
