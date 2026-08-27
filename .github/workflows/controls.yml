@@ -144,6 +144,14 @@ jobs:
       - name: judge/scene_mutants --reliability-selftest
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/scene_mutants.py --reliability-selftest
+      # Which rows of a frame belong to one layer. The variant that carries an
+      # overlapping-band scene has to TOLERATE `layers.image_parallax`, and a tolerated
+      # criterion can never go red -- so the suite above cannot pin this at all. Drives
+      # `ParallaxScene._own_band` over 7 hand-written band tables whose row counts are
+      # written down before it runs, and 3 mutants of the shipped file. Offline.
+      - name: judge/scene_mutants --attribution-selftest
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/scene_mutants.py --attribution-selftest
       # The RUNNER's side of the same question. `scene_mutants` asks whether each scene
       # criterion can fail; this asks whether the harness can reach the right instrument
       # at all and still refuse the wrong one -- 6 named routes from an operator's

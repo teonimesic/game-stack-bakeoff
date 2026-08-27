@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#192 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#194 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -644,10 +644,12 @@ Two refinements that pattern does not cover:
     change anything is reporting that its tier has no variance, not that the weight is safe.**
     Every free parameter in an aggregate is a claim until someone varies it. `overall =
     0.31*tier1 + 0.69*tier2` was quoted in four documents and derived in none; sweeping it over
-    68 stored trials moved **no ordering at any weight**, which sounds like a clean bill of health
-    and is not. In 7 of 10 groups tier 1 returned a **single value across every submission**, so
-    the weight was inert for the reason that matters least: there was nothing for it to weigh
-    (#92).
+    the 68 stored trials of 2026-08-23 moved **no ordering at any weight**, which sounds like a
+    clean bill of health and is not. In 7 of those 10 groups tier 1 returned a **single value
+    across every submission**, so the weight was inert for the reason that matters least: there
+    was nothing for it to weigh (#92). Over the corpus as it stands `python3
+    eval/judge/weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` says the same
+    thing at 8 of 11.
 
     The check is free, it is offline, and it comes out either way — which is what makes it worth
     running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the

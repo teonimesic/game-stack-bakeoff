@@ -142,8 +142,10 @@ the same amount and separates nothing. All three current diagnostics are in that
 
 ## Ask what the criterion could ever separate, before writing it
 
-`judge/tier2_census.py` is also the check on a NEW scored criterion, and it is free.
-Tier 2 currently returns one value in 5 of 10 groups, and four criteria built from real
+`python3 judge/tier2_census.py --runs-root <main checkout>/eval/runs` is also the check on a NEW
+scored criterion, and it is free.
+Tier 2 currently returns one value across every measurable trial in 5 of 11 (run, game) groups -
+run it rather than quoting that, since the corpus moves - and four criteria built from real
 requirements the g4 prompt states passed 8 of 8 (#128) — so the default outcome of adding
 one is a longer rubric that ranks exactly as much as before. **A criterion that everything
 passes raises the denominator and lowers nothing.** Say, in advance, which stored

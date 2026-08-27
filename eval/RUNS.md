@@ -180,7 +180,7 @@ record does, and it was not asked to build pong.
 | resource | **not reconstructable.** `num_turns` and the token totals come off the CLI's terminal result event, which never arrived, so all of them and `cost_usd` are `null`. The transcript alone gives 198 assistant messages and 137 tool-use blocks, recorded in a field of their own as a scale rather than as the harness's counters |
 | what was salvaged | the work tree survived the kill, so the submission was captured by hand — `diff.patch`, `diff.stat`, `status.txt`, `tree.txt`, `submission.tar.gz`, 24 files changed, all four capture exits 0 |
 | tier 1 | **GATE FAIL, 4 of 9** as graded on the day: `verify.green`, `lint.clean`, `tests.green`, `render.nonempty`. Re-graded after the `tasks/163` repair it is **GATE FAIL, 3 of 9** — `render.nonempty` moves FAIL to PASS and the other 3 are the interruption. The verdict does not move |
-| tier 2 | `scene_probe`, **5 of 6 scored = 0.833** as graded on the day; **6 of 7 = 0.857** after the `tasks/162` repair; **6 of 6 = 1.000** after `tasks/164`, which returned `layers.image_parallax` to `scored=False`. The stored `playbot.json` holds the first, this table holds all 3, and none is a completed trial |
+| tier 2 | `scene_probe`, **5 of 6 scored = 0.833** as graded on the day; **6 of 7 = 0.857** after the `tasks/162` repair; **6 of 6 = 1.000** after `tasks/164`, which returned `layers.image_parallax` to `scored=False`, and unchanged at 6 of 6 after `tasks/174`. The stored `playbot.json` holds the first, this table holds all 4, and none is a completed trial |
 | evaluate | 58s for the whole grading, tier 1 plus the probe's 3 traces and 3 films |
 
 **Never pool this record with anything.** It is not `completed`, it is one cell, and `wholegame.py
@@ -224,11 +224,11 @@ reference scene reporting the other encoding, drawing the identical picture.
     pnpm install --frozen-lockfile && pnpm exec playwright install chromium
     python3 eval/judge/scene_probe.py s1_parallax <tree>
 
-| criterion | as graded | after `tasks/162` | after `tasks/164` | why |
-|---|---|---|---|---|
-| `layers.depth_ordered` | FAIL scored | **PASS scored** | PASS scored | `_walk` unwraps the per-tick series |
-| `layers.image_parallax` | `scored=False` | FAIL scored | **`scored=False`** | the `162` FAIL was never trustworthy — below |
-| everything else | — | unchanged | unchanged | |
+| criterion | as graded | after `tasks/162` | after `tasks/164` | after `tasks/174` | why |
+|---|---|---|---|---|---|
+| `layers.depth_ordered` | FAIL scored | **PASS scored** | PASS scored | PASS scored | `_walk` unwraps the per-tick series |
+| `layers.image_parallax` | `scored=False` | FAIL scored | **`scored=False`** | `scored=False`, true reason | the `162` FAIL was never trustworthy — below |
+| everything else | — | unchanged | unchanged | unchanged | |
 
 **The `layers.image_parallax` FAIL stood for 2 days and was never quotable.** The `162` repair also
 fixed the offset change `_measure_shifts` hands the reliability filter, which promoted the road
@@ -256,26 +256,51 @@ back to `scored=False` — the verdict it had on the day. What each band did, re
 | clouds | 20 | 900 | 0.02–0.03 | yes, 11 pairs, all 0px |
 | sky | 60 | 1800 | 0.00 | yes, 9 pairs, all 0px |
 
-**The estimator was locking onto one whole-frame feature rather than onto each band**, which the
-per-pair grid shows plainly: at frame pair 4 all 5 of range, ridge, grove, verge and road answer
-−9px, and at pairs 1, 3, 5 and 10 four of them answer −46, −19, −66 and +8. Five bands at five
-declared depths cannot all have moved the same distance. That is the instrument error `DECISIONS.md`
-records, at a rate the fixtures never showed — and it is why the road's own readings run −73 to +3
-with no rate in them.
+**The bands were reading each other, and `tasks/174` found why.** The per-pair grid shows it
+plainly: at frame pair 4 all 5 of range, ridge, grove, verge and road answer −9px, and at pairs
+1, 3, 5 and 10 four of them answer −46, −19, −66 and +8. Five bands at five declared depths cannot
+all have moved the same distance.
+
+The cause is not the estimator. **A declared band is not a region of the frame that belongs to one
+layer.** After removing the rows any other declared band covers, 6 of the 7 have fewer than the
+10 rows a profile averages, and 5 of those 6 have 0.
+
+| band | declared band, as frame fractions | rows of its own, of 400 |
+|---|---|---|
+| sky | 0.000–0.460 | 3 of 184 |
+| clouds | 0.008–0.408 | 0 of 160 |
+| range | 0.284–0.468 | 0 of 74 |
+| ridge | 0.344–0.476 | 0 of 53 |
+| grove | 0.292–0.492 | 0 of 80 |
+| verge | 0.308–0.692 | 0 of 153 |
+| road | 0.460–1.000 | 124 of 216 |
+
+Every threshold in the estimator was set against `judge/fixtures/ref_parallax`, whose 4 bands
+**tile** the frame and overlap nowhere. That is a choice its author made, not something the
+contract asks for, and this submission — which declares its layers at their true screen extents,
+sky from the top of the frame down to the horizon and the rest drawn inside that — is the ordinary
+case. `eval/SCENES.md` carries the decision and `tasks/174` the repair: a layer is read only from
+rows no other declared band contains, and one left too few is refused by name.
+
+**The re-grade after `tasks/174` moves no verdict on this trial** — tier 2 stays at 6 of 6 = 1.000
+and `layers.image_parallax` stays `scored=False`. What moves is the recorded reason, which was
+false: the criterion used to say *"the bands carry too little horizontal structure, or too much of
+one that does not move"* about bands that carry plenty of it, belonging to other layers.
 
 ### 2 of 8 criteria could not be set up at all
 
 `layers.image_parallax` and `loop.seamless` came back `scored=False`: the image-side shift
-estimator read **only 2 of 7 declared layers**, against 8 missed frame pairs of 132 across the 3
-fixtures. `scene_probe.py`'s docstring predicted the direction — *"expect the rate to be worse on
-a submission that fills its foreground"* — and this submission's mean ink coverage is **0.966**.
-So `measured_twice` came back as 2 of the 3 criteria designed to have both halves.
+estimator read **only 2 of 7 declared layers** after `tasks/164`, and **0 of 7** after `tasks/174`
+withdrew the 2 whose readings belonged to their neighbours. `scene_probe.py`'s docstring predicted
+the direction — *"expect the rate to be worse on a submission that fills its foreground"* — and
+this submission's mean ink coverage is **0.966**. So `measured_twice` came back as 2 of the 3
+criteria designed to have both halves.
 
-**`loop.seamless` is `scored=False` under all 3 gradings, and after `tasks/164` for a reason worth
-writing down**: it needs one band that both wrapped between two captured frames and can be read
-there. The road wraps on **every one of the 11 captured pairs** — so it has no away-from-the-wrap
-baseline even before its pairs are dropped as unresolvable — and the 2 bands that are readable,
-sky and clouds, never wrap at all. 12 frames over 660 ticks cannot see this scene's seam.
+**`loop.seamless` is `scored=False` under all 4 gradings.** It needs 1 band that both wrapped
+between two captured frames and can be read there. The road wraps on **every one of the 11
+captured pairs** — so it has no away-from-the-wrap
+baseline even before its pairs are dropped as unresolvable — and the 2 bands that were readable
+then, sky and clouds, never wrap at all. 12 frames over 660 ticks cannot see this scene's seam.
 
 ### `render.nonempty` was a game criterion applied to a scene — SINCE REPAIRED
 
@@ -295,8 +320,8 @@ this trial offline from its stored frames:
 | gate | FAIL, 4 of 9 | **FAIL, 3 of 9** |
 
 **The gate verdict does not move, and that is the result rather than a disappointment.** The
-other three failures — `verify.green`, `lint.clean`, `tests.green` — are the interruption and
-not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
+other 3 failures — `verify.green`, `lint.clean` and `tests.green` — come from the interruption,
+not from the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
 and the trial is not `completed` either way.
 
 **Since `tasks/168` the ceiling is gone for games as well, so this re-grade no longer depends on
@@ -429,9 +454,10 @@ which makes it easier to miss and no less disqualifying:
 - **Every `report.json` written before that date holds `overall = 0.31*tier1 + 0.69*tier2`** and
   has no `gate` and no `scoring_regime` field. Records written after carry both, and their
   `overall` is `tier2`.
-- **14 of the 68 stored trials would move** if re-scored — 5 upward by 0.0221-0.0443, 9 downward
-  by up to **0.2273** (`wg-matrix-2026-08-13`'s `g3_arena__unity__t0` and `g3_arena__unity__t1`,
-  which the constant 0.31 was cushioning).
+- **14 of the 68 trials stored on the day the regime changed would move** if re-scored — 5 upward
+  by 0.0221-0.0443, 9 downward by up to **0.2273** (`wg-matrix-2026-08-13`'s
+  `g3_arena__unity__t0` and `g3_arena__unity__t1`, which the constant 0.31 was cushioning). That
+  is a count of that date's corpus, not a live one.
   **They were not re-scored.** Nothing in `eval/runs/**` was rewritten for this change.
 - **Never average a stored `overall` with a new one.** `wholegame.py report` marks pre-gate rows
   `w` in a `regime` column and refuses to pass over a mixed run silently;
@@ -2567,11 +2593,13 @@ floor alone and says so in its evidence.
 Every number in both tables is a checked row in `eval/judge/ink_window_control.py`, so the derivation
 goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
 
-**The 68 stored game values are a continuum, not 2 populations.** The 6 highest are 0.679, 0.703,
-0.736, 0.772, 0.828 and 0.881, every one of them `g4_platformer` — the one game whose background
-scrolls across the whole frame — and the largest gap among those 6 is 0.0555. **0.85 fell in a gap
-of 0.0536, between 2 trials of that same game**, so what it separated was a **task**, not a
-quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
+**Within the game class, the 68 game values are a continuum, not 2 populations.** The scene is the
+69th stored submission and stays its own population — no aggregate crosses the task classes. The
+split is **inferred**: `ink_window_control.py` prints `task_class` read from the record on 1 of the
+69 and `_class_of`'s reading of the trial id on the other 68. The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of
+them `g4_platformer` — the one game whose background scrolls across the whole frame — and the
+largest gap among those 6 is 0.0555. **0.85 fell in a gap of 0.0536, between 2 trials of that same
+game**, so what it separated was a **task**, not a quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
 
 **What the bounds had ever done**, from the producer, over the 69 stored submissions — the most
 recent grading of each, from 85 on disk with 16 superseded and held out:

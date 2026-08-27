@@ -2825,3 +2825,50 @@ pins it in both directions: a mutant that removes the rewrite (16 leaking files,
 a **variant** proving a non-blind field is byte-identical to `neutralise` alone with all four
 suffixes kept, and 12 collision inputs the rewrite must leave untouched. The CLI half of the same
 task is #138.
+## #193 — a criterion validated against a tidy fixture reports the fixture's geometry
+
+`layers.image_parallax` measures each declared band's per-frame shift and checks the bands move at
+different rates. `ParallaxScene.band_profile` windows to the band's own rows, which sounds like the
+whole answer and is not: **`layers[].top`/`bottom` are contracted as where a layer is DRAWN, and
+that does not partition the frame.** A layered background overlaps by construction, so a far band
+holds the nearer layers' pixels where they cover it and its own only where they show through.
+`best_shift` then answers, confidently, for whichever content carries the band's gradient energy —
+which need not be the layer being scored.
+
+The signature is #9's: at frame pair 4 all five lower bands answer **−9px**; at pairs 1, 3, 5 and 10
+four of them answer −46, −19, −66, +8. Bands contracted to move at different rates — the entire
+point of the scene — returning the same number is one dominant feature crossing the frame and every
+band's search finding it.
+
+**The repair is a null, and the null was measured rather than assumed.** Masking each band to rows
+no *nearer* band covers is the obvious painter's-algorithm fix; it leaves `range` and `grove`
+returning the identical 11-pair series, which is `clouds`' rate — a band **farther** than both. So
+the subtraction has to be over every other band, and under that rule 5 of the one stored
+submission's 7 bands hold no row of their own at all. No windowing recovers a reading here.
+
+**What was actually wrong was the recorded reason, not the verdict.** The trial's tier 2 is
+unchanged at 6 of 6 = 1.000 and `layers.image_parallax` was already `scored=False` — but the stored
+explanation said *"the bands carry too little horizontal structure"*, about bands that are full of
+it belonging to other layers. A durable record that is right for a false reason survives every
+check that compares verdicts.
+
+> **The blind spot was in the FIXTURE, not the criterion.** `ref_parallax`'s bands tile — they are
+> disjoint and cover the frame exactly once — so the overlap case could not arise in any of the 6
+> subjects the criterion had ever been validated against. Every mutant asked whether the check could
+> fail; none could construct the geometry the check mishandles, because the geometry was excluded by
+> the fixture before any mutant ran.
+
+The variant that closes it is `ref_parallax` with its bands at the layers' full extents: same
+simulation, same picture, and a band whose drawn shift is 13.5px read at 25px/frame. It **failed**,
+and had never fired before. That is rule 15 — a mutant asks whether a check can fail, only a variant
+asks whether it can still pass — with the fixture as the thing that needed varying.
+
+> **A fixture written tidily is a fixture that has quietly chosen which inputs exist. When a check
+> has only ever been exercised against constructed data, enumerate what the construction made
+> impossible — that list is the check's untested surface, and no amount of mutation reaches it.**
+
+Found by the same review round: `_bands` accepted `top`/`bottom` outside `[0,1]`, so a band declared
+`−1.000` to `0.010` counted 363 rows of a 360-row frame, cleared the minimum-rows floor, and was
+then profiled from the 3 rows that actually exist — a fail-open that the tidy fixture also hid.
+
+---

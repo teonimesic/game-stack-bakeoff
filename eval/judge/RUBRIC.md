@@ -75,7 +75,7 @@ Two offline sweeps answer it, both re-runnable and both able to come out the oth
 
 | tool | what it reports today |
 |---|---|
-| `weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` | 10 groups, **FLIPS=0** at every weight in (0,1); **7 of 10 UNIDENTIFIABLE** — tier 1 returns a single value across the whole group, so the weight cannot act (#92) |
+| `weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` | 11 groups, **FLIPS=0** at every weight in (0,1); **8 of 11 UNIDENTIFIABLE** — tier 1 returns a single value across the whole group, so the weight cannot act (#92) |
 | `tier1_census.py --runs-root <main checkout>/eval/runs` | 69 stored submissions, **8 with any tier-1 failure**. In **0 of 11** groups do both tiers vary among the trials tier 2 could measure. Verdict **FLOOR-ONLY** |
 
 **Read the caveat on the first before quoting it.** `weight_sensitivity.py` sweeps the
@@ -160,10 +160,12 @@ not inherited.
 pins the gate in both directions: mutants that make it unable to fail, and variants — the
 lock exception, an audio-less task, a broken film recipe — that it must still pass.
 
-**Stored scores were not rewritten.** 14 of 68 stored `overall` values would move under the
-gate scheme (largest 0.2273, a submission whose tier 2 was 0.267 and which the 0.31 cushioned).
-They stay as they were written; the regime boundary is recorded in `eval/RUNS.md` and every
-new record carries `scoring_regime`.
+**Stored scores were not rewritten.** 14 of the 68 submissions stored when the regime changed on
+2026-08-23 would move their `overall` under the gate scheme (largest 0.2273, a submission whose
+tier 2 was 0.267 and which the 0.31 cushioned). **That is a count of the corpus of that date, not
+a live one** — every record written since is already in the gate regime. They stay as they were
+written; the regime boundary is recorded in `eval/RUNS.md` and every record carries
+`scoring_regime`.
 
 ---
 
@@ -296,10 +298,16 @@ reports.
 
 ### Tier 2 is at its ceiling on half the corpus, and that is a task result
 
-`tier2_census.py --runs-root <main checkout>/eval/runs` is the producer. Over 68 stored trials:
-**5 of 10 (run, game) groups return a single tier-2 value** across every measurable trial — 35 of
-68 trials — and of 11 trials that failed anything, 2 were whole-trial and **9 selective, all of
+`tier2_census.py --runs-root <main checkout>/eval/runs` is the producer. Over 69 stored trials:
+**5 of 11 (run, game) groups return a single tier-2 value** across every measurable trial — 35 of
+69 trials — and of 12 trials that failed anything, 2 were whole-trial and **10 selective, 9 of
 them from `wg-matrix-2026-08-13`**. Tier 2 has not separated two submissions in any later run.
+
+**The 10th selective failure is a stored verdict against a criterion since repaired.** It is the
+scene's `layers.depth_ordered`, the false negative `tasks/162` fixed; the census reads stored
+records, so it counts what tier 2 DID, and `eval/RUNS.md`'s scene record holds the re-grade that
+removes it. Re-graded, the selective count is 9 and every one of them is `wg-matrix-2026-08-13`
+again.
 
 **Do not respond to that by promoting a diagnostic or adding another criterion of the same kind.**
 Both were measured (#128):
