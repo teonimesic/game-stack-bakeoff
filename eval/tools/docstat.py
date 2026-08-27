@@ -2361,7 +2361,8 @@ _HEADING_RX = re.compile(r"^##\s+#?(\d+)\s*[.—-]\s*(.*)$")
 _CITE_RX = re.compile(r"(?:#|FINDINGS?\s+#?|[Ff]inding\s+#?)(\d{2,3})\b")
 
 
-def _git_at(root: str, *args: str) -> tuple[bool, str]:
+def _git_at(root: str, *args: str,
+            extra_env: dict[str, str] | None = None) -> tuple[bool, str]:
     """git in `root`, with the exit status RETURNED rather than folded into the output.
 
     `_git` below is the right shape for a question whose negative answer is a non-zero exit.
@@ -2369,13 +2370,39 @@ def _git_at(root: str, *args: str) -> tuple[bool, str]:
     and a tree with no files both come back "", and a corpus that is empty for the wrong
     reason gets scanned clean. `_tracked_md` needs the two kept apart, so the split lives
     here and the folding happens only where it is safe.
+
+    EVERY `GIT_*` VARIABLE IS DROPPED FROM THE CHILD, because `-C <root>` does not decide
+    which repository git uses - `GIT_DIR` and friends override it, silently and at exit 0:
+
+        GIT_DIR=<other>/.git  git -C <tmp> init -q     ->  rc 0, <tmp>/.git NEVER CREATED
+        GIT_DIR=<other>/.git  git -C <tmp> add doc.md  ->  rc 0, staged in <other>'s index
+        GIT_DIR=<other>/.git  git -C <tmp> ls-files    ->  <other>'s index, not <tmp>'s
+
+    Every call in this module means *the repository at `root`*, so an inherited one is
+    never what was wanted - it is `AGENTS.md` rule 12 with the address supplied by the
+    caller's environment. Measured 2026-08-27: `_tree_fixture` ran once under an inherited
+    `GIT_DIR` and left 6 fixture paths staged in a live worktree's index with `.gitignore`
+    replaced there, the working tree untouched, at exit 0 throughout.
+
+    ALL of `GIT_*`, not the 4 that steer discovery. A list of variable names is an
+    enumeration, and the next reader meets `GIT_COMMON_DIR` or `GIT_NAMESPACE`, which are
+    not on it; nothing this module runs needs any of them. `extra_env` is for a caller that
+    must set one deliberately.
     """
+    child = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    child.update(extra_env or {})
     try:
         r = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True,
-                           check=False)
+                           check=False, env=child)
     except (OSError, ValueError) as exc:
         return False, str(exc)
-    return r.returncode == 0, r.stdout
+    if r.returncode != 0:
+        # STDERR, because that is where git writes the reason and a failing `ls-files`
+        # writes nothing to stdout. Returning the empty stdout would make `_tracked_md`
+        # refuse loudly and name no cause, which is the half that decides how long the
+        # repair takes. Raised by CodeRabbit on PR #54.
+        return False, r.stderr or f"exit {r.returncode} with no diagnostic"
+    return True, r.stdout
 
 
 def _git(*args: str) -> str:
@@ -4271,6 +4298,27 @@ def _harness_trigger_census(docs: list[str] | None = None) -> dict:
             "wide": wide_admitted, "new_rows": sorted(new_rows)}
 
 
+def _assert_own_repo(tmp: str, extra_env: dict[str, str]) -> None:
+    """Refuse unless the git directory `tmp` resolves to lives inside `tmp`.
+
+    A guard that fails closed AT THE MOMENT OF USE, in front of the only `git` call in this
+    module that writes. `_git_at` dropping `GIT_*` is what makes this pass; the two are
+    separate mechanisms on purpose, so a control can remove either one alone.
+
+    `--absolute-git-dir`, not `--show-toplevel`: under an inherited `GIT_DIR` with no
+    `GIT_WORK_TREE` the work tree IS the current directory, so `--show-toplevel` answers
+    `tmp` and agrees while the index being written belongs to another repository. Measured
+    2026-08-27 - the toplevel question is green on exactly the input this exists to catch.
+    """
+    ok, gitdir = _git_at(tmp, "rev-parse", "--absolute-git-dir", extra_env=extra_env)
+    inside = os.path.realpath(gitdir.strip()).startswith(os.path.realpath(tmp) + os.sep)
+    if not ok or not inside:
+        raise RuntimeError(
+            f"the corpus fixture would write to {gitdir.strip() or '<unknown>'}, which is "
+            f"not inside {tmp}. Refusing to `git add` into a repository this function did "
+            f"not create.")
+
+
 def _tree_fixture(tmp: str) -> dict[str, str]:
     """A throwaway git repository whose tracked set is known in advance.
 
@@ -4304,12 +4352,36 @@ def _tree_fixture(tmp: str) -> dict[str, str]:
         "ignored": write("staging/scratch.md"),
         "untracked": write("loose.md"),
     }
-    _git_at(tmp, "-c", "init.defaultBranch=main", "init", "-q")
+    # THIS FUNCTION WRITES, so it asserts the repository it is about to write into.
+    # `_git_at` drops `GIT_*` from the child, which is what makes the assertion pass; the
+    # assertion is here because a guard that fails closed at the moment of use is worth
+    # more than a property held somewhere else. `--absolute-git-dir` is the discriminating
+    # question: under an inherited `GIT_DIR` with no `GIT_WORK_TREE`, `--show-toplevel`
+    # answers `<tmp>` and AGREES while the index being written is another repository's.
+    #
+    # No user config: `init.templateDir` would install hooks into a repository this
+    # function created and then deletes.
+    cfg = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+
     # `add` respects .gitignore, which is what makes `staging/scratch.md` untracked, and
     # `loose.md` is simply never named. No commit: `ls-files` reads the INDEX, and the
     # gate runs against staged content for exactly that reason.
-    _git_at(tmp, "add", ".gitignore", "doc.md", "sub/nested.md", "sub/nøte.md",
-            ".dotdir/hidden.md", "runs/stored.md", "gone.md")
+    #
+    # THE EXIT STATUS IS READ. A failed `add` leaves an EMPTY index, `_tracked_md` then
+    # returns [] at exit 0 because the listing itself succeeded, and every row below
+    # reddens as a defect in `project_docs()` - a control blaming its subject for its own
+    # harness. Raised by CodeRabbit on PR #54.
+    ok, out = _git_at(tmp, "-c", "init.defaultBranch=main", "init", "-q", extra_env=cfg)
+    if not ok:
+        raise RuntimeError(f"the corpus fixture could not be built: git init failed in "
+                           f"{tmp}: {out.strip()[:200]}")
+    _assert_own_repo(tmp, cfg)
+    ok, out = _git_at(tmp, "add", "--", ".gitignore", "doc.md", "sub/nested.md",
+                      "sub/nøte.md", ".dotdir/hidden.md", "runs/stored.md", "gone.md",
+                      extra_env=cfg)
+    if not ok:
+        raise RuntimeError(f"the corpus fixture could not be built: git add failed in "
+                           f"{tmp}: {out.strip()[:200]}")
     # In the index, gone from the disk. Every caller OPENS what this returns, so a path
     # that cannot be read is a crash rather than a finding.
     os.remove(paths["tracked_deleted"])
@@ -4422,6 +4494,34 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
         except RuntimeError:
             raised = True
 
+    # WHICH REPOSITORY, asked with a HOSTILE `GIT_DIR` in the environment. `-C <root>`
+    # names a directory and does not name a repository; `GIT_DIR` outranks it at exit 0,
+    # so a reader steered this way answers about another tree and a writer WRITES to one.
+    # `$TMPDIR` is where this is provable without touching anything that matters.
+    with tempfile.TemporaryDirectory() as hostile:
+        _git_at(hostile, "init", "-q")
+        open(os.path.join(hostile, "victim.md"), "w", encoding="utf-8").write("# v\n")
+        _git_at(hostile, "add", "--", "victim.md")
+        saved = os.environ.get("GIT_DIR")
+        os.environ["GIT_DIR"] = os.path.join(hostile, ".git")
+        try:
+            with tempfile.TemporaryDirectory() as steered_tmp:
+                # A REFUSAL IS A RESULT, not a crash. `_assert_own_repo` firing here means
+                # the scrub failed, which is a red row - and a red row is what a reader can
+                # act on. Letting it propagate would take the whole pin set out instead.
+                try:
+                    _tree_fixture(steered_tmp)
+                    steered_read = _tracked_md(root=steered_tmp)
+                except RuntimeError as exc:
+                    steered_read = [f"the fixture refused: {exc}"[:120]]
+                steered_live = len(project_docs())
+        finally:
+            if saved is None:
+                os.environ.pop("GIT_DIR", None)
+            else:
+                os.environ["GIT_DIR"] = saved
+        hostile_index = sorted(_git_at(hostile, "ls-files")[1].split())
+
     census = _harness_trigger_census()
     reg_text = open(register, encoding="utf-8", errors="replace").read()
     reg_lines = reg_text.split("\n")
@@ -4465,6 +4565,15 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
          "runs/stored.md" in fx_tracked and fx["tracked_runs"] not in fx_docs, True),
         ("_tracked_md RAISES on a git failure rather than returning an empty corpus",
          raised, True),
+        # THE ADDRESS IS NOT THE CALLER'S ENVIRONMENT TO SET. All three rows were WRONG
+        # before the scrub, and all three at exit 0.
+        ("a hostile GIT_DIR does not steer what _tracked_md reads",
+         steered_read, ['.dotdir/hidden.md', 'doc.md', 'gone.md', 'runs/stored.md',
+                        'sub/nested.md', 'sub/nøte.md']),
+        ("...nor what project_docs() reads on the live tree",
+         steered_live == len(project_docs()) and steered_live > 0, True),
+        ("...and the repository it names is not WRITTEN to",
+         hostile_index, ["victim.md"]),
         ("the walk found the register too - neither side is an empty set agreeing",
          register in walked, True),
         ("adversarial: a nested and a top-level .github doc, and no .txt",

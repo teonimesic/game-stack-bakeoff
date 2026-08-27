@@ -24,13 +24,18 @@ Two halves (AGENTS.md rule 15):
             fails `endswith(".md")`, so the document would leave the corpus silently. That
             row lives in `_corpus_pins` beside the rest and `no_nul` is what reddens it.
 
-Exit status is read UNPIPED (AGENTS.md rule 3). A mutant run is EXPECTED to fail, so this
-script inverts it: exit 0 from a mutant run would mean the pins cannot see the mechanism
-they name.
+**The default runs the clean pass AND every mutant**, and is red if any of them survives.
+`docstat --selftest` already makes the clean call, so a default that only repeated it would
+be a gate duplicating a gate while the mutants ran nowhere but an operator's terminal.
 
-    python3 eval/tools/corpus_control.py
+Exit status is read UNPIPED (AGENTS.md rule 3). A single mutant run under `--mutate` is
+EXPECTED to fail, so that mode inverts its status: exit 0 there would mean the pins cannot
+see the mechanism the mutant names.
+
+    python3 eval/tools/corpus_control.py                      # clean pass + every mutant
+    python3 eval/tools/corpus_control.py --clean-only
     python3 eval/tools/corpus_control.py --list-mutants
-    python3 eval/tools/corpus_control.py --mutate glob_tree
+    python3 eval/tools/corpus_control.py --mutate glob_tree --verbose
 """
 
 from __future__ import annotations
@@ -38,6 +43,7 @@ from __future__ import annotations
 import argparse
 import glob
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,11 +63,13 @@ MUTANTS = {
               "back C-quoted and leaves the corpus silently",
     "empty_on_failure": "_tracked_md returns [] when git fails instead of raising, so every "
                         "check downstream reports itself clean over 0 documents",
+    "inherit_git_env": "the child keeps the caller's GIT_* variables, so an inherited "
+                       "GIT_DIR decides which repository is read - and which one is written",
 }
 
 #: Every module attribute a mutant may rebind. `main` snapshots these before and after, so a
 #: mutant that silently changed nothing is a FAILURE rather than a run of green rows.
-PATCHED = ("project_docs", "_tracked_md")
+PATCHED = ("project_docs", "_tracked_md", "_git_at", "_assert_own_repo")
 
 
 def apply_mutant(name: str) -> None:
@@ -135,6 +143,22 @@ def apply_mutant(name: str) -> None:
             return sorted(r for r in out.split("\n") if r.endswith(".md"))
         DS._tracked_md = quoted
 
+    elif name == "inherit_git_env":
+        def leaky(root: str, *args: str,
+                  extra_env: dict[str, str] | None = None) -> tuple[bool, str]:
+            child = dict(os.environ)          # GIT_* kept, which is the whole mutation
+            child.update(extra_env or {})
+            r = subprocess.run(["git", "-C", root, *args], capture_output=True,
+                               text=True, check=False, env=child)
+            if r.returncode != 0:
+                return False, r.stderr or f"exit {r.returncode}"
+            return True, r.stdout
+        DS._git_at = leaky
+        # BOTH mechanisms, because either alone hides the other. With the guard left in,
+        # the fixture refuses and the WRITE never happens, so the row about the hostile
+        # repository's index stays green and reports nothing about the scrub.
+        DS._assert_own_repo = lambda tmp, extra_env: None
+
     elif name == "empty_on_failure":
         def quiet(root: str | None = None, rev: str | None = None) -> list[str]:
             try:
@@ -147,8 +171,8 @@ def apply_mutant(name: str) -> None:
         raise SystemExit(f"unknown mutant {name}; --list-mutants")
 
 
-def controls(verbose: bool = True) -> int:
-    """`_corpus_pins` is the check. This runs it and reads its verdict.
+def controls(verbose: bool = True) -> list[str]:
+    """`_corpus_pins` is the check. This runs it and hands back what came out wrong.
 
     The pins are not restated here. A control that keeps its own copy of the expectation
     has two copies to keep in step, and the one that goes stale is the copy nobody runs.
@@ -156,16 +180,54 @@ def controls(verbose: bool = True) -> int:
     failed = DS._corpus_pins(verbose=verbose)
     for f in failed:
         print(f"  {f}")
-    print(f"\n{len(failed)} pin(s) came out wrong")
-    return 1 if failed else 0
+    return failed
+
+
+def sweep(verbose: bool = False) -> int:
+    """The clean run and EVERY mutant, in one invocation.
+
+    THIS IS WHAT THE CI STEP RUNS, and it is why the step exists at all. Without it the
+    default was `_corpus_pins` a second time - the same call `docstat --selftest` already
+    makes - so the gate duplicated a gate and no mutant ever ran outside an operator's
+    terminal. A suite whose mutants are opt-in is a suite whose mutants are the one thing
+    nobody re-runs. Raised by CodeRabbit on PR #54.
+    """
+    print(f"corpus pins over {len(DS.project_docs())} project documents, "
+          f"{len(DS._tracked_md())} markdown paths in the tree\n")
+    clean = controls(verbose=verbose)
+    print(f"CLEAN  {len(clean)} pin(s) came out wrong, expected 0\n")
+
+    pristine = {n: getattr(DS, n) for n in PATCHED}
+    survived, killed = [], []
+    for name in MUTANTS:
+        for n, v in pristine.items():           # a mutant must not leak into the next
+            setattr(DS, n, v)
+        apply_mutant(name)
+        if all(getattr(DS, n) is pristine[n] for n in PATCHED):
+            survived.append(f"{name}: rebound nothing - it is not testing anything")
+            continue
+        failed = controls(verbose=verbose)
+        print(f"MUTANT {name:<18} {len(failed)} pin(s) red"
+              + ("  <- SURVIVED" if not failed else ""))
+        (killed if failed else survived).append(name)
+    for n, v in pristine.items():
+        setattr(DS, n, v)
+
+    print(f"\n{len(killed)} of {len(MUTANTS)} mutants died; "
+          f"{len(clean)} pin(s) wrong on the clean tree")
+    for s in survived:
+        print(f"  SURVIVED  {s}")
+    return 1 if clean or survived else 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--mutate", metavar="NAME")
     ap.add_argument("--list-mutants", action="store_true")
-    ap.add_argument("--quiet", action="store_true",
-                    help="verdict only, without the per-case rows")
+    ap.add_argument("--clean-only", action="store_true",
+                    help="the pins on the unmutated tree, without the mutant sweep")
+    ap.add_argument("--verbose", action="store_true",
+                    help="print every pin's case, not only the verdict")
     a = ap.parse_args()
 
     if a.list_mutants:
@@ -181,14 +243,19 @@ def main() -> int:
             print(f"MUTANT {a.mutate} changed nothing - it is not testing anything")
             return 1
         print(f"MUTANT {a.mutate}: {MUTANTS[a.mutate]}\n")
-        rc = controls(verbose=not a.quiet)
-        print("\nA mutant run is EXPECTED to fail. Exit 0 here would mean the pins cannot "
-              "see the mechanism they name.")
-        return 0 if rc else 1
+        failed = controls(verbose=a.verbose)
+        print(f"\n{len(failed)} pin(s) came out wrong. A mutant run is EXPECTED to fail: "
+              "exit 0 here would mean the pins cannot see the mechanism they name.")
+        return 0 if failed else 1
 
-    print(f"corpus pins over {len(DS.project_docs())} project documents, "
-          f"{len(DS._tracked_md())} markdown paths in the tree\n")
-    return controls(verbose=not a.quiet)
+    if a.clean_only:
+        print(f"corpus pins over {len(DS.project_docs())} project documents, "
+              f"{len(DS._tracked_md())} markdown paths in the tree\n")
+        failed = controls(verbose=a.verbose)
+        print(f"\n{len(failed)} pin(s) came out wrong")
+        return 1 if failed else 0
+
+    return sweep(verbose=a.verbose)
 
 
 if __name__ == "__main__":

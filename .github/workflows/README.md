@@ -53,11 +53,13 @@ the working tree survives.
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
 `fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
-`corpus_control` is 0.66s locally and asks which files the sweep reads at all. `docstat
---selftest` runs the same pins; only this one runs them with a mechanism removed, and it is
-needed because a clean checkout cannot tell the filesystem from the index — the glob it
-replaced passes every live row. It builds a throwaway git repository under `$TMPDIR` holding
-markdown that is not in it, so it needs `git` and no history.
+`corpus_control` asks which files the sweep reads at all, and its default runs the clean
+pass **and all 7 mutants** — 3.9s locally, most of it the 8 fixture repositories. `docstat
+--selftest` makes the same clean call, so a gate that only repeated it would duplicate a gate;
+the mutants are the reason this one exists, because a clean checkout cannot tell the filesystem
+from the index and the glob it replaced passes every live row. It builds throwaway git
+repositories under `$TMPDIR` holding markdown that is not in them, so it needs `git` and no
+history.
 `runner_capture_selftest` is `judge/capture_selftest` pointed at the agent harness: 2.26s
 locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rather than CPU and
 does not move with the runner.
