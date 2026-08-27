@@ -17,10 +17,9 @@ rejected, for three reasons, in increasing order of weight:
    Every field below is measured from OUTSIDE, so no starter changes and every
    stored run stays in the comparison.
 
-2. Three of these fields were ALREADY in every one of the 68 stored
-   `programmatic.json` records the corpus held when this was decided. Nothing read
-   them. Surfacing what the harness already writes gives a distribution today, on
-   real runs, for nothing.
+2. Three of these fields were ALREADY in every stored `programmatic.json` record.
+   Nothing read them. Surfacing what the harness already writes gives a
+   distribution today, on real runs, for nothing.
 
 3. The decisive one. **A field the submission reports is a field the submission
    can fail to report, and that failure correlates with stack** - which is this
@@ -45,12 +44,13 @@ in wall, CPU and memory, and how fast the headless probe answers. Every one is
 measured the same way on all four arms.
 
 **`probe.ticks_per_second` is the one field with real cross-arm spread, and it is
-not a stack ranking either.** Partitioned by game over the 68 stored submissions
-(2026-08-23) the ordering is stable — Godot lowest in all four games, Rust and Unity
-highest — but the WITHIN-cell spread reaches 2.8x (`g1_pong__rust`, 13,998 to
-38,876), which is wider than most of the gaps between arms. And it is a round trip
-over a pipe: engine, JSON encoding and IPC, not simulation cost. It says how fast a
-stack answers the probe, which is what it is named after, and nothing more.
+not a stack ranking either.** Partitioned by game over the corpus as it stood on
+2026-08-23 - 68 submissions, all of them games - the ordering is stable: Godot
+lowest in all four games, Rust and Unity highest. But the WITHIN-cell spread
+reaches 2.8x (`g1_pong__rust`, 13,998 to 38,876), which is wider than most of the
+gaps between arms. And it is a round trip over a pipe: engine, JSON encoding and
+IPC, not simulation cost. It says how fast a stack answers the probe, which is
+what it is named after, and nothing more.
 
 --------------------------------------------------------------------------------
 TWO TASK CLASSES, AND ONLY ONE OF THEM CARRIES THE FOUR-ARM CLAIM
