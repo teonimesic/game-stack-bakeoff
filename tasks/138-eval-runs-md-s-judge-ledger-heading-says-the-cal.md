@@ -1,11 +1,12 @@
 ---
 id: 138
 title: 'eval/RUNS.md''s judge-ledger heading says the calls spend money, which is the claim #159 exists to retire'
-status: in_review
+status: in_testing
 priority: 3
 refs: 'eval/RUNS.md, #159, eval/tools/tokenvalue.py, eval/tools/docstat.py, tasks/128, tasks/130'
 done_when: 'The heading no longer claims the calls spend money, and every anchor or link that pointed at it still resolves (`linkcheck.py` exit 0, checked BEFORE and AFTER so the anchor move is observed rather than assumed). Plus a decision, recorded either way: whether any gate can cover a prose expenditure claim - chosen on a measured live-corpus false-positive count, with ''no trigger beats the corpus, so none was added'' being a complete and preferred answer over an open-class word list.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/62
+established_by: PR 62 head 7804aee, all 3 checks green. Heading repaired plus 7 more live lines; docstat.py --money green before and after because it is figure-gated; narrow candidate 13 red before the repairs, 5 after with 0 true positives, so no trigger was added and the decision is in DECISIONS.md. linkcheck.py exit 0 before and after, 0 tracked files reference either anchor.
 ---
 
 `eval/RUNS.md` heads its specialist-judge ledger *"Specialist-judge calls — a separate ledger,
@@ -163,3 +164,37 @@ fail-open in three places at once**:
 `tasks/187` already covers the rate-limited-reads-as-pass shape; this ticket is a second instance
 of it, with the interval measured: the limit comment counted down from 3 minutes to 16 minutes
 across the session as other agents drew on the same pool.
+
+## note 2026-08-27
+
+Handed back at head `7804aee`, all 3 checks green (`gates`, `controls`, `CodeRabbit`).
+**2 commits behind `origin/main` at hand-back** — `main` moved 7 commits during this ticket and
+the branch was brought current 3 times; the orchestrator will want `mergeable.py` re-read before
+merging.
+
+## The review reached 5 rounds and the last 2 found nothing in this branch
+
+| round | head | outcome |
+|---|---|---|
+| 1 | `d101144` | 2 real findings on this branch's diff, both fixed |
+| 2 | `a2e05e2` | 2 more, both readability of prose round 1 introduced, both fixed |
+| 3 | `c2f7958` | **clean** — *"No actionable comments were generated in the recent review."* |
+| 4 | `03189ef` | 2 comments, both on task 171's landed prose. Declined, filed |
+| 5 | `7804aee` | 3 comments, on tasks 175 and 185's landed prose. Declined, filed as `tasks/190` |
+
+**Round 3 is the clean round on this branch's own diff.** Nothing from this branch's work was
+declined; everything declined belongs to another ticket.
+
+> **CodeRabbit reviews the file set a merge brings in, not the branch's own diff — so a branch
+> that keeps itself current with a fast-moving `main`, which `SKILL.md` requires, can never reach
+> a clean round.** Rounds 4 and 5 were both spent on other agents' landed prose. Three tickets now
+> exist from this shape in one session: `tasks/188` (raised on pull request #61 by task 185's
+> agent, independently, for the same lines), `tasks/189` (raised here before 188 was visible on
+> `main`, now marked superseded), and `tasks/190`. **`tasks/190` carries the open question**:
+> whether the route for these comments should be a standing ticket, a `.coderabbit.yaml` setting,
+> or this filing convention written down.
+
+`tasks/190` also carries the one finding among the five that is not style: `DECISIONS.md:1452-1455`
+names `judge/capability.py` where the command above it says `eval/judge/capability.py`, and nothing
+gates that class — `docstat.py --sweep` deliberately does not check file paths, and `linkcheck.py`
+covers markdown links rather than paths named in prose.

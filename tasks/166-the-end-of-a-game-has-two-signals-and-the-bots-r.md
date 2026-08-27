@@ -1,10 +1,11 @@
 ---
 id: 166
 title: The end of a game has two signals and the bots read one to find it and the other to score it
-status: todo
+status: in_review
 priority: 3
 refs: eval/judge/probe.py, eval/judge/bot_arena.py, eval/judge/bot_tetris3d.py, eval/suites/wholegame_prompts.py, tasks/157
 done_when: 'One of the two signals is authoritative and every reader agrees: either `probe.end_condition_holds` takes the end signal as an argument so an event-detected end is not read as "game_over went False", or every caller detects the end from the state flag only and the event branches are deleted. Whichever way it goes, `eval/suites/wholegame_prompts.py` states it in the contract the submissions are held to, a mutant exists for the losing signal, `bot_mutants.py` exits 0, and `tier2_census.py --runs-root <main checkout>/eval/runs` is recorded before and after because the choice can move a stored verdict.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/66
 ---
 
 Two bots detect the end by EITHER the state flag or a game_over EVENT - bot_arena._death and bot_tetris3d._gameover_check both break on `t.state.get("game_over") is True or "game_over" in t.events` - and then every verdict that follows is computed from the state flag alone. A submission that raises the event and leaves the flag False is therefore located as ended and then scored as not ended, on both the pre-repair criterion (`still_over = s.last.state.get("game_over") is True`) and the two-phase one that replaced it in tasks/157, which reports `BROKE at tick N: game_over went False with nothing pressed`. It is pre-existing and neither version introduced it. The event branch was itself paid for: bot_tetris3d carries a comment saying the no-falling-piece path failed two correct submissions until it started reading the event. So the two signals disagree about which one means "over", and the answer decides what the criterion measures for every g2, g3 and g4 submission. Raised by CodeRabbit on PR #40, declined there because settling it is a re-scoring event and belongs with its own tier2_census.py before-and-after rather than inside a repair to a different defect.
@@ -126,3 +127,44 @@ every bot already *scores* from. The two readings the loops could take under eit
 170 has since landed and its two new loop bounds are the same shape: the 8-tick window it opens
 after the damage tick also breaks on the flag alone. **This ticket stays last**, and 170's own
 re-scoring is already recorded in its before/after census.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — every ticket you were ordered behind has MERGED; you are last, as decided
+
+The ordering recorded in this file has run its course: **158, 160, 170, 171 and 173 are all merged.**
+Nothing holds `eval/judge/bot_mutants.py`. Branch from `main` and expect no rebase.
+
+**The independence check this ticket asked for was run for each of them, and the answers differ** —
+which is why they went first:
+
+| ticket | window | truncated by end-detection? |
+|---|---|---|
+| 158 | `range(20)`, `range(120)` in `bot_tetris3d` | no - fixed counts |
+| 160 | `range(ticks)` in `bot_arena` | no - fixed count |
+| 170 | `multiplier.falls` | **YES**, both loops (lines 1065, 1086) |
+
+170's answer was the one that could have re-opened the order and did not: **both of its loops break on
+the state flag alone, never on a `game_over` event**, so adding the event branch could only make them
+exit earlier on a game whose verdict is a fail either way. That is measured and recorded, not assumed
+— and it is the single most useful input you have, because it tells you the event branch is currently
+*unreachable* in the place it would most plausibly matter.
+
+**Your baseline, re-run by the orchestrator at the merged head:** `bot_mutants.py` exit 0 at **50
+mutants pinned in both directions over 45 criteria, 13 variants, 0 pending, 3 session-lock controls,
+70 hazards, 0 unmet**. State the new figures rather than assuming only your own rows moved — three
+tickets in a row found the summary line's populations had drifted.
+
+**What the five merged tickets established that bears on your decision**, because you are deciding
+what a criterion measures for every g2, g3 and g4 submission:
+
+- **#190**: a criterion that fails on a HIGH count must take the MAXIMUM of its candidate signals;
+  one that fails on a LOW count the minimum. Picking the 'better' signal is picking the one that
+  excuses. You have two signals for one event — that rule is directly yours.
+- **#195**: a criterion naming two events has a third thing it never states, the interval between
+  them, and everything in it is attributed to the second event.
+- **#200**: the same evidence string read PASS under one verdict and FAIL under the other, three times
+  this week. **A stored evidence string is not a check on the verdict beside it.**
+
+**Say what must still FAIL after your change**, and check it does. That clause is what the last three
+tickets in this cluster were missing when they were written.

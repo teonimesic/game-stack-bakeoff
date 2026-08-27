@@ -2386,6 +2386,48 @@ reconstruction did and did not show.
 
 ---
 
+## A review is reported against the head it was written at, and never gated — decided 2026-08-27
+
+**Decided [agent], `tasks/187`, on measurement.** `CodeRabbit` reaches `mergeable.py` as a
+`StatusContext`, whose verdict is `state` and whose `description` the `statusCheckRollup` field
+does not carry. So the row a human reads as `pass ... Review rate limited` arrived as a row with
+no conclusion and no status, and `report()` printed only the two names in `REQUIRED` — the
+reviewer appeared in **no line of the tool's output**. The orchestrator's judgement *has this
+branch been reviewed* was being made against silence.
+
+Three heads, read from the API on 2026-08-27 and stored verbatim in `mergeable.selftest`:
+
+| | `gh pr checks` | status description at head | review object at head | what was true |
+|---|---|---|---|---|
+| PR #60 | `CodeRabbit pass` | `Review rate limited` | none; last 2 commits back | no round ran |
+| PR #62 | `CodeRabbit pass` | `Review completed` | none; last 1 commit back | `pr_review_state.py` answers `NOTICE / Reviews paused` |
+| PR #63 | `CodeRabbit pass` | `Review completed` | at the head | reviewed |
+
+| Decided | Rejected, and why |
+|---|---|
+| The description is **quoted, never matched on** | A set of strings meaning *no review happened*. PR #62's row says `Review completed` at a head no round finished on, so the set would have to contain a wording indistinguishable from #63's — the open-class trigger this file's census-trigger section rejects, with a live counterexample rather than an argument |
+| The reading is the **review timeline**: `REVIEWER`'s last `commit_id` against `headRefOid`, with the intervening commits' subjects | Trusting the status alone. Both rows above read `success`; only the sha comparison separates them |
+| Stated as *"the head carries no review of its own"*, with `pr_review_state.py` named as the producer of the verdict | Stating *"the head was not reviewed"*. A clean incremental round writes no review object — 3 of 6 reviewed heads in the table under *The review poll is a tool that asserts its own address* reach only the comment arm — so the sha comparison is evidence, not a verdict, and one tool must not re-derive another's |
+| **Reported, never gated.** The exit code is unchanged | Refusing the merge on an unreviewed head. The merge procedure in `.agents/skills/dispatch/SKILL.md` **ends** by merging `main` into the branch and re-running CI, so the head that lands is unreviewed by construction. A gate red on every pull request at the moment it is merged spends exactly the attention a gate firing correctly needs |
+| A **non-required row with no verdict is named**, not passed over | Printing only `REQUIRED`. That is what hid the row for four merges: absence of a line is indistinguishable from absence of a problem |
+| `REVIEWER = "coderabbitai[bot]"`, with a selftest row proving the suffix-less login selects nothing | Reading the App by the name on its status context. `AGENTS.md` rule 12 records the same filter returning empty on every pull request and being read as *no review exists* |
+| The **combined** status endpoint, `/commits/<sha>/status`, at the head already read | `/commits/<sha>/statuses`, which returns the full history and would make the answer depend on list order; or resolving "the current head" a second time inside the reader |
+
+**Both directions are pinned from those payloads.** `python3 eval/tools/mergeable.py --selftest`
+drives them, and the three pull requests above must not receive the same answer — the row that
+catches a reading that reports the instrument. `python3 eval/tools/mergeable_mutants.py` removes
+one mechanism at a time — the description fold-in, `state` as a verdict, the sha comparison, the
+`[bot]` suffix, the `None` refusal on an unreadable timeline, the commit list ending at the head,
+the verdict caveat — and every one must turn a **named** selftest row red; a mutant caught only by
+a crash is reported as NOT CAUGHT. Run both rather than quoting a count from here.
+
+| Would re-open this | The observation |
+|---|---|
+| Reported rather than gated | A merge procedure that does not end with an unreviewed head — a rebase-and-merge policy, or a base-update that CodeRabbit re-reviews. Then the drift can be gated without firing on every pull request |
+| The sha comparison being evidence rather than a verdict | An API field that distinguishes *a round ran and found nothing* from *no round ran*. Today only `pr_review_state.py`'s comment arm does, and it does it by reading prose |
+
+---
+
 ## A closed ticket is checked against the tree, and "no branch" is a third value — decided 2026-08-23, second test added 2026-08-24
 
 > **This entry's reversal condition has fired: the repository is squash-only.** Ancestry alone

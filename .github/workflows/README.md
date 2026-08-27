@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 56 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 59 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -39,8 +39,8 @@ run is what the runner's noise moves.
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
 control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that runs on Python
-alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
-each. `judge/stored_rounds_mutants` is offline at about 4.3s — it drives a 0.6s selftest 8 times
+alone — `cost_census_mutants`, `pr_review_state_mutants` and `mergeable_mutants` are all offline
+and about 1 second each. `judge/stored_rounds_mutants` is offline at about 4.3s — it drives a 0.6s selftest 8 times
 over a symlinked mirror of `eval/`, once as the control and once per mutant — and its
 `--variant-control` is a further 1.7s over 3 more runs.
 `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
@@ -192,7 +192,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **56** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **59** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -268,6 +268,12 @@ pull requests can each be green against a base containing neither, so merging on
 lands a head no run has ever tested — which is how `main` can go red with every contributing
 pull request green.
 
+It also prints a **REVIEW STATE** block. That block lists the non-required rollup rows, keeps
+their commit-status descriptions, and names the head where the reviewer last wrote. A `CodeRabbit`
+row reading `pass` shows only that a round was attempted, not that the current head was reviewed.
+The block is informational and gates nothing; `DECISIONS.md`, *A review is reported against the
+head it was written at, and never gated*, holds the evidence.
+
 **GitHub now enforces both natively.** `main` is protected, and the settings are the two
 questions above plus the ways round them:
 
@@ -337,15 +343,16 @@ every control in the repository is ungated.
 | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py` | they drive the `claude` CLI. The operator's call, every time |
 | `starter_parity`, `parity_selftest`, `starter_gate_control` | need the four real toolchains. `starter_gate_control` is 325s; `parity_selftest` exits 1 without `eval/starters/ts/node_modules`, which is untracked |
 | `evidence_set_control`, `disclosure_mutants` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored and never in a checkout |
+| `wallclock.py` without `--selftest` | it reconciles the two stored clocks over `eval/runs/`, and exits 2 there rather than reporting `0 paired observations`. **Both offline halves ARE gated**: `--selftest` and `wallclock_mutants.py` build their own trees under `tempfile` |
 | `judge/audit_criteria.py` | without a corpus it exits 0 printing `0 / 0 / 0` for every verdict line — a green run that means nothing |
 | `docstat --renumbered` | never gates by design; its second half is undecidable. The half that does gate runs inside `--sweep` |
 | `coderabbit_config.py --schema` | needs the network — it reads the published CodeRabbit schema. **Its offline half, `--constraints`, IS gated**: it walks scalar limits against a cached copy, which is what catches an over-long field voiding the file. Run `--schema` by hand when the schema may have moved; it refreshes that cache. Run it by hand when `reviews.tools` changes; it is the only thing that catches a misspelled tool key, because the schema does not close that object and the key is accepted silently |
-| an external-link check | `research/` alone carries **85** `http(s)` URLs and nothing validates one. Deliberate: `linkcheck.py` skips those schemes because this repository is offline-gradeable and a network check is a different tool with a different failure mode. The consequence is that a rotted source still *looks* sourced — acceptable because `research/` is labelled a prior rather than evidence, and would not be if a measurement rested on one |
+| an external-link check | `linkcheck.py` skips `http(s)` schemes: this repository is offline-gradeable and a network check is a different tool with a different failure mode. So a rotted source in `research/` still *looks* sourced. That is acceptable only while `research/` is a prior rather than evidence — **run an external link checker before any measurement rests on an external source** |
 | `docstat --count-triggers` | a census, not a gate: it publishes what each REJECTED candidate findings-count trigger would cost, and those rows are meant to be non-zero. Its shipped row is the fact `--findings` already gates on, and `_count_trigger_pins` — run inside `--sweep` — pins every row against a known answer, and compares the SHIPPED row alone against `_stated_counts` |
 | `integrity_census.py` | a census, not a gate: it exits 0 on a historical hit by construction. Its control calls the two integrity pins `--sweep` already runs |
 | `ci_minutes.py` without `--selftest` | it reads the Actions API once per run, and the run count grows with every push — gating it would make CI cost grow quadratically in its own history. The offline `--selftest` half IS gated |
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
-| the full `lint.py` rule set | 72 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
+| the full `lint.py` rule set | 100 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 | `host_perf_probe.py --caps`, `--gpu`, `--spread`, `--drift` | they measure the darwin host they run on: `--caps` needs `taskpolicy`, the other three need a Metal device, and all 4 need the machine to themselves — on a shared runner they would report the runner's neighbours. Each refuses off darwin **by name** rather than passing vacantly. **Its offline half, `--selftest`, IS gated**: it pins the percentile, spread and drift arithmetic every arm reports through, with a mutant per row |
 
 ### Which gates read THIS file
