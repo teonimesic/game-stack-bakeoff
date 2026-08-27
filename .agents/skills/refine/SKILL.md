@@ -1,22 +1,42 @@
 ---
 name: refine
-description: "Close the loop after a run: turn its evidence into the next iteration by improving templates, task prompts, judge rubrics and documentation, with each change stated as a falsifiable hypothesis."
-when_to_use: "A matrix has finished AND been evaluated; an improvement iteration is ending; asked what to change next or what the run taught. Run evaluate-run first. Trigger phrases: what did we learn, improve the template, what should change, next iteration, reflect on the run."
+description: "Turn a change to the evaluator, the starters, the task prompts, the rubric or the docs into an iteration - a hypothesis, a change, and a measurement that could have come out against it."
+when_to_use: "You are about to change the instrument or the product and the effect can be measured before and after - a matrix has finished and been evaluated, or a ticket or a sweep of stored artifacts sent you; an improvement iteration is ending; asked what to change next or what a run taught. Where a run's results are the evidence, run evaluate-run first. Trigger phrases: what did we learn, improve the template, what should change, next iteration, reflect on the run."
 ---
 
-# Refining after a run
+# Refining the instrument and the product
 
-The point of a run is not the number it produced. It is what the number licenses you to
-change. This skill turns evidence into the next iteration.
+The point of a change is not that it was made. It is what would have shown you were wrong
+about it. This skill turns a change into an iteration.
+
+## The trigger is a change, not an occasion
+
+The loop fires when you are about to change **the instrument** — graders, judges, the rubric,
+the blinding, the tools that produce the numbers — or **the product** (`eval/starters/*/`, the
+task prompts), and the change's effect can be measured before and after.
+
+A finished matrix is the occasion that supplies most such changes. It is not the only one: a
+ticket, a sweep of stored artifacts, or the loose end a previous iteration handed on supply the
+rest, and a change from any of those is a full iteration, filed in the same file under the same
+standard. **What decides where it goes is the shape of the change, never where it came from.**
+
+Where a run's results are the evidence, run `evaluate-run` first. Refining on ungraded or
+unadjudicated results refines against grader defects, which is how three matrices produced
+rankings that were withdrawn.
+
+**An iteration and a finding are different records, and one piece of work commonly produces
+both** — a repaired gate is an iteration; the defect it repaired is a finding.
+
+| record | what goes in it |
+|---|---|
+| `eval/FINDINGS.md` | what was **observed** — a defect, a null, a published number that turned out wrong. Written whether or not anything changed in response |
+| `eval/IMPROVEMENTS.md` (the evaluator) · `IMPROVEMENTS.md` at root (the templates) | a change you **made**, pre-registered with a falsifier, kept or reverted on the measurement |
 
 Authoritative references: `eval/FINDINGS.md`, `eval/RUNS.md`, `eval/IMPROVEMENTS.md`
 (the evaluator loop), `IMPROVEMENTS.md` at root (the template loop), `DECISIONS.md`.
 **If this file disagrees with them, they win and this file is the bug.**
 
-Run `evaluate-run` first. Refining on ungraded or unadjudicated results refines against
-grader defects, which is how three matrices produced rankings that were withdrawn.
-
-## 1. Separate what the run measured from what it revealed
+## 1. Separate what the evidence measured from what it revealed
 
 Two different harvests, and the second is usually larger.
 
@@ -66,11 +86,12 @@ and why didn't it fire?
 
 ## 4. State every change as a hypothesis that could come out against you
 
-Before running anything:
+Before changing anything:
 
 > **Hypothesis** — what you believe is wrong.
 > **Change** — what you will do about it.
-> **Prediction** — what the next run shows if you are right.
+> **Prediction** — what the measurement shows if you are right, naming the measurement:
+> the next run, a re-sweep of the stored artifacts, or the control you are about to write.
 > **Falsifier** — what result would mean you were wrong.
 
 Pre-register it in the relevant `IMPROVEMENTS.md`. A prediction written after the result
@@ -100,7 +121,7 @@ later overturned — both stay marked, because someone may have acted on them.
 
 ## The question to end on
 
-**What would the next run have to show for us to conclude we were wrong about this?**
+**What would the measurement have to show for us to conclude we were wrong about this?**
 
 If there is no such result, the change is not a hypothesis — it is a preference, and it
 should be labelled as one.

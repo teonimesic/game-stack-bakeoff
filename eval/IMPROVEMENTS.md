@@ -1,5 +1,18 @@
+# Improvement loop — the evaluator
 
----
+`IMPROVEMENTS.md` at the repository root is the same loop for the **templates**; this file is
+the loop for the **instrument** — graders, judges, the rubric, the blinding, and the tools that
+produce the numbers.
+
+Each iteration is a hypothesis, a change, and a measurement that could have come out against it.
+The falsification criterion is written **before** the measurement runs. A reverted change is a
+successful iteration: it bought a real answer.
+
+**The trigger is a change, not an occasion.** A finished matrix supplies most iterations and is
+not the only source: a ticket, a sweep of the stored artifacts, or the loose end a previous
+iteration handed on land here on the same terms. What was **observed** is a numbered finding in
+`eval/FINDINGS.md`; what was **changed** is an iteration here, and one piece of work commonly
+produces both.
 
 ## Iteration 1b — `ball.wall_bounce` produces false negatives on shallow serves
 
