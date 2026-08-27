@@ -1713,7 +1713,19 @@ def _range_doc_texts() -> tuple[dict[str, str], list[str]]:
     for rel in RANGE_DOCS:
         p = os.path.join(ROOT, rel)
         if os.path.exists(p):
-            stated[rel] = open(p, encoding="utf-8", errors="replace").read()
+            # An UNREADABLE document is a corpus refusal, not a crash. `exists()` says the
+            # path is there; it does not say it can be read - a directory raises
+            # IsADirectoryError and a permission-denied entry raises PermissionError, both
+            # OSError. Letting either escape exits 1, which reads as "the census ran and
+            # disagreed" when the truth is that it could not run over its stated corpus.
+            # Same distinction the caller draws with exit 2 (task 179 review).
+            try:
+                stated[rel] = open(p, encoding="utf-8", errors="replace").read()
+            except OSError as e:
+                absent.append(f"{rel} is named in RANGE_DOCS and exists at {p} but could "
+                              f"not be read ({type(e).__name__}: {e}) - the census cannot "
+                              f"cover a document it cannot open, and reporting a count over "
+                              f"the rest would be a smaller corpus agreeing with itself")
         else:
             absent.append(f"{rel} is named in RANGE_DOCS as a place the findings count and "
                           f"range are stated, and it does not exist at {p} - the census "
