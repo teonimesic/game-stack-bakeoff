@@ -263,6 +263,11 @@ the only thing that answers for a script nothing runs. And **gated means NAMED**
 reached only through another script is ungated here, which is why `starter_gate_control` and
 `disclosure_mutants` need rows despite `precampaign_smoke.py` driving both.
 
+**A bare name excuses a control only while one control answers to it.** `eval/tools/` and
+`eval/judge/` share the naming convention, so two controls can come to share a stem — and one
+row would then excuse both, so an ungated newcomer would read as recorded. Such a row goes red
+naming the candidates; write the repository-relative path, which this reads too.
+
 The reverse direction goes red too: a row here naming a control that a tier **does** run is a
 row that outlived its exclusion, and a reader trusting it concludes a live check is not running.
 

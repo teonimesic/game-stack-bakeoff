@@ -1404,21 +1404,51 @@ def gate_command_lines(census: dict[str, dict] | None = None,
                   | {c for t in hks["tiers"].values() for c in t})
 
 
-def _span_stems(span: str) -> set[str]:
-    """The control stems a register exclusion span could be naming.
+def excused_scripts(spans: list[str],
+                    scripts: list[str]) -> tuple[set[str], list[str]]:
+    """Which controls the register's exclusion rows excuse, and which rows are ambiguous.
 
-    The register writes a name the way a person does -- `parity_selftest`,
+    THE REGISTER WRITES A NAME THE WAY A PERSON DOES -- `parity_selftest`,
     `disclosure_mutants`, `tasks_control --live-squash-refs`, `judge/audit_criteria.py` --
-    so each token is reduced to a bare stem and the flags fall out on their own.
+    so a bare stem has to resolve to a script. A SPAN OF ONE TOKEN names a whole script;
+    one with more names a MODE of it and says nothing here, because
+    `tasks_control --live-squash-refs` excuses one flag of a script whose bare form is
+    gated. Rows naming things that are not controls at all -- `field_sweep.py`, `lint.py` --
+    match nothing and are silently fine.
+
+    A BARE STEM IS ACCEPTED ONLY WHILE IT IDENTIFIES ONE SCRIPT. `eval/tools/` and
+    `eval/judge/` are separate directories with the same naming convention, so two controls
+    can come to share a stem -- and a row reading `x_control` would then excuse BOTH, so an
+    ungated newcomer would land in `recorded` and the census would go green on it. Every
+    hand-allocated identifier namespace in this repository has collided; this one has not
+    yet, and a fail-open channel is not made safe by being narrow (`AGENTS.md` rule 7).
+    An ambiguous row is REPORTED, and the repair is to write the repository-relative path,
+    which is read here too. Raised by CodeRabbit on PR #49.
     """
-    out = set()
-    for token in span.split():
-        if token.startswith("-"):
+    by_stem: dict[str, list[str]] = {}
+    for s in scripts:
+        by_stem.setdefault(pathlib.PurePosixPath(s).stem, []).append(s)
+    by_address = {a: s for s in scripts for a in (_abs_path(s),) if a is not None}
+
+    excused: set[str] = set()
+    problems: list[str] = []
+    for span in spans:
+        if len(span.split()) != 1 or span.startswith("-"):
             continue
-        stem = pathlib.PurePosixPath(token).stem
-        if stem:
-            out.add(stem)
-    return out
+        address = _abs_path(span)
+        if address is not None and address in by_address:
+            excused.add(by_address[address])
+            continue
+        hits = by_stem.get(pathlib.PurePosixPath(span).stem, [])
+        if len(hits) == 1:
+            excused.add(hits[0])
+        elif len(hits) > 1:
+            problems.append(
+                f"{REGISTER.relative_to(ROOT)} leaves out `{span}`, and "
+                f"{len(hits)} controls answer to that name: {', '.join(hits)}. The row "
+                f"would excuse every one of them, so an ungated newcomer would read as "
+                f"recorded -- name the repository-relative path instead")
+    return excused, problems
 
 
 def controls_census(scripts: list[str] | None = None,
@@ -1469,18 +1499,14 @@ def controls_census(scripts: list[str] | None = None,
 
     spans, span_problems = register_exclusions(register_text)
     problems += span_problems
-    # A span of ONE token names a whole script; one with more names a MODE of it, and only
-    # the first says anything here. `tasks_control --live-squash-refs` excuses one flag of a
-    # script whose bare form is gated -- reading that as "tasks_control is excluded" would
-    # excuse the whole script if the gate running it ever went away, and would report a
-    # stale row today against a register that is exactly right. Both directions are pinned.
-    excused = {stem for s in spans if len(s.split()) == 1 for stem in _span_stems(s)}
+    excused, excuse_problems = excused_scripts(spans, scripts)
+    problems += excuse_problems
 
     gated = [s for s in scripts if _named_by(s, paths)]
     ungated = [s for s in scripts if s not in gated]
-    recorded = [s for s in ungated if pathlib.PurePosixPath(s).stem in excused]
+    recorded = [s for s in ungated if s in excused]
     unrecorded = [s for s in ungated if s not in recorded]
-    stale = [s for s in gated if pathlib.PurePosixPath(s).stem in excused]
+    stale = [s for s in gated if s in excused]
 
     for s in unrecorded:
         problems.append(
@@ -2147,6 +2173,12 @@ def _selftest() -> int:
                "|---|---|\n"
                "| `evidence_set_control`, `disclosure_mutants` | need `eval/runs/` |\n"
                "| `tasks_control --live-squash-refs` | the branch is gone |\n"
+               # BOTH SPELLINGS OF A MODE ROW, because they behave differently and the
+               # register carries both. `name --flag` reduces to a stem that matches no
+               # script; `name.py --flag` reduces to the script's own stem, so only this
+               # second shape can excuse a whole script by accident -- and it is the one
+               # `host_perf_probe.py --caps` is written in.
+               "| `fragment_control.py --slow` | a mode, not the script |\n"
                "| `host_perf_probe.py --caps`, `--gpu` | they measure the darwin host |\n")
     _empty = controls_census(scripts=[], commands=[], register_text=_cx_reg)
     check("the register in that row is readable, so it cannot be the cause",
@@ -2373,6 +2405,38 @@ def _selftest() -> int:
           (_reasonless["recorded"], _reasonless["unrecorded"], bool(_reasonless["problems"])),
           ([], ["eval/tools/fragment_control.py"], True))
     counts["mutants"] += 1
+    # MUTANT: two controls sharing a stem, excused by that bare stem. `eval/tools/` and
+    # `eval/judge/` are separate directories under one naming convention, so the collision
+    # is constructible; the row would excuse BOTH, so an ungated newcomer would read as
+    # recorded and the census would go green on it (CodeRabbit, PR #49). No such collision
+    # exists today, and a fail-open channel is not made safe by being narrow.
+    _twins = ["eval/judge/twin_control.py", "eval/tools/twin_control.py"]
+    _amb = controls_census(
+        scripts=_twins, commands=[],
+        register_text="| left out | why |\n|---|---|\n| `twin_control` | needs a corpus |\n")
+    check("a bare stem two controls answer to is refused, and excuses neither",
+          (_amb["recorded"], _amb["unrecorded"],
+           [p.split(", and ")[0] for p in _amb["problems"] if "answer to that name" in p]),
+          ([], _twins, [f"{REGISTER.relative_to(ROOT)} leaves out `twin_control`"]))
+    counts["mutants"] += 1
+    # VARIANT: the repair that message asks for. A repository-relative path excuses exactly
+    # the script it names and its same-stemmed sibling stays unrecorded, so the refusal
+    # above has a way out that is not "widen the match".
+    _one = controls_census(
+        scripts=_twins, commands=[],
+        register_text="| left out | why |\n|---|---|\n"
+                      "| `eval/tools/twin_control.py` | needs a corpus |\n")
+    check("a repository-relative path excuses exactly one of them",
+          (_one["recorded"], _one["unrecorded"],
+           [p for p in _one["problems"] if "answer to that name" in p]),
+          (["eval/tools/twin_control.py"], ["eval/judge/twin_control.py"], []))
+    counts["variants"] += 1
+    # VARIANT: a unique stem still excuses, which is what every live row is. A check that
+    # demanded paths outright would redden the 4 correct rows the register carries today.
+    check("a stem only one control answers to still excuses it",
+          excused_scripts(["evidence_set_control"], ["eval/tools/evidence_set_control.py"]),
+          ({"eval/tools/evidence_set_control.py"}, []))
+    counts["variants"] += 1
     # VARIANT: a reason is prose, and anything non-blank is one. A reader demanding more
     # than that would redden rows the register really carries.
     check("a one-word reason is a reason",
