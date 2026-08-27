@@ -2332,11 +2332,12 @@ Three heads, read from the API on 2026-08-27 and stored verbatim in `mergeable.s
 | The **combined** status endpoint, `/commits/<sha>/status`, at the head already read | `/commits/<sha>/statuses`, which returns the full history and would make the answer depend on list order; or resolving "the current head" a second time inside the reader |
 
 **Both directions are pinned from those payloads.** `python3 eval/tools/mergeable.py --selftest`
-is 70 checks; the three pull requests above must not receive the same answer, which is the row
-that would catch a reading that reports the instrument. **11 mutations of the new mechanisms —
-dropping the description, reading `conclusion` only, skipping the sha comparison, dropping the
-`[bot]` suffix, letting an unreadable timeline read as reviewed, removing the verdict caveat —
-each turn the suite red**, 8 by a failing row and 2 by a crash.
+drives them, and the three pull requests above must not receive the same answer — the row that
+catches a reading that reports the instrument. `python3 eval/tools/mergeable_mutants.py` removes
+one mechanism at a time — the description fold-in, `state` as a verdict, the sha comparison, the
+`[bot]` suffix, the `None` refusal on an unreadable timeline, the commit list ending at the head,
+the verdict caveat — and every one must turn a **named** selftest row red; a mutant caught only by
+a crash is reported as NOT CAUGHT. Run both rather than quoting a count from here.
 
 | Would re-open this | The observation |
 |---|---|

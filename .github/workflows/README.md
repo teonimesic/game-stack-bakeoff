@@ -261,11 +261,11 @@ pull requests can each be green against a base containing neither, so merging on
 lands a head no run has ever tested — which is how `main` can go red with every contributing
 pull request green.
 
-It also prints a **REVIEW STATE** block that gates nothing: the non-required rows of the rollup
-with the commit-status description the rollup itself drops, and which head the reviewer last
-wrote at. Read it — a `CodeRabbit` row reading `pass` says a round was attempted and nothing
-more. `DECISIONS.md`, *A review is reported against the head it was written at, and never gated*,
-holds the three measured pull requests and why that half is reported rather than enforced.
+It also prints a **REVIEW STATE** block. That block lists the non-required rollup rows, keeps
+their commit-status descriptions, and names the head where the reviewer last wrote. A `CodeRabbit`
+row reading `pass` shows only that a round was attempted, not that the current head was reviewed.
+The block is informational and gates nothing; `DECISIONS.md`, *A review is reported against the
+head it was written at, and never gated*, holds the evidence.
 
 **GitHub now enforces both natively.** `main` is protected, and the settings are the two
 questions above plus the ways round them:

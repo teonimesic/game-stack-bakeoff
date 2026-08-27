@@ -375,7 +375,18 @@ def review_notes(facts: dict, reviews: list[dict] | None,
                      f"of the gap is unknown"]
         else:
             shas = [c["sha"] for c in commits]
-            if at not in shas:
+            # The list must END AT THE HEAD before a distance measured in it means
+            # anything. `/pulls/<n>/commits` caps at 250 whatever the pagination, so a
+            # long branch returns a list that contains `at`, does not contain `head`, and
+            # yields a confident wrong gap - a number in range, which is the most
+            # dangerous shape a broken measurement takes.
+            if not shas or shas[-1] != head:
+                notes = [f"{REVIEWER} last wrote at {at[:8]} and the head is {head[:8]}: "
+                         f"NOT the same commit. The commit list does not end at the head "
+                         f"({len(commits)} commit(s) read, ending "
+                         f"{shas[-1][:8] if shas else 'nowhere'}), so the gap cannot be "
+                         f"measured from it - check the pull request by hand"]
+            elif at not in shas:
                 notes = [f"{REVIEWER} last wrote at {at[:8]}, which is not on the branch "
                          f"at all - a force-push or rebase since. Nothing has been "
                          f"written about the head {head[:8]}"]
@@ -383,10 +394,8 @@ def review_notes(facts: dict, reviews: list[dict] | None,
                 after = commits[shas.index(at) + 1:]
                 listed = "; ".join(f"{c['sha'][:8]} {c['subject'][:58]}" for c in after)
                 notes = [f"{REVIEWER} last wrote at {at[:8]}; the head {head[:8]} is "
-                         f"{len(after)} commit(s) later and carries no review of its own"
-                         + (f": {listed}" if listed else
-                            " - and the commit list does not end at the head, so this "
-                            "reading is inconsistent; check the pull request by hand")]
+                         f"{len(after)} commit(s) later and carries no review of its "
+                         f"own: {listed}"]
 
     row = next((r for r in rows if r["name"] == REVIEWER_CONTEXT), None)
     if row and row["verdict"]:
@@ -870,6 +879,17 @@ def selftest() -> int:
     rebased = review_notes(pr60, r60, _PR60_COMMITS[6:], rows60)
     check("a reviewed commit no longer on the branch is reported as such",
           "not on the branch" in " ".join(rebased), True)
+
+    # ---- VARIANT, and the one that produces a NUMBER IN RANGE if it is mishandled:
+    #      `/pulls/<n>/commits` caps at 250, so a long branch returns a list holding the
+    #      reviewed commit and NOT the head. Counting in it gives a confident wrong gap.
+    truncated = review_notes(pr60, r60, _PR60_COMMITS[:-1], rows60)
+    check("a commit list that does not end at the head is refused, not counted in",
+          "does not end at the head" in " ".join(truncated), True)
+    check("...and it states no gap at all", "commit(s) later" in " ".join(truncated),
+          False)
+    check("...while the complete list still measures one",
+          "2 commit(s) later" in " ".join(notes60), True)
 
     # ---- MUTANT: stop folding the description into the row, and #60's rate limit goes
     #      silent - the exact state the tool shipped in until 2026-08-27.

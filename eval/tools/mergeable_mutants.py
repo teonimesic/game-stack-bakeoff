@@ -26,6 +26,7 @@ None of these crashes. Every one leaves a report that reads exactly like a repor
 | `reviews_third_value` | the `None` refusal on an unreadable timeline | *nobody could ask* reads as *reviewed*, fail-open again |
 | `reviews_unsorted` | the sort by `submitted_at` | the endpoint's order is not part of its contract, and "the last review" is the one fact read out of the list |
 | `unsubmitted_counts` | the `submitted_at` filter | a review nobody has submitted becomes the review of the head it was started against |
+| `commit_list_completeness` | the assertion that the commit list ends at the head | `/pulls/<n>/commits` caps at 250, so a long branch returns a list holding the reviewed commit and not the head — and counting in it gives a confident wrong gap, a number in range |
 | `status_not_crossed` | quoting the reviewer's own status beside a stale head | the reader is told the head is unwritten-about and not what the status claims, which is the pair that made this findable |
 | `verdict_caveat` | the caveat and the `pr_review_state.py` command | a clean incremental round writes no review object, so the report would present *no review of its own* as a verdict it is not |
 
@@ -47,6 +48,7 @@ is paired with the mutant that proves its row can go red:
 | a review with no `submitted_at` | a PENDING review | `unsubmitted_counts` |
 | the reviewed sha absent from the branch | a force-push or rebase | `reviewed_head_compare` |
 | the commit list unreadable while the head is stale | a partial answer that must stay a refusal | `reviewed_head_compare` |
+| a commit list that stops short of the head | the 250-commit cap on the endpoint | `commit_list_completeness` |
 | PR #62's `Review completed` at an unreviewed head | a description no wordlist could reject | `reviewed_head_compare` |
 
 **Needs no corpus and no network.** `mergeable.py --selftest` drives recorded payloads.
@@ -115,6 +117,10 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "unsubmitted_counts": (
         '            and r.get("submitted_at")]',
         '            and True]'),
+
+    "commit_list_completeness": (
+        '            if not shas or shas[-1] != head:',
+        '            if False:'),
 
     # ---- what the report says ABOUT its own reading.
     "status_not_crossed": (
