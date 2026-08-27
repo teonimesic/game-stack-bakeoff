@@ -812,6 +812,34 @@ historical, because a second harness became a recorded arm dimension on 2026-08-
 - **Field coverage otherwise.** Of 36 record fields the runner writes, 33 have consumers outside the
   module, several with 100+ — the record is read, not written into a void.
 
+### CORRECTION, 2026-08-27 - this pass's finding was wrong in both halves (#203)
+
+`tasks/186` was worked and the agent re-derived the claim from the artifacts. The entry above is left
+standing with the correction beneath it rather than edited, because what a pass concluded is the
+record.
+
+- **`duration_ms` is not a second name for `wall_s`.** It is a **third quantity held by a different
+  party** - the agent CLI's report of its own internal run, nested inside the timing script's
+  stopwatch. Over 157 paired observations `wall_s - duration_ms/1000` is min 0.9 s, median 1.1 s, max
+  6.5 s, negative on none. Additive overhead, not a naming inconsistency - and "reconciling the two
+  names" would have destroyed a real nesting.
+- **The population was undercounted, by a trap this repository has already numbered.** This pass
+  globbed `eval/runs/*/trials/*.json` and reported 47 of 55 records / 4.4 hours. The true figures are
+  **71 of 71 and 7.36 hours**: two run directories are wrappers holding others, which `#126` and
+  `#127` record by file and by number. Reproduced at merge time - shallow 139 files / 47 carrying,
+  deep 163 / 71.
+- **The self-report is not absent from the live harness either.** `wholegame.py` leaves it in
+  `artifacts/<tid>/agent_result.json`, present in 86 of 91 whole-game records.
+
+**No shipped walker was at fault** - every one that gates something already handles the nesting. The
+defect was in the one-off shell pipeline this pass wrote to look at the tree, which is the population
+no gate covers.
+
+> **A cleanup pass's own census has no control, and it is the measurement most likely to be believed,
+> because it is the one that becomes a ticket.** Reconcile a hand-rolled walk against a shipped
+> walker over the same tree before filing; the disagreement is the control.
+
+
 ### Not opened, and the next pass should take one
 
 `eval/suites/` (the task prompts — note that editing one is a regime boundary, so a pass there files
