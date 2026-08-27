@@ -17,9 +17,9 @@ rejected, for three reasons, in increasing order of weight:
    Every field below is measured from OUTSIDE, so no starter changes and every
    stored run stays in the comparison.
 
-2. Three of these fields are ALREADY in 68 stored `programmatic.json` records
-   across four stacks and four games. Nothing read them. Surfacing what the
-   harness already writes gives a distribution today, on real runs, for nothing.
+2. Three of these fields were ALREADY in every stored `programmatic.json` record.
+   Nothing read them. Surfacing what the harness already writes gives a
+   distribution today, on real runs, for nothing.
 
 3. The decisive one. **A field the submission reports is a field the submission
    can fail to report, and that failure correlates with stack** - which is this
@@ -44,12 +44,27 @@ in wall, CPU and memory, and how fast the headless probe answers. Every one is
 measured the same way on all four arms.
 
 **`probe.ticks_per_second` is the one field with real cross-arm spread, and it is
-not a stack ranking either.** Partitioned by game over the 68 stored submissions
-(2026-08-23) the ordering is stable — Godot lowest in all four games, Rust and Unity
-highest — but the WITHIN-cell spread reaches 2.8x (`g1_pong__rust`, 13,998 to
-38,876), which is wider than most of the gaps between arms. And it is a round trip
-over a pipe: engine, JSON encoding and IPC, not simulation cost. It says how fast a
-stack answers the probe, which is what it is named after, and nothing more.
+not a stack ranking either.** Partitioned by game over the corpus as it stood on
+2026-08-23 - 68 submissions, all of them games - the ordering is stable: Godot
+lowest in all four games, Rust and Unity highest. But the WITHIN-cell spread
+reaches 2.8x (`g1_pong__rust`, 13,998 to 38,876), which is wider than most of the
+gaps between arms. And it is a round trip over a pipe: engine, JSON encoding and
+IPC, not simulation cost. It says how fast a stack answers the probe, which is
+what it is named after, and nothing more.
+
+--------------------------------------------------------------------------------
+TWO TASK CLASSES, AND ONLY ONE OF THEM CARRIES THE FOUR-ARM CLAIM
+--------------------------------------------------------------------------------
+Games and scenes are separate task classes (`eval/AGENTS.md`), and a record's class
+comes from `aspects.task_class`. Every distribution below is printed per class,
+because a min/median/max over both is an aggregate across a population nobody
+established was homogeneous.
+
+`GATE_TASK_CLASS` narrows exactly one question - *are all four arms present?* - to the
+game submissions, because four arms is a property of the game matrix and the scene
+class has been built on 1 arm. Everything else the gate asks is asked of every record,
+and `population_sentence()` prints what the narrowing left out. **Excluded is not
+unread**: a record a claim does not cover is still swept, still counted and still named.
 
 --------------------------------------------------------------------------------
 NOTHING HERE IS A CRITERION, DELIBERATELY
@@ -72,6 +87,10 @@ from collections import defaultdict
 from dataclasses import dataclass, field as dc_field
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import aspects  # noqa: E402
 
 # --------------------------------------------------------------------------- #
 # The contract
@@ -210,6 +229,10 @@ class Observation:
     run: str
     game: str
     stack: str
+    #: `"game"`, `"scene"` or `aspects.UNKNOWN_TASK`. Carried on the record rather
+    #: than re-derived at each use, because every partition below needs it and a
+    #: second derivation is a second thing to get wrong.
+    task_class: str
     trial: str
     fields: dict[str, Any] = dc_field(default_factory=dict)
     reason: dict[str, str] = dc_field(default_factory=dict)
@@ -218,11 +241,20 @@ class Observation:
 
     def to_dict(self) -> dict[str, Any]:
         return {"run": self.run, "game": self.game, "stack": self.stack,
-                "trial": self.trial, "fields": self.fields, "reason": self.reason,
+                "task_class": self.task_class, "trial": self.trial,
+                "fields": self.fields, "reason": self.reason,
                 "why": self.why, "notes": self.notes}
 
 
-TRIAL_RE = re.compile(r"^(g\d+_[a-z0-9]+)__([a-z]+)__t(\d+)$")
+#: A trial directory name. The leading class letter is `[gs]` because THERE ARE 2 TASK
+#: CLASSES: `eval/AGENTS.md` says so and `suites/scene_prompts.py` names the scenes. A
+#: pattern that admits one class turns every record of the other into game `?` stack `?`,
+#: which no per-stack partition here can see and no reader is told about.
+#:
+#: The class letter is NOT decoded here. `aspects.task_class` is the project's one
+#: answer to *what class is this task*, it is 3-valued, and it consults the suites
+#: before falling back to the id shape.
+TRIAL_RE = re.compile(r"^([gs]\d+_[a-z0-9]+)__([a-z]+)__t(\d+)$")
 
 
 def parse_trial(name: str) -> tuple[str, str]:
@@ -252,8 +284,12 @@ def observe_doc(doc: dict[str, Any], *, game: str, stack: str, trial: str,
     disagree, and the disagreement is recorded. A record must never prefer a summary
     to the artifact it summarises - that is #60's shape, a correct read of the wrong
     address.
+
+    The task class is derived from the task id rather than passed in, so no caller can
+    get it wrong and every record carries one.
     """
-    o = Observation(run=run, game=game, stack=stack, trial=trial)
+    o = Observation(run=run, game=game, stack=stack,
+                    task_class=aspects.task_class(game), trial=trial)
 
     def put(name: str, value: Any) -> None:
         o.fields[name] = value
@@ -383,28 +419,83 @@ def sweep(root: Path) -> list[Observation]:
 
 ARMS = ("rust", "ts", "unity", "godot")
 
+#: THE FOUR-ARM CLAIM IS ABOUT THE GAME MATRIX, and it is asked of game submissions
+#: only. Four arms is a property of that matrix: every game has been built on all four.
+#: The scene class has been built on 1 arm (`eval/RUNS.md`), so demanding four of it
+#: would go red on the state of the corpus rather than on a defect - and a check that
+#: fires where nothing is wrong spends the attention a real firing needs.
+#:
+#: **Excluded is not unread.** The per-record and per-arm checks below run over EVERY
+#: record whatever its class; only the four-arms-are-present question is narrowed, and
+#: `population_sentence` states what was narrowed away so a reader can see the
+#: population (AGENTS.md rule 7).
+GATE_TASK_CLASS = "game"
 
-def _by_run_stack(records: list[Observation]) -> dict[str, dict[str, list[Observation]]]:
-    out: dict[str, dict[str, list[Observation]]] = defaultdict(lambda: defaultdict(list))
+
+def by_task_class(records: list[Observation]) -> dict[str, list[Observation]]:
+    """Records partitioned by task class, `GATE_TASK_CLASS` first."""
+    out: dict[str, list[Observation]] = defaultdict(list)
     for r in records:
-        out[r.run][r.stack].append(r)
+        out[r.task_class].append(r)
+    first = [GATE_TASK_CLASS] if GATE_TASK_CLASS in out else []
+    order = first + sorted(k for k in out if k != GATE_TASK_CLASS)
+    return {k: out[k] for k in order}
+
+
+def gate_population(records: list[Observation],
+                    ) -> tuple[list[Observation], dict[str, list[Observation]]]:
+    """The records the four-arm claim is asked of, and the ones it is not, by class."""
+    per_class = by_task_class(records)
+    asked = per_class.get(GATE_TASK_CLASS, [])
+    return asked, {k: v for k, v in per_class.items() if k != GATE_TASK_CLASS}
+
+
+def population_sentence(records: list[Observation]) -> str:
+    """Which records the four-arm claim was asked of, and how many were excluded."""
+    asked, excluded = gate_population(records)
+    parts = [f"the four-arm gate is asked of the {len(asked)} {GATE_TASK_CLASS!r} "
+             f"submissions (arms {sorted({r.stack for r in asked})})"]
+    if not excluded:
+        parts.append("0 records excluded")
+    for klass, rs in excluded.items():
+        parts.append(f"{len(rs)} {klass!r} record{'' if len(rs) == 1 else 's'} excluded "
+                     f"(arms {sorted({r.stack for r in rs})})")
+    return "; ".join(parts)
+
+
+def _by_run_class_stack(records: list[Observation],
+                        ) -> dict[tuple[str, str], dict[str, list[Observation]]]:
+    """Grouped by (run, task class), then by arm.
+
+    THE CLASS IS PART OF THE GROUP KEY, not only the run. A run may launch games and
+    scenes together (`wholegame.py --scenes`), and pooling the two inside one run makes
+    a field populated for the games cover for the same field never captured on a
+    scene's arm - the gap hidden by the population it was pooled with.
+    """
+    out: dict[tuple[str, str], dict[str, list[Observation]]] = defaultdict(
+        lambda: defaultdict(list))
+    for r in records:
+        out[(r.run, r.task_class)][r.stack].append(r)
     return out
 
 
 def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
     """Empty means: every declared field is reportable by every arm that ran.
 
-    Three ways to fail, and the third is the one that took thought:
+    Four ways to fail. Only the first is narrowed to `GATE_TASK_CLASS`:
 
-    1. **An arm is missing entirely.** Four arms is the claim; three arms cannot
-       support it, and a gate that silently accepts a smaller field would report
-       "clean" on exactly the runs where the question is open.
+    1. **An arm is missing entirely**, among the game submissions. Four arms is the
+       claim; three arms cannot support it, and a gate that silently accepts a smaller
+       field would report "clean" on exactly the runs where the question is open.
 
-    2. **A null marked `stack_cannot`.** The contract says every field is measured by
+    2. **A record whose class the module cannot name.** It can be asked no per-arm
+       question, so it is counted rather than quietly skipped.
+
+    3. **A null marked `stack_cannot`.** The contract says every field is measured by
        a mechanism identical on all four arms, so this reason should be unreachable.
        If it appears, the contract is wrong and this is how you find out.
 
-    3. **A null with no reason at all.** Fail-closed. An unexplained absence is
+    4. **A null with no reason at all.** Fail-closed. An unexplained absence is
        indistinguishable from a stack gap, and "every reason not to count a failure is
        a channel a bug can widen" (AGENTS.md rule 7) - so an absence nobody classified
        is counted.
@@ -417,24 +508,37 @@ def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
     `not_captured_in_this_run` is forgiven ACROSS runs (old records predate a field)
     but never WITHIN one: if a field is populated for one arm and never captured for
     another in the same run, the mechanism is not identical on all four arms, whatever
-    the reason string says.
+    the reason string says. "Within one run" means within one (run, task class) cell -
+    see `_by_run_class_stack`.
     """
     problems: list[str] = []
-    present = {r.stack for r in records}
+
+    # 1. FOUR ARMS, asked of the game population. `population_sentence` says what that
+    #    leaves out; the two checks below leave nothing out.
+    asked, _excluded = gate_population(records)
+    present = {r.stack for r in asked}
     for arm in ARMS:
         if arm not in present:
             problems.append(
-                f"no records for the {arm!r} arm: the claim 'reportable by all four "
+                f"no records for the {arm!r} arm among the {len(asked)} "
+                f"{GATE_TASK_CLASS!r} submissions: the claim 'reportable by all four "
                 f"arms' cannot be checked against {sorted(present)}")
 
+    # 2. EVERY record, whatever its class. A record whose class this module cannot name
+    #    is one it can ask no per-arm question of, so it is counted rather than dropped.
     for r in records:
+        if r.task_class == aspects.UNKNOWN_TASK:
+            problems.append(
+                f"{r.run}/{r.trial} ({r.stack}): the trial id parses to no task class, "
+                f"so no per-arm question can be asked of it and it is counted as a gap")
         for f, v in r.fields.items():
             if v is None and f not in r.reason:
                 problems.append(
                     f"{r.run}/{r.trial} ({r.stack}): {f} is null with no reason kind; "
                     f"an unexplained absence is counted as a gap")
 
-    for run, per_stack in _by_run_stack(records).items():
+    # 3. EVERY record, within its own (run, class) cell.
+    for (run, klass), per_stack in _by_run_class_stack(records).items():
         stacks = [s for s in per_stack if s in ARMS]
         for f in FIELDS:
             populated = {s: sum(1 for r in per_stack[s] if r.fields.get(f) is not None)
@@ -448,7 +552,7 @@ def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
                 if kinds <= {SUBMISSION}:
                     continue                  # data about submissions -> skew, not gap
                 problems.append(
-                    f"{run}: {f} is populated on "
+                    f"{run} ({klass}): {f} is populated on "
                     f"{sorted(k for k in stacks if populated[k])} but on {s!r} it is "
                     f"absent with reason(s) {sorted(str(k) for k in kinds)} - the "
                     f"mechanism is not identical across arms")
@@ -463,7 +567,7 @@ def stack_skew_warnings(records: list[Observation]) -> list[str]:
     instrument is what they are reporting. This is where to start looking.
     """
     out: list[str] = []
-    for run, per_stack in _by_run_stack(records).items():
+    for (run, klass), per_stack in _by_run_class_stack(records).items():
         stacks = [s for s in per_stack if s in ARMS]
         for f in FIELDS:
             populated = {s: sum(1 for r in per_stack[s] if r.fields.get(f) is not None)
@@ -475,8 +579,8 @@ def stack_skew_warnings(records: list[Observation]) -> list[str]:
                     continue
                 if {r.reason.get(f) for r in per_stack[s]} <= {SUBMISSION}:
                     out.append(
-                        f"{run}: {f} is missing on all {len(per_stack[s])} {s!r} "
-                        f"submissions because their own capture failed - a real "
+                        f"{run} ({klass}): {f} is missing on all {len(per_stack[s])} "
+                        f"{s!r} submissions because their own capture failed - a real "
                         f"absence, on one arm. Worth a look, not a gate failure")
     return out
 
@@ -583,27 +687,33 @@ def _fmt_table(title: str, dist: dict[str, dict[str, Any]]) -> str:
 
 
 def report(records: list[Observation]) -> int:
-    print(f"{len(records)} stored submissions\n")
+    per_class = by_task_class(records)
+    census = ", ".join(f"{len(v)} {k}" for k, v in per_class.items())
+    print(f"{len(records)} stored submissions ({census or 'none'})\n")
 
     print("FIELDS (same name, same unit, all four arms)")
     for f, unit in FIELDS.items():
         print(f"  {f:<26} {unit}")
     print()
 
-    for f in FIELDS:
-        print(_fmt_table(f, distribution(records, f, "stack")))
-    print()
+    # PER TASK CLASS, never pooled. A scene and a game are different task classes
+    # (`eval/AGENTS.md`), so a min/median/max over both is an aggregate across a
+    # population nobody established was homogeneous (AGENTS.md rule 4).
+    for klass, recs in per_class.items():
+        print(f"{klass} submissions ({len(recs)})")
+        for f in FIELDS:
+            print(_fmt_table(f, distribution(recs, f, "stack")))
 
-    print("capture geometry, distinct values seen")
-    geo: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for r in records:
-        w, h = r.fields.get("capture.width_px"), r.fields.get("capture.height_px")
-        geo[r.stack][f"{w}x{h}" if w else "none"] += 1
-    for stack in sorted(geo):
-        inner = ", ".join(f"{k} x{v}" for k, v in
-                          sorted(geo[stack].items(), key=lambda kv: -kv[1]))
-        print(f"  {stack:<8} {inner}")
-    print()
+        print("  capture geometry, distinct values seen")
+        geo: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for r in recs:
+            w, h = r.fields.get("capture.width_px"), r.fields.get("capture.height_px")
+            geo[r.stack][f"{w}x{h}" if w else "none"] += 1
+        for stack in sorted(geo):
+            inner = ", ".join(f"{k} x{v}" for k, v in
+                              sorted(geo[stack].items(), key=lambda kv: -kv[1]))
+            print(f"    {stack:<8} {inner}")
+        print()
 
     warn = stack_skew_warnings(records)
     if warn:
@@ -612,6 +722,7 @@ def report(records: list[Observation]) -> int:
             print(f"  ! {w}")
         print()
 
+    print(f"GATE POPULATION: {population_sentence(records)}")
     problems = no_stack_correlated_gap(records)
     if problems:
         print(f"GATE: FAILED ({len(problems)})")

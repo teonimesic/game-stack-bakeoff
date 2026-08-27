@@ -6211,3 +6211,89 @@ which therefore answers over 68 of 69 records without saying so. Nothing is wron
 silent-exclusion channel, and that is `tasks/185`.
 
 ---
+## #201 - a filter written before a population existed excluded it silently and reported clean
+
+`capability.py`'s four-arm gate asks whether any declared field is missing in a stack-correlated way.
+Its trial-id pattern was `^(g\d+_[a-z0-9]+)__([a-z]+)__t(\d+)$`, written when every submission was a
+game. Scenes arrived on 2026-08-25 with ids like `s1_parallax__ts__t0`, which the pattern does not
+match, so `parse_trial` returned `('?','?')` for the one stored scene.
+
+The consequences compound quietly. Every per-stack partition dropped it into a `?` row of `n=1` beside
+the four arms, in all 9 field tables. `no_stack_correlated_gap` and `stack_skew_warnings` both filter
+on the declared arms, so its fields were **never asked the question the gate exists to ask**. And the
+gate then printed `no stack-correlated gap in any declared field` - **true of the 68 records it
+looked at, and silent about the 69th.**
+
+> **Not wrong. Answering a narrower question than the one it printed.** Nothing was miscomputed; the
+> population was quietly smaller than the sentence implied, and no consistency check can find that,
+> because the gate agrees with itself perfectly over whatever it was handed.
+
+This is the enumeration failure `AGENTS.md`'s rule audit describes, in a **regex** rather than a
+sentence, and with the sharpest possible timing: the pattern was not wrong when written - it was
+exhaustive over every population that existed. It became an enumeration the day a second task class
+was added, and it failed on exactly the class that did not exist when it was authored.
+
+> **The repair that generalises is not "widen the pattern".** A wider pattern is the same enumeration
+> one class later. It is **"a gate prints the population it asked and what it left out"** - the report
+> now opens `69 stored submissions (68 game, 1 scene)` and closes `GATE POPULATION: the four-arm gate
+> is asked of the 68 'game' submissions; 1 'scene' record excluded`. A reader can now see the
+> denominator without knowing the regex.
+
+Both halves were done, and each alone leaves the other standing: parsing without partitioning pools a
+scene into the `ts` arm's min/median/max, and partitioning without parsing leaves the record in a `?`
+row nothing reads.
+
+**What the `?` row was hiding, found only because it was opened:** `capture.cpu_seconds` and
+`capture.peak_rss_mb` are populated on the scene record and on **0 of 68** game records - rusage
+capture landed after every game run and before the scene run. Uniform within each `(run, class)` cell,
+so not a gate failure; but it is a real per-field discontinuity that sat in a row nobody read. **The
+excluded population is where the evidence about the exclusion lives.**
+
+---
+## #202 - the control that pinned the recursion ceiling was the thing preventing recursion
+
+`ci_minutes.py --selftest` checks that the CI register describes the workflows that exist, and it
+derives the hook list by **running the hook**. Putting it *into* a hook therefore makes the two
+mutually recursive. Measured with the `python3` shim disabled: **8 hook levels in 25 seconds and
+still climbing** when it was killed.
+
+A depth ceiling fixes that, and the ceiling needs a control. **The first control was itself the
+reason no recursion could occur.** It set `GATES_DEPTH=1` and then executed the hook - and a control
+that *pins* a counter also *resets* it, so every level started from 1 and no level could ever reach
+the ceiling. The row was green, the mechanism it certified was untested, and the control was
+supplying the very condition whose absence it was meant to detect.
+
+> **A control that establishes state before invoking its subject has changed the subject.** This is
+> task 113's lesson - *a control that imports its expectation from its subject is not a control* -
+> with the direction reversed: here the control did not read from the subject, it **wrote to** it.
+> Both produce a green row that means nothing.
+
+**The second false negative is the same shape one step further out: acceptance is not propagation.**
+The repaired rows preset `GATES_DEPTH` and read the hook's own answer, so they confirmed the hook
+*accepts* a depth value. They could not see whether it *passes one on*. Two mutants pass at exit 0
+under that reading - a hook reporting `depth=1` forever, and one with the `export` deleted. Each was
+verified by planting it against the earlier head rather than argued about.
+
+> **Testing that a mechanism reads a value tests the reader. The defect lives in the writer, and only
+> a second level can see it.** For anything that propagates - a depth counter, an environment
+> variable, a trace id - the control has to observe the value *at the next level down*, never at the
+> level that set it.
+
+A third defect from the same reading, fail-open and closed the same way as `#198`'s: under `/bin/sh`,
+`$((${GATES_DEPTH:-0} + 1))` evaluates `-1000` to `-999` and `abc` to `0`. Arithmetic expansion
+accepts what it is given, so a hostile or corrupted value silently re-enables unbounded recursion.
+The value is matched against a **closed set** now.
+
+**Found while measuring, and repaired in passing:** the register published `gates` at 75-115s and
+`controls` at 658-827s. Re-read with the register's own command, they are **127-208s** and
+**706-970s** - **24 of 24 runs outside the band published for them**. A figure with a producer beside
+it, never re-run, exactly as #199 describes; the band was not wrong when written, it was overtaken and
+nothing asked.
+
+**The tier was chosen on duty cycle, against the register's own cost rule.** At 1.78s the gate is
+cheaper than `pre-commit`'s largest existing member, so the cost rule says `pre-commit`. Its inputs
+are touched by **79 of `main`'s 678 commits**, so 88% of commits could not move its verdict while all
+would pay for it. It went to `pre-push`. *A cheap check on a rarely-touched input is not a cheap
+check; it is a frequent check with a low hit rate.*
+
+---

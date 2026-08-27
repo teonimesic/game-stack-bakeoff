@@ -184,7 +184,7 @@ survives any particular value ([#144]). Design, result and controls:
 | question | where |
 |---|---|
 | What was decided, and why? | [`DECISIONS.md`](DECISIONS.md) |
-| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 181 entries. Findings #19-#199, count and range from `python3 eval/tools/docstat.py --findings` |
+| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 184 entries. Findings #19-#202, count and range from `python3 eval/tools/docstat.py --findings` |
 | What resource did a run use, and what may I compare it with? | [`eval/RUNS.md`](eval/RUNS.md) |
 | How big is the stored corpus right now? | `python3 eval/tools/census.py` |
 | Why these four stacks? | [`research/DECISION.md`](research/DECISION.md) — the *prior*. The bake-off is the evidence, and it opens with a retraction |
@@ -312,7 +312,7 @@ without one lost 29.8% of all turns to denials, so runs across that change are *
 
 ## The one thing this project actually learned
 
-181 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+184 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
 instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**
