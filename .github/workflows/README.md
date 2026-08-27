@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 51 documentation, queue and selftest gates | 10 mutant and control suites |
+| checks | 53 documentation, queue and selftest gates | 10 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **75–115s** | **658–827s** |
 
@@ -49,6 +49,13 @@ needs neither `ffmpeg` nor `just`.
 `skill_layout_selftest` is there rather than beside `skill_layout_control` because it needs
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
+`fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
+directions; its `whole_line` mutant is the design measured as a complete false negative, so it
+is what stops that being tried again. Its REAL row reads a historical blob, which needs the
+`fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
+`runner_capture_selftest` is `judge/capture_selftest` pointed at the agent harness: 2.26s
+locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rather than CPU and
+does not move with the runner.
 `judge/ink_window_control` is there rather than in `controls.yml` despite being about frames:
 it writes its own PNGs through `judge/png.py` and stubs every subprocess `static.collect`
 makes, so it needs neither `just` nor a stack toolchain — 0.6s. Its corpus arm reads
@@ -161,7 +168,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/tasks.py check` | yes | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **5** of `gates.yml`'s **51** checks; `pre-commit` runs **4**.
+`pre-push` runs **5** of `gates.yml`'s **53** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -233,6 +240,29 @@ has to run.
 
 ## What is deliberately not in CI
 
+**This table is checked, and it is checked for the direction that costs you — a control absent
+from it and from every tier.**
+
+```bash
+python3 eval/tools/ci_minutes.py --controls
+```
+
+It censuses every git-tracked script under `eval/` whose stem ends `_control`, `_mutants` or
+`_selftest` — the closed class of scripts whose whole purpose is to be run as a gate — asks
+which of them no workflow step and no git hook **names**, and requires each of those to appear
+in the `left out` column below. Exit 1 names any that does not, and `ci_minutes --selftest`
+runs the live census, so the gate is CI's rather than a command someone has to remember.
+
+Three things it deliberately does not do. It reads the **`left out` column only**, because a
+name appearing in a neighbouring row's reason excuses nothing. A span carrying a flag —
+`tasks_control --live-squash-refs` — excuses **that mode**, never the script, so a bare row is
+the only thing that answers for a script nothing runs. And **gated means NAMED**: a control
+reached only through another script is ungated here, which is why `starter_gate_control` and
+`disclosure_mutants` need rows despite `precampaign_smoke.py` driving both.
+
+The reverse direction goes red too: a row here naming a control that a tier **does** run is a
+row that outlived its exclusion, and a reader trusting it concludes a live check is not running.
+
 | left out | why |
 |---|---|
 | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py` | they drive the `claude` CLI. The operator's call, every time |
@@ -258,6 +288,7 @@ no document corpus at all — read by every session, checked by nothing.
 |---|---|
 | `docstat --sweep`, unresolved references and structure | **reads it** |
 | `ci_minutes --selftest`, the hook table and the coverage sentence | **reads them**, and nothing else does. Reword either and that gate goes red naming the form it needs |
+| `ci_minutes --selftest`, the exclusion table | **reads it**, through the live `--controls` census. The table is found by its own header cells, so it may move; delete it, duplicate it, or strip its `\|---\|` row and the gate goes red rather than reading an empty excuse list as a full one |
 | `docstat --sweep`, the backticked-flag half | **does not.** It is gated file-wide on 4 harness script names and this file names tools, not harnesses |
 | `linkcheck.py` with no arguments | **does not** — `LIVE_DOCS` is the front door and what it links into. Pass the path to check this file |
 
@@ -332,6 +363,11 @@ if *no* run yields a job, the endpoint is not answering and the tool reports not
 3. Revert.
 4. If you leave a gate out, add a row to the table above. A gate excluded and recorded is fine;
    one silently absent is not.
+
+**Writing a new `*_control.py`, `*_mutants.py` or `*_selftest.py` is step 1 of the same list, not
+a separate activity**, and `ci_minutes --selftest` is red until it is finished: the script is
+either named by a tier or named in the exclusion table. Run `ci_minutes --controls` to see which
+side it is on.
 
 **Adding one to a git hook takes 3 edits**: the command goes into `.githooks/run-gates.sh`, a
 row goes into the hook table, and the coverage sentence under it gets the new counts.

@@ -311,7 +311,7 @@ _ALLOWED_GUARDS = frozenset(_norm_expr(g) for g in ALLOWED_GUARDS)
 # refused by construction rather than by somebody noticing.
 #
 # The empty key is the census -- the mode you get by naming none.
-MODES = ("selftest", "scope", "gates", "hooks", "path_filter")
+MODES = ("selftest", "scope", "gates", "hooks", "controls", "path_filter")
 MODIFIERS = ("json", "cache", "no_timing")
 MODE_ACCEPTS: dict[str, frozenset[str]] = {
     # --scope's machine-readable channel is `relevant=` in $GITHUB_OUTPUT, which is what
@@ -320,6 +320,7 @@ MODE_ACCEPTS: dict[str, frozenset[str]] = {
     "selftest": frozenset(),
     "gates": frozenset({"json"}),
     "hooks": frozenset({"json"}),
+    "controls": frozenset({"json"}),
     "path_filter": frozenset({"json", "cache"}),
     "": frozenset({"json", "cache", "no_timing"}),
 }
@@ -400,6 +401,9 @@ def _build_parser(quiet: bool = False) -> _Parser:
     ap.add_argument("--hooks", action="store_true",
                     help="what each git hook tier runs, and whether the register says so "
                          "(offline; no API)")
+    ap.add_argument("--controls", action="store_true",
+                    help="which controls no gate runs, and which of those the register "
+                         "records as deliberately excluded (offline; no API)")
     ap.add_argument("--no-timing", action="store_true",
                     help="skip the per-run /timing read (one extra API call per run)")
     ap.add_argument("--cache", metavar="DIR",
@@ -1175,6 +1179,233 @@ def hooks_report(cen: dict, as_json: bool = False) -> int:
     return 0
 
 
+# ------------------------------------------------- the controls no gate runs
+
+# A CONTROL here is a script whose whole purpose is to be run as a gate, and this repository
+# names one by its stem. Three suffixes: a CLOSED class of its own making, which is the
+# property `AGENTS.md`'s rule audit asks for -- a property drawn from an open class is an
+# enumeration in disguise.
+#
+# THE WIDER PROPERTY WAS MEASURED AND LEFT OUT. "A tool carrying a `--selftest` mode" reads
+# 28 scripts rather than 40, and 7 of them -- `census.py`, `disclosure.py`,
+# `instruction_census.py`, `judge_ledger.py`, `tier1_census.py`, `tier2_census.py` and
+# `linkcheck.py --selftest` -- are census and reporting tools whose selftest is a MODE
+# rather than the tool. Whether each belongs in a tier is decided by opening it, not by this
+# check, and 7 rows a gate cannot decide is how a gate starts getting skipped. `tasks/180`
+# carries them.
+CONTROL_SUFFIXES = ("_control", "_mutants", "_selftest")
+
+# The header the register's exclusion table must carry. Found by its own cells, never by
+# position -- a table found by position moves the moment a section is added above it
+# (`AGENTS.md` rule 12: the address is an input to the check).
+EXCLUSION_TABLE_HEADER = ["left out", "why"]
+
+_BACKTICKED = re.compile(r"`([^`]+)`")
+
+
+def _git_ls_files() -> list[str]:
+    """Every git-tracked path under `eval/`."""
+    proc = subprocess.run(["git", "ls-files", "-z", "--", "eval"], cwd=str(ROOT),
+                          capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise DataError(f"`git ls-files -- eval` exited {proc.returncode}: "
+                        f"{proc.stderr.strip()[:300]}")
+    return [p for p in proc.stdout.split("\0") if p]
+
+
+def control_scripts(ls_files=_git_ls_files) -> list[str]:
+    """Every GIT-TRACKED script under `eval/` whose whole purpose is to be run as a gate.
+
+    TRACKED, not walked. `eval/starters/ts/node_modules` is gigabytes of vendored code on
+    the operator's machine and is untracked, so a filesystem walk would census somebody
+    else's test helpers and report them as this repository's ungated controls. It is the
+    definition `heartbeat.py` gives `project_lines`, for the same reason: an exclusion by
+    CONSTRUCTION rather than by a list of directories somebody has to maintain.
+    """
+    return sorted(p for p in ls_files()
+                  if p.endswith(".py")
+                  and pathlib.PurePosixPath(p).stem.endswith(CONTROL_SUFFIXES))
+
+
+def register_exclusions(text: str) -> tuple[list[str], list[str]]:
+    """What `.github/workflows/README.md` RECORDS as deliberately left out of CI.
+
+    Returns the backticked spans of the exclusion table's `left out` column, and any
+    problems reading the table. THE FIRST COLUMN ONLY: the `why` column names other things
+    -- `starter_gate_control`'s own row cites `eval/starters/ts/node_modules` in its reason
+    -- and reading a name out of the prose that explains an exclusion would let a control
+    count as excused because an unrelated row mentioned it in passing.
+    """
+    spans: list[str] = []
+    problems: list[str] = []
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _md_cells(ln) == EXCLUSION_TABLE_HEADER]
+    if not heads:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries no exclusion table. It must hold one "
+            f"whose header row is `| {' | '.join(EXCLUSION_TABLE_HEADER)} |` -- that table "
+            f"is the only place a gate can be absent on purpose rather than by accident")
+        return spans, problems
+    if len(heads) > 1:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries {len(heads)} exclusion tables (lines "
+            f"{', '.join(str(h + 1) for h in heads)}). Two would disagree eventually and a "
+            f"reader could not tell which one excuses a missing gate")
+        return spans, problems
+    i = heads[0] + 1
+    delim = _md_cells(lines[i]) if i < len(lines) else None
+    if not delim or not all(_MD_DELIM.match(c) for c in delim):
+        problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the exclusion table's "
+                        f"header has no `|---|---|` row under it, so it is not a table")
+        return spans, problems
+    i += 1
+    while i < len(lines):
+        cells = _md_cells(lines[i])
+        if cells is None:
+            break
+        if len(cells) == len(EXCLUSION_TABLE_HEADER):
+            spans += [_norm_command(s) for s in _BACKTICKED.findall(cells[0])]
+        else:
+            problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the exclusion "
+                            f"table row has {len(cells)} cells, want "
+                            f"{len(EXCLUSION_TABLE_HEADER)}")
+        i += 1
+    if not spans:
+        problems.append(f"{REGISTER.relative_to(ROOT)}: the exclusion table names nothing "
+                        f"in backticks in its `left out` column, so nothing in it can "
+                        f"excuse a control -- an empty excuse list reads here as a full one")
+    return spans, problems
+
+
+def _named_by(script: str, commands: list[str]) -> bool:
+    """Does any gate command name THIS script?
+
+    WHOLE TOKEN, never containment. `nested/eval/tools/fragment_control.py` is a file a
+    branch can add, it contains the real path, and it is not this script -- the same
+    substitution `_is_scope_script` refuses for the scope step.
+    """
+    return any(script in cmd.split() for cmd in commands)
+
+
+def _span_stems(span: str) -> set[str]:
+    """The control stems a register exclusion span could be naming.
+
+    The register writes a name the way a person does -- `parity_selftest`,
+    `disclosure_mutants`, `tasks_control --live-squash-refs`, `judge/audit_criteria.py` --
+    so each token is reduced to a bare stem and the flags fall out on their own.
+    """
+    out = set()
+    for token in span.split():
+        if token.startswith("-"):
+            continue
+        stem = pathlib.PurePosixPath(token).stem
+        if stem:
+            out.add(stem)
+    return out
+
+
+def controls_census(scripts: list[str] | None = None,
+                    commands: list[str] | None = None,
+                    register_text: str | None = None) -> dict:
+    """Which controls does no gate run, and which of those does the register excuse?
+
+    WHY THIS EXISTS. `.github/workflows/README.md` promises that every gate left out of CI
+    is left out WITH THE REASON, and `AGENTS.md` sends a session to read it before adding a
+    gate, before concluding one is missing, and before assuming a green run covered
+    something. Nothing checked that promise. `eval/tools/fragment_control.py` -- whose own
+    docstring says it exists so that a design measured as a complete false negative cannot
+    be tried again silently -- ran in no workflow, in no hook and under no register row, and
+    `eval/runner_capture_selftest.py` with it (`tasks/177`).
+
+    A HAND-COMPILED LIST GOES STALE THE NEXT TIME SOMEBODY ADDS A CONTROL, which is why the
+    answer is a census. The ticket that filed this carried a list of 4 taken over
+    `eval/tools/` alone; the population is 40 scripts over the whole of `eval/`, 6 of them
+    ungated, and the register already excused 4 of the 6. A count with a producer goes stale
+    for an hour; a count with none goes stale forever.
+
+    GATED MEANS NAMED, and the transitive reading was measured and rejected. Following
+    string literals from script to script makes `starter_gate_control` and
+    `disclosure_mutants` children of `precampaign_smoke.py` -- itself ungated, so it changes
+    no answer today -- while opening a channel that fails OPEN: of the 21 non-docstring
+    literals under `eval/` that mention a control by name, 3 are prose and 3 are this file's
+    own selftest fixtures, and any of them could mark a control gated that nothing runs. A
+    control no gate NAMES is one that has to be recorded, and "run as a side effect of
+    `precampaign_smoke.py`" is exactly the sort of reason the exclusion table exists to hold.
+    """
+    # SORTED, whatever the caller passed. Every list below is a slice of this one, and a
+    # census whose output order depends on its input order is one whose rows cannot be
+    # compared between two runs.
+    scripts = sorted(control_scripts() if scripts is None else scripts)
+    if commands is None:
+        cen = gate_census()
+        hooks = hook_census(census=cen)
+        commands = sorted({c for wf in cen.values() for c in wf["commands"]}
+                          | {c for t in hooks["tiers"].values() for c in t})
+    if register_text is None:
+        register_text = REGISTER.read_text(encoding="utf-8")
+
+    problems: list[str] = []
+    if not scripts:
+        problems.append(
+            "no control scripts were found under `eval/`. A census that returns an empty "
+            "population is reporting the instrument, not the population -- this repository "
+            f"has never had zero scripts whose stem ends in one of {CONTROL_SUFFIXES}")
+
+    spans, span_problems = register_exclusions(register_text)
+    problems += span_problems
+    # A span of ONE token names a whole script; one with more names a MODE of it, and only
+    # the first says anything here. `tasks_control --live-squash-refs` excuses one flag of a
+    # script whose bare form is gated -- reading that as "tasks_control is excluded" would
+    # excuse the whole script if the gate running it ever went away, and would report a
+    # stale row today against a register that is exactly right. Both directions are pinned.
+    excused = {stem for s in spans if len(s.split()) == 1 for stem in _span_stems(s)}
+
+    gated = [s for s in scripts if _named_by(s, commands)]
+    ungated = [s for s in scripts if s not in gated]
+    recorded = [s for s in ungated if pathlib.PurePosixPath(s).stem in excused]
+    unrecorded = [s for s in ungated if s not in recorded]
+    stale = [s for s in gated if pathlib.PurePosixPath(s).stem in excused]
+
+    for s in unrecorded:
+        problems.append(
+            f"{s} is a control that no workflow step and no git hook runs, and "
+            f"{REGISTER.relative_to(ROOT)} does not record it as deliberately left out. A "
+            f"gate excluded and recorded is fine; one silently absent is not -- put it in "
+            f"a tier, or add a row to the exclusion table with the reason")
+    for s in stale:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} records `{pathlib.PurePosixPath(s).stem}` as "
+            f"deliberately left out of CI, and a gate runs {s}. The row outlived its "
+            f"exclusion, and a reader trusting it would conclude the check is not running")
+
+    return {"population": scripts, "gated": gated, "ungated": ungated,
+            "recorded": recorded, "unrecorded": unrecorded, "stale": stale,
+            "exclusions": spans, "problems": problems}
+
+
+def controls_report(cen: dict, as_json: bool = False) -> int:
+    """Print the controls census and decide the exit status. ONE decision, both modes."""
+    if as_json:
+        print(json.dumps(cen, indent=2))
+    else:
+        print(f"{len(cen['population'])} controls under eval/ (git-tracked, stem ending "
+              f"{' / '.join(CONTROL_SUFFIXES)})")
+        print(f"  {len(cen['gated'])} named by a workflow step or a git hook")
+        print(f"  {len(cen['ungated'])} named by neither:")
+        for s in cen["ungated"]:
+            print(f"    {'RECORDED  ' if s in cen['recorded'] else 'UNRECORDED'}  {s}")
+        print("\n  producer: python3 eval/tools/ci_minutes.py --controls")
+        print(f"  RECORDED means: named in {REGISTER.relative_to(ROOT)}'s "
+              f"`{' | '.join(EXCLUSION_TABLE_HEADER)}` table")
+    for p in cen["problems"]:
+        print(f"  UNGUARDED: {p}", file=sys.stderr)
+    if cen["problems"]:
+        print("ci_minutes: a control runs in no tier and the register does not say why.",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def path_filter_audit(runs: list[dict], compare) -> dict:
     """For each `controls` PR run after the first on its branch, did the LATEST PUSH touch
     a filter path?
@@ -1429,7 +1660,7 @@ def _selftest() -> int:
     # The count `.github/workflows/README.md` publishes. Pinned so the register cannot
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
-    check("gates.yml gate count", _cen["gates"]["gates"], 51)
+    check("gates.yml gate count", _cen["gates"]["gates"], 53)
     check("controls.yml gate count", _cen["controls"]["gates"], 10)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
@@ -1761,6 +1992,164 @@ def _selftest() -> int:
     _live = {f"{w}.yml": (WORKFLOW_DIR / f"{w}.yml").read_text() for w in ("gates", "controls")}
     check("driving the census from text matches reading the files",
           gate_census(_live), _cen)
+
+    # -- the controls no gate runs, and whether the register excuses them ----------------
+    # THE LIVE PAIR FIRST, and this is the row that gates: every control under `eval/` is
+    # either run by a workflow step or a git hook, or recorded in the register's exclusion
+    # table with the reason. `.github/workflows/README.md` promises exactly that and until
+    # 2026-08-27 nothing asked it (`tasks/177`).
+    _live_controls = controls_census()
+    check("every ungated control is recorded as deliberately excluded",
+          _live_controls["problems"], [])
+    # THE KNOWN-GOOD ROWS (`AGENTS.md` rule 12): before believing a census, prove the
+    # extraction on rows whose true value can be stated in advance. Both are live, and both
+    # are rows the obvious implementation gets WRONG.
+    #
+    #   `skill_layout_control.py` is named by controls.yml -- the row that dies if the
+    #   command match is aimed at the wrong field or the wrong file.
+    #
+    #   `evidence_set_control.py` is named by NOTHING, and `backup_evidence_control.py` --
+    #   which IS gated -- cites it in its module docstring. A reachability census that
+    #   followed string literals calls it gated on that mention alone, which is the
+    #   fail-open direction: a control nothing runs, reported as covered.
+    check("a control controls.yml names is gated",
+          "eval/tools/skill_layout_control.py" in _live_controls["gated"], True)
+    check("a control only a gated sibling's DOCSTRING mentions is not",
+          ("eval/tools/evidence_set_control.py" in _live_controls["ungated"],
+           "eval/tools/evidence_set_control.py" in _live_controls["recorded"]), (True, True))
+    # A population of zero is the shape `AGENTS.md` names: a census returning one value
+    # across the population it exists to discriminate is reporting the instrument. It must
+    # be a REFUSAL, never a clean sheet.
+    #
+    # THE REGISTER PASSED HERE IS A GOOD ONE, and that is the whole row. Written with
+    # `register_text=""` this pin was green with the population guard DELETED, because an
+    # unreadable register is a problem too and the check could not tell which cause it was
+    # reading -- a mutant sweep over this file caught it (`tasks/177`). A check with two
+    # possible causes for one red is a check that pins neither.
+    _cx_reg = ("# CI\n\n"
+               "| left out | why |\n"
+               "|---|---|\n"
+               "| `evidence_set_control`, `disclosure_mutants` | need `eval/runs/` |\n"
+               "| `tasks_control --live-squash-refs` | the branch is gone |\n"
+               "| `host_perf_probe.py --caps`, `--gpu` | they measure the darwin host |\n")
+    _empty = controls_census(scripts=[], commands=[], register_text=_cx_reg)
+    check("the register in that row is readable, so it cannot be the cause",
+          register_exclusions(_cx_reg)[1], [])
+    check("an empty population is refused, not reported clean",
+          [p.split(".")[0] for p in _empty["problems"]],
+          ["no control scripts were found under `eval/`"])
+    counts["mutants"] += 1
+    counts["variants"] += 1
+
+    # `_cx_reg` above is the fixture the rows below are edits of -- deliberately not the
+    # live register, so a mutant is an edit to a string rather than a replacement that has
+    # to keep working as the document is rewritten. The property under test is the reader,
+    # not the text.
+    _cx_scripts = ["eval/tools/evidence_set_control.py", "eval/tools/fragment_control.py",
+                   "eval/tools/disclosure_mutants.py", "eval/tools/tasks_control.py"]
+    _cx_cmds = ["python3 eval/tools/fragment_control.py",
+                "python3 eval/tools/tasks_control.py"]
+
+    def _cx(scripts=None, commands=None, register_text=None):
+        return controls_census(_cx_scripts if scripts is None else scripts,
+                               _cx_cmds if commands is None else commands,
+                               _cx_reg if register_text is None else register_text)
+
+    # VARIANT: the baseline is clean. Two gated, two ungated and both excused -- and one of
+    # the excuses is a MODE of a script whose bare form is gated, which must not read as a
+    # stale row. Without this the mutants below would all be red for free.
+    check("the fixture pair is clean", _cx()["problems"], [])
+    check("...and it classified all four", (_cx()["gated"], _cx()["recorded"]),
+          (["eval/tools/fragment_control.py", "eval/tools/tasks_control.py"],
+           ["eval/tools/disclosure_mutants.py", "eval/tools/evidence_set_control.py"]))
+    check("a qualified exclusion of a gated script is not a stale row", _cx()["stale"], [])
+    counts["variants"] += 3
+    # VARIANT: a control named by a HOOK command rather than a workflow step is gated. The
+    # census takes one command list; a reader that only ever saw workflow commands would
+    # report every hook-only gate as ungated, and the hooks run 5 of them.
+    check("a control a git hook runs is gated",
+          _cx(commands=["python3 eval/tools/fragment_control.py --sweep"])["ungated"],
+          ["eval/tools/disclosure_mutants.py", "eval/tools/evidence_set_control.py",
+           "eval/tools/tasks_control.py"])
+    counts["variants"] += 1
+    # MUTANT: the gate that runs it is removed. This is the whole point of the check, and
+    # `tasks_control` in the answer is the second half: its register row excuses one MODE,
+    # `--live-squash-refs`, so with nothing running the script at all the row does not
+    # excuse it. A reader taking any mention as an excuse reports one row here, not two.
+    check("an ungated control with no register row is caught, and a MODE row is not one",
+          [p.split(" is a control")[0] for p in _cx(commands=[])["problems"]],
+          ["eval/tools/fragment_control.py", "eval/tools/tasks_control.py"])
+    counts["mutants"] += 1
+    # MUTANT: the name is in the register, in the WHY column instead of the left-out one.
+    # A reader taking backticks from the whole row calls this excused; it excuses nothing,
+    # because the row is about something else entirely.
+    check("a name in the `why` column excuses nothing",
+          bool(_cx(commands=[], register_text=(
+              "| left out | why |\n|---|---|\n"
+              "| `field_sweep.py` | it drives `fragment_control.py` sometimes |\n"))
+              ["problems"]), True)
+    counts["mutants"] += 1
+    # MUTANT: the command names a same-stemmed script somewhere else. A branch can add
+    # `nested/eval/tools/fragment_control.py`; containment would read it as the real one.
+    check("a same-named script elsewhere does not count as running it",
+          "eval/tools/fragment_control.py" in
+          _cx(commands=["python3 nested/eval/tools/fragment_control.py"])["ungated"], True)
+    counts["mutants"] += 1
+    # MUTANT: a register row that outlived its exclusion -- the control it excuses is now
+    # gated, and a reader trusting the row concludes a live check is not running.
+    #
+    # THE PROBLEM, NOT THE `stale` LIST. Written against the list alone this pin survived a
+    # mutant that classified the row and then reported nothing about it (`tasks/177`):
+    # every field it read was correct and the gate stayed green. What a report DOES is the
+    # exit status, so that is what a pin on a report has to read.
+    _cx_stale = _cx(register_text=_cx_reg + "| `fragment_control` | nothing runs it |\n")
+    check("an exclusion row for a script a gate DOES run is caught",
+          (_cx_stale["stale"], [p.split(" records ")[0] for p in _cx_stale["problems"]]),
+          (["eval/tools/fragment_control.py"], [".github/workflows/README.md"]))
+    with contextlib_redirect_all():
+        _code = controls_report(_cx_stale)
+    check("...and the report refuses on it", _code, 1)
+    counts["mutants"] += 2
+    # MUTANTS: the three ways the exclusion table can stop being one. Each must be a
+    # PROBLEM rather than an empty excuse list, because an unreadable table reads as a
+    # register that excuses nothing -- and that direction is red for the wrong reason.
+    for _label, _bad in (
+        ("no exclusion table at all", "# CI\n\nnothing here\n"),
+        ("two exclusion tables",
+         _cx_reg + "\n| left out | why |\n|---|---|\n| `x` | y |\n"),
+        ("a header with no delimiter row", "| left out | why |\n| `x` | y |\n"),
+        ("a table whose left-out column has no backticked name",
+         "| left out | why |\n|---|---|\n| trials | they drive the CLI |\n"),
+    ):
+        check(f"the exclusion table: {_label} is refused",
+              bool(register_exclusions(_bad)[1]), True)
+        counts["mutants"] += 1
+    # VARIANT: a re-spaced table, an extra column of prose in the why cell, and a row whose
+    # left-out cell holds several names must all still read. A reader that reddened on
+    # whitespace would fire where nothing is wrong.
+    check("a re-spaced exclusion table still reads",
+          register_exclusions(
+              "|left out|why|\n|:---|---:|\n"
+              "|  `a_control` ,  `b_mutants`  | because `c_selftest` says so |\n"),
+          (["a_control", "b_mutants"], []))
+    counts["variants"] += 1
+    # VARIANT: a clean census must still publish and exit 0, in both output modes.
+    for _as_json in (False, True):
+        with contextlib_redirect_all():
+            _code = controls_report(_cx(), as_json=_as_json)
+        if _code != 0:
+            failures.append(f"controls_report(as_json={_as_json}) refused a CLEAN census "
+                            f"({_code}) -- the refusal fires where nothing is wrong")
+    counts["variants"] += 2
+    # MUTANT: a census with a problem must exit 1 in both modes. A report that printed the
+    # rows and exited 0 is the shape this whole file exists to refuse.
+    for _as_json in (False, True):
+        with contextlib_redirect_all():
+            _code = controls_report(_cx(commands=[]), as_json=_as_json)
+        if _code != 1:
+            failures.append(f"controls_report(as_json={_as_json}) exited {_code} on a "
+                            f"census carrying 2 unrecorded controls, want 1")
+    counts["mutants"] += 2
 
     check("22s bills a whole minute", billable_minutes(22), 1)
     check("60s is exactly 1", billable_minutes(60), 1)
@@ -2635,6 +3024,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.hooks:
         return hooks_report(hook_census(), as_json=args.json)
+
+    if args.controls:
+        try:
+            return controls_report(controls_census(), as_json=args.json)
+        except DataError as exc:
+            print(f"ci_minutes: {exc}", file=sys.stderr)
+            print("ci_minutes: refusing to report a population it could not read. "
+                  "An empty census is indistinguishable from a clean one.", file=sys.stderr)
+            return 2
 
     try:
         runs = fetch_runs()
