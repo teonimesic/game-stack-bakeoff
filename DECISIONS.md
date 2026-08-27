@@ -2755,6 +2755,39 @@ stationary-object shape, which would mean the 2 gates are aimed at the wrong pro
 contract change adding `car.screen`, which is the one field that would let `front.occludes` be
 measured twice instead of once.
 
+**The re-opening arrived, and it was the first clause.** The 88 pairs above were all read from
+`ref_parallax`, whose 4 bands **tile the frame** — the author's choice, not the contract's. A
+layered background overlaps by construction, and the first real submission declared its layers at
+their true screen extents: subtracting every other declared band leaves 6 of its 7 with fewer than
+10 rows of their own and 5 with none at all. The estimator was answering for whichever layer
+carried the band's gradient energy, and the 3 gates could not see it, because a band reading a
+neighbour's motion agrees with itself as well as a band reading its own.
+
+**Decided 2026-08-27: a layer is measured only from rows no other declared band contains, and one
+left fewer than `band_profile`'s own 10-row sample is UNATTRIBUTABLE** — reported, excluded,
+never given a neighbour's motion (`eval/SCENES.md`, `tasks/174`).
+
+- **The subtraction is over every other band, not only the nearer ones.** The nearer-only rule is
+  the painter's-algorithm reading and would be right if every layer painted its band opaquely.
+  Measured: it leaves the submission's `range` and `grove` bands returning the identical 11-pair
+  series 20, 17, 15, 19, 20, 15, 16, −4, 6, 5, 6 px, which is the rate of `clouds` — **farther**
+  than both, and showing through them.
+- **It is a null on recovery and a repair on honesty.** Where the old code erred is exactly where
+  a band has nothing of its own, so there is nothing to fall back to: the stored trial's tier 2 is
+  unchanged at 6 of 6 and `layers.image_parallax` stays `scored=False`. What changed is that its
+  recorded reason was false — *"the bands carry too little horizontal structure"*, about bands
+  full of it that belongs to other layers.
+- **What it does buy is a false negative that had never fired.** The reference scene with its
+  bands declared at the layers' full extents — same simulation, same painter's order, same picture
+  — was read at 25px/frame for a band whose drawn shift is 13.5px and **failed**. It is now
+  refused instead. That variant is in `scene_mutants.py`, and because it must `tolerate` the
+  criterion it exercises, the mechanism is pinned offline by `--attribution-selftest`: 7 hand-
+  written band tables with the row counts stated before it runs, and 3 mutants of the shipped file.
+
+**To re-open this one:** a windowing that attributes a row of an overlapping band to one layer and
+survives the `range`/`grove` measurement above; or a contract change declaring the bands disjoint,
+which would be a prompt change and a regime boundary.
+
 ## The scene performance pass is an uncapped ramp on a spaced, exclusive machine — decided 2026-08-24
 
 `eval/SCENES.md` proposes scoring a scene as a ramp, which reads the stack only if the machine

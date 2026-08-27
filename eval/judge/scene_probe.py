@@ -53,6 +53,17 @@ so what it returns is a residue and not a rate. It is not detectable downstream 
 aliased band can agree with itself perfectly, at high confidence - so `_reliable` refuses
 those pairs as a PRECONDITION before it asks anything else. `eval/SCENES.md` decides that
 the capture contract does not move to accommodate it, and why.
+
+THE THIRD ERROR, ALSO NOT THE ESTIMATOR'S: a declared band is not a region of the frame
+that belongs to one layer. `layers[].top`/`bottom` say where a layer is DRAWN, and in a
+layered background the layers overlap by construction - a far layer sits behind the near
+ones and is mostly transparent, so its band holds the near layers' pixels where they
+cover it and the far ones' where they show through. Asked for such a band, `best_shift`
+answers for whichever content carries the gradient energy, and that answer is confident
+and belongs to another layer. `MIN_OWN_ROWS` is the refusal: a layer is read only from
+rows no other declared band contains, and one with too few is UNATTRIBUTABLE - reported,
+excluded from the score, never given a neighbour's motion. This cost a correct scene a
+FAIL before it was measured (`eval/RUNS.md`, `tasks/174`).
 """
 
 from __future__ import annotations
@@ -80,6 +91,12 @@ from probe import (Criterion, ProbeError, ProbeSession, Tick,  # noqa: E402
 #: `eval/SCENES.md`'s contract, not this file's choice; the four starters implement
 #: `floor(i * TICKS / 11)` for i in 0..11.
 CONTRACT_FRAMES = 12
+
+#: How many rows of a band `band_profile` averages into one signature, and therefore
+#: the fewest rows a band can be read from at all. Every threshold in `ParallaxScene`
+#: was set against profiles of this many rows; a window thinner than this is sampled
+#: row by row and carries the noise of a handful of rows rather than of ten.
+PROFILE_ROWS = 10
 
 WORLD_UP = (0.0, 1.0, 0.0)
 
@@ -156,7 +173,7 @@ def luminance(img: png.Image, x: int, y: int) -> float:
 
 
 def band_profile(img: png.Image, top: float, bottom: float,
-                 rows: int = 10) -> list[float] | None:
+                 rows: int = PROFILE_ROWS) -> list[float] | None:
     """A 1-D horizontal-gradient signature of one horizontal band of a frame.
 
     THE SIGNAL IS THE GRADIENT, NOT THE LEVEL, and normalised by its own mean magnitude.
@@ -531,6 +548,28 @@ class ParallaxScene(Scene):
     #: No fixture pair comes near it: the widest is 0.27 of a span. The first real
     #: submission's road band crossed 1.6-2.25 spans on every one of its 11 pairs.
     NYQUIST_SHARE = 0.5
+    #: A LAYER IS READ FROM THE ROWS THAT ARE ITS ALONE, and a scene may leave it none.
+    #:
+    #: `layers[].top`/`bottom` are contracted as *where the layer is drawn*, and that
+    #: does not partition the frame: a background layer sits behind the nearer ones and
+    #: is mostly transparent, so its band holds the nearer layers' pixels where they
+    #: cover it and the farther layers' pixels where it does not. `best_shift` then
+    #: answers for whichever content carries the band's gradient energy, which is not
+    #: the layer it was asked about. So a row is this layer's only when no OTHER
+    #: declared band contains it, and a layer with fewer than `PROFILE_ROWS` such rows
+    #: is UNATTRIBUTABLE rather than wrong - reported, and excluded from the score.
+    #:
+    #: BOTH NEIGHBOURS CONTAMINATE, which is why the subtraction is over every other
+    #: band and not only over the nearer ones. Measured on the one real submission
+    #: (`eval/RUNS.md`): masking to the rows no NEARER band covers leaves its `range`
+    #: and `grove` bands returning the identical 11-pair series 20, 17, 15, 19, 20, 15,
+    #: 16, -4, 6, 5, 6 px - the rate of `clouds`, which is FARTHER than both and shows
+    #: through them. Over every other band, 5 of that submission's 7 declared bands hold
+    #: no row of their own at all.
+    #:
+    #: The window is one contiguous run because a profile is one contiguous window; a
+    #: band split in two by a nearer one is read from the taller half.
+    MIN_OWN_ROWS = PROFILE_ROWS
     MIN_PAIRS_PER_LAYER = 4
     #: A layer's per-pair shift-to-offset ratio at a wrap must stay within this of its
     #: ratio away from wraps, or the loop is visibly jumping.
@@ -663,29 +702,87 @@ class ParallaxScene(Scene):
         return max(self.SHIFT_SEPARATION_FLOOR,
                    img.width * self.SHIFT_SEPARATION_SHARE)
 
-    def _measure_shifts(self, r: SceneRun) -> dict[int, list[dict]]:
-        """Per layer id, one record per consecutive frame pair.
+    @staticmethod
+    def _bands(layers: list[dict]) -> list[tuple[Any, float, float]]:
+        """Every declared `(id, top, bottom)` that names a usable band, in order."""
+        out: list[tuple[Any, float, float]] = []
+        for row in layers:
+            lid = row.get("id")
+            top, bottom = num(row, "top"), num(row, "bottom")
+            if lid is None or top is None or bottom is None or bottom <= top:
+                continue
+            out.append((lid, top, bottom))
+        return out
+
+    @staticmethod
+    def _own_band(bands: list[tuple[Any, float, float]], lid: Any,
+                  height: int) -> tuple[tuple[float, float] | None, int]:
+        """The tallest run of rows inside `lid`'s declared band that NO OTHER declared
+        band contains, and how many whole pixel rows it holds at `height`.
+
+        See `MIN_OWN_ROWS`. `(None, 0)` when every row of the band is shared.
+        """
+        segs = [(t, b) for i, t, b in bands if i == lid]
+        for other, ot, ob in bands:
+            if other == lid:
+                continue
+            cut: list[tuple[float, float]] = []
+            for lo, hi in segs:
+                if ob <= lo or ot >= hi:
+                    cut.append((lo, hi))
+                    continue
+                if ot > lo:
+                    cut.append((lo, min(ot, hi)))
+                if ob < hi:
+                    cut.append((max(ob, lo), hi))
+            segs = [(lo, hi) for lo, hi in cut if hi > lo]
+
+        def pixel_rows(seg: tuple[float, float]) -> int:
+            return int(seg[1] * height) - int(seg[0] * height)
+
+        if not segs:
+            return None, 0
+        best = max(segs, key=pixel_rows)
+        return best, pixel_rows(best)
+
+    def _measure_shifts(self, r: SceneRun
+                        ) -> tuple[dict[Any, list[dict]],
+                                   dict[Any, tuple[int, int, float, float]]]:
+        """Per layer id, one record per consecutive frame pair - and, separately, the
+        layers whose declared band holds no rows the frames can attribute to them.
 
         Each record carries the measured pixel shift, its confidence, and the telemetry
         change in that layer's own `offset` over the same ticks. The two are the point:
         one is what the renderer drew, the other is what the submission said it drew.
+
+        EACH LAYER IS READ FROM ITS OWN ROWS, not from its whole declared band, and a
+        layer that has none is returned in the second dict with the reason rather than
+        being given another layer's motion (`MIN_OWN_ROWS`).
 
         The offset change and the wrap flag both come from `_walk`, never from the two
         reported values: 60 ticks separate two captures, so a layer whose span is small
         enough for `loop.seamless` to have anything to look at is exactly the layer
         whose reported offsets cannot be subtracted.
         """
-        out: dict[int, list[dict]] = {}
+        out: dict[Any, list[dict]] = {}
+        #: per layer: its own rows, its declared rows, and the band it declared
+        unattributable: dict[Any, tuple[int, int, float, float]] = {}
         # A layer with a hole in its trace is absent from `walk`, so its `d_offset` is
         # None on every pair and `_reliable` reports it as unreadable. The hole itself is
         # FAILED by `layers.depth_ordered`, which is where the whole scene is judged.
         walk, _ = self._walk(r)
         limit = self._shift_limit(r.frames_a[0])
-        for layer in self._layers(r.state_at(r.frame_ticks[0])):
-            lid = layer.get("id")
-            top, bottom = num(layer, "top"), num(layer, "bottom")
-            if lid is None or top is None or bottom is None or bottom <= top:
+        height = r.frames_a[0].height
+        bands = self._bands(self._layers(r.state_at(r.frame_ticks[0])))
+        for lid, declared_top, declared_bottom in bands:
+            own, own_rows = self._own_band(bands, lid, height)
+            if own is None or own_rows < self.MIN_OWN_ROWS:
+                unattributable[lid] = (
+                    own_rows,
+                    int(declared_bottom * height) - int(declared_top * height),
+                    declared_top, declared_bottom)
                 continue
+            top, bottom = own
             profiles = [band_profile(img, top, bottom) for img in r.frames_a]
             rows: list[dict] = []
             for i in range(len(r.frames_a) - 1):
@@ -707,7 +804,7 @@ class ParallaxScene(Scene):
                                              and span > 0
                                              and int(oa // span) != int(ob // span))})
             out[lid] = rows
-        return out
+        return out, unattributable
 
     @staticmethod
     def _layer_by_id(state: dict, lid: Any) -> dict:
@@ -849,10 +946,11 @@ class ParallaxScene(Scene):
         if not shape_ok:
             return out + self.shape_failed("state shape contract not met")
 
-        shifts = self._measure_shifts(r) if r.frames_usable else {}
+        shifts, unattributable = (self._measure_shifts(r) if r.frames_usable
+                                  else ({}, {}))
         add(self._depth_ordered(r))
-        add(self._image_parallax(r, shifts))
-        add(self._seamless(r, shifts))
+        add(self._image_parallax(r, shifts, unattributable))
+        add(self._seamless(r, shifts, unattributable))
         add(self._wheels(r))
         add(self._front(r))
         add(self._light(r))
@@ -895,11 +993,37 @@ class ParallaxScene(Scene):
                           f" - not strictly decreasing at separation "
                           f"{self.RATE_SEPARATION}"))
 
-    def _image_parallax(self, r: SceneRun, shifts: dict[int, list[dict]]) -> Criterion:
+    def _notes_with(self, notes: list[str],
+                    unattributable: dict[Any, tuple[int, int, float, float]]
+                    ) -> list[str]:
+        """`_reliable`'s notes, plus ONE for every layer the frames cannot attribute
+        rows to.
+
+        Two different reasons a band was not read, and they are stated separately: a
+        band nothing could be measured in, and a band whose measurements would have
+        belonged to another layer. The second is grouped into a single note because the
+        reason is one sentence about the whole geometry and `Criterion` stores 600
+        characters - a scene with seven layers spends all of them on repetition
+        otherwise, and the reader sees two rows of the seven.
+        """
+        if not unattributable:
+            return notes
+        rows = ", ".join(
+            f"{lid}: {own}/{declared} @{top:.3f}-{bottom:.3f}"
+            for lid, (own, declared, top, bottom)
+            in sorted(unattributable.items(), key=lambda kv: str(kv[0])))
+        return notes + [
+            f"{len(unattributable)} layer(s) have under {self.MIN_OWN_ROWS} rows no "
+            f"other declared band contains, so nothing drawn there is theirs alone "
+            f"(`id: own/declared @band`): {rows}"]
+
+    def _image_parallax(self, r: SceneRun, shifts: dict[Any, list[dict]],
+                        unattributable: dict[Any, str]) -> Criterion:
         cid = "layers.image_parallax"
         if not r.frames_usable:
             return self.ok(cid, False, r.why_frames_unusable())
         good, notes = self._reliable(shifts)
+        notes = self._notes_with(notes, unattributable)
         depths = {}
         for layer in self._layers(r.trace_a[0].state):
             d = num(layer, "depth")
@@ -907,9 +1031,8 @@ class ParallaxScene(Scene):
                 depths[layer["id"]] = d
         if len(depths) < self.MIN_LAYERS:
             return self.not_established(
-                cid, f"only {len(depths)} of {len(shifts)} declared layers could be "
-                     f"read in the frames at all: {notes}. The bands carry too little "
-                     f"horizontal structure, or too much of one that does not move")
+                cid, f"only {len(depths)} of {len(shifts) + len(unattributable)} "
+                     f"declared layers could be read in the frames at all: {notes}")
         order = sorted(depths, key=lambda k: depths[k])
         med = [good[lid]["median_shift"] for lid in order]
         sep = self._separation(r.frames_a[0])
@@ -922,7 +1045,8 @@ class ParallaxScene(Scene):
                        f"{sep:.1f}px in a {r.frames_a[0].width}px frame)"
                        + (f"; not read: {notes}" if notes else ""))
 
-    def _seamless(self, r: SceneRun, shifts: dict[int, list[dict]]) -> Criterion:
+    def _seamless(self, r: SceneRun, shifts: dict[Any, list[dict]],
+                  unattributable: dict[Any, str]) -> Criterion:
         cid = "loop.seamless"
         wraps_fired = sum(t.events.count("wrap") for t in r.trace_a)
         if not r.frames_usable:
@@ -948,6 +1072,7 @@ class ParallaxScene(Scene):
                               f"a positive `span` on every trace line" if broken
                               else ""))
         reliable, skipped = self._reliable(shifts)
+        skipped = self._notes_with(skipped, unattributable)
         width = r.frames_a[0].width
         bad, checked, blind, notes = 0, 0, 0, []
         for lid, info in reliable.items():

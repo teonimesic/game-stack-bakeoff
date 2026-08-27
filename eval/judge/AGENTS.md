@@ -72,6 +72,7 @@ python3 judge/scene_probe.py s1_parallax <submission>   # drive one submission
 python3 judge/scene_mutants.py                          # both directions, ~22s
 python3 judge/scene_mutants.py --census                 # what each criterion separated
 python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
+python3 judge/scene_mutants.py --attribution-selftest   # which rows are one layer's?
 ```
 
 4 things to know before you touch any of it:
@@ -83,7 +84,8 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   `layers.depth_ordered`, which read a wrapped `offset` as a scroll rate — #46's shape, and a
   mutant could not have found it. `tasks/162` repaired it — `ParallaxScene._walk` is now the only
   way to read an `offset` — and `tasks/164` repaired the reliability filter that repair unblocked.
-  The re-grade stands at **6 of 6**, with `layers.image_parallax` back to `scored=False`.
+  The re-grade stands at **6 of 6**, with `layers.image_parallax` back to `scored=False` — and
+  unmoved by `tasks/174`, which repaired the reason it gives rather than the verdict.
 - **`--census` reports over FIXTURES and says so.** It answers whether a criterion can take both
   values on material this repository wrote. `--runs-root` looks for stored scene gradings and
   prints `NOT ASKED` when there are none, never `0 separated` — the 2 are different claims
@@ -96,6 +98,17 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   large object that is stationary on screen. `ParallaxScene._reliable` and the wrap check's
   `blind` counter both name it, so the robustness lives in the criteria rather than in the
   estimator. `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
+- **A DECLARED BAND IS NOT A REGION OF THE FRAME THAT BELONGS TO ONE LAYER**, and every threshold
+  here was set against a fixture whose 4 bands happen to tile. A layered background overlaps by
+  construction, so a band holds the nearer layers' pixels where they cover it and the farther
+  ones' where they show through, and `best_shift` answers for whichever content carries the
+  gradient energy. `MIN_OWN_ROWS` is the refusal: a layer is read only from rows no other declared
+  band contains. Both neighbours contaminate — masking to the rows no *nearer* band covers leaves
+  2 bands of the first real submission returning an identical 11-pair series that is a **farther**
+  band's rate — so the subtraction is over every other band, and `eval/SCENES.md` holds the
+  measurement. The pin is `scene_mutants.py --attribution-selftest`, offline, because a variant
+  carrying such a scene must tolerate `layers.image_parallax` and a tolerated criterion cannot go
+  red (`tasks/174`).
 - **A band the frames cannot resolve is refused before agreement is asked, and agreement is
   asked in PIXELS.** A layer that moves half its own span or more between 2 captures draws a
   picture that is a residue of its repeat length, and it can agree with itself perfectly while

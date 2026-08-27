@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 51 documentation, queue and selftest gates | 10 mutant and control suites |
+| checks | 51 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **75–115s** | **658–827s** |
 
@@ -55,8 +55,9 @@ makes, so it needs neither `just` nor a stack toolchain — 0.6s. Its corpus arm
 `eval/runs`, which is gitignored, and prints `NOT ASKED` in CI rather than a count.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
-`aim_contract_control`, `scene_mutants` with its `--census-selftest` and its
-`--reliability-selftest`, `scene_runner_control`, `tasks_mutants`, `audio_selftest`,
+`aim_contract_control`, `scene_mutants` with its `--census-selftest`, its
+`--reliability-selftest` and its `--attribution-selftest`,
+`scene_runner_control`, `tasks_mutants`, `audio_selftest`,
 `rusage_selftest`, `skill_layout_control`.
 `scene_runner_control` is the runner's half of the scene question. It names 6 routes from an
 operator's command to a grading instrument or a judge pack and drives each one. Every group of

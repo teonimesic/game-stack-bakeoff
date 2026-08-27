@@ -32,6 +32,7 @@ than none.
     python3 judge/scene_mutants.py --census        # what each criterion separated
     python3 judge/scene_mutants.py --census --runs-root <main checkout>/eval/runs
     python3 judge/scene_mutants.py --reliability-selftest
+    python3 judge/scene_mutants.py --attribution-selftest
 
 The last one is the exception to everything above, and it says why in `RELIABILITY_CASES`:
 `ParallaxScene._reliable` asks two questions no single scene can put to it at once, so its
@@ -50,6 +51,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -291,6 +293,24 @@ V_ALIASED_NEAR_LAYER = (
           "(4, 1.0, 30.0))  # VARIANT: the nearest layer repeats every 30 units, and "
           "moves 60 between captures"),
 )
+
+#: THE FAR LAYER IS DECLARED AT ITS FULL EXTENT, and the nearer ones are drawn inside
+#: it. Sky from the top of the frame down to the horizon, hills inside that, trees
+#: inside those: `layers[].top`/`bottom` say where a layer is DRAWN, and a background
+#: layer really is drawn behind everything above the horizon. Nothing else moves - the
+#: simulation, the scroll rates and the painter's order are the reference's, and
+#: `film.py` still paints back to front, so the picture is a correct parallax scene.
+#:
+#: NO MUTANT COULD HAVE FOUND THIS: it needs an input, not a missing mechanism (rule 15,
+#: #46's shape). Before `tasks/174` the probe read each band's whole declared extent, so
+#: the sky's band held the hills and the trees as well; it published 25px/frame for a
+#: band whose drawn shift is 13.5px - the rate of a layer two steps nearer - and FAILED
+#: `layers.image_parallax` on this scene.
+V_NESTED_BANDS = Patch(
+    "game.py",
+    "BANDS = {1: (0.00, 0.30), 2: (0.30, 0.52), 3: (0.52, 0.66), 4: (0.66, 1.00)}",
+    "BANDS = {1: (0.00, 0.66), 2: (0.30, 0.66), 3: (0.52, 0.66), 4: (0.66, 1.00)}"
+    "  # VARIANT: each layer declared at its full extent, the nearer ones inside it")
 
 
 # --------------------------------------------------------------------------- #
@@ -572,6 +592,18 @@ VARIANTS: list[Variant] = [
                   "half still has it moving furthest. `layers.image_parallax` must "
                   "decline to read that band rather than publish 0px/frame for the "
                   "fastest layer in the scene (`tasks/164`)"),
+    Variant("s1_parallax", "the layers are declared at their full extent",
+            (V_NESTED_BANDS,), ("layers.image_parallax", "loop.seamless"),
+            tolerates=("layers.image_parallax",),
+            notes="a correct parallax scene whose far bands contain the nearer ones, "
+                  "which is what `top`/`bottom` mean when a sky is drawn behind "
+                  "everything above the horizon. 2 of its 4 layers then have no row of "
+                  "the frame that is theirs alone, so the criterion must decline rather "
+                  "than read a nearer layer's motion off a far layer's band - which is "
+                  "what it did before `tasks/174`, at 25px/frame against a true 13.5. "
+                  "THE TOLERANCE IS WHY THIS PIN LIVES IN `--attribution-selftest` AS "
+                  "WELL: it waives a FAIL here as readily as an unscored, so the repair "
+                  "it exists for is pinned where a mutant can still turn a row red"),
     Variant("s1_parallax", "the same scene filmed 1.5x larger", V_BIGGER_FRAMES,
             ("layers.image_parallax", "loop.seamless", "light.monotonic"),
             notes="submissions choose their own capture geometry, so every image-side "
@@ -865,6 +897,164 @@ RELIABILITY_MUTANTS: dict[str, tuple[Patch, ...]] = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# Band attribution, pinned offline
+# --------------------------------------------------------------------------- #
+
+#: WHY THIS IS NOT A VARIANT EITHER, and it is a sharper reason than the one above.
+#: `ParallaxScene._own_band` decides which rows of a frame a layer can be measured from,
+#: and the geometries that break it are exactly the geometries where the criterion then
+#: declines to be scored - so the variant that carries such a scene has to `tolerate`
+#: `layers.image_parallax`, and a tolerated criterion can never go red. The pin would be
+#: dead on arrival (rule 7).
+#:
+#: The function is pure - declared bands in, a window out - so the table goes in by hand
+#: with the row counts written down before anything runs, at HEIGHT below.
+ATTRIBUTION_HEIGHT = 360
+
+
+@dataclass(frozen=True)
+class AttributionCase:
+    label: str
+    #: every declared band, as `(id, top, bottom)`, in declaration order
+    bands: tuple[tuple[Any, float, float], ...]
+    #: the layer this row asks about
+    lid: Any
+    #: the window `_own_band` must return at `ATTRIBUTION_HEIGHT`, and how many whole
+    #: pixel rows it holds. STATED HERE, never computed from the subject.
+    window: tuple[float, float] | None
+    rows: int
+    #: can that layer be measured at all? Stated, and compared against the shipped
+    #: `MIN_OWN_ROWS` rather than derived from it.
+    readable: bool
+    why: str
+
+
+ATTRIBUTION_CASES: list[AttributionCase] = [
+    AttributionCase(
+        "the reference fixture's bands, which tile the frame",
+        ((1, 0.00, 0.30), (2, 0.30, 0.52), (3, 0.52, 0.66), (4, 0.66, 1.00)),
+        3, (0.52, 0.66), 50, True,
+        "`judge/fixtures/ref_parallax` declares four disjoint bands, so every layer's "
+        "own rows ARE its declared band and this repair must be a no-op on it"),
+    AttributionCase(
+        "a far band that contains every nearer one - the far layer",
+        ((1, 0.00, 0.66), (2, 0.30, 0.66), (3, 0.52, 0.66), (4, 0.66, 1.00)),
+        1, (0.00, 0.30), 108, True,
+        "the shape of the first real submission, where the sky is declared from the top "
+        "of the frame to the horizon and everything else is drawn inside that. The far "
+        "layer keeps the strip above the nearest band that starts inside it"),
+    AttributionCase(
+        "a far band that contains every nearer one - a contained layer",
+        ((1, 0.00, 0.66), (2, 0.30, 0.66), (3, 0.52, 0.66), (4, 0.66, 1.00)),
+        2, None, 0, False,
+        "every row layer 2 declares is also inside layer 1's, so nothing drawn there "
+        "can be attributed to one rather than the other. It is refused, not guessed"),
+    AttributionCase(
+        "a staircase of overlapping bands",
+        ((1, 0.00, 0.36), (2, 0.24, 0.62), (3, 0.50, 0.86), (4, 0.74, 1.00)),
+        2, (0.36, 0.50), 51, True,
+        "overlap on both sides is not containment: a layer whose neighbours only cut "
+        "into its ends keeps the middle, and that middle is what it must be read from"),
+    AttributionCase(
+        "two layers declaring the same band",
+        ((1, 0.00, 0.50), (2, 0.00, 0.50)), 1, None, 0, False,
+        "the degenerate case of containment, and the one where guessing is most "
+        "tempting: the bands are identical, so neither layer has a row of its own"),
+    AttributionCase(
+        "a band split in two by a nearer one",
+        ((1, 0.00, 1.00), (2, 0.30, 0.40)), 1, (0.40, 1.00), 216, True,
+        "a profile is one contiguous window, so the taller of the two halves is the "
+        "answer - 216 rows below the cut against 108 above it"),
+    AttributionCase(
+        "a band left a sliver of its own",
+        ((1, 0.000, 0.460), (2, 0.008, 0.460)), 1, (0.000, 0.008), 2, False,
+        "the first real submission's sky, to the digit. 2 rows is a window, and it is "
+        "not one `band_profile`'s ten-row average was ever calibrated on - measured on "
+        "that submission it answered -85px for a band whose drawn shift is 6px, at "
+        "confidences 0.07 to 0.27 (`tasks/174`)"),
+]
+
+#: The shipped `scene_probe.py` with ONE line changed. Each removes a different half of
+#: the attribution: that other bands are subtracted at all, that the tallest surviving
+#: run is the one read, and that a window too thin for a profile is refused.
+ATTRIBUTION_MUTANTS: dict[str, tuple[Patch, ...]] = {
+    "no other band is subtracted, so a layer keeps its whole declared band": (
+        Patch("scene_probe.py",
+              "        for other, ot, ob in bands:\n"
+              "            if other == lid:\n"
+              "                continue",
+              "        for other, ot, ob in bands:\n"
+              "            if True:  # MUTANT: nothing is subtracted\n"
+              "                continue"),),
+    "the first surviving run is read rather than the tallest": (
+        Patch("scene_probe.py",
+              "        best = max(segs, key=pixel_rows)",
+              "        best = segs[0]  # MUTANT"),),
+    "a window of any height at all is enough to measure from": (
+        Patch("scene_probe.py",
+              "    MIN_OWN_ROWS = PROFILE_ROWS",
+              "    MIN_OWN_ROWS = 0  # MUTANT"),),
+}
+
+
+def _attribution_verdicts(mod) -> dict[str, tuple]:
+    """Per case: the window, its row count, and whether the layer can be measured."""
+    scene = mod.ParallaxScene
+    out = {}
+    for case in ATTRIBUTION_CASES:
+        try:
+            window, rows = scene._own_band(list(case.bands), case.lid,
+                                           ATTRIBUTION_HEIGHT)
+        except Exception as e:  # noqa: BLE001 - the verdict IS "it raised"
+            out[case.label] = (f"RAISED {type(e).__name__}: {e}", -1, False)
+            continue
+        out[case.label] = (window, rows, rows >= scene.MIN_OWN_ROWS)
+    return out
+
+
+def attribution_selftest() -> int:
+    """Which rows of a frame can be attributed to one layer, and can the answer be `none`?
+
+    Reads no fixture and needs no toolchain.
+    """
+    print("band attribution - `the rows no other declared band contains`\n")
+    shipped = _attribution_verdicts(scene_probe)
+    problems = []
+    w = max(len(c.label) for c in ATTRIBUTION_CASES)
+    for case in ATTRIBUTION_CASES:
+        window, rows, readable = shipped[case.label]
+        ok = (window == case.window and rows == case.rows
+              and readable == case.readable)
+        print(f"  {case.label:<{w}}  stated {str(case.window):<14} {case.rows:>4}rows "
+              f"{'readable' if case.readable else 'refused ':<8}  "
+              f"got {str(window):<14} {rows:>4}rows "
+              f"{'readable' if readable else 'refused ':<8}  "
+              f"{'ok' if ok else '<-- UNMET'}")
+        if not ok:
+            problems.append(
+                f"{case.label}: stated {case.window} / {case.rows} rows / "
+                f"{'readable' if case.readable else 'refused'}, got {window} / {rows} "
+                f"rows / {'readable' if readable else 'refused'} -- {case.why}")
+
+    print("\nmutants - the shipped file with one line changed:")
+    for label, patches in ATTRIBUTION_MUTANTS.items():
+        got = _attribution_verdicts(_probe_with(patches, label))
+        moved = sorted(c.label for c in ATTRIBUTION_CASES
+                       if got[c.label] != shipped[c.label])
+        print(f"  {label}\n    moves {moved or 'NOTHING'}")
+        if not moved:
+            problems.append(f"mutant {label!r} SURVIVED: every row of the table sits "
+                            f"where the shipped file leaves it, so the table does not "
+                            f"pin the line this mutant removed")
+
+    print(f"\n{len(ATTRIBUTION_CASES)} band tables, "
+          f"{len(ATTRIBUTION_MUTANTS)} mutants, {len(problems)} expectation(s) unmet")
+    for p in problems:
+        print(f"  FAIL {p}")
+    return 1 if problems else 0
+
+
 def _reliability_rows(case: ReliabilityCase) -> list[dict]:
     """One `_measure_shifts` record per frame pair. Confidence is well over
     `MIN_CONFIDENCE` throughout: this table is about what the filter does with
@@ -1050,12 +1240,17 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--reliability-selftest", action="store_true",
                     help="drive ParallaxScene._reliable over hand-written layer records "
                          "and its own mutants; needs no fixtures and no toolchain")
+    ap.add_argument("--attribution-selftest", action="store_true",
+                    help="drive ParallaxScene._own_band over hand-written band tables "
+                         "and its own mutants; needs no fixtures and no toolchain")
     args = ap.parse_args(argv)
 
     if args.census_selftest:
         return census_selftest()
     if args.reliability_selftest:
         return reliability_selftest()
+    if args.attribution_selftest:
+        return attribution_selftest()
 
     wanted = [m for m in MUTANTS
               if args.only in (None, m.scene, m.criterion)]
