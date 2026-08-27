@@ -2569,7 +2569,8 @@ Every number in both tables is a checked row in `eval/judge/ink_window_control.p
 goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
 
 **The 68 game values among the 69 stored submissions — the scene is the 69th — are a continuum,
-not 2 populations.** The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of
+not 2 populations.** The split is **inferred**: `ink_window_control.py` prints `task_class` read
+from the record on 1 of the 69 and `_class_of`'s reading of the trial id on the other 68. The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of
 them `g4_platformer` — the one game whose background scrolls across the whole frame — and the
 largest gap among those 6 is 0.0555. **0.85 fell in a gap of 0.0536, between 2 trials of that same
 game**, so what it separated was a **task**, not a quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
