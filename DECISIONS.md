@@ -3147,10 +3147,22 @@ re-mean 25 stored `g1_pong` gradings
 (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
 criterion has never once withheld.
 
-**This settles pong and settles nothing else.** `ref_arena/multiplier.falls` reads the
-multiplier across the `player_hit` tick and looks identical, but the g3 contract gives
-`multiplier` no definition at all — only that it *"falls when the player is hit"* — so the step
-that decides pong is missing there. `tasks/170` adjudicates it on its own evidence.
+**The same reading was declined for the arena and it went the other way** (`tasks/170`).
+`ref_arena/multiplier.falls` reads the multiplier across the `player_hit` tick and looks
+identical, but step 2 is missing there: the g3 contract gives `multiplier` no definition at all —
+only that it *"falls when the player is hit"* — and the other half of that one sentence is read
+by `multiplier.rises` over hundreds of ticks by any mechanism. Nothing licensed reading this half
+to the tick, so the criterion now reads the damage tick **and the 8 ticks after it**, and passes
+on the first of those 9 where the multiplier moves, if it moved down.
+
+**The widening is not the half that mattered.** The old criterion compared the peak the killing
+phase reached against the value on the hit tick, and on the reference those are **459 idle ticks**
+apart — so anything that lowered the multiplier in between passed. A game whose multiplier lapses
+on a combo timer and has **no damage link at all** passed it, with evidence byte-identical to the
+reference's. The baseline is now the value on the tick **before** the damage, and that game is a
+mutant. Both directions are pinned on `ref_arena`: a correct game that publishes the collapse one
+tick late is a `VARIANTS` entry the old reading failed, and the combo-timer game a `MUTANTS` entry
+it passed.
 
 **A pending entry is not a tolerance, and the difference is the assertion.** `Variant.tolerates`
 waives a criterion silently; a pending declares exactly which ids fail and goes red on **any**

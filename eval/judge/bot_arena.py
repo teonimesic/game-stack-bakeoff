@@ -1041,6 +1041,28 @@ class ArenaBot(Bot):
 
     # -- the multiplier collapse, and dying --------------------------------- #
 
+    #: HOW MANY TICKS AFTER the damage tick the collapse may still be published. The
+    #: criterion reads the damage tick itself and then this many more, so the window is
+    #: 9 observations wide and the drop is `_FALL_WINDOW` ticks late at the latest. THE G3
+    #: CONTRACT DOES NOT FIX THE TICK, which is why a window exists at all: it says a
+    #: multiplier "rises with sustained killing and falls when the player is hit", and
+    #: it declares a `multiplier` event meaning "the score multiplier changed". One
+    #: sentence governs both halves, and `multiplier.rises` reads its half over
+    #: hundreds of ticks by any mechanism - so reading the fall to the exact tick was
+    #: an asymmetry the contract does not license. `tasks/159` settled the pong case
+    #: the other way and its reason does not carry: `rally` is DEFINED there as a count
+    #: of the very events the tick line carries, so a line raising `paddle_hit` with a
+    #: rally that excludes it contradicts itself. `multiplier` has no such definition.
+    #:
+    #: 8 admits the shape that motivates the window - a game that resolves the
+    #: collision in one pass and applies the score change in a later one, landing the
+    #: drop a tick after the event - and the first step of a ramp that walks the
+    #: multiplier down over several ticks. It is 1.7% of the 459 idle ticks the
+    #: reference takes to be hit for the first time, over which its multiplier does not
+    #: move at all, so a change inside the window is a change around the damage rather
+    #: than one on the game's own schedule.
+    _FALL_WINDOW = 8
+
     def _multiplier_falls(self, repo, env) -> Criterion:
         """Raise the multiplier by killing, then stop and let the player be hit.
 
@@ -1054,6 +1076,19 @@ class ArenaBot(Bot):
         The set-up is also why this criterion cannot be written the lazy way. Watching
         for a drop without first CAUSING a rise would pass a game whose multiplier
         never moves at all - it would simply never be in a position to fall.
+
+        WHAT IS COMPARED WITH WHAT, and it is not the pair the first version used. The
+        baseline is the multiplier on the tick BEFORE the damage, never the peak the
+        killing phase reached: hundreds of idle ticks separate the two, and reading the
+        stale peak passed any game whose multiplier drifted down during them for a
+        reason that had nothing to do with being hit (`tasks/170`). A combo timer is a
+        real arcade design and it is the constructed case - `MULT_DECAYS_ON_A_TIMER`
+        in `judge/bot_mutants.py` is that game with the damage link taken out, and it
+        PASSED the peak-versus-hit-tick reading.
+
+        So the change is a widening in time and a tightening in what it compares, and
+        both halves are pinned: `MULT_DEFERS_THE_DROP` is a correct game the old
+        reading failed, `MULT_DECAYS_ON_A_TIMER` an incorrect one it passed.
         """
         cid = "multiplier.falls"
         try:
@@ -1081,25 +1116,58 @@ class ArenaBot(Bot):
                         f"the multiplier never rose above {base} in {s.ticks_sent} "
                         f"ticks of play, so its collapse on damage could not be "
                         f"established")
-                before = mult
-                after = None
+                peak = mult
+                # Idle until the first hit, carrying the multiplier forward tick by
+                # tick. `before` ends up holding the value the tick BEFORE the hit.
+                before = peak
+                drifted = 0
+                hit = None
                 for _ in range(4000):
                     t = s.step_raw({})
                     if "player_hit" in t.events:
-                        after = _i(t, "multiplier", 1)
+                        hit = t
                         break
                     if t.state.get("game_over") is True:
                         break
-                if after is None:
+                    m = _i(t, "multiplier", 1)
+                    if m != before:
+                        drifted += 1
+                    before = m
+                drift = (f"; it moved {drifted} time(s) on its own while idling"
+                         if drifted else "")
+                if hit is None:
                     return Criterion(
                         cid, self._q(cid), False,
-                        f"the multiplier reached {before} but the player was never hit "
+                        f"the multiplier reached {peak} but the player was never hit "
                         f"in the {s.ticks_sent} ticks that followed, so the drop could "
                         f"not be measured")
+                if before <= base:
+                    return Criterion(
+                        cid, self._q(cid), False,
+                        f"the multiplier peaked at {peak} and was already back to "
+                        f"{before} on the tick before the first hit, so it had nothing "
+                        f"left to lose to the damage{drift}")
+                after, fell_at, ended = _i(hit, "multiplier", 1), 0, False
+                while after == before and fell_at < self._FALL_WINDOW:
+                    t = s.step_raw({})
+                    fell_at += 1
+                    after = _i(t, "multiplier", 1)
+                    if t.state.get("game_over") is True:
+                        ended = True
+                        break
+                lead = f"multiplier was {before} on the tick before damage; "
+                if after == before:
+                    # `fell_at`, never the window width: the game may have ended inside
+                    # it, and a sentence naming ticks nobody stepped is a false one.
+                    return Criterion(
+                        cid, self._q(cid), False,
+                        f"{lead}{fell_at} tick(s) after the first hit it still read "
+                        f"{after}" + (" and the game was over" if ended else "") + drift)
+                when = ("on the tick of the first hit" if fell_at == 0
+                        else f"{fell_at} tick(s) after the first hit")
                 return Criterion(
                     cid, self._q(cid), after < before,
-                    f"multiplier was {before} before damage and {after} on the tick of "
-                    f"the first hit")
+                    f"{lead}{when} it read {after}{drift}")
         except ProbeError as e:
             return unusable_criteria([(cid, self._q(cid))], e,
                                      "the multiplier session")[0]
