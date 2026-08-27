@@ -1,10 +1,16 @@
-# Improvement loop
+# Improvement loop — the templates
+
+`eval/IMPROVEMENTS.md` is the same loop for the **evaluator**; this file is the loop for the
+**product** — `eval/starters/*/` and the task prompts.
 
 Each iteration is a hypothesis, a change, and a measurement that could have come out
 against it. The falsification criterion is written **before** the measurement runs.
 A reverted change is a successful iteration: it bought a real answer.
 
 An iteration that ends "I improved X" with no number attached has measured nothing.
+
+**The trigger is a change, not an occasion**, and the boundary between an iteration and a
+finding is the same for both loops. `eval/IMPROVEMENTS.md`'s preamble states it.
 
 ---
 
