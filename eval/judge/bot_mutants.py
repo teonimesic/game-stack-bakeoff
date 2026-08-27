@@ -329,6 +329,34 @@ UNBOUNDED = ("""        cx = _clamp(nx, -ARENA_HALF_X + PLAYER_RADIUS, ARENA_HAL
 NO_RATE_LIMIT = ("FIRE_INTERVAL = 10  # ticks between shots",
                  "FIRE_INTERVAL = 0  # MUTANT: a bullet every tick")
 
+#: The negative control for `_shot_ticks` taking the LARGER of its two signals. A gun
+#: with no interval at all, reporting `fire` only on the rising edge of the held
+#: control - so the event count says one shot in 120 ticks and the bullets say 120. A
+#: criterion that read the event alone would call this rate-limited, which is the
+#: fail-open direction: the verdict fails on a HIGH count, so the smaller signal always
+#: excuses. Firing on the rising edge is itself legal - it is the recorded hazard for
+#: `fire.spawns_bullets` - and it is the missing interval that makes this a mutant.
+EDGE_EVENT_NO_RATE_LIMIT = (
+    ("""    def _fire(self, inputs: dict, events: list) -> None:
+        if self.fire_cooldown > 0:
+            self.fire_cooldown -= 1
+        if not inputs.get("fire") or self.fire_cooldown > 0:
+            return
+        self.fire_cooldown = FIRE_INTERVAL
+""", """    def _fire(self, inputs: dict, events: list) -> None:
+        # MUTANT: no interval at all, and `fire` reported only on the rising edge.
+        held = bool(inputs.get("fire"))
+        self._edge = held and not getattr(self, "_was_firing", False)
+        self._was_firing = held
+        if not held:
+            return
+        self.fire_cooldown = 0
+"""),
+    ("""        events.append("fire")
+""", """        if self._edge:
+            events.append("fire")
+"""))
+
 NO_SCORE = ("""                self.score += SCORE_PER_KILL * self.wave * self.multiplier""",
             """                pass  # MUTANT: a kill is worth nothing""")
 
@@ -597,6 +625,37 @@ TETRIS_RESTART_ON_A_CONTROL = ("""        if self.game_over:
 """)
 
 
+#: A weapon that fires a spread puts several bullets in the world per shot, which is an
+#: ordinary design for a game the prompt asks to make "loud, fast and readable at a
+#: glance". `fire.rate_limited` asks about SHOTS, and until `tasks/160` it counted
+#: BULLET IDS - so this game read as 90 shots in 120 ticks and went red, with the true
+#: 30 printed in its own evidence string beside the verdict computed from the other
+#: number. `bot_arena.ArenaBot._shot_ticks` counts shooting TICKS, and this is the
+#: variant that measures it.
+SPREAD_WEAPON = ("""        self.fire_cooldown = FIRE_INTERVAL
+        self.bullets.append({
+            "id": self._take_id(),
+            "x": self.px + self.aim_x * MUZZLE_OFFSET,
+            "y": self.py + self.aim_y * MUZZLE_OFFSET,
+            "z": self.pz + self.aim_z * MUZZLE_OFFSET,
+            "vx": self.aim_x * BULLET_SPEED,
+            "vy": self.aim_y * BULLET_SPEED,
+            "vz": self.aim_z * BULLET_SPEED,
+        })
+""", """        self.fire_cooldown = 4      # VARIANT: a faster, three-round spread
+        for k in (-1, 0, 1):
+            self.bullets.append({
+                "id": self._take_id(),
+                "x": self.px + self.aim_x * MUZZLE_OFFSET,
+                "y": self.py + self.aim_y * MUZZLE_OFFSET + k * 3.0,
+                "z": self.pz + self.aim_z * MUZZLE_OFFSET,
+                "vx": self.aim_x * BULLET_SPEED,
+                "vy": self.aim_y * BULLET_SPEED + k * 8.0,
+                "vz": self.aim_z * BULLET_SPEED,
+            })
+""")
+
+
 @dataclass(frozen=True)
 class Variant:
     fixture: str
@@ -614,6 +673,17 @@ class Variant:
     notes: str = ""
 
 
+# Most of these are a correct game under the task prompt, whose shared preamble asks for
+# one in every game:
+#
+#     The game presents itself: a player who has never seen it can tell what to do,
+#     can see their progress while playing, and reaches a clear end state.
+#
+# THE LINE THAT DECIDES WHETHER PRESENTATION IS THIS SUITE'S PROBLEM: whether it gates
+# the SIMULATION. A title card that holds the first serve and a game-over card that
+# takes a control as a reset both stop the sim from stepping, so the play-bot sees them;
+# a paddle that bobs, a screen that shakes and a score that counts up on screen live in
+# the view layer, which the prompt puts in a different module and the probe never reads.
 VARIANTS: list[Variant] = [
     Variant("ref_pong", "a 104-tick opening title card holds the ball",
             (OPENING_TITLE_CARD,), ("ball.moves",),
@@ -683,6 +753,14 @@ VARIANTS: list[Variant] = [
                   "11 without input`; a 60-tick card passed, so the budget was not "
                   "absent - it was a quarter of what the same shape bought pong. "
                   "PENDING against `tasks/158` until `OPENING_BUDGET` landed"),
+    Variant("ref_arena", "a faster three-round spread weapon",
+            (SPREAD_WEAPON,), ("fire.rate_limited",),
+            notes="PENDING for two days against `tasks/160`, measured `90 bullets from "
+                  "120 ticks of held fire (30 fire events)`. 30 shots in 120 ticks IS "
+                  "a rate limit, and the criterion printed that number in its own "
+                  "evidence beside a verdict computed from the bullet count. It now "
+                  "counts SHOOTING TICKS and reads `30 shooting ticks out of 120 ticks "
+                  "of held fire`"),
     Variant("ref_tetris3d", "a 96-tick card over an empty well",
             TETRIS_CARD_OVER_AN_EMPTY_WELL,
             ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
@@ -710,45 +788,6 @@ VARIANTS: list[Variant] = [
 # count; a `Pending` names the criterion, names the ticket that will repair it, and goes
 # red on any set but the declared one - including the EMPTY set, which is what a landed
 # repair looks like and which asks the next agent to promote the entry into `VARIANTS`.
-#
-# Every shape below is a correct game under the task prompt, whose shared preamble
-# asks for one in every game:
-#
-#     The game presents itself: a player who has never seen it can tell what to do,
-#     can see their progress while playing, and reaches a clear end state.
-#
-# THE LINE THAT DECIDES WHETHER PRESENTATION IS THIS SUITE'S PROBLEM: whether it gates
-# the SIMULATION. A title card that holds the first serve and a game-over card that
-# takes a control as a reset both stop the sim from stepping, so the play-bot sees them;
-# a paddle that bobs, a screen that shakes and a score that counts up on screen live in
-# the view layer, which the prompt puts in a different module and the probe never reads.
-
-#: `fire.rate_limited` asks about SHOTS and counts BULLET IDS. A weapon that fires a
-#: spread puts several in the world per shot, which is an ordinary design for a game the
-#: prompt asks to make "loud, fast and readable at a glance". The criterion prints the
-#: shot count in its own evidence string beside a verdict computed from the other one.
-SPREAD_WEAPON = ("""        self.fire_cooldown = FIRE_INTERVAL
-        self.bullets.append({
-            "id": self._take_id(),
-            "x": self.px + self.aim_x * MUZZLE_OFFSET,
-            "y": self.py + self.aim_y * MUZZLE_OFFSET,
-            "z": self.pz + self.aim_z * MUZZLE_OFFSET,
-            "vx": self.aim_x * BULLET_SPEED,
-            "vy": self.aim_y * BULLET_SPEED,
-            "vz": self.aim_z * BULLET_SPEED,
-        })
-""", """        self.fire_cooldown = 4      # VARIANT: a faster, three-round spread
-        for k in (-1, 0, 1):
-            self.bullets.append({
-                "id": self._take_id(),
-                "x": self.px + self.aim_x * MUZZLE_OFFSET,
-                "y": self.py + self.aim_y * MUZZLE_OFFSET + k * 3.0,
-                "z": self.pz + self.aim_z * MUZZLE_OFFSET,
-                "vx": self.aim_x * BULLET_SPEED,
-                "vy": self.aim_y * BULLET_SPEED + k * 8.0,
-                "vz": self.aim_z * BULLET_SPEED,
-            })
-""")
 
 
 @dataclass(frozen=True)
@@ -763,12 +802,12 @@ class Pending:
     notes: str = ""
 
 
-PENDING_VARIANTS: list[Pending] = [
-    Pending("ref_arena", "a faster three-round spread weapon",
-            (SPREAD_WEAPON,), ("fire.rate_limited",), task="tasks/160",
-            notes="measured `90 bullets from 120 ticks of held fire (30 fire events)`. "
-                  "30 shots in 120 ticks IS a rate limit; the criterion read the 90"),
-]
+#: EMPTY, and that is a state this list is allowed to be in: every declared false
+#: negative has been repaired. The last was `ref_arena`'s spread weapon, promoted into
+#: `VARIANTS` by `tasks/160`. `selftest` pins `adjudicate_pending` against a synthetic
+#: entry rather than against whatever happens to be here, so an empty list is still a
+#: check that can go red.
+PENDING_VARIANTS: list[Pending] = []
 
 
 MUTANTS: list[Mutant] = [
@@ -854,6 +893,15 @@ MUTANTS: list[Mutant] = [
            (UNBOUNDED,), collateral=("wall.graze",)),
     Mutant("fire.rate_limited", "ref_arena", "a bullet every tick",
            (NO_RATE_LIMIT,)),
+    Mutant("fire.rate_limited", "ref_arena",
+           "a bullet every tick, with `fire` reported only on the rising edge",
+           EDGE_EVENT_NO_RATE_LIMIT,
+           notes="the negative control for reading BOTH signals. `_shot_ticks` takes "
+                 "the larger of `fire` events and new-bullet ticks; this game reports 1 "
+                 "and 120, so a criterion counting events alone would call it rate-"
+                 "limited. Firing on the rising edge is legal on its own - it is the "
+                 "recorded hazard for `fire.spawns_bullets` - and the missing interval "
+                 "is what makes this a mutant"),
     Mutant("score.on_kill", "ref_arena", "a kill is worth nothing",
            (NO_SCORE,)),
     Mutant("player.takes_damage", "ref_arena", "enemies pass through the player",
@@ -999,7 +1047,7 @@ _V_RESTART = "a game-over card, then a control starts a new run"
 _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
 _V_FROZEN = "a 96-tick card over a frozen well"
 _V_EMPTY = "a 96-tick card over an empty well"
-_P_SPREAD = "a faster three-round spread weapon"
+_V_SPREAD = "a faster three-round spread weapon"
 
 _SESSION = ("the three session-lock controls, which also pin that a permanently locked "
             "project comes back NOT MEASURED rather than FALSE")
@@ -1205,9 +1253,11 @@ HAZARDS: list[Hazard] = [
            "1.0, and the interval question belongs to `fire.rate_limited`"),
     Hazard("ref_arena", "fire.rate_limited", "design-branch",
            "a spread weapon, which puts several bullets in the world per shot",
-           "PENDING, measured red. The criterion asks about SHOTS and counts BULLET "
-           "IDS, and prints the shot count in its own evidence beside a verdict "
-           "computed from the other number. tasks/160", _P_SPREAD),
+           "the criterion counts SHOOTING TICKS, so a spread of three bullets on one "
+           "tick is one shot; the variant measures it. What this does NOT answer is a "
+           "game that emits `fire` on every held tick regardless of its own cooldown - "
+           "that reads as 120 shots and goes red - and such a game contradicts the "
+           "event's stated meaning, `the player fired a shot this tick`", _V_SPREAD),
     Hazard("ref_arena", "aim.independent", "no-construction",
            "a game that ties the firing direction to the movement direction",
            "no correct game constructed: the prompt specifies separate move and aim "
@@ -1692,7 +1742,12 @@ def selftest() -> int:
     expect("a subject no criterion claims", "1",
            str(n_problems(VARIANTS=VARIANTS + [orphan])))
 
-    p = PENDING_VARIANTS[0]
+    # A SYNTHETIC subject, never `PENDING_VARIANTS[0]`. The list is empty whenever every
+    # declared false negative has been repaired, and a selftest that borrows its subject
+    # from live data stops running exactly then - silently, at exit 0, which is the
+    # shape this file exists to prevent.
+    p = Pending("ref_arena", "a synthetic pending, for this selftest only", (),
+                ("some.criterion",), task="none")
     expect("a pending that still fails what it declared", "ok",
            "ok" if adjudicate_pending(p, list(p.fails))[0] else "red")
     expect("a pending that passes everything", "red",

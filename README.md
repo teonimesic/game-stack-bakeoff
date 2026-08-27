@@ -147,7 +147,7 @@ above — agent time and rate-limit capacity, not money ([#159]).
   separate them — and a retired earlier suite already failed to separate four stacks that all
   scored 6/6 on it.
 - **Do not assume the criteria have no false negatives left.** They are pinned in both directions
-  — `python3 eval/judge/bot_mutants.py` reports **43 criteria pinned, 10 variants, 3 session-lock
+  — `python3 eval/judge/bot_mutants.py` reports **44 criteria pinned, 11 variants, 3 session-lock
   controls, 0 expectations unmet** — and that has never yet been enough. Every false negative
   found here was found by adjudicating a failure against source, never by the suite.
 
@@ -184,7 +184,7 @@ survives any particular value ([#144]). Design, result and controls:
 | question | where |
 |---|---|
 | What was decided, and why? | [`DECISIONS.md`](DECISIONS.md) |
-| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 171 entries. Findings #19-#189, count and range from `python3 eval/tools/docstat.py --findings` |
+| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 172 entries. Findings #19-#190, count and range from `python3 eval/tools/docstat.py --findings` |
 | What resource did a run use, and what may I compare it with? | [`eval/RUNS.md`](eval/RUNS.md) |
 | How big is the stored corpus right now? | `python3 eval/tools/census.py` |
 | Why these four stacks? | [`research/DECISION.md`](research/DECISION.md) — the *prior*. The bake-off is the evidence, and it opens with a retraction |
@@ -309,7 +309,7 @@ without one lost 29.8% of all turns to denials, so runs across that change are *
 
 ## The one thing this project actually learned
 
-171 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+172 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
 instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**
