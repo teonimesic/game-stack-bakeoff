@@ -184,17 +184,22 @@ held by different parties:**
 
 | | who holds the stopwatch | interval | clock |
 |---|---|---|---|
-| `wall_s`, `wholegame.py` | the harness, around its own `run_agent()` | subprocess spawn, the CLI's whole life, reading its stdout, parsing it | `time.monotonic()` |
-| `wall_s`, `runner.py` | the harness, around the same call | the same span | `datetime.now()`, which an NTP step or a DST change moves under it |
+| `wall_s`, `wholegame.py` | `wholegame.py` itself, around its own `run_agent()` | subprocess spawn, the CLI's whole life, reading its stdout, parsing it | `time.monotonic()` |
+| `wall_s`, `runner.py` | `runner.py` itself, around the same call | the same span | `datetime.now()`, which an NTP step or a DST change moves under it |
 | `duration_ms` | the `claude` CLI, in its own result object | its internal run alone | the CLI's own |
 
 **The conversion.** Over **157** paired observations `wall_s - duration_ms/1000` is min
 **0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on none of them**. That difference is
-the harness's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` produces every
-figure in this section, and it **exits non-zero if a negative delta ever appears** — which is
-what a clock moving mid-trial would look like on the arm that does not use a monotonic one. It
-takes its tree walk and its population partition from `census.py` rather than reimplementing
-them, so its record counts cannot disagree with `python3 eval/tools/census.py`.
+the timing script's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` produces
+every figure in this section, and it **fails on any negative delta**. It takes its tree walk and
+its population partition from `census.py` rather than reimplementing them, so its record counts
+cannot disagree with `python3 eval/tools/census.py`.
+
+> **A negative delta has 2 possible causes and its magnitude separates them.** `wall_s` is
+> stored rounded to 0.1 s and `duration_ms` is not, so a genuine overhead under 50 ms can read
+> as a delta down to **-0.05 s** — an artefact, not a defect. **Anything larger is a clock that
+> moved**, which `runner.py` is exposed to and `wholegame.py` is not: only the second brackets
+> with `time.monotonic()`. The observed minimum is +0.9 s, so neither has happened yet.
 
 > **The overhead is additive, not proportional**: ~1 s on a 1.6 s trial and ~1 s on a 4961 s
 > one. **Report the distribution in seconds. Do not subtract the median from an individual
@@ -202,9 +207,10 @@ them, so its record counts cannot disagree with `python3 eval/tools/census.py`.
 > all `wg-g4b-2026-08-17T19-50-43`, whose 8 trials the API refused in under 2 seconds each. That
 > range measures trial length, not the two clocks.
 
-**The self-report is at two addresses**, one per harness, so the producer reports which one
-each record used rather than guessing. **The denominator is the harness's own output, not a task
-class**: `wholegame.py` wrote the 91 whole-game records and the 1 scene record alike.
+**The self-report is at two addresses, one per timing script**, so the producer reports which
+one each record used rather than guessing. **The denominator is the writing script's own output,
+not a task class**: `wholegame.py` wrote the 91 whole-game records and the 1 scene record
+alike.
 
 | address | written by | paired |
 |---|---|---|

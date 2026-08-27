@@ -12,21 +12,26 @@ quantity — not the field names, not the docs. `tasks/186`.
 | **harness clock**, `wall_s` | the harness, around its own `run_agent()` | subprocess spawn, the agent CLI's whole life, reading its stdout, parsing it |
 | **self-report**, `duration_ms` | the agent CLI, in its own result object | the CLI's internal run |
 
-The second is nested inside the first, so `wall_s - duration_ms/1000` is the harness's own
-overhead and can never be negative unless a clock moved. That is the assertion this tool
-makes: `agreement.negative_deltas` must be 0, and a non-zero exit says which trial.
+**`harness` here means the TIMING SCRIPT** — `wholegame.py` or `runner.py` — not the agent
+arm `wholegame.py --harness` selects. The arm is always called the CLI below.
 
-**The overhead is reported in SECONDS and never as a fraction, because it is a constant.** It
-is ~1 s on a 1.6 s trial and ~1 s on a 4961 s one, so the ratio of the two clocks is a
-measurement of trial LENGTH: over the stored corpus it runs 0.2347 to 0.9998, and the 5 lowest
-belong to one run whose trials the API refused in under 2 seconds each. A percentage here pools
-those with real builds and describes neither (`AGENTS.md` rule 4).
+The second is nested inside the first, so `wall_s - duration_ms/1000` is the timing script's
+own overhead. That is the assertion this tool makes: `agreement.negative_deltas` must be 0,
+and a non-zero exit says which trial.
 
-**It is not a vacuous assertion, because one of the two harnesses does not use a monotonic
-clock.** `wholegame.py` brackets with `time.monotonic()`; `runner.py` brackets with
-`datetime.now()`, which an NTP step or a DST transition moves under it. A negative delta is
-how that would first become visible, and it would be visible in the harness figure every
-document quotes.
+**A negative delta has 2 possible causes and its magnitude separates them.** `wall_s` is
+stored `round(..., 1)` and `duration_ms` is not, so a genuine overhead under 50 ms can read
+as a delta down to -0.05 s: an artefact of the stored precision. Anything larger is a clock
+that moved, which `runner.py` is exposed to and `wholegame.py` is not — only the second
+brackets with `time.monotonic()`, and `datetime.now()` is moved by an NTP step or a DST
+transition. Both cases fail; only the second is a defect in the measurement, and it would
+otherwise reach the harness figure every document quotes.
+
+**The overhead is reported in SECONDS and never as a fraction: it is additive, not
+proportional.** ~1 s on a 1.6 s trial and ~1 s on a 4961 s one, so the ratio of the two
+clocks is a measurement of trial LENGTH — over the stored corpus it runs 0.2347 to 0.9998,
+and the 5 lowest belong to one run whose trials the API refused in under 2 seconds each. A
+percentage pools those with real builds and describes neither (`AGENTS.md` rule 4).
 
 ## Three addresses, and which one a record uses is part of the answer
 
