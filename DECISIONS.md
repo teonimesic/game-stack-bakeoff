@@ -3199,7 +3199,7 @@ re-mean 25 stored `g1_pong` gradings
 (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
 criterion has never once withheld.
 
-**Every hit the drive can read must be counted, and the same three facts decide that half
+**Every hit the play-bot can read must be counted, and the same three facts decide that
 (`tasks/171`).** A count of the hits the lines carry is contradicted by a line whose counter skips
 one, exactly as it is by a line whose counter arrives late. So `rally.counts` reads all-or-nothing,
 which is the standard `paddle.deflects` holds in the same loop.
@@ -3210,10 +3210,9 @@ also carries the point is counted in neither half** — the point zeroes `rally`
 and the verdict requires a non-empty denominator, so the exclusion cannot swallow the criterion
 (rule 7).
 
-**To re-open this half:** a correct submission that fails with `0 < rose_on_hit < countable` — a
-game whose counter really does skip hits and which a reader would still call correct. The
-comparability statement, and why no stored grading can be re-read against it, are in
-`eval/RUNS.md`.
+**To re-open this rule:** a correct submission whose rally counter rises on some but not all of
+its non-scoring `paddle_hit` ticks. The comparability statement, and why no stored grading can be
+re-read against this, are in `eval/RUNS.md`.
 
 **The same reading was declined for the arena and it went the other way** (`tasks/170`).
 `ref_arena/multiplier.falls` reads the multiplier across the `player_hit` tick and looks
