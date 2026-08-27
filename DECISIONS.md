@@ -309,7 +309,7 @@ all 12, making `mean_ink` departure from the *first frame's palette*. Nothing de
 here or anywhere else, and the criterion it feeds asks whether the frames contain something other
 than a blank background — a question about each frame.
 
-**Two measurements decided it, both taken on the pre-change code before it was changed:**
+**2 measurements decided it, both taken on the pre-change code before it was changed:**
 
 | | against frame 0's mode | against each frame's own |
 |---|---|---|
