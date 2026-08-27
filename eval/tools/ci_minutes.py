@@ -1994,19 +1994,27 @@ def _selftest() -> int:
         # gates are all the shim, and nothing beneath it can re-enter. The failure that made
         # the first draft the recursion engine was a control resetting the counter on every
         # level of a live nesting, which one bounded call cannot do.
+        # EVERY RECORD, not the distinct ones. Collapsing them to a set answers "some gate
+        # inherited the right depth" where the question is "every gate did" -- a tier that
+        # ran 1 of its 6 reads identically, and the row would be reporting the value while
+        # losing the population. Raised by CodeRabbit on PR #60.
         def _depth_seen(inbound: str | None) -> list[str]:
+            stale = _fired()
+            if stale:
+                failures.append(f"depth records left over before GATES_DEPTH={inbound!r}: "
+                                f"{stale!r}. The next row would read another run's gates")
             env = {**_env}
             env.pop("GATES_DEPTH", None)
             if inbound is not None:
                 env["GATES_DEPTH"] = inbound
             proc = subprocess.run(["sh", str(HOOK_RUNNER), "pre-push"], cwd=str(ROOT),
                                   capture_output=True, text=True, check=False, env=env)
-            return [str(proc.returncode), *sorted(set(_fired()))]
+            return [str(proc.returncode), *_fired()]
 
         _gates_n = len(_live_hooks["tiers"]["pre-push"])
         for _inbound, _want in ((None, "1"), ("", "1"), ("0", "1"), ("1", "2")):
-            check(f"a gate under GATES_DEPTH={_inbound!r} inherits {_want}",
-                  _depth_seen(_inbound), ["0", _want])
+            check(f"all {_gates_n} gates under GATES_DEPTH={_inbound!r} inherit {_want}",
+                  _depth_seen(_inbound), ["0", *([_want] * _gates_n)])
             counts["variants"] += 1
         # And the refusal reaches no gate at all -- the third value, not depth 3.
         check("GATES_DEPTH=2 runs no gate to inherit anything", _depth_seen("2"), ["3"])
