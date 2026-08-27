@@ -190,9 +190,11 @@ held by different parties:**
 
 **The conversion.** Over **157** paired observations `wall_s - duration_ms/1000` is min
 **0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on none of them**. That difference is
-the harness's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` is the producer,
-and it **exits non-zero if a negative delta ever appears** — which is what a clock moving
-mid-trial would look like on the arm that does not use a monotonic one.
+the harness's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` produces every
+figure in this section, and it **exits non-zero if a negative delta ever appears** — which is
+what a clock moving mid-trial would look like on the arm that does not use a monotonic one. It
+takes its tree walk and its population partition from `census.py` rather than reimplementing
+them, so its record counts cannot disagree with `python3 eval/tools/census.py`.
 
 > **The overhead is additive, not proportional**: ~1 s on a 1.6 s trial and ~1 s on a 4961 s
 > one. **Report the distribution in seconds. Do not subtract the median from an individual
@@ -200,13 +202,16 @@ mid-trial would look like on the arm that does not use a monotonic one.
 > all `wg-g4b-2026-08-17T19-50-43`, whose 8 trials the API refused in under 2 seconds each. That
 > range measures trial length, not the two clocks.
 
-**The self-report is at two addresses**, so the producer reports which one each record used
-rather than guessing:
+**The self-report is at two addresses**, one per harness, so the producer reports which one
+each record used rather than guessing. **The denominator is the harness's own output, not a task
+class**: `wholegame.py` wrote the 91 whole-game records and the 1 scene record alike.
 
-| address | written by | records |
+| address | written by | paired |
 |---|---|---|
-| `trials/<tid>.json` -> `agent.duration_ms` | `runner.py`, the retired spec-change suite | 71 of 71 |
-| `artifacts/<tid>/agent_result.json` -> `duration_ms` | `wholegame.py`, which stores the CLI's whole result object and lifts no duration out of it | 86 of 91 whole-game |
+| `trials/<tid>.json` -> `agent.duration_ms` | `runner.py`, the retired spec-change suite | 71 of its 71 |
+| `artifacts/<tid>/agent_result.json` -> `duration_ms` | `wholegame.py`, which stores the CLI's whole result object and lifts no duration out of it | 86 of its 92 |
+
+**163 stored records, 157 paired, 6 with no self-report.**
 
 **The 6 records with no self-report are explained, not a gap.** 4 are
 `archive-arena2d-wg-audio48`'s wedged arena trials, whose `agent_result.json` is an empty
