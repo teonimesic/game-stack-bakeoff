@@ -81,9 +81,9 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   fixture-validated until a matrix has run, and say so wherever one is reported. First contact
   scored 5 of 6, left 2 of 8 criteria unscored, and produced a false negative in
   `layers.depth_ordered`, which read a wrapped `offset` as a scroll rate — #46's shape, and a
-  mutant could not have found it. **`tasks/162` repaired it and left the next one open**:
-  `ParallaxScene._walk` is now the only way to read an `offset`, the re-grade is 6 of 7, and the
-  reliability filter it unblocked is `tasks/164`.
+  mutant could not have found it. `tasks/162` repaired it — `ParallaxScene._walk` is now the only
+  way to read an `offset` — and `tasks/164` repaired the reliability filter that repair unblocked.
+  The re-grade stands at **6 of 6**, with `layers.image_parallax` back to `scored=False`.
 - **`--census` reports over FIXTURES and says so.** It answers whether a criterion can take both
   values on material this repository wrote. `--runs-root` looks for stored scene gradings and
   prints `NOT ASKED` when there are none, never `0 separated` — the 2 are different claims
@@ -96,6 +96,15 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   large object that is stationary on screen. `ParallaxScene._reliable` and the wrap check's
   `blind` counter both name it, so the robustness lives in the criteria rather than in the
   estimator. `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
+- **A band the frames cannot resolve is refused before agreement is asked, and agreement is
+  asked in PIXELS.** A layer that moves half its own span or more between 2 captures draws a
+  picture that is a residue of its repeat length, and it can agree with itself perfectly while
+  doing it — which is why the aliasing test is a precondition on the pair (`eval/SCENES.md`).
+  Neither half is reachable by a fixture that exercises the other, so `scene_mutants.py
+  --reliability-selftest` drives `_reliable` over hand-written layer records and 3 mutants of the
+  shipped file, and reads the NOTE as well as the verdict: a note naming a reason the record does
+  not have is a false sentence no pass/fail check can see, and 1 of the 3 mutants moves nothing
+  else. It reads no fixture and needs no toolchain.
 
 **Tier 3 for scenes is `fidelity`, `motion` and `framework_fluency`**, in the same `ASPECTS`
 registry as the 6 game aspects and at the same weight, 0.00. 2 things govern using them:
