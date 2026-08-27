@@ -272,14 +272,18 @@ naming the candidates; write the repository-relative path, which this reads too.
 The reverse direction goes red too: a row here naming a control that a tier **does** run is a
 row that outlived its exclusion, and a reader trusting it concludes a live check is not running.
 
-**Gate commands are tokenised the way a shell tokenises them, and each token is matched as a
-PATH resolved against the repository root** — so a quote, a trailing comment, a `./` prefix or
-an absolute path all name the same script, while `nested/eval/tools/x_control.py` is a different
-address and does not. Text that will not tokenise is reported rather than split on whitespace and
-answered anyway. **And when an input cannot be read at all — an unparseable workflow, a hook
-tier that lists nothing, this file itself missing — both `--controls` and `--hooks` exit 2
-naming the cause**, because reading a producer for its output alone turns one broken file into a
-report that every control in the repository is ungated.
+**A gate command is read the way a shell reads it: tokenised, and the token it RUNS matched as a
+path resolved against the repository root.** So a quote, a trailing comment, a `./` prefix or an
+absolute path all name the same script, while three things name nothing — a different address
+(`nested/eval/tools/x_control.py`), a path that is merely an argument (`echo <control>`), and a
+repository-relative interpreter in front of it. What the shell runs is the script alone or one of
+`python`/`python3` ahead of it, which is the rule the scope step is already held to. Text that
+will not tokenise is reported rather than split on whitespace and answered anyway.
+
+**And when an input cannot be read at all — an unparseable workflow, a hook tier that lists
+nothing, this file missing or not UTF-8 — both `--controls` and `--hooks` exit 2 naming the
+cause**, because reading a producer for its output alone turns one broken file into a report that
+every control in the repository is ungated.
 
 | left out | why |
 |---|---|

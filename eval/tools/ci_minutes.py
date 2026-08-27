@@ -953,7 +953,11 @@ def read_register() -> str:
     """
     try:
         return REGISTER.read_text(encoding="utf-8")
-    except OSError as exc:
+    # UnicodeDecodeError IS A ValueError, NOT AN OSError, so a register that exists and is
+    # not UTF-8 walked straight past an `except OSError` and out of both modes as a
+    # traceback -- the defect this function was added for, one exception hierarchy over.
+    # Raised by CodeRabbit on PR #49.
+    except (OSError, UnicodeError) as exc:
         # THE MESSAGE MUST NOT RAISE. `relative_to(ROOT)` is what every other diagnostic
         # here uses and it throws `ValueError` on a path outside the root -- which is the
         # one address this handler can be reached with. An error path that raises is the
@@ -962,6 +966,7 @@ def read_register() -> str:
             f"the CI register could not be read ({exc.__class__.__name__}: {exc}). It is "
             f"what runs in which tier and what is deliberately left out, so nothing here "
             f"can be checked against it") from exc
+
 
 # The header the hook table must carry, and the only one this reads. A table found by
 # position would move the moment a section is added above it (rule 12: the address is an
@@ -1327,8 +1332,36 @@ def _abs_path(spelling: str) -> str | None:
         return None
 
 
-def command_paths(commands: list[str]) -> tuple[list[set[str]], list[str]]:
-    """The addresses each gate command names, and any command that will not tokenise.
+def _program_run(argv: list[str]) -> str | None:
+    """The one path a command actually RUNS, or None if it runs no path in this checkout.
+
+    WHAT IS IN FRONT OF A TOKEN DECIDES WHETHER IT RUNS AT ALL -- the rule
+    `scope_invocation_problems` already applies to the scope step, and the same closed set
+    of interpreters. The shell runs `argv[0]`; only when that is one of them does the
+    operand behind it run. `echo eval/tools/fragment_control.py` runs `echo`.
+
+    A REPOSITORY-RELATIVE INTERPRETER RUNS NOTHING HERE. `nested/python3` has the right
+    basename and is a program a branch can check in beside the script, so what it does with
+    its argument is unknown -- and an unknown must not read as coverage.
+    """
+    if not argv:
+        return None
+    head = argv[0]
+    if os.path.basename(head) not in SCOPE_INTERPRETERS:
+        return head
+    if "/" in head and not head.startswith("/"):
+        return None
+    return next((t for t in argv[1:] if not t.startswith("-")), None)
+
+
+def command_paths(commands: list[str]) -> tuple[list[str], list[str]]:
+    """The address each gate command RUNS, and any command that will not tokenise.
+
+    THE PROGRAM, NOT EVERY TOKEN. Recording every resolved token made
+    `run: echo eval/tools/fragment_control.py` count as coverage of a control it never
+    runs -- a green census over a gate that does nothing, which is the fail-open direction
+    on the one report that says which controls are covered. Raised by CodeRabbit on PR #49;
+    `cat`, `echo` and a repository-relative interpreter all read as gated before the repair.
 
     TOKENISED, NOT SPLIT ON WHITESPACE. `str.split` keeps the quotes, so a gate written
     `run: python3 "eval/tools/fragment_control.py"` yields the token
@@ -1354,7 +1387,7 @@ def command_paths(commands: list[str]) -> tuple[list[set[str]], list[str]]:
     to be wrong; the census cannot say what such a command runs, and a control it silently
     calls ungated is a red row with the wrong cause on it.
     """
-    paths: list[set[str]] = []
+    paths: list[str] = []
     problems: list[str] = []
     for cmd in commands:
         try:
@@ -1365,14 +1398,17 @@ def command_paths(commands: list[str]) -> tuple[list[set[str]], list[str]]:
                 f"({exc.__class__.__name__}: {exc}), so what it runs cannot be read and "
                 f"every control would report as ungated: {cmd[:120]!r}")
             continue
-        paths.append({a for a in (_abs_path(t) for t in tokens) if a is not None})
+        program = _program_run(tokens)
+        address = None if program is None else _abs_path(program)
+        if address is not None:
+            paths.append(address)
     return paths, problems
 
 
-def _named_by(script: str, paths: list[set[str]]) -> bool:
-    """Does any gate command name THIS script? Compared as an ADDRESS, resolved both ways."""
+def _named_by(script: str, paths: list[str]) -> bool:
+    """Does any gate command RUN this script? Compared as an ADDRESS, resolved both ways."""
     here = _abs_path(script)
-    return here is not None and any(here in p for p in paths)
+    return here is not None and here in paths
 
 
 def gate_command_lines(census: dict[str, dict] | None = None,
@@ -2242,12 +2278,21 @@ def _selftest() -> int:
         counts["variants"] += 1
     # MUTANTS: resolving must not have made the match loose. A same-named script under
     # another directory is a different address, and so is a directory that merely contains
-    # the name -- both are files a branch can add.
+    # the name -- both are files a branch can add. And a command that merely HOLDS the path
+    # runs nothing: recording every resolved token made `echo <control>` read as coverage of
+    # a control it never runs, which is a green census over a gate that does nothing
+    # (CodeRabbit, PR #49).
     for _label, _cmd in (
         ("a same-named script elsewhere",
          "python3 nested/eval/tools/fragment_control.py"),
         ("a parent directory of it", "python3 eval/tools"),
         ("the name as a bare word", "python3 -m fragment_control"),
+        ("the path echoed rather than run", "echo eval/tools/fragment_control.py"),
+        ("the path read rather than run", "cat eval/tools/fragment_control.py"),
+        ("the path inside a wrapped command",
+         "sh -c 'python3 eval/tools/fragment_control.py'"),
+        ("a repository-relative interpreter",
+         "nested/python3 eval/tools/fragment_control.py"),
         # A token `pathlib` refuses is not a script, and it must not take the census down
         # with it: `_abs_path` returns None rather than raising, for the reason
         # `_is_scope_script` gives. Without this row a mutant that re-raises survives.
@@ -2317,6 +2362,25 @@ def _selftest() -> int:
                 failures.append("read_register raised OSError -- `main` catches DataError, "
                                 "so this is the traceback the refusal exists to replace")
             counts["mutants"] += 1
+            # ...and a register that EXISTS and is not UTF-8. `UnicodeDecodeError` is a
+            # `ValueError`, so it walked past `except OSError` and out of both modes as a
+            # traceback -- this function's own defect, one exception hierarchy over
+            # (CodeRabbit, PR #49).
+            REGISTER.write_bytes(b"| left out | why |\n|---|---|\n| \xff\xfe | x |\n")
+            try:
+                read_register()
+                failures.append("read_register returned text for a register that is not "
+                                "UTF-8 -- an undecodable register must be a refusal")
+            except DataError as _exc:
+                check("a register that is not UTF-8 is a DataError, not a traceback",
+                      ("the CI register could not be read" in str(_exc),
+                       "UnicodeDecodeError" in str(_exc)), (True, True))
+            except Exception as _exc:      # noqa: BLE001 - the defect IS the escape
+                failures.append(f"read_register raised {_exc.__class__.__name__} on a "
+                                f"register that is not UTF-8 -- `main` catches DataError, "
+                                f"so this is the traceback the refusal exists to replace")
+            counts["mutants"] += 1
+            REGISTER.unlink()
             for _mode in ("--hooks", "--controls"):
                 with contextlib_redirect_all():
                     try:
