@@ -1525,12 +1525,29 @@ performance fields. Rejected, and the reason generalises past this case:
 
 Two consequences that made the choice cheap as well as right: no starter changes, so this is **not
 a regime boundary** and every stored run stays in the comparison; and four of the nine fields turn
-out to have been recorded on all 68 stored submissions already, unread (#97).
+out to have been recorded on every stored submission already, unread (#97).
+
+**The corpus the module sweeps is stated once, by the module.** `python3 eval/judge/capability.py
+--runs eval/runs` opens with its own count and its classes — read 2026-08-27, **69 stored
+submissions, 68 game and 1 scene**.
 
 `judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
 `no_stack_correlated_gap()`, which fails if a declared field is ever absent for any reason other
 than the submission's own capture failing. `judge/capability_selftest.py` carries its mutant and
 its variant.
+
+**The four-arm half of that gate is asked of the game submissions only, and the module prints the
+population it asked and the records it left out.** Four arms is a property of the game matrix;
+the scene class has been built on one arm, so demanding four of it would report the state of the
+corpus as a defect. Everything else the gate asks — an unexplained null, a record whose class the
+module cannot name, a field populated on some arms and never captured on another — is asked of
+every record, and each per-arm comparison happens inside one **(run, task class)** cell so that a
+run launching both classes cannot let one population cover for a gap in the other.
+
+**A record excluded from a claim must still be visible.** `TRIAL_RE` accepts both class letters, so
+every stored submission parses to its game and its arm and none can fall into a `?` row that every
+per-stack partition drops. The report names the population the gate asked, and the records it left
+out, in the same breath as its verdict.
 
 **No frametime and no fps field, at any point.** The four arms do not render the judged frames on
 comparable hardware: Rust, Unity and Godot draw on the M3 Max, the TypeScript arm draws on
@@ -1702,8 +1719,9 @@ that covers everything, and `--no-verify` is one flag. **A hook checks the CONTE
 additionally checks the CHECKERS** — a control over a tool changes only when the tool changes.
 
 **So the hooks run a strict, small subset, and the register NAMES it rather than describing it —
-decided 2026-08-25, task 153.** Both tiers run documentation and queue checks and nothing else;
-the command list, the counts and the coverage gap are in the register, produced by `python3
+decided 2026-08-25, task 153.** `pre-commit` runs documentation and queue checks and nothing
+else; `pre-push` adds the doc sweep and the register's own gate.
+The command list, the counts and the coverage gap are in the register, produced by `python3
 eval/tools/ci_minutes.py --hooks`. The register described the tier with an adjective instead —
 *"the full `gates.yml` set"* — which had never been true of anything. **The repair is not to run
 more.** Widening `pre-push` to the whole workflow makes it minutes long and turns `--no-verify`
@@ -1714,6 +1732,33 @@ prints its own list under `GATES_LIST_ONLY=1` and `ci_minutes.py --selftest` ass
 register's table equal to it — red when a gate is added to either alone. **An adjective is the
 shape no check can read**; a hook whose published list is asserted against the hook is one a
 reader can act on, and the coverage gap is then stated rather than implied.
+
+**`ci_minutes.py --selftest` runs in `pre-push` — decided 2026-08-27, task 175.** It is the only
+thing that reads the register, so without it a workflow edit and the register describing it can
+part company until CI says so — at exactly the moment somebody is editing workflows and is least
+likely to be reading the register. **The tier is chosen on DUTY CYCLE, not on cost:** the gate is
+cheaper than the largest member of `pre-commit` and belongs there by the cost rule, but its
+inputs — the two workflows, `.githooks/run-gates.sh`, the register, the *set* of gate scripts
+under `eval/`, and the tool itself — are touched by a small minority of commits while every
+commit would pay. The register carries that fraction, the date it was read and the `git log` pair
+that re-derives it, and it is not repeated here. Catching this one step later costs an amend;
+what the gate is worth is that a stale register never reaches CI. **This is the re-timing the
+"named subset" row licenses rather than a re-argument of it** — that row's own trigger, 2 pushes
+to `main` reddened by the same uncovered gate, has not fired.
+
+**`run-gates.sh` counts `GATES_DEPTH` and admits only unset, 0 or 1.** The hook runs that gate
+and the gate runs the hook — once listing, once executing with `python3` shadowed by a shim — so
+the two are mutually recursive and the shim is the only thing breaking the cycle. Without a
+ceiling a failed shim is an unbounded recursion, and **a check whose failure mode is a hang
+reports nothing at all**; with one it is a red line. The value is matched against that closed set
+rather than incremented, because arithmetic on an unexpected value sets the ceiling aside instead
+of reaching it: under `/bin/sh` a negative reading allows a thousand levels and a non-numeric one
+restarts the count.
+
+**A control that PINS a counter also RESETS it, and the first ceiling control was therefore the
+recursion engine.** It fixed `GATES_DEPTH=1` and executed, so every level restored the level
+beneath it and the ceiling could never be reached. Both depth rows list instead of executing:
+listing passes through the ceiling, which sits above `list_only`, and cannot defeat it.
 
 **No hook timing is published, and the workflow tiers are published as a SPREAD — decided
 2026-08-25, tasks 129 and 153.** A point figure in that table was wrong every time it was read:

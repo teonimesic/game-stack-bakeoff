@@ -1865,6 +1865,19 @@ def _selftest() -> int:
           _live_hooks["coverage_claim"],
           (len(_live_hooks["tiers"]["pre-push"]), _cen["gates"]["gates"],
            len(_live_hooks["tiers"]["pre-commit"])))
+    # THIS TOOL IS ITSELF A PRE-PUSH GATE, and every row above would stay green if it were
+    # dropped from the hook and the table together -- they check each other, so agreeing on
+    # an absence is agreement. Nothing else would notice: `--controls` censuses stems ending
+    # `_control`/`_mutants`/`_selftest` and this file is none of them. So the membership is
+    # asserted here, which makes removing it a decision somebody has to edit rather than an
+    # omission (task 175).
+    # EQUALITY, never a suffix: `python3 x/eval/tools/ci_minutes.py --selftest` ends with the
+    # string and is a different file, which is the same substitution the scope step is held
+    # to above. Raised by CodeRabbit on PR #60.
+    check("pre-push runs this tool, the only thing that reads the register",
+          [c for c in _live_hooks["tiers"]["pre-push"]
+           if _norm_command(c) == "python3 eval/tools/ci_minutes.py --selftest"],
+          ["python3 eval/tools/ci_minutes.py --selftest"])
     # LIST-ONLY MUST NOT EXECUTE, and the control runs in BOTH directions. A mode that
     # listed AND ran would be green on every row above while costing a full sweep, and a
     # shim that never fires would make the "did not execute" half vacuous -- so the same
@@ -1874,9 +1887,23 @@ def _selftest() -> int:
         _shim_dir, _marker = pathlib.Path(_td) / "bin", pathlib.Path(_td) / "fired"
         _shim_dir.mkdir()
         _shim = _shim_dir / "python3"
-        _shim.write_text(f'#!/bin/sh\nprintf x >> "{_marker}"\nexit 0\n')
+        # THE SHIM RECORDS WHAT IT WAS INVOKED WITH, not merely THAT it was invoked. One
+        # line per gate, carrying the GATES_DEPTH the hook exported into it -- which is the
+        # only place the ceiling's arithmetic is observable from outside the script. See
+        # `_depth_seen` below for what that buys.
+        _shim.write_text('#!/bin/sh\n'
+                         f'printf \'%s\\n\' "${{GATES_DEPTH-unset}}" >> "{_marker}"\n'
+                         'exit 0\n')
         _shim.chmod(0o755)
         _env = {**os.environ, "PATH": f"{_shim_dir}:{os.environ.get('PATH', '')}"}
+
+        def _fired() -> list[str]:
+            """The GATES_DEPTH each shimmed gate saw, and the file is consumed."""
+            if not _marker.exists():
+                return []
+            seen = [ln for ln in _marker.read_text().splitlines() if ln.strip() != ""]
+            _marker.unlink()
+            return seen
 
         def _run_hook_shimmed(listing: bool):
             env = {**_env, "GATES_LIST_ONLY": "1"} if listing else _env
@@ -1894,9 +1921,110 @@ def _selftest() -> int:
         # row, a shim that could never run would report "executed nothing" for free.
         _ran = _run_hook_shimmed(False)
         check("without the flag the hook really executes its gates",
-              (_ran.returncode, _marker.exists(), len(_marker.read_text())
-               if _marker.exists() else 0),
-              (0, True, len(_live_hooks["tiers"]["pre-push"])))
+              (_ran.returncode, len(_fired())),
+              (0, len(_live_hooks["tiers"]["pre-push"])))
+        counts["variants"] += 1
+
+        # THE DEPTH CEILING, both directions. This tool is a `pre-push` gate and it also
+        # RUNS the hook, so the two are mutually recursive and the shim above is the only
+        # thing breaking the cycle. Were it ever to stop intercepting `python3`, hook and
+        # gate would call each other without bound -- and a check whose failure mode is a
+        # HANG reports nothing at all, which is the lesson `_main_rc` below records one exit
+        # away. `run-gates.sh` counts GATES_DEPTH and refuses past 2, which turns that hang
+        # into a red line. Both rows run under the shim, so neither executes a gate.
+        # BOTH ROWS ARE LIST-ONLY, AND THAT IS NOT AN OPTIMISATION. A row that PINS
+        # GATES_DEPTH also RESETS it, so an executing one hands the hook beneath it a
+        # counter that starts again -- and the ceiling can never be reached from a level
+        # that keeps restoring the level below it. Measured: the first draft ran the
+        # depth-1 variant for real, and under the broken-shim mutant it drove 8 hook levels
+        # in 25s and was still going. The control was the recursion engine. Listing goes
+        # through the ceiling (which sits above `list_only`) and executes no gate, so it
+        # asks the same question without being able to answer it wrongly.
+        def _run_hook_at(depth: str):
+            return subprocess.run(["sh", str(HOOK_RUNNER), "pre-push"], cwd=str(ROOT),
+                                  capture_output=True, text=True, check=False,
+                                  env={**_env, "GATES_DEPTH": depth, "GATES_LIST_ONLY": "1"})
+
+        _deep = _run_hook_at("2")
+        check("the hook refuses to run past depth 2", _deep.returncode, 3)
+        check("it refuses before listing, so no caller reads a gate list from it",
+              _deep.stdout, "")
+        check("and says which value stopped it, so the diagnosis is not re-derived",
+              [w for w in ("GATES_DEPTH=2", "depth 3", "ceiling 2")
+               if w not in _deep.stderr], [])
+        counts["mutants"] += 1
+        # A VALUE THE HOOK NEVER WRITES IS REFUSED, not arithmetic'd. Under /bin/sh a
+        # negative reading makes the ceiling reachable only after a thousand levels and a
+        # non-numeric one restarts the count, so both defeat the ceiling while looking like
+        # a working guard. Raised by CodeRabbit on PR #60.
+        for _bad in ("-1000", "abc", "3", "01", " 1"):
+            _off = _run_hook_at(_bad)
+            check(f"GATES_DEPTH={_bad!r} is refused rather than counted from",
+                  (_off.returncode, _off.stdout), (3, ""))
+            # THE VALUE, not just the variable. A message naming only `GATES_DEPTH` leaves
+            # the reader to find which of the several places that set it sent the bad one,
+            # which is the diagnosis this guard exists to hand over. Raised by CodeRabbit
+            # on PR #60.
+            check(f"and the refusal for {_bad!r} quotes the value it rejected",
+                  f"GATES_DEPTH={_bad}" in _off.stderr, True)
+            counts["mutants"] += 1
+        # The variant, and it is the one that matters: depth 2 is what a HOOK-DRIVEN
+        # selftest reaches, so a ceiling one lower would redden `run-gates.sh pre-push` on
+        # every push rather than only on a broken shim. Asserted on the LIST, not on the
+        # status alone -- a hook that exited 0 having done nothing would pass on the status.
+        # `""` is here rather than above: `${GATES_DEPTH:-0}` substitutes on empty as well as
+        # unset, so an empty value IS 0, and refusing it would redden a hook whose caller
+        # merely exported the name.
+        for _ok, _why in (("1", "depth 2 -- what a hook-driven selftest reaches"),
+                          ("0", "depth 1 -- an explicit zero"),
+                          ("", "depth 1 -- an empty value, which `:-` reads as unset")):
+            _at = _run_hook_at(_ok)
+            check(f"{_why} -- still runs its tier",
+                  (_at.returncode,
+                   [_norm_command(ln) for ln in _at.stdout.splitlines() if ln.strip()]),
+                  (0, _live_hooks["tiers"]["pre-push"]))
+            counts["variants"] += 1
+
+        # ACCEPTANCE IS NOT PROPAGATION, and only the second one bounds anything. Every row
+        # above presets GATES_DEPTH and reads the hook's own answer, so a hook that accepted
+        # 1 and then exported 1 -- or exported nothing at all -- passes all of them, while a
+        # real nesting never advances and recurses exactly as before. What the ceiling
+        # protects is the value the level BELOW inherits, so that is what is read here: the
+        # shim records the GATES_DEPTH it was invoked with, and these rows execute the tier
+        # to make it speak. Raised by CodeRabbit on PR #60.
+        #
+        # This executes and the rows above deliberately do not, and the difference is that
+        # the depth is pinned OUTSIDE the recursion rather than inside it: one hook runs, its
+        # gates are all the shim, and nothing beneath it can re-enter. The failure that made
+        # the first draft the recursion engine was a control resetting the counter on every
+        # level of a live nesting, which one bounded call cannot do.
+        # EVERY RECORD, not the distinct ones. Collapsing them to a set answers "some gate
+        # inherited the right depth" where the question is "every gate did" -- a tier that
+        # ran 1 of its 6 reads identically, and the row would be reporting the value while
+        # losing the population. Raised by CodeRabbit on PR #60.
+        def _depth_seen(inbound: str | None) -> list[str]:
+            stale = _fired()
+            if stale:
+                failures.append(f"depth records left over before GATES_DEPTH={inbound!r}: "
+                                f"{stale!r}. The next row would read another run's gates")
+            env = {**_env}
+            env.pop("GATES_DEPTH", None)
+            if inbound is not None:
+                env["GATES_DEPTH"] = inbound
+            proc = subprocess.run(["sh", str(HOOK_RUNNER), "pre-push"], cwd=str(ROOT),
+                                  capture_output=True, text=True, check=False, env=env)
+            return [str(proc.returncode), *_fired()]
+
+        _gates_n = len(_live_hooks["tiers"]["pre-push"])
+        for _inbound, _want in ((None, "1"), ("", "1"), ("0", "1"), ("1", "2")):
+            check(f"all {_gates_n} gates under GATES_DEPTH={_inbound!r} inherit {_want}",
+                  _depth_seen(_inbound), ["0", *([_want] * _gates_n)])
+            counts["variants"] += 1
+        # And the refusal reaches no gate at all -- the third value, not depth 3.
+        check("GATES_DEPTH=2 runs no gate to inherit anything", _depth_seen("2"), ["3"])
+        counts["mutants"] += 1
+        check("the shim really is what those gates ran, all of them",
+              (_run_hook_shimmed(False).returncode, len(_fired())), (0, _gates_n))
         counts["variants"] += 1
 
     # The fixture pair the mutants below are edits of. It is deliberately NOT the live one:

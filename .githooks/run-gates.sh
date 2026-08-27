@@ -32,6 +32,35 @@ esac
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 
+# NESTING IS BOUNDED, AND IT HAS TO BE. `ci_minutes.py --selftest` is one of the gates
+# below, and its control RUNS THIS SCRIPT -- once under GATES_LIST_ONLY to prove the mode
+# lists, and once with the flag off and `python3` shadowed on PATH by a shim, to prove the
+# mode does not execute. The shim is the only thing standing between that second call and
+# the gate list, so if it ever stopped intercepting `python3`, hook and gate would call each
+# other without bound. That is worse than either failing: a check whose failure mode is a
+# HANG reports nothing at all, which ci_minutes.py's own docstring records having measured
+# one exit away. So depth is counted -- one hook, one control invocation beneath it -- and
+# anything deeper refuses BY NAME and BY VALUE, which turns the hang back into a red line.
+# THE VALUE IS MATCHED, NEVER COMPUTED ON. This hook is the only writer of GATES_DEPTH and
+# it writes 1 or 2, so unset/0/1 is the whole set that may enter -- a CLOSED class, and the
+# default branch refuses everything else. Arithmetic here would set the ceiling aside rather
+# than reach it, and fail OPEN doing it: measured under /bin/sh, `$((${GATES_DEPTH:-0} + 1))`
+# reads -1000 as -999 and allows 1002 levels, and reads `abc` as 0 and starts the count over.
+# Raised by CodeRabbit on PR #60.
+case "${GATES_DEPTH:-0}" in
+    0) depth=1 ;;
+    1) depth=2 ;;
+    2) printf 'run-gates.sh: GATES_DEPTH=2 makes this depth 3, past the ceiling 2.\n' >&2
+       printf 'A gate below is running this hook, and its shim is not intercepting python3.\n' >&2
+       exit 3 ;;
+    *) printf 'run-gates.sh: GATES_DEPTH=%s is not a value this hook writes.\n' \
+           "${GATES_DEPTH:-0}" >&2
+       printf 'Only unset, 0 or 1 may enter; this hook writes 1 or 2 for the gate beneath it.\n' >&2
+       exit 3 ;;
+esac
+GATES_DEPTH="$depth"
+export GATES_DEPTH
+
 # THE QUEUE IS NOT YOURS TO GATE ON FROM A WORKTREE. `tasks.py` resolves `tasks/` to the
 # MAIN checkout on purpose, so from an agent worktree `tasks.py check` reads a queue this
 # commit does not contain and that peers are writing to concurrently. Measured 2026-08-23:
@@ -93,15 +122,21 @@ else
     run_advisory eval/tools/tasks.py check
 fi
 
-# pre-push only, because it is the one gate here that costs a multiple of the others, and a
-# per-commit hook past a few seconds gets bypassed as a habit. No figure is written down:
-# it is local wall clock on one machine, and two readings taken for task 153 on the same
-# host minutes apart differed by more than the whole pre-commit tier costs. Time it with
-# `time .githooks/run-gates.sh pre-push`.
+# pre-push only, for two different reasons. No figure is written down for either: hook
+# timings are local wall clock on one machine, and two readings taken for task 153 on the
+# same host minutes apart differed by more than the whole pre-commit tier costs. Time the
+# tier you care about with `time .githooks/run-gates.sh pre-push`.
 #
-# It is also the gate that actually failed — the stale-citation rows stayed red across
-# several merges because nothing was running it.
+# `docstat --sweep` is here because it costs a multiple of the others, and a per-commit hook
+# past a few seconds gets bypassed as a habit. It is also the gate that actually failed —
+# the stale-citation rows stayed red across several merges because nothing was running it.
+#
+# `ci_minutes --selftest` is here for the opposite reason: it is cheap, and what makes it a
+# push-time gate is its DUTY CYCLE — most commits cannot move its verdict, and all of them
+# would pay for it. The fraction, its producer and the reasoning are in the register; no
+# figure is repeated here, because a comment is a copy nothing can disagree with.
 if [ "$tier" = pre-push ]; then
+    run eval/tools/ci_minutes.py --selftest
     run eval/tools/docstat.py --sweep
 fi
 

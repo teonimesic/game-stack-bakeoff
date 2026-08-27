@@ -10,7 +10,7 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 56 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **75–115s** | **658–827s** |
+| takes | **127–208s** | **706–970s** |
 
 **Every number in that table has a producer, and none of them is remembered.** The check counts
 come from `python3 eval/tools/ci_minutes.py --gates`, which reads the workflows and counts steps
@@ -18,17 +18,20 @@ invoking something under `eval/`; they are pinned in `ci_minutes --selftest`.
 
 **The `takes` row is a SPREAD, and it is a spread because a point figure there cannot be right.**
 It is the full range of the last 12 successful runs of each workflow on `main`, read
-2026-08-25 with:
+2026-08-27 with:
 
 ```bash
 gh run list --workflow gates.yml --branch main --status success --limit 12 \
   --json startedAt,updatedAt --jq '.[] | ((.updatedAt|fromdate) - (.startedAt|fromdate))'
 ```
 
-`gates` spans 40s across those 12 runs and `controls` 169s, on content that differs by far less
+`gates` spans 81s across those 12 runs and `controls` 264s, on content that differs by far less
 than that — so a single reading is one draw from a wide band, and the difference between two of
 them says nothing about a step. **A timing that looks stale is not evidence that a step was
-added, and a step that was added is invisible next to the variance.** For the pull request in
+added, and a step that was added is invisible next to the variance.** **And the band itself is a
+reading, not a property of the tier**: both moved clear of the range published two days earlier,
+every one of the 24 runs behind this row landing outside it, so re-read the row rather than
+trusting the digits in it. For the pull request in
 front of you, read the current pair with `gh pr checks <n>`; to size a step, read it per-step out
 of `repos/<owner>/<repo>/actions/runs/<id>/jobs`, because the step is what a change moves and the
 run is what the runner's noise moves.
@@ -186,9 +189,10 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/docstat.py --findings` | yes | yes |
 | `python3 eval/tools/docstat.py --withdrawn` | yes | yes |
 | `python3 eval/tools/tasks.py check` | yes | yes |
+| `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **5** of `gates.yml`'s **56** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **56** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -200,12 +204,36 @@ comes out of the same control flow the hook takes. `ci_minutes --selftest` asser
 above equals what came back, and goes red if either moves without the other — which is what keeps
 a description of a script true (`AGENTS.md` rule 12).
 
-**What the hooks do NOT cover is most of it, and that is the direction that costs you.** All 5
-are documentation and queue checks over the working tree. No mutant suite runs before a push, no
-`*_control.py`, and no `--selftest` but `docstat`'s own — so nothing here checks a checker, and
-`controls.yml` is not touched at all. **A green `pre-push` is not evidence that CI will be
-green.** The hooks are a cheap filter on the failure that recurs here — stale citations, a
-malformed queue; the workflows are the gate.
+**What the hooks do NOT cover is most of it, and that is the direction that costs you.** No
+mutant suite runs before a push and no `*_control.py` does either; the only checkers in either
+tier are the two `--selftest` modes above, `docstat`'s and this file's. **A green `pre-push`
+confirms those 6 commands and predicts nothing about CI.** The hooks are a cheap filter on the
+failures that recur here — stale citations, a malformed queue, and a register overtaken by the
+workflow edit in the same commit; the workflows are the gate.
+
+**`ci_minutes --selftest` is in `pre-push` and not in `pre-commit`, and the reason is its duty
+cycle rather than its cost.** Its inputs are the two workflows, `.githooks/run-gates.sh`, this
+file, the *set* of gate scripts under `eval/`, and the tool itself. Read 2026-08-27, **79** of
+`main`'s **678** commits touch one of those, so 88% of commits cannot move its verdict while
+every one of them would pay for it — and what it is worth is that a stale register never reaches
+CI, which makes a push the last moment it can act:
+
+```bash
+{ git log --format=%H main -- .github/ .githooks/ eval/tools/ci_minutes.py
+  git log --format=%H --diff-filter=ADR main -- \
+      'eval/**/*_control.py' 'eval/**/*_mutants.py' 'eval/**/*_selftest.py'; } | sort -u | wc -l
+git log --format=%H main | wc -l
+```
+
+Two things about that population. Editing a gate script is **not** in it — the census reads the
+*set* of them, so only an add, a delete or a rename moves the verdict, which is why the second
+command filters on `ADR`. And `.github/` is a superset of the three files that matter, taken as
+a directory so a fourth workflow needs no edit here; over-counting is the safe direction,
+because it can only weaken the case for `pre-push`.
+The pair it guards is self-referential — the hook runs the gate, the gate runs the hook in
+list-only mode and asserts the table above equals what came back — so `run-gates.sh` counts
+`GATES_DEPTH` and refuses past 2 rather than recursing if that control's `python3` shim ever
+stops intercepting.
 
 **No hook timing is published.** Both tiers are local wall clock on one machine, and two readings
 of `pre-push` on the same host minutes apart have differed by more than the whole `pre-commit`
