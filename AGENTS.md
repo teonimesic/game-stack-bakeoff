@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#189 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#190 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -655,9 +655,11 @@ Two refinements that pattern does not cover:
 
     **The follow-on, and it is the part that generalises: an inert parameter is a question about
     the QUANTITY, not about the parameter.** Tier 1's weight was inert because tier 1 returned
-    one value; asking what tier 1 had ever *done* — 7 failures in 68 trials, 5 of them a lint
-    finding on a game that played perfectly — showed it was a floor test, and it became a gate
-    rather than a smaller number (#123). **Reweighting an inert term is the move that looks like
+    one value; asking what tier 1 had ever *done* showed it was a floor test, and it became a
+    gate rather than a smaller number (#123). The producer is `python3
+    eval/judge/tier1_census.py --runs-root <main checkout>/eval/runs`, and today it counts **8
+    failing submissions in 69**, of which 6 failed nothing tier 2 depends on — lint, unit-test
+    and ink findings on work that played perfectly. **Reweighting an inert term is the move that looks like
     a fix and changes nothing.** When a sweep says a parameter cannot act, do not tune it: go and
     measure what the term it multiplies has ever measured.
 

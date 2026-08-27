@@ -1,10 +1,11 @@
 ---
 id: 177
 title: Four controls exist that no gate runs and the register does not record as excluded, and nothing produces that list
-status: todo
+status: in_review
 priority: 2
 refs: .github/workflows/README.md,eval/tools/fragment_control.py,eval/tools/evidence_set_control.py,eval/tools/ci_minutes.py,tasks/175
 done_when: 'A producer answers ''which controls does no gate run, and which of those does the register record as deliberately excluded'' - most naturally a flag on `ci_minutes.py`, which already reads the workflows and already derives the hook list by RUNNING the hook rather than restating it. It must be pinned in both directions: a planted ungated control goes red, and a control recorded as excluded in the register stays green. Then each of the four above is either placed in a tier with its measured runtime added to the register''s cost column, or recorded as excluded with the reason. `fragment_control.py` and `evidence_set_control.py` at about a second each are the two where ''excluded'' would need a real argument. Coordinate with `tasks/175`: whichever runs second should find the other already done rather than re-deciding it.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/49
 ---
 
 Found by the cleanup pass of 2026-08-27, the first to open `eval/tools/`.

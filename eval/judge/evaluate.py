@@ -301,8 +301,8 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
 
     # -- tier 1 ----------------------------------------------------------- #
     #
-    # THREE THINGS ARE TASK-CLASS DEPENDENT HERE, and all of them would otherwise
-    # measure the task rather than the work.
+    # TWO THINGS ARE TASK-CLASS DEPENDENT HERE, and both would otherwise measure the
+    # task rather than the work.
     #
     # 1. THE SCENE HAS NO SOUND. Every rendered scene prompt says so in as many words
     #    ("Do not spend effort on audio; spend it on what is on screen"), so scoring a
@@ -316,16 +316,15 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     #    floor(i*660/11)). These frames are also what the `fidelity` and `motion`
     #    aspects read, and their brief says the last frame is late in the run - filming
     #    240 ticks past the end makes that sentence false.
-    # 3. THE INK WINDOW'S CEILING IS A GAME'S. `render.nonempty` asks whether the frames
-    #    hold more than a blank background, and 0.85 was its upper bound for every task
-    #    from the first commit. A scene is contracted to FILL the frame, so the ceiling's
-    #    sign is inverted there and `static.INK_WINDOW` gives a scene the floor alone.
-    #    `static.TIER1_BOUND_POPULATION` is the census that asked the same question of
-    #    the other 13 criteria; this is the only one whose answer was "of games".
     #
-    # NONE IS A CLOCK. Two are tick counts and one is a pixel density, all three read off
-    # the task's own contract, so the capture path this touches stays deterministic and
-    # wall-clock free.
+    # `task_class` IS STILL HANDED TO `static.collect`, and no tier-1 BOUND reads it any
+    # more: `render.nonempty` was the third item here until `tasks/168` removed its ink
+    # ceiling, and `static.TIER1_BOUND_POPULATION` now records 0 class-dependent bounds.
+    # `static.assert_task_class` refuses an unplaceable class at the door, which is the
+    # only place it can be caught once nothing downstream would read differently.
+    #
+    # NEITHER IS A CLOCK. Both are read off the task's own contract, so the capture path
+    # this touches stays deterministic and wall-clock free.
     frames_dir = out / "frames"
     tier1_kwargs: dict[str, Any] = {}
     if task_class == "scene":

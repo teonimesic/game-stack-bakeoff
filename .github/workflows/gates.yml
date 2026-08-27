@@ -256,12 +256,14 @@ jobs:
         run: python3 eval/judge/gate_selftest.py
       # The half of the gate `gate_selftest` cannot reach: it drives `gate_verdict` on
       # tier-1 records handed to it, and says nothing about whether a CRITERION'S BOUND
-      # is calibrated on the task class being graded. `render.nonempty`'s ink ceiling was
-      # a game's, and in 85 stored gradings it had 0 true positives and 2 false negatives
-      # (tasks/163). 0.6 s: it writes its own PNGs through judge/png.py and stubs every
+      # is calibrated on anything. `render.nonempty`'s ink ceiling had 0 true positives and
+      # 2 false negatives in 85 stored gradings and is gone (tasks/163, tasks/168); this
+      # also carries the derivation for its removal as measured rows on real pixels, and
+      # the restored 0.85 as a mutant. 0.6 s: it writes its own PNGs through judge/png.py
+      # and stubs every
       # subprocess `static.collect` makes, so it needs neither `just` nor a toolchain.
       # The corpus arm reads eval/runs, which is gitignored, and prints NOT ASKED here.
-      - name: judge/ink_window_control (the ink window, both directions, per task class)
+      - name: judge/ink_window_control (render.nonempty's floor, both directions)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/ink_window_control.py
       - name: judge/pack_selftest

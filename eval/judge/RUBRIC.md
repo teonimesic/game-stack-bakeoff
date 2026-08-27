@@ -101,10 +101,14 @@ What the census found tier 1 actually doing, across every trial it has ever scor
   | `wg-audio` `g1_pong__godot__t1` | `verify.green`, `lint.clean` | 1.000 |
   | `wg-g4c` `g4_platformer__unity__t1` | `verify.green`, `lint.clean` | 1.000 |
   | `wg-g4c` `g4_platformer__godot__t1` | `render.nonempty` — ink 0.881 against a ceiling ending at 0.85 | 1.000 |
-  | `wg-scene-s1ts` `s1_parallax__ts__t0` | `verify.green`, `lint.clean`, `tests.green` to an interrupted build, and `render.nonempty` to a game's ceiling | 0.833 |
+  | `wg-scene-s1ts` `s1_parallax__ts__t0` | `verify.green`, `lint.clean`, `tests.green` to an interrupted build, and `render.nonempty` to that same ceiling | 0.833 |
 
   The 5 games scored **1.000** on tier 2; the scene is not a `completed` trial and is not
-  pooled with them.
+  pooled with them. **The last two rows are stored verdicts against a bound that no longer
+  exists**: the ink ceiling was removed on 2026-08-27 and both re-grade to PASS. The census
+  reads stored records, so this table is what tier 1 DID; `eval/RUNS.md`'s *`render.nonempty`
+  lost its ink ceiling* break holds the re-grades. It changes nothing below — removing a tier-1
+  failure can only reduce tier-1 variance, so no group gains a varying tier 1.
 - Every one of the 14 criteria has failed at least once, so none is dead weight. What
   `render.nonempty` in particular has ever done is below, and it is not what it looks like
   from this count.
@@ -176,7 +180,7 @@ as a fraction of `overall`** — see above.
 | `tests.exist` | Does the project ship more than a token number of its own tests? (floor: 8) |
 | `tests.green` | Do all of the project's own tests pass, with none skipped? |
 | `render.frames` | Does the game render frames at all? |
-| `render.nonempty` | Do the frames contain something other than a blank background? Mean ink coverage inside a window that is **per task class** — see below |
+| `render.nonempty` | Do the frames contain something other than a blank background? Mean ink coverage at or above **0.001**, and not every frame holding a single colour. **No ceiling** — see below |
 | `render.animates` | Do consecutive frames of a played run differ? (>0.0005 of pixels) |
 | `probe.responds` | Does the headless probe start and advance the simulation? |
 
@@ -197,59 +201,60 @@ a paragraph, so a criterion added without an answer fails
 | population | criteria | why it transfers |
 |---|---|---|
 | `no_bound` | `build.compiles`, `verify.green`, `lint.clean`, `tests.green`, `render.frames`, `probe.responds`, `audio.manifest`, `audio.files_exist` | they read an exit status, a file count or a boolean. There is no number to calibrate |
-| `starter` | `tests.exist` (floor 8) | every starter already ships more, and both classes are built from the same four starters |
+| `starter` | `tests.exist` (floor 8), `render.nonempty` (floor 0.001) | every starter already ships more than 8 tests and draws more than 0.001 of a frame, and both classes are built from the same 4 starters |
 | `capture_contract` | `render.animates` (>0.0005) | a property of `just film`, identical in both classes; a scene is a timed sequence and must move too |
 | `audio_signal` | `audio.not_silent`, `audio.distinct`, `audio.music_loops` | dBFS floors and spectral similarity. Not asked of a scene at all |
-| **`task_class`** | **`render.nonempty`** | the ceiling does not transfer — below |
+| `task_class` | — | **0 members.** The value a future class-dependent bound declares; the gate refuses one claimed without a per-class table |
 
-### `render.nonempty`: the floor transfers, the ceiling does not
+### `render.nonempty`: a floor, an all-flat test, and no ceiling
 
-| task class | window (inclusive) |
-|---|---|
-| game | 0.001 – 0.85 |
-| scene | 0.001 – 1.00, i.e. a floor and no ceiling |
+**Two halves, both properties of the 4 starters, both the same in either task class.**
 
-**The floor is a property of the starter.** It is the floor the four render harnesses use in
-their own `renders a non-empty frame` test, and the starter's placeholder marker covers 0.0015
-of a 640x400 frame — anything tighter measures *the placeholder is small*. A **blank scene
-frame still fails**, and `judge/ink_window_control.py` pins that row.
+| half | rule | why that number |
+|---|---|---|
+| floor | mean ink coverage **≥ 0.001** | the floor the 4 render harnesses use in their own `renders a non-empty frame` test; the starter's placeholder marker covers 0.0015 of a 640x400 frame, so anything tighter measures *the placeholder is small* |
+| all-flat | **not** every frame holding a single colour | a frame is flat when every pixel is within tolerance of **that frame's own** mode (`png.Image.is_flat`). A render whose frames are all flat drew nothing, whatever its ink reads |
 
-**The ceiling was a property of nothing.** 0.85 applied to every task from this repository's
-first commit and is derived in no document, no comment and no commit message — the same shape
-as the 0.31/0.69 split retired above. What it has done, from the producer:
+**There is no ceiling, because `mean_ink` cannot carry one.** `ink_coverage` counts pixels
+differing from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's**
+mode. So the quantity is departure from the first frame's mode — a property of the palette, not of
+how much was drawn:
+
+| frames | measures | which half decides |
+|---|---|---|
+| solid white, magenta or black, all frames the same — "the render broke and filled the screen" | **0.0** | the **floor** |
+| a gradient with a subject drawn on it — a night platformer's sky | **0.881** | neither; it passes |
+
+And the same blank render lands anywhere on the scale depending only on how its colours are
+*arranged*, which is why a bound was never the guard and the all-flat half exists:
+
+| 12 frames, each one colour | mean ink | floor-only | old 0.001–0.85 |
+|---|---|---|---|
+| all one colour | 0.0 | FAIL | FAIL |
+| frame 0, then 11 of another | 0.91667 | PASS | FAIL |
+| alternating 2 colours | 0.5 | PASS | **PASS** |
+| 6 of one, then 6 of another | 0.5 | PASS | **PASS** |
+
+Every row has drawn nothing, and 0.001–0.85 admitted 2 of the 3 non-zero arrangements. The
+all-flat half fails all 4. **0 of the 67 stored frame sets contain a flat frame**, so it moves no
+stored verdict.
+
+**`flat_frames` absent is a third value**, not zero: a record written before 2026-08-27 does not
+carry it, and re-grading one asks the floor alone and says so in its evidence.
+
+**The control.** Run it before changing either half:
 
 ```bash
 python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 ```
 
-The population is **69 submissions** — 68 games and 1 scene, the most recent grading of each,
-from 85 on disk with 16 superseded and held out, which is `tier1_census`'s population and its
-walker rather than a fifth glob. Among those 69, `render.nonempty` has fired **4** times:
+It verifies every number in both tables above on real pixels, pins the criterion in both
+directions, drives `collect` end to end with the toolchain stubbed, and requires a mutant per
+mechanism to go red — the restored 0.85 among them. With `--runs-root` it is also the producer for
+every ink figure and for what the bounds have ever done over the 69 stored submissions.
 
-| trial | mean ink | hit | what it was |
-|---|---|---|---|
-| `wg-arena3d` `g3_arena__rust__t0` / `t1` | 0.0 | floor | **0 frames** — `just check` exited 101 (#49). `render.frames` reports the same fact in the same record |
-| `wg-g4c` `g4_platformer__godot__t1` | 0.881 | ceiling | a night platformer over a gradient sky. **Tier 2 = 1.000** |
-| `wg-scene-s1ts` `s1_parallax__ts__t0` | 0.966 | ceiling | sky, road and scenery — the scene drawing what it was asked to draw |
-
-So the ceiling has **0 true positives and 2 false negatives**, and the floor has never fired on
-a frame that was rendered at all.
-
-**For a scene the ceiling's sign is inverted**, which is why this is a per-class table rather
-than a wider number. `eval/SCENES.md` contracts a scene to fill the frame — `s1_parallax` asks
-for a layered background with real distance in it, `s2_glass` for a full 3D render — and a
-large flat region is the naive implementation `scene_probe` exists to catch. There is no ink
-level from which a scene can be inferred defective from above. That is read off the task
-contract rather than off the submission that produced the firing: 0.966 passes, and so would
-0.87 or 0.999.
-
-**The game ceiling is left where it is, and not because it is right.** Moving it changes a
-stored *game* gate verdict and the figure three live documents quote, which is a re-scoring
-event on the game population with a ticket of its own (`tasks/168`).
-
-`judge/ink_window_control.py` pins both directions per class on real pixels, drives `collect`
-end to end with the toolchain stubbed so the class it was handed is proved to reach the
-criterion, and carries a mutant per mechanism.
+`eval/RUNS.md`'s *`render.nonempty` lost its ink ceiling* break holds that history and the one gate
+verdict the removal re-grades; `DECISIONS.md` holds the decision.
 
 ### The performance fields — captured since 2026-08-23, scored by nothing
 
