@@ -1,11 +1,12 @@
 ---
 id: 160
 title: fire.rate_limited counts BULLETS and asks about SHOTS, and prints the right number beside the wrong verdict
-status: in_review
+status: in_testing
 priority: 2
 refs: eval/judge/bot_arena.py, eval/judge/bot_mutants.py, tasks/155
 done_when: The criterion counts fire events rather than bullet ids, or states in bot_arena.py why a bullet count is the right proxy and what a spread weapon should score; the ref_arena spread entry in PENDING_VARIANTS comes back with an empty failing set and is promoted into VARIANTS; bot_mutants.py exits 0; and the stored g3_arena verdicts are re-derived with eval/judge/tier2_census.py against the main checkout's eval/runs with before and after counts recorded here.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/47
+established_by: 'bot_mutants exit 0 at the merged head cc1ca3b: 44 criteria pinned in both directions, 11 variants, 0 pending, 3 session-lock controls, 70 hazards, 0 unmet, against a before of 43/10/1 with the spread pending "still red, as declared". Both new directions measured: the spread variant reads 30 shooting ticks out of 120 (30, 30) and passes; a second mutant with no interval and fire on the rising edge reads 120 (1, 120) and fails, which is the control proving an event-only count would have been fail-open. tier2_census byte-identical before and after; 12 of 16 stored g3_arena rows unchanged by construction, 0 undecidable, 4 probe failures. docstat --sweep, --findings, --withdrawn, linkcheck and tasks.py check all exit 0. PR #47, 3 review rounds, last clean.'
 ---
 
 The criterion's own question is: is there a minimum interval between shots rather than one bullet per tick. bot_arena._firing_in scores it as 0 less than n_x and n_x at most 80, where n_x is the number of distinct BULLET ids created over 120 ticks of held fire. A weapon that fires a spread puts several bullets in the world per shot, which is an ordinary design for a game the g3 prompt asks to make loud, fast and readable at a glance. Measured 2026-08-25 in eval/judge/bot_mutants.py PENDING_VARIANTS: a ref_arena fixture firing a three-round spread on a 4-tick cooldown fails with 90 bullets from 120 ticks of held fire (30 fire events). 30 shots in 120 ticks IS a rate limit, and the criterion prints that number in its own evidence string beside a verdict computed from the other one.
@@ -203,3 +204,29 @@ enumeration of the instance in front of it. The property is the direction the th
 fails in. `AGENTS.md`'s rule audit already says a trigger written as an instance has to
 be re-derived by every reader who meets a different one; this is that, inside a
 `done_when`.
+
+## note 2026-08-27
+
+## Review loop and CI, round by round
+
+3 rounds against PR #47, `eval/tools/pr_review_state.py --pr 47 --branch
+task-160-fire-rate-limited-counts-shots --expect-head <sha> --wait`:
+
+| round | head | verdict | comments |
+|---|---|---|---|
+| 1 | `6f5cb16` | `LANDED_REVIEW` at 220s | 3, all Minor, all acted on |
+| 2 | `84c8507` | `LANDED_REVIEW` at 252s | 1 new, acted on; the other 3 threads acknowledged and resolved |
+| 3 | `cc1ca3b` | `LANDED_COMMENT` at 158s | none - clean round |
+
+All 4 comments were on documents and all 4 were right. Three were the readability class
+`.coderabbit.yaml` asks for on purpose: prose narrating what changed rather than stating the
+rule, a count spelled in words, and a tense. The fourth found a real internal contradiction:
+`DECISIONS.md` said *"a criterion change moves stored verdicts across 68 graded submissions"*
+while the very next paragraph said *"A closed entry may re-score 0 stored verdicts"* - and this
+ticket is another instance of the second. It now reads *"a criterion change is a re-scoring event
+over 68 graded submissions, carrying its own `tier2_census.py` before-and-after - whether or not
+any verdict turns out to move."*
+
+CI at `cc1ca3b`: `gates` PASS (1m54s), `CodeRabbit` PASS, `controls` still in flight when this
+was handed back, with its `judge/bot_mutants` and `judge/aim_contract_control` steps already
+green and only unrelated later steps outstanding.
