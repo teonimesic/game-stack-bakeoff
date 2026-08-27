@@ -70,12 +70,18 @@ WHAT IS CONTROLLED, and why each one is here rather than obvious:
                 a line number, a singular noun, a date and a fenced example must stay green.
   REAL TREE     the same subprocess path over THIS repository must exit 0. The synthetic
                 cases prove the logic; this one proves the tool is pointed at the project.
+  HOSTILE       an inherited `GIT_DIR` outranks `cwd`, silently and at exit 0, so the
+  GIT_DIR       fixture builder could `git add -A` into the CALLER's index. This row is
+                about THIS file rather than about `docstat.py`, and carries its own red
+                half: it reproduces the damage with the vulnerable shape before asserting
+                `_git` is immune (#198).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -122,9 +128,21 @@ def _git(tmp: Path, *args: str) -> None:
 
     The tree has to BE a repository: `_live_corpus` lists the index rather than globbing
     the disk (#198), and the count corpus is read from it. A silent failure here would
-    leave the corpus at three documents and every control would still pass.
+    leave the corpus at 3 documents and every control would still pass.
+
+    EVERY `GIT_*` VARIABLE IS DROPPED FROM THE CHILD. `cwd` does not decide which
+    repository git uses - `GIT_DIR` and friends override it, silently and at exit 0, so
+    `git init` creates nothing and `git add -A` stages the fixture into the CALLER's index
+    (#198, which is exactly this and was measured leaving 6 fixture paths staged in a live
+    worktree). ALL of `GIT_*` rather than the 4 that steer discovery: a list of names is an
+    enumeration and the next reader meets `GIT_COMMON_DIR`. Nothing here needs any of them.
+
+    This is written out rather than imported from `docstat._git_at`. A control that shares
+    a mechanism with its subject is repaired by the same mutant that breaks it, and the
+    whole point of this file is to be a second, independent reader.
     """
-    p = subprocess.run(["git", *args], cwd=tmp, capture_output=True, text=True)
+    child = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    p = subprocess.run(["git", *args], cwd=tmp, capture_output=True, text=True, env=child)
     if p.returncode != 0:
         raise SystemExit(f"the fixture tree could not be made a git repository: "
                          f"`git {' '.join(args)}` exited {p.returncode} in {tmp}: "
@@ -180,6 +198,70 @@ def run(script: Path) -> tuple[int, str]:
     p = subprocess.run([sys.executable, str(script), "--findings", "--json"],
                        capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
+
+
+def hostile_git_env(verbose: bool = True) -> list[str]:
+    """Does an inherited `GIT_DIR` steer where this file's fixture git commands land?
+
+    RED AND GREEN IN ONE FUNCTION, because the mutant machinery below patches `docstat.py`
+    and this defect is in THIS file. The red half runs the vulnerable shape - `cwd=` with
+    the environment inherited - and asserts it really does damage a decoy repository; the
+    green half runs `_git` and asserts it does not. Without the red half the green one is
+    a check that cannot fail, which is the pattern this repository keeps paying for.
+
+    Raised by CodeRabbit on PR #58, and it is #198 in a new place: `cwd` names a directory
+    and an inherited `GIT_DIR` outranks it silently, at exit 0.
+    """
+    problems = []
+    with tempfile.TemporaryDirectory() as td:
+        decoy, fixture, safe = Path(td) / "decoy", Path(td) / "hit", Path(td) / "safe"
+        for p in (decoy, fixture, safe):
+            p.mkdir()
+        (fixture / "doc.md").write_text("# planted\n")
+        (safe / "doc.md").write_text("# planted\n")
+        subprocess.run(["git", "init", "-q"], cwd=decoy, check=True,
+                       env={k: v for k, v in os.environ.items()
+                            if not k.startswith("GIT_")})
+        hostile = dict(os.environ, GIT_DIR=str(decoy / ".git"))
+
+        # RED: the shape the review found, run deliberately.
+        for args in (("init", "-q"), ("add", "-A")):
+            subprocess.run(["git", *args], cwd=fixture, capture_output=True, env=hostile)
+        staged = subprocess.run(["git", "ls-files"], cwd=decoy, capture_output=True,
+                                text=True, env={k: v for k, v in os.environ.items()
+                                                if not k.startswith("GIT_")}).stdout
+        red_bit = (fixture / ".git").exists() or not staged.strip()
+        if red_bit:
+            problems.append(
+                "the RED half of the hostile-GIT_DIR control did not reproduce: the "
+                f"fixture got its own .git ({(fixture / '.git').exists()}) or the decoy's "
+                f"index stayed empty ({staged.strip()!r}). Without a reproduction the "
+                f"green half below is a check that cannot fail.")
+
+        # GREEN: `_git`, under the same hostile environment.
+        before = staged
+        os.environ["GIT_DIR"] = str(decoy / ".git")
+        try:
+            _git(safe, "init", "-q")
+            _git(safe, "add", "-A")
+        finally:
+            os.environ.pop("GIT_DIR", None)
+        after = subprocess.run(["git", "ls-files"], cwd=decoy, capture_output=True,
+                               text=True, env={k: v for k, v in os.environ.items()
+                                               if not k.startswith("GIT_")}).stdout
+        if not (safe / ".git").exists():
+            problems.append("_git under an inherited GIT_DIR created no repository in the "
+                            "fixture tree - the scrub is not working")
+        if after != before:
+            problems.append(f"_git under an inherited GIT_DIR wrote to the decoy's index: "
+                            f"{before.split()} -> {after.split()}")
+    if verbose:
+        ok = not problems
+        print(f"{'PASS' if ok else 'FAIL'}  HOSTILE GIT_DIR: the vulnerable shape stages "
+              f"into a decoy repository and `_git` does not (red and green, #198)")
+        for p in problems:
+            print(f"        {p[:150]}")
+    return problems
 
 
 def controls(mutant: str | None = None) -> int:
@@ -300,7 +382,12 @@ def controls(mutant: str | None = None) -> int:
             for ln in out.strip().split("\n")[-8:]:
                 print(f"        {ln[:150]}")
 
-    print(f"\n{len(cases) + 1} control(s), {len(failures)} failed")
+    # This one asks about THIS file rather than about `docstat.py`, so it runs under a
+    # mutant too - the fixture builder is the same either way.
+    if hostile_git_env():
+        failures.append("HOSTILE GIT_DIR")
+
+    print(f"\n{len(cases) + 2} control(s), {len(failures)} failed")
     return 1 if failures else 0
 
 

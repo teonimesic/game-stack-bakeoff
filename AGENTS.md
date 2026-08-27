@@ -360,8 +360,8 @@ working session as the change**, not later:
 > it was typed. **The producer has to be RUN by something that is not a person.** The check that
 > should have caught it was bound to one wording and read a second wording of the same fact, in
 > the same file, as clean; it now reads any cardinal on a line naming the log's range, path or
-> producer, over every live document rather than three (`DECISIONS.md`, *the findings count is
-> read from the log's ADDRESS*).
+> producer, over every live document rather than 3 (`DECISIONS.md`, *the findings count is read
+> from the log's ADDRESS*).
 
 `README.md` and `DECISIONS.md` state what is true now — **replace superseded content rather than
 annotating it.** `eval/FINDINGS.md` is the exception: it is a findings log, and a number that was
