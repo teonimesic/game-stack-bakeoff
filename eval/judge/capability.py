@@ -440,8 +440,8 @@ def by_task_class(records: list[Observation]) -> dict[str, list[Observation]]:
     out: dict[str, list[Observation]] = defaultdict(list)
     for r in records:
         out[r.task_class].append(r)
-    order = ([GATE_TASK_CLASS] if GATE_TASK_CLASS in out else []) + \
-        sorted(k for k in out if k != GATE_TASK_CLASS)
+    first = [GATE_TASK_CLASS] if GATE_TASK_CLASS in out else []
+    order = first + sorted(k for k in out if k != GATE_TASK_CLASS)
     return {k: out[k] for k in order}
 
 
