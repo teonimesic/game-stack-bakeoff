@@ -234,7 +234,7 @@ A task body must answer four questions, in this order, without assuming any of t
 | **What is this thing?** | One or two lines defining the component before naming its problem. "`idiomatic` is the aspect that asks whether code is written the way its language expects" — not "idiomatic's ordering". |
 | **What is wrong, and how do we know?** | The defect with its evidence: the measurement, the number, the finding. Not "this is broken". |
 | **Why does it matter?** | What conclusion is unsafe, or what is blocked, while it stands. If nothing is, lower the priority. |
-| **What should be done?** | Concrete first move. Name the files. Include cost if it spends money, and any regime boundary the change would cross. |
+| **What should be done?** | Concrete first move. Name the files. Include the tokval if it consumes account capacity, and any regime boundary the change would cross. |
 
 Also state, where they apply:
 

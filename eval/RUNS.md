@@ -859,8 +859,8 @@ Moved to `runs/archive-arena2d-wg-audio48/` with its records, artifacts and work
 `wg-audio48` (pong and tetris only), 0 arena records, 8 tarballs each opened and counted.
 Full rationale in that directory's `README.md`.
 
-`wg-audio48` is therefore now a **16-trial, two-game run**, and its spend line above is the
-16 records only. The arena money moved with the arena trials.
+`wg-audio48` is therefore now a **16-trial, two-game run**, and the reported tokval covers only
+those 16 records. The arena tokval moved with the arena trials.
 
 ## Two arena trials were killed, and their `terminal_reason` is `None`
 
@@ -1124,8 +1124,8 @@ from the stored tier files.
 | ts t0, t1 | 0.8957 | **0.9557** |
 | rust t0, t1 | 0.000 | **0.000** — unchanged, and required |
 
-No agent trial was re-run and no money was spent. `bot_mutants.py`: 36 criteria pinned in both
-directions, 2 variants, 3 session-lock controls, 0 expectations unmet, exit 0.
+No agent trial was re-run and no tokval was generated. `bot_mutants.py`: 36 criteria pinned in
+both directions, 2 variants, 3 session-lock controls, 0 expectations unmet, exit 0.
 `verify_blind.py` re-run unpiped after the fixture change: **BLIND**, exit 0, 74 ids, 8 trees.
 
 ## `wg-g4c-2026-08-21` — the platformer, COMPLETE. 8/8 `completed`, $421.00
@@ -1554,7 +1554,7 @@ What it does establish is that the number has a **mechanism** rather than being 
 split, which is the bar this project sets before a stack-correlated reading may be discussed at
 all. Godot and Unity will either fit the pattern or break it.
 
-## Specialist-judge calls — a separate ledger, because they spend money too
+## Specialist-judge calls — a separate ledger, because they consume account capacity too
 
 This file's opening line claims every run, and judge calls were never in it. Read from the
 stored result files on 2026-08-16.

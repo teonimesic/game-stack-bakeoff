@@ -1049,7 +1049,7 @@ that field returned **2 distinct scores in every round with 2 of 4 rounds failin
 gate** (#74), so the adjacent gaps are ~0 and `n = (SD/gap)^2` diverges.
 
 > **Task 08's target is reachable or unreachable depending on the field, and the field is chosen
-> before any money is spent.** Repeating on a saturated field measures a tie with ever-greater
+> before any capacity is spent.** Repeating on a saturated field measures a tie with ever-greater
 > precision. Choose a field whose ceiling gate passes, or the sequential run cannot terminate.
 
 This is #63's precision-is-not-validity in a third form: n buys precision about a mean, and
