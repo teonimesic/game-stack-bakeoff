@@ -319,7 +319,9 @@ jobs:
       # `just`. This half needs neither: it asks whether `bot_mutants`'s own registry gate
       # and its pending-subject adjudication can go RED. A registry that cannot fail would
       # print a complete per-criterion census of a file that had drifted out from under it.
-      - name: judge/bot_mutants --selftest (the hazard registry's gate, both ways)
+      # Its third arm reads `bot_pong._rally` over written tapes -- the games `ref_pong`'s
+      # physics cannot be steered into, so no fixture and no `just` are involved.
+      - name: judge/bot_mutants --selftest (the registry gate and the rally tapes, both ways)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/bot_mutants.py --selftest
       # `audio_regrade_census` is the producer for "how many stored verdicts does this

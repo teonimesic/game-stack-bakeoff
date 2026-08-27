@@ -1,7 +1,7 @@
 ---
 id: 186
 title: Two harnesses record trial wall-clock under two names, and the one nothing reads holds 4.4 hours of it
-status: todo
+status: in_progress
 priority: 3
 refs: eval/runner.py,eval/wholegame.py,eval/RUNS.md,eval/judge/capability.py
 done_when: 'The two names are reconciled - one quantity, one name, or an explicit statement in `eval/RUNS.md` that they are the same measurement recorded by two harnesses with the conversion written down. If `duration_ms` is kept, something must read it or the register must say why it is captured and not read; if it is dropped, the 47 stored records that carry it are evidence and the entry must say where that reading now lives. State which of the two the whole-game and spec-change suites each use after the change, and whether any published wall-clock figure moves - the expected answer is none, because nothing reads the one being changed, and that expectation should be checked rather than assumed. A null result closes this: if the two quantities turn out NOT to be the same measurement - different start points, different inclusions - say so with the two definitions side by side, because that is a sharper answer than renaming them.'

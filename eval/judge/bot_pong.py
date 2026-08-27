@@ -443,14 +443,38 @@ class PongBot(Bot):
         cannot be read back, because the evidence string of the day did not record which
         way it read — which is the argument for the one it has now.
 
-        THE VERDICT IS OTHERWISE `rose_on_hit > 0`, which passes a counter that moves
-        once and stops — weaker than the question the criterion asks and weaker than
-        `deflect_ok` beside it. Tightening that is a re-scoring event with its own
-        `tier2_census.py` before-and-after (`tasks/171`), so it is not bundled in here.
+        THE VERDICT IS ALL-OR-NOTHING: every hit the drive can read must be counted,
+        which is the same standard `deflect_ok` beside it already holds. The contract
+        licenses it directly — `rally` is DEFINED as the number of hits since the last
+        point, so a hit the counter skips makes the line state a rally its own event
+        history contradicts, exactly as a late one does. `rose_on_hit > 0` answered "on
+        at least one of them" to a criterion that asks "on each", and a game whose
+        counter takes only one paddle's returns passed it with `rally rose on 3 of 6
+        paddle_hit ticks` (`tasks/171`; the mutant is `RALLY_HALF_COUNTED`).
+
+        THE SAMPLE FLOOR IS ONE COUNTABLE HIT, and it is argued rather than assumed. A
+        floor of six was proposed with the tightening and is NOT taken: a correct game
+        that produces fewer than six hits in the drive would then fail for being slow,
+        which is #46's shape and a false-negative channel this criterion has no need of.
+        One hit is enough because the contract is per hit, and it is the floor
+        `paddle.deflects` already uses (`deflect_ok and hits > 0`).
+
+        WHAT IS EXCLUDED, and why the exclusion cannot swallow the criterion: a hit tick
+        that ALSO carries the point is not counted either way, because the point zeroes
+        `rally` on the same line and there is no reading of the contract under which
+        that tick's counter must rise. The verdict requires `countable > 0` rather than
+        `hits > 0`, so a game that somehow scored on every hit tick fails rather than
+        passing on an empty denominator (`AGENTS.md` rule 7). A hit tick whose `rally`
+        is not a number stays IN the denominator: `state.shape` contracts it as one, and
+        a game that stops reporting one mid-match has broken the contract, not evaded
+        the measurement.
         """
         start = len(s.history)
         prev = s.last
         hits = 0
+        #: hit ticks that also carried the point, excluded from both halves of the
+        #: verdict; `countable` is the denominator the verdict is read against.
+        scoring_hits = 0
         deflect_ok = True
         rose_on_hit = 0
         rose_late = 0
@@ -477,6 +501,8 @@ class PongBot(Bot):
             late_watch = None
             if "paddle_hit" in t.events:
                 hits += 1
+                if scored:
+                    scoring_hits += 1
                 vx_a, vx_b = _f(_ball(prev), "vx"), _f(_ball(t), "vx")
                 if not (vx_a is not None and vx_b is not None and vx_a * vx_b < 0):
                     deflect_ok = False
@@ -485,28 +511,46 @@ class PongBot(Bot):
                 # same-tick increment - counting it twice would let a late counter earn
                 # `rose_on_hit` off its own backlog. This hit is then unobserved, so the
                 # watch is re-armed for it.
-                if numeric and r_b > r_a and not settled_late:
-                    rose_on_hit += 1
-                elif numeric and not scored:
-                    # A point zeroes `rally`, so a watch opened on a scoring tick has a
-                    # meaningless baseline and the next rise would read as late.
-                    late_watch = r_b
+                # A hit tick that also carries the point is out of BOTH halves of the
+                # verdict: the point zeroes `rally` on that same line. No watch is
+                # opened on it either - the baseline would be meaningless and the next
+                # rise would read as late.
+                if not scored:
+                    if numeric and r_b > r_a and not settled_late:
+                        rose_on_hit += 1
+                    elif numeric:
+                        late_watch = r_b
             if scored:
                 if t.state.get("rally") == 0:
                     rally_reset = True
             prev = t
-            if hits >= 6 and rose_on_hit:
+            # Six countable hits is enough of a sample for an all-or-nothing reading,
+            # and the drive stops there WHATEVER the counter did - under the old
+            # `rose_on_hit > 0` it had to keep going while the counter stayed still, to
+            # give it more chances to move. `late_watch is None` holds the break for one
+            # tick when the last hit's increment is still outstanding, so `rose_late`
+            # can tell "a tick behind" from "never moved" on the final hit too.
+            if hits - scoring_hits >= 6 and late_watch is None:
                 break
+        countable = hits - scoring_hits
         if hits == 0:
             detail = (f"no paddle_hit in {len(s.history) - start} ticks of a tracking "
                       f"rally, so the counter was never read against a hit")
+        elif countable == 0:
+            detail = (f"all {hits} paddle_hit ticks also carried the point that zeroes "
+                      f"`rally`, so no hit could be read against the counter")
         else:
-            detail = f"rally rose on {rose_on_hit} of {hits} paddle_hit ticks"
+            detail = f"rally rose on {rose_on_hit} of {countable} paddle_hit ticks"
+            if scoring_hits:
+                detail += (f"; {scoring_hits} further hit tick"
+                           f"{'' if scoring_hits == 1 else 's'} carried the point that "
+                           f"zeroes `rally` on the same line, counted neither way")
             if rose_late:
                 detail += (f"; on {rose_late} of them it rose on the FOLLOWING tick "
                            f"instead, which is a counter a tick behind the hit its own "
                            f"trace line reports")
-        return ((rose_on_hit > 0), (deflect_ok and hits > 0), rally_reset, hits, detail)
+        return ((countable > 0 and rose_on_hit == countable),
+                (deflect_ok and hits > 0), rally_reset, hits, detail)
 
     def _score_a_point(self, s: ProbeSession) -> tuple[bool, bool, bool, str]:
         """Park the right paddle at an extreme; the left player should score."""
