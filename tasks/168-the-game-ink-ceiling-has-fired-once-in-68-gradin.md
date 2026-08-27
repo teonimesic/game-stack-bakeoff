@@ -1,11 +1,12 @@
 ---
 id: 168
 title: the GAME ink ceiling has fired once in 68 gradings and it was a false negative too
-status: in_review
+status: in_testing
 priority: 3
 refs: eval/judge/static.py,eval/judge/ink_window_control.py,eval/judge/RUBRIC.md,eval/RUNS.md,tasks/163
 done_when: the game half of INK_WINDOW is decided on the same standard tasks/163 applied to the scene half - either a ceiling with a derivation and a population, or no ceiling - and if it moves, wg-g4c g4_platformer__godot__t1 is re-graded, the regime move is recorded in eval/RUNS.md, and every live document quoting the 0.881 figure or the 7-of-68 tier-1 census breakdown is repaired
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/48
+established_by: 5 review rounds; ink_window_control.py 51/51 offline and with --runs-root; the pre-change ceiling restored turns exactly 3 of 38 rows red at exit 1, all 3 rows the change is about; gates/controls/CodeRabbit all green at d389efe
 ---
 
 tasks/163 made render.nonempty's ink window per task class and gave a scene the floor with no ceiling. It deliberately left the GAME ceiling at 0.85, because moving it flips a stored game gate verdict and the figure three live documents quote - a re-scoring event on the game population. But the measurement it left behind says the game ceiling is the same defect. python3 eval/judge/ink_window_control.py --runs-root <main>/eval/runs, over 85 gradings / 69 submissions: the ceiling has fired TWICE and neither firing was a defect. One is the scene, repaired. The other is wg-g4c g4_platformer__godot__t1 at mean ink 0.881 - a night platformer drawn over a gradient sky, whose only tier-1 failure is this one and which scored 1.000 on tier 2 (RUBRIC.md already records it as one of the five non-blocking failures). Read the frame: eval/runs/wg-g4c-2026-08-21T02-26-46/artifacts/g4_platformer__godot__t1/eval/frames/frame_0005.png. The mechanism is that ink_coverage counts pixels differing from the single most-common quantised colour, so a GRADIENT SKY has no modal region and reads as ~1.0 whatever is drawn on it - which is a property of the palette, not of the render. The floor, meanwhile, has fired twice and both times on trials with ZERO frames, where render.frames reports the same fact in the same record. So over the whole game corpus render.nonempty has never separated anything render.frames did not, and its only independent firing was wrong. Decide it on evidence, not by widening: state the ceiling's population and its derivation, or remove it and say what the floor is then carrying.
@@ -123,3 +124,41 @@ FAIL. **0 of the 67 stored frame sets contain a flat frame**, worst per-set cost
   rows (they already assert the negation of the row they guard, written out independently), and
   the *"check the ordinal before citing it"* sentence (it stands verbatim on the twenty-third
   break, and ordinals here have collided).
+
+## note 2026-08-27
+
+## The review, and what it changed (5 rounds, 27 comments)
+
+**25 acted on, 2 declined.** Both declines are answered in their threads with evidence.
+
+**Round 1 changed the result, not just the prose.** It asked whether removing the ceiling opens a
+fail-open path, because `analyse_frames` takes its reference colour from frame 0 and applies it to
+every frame. It does — and measuring it showed the ceiling had **never closed that path**, which
+is now the strongest part of the derivation and is `BLANK_RENDERS` in the control. The repair
+(`png.Image.is_flat` + `flat_frames`) closes all 4 arrangements, where the ceiling closed 1 of 3.
+
+**Round 2 found a published number wrong.** `0.053` where the data says `0.0555` — and
+re-deriving that sentence from the stored records rather than re-reading the prose found a second
+error beside it, *"the 7 highest are all `g4_platformer`"*, when it is the top **6**. **Rule 5
+fired against the author here**: both figures were carried forward from a scratch reading rather
+than re-read from the producer at the moment of writing.
+
+**Rounds 3-5 were documentation**, all accepted: bound the historical claim at `tasks/163` rather
+than running it to the present; keep the corpus history in `eval/RUNS.md` and out of
+`eval/judge/AGENTS.md`; say *"a frame set in which every frame is a single colour"*; repository-
+root paths for every producer command in a live document; and state the re-open condition in
+`flat_frames`' own **whole-frame** unit rather than the region-level one the code does not measure.
+
+**The 2 declines.**
+
+1. `scene_runner_control.py`'s mutant rows. The row asserts `task_class == "game"`, which is the
+   negation of the check it guards (`== "scene"`) written out as an independent literal — exactly
+   what rule 12's corollary asks for, and deriving it from the check would reproduce `tasks/113`.
+   The alternative suggested is not implementable: `"game"` is a **valid** class no guard rejects.
+2. *"Check the ordinal before citing it."* It stands verbatim on the twenty-third break, regime
+   ordinals are one of the 4 hand-allocated namespaces here and every one has collided, and
+   `docstat.py --sweep` carries a regime-ordinal check for that reason.
+
+**`Reviews paused` fired at the round-5 head**, which is CodeRabbit's response to a branch under
+active development. It is a notice, not a failed round: round 5 landed as `LANDED_REVIEW` before
+it appeared.
