@@ -276,9 +276,9 @@ other three failures — `verify.green`, `lint.clean`, `tests.green` — are the
 not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
 and the trial is not `completed` either way.
 
-**The ceiling is gone for games too, since `tasks/168`**, so the re-grade above no longer turns
-on the class. What the ceiling did over the 69 stored submissions, the offline re-grade of the one
-game it refused, and the derivation are in *`render.nonempty` lost its ink ceiling* below.
+**Since `tasks/168` the ceiling is gone for games as well, so this re-grade no longer depends on
+the task class.** `render.nonempty` lost its ink ceiling records what the ceiling did over the 69
+stored submissions and the offline re-grade of the one game it refused.
 
 **`verify.green`, `lint.clean` and `tests.green` are the interruption, not the submission.** 118
 of 119 of its own tests pass and the lint finding is `'previous' is never reassigned. Use
@@ -2580,9 +2580,10 @@ headline, its 0-reversed / 3-coarsened / 8-identical comparison and the gate dec
 are untouched. Removing a tier-1 failure can only reduce tier-1 variance, so no group can gain a
 `both_vary`.
 
-**What re-opens it.** A ceiling firing that is a real defect — a rendered frame with no flat
-region that the play-bot or the scene probe also condemns — printed by that producer. The output
-recorded on 2026-08-27 holds 2 ceiling firings and neither is a real defect.
+**What re-opens it.** Re-open the ceiling decision only if `eval/judge/ink_window_control.py`
+reports a ceiling firing that is a real defect. The frame must have rendered with no flat region,
+and the play-bot or the scene probe must condemn the submission too. The output recorded on
+2026-08-27 holds 2 ceiling firings, and neither meets that test.
 
 ## Rules
 

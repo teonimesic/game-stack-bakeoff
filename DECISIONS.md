@@ -238,7 +238,7 @@ sets contain a flat frame**, so the added half moves no stored verdict, and `fla
 a third value: a record written before 2026-08-27 is re-graded on the floor alone and its evidence
 says so.
 
-Every number above is a checked row in `judge/ink_window_control.py` (`MECHANISM_ROWS`,
+Every number above is a checked row in `eval/judge/ink_window_control.py` (`MECHANISM_ROWS`,
 `BLANK_RENDERS`, the `flood` fixture) rather than a sentence here, so the derivation goes red if
 `ink_coverage` changes.
 
@@ -273,10 +273,10 @@ there is no number to choose. `ink_window_control.py` carries the restored 0.85 
 FAIL and nothing under `eval/runs/**` was rewritten** — `eval/RUNS.md`'s *`render.nonempty` lost
 its ink ceiling* break holds both readings side by side.
 
-**What re-opens it.** That producer printing a ceiling firing that is a real defect — a rendered
-frame with no flat region that the play-bot or the scene probe also condemns. Its output recorded
-on 2026-08-27 holds 2 ceiling firings, and neither is a real defect. `eval/judge/RUBRIC.md` holds
-the table.
+**What re-opens it.** Re-open this decision only if `eval/judge/ink_window_control.py` reports a
+ceiling firing that is a real defect. The frame must have rendered with no flat region, and the
+play-bot or the scene probe must condemn the submission too. The output recorded on 2026-08-27
+holds 2 ceiling firings, and neither meets that test. `eval/judge/RUBRIC.md` holds the table.
 
 **`task_class` stays in `BOUND_POPULATIONS` with 0 members.** It is the value a future
 class-dependent bound declares, and `assert_tier1_bounds_declared()` is what makes declaring it
