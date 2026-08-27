@@ -26,10 +26,9 @@ Where a run's results are the evidence, run `evaluate-run` first. Refining on un
 unadjudicated results refines against grader defects, which is how three matrices produced
 rankings that were withdrawn.
 
-**An iteration and a finding are different records, and one piece of work commonly produces
-both** — a repaired gate is an iteration; the defect it repaired is a finding. Which of the two
-`IMPROVEMENTS.md` files a change is filed in, and what separates an iteration from a finding, is
-`eval/IMPROVEMENTS.md`'s preamble. Read it before filing rather than deciding here.
+**Read `eval/IMPROVEMENTS.md`'s preamble before filing anything.** It owns the record contract —
+which of the two `IMPROVEMENTS.md` files a change goes in, and what separates an iteration from a
+finding.
 
 Authoritative references: `eval/FINDINGS.md`, `eval/RUNS.md`, `eval/IMPROVEMENTS.md`
 (the evaluator loop), `IMPROVEMENTS.md` at root (the template loop), `DECISIONS.md`.
