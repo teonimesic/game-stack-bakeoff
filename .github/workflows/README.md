@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 56 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 57 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -52,6 +52,11 @@ needs neither `ffmpeg` nor `just`.
 `skill_layout_selftest` is there rather than beside `skill_layout_control` because it needs
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
+`heartbeat_control` is 0.9s and asks whether the hourly heartbeat still refuses to report a
+count when the **main checkout is not a work tree** — the state `core.bare=true` puts it in,
+where `git status` exits 128 and the heartbeat used to print byte-identical counts at exit 0.
+Its red rows run against throwaway repositories under `$TMPDIR` and restore the flag in a
+`finally`, and its mutant is the pre-fix heartbeat.
 `fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
@@ -185,7 +190,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **56** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **57** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -217,6 +222,14 @@ CI, which makes a push the last moment it can act:
       'eval/**/*_control.py' 'eval/**/*_mutants.py' 'eval/**/*_selftest.py'; } | sort -u | wc -l
 git log --format=%H main | wc -l
 ```
+
+**The work-tree guard is in the heartbeat and in NO hook tier, and that is reachability
+rather than duty cycle.** With `core.bare` true in the main checkout, `git commit` exits 128
+**before any hook runs** — measured in a fixture whose `pre-commit` printed nothing — so a hook
+could only ever reach the check from a linked worktree, and linked worktrees keep working while
+the main checkout is bare. The heartbeat fires hourly whether or not anyone is committing, which
+is also the shape the incident had: `tasks/184` observed the flip while nothing was committing.
+`eval/tools/heartbeat_control.py` is what gates it.
 
 Two things about that population. Editing a gate script is **not** in it — the census reads the
 *set* of them, so only an add, a delete or a rename moves the verdict, which is why the second

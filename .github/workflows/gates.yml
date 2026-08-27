@@ -229,6 +229,15 @@ jobs:
       - name: hook_audit_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/hook_audit_control.py
+      # The hourly heartbeat reported byte-identical counts at exit 0 through a main
+      # checkout that `git status` refused to look at (`tasks/184`). This asks whether its
+      # work-tree guard can go red, and whether it still goes green in the three states
+      # where the checkout is fine -- including from a linked worktree, where git answers
+      # `false` to `--is-bare-repository` about a repository whose main checkout is bare.
+      # 0.9s locally; throwaway git repositories under $TMPDIR, no history and no toolchain.
+      - name: heartbeat_control (the main checkout is a work tree, both directions)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/heartbeat_control.py
       # The agent CLI became a variable on 2026-08-24, and nothing in a stored artifact
       # records which command line built a trial. This pins the claude arm's argv against a
       # literal in three configurations, and carries 12 mutants over the parsing and
