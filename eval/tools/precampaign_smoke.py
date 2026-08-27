@@ -60,6 +60,27 @@ def check_frame_criteria_geometry_safe() -> tuple[int, str]:
                f"all geometry-invariant")
 
 
+def check_tier1_bounds_declared() -> tuple[int, str]:
+    """Every tier-1 criterion must say which population its bound was calibrated on.
+
+    Tier 1 GATES, so a bound calibrated on one task class does not cost a correct member
+    of another a fraction of a score - it stops that submission being scored at all.
+    `render.nonempty`'s ink ceiling was a game's for 85 stored gradings, and it is the
+    kind of thing nobody looks for until it refuses something (tasks/163). Asked here as
+    well as in `judge/ink_window_control.py` because this is what runs before a campaign
+    spends anything.
+    """
+    sys.path.insert(0, str(EVAL / "judge"))
+    import static
+    problems = static.assert_tier1_bounds_declared()
+    if problems:
+        return 1, " | ".join(problems)[:400]
+    per_class = sorted(c for c, p in static.TIER1_BOUND_POPULATION.items()
+                       if p == "task_class")
+    return 0, (f"{len(static.TIER1_BOUND_POPULATION)} tier-1 criteria declare a bound "
+               f"population; class-dependent: {per_class}")
+
+
 def check_every_game_verifies_its_end_condition() -> tuple[int, str]:
     """Every game must check that it can END, under whatever name it uses.
 
@@ -296,6 +317,12 @@ def main(argv: list[str]) -> int:
             bad.append(("frame criteria geometry-invariant", rc2, tail2))
         print(f"  {'frame criteria geometry-invariant':44s} exit={rc2:<4d}    0.0s  "
               f"{'ok' if rc2 == 0 else 'FAILED'}", flush=True)
+        rc4, tail4 = check_tier1_bounds_declared()
+        rows.append(("tier-1 bounds declare their population", rc4, 0.0, tail4[:70]))
+        if rc4:
+            bad.append(("tier-1 bounds declare their population", rc4, tail4))
+        print(f"  {'tier-1 bounds declare their population':44s} exit={rc4:<4d}    0.0s  "
+              f"{'ok' if rc4 == 0 else 'FAILED'}", flush=True)
         for name, cmd, cwd in cs:
             t0 = time.monotonic()
             try:

@@ -301,8 +301,8 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
 
     # -- tier 1 ----------------------------------------------------------- #
     #
-    # TWO THINGS ARE TASK-CLASS DEPENDENT HERE, and both of them would otherwise measure
-    # the task rather than the work.
+    # THREE THINGS ARE TASK-CLASS DEPENDENT HERE, and all of them would otherwise
+    # measure the task rather than the work.
     #
     # 1. THE SCENE HAS NO SOUND. Every rendered scene prompt says so in as many words
     #    ("Do not spend effort on audio; spend it on what is on screen"), so scoring a
@@ -316,9 +316,16 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     #    floor(i*660/11)). These frames are also what the `fidelity` and `motion`
     #    aspects read, and their brief says the last frame is late in the run - filming
     #    240 ticks past the end makes that sentence false.
+    # 3. THE INK WINDOW'S CEILING IS A GAME'S. `render.nonempty` asks whether the frames
+    #    hold more than a blank background, and 0.85 was its upper bound for every task
+    #    from the first commit. A scene is contracted to FILL the frame, so the ceiling's
+    #    sign is inverted there and `static.INK_WINDOW` gives a scene the floor alone.
+    #    `static.TIER1_BOUND_POPULATION` is the census that asked the same question of
+    #    the other 13 criteria; this is the only one whose answer was "of games".
     #
-    # NEITHER IS A CLOCK. Both are tick counts and both are read off the scene's own
-    # contract, so the capture path this touches stays deterministic and wall-clock free.
+    # NONE IS A CLOCK. Two are tick counts and one is a pixel density, all three read off
+    # the task's own contract, so the capture path this touches stays deterministic and
+    # wall-clock free.
     frames_dir = out / "frames"
     tier1_kwargs: dict[str, Any] = {}
     if task_class == "scene":
@@ -329,6 +336,7 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     tier1 = static.collect(submission, seed=seed, env=env,
                            run_coverage=run_coverage, frames_out=frames_dir,
                            audio_game=game if (audio and task_class == "game") else None,
+                           task_class=task_class,
                            **tier1_kwargs)
     rec["programmatic"] = tier1
     _atomic(out / "programmatic.json", tier1)

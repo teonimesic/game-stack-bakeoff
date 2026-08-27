@@ -185,6 +185,17 @@ beat the within-cell floor by at least `1/N`, the smallest gap a pass count over
 represent. `--selftest` proves it can say `CROSSES`, including on the exactly-one-criterion
 boundary. `NOT ASKED` (fewer than two gate-green stacks) is a third value and is not a pass.
 
+**Because tier 1 GATES, a bound calibrated on one task class does not cost the other a
+fraction of a score — it stops a correct submission being scored at all.** So every tier-1
+criterion declares which population its bound came from, in `static.TIER1_BOUND_POPULATION`,
+and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. **1**
+bound is class-dependent today: `render.nonempty`'s ink CEILING is a game's, so a scene gets
+the floor and no ceiling. The floor is a property of the starter and transfers, and a blank
+scene frame still fails. **Before changing either bound, run the producer** —
+`python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which prints
+what the window has ever done over the stored corpus and re-grades every firing under it.
+`RUBRIC.md` holds the table and the derivation.
+
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two
 sweeps behind it and what would re-open it are in `RUBRIC.md`. Two consequences you will meet

@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 50 documentation, queue and selftest gates | 10 mutant and control suites |
+| checks | 51 documentation, queue and selftest gates | 10 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **75–115s** | **658–827s** |
 
@@ -49,6 +49,10 @@ needs neither `ffmpeg` nor `just`.
 `skill_layout_selftest` is there rather than beside `skill_layout_control` because it needs
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
+`judge/ink_window_control` is there rather than in `controls.yml` despite being about frames:
+it writes its own PNGs through `judge/png.py` and stubs every subprocess `static.collect`
+makes, so it needs neither `just` nor a stack toolchain — 0.6s. Its corpus arm reads
+`eval/runs`, which is gitignored, and prints `NOT ASKED` in CI rather than a count.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `aim_contract_control`, `scene_mutants` with its `--census-selftest` and its
@@ -157,7 +161,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/tasks.py check` | yes | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **5** of `gates.yml`'s **50** checks; `pre-commit` runs **4**.
+`pre-push` runs **5** of `gates.yml`'s **51** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
