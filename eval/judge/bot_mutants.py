@@ -313,6 +313,58 @@ NO_MULT_FALL = ("""                self.streak = 0
                 """                self.streak = 0
                 # MUTANT: the multiplier survives damage.""")
 
+#: THE MULTIPLIER COLLAPSE, IN BOTH DIRECTIONS, and the pair is the point (`tasks/170`).
+#: `multiplier.falls` used to compare the peak the killing phase reached with the value
+#: on the tick `player_hit` fires. That reading has an error in each direction and one
+#: fixture here isolates each: the window between the two readings is 459 idle ticks on
+#: the reference, so anything that lowered the multiplier inside it passed, and anything
+#: that lowered it one tick late failed.
+#:
+#: A correct game the old reading FAILED. The g3 contract fixes no tick for the fall -
+#: it says the multiplier "falls when the player is hit" and declares a `multiplier`
+#: event meaning "the score multiplier changed" - so a game whose collision pass records
+#: the damage and whose scoring pass applies it at the top of the next tick has met it.
+MULT_DEFERS_THE_DROP = (
+    ("""                self.streak = 0
+                if self.multiplier > 1:
+                    self.multiplier = 1
+                    events.append("multiplier")""",
+     """                self.streak = 0
+                # VARIANT: the collision pass only RECORDS the damage. The scoring pass
+                # at the top of the next tick applies the collapse and declares it.
+                self._deferred_drop = self.multiplier > 1"""),
+    ("""        grazed = self._move_player(inputs)""",
+     """        if getattr(self, "_deferred_drop", False):
+            self._deferred_drop = False
+            self.multiplier = 1
+            events.append("multiplier")
+        grazed = self._move_player(inputs)"""))
+
+#: An INCORRECT game the old reading PASSED, and it is the reason the baseline moved to
+#: the tick before the damage rather than the window merely widening. A combo timer is a
+#: real arcade design; this game has one and has no damage link at all, so its multiplier
+#: is back at 1 long before the first hit and the old reading credited that decay to the
+#: damage. `multiplier.rises` survives because the timer restarts on every kill.
+MULT_DECAYS_ON_A_TIMER = (
+    ("""                self.streak = 0
+                if self.multiplier > 1:
+                    self.multiplier = 1
+                    events.append("multiplier")""",
+     """                self.streak = 0
+                # MUTANT: damage does not touch the multiplier."""),
+    ("""        self.streak += 1
+        if self.streak % KILLS_PER_MULT == 0""",
+     """        self.streak += 1
+        self._idle = 0            # MUTANT: the combo timer restarts on a kill
+        if self.streak % KILLS_PER_MULT == 0"""),
+    ("""        grazed = self._move_player(inputs)""",
+     """        self._idle = getattr(self, "_idle", 0) + 1
+        if self._idle >= 120 and self.multiplier > 1:
+            self._idle = 0
+            self.multiplier -= 1   # MUTANT: the combo lapses instead
+            events.append("multiplier")
+        grazed = self._move_player(inputs)"""))
+
 NO_GRAZE = ("""        if grazed:
             events.append("wall_graze")""",
             """        # MUTANT: the boundary is never reported.""")
@@ -761,6 +813,15 @@ VARIANTS: list[Variant] = [
                   "evidence beside a verdict computed from the bullet count. It now "
                   "counts SHOOTING TICKS and reads `30 shooting ticks out of 120 ticks "
                   "of held fire`"),
+    Variant("ref_arena", "the multiplier collapse lands the tick after the damage",
+            MULT_DEFERS_THE_DROP, ("multiplier.falls",),
+            notes="the shape `tasks/159` constructed for pong and had to reject there, "
+                  "because g1 DEFINES `rally` as a count of the events the tick line "
+                  "carries. g3 defines `multiplier` nowhere - it says only that it "
+                  "'falls when the player is hit', and the same sentence's other half "
+                  "is read by `multiplier.rises` over hundreds of ticks by any "
+                  "mechanism. Measured against the one-tick reading: `multiplier was 2 "
+                  "before damage and 2 on the tick of the first hit`, FAIL"),
     Variant("ref_tetris3d", "a 96-tick card over an empty well",
             TETRIS_CARD_OVER_AN_EMPTY_WELL,
             ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
@@ -885,6 +946,15 @@ MUTANTS: list[Mutant] = [
                  "collateral is the honest report rather than a second failure"),
     Mutant("multiplier.falls", "ref_arena", "the multiplier survives damage",
            (NO_MULT_FALL,)),
+    Mutant("multiplier.falls", "ref_arena",
+           "the multiplier lapses on a combo timer, and damage never touches it",
+           MULT_DECAYS_ON_A_TIMER,
+           notes="the second direction, and the one `NO_MULT_FALL` cannot ask about. "
+                 "Removing the collapse leaves a multiplier that never moves after the "
+                 "killing stops; this one moves for a reason that is not the damage, "
+                 "and the criterion PASSED it while it compared the killing phase's "
+                 "peak with the value on the hit tick - 459 idle ticks apart on this "
+                 "fixture (`tasks/170`)"),
     Mutant("wall.graze", "ref_arena", "the boundary is never reported",
            (NO_GRAZE,)),
     Mutant("aim.three_axis", "ref_arena", "the depth axis is dropped from aim",
@@ -988,12 +1058,12 @@ MUTANTS: list[Mutant] = [
 # HAZARDS - one answer per criterion to "what correct game would mis-score this?"
 # --------------------------------------------------------------------------- #
 #
-# THE POPULATION IS 70, NOT 36. 36 criteria carry a mutant; a variant runs the
-# whole bot on ONE fixture, so a variant on `ref_pong` says nothing about `ref_arena`.
-# The real subject count per criterion is the number of variants on ITS OWN fixture, and
-# before this file was written that was 1 for pong, 1 for arena, 2 for the platformer and
-# **0 for tetris**. 2 of the 6 false negatives found here are on criteria with no
-# mutant at all, so a registry scoped to the 36 would have missed a third of the answer.
+# THE POPULATION IS EVERY CRITERION, NOT THE SMALLER SET THAT CARRIES A MUTANT. A
+# variant runs the whole bot on ONE fixture, so a variant on `ref_pong` says nothing
+# about `ref_arena`: the subject count for a criterion is the number of variants on its
+# OWN fixture. False negatives have been adjudicated here on criteria carrying no mutant
+# at all, so a registry scoped to the mutated set would miss them. `--hazards` prints
+# both counts and names the unmutated criteria; a figure typed here goes stale silently.
 #
 # Every entry names a SHAPE, so the question "does anything cover the shapes #46 names?"
 # is a group-by rather than a memory. A shape with no `covered_by` anywhere is a gap.
@@ -1048,6 +1118,7 @@ _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
 _V_FROZEN = "a 96-tick card over a frozen well"
 _V_EMPTY = "a 96-tick card over an empty well"
 _V_SPREAD = "a faster three-round spread weapon"
+_V_DEFERRED_DROP = "the multiplier collapse lands the tick after the damage"
 
 _SESSION = ("the three session-lock controls, which also pin that a permanently locked "
             "project comes back NOT MEASURED rather than FALSE")
@@ -1286,12 +1357,21 @@ HAZARDS: list[Hazard] = [
     Hazard("ref_arena", "multiplier.falls", "contract-reading",
            "a game that drops the multiplier on the tick AFTER the hit, the same "
            "ordering as `rally.counts`",
-           "OPEN, and not constructed. The criterion reads the multiplier on the tick "
-           "`player_hit` fires. tasks/159 settled the pong case and DID NOT settle this "
-           "one: it turned on `rally` being DEFINED by the g1 contract as a count of "
-           "the very events the line carries, and the g3 contract defines no value for "
-           "`multiplier` at all - only that it 'falls when the player is hit'. Its own "
-           "adjudication is tasks/170"),
+           "CONSTRUCTED and PASSING, as the variant. `tasks/159` declined this ordering "
+           "for pong because g1 DEFINES `rally` as a count of the events the tick line "
+           "carries; g3 defines `multiplier` nowhere, so the tick is free and the "
+           "criterion now reads 8 of them. What it compares moved with it: the baseline "
+           "is the value on the tick BEFORE the damage, never the killing phase's peak, "
+           "which is 459 idle ticks earlier on this fixture. A multiplier that lapses "
+           "on a combo timer and ignores damage entirely PASSED the old pairing with "
+           "evidence byte-identical to the reference's, and is now the mutant `the "
+           "multiplier lapses on a combo timer, and damage never touches it`. WHAT IS "
+           "STILL OPEN is that game made correct - both a combo timer AND a collapse on "
+           "damage - if the timer lapses inside the 8 ticks. Bounded rather than "
+           "closed: the window it could land in was 459 ticks wide and is 8, and a "
+           "timer that lapses before the hit is now caught outright. Closing it needs a "
+           "second hit to compare against, and the multiplier is at 1 by then",
+           _V_DEFERRED_DROP),
     Hazard("ref_arena", "wave.advances", "design-branch",
            "a wave that ends on a timer rather than on the last kill",
            "the criterion asks only that the wave number rose, by any mechanism"),
@@ -1950,7 +2030,12 @@ def main(argv: list[str]) -> int:
         print("-" * (n + 50))
         for behaviour, expected, verdict in lock_rows:
             print(f"{behaviour:<{n}}  {expected:<42}  {verdict}")
-    print(f"\n{len(rows)} criteria pinned in both directions, "
+    # THE ROWS ARE MUTANTS, NOT CRITERIA, and this line said "criteria" until a second
+    # mutant on `multiplier.falls` moved it from 44 to 45 while the number of criteria
+    # carrying one stayed at 41 (`tasks/170`). A count has to name the population it
+    # counted; `--hazards` is the producer for the per-criterion figure.
+    print(f"\n{len(rows)} mutants pinned in both directions over "
+          f"{len({(r[1], r[0]) for r in rows})} criteria, "
           f"{len(variant_rows)} variants, "
           f"{len(pending_rows)} pending, "
           f"{len(lock_rows)} session-lock controls, "

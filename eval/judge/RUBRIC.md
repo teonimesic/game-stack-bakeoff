@@ -392,10 +392,12 @@ Three are genre-defining and none can be settled from a frame:
   The bot finds an enemy on the tick it appears and fires into that window, so a game
   that reports the flag and ignores it fails.
 
-**13 of the 22 are pinned by a mutant** (`bot_mutants.py`, 40 criteria across
-4 games, 8 variants, 3 session-lock controls, 0 expectations unmet): snapped
+**13 of the 22 are pinned by a mutant** (`python3 eval/judge/bot_mutants.py --hazards`
+counts the mutated criteria per fixture; the full run reports the mutants, variants and
+controls and must exit 0): snapped
 analog input, enemies that appear fully formed, one kind wearing three names, a multiplier
-that never rises, one that survives damage, a boundary that is never reported, a dropped
+that never rises, one that survives damage, one that lapses on a combo timer while damage
+never touches it, a boundary that is never reported, a dropped
 depth axis, a volume that does not hold, a bullet every tick, a kill worth nothing,
 enemies that pass through the player, and a game that reports itself over and keeps
 stepping. The unpinned 9 are `state.shape`, `player.moves`, `enemies.spawn`,
