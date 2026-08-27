@@ -2565,18 +2565,20 @@ repository's first commit until `tasks/163`, which removed the ceiling for **sce
 single colour.**
 
 **The derivation is that `mean_ink` cannot carry a ceiling.** `ink_coverage` counts pixels
-differing from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's**
-mode — so the quantity is departure from the first frame's mode, a property of the palette:
+differing from **one** reference colour per frame — so the quantity is a property of the palette
+rather than of how much was drawn:
 
 | frames | measures | which half decides |
 |---|---|---|
-| solid white, magenta or black, all frames the same — "the render broke and filled the screen" | **0.0** | the **floor** |
-| a gradient with a subject drawn on it — a night platformer's sky | **0.881** | neither; it passes |
+| solid white, magenta or black — "the render broke and filled the screen" | **0.0**, in any colour | the **floor** |
+| a gradient with a subject drawn on it — a night platformer's sky | near 1.0 | neither; it passes |
 
 **And the ceiling was not a blank-frame guard either.** 12 frames each holding one colour have
-drawn nothing, and where they land depends only on how the colours are *arranged*:
+drawn nothing, and under the reference in force on this date — frame 0's mode applied to all 12 —
+where they landed depended only on how the colours were *arranged* (`WR-ink-arrangement-0-91667`;
+the next break took that dependence away and all 4 now read 0.0):
 
-| 12 frames, each one colour | mean ink | floor-only | old 0.001–0.85 |
+| 12 frames, each one colour | mean ink then, `WR-ink-arrangement-0-91667` | floor-only | old 0.001–0.85 |
 |---|---|---|---|
 | all one colour | 0.0 | FAIL | FAIL |
 | frame 0, then 11 of another | 0.91667 | PASS | FAIL |
@@ -2592,6 +2594,10 @@ floor alone and says so in its evidence.
 
 Every number in both tables is a checked row in `eval/judge/ink_window_control.py`, so the derivation
 goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
+
+**Every ink figure below is a frame-0 reading**, which is what the grader that wrote each record
+computed and what each verdict was decided against. The break after this one moved the reference to
+each frame's own mode; `--reference-shift` prints both readings for every stored set.
 
 **Within the game class, the 68 game values are a continuum, not 2 populations.** The scene is the
 69th stored submission and stays its own population — no aggregate crosses the task classes. The
@@ -2635,6 +2641,75 @@ are untouched. Removing a tier-1 failure can only reduce tier-1 variance, so no 
 reports a ceiling firing that is a real defect. The frame set must contain no flat frames — every
 frame drew something — and the play-bot or the scene probe must condemn the submission too. The
 output recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that test.
+
+## `mean_ink` MOVED TO A PER-FRAME BACKGROUND ON 2026-08-27 — a TWENTY-FIFTH comparability break, and it moves no stored verdict
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+`static.analyse_frames` took one background from **frame 0** and applied it to all 12 frames, so
+`mean_ink` was departure from the first frame's palette. It now takes a background **per frame**,
+and `mean_ink` is the fraction of a frame that is not its own background. `tasks/178`.
+
+**A frame-0 reading, in any record written before 2026-08-27, is not comparable with a per-frame
+reading, in any record written on or after it.** Nothing else about the criterion changed — the
+floor is still 0.001, there is still no ceiling, and `flat_frames` is still counted — and **no
+stored verdict moves**, because the lowest value in the corpus under either reference is 0.00811,
+8x the floor.
+
+**Why it moved.** A fixed reference cannot survive a submission changing its clear colour: every
+pixel of a later frame then differs from it and the frame reads exactly **1.00000**. Over the
+stored corpus that happened to **14 of 804 frames** in 3 sets. `g3_arena__rust__t0` flashes its
+arena red at frame 5, and its last 7 frames each read 1.00000 against frame 0's mode while reading
+0.04336 against their own — the same 4% of a frame those frames had been drawing all along. Under
+the per-frame reference **0** of the 804 read 1.00000.
+
+**And it was fail-open.** 12 frames of which frame 0 is uniform black and the other 11 uniform
+white carrying a single 2x2 speck — 4 pixels of 256000 — read `mean_ink` **0.91665** and PASSED
+`render.nonempty`, with `flat_frames` at 1 of 12 unable to see it either. Measured on the
+pre-change code before it was changed; it now reads 0.00001 and fails.
+
+**THE 10 STORED SETS WHOSE `mean_ink` MOVES.** Nothing under `eval/runs/**` was rewritten: each
+record still holds its frame-0 reading, and the right-hand column is what the same PNGs read under
+the reference in force from this date. The producer, which re-reads every stored PNG and refuses to
+report a shift unless its frame-0 arm first reproduces all 67 stored values to the digit:
+
+    python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs --reference-shift
+
+| submission | run | stored (frame 0) | per frame | move |
+|---|---|---|---|---|
+| `g3_arena__rust__t0` | `wg-matrix-2026-08-13` | 0.60285 | **0.04481** | −0.55804 |
+| `g3_arena__ts__t0` | `wg-matrix-2026-08-13` | 0.51997 | **0.03886** | −0.48111 |
+| `g4_platformer__godot__t1` | `wg-g4c-2026-08-21` | 0.88137 | **0.67869** | −0.20268 |
+| `s1_parallax__ts__t0` | `wg-scene-s1ts-2026-08-25` | 0.96561 | **0.85042** | −0.11519 |
+| `g3_arena__godot__t1` | `wg-arena3d-2026-08-15` | 0.39884 | **0.28533** | −0.11351 |
+| `g4_platformer__godot__t0` | `wg-g4c-2026-08-21` | 0.67885 | **0.78194** | +0.10309 |
+| `g3_arena__unity__t1` | `wg-arena3d-2026-08-15` | 0.18825 | **0.14218** | −0.04607 |
+| `g3_arena__ts__t0` | `wg-arena3d-2026-08-15` | 0.23198 | **0.18738** | −0.04460 |
+| `g3_arena__godot__t0` | `wg-arena3d-2026-08-15` | 0.39717 | **0.40062** | +0.00345 |
+| `g3_arena__unity__t0` | `wg-arena3d-2026-08-15` | 0.14379 | **0.14601** | +0.00222 |
+
+The other 57 sets read identically under both, because their clear colour never changes. The
+population is `tier1_census`'s — 69 submissions, the most recent grading of each from 85 on disk,
+of which **67** have readable frames on disk and 2 do not (`wg-arena3d`'s rust cells, at 0 frames).
+
+**What the move does to the corpus shape**, over the **66** game sets with frames — the scene is
+its own population and is never pooled with them. Under the frame-0 reference the 6 highest were
+`g4_platformer` and the 7th and 8th were `g3_arena` submissions at 0.60285 and 0.51997, both of
+them the saturation above rather than a property of the render. Under the per-frame reference the
+**7 highest are all `g4_platformer`**, the one game whose background scrolls across the whole
+frame, and the 8th is `g2_tetris3d__ts__t1` at 0.40621. The retired 0.85 ceiling would refuse 1 of
+the 67 sets rather than 2, and the one it still refuses is the scene at 0.85042.
+
+**What does NOT move.** No stored record, no stored verdict, no gate verdict, no tier-2 score.
+`judge/tier1_census.py` reads stored verdicts and is untouched. The `wg-g4c
+g4_platformer__godot__t1` re-grade recorded in the break above stands: it was decided by the
+removal of the ceiling, and it passes the floor under either reference.
+
+**What re-opens it.** A submission whose drawn subject reliably covers more of the frame than any
+single background colour, so the per-frame mode tracks the subject. `--reference-shift` is the
+producer to run: a set reading near 0 per frame and high against frame 0's, whose frames visibly
+drew something, is the case this did not anticipate. Nothing in the 67 stored sets is one.
 
 ## Rules
 

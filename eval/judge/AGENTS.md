@@ -206,14 +206,21 @@ without a per-class table fails.
 
 `render.nonempty` is a **floor of 0.001 and no ceiling**, plus a refusal of a frame set in which
 every frame is a single colour — both the same in either class, both properties every starter
-shares. **`mean_ink` does not measure how much was drawn**: it is departure from **frame 0's**
-modal colour, so a full screen reads 0.0 and a gradient reads near 1.0, and no bound on it can
-stand for a blank render. `RUBRIC.md` holds the rule, both derivation tables and what the retired
-ceiling did.
+shares. **`mean_ink` does not measure how much was drawn**: it is the fraction of a frame that is
+not its own modal colour, so a full screen reads 0.0 and a gradient reads near 1.0, and no bound
+on it can stand for a blank render. The reference is **each frame's own mode**, not frame 0's
+applied to all 12; the second half is now redundant with the floor rather than independent of it,
+and is kept as the fail-closed direction. `RUBRIC.md` holds the rule, both derivation tables and
+what the retired ceiling did.
+
+**A stored `mean_ink` is a frame-0 reading and is not comparable with one measured today** —
+`eval/RUNS.md`, *`mean_ink` moved to a per-frame background*. 10 of the 67 stored sets read
+differently under the two references and no verdict moves.
 
 **Before changing either half, run the producer** — `python3 judge/ink_window_control.py
 --runs-root <main checkout>/eval/runs` — which verifies both tables on real pixels, prints what
 the bounds have ever done over the stored corpus, and re-grades every firing under today's rule.
+Add `--reference-shift` to re-read the stored PNGs and print both readings per set.
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two
