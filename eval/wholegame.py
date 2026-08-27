@@ -477,6 +477,11 @@ def build_trial(run_dir: Path, work_root: Path, stack: str, game: str, trial: in
     # for it. Read that module before trusting a field across two arms.
     rec["agent"] = h.normalise(agent, stderr)
     # Artifact capture: everything needed to re-judge offline without re-running agents.
+    # THE AGENT CLI'S OWN `duration_ms` IS IN HERE AND IS NOT LIFTED INTO THE RECORD, so
+    # this file is its only address on this harness - `runner.py` keeps the same figure at
+    # `agent.duration_ms` instead. `eval/tools/wallclock.py` takes both addresses and
+    # reports which one each record used; a sweep of `trials/*.json` alone finds the field
+    # in 0 whole-game records and concludes this harness never captured it.
     (art / "agent_result.json").write_text(json.dumps(agent, indent=2)[:2_000_000])
     # RE-JUDGEABILITY. `git diff HEAD` alone is NOT enough to reconstruct a submission:
     # it omits untracked files entirely and cannot represent binary changes without
