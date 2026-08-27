@@ -2872,3 +2872,58 @@ Found by the same review round: `_bands` accepted `top`/`bottom` outside `[0,1]`
 then profiled from the 3 rows that actually exist — a fail-open that the tidy fixture also hid.
 
 ---
+## #197 - the arena bot had no opening budget in any of its ten sessions
+
+FINDINGS #34 is a Godot pong submission that held the ball for `OPENING_DELAY = 104` so its title
+card could be read. `bot_pong.LIVE_BUDGET` became 512 and `bot_platformer._CONTROL_TICKS` is 512.
+`bot_tetris3d` was repaired for the same reason under `tasks/158`, where the ticket said two opening
+budgets and there turned out to be **four**. `bot_arena` was never revisited, and it opens more
+sessions than any other bot.
+
+**Measured, not reasoned.** A simulation-gating title card was lengthened over `ref_arena` and the
+failing set read at each length, with every flip point predicted from the code first and each
+prediction matched:
+
+| session | ticks before it concludes | first card that reddens it |
+|---|---|---|
+| main -> `_moves` | 30/axis, 90 total | **30** |
+| main -> `enemies.spawn` | 300 after `_moves`' 90 | **390** |
+| `_analog.push` | 30 | **30** |
+| `_materialises` | 300 | **300** |
+| `_chase` | 400 | **368** |
+| `_firing_in` | 120/240/360 | **120**, and **360** for `aim.three_axis` |
+| `_walls` | 900 | **701-800** |
+| `_kinds`, `_combat`, `_multiplier_falls`, `_death` | 6000-9000 | none at or below 1000 |
+
+The first boundary is exact: a **29**-tick card is clean and a **30**-tick card is red. A 96-tick
+card - shorter than the platformer reference's own `OPENING_TICKS = 96` - fails 2 of 22 criteria,
+rising to **9 by 400 ticks and 11 by 900**.
+
+**The ticket's population was wrong, and the correction is the interesting part.** It said 9 fresh
+`ProbeSession`s. The shortest budget in the bot is `_moves`, which runs in the **main** session
+`probe.drive` opens - not a fresh one - so it is **10** places, and the one the ticket missed is the
+one that fails first. A census that enumerates the sessions a function opens will miss the session it
+was handed.
+
+> **A false-negative surface that has never been exercised leaves no trace in any result.** Nothing
+> here was a published number that turned out wrong: 6 of 8 stored `wg-arena3d` trials pass all 23
+> criteria, 2 are probe-unusable, and no stored `FALSE` is card-shaped. The defect was entirely in
+> what the bot **could not** have scored correctly, and only a constructed subject reaches it - rule
+> 15's variant half, for the fourth time.
+
+**The repair states its cost rather than hiding it.** `OPENING_BUDGET = 512` feeds all ten session
+heads through `_take_control`, and no criterion's own budget was widened - only a wait was added in
+front of it, returning on the first answering tick, so a playing game pays one tick. But a card of
+**513-800** ticks used to leave `player.bounded` and `wall.graze` green and now does not. A widened
+wait is not free, and a repair that reports only what it fixed is reporting half a measurement.
+
+Two pieces of judgement worth copying. The 9 sibling `if not live:` branches are **unreachable on a
+deterministic game** - every session opens the same seed on the same fixture, so the main session's
+take-control decides them all - and they were kept fail-closed for a nondeterministic submission and
+**recorded as unreachable**, rather than papered over with a contrived mutant that would have proved
+nothing. And 4 mutants were added for criteria the repair makes *easier* that had never been shown
+able to fail, which is `tasks/158`'s lesson applied without being asked: widening a limit can only
+make a criterion easier to pass, so a criterion that has quietly become incapable of failing reads
+as a clean run.
+
+---
