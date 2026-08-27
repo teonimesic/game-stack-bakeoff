@@ -333,7 +333,7 @@ def analyse_frames(frames: list[Path]) -> dict[str, Any]:
     # ONE background for every frame, taken from FRAME 0. That is what `mean_ink` has
     # always measured and it is not changed here: switching to a per-frame background
     # moves 8 of the 67 stored frame sets, one of them 0.60285 -> 0.04481, which is a
-    # re-measurement of the corpus and needs its own derivation (`tasks/169`).
+    # re-measurement of the corpus and needs its own derivation (`tasks/178`).
     bg = imgs[0].dominant_background()
     inks = [im.ink_coverage(bg) for im in imgs]
     # WHICH FRAMES HOLD ONE COLOUR AND NOTHING ELSE, asked per frame against each
