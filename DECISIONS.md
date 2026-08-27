@@ -2952,12 +2952,12 @@ producer for that count and prints it beside the variant count on its last line.
 anything is declared. A self-test drawing its subject from the list would stop exercising
 `adjudicate_pending` the moment the list emptied — silently, at exit 0.
 
-**Why the defect is declared rather than repaired here.** Every one is a criterion change,
-and a criterion change moves stored verdicts across 68 graded submissions — a re-scoring
-event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
-*found* it would bundle a measurement change into a coverage change, which is the
-multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
-reproduces it.
+**Why the defect is declared rather than repaired here.** Every one is a criterion change, and
+a criterion change is a re-scoring event over 68 graded submissions, carrying its own
+`tier2_census.py` before-and-after — whether or not any verdict turns out to move. Landing the
+repair inside the ticket that *found* it would bundle a measurement change into a coverage
+change, which is the multi-variable comparison rule 8 exists to prevent. So the finding lands
+with the subject that reproduces it.
 
 **A closed entry may re-score 0 stored verdicts. That does not weaken the declaration.**
 The 2 `ref_tetris3d` opening-card subjects are in `VARIANTS`, and their promotion moved 0 stored
