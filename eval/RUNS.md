@@ -2651,11 +2651,11 @@ sessions that could not see each other. Cite the heading, not the number.
 `mean_ink` was departure from the first frame's palette. It now takes a background **per frame**,
 and `mean_ink` is the fraction of a frame that is not its own background. `tasks/178`.
 
-**Two stored ink readings are therefore not comparable across this date.** A record written before
-it holds a frame-0 reading; a record written after it holds a per-frame one. Nothing else about the
-criterion changed — the floor is still 0.001, there is still no ceiling, and `flat_frames` is still
-counted — and **no stored verdict moves**, because the lowest value in the corpus under either
-reference is 0.00811, 8x the floor.
+**A frame-0 reading, in any record written before 2026-08-27, is not comparable with a per-frame
+reading, in any record written on or after it.** Nothing else about the criterion changed — the
+floor is still 0.001, there is still no ceiling, and `flat_frames` is still counted — and **no
+stored verdict moves**, because the lowest value in the corpus under either reference is 0.00811,
+8x the floor.
 
 **Why it moved.** A fixed reference cannot survive a submission changing its clear colour: every
 pixel of a later frame then differs from it and the frame reads exactly **1.00000**. Over the

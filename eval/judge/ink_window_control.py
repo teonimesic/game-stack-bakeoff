@@ -930,7 +930,8 @@ def reference_shift(runs_root: Path) -> int:
     wrote each record computed, so it must reproduce every stored `mean_ink` to the
     digit; any disagreement is printed and the arm refuses to report a shift, since a
     per-frame figure from a reader that cannot reproduce the known value means nothing
-    (rule 12). Returns the number of sets whose `mean_ink` moves.
+    (rule 12). A record that holds NO `mean_ink` counts as an unproved row, never as a
+    silent pass. Returns the number of sets whose `mean_ink` moves, or -1 unproved.
     """
     print(f"\n[reference shift: every stored frame set under both references, "
           f"{runs_root}]")
@@ -964,15 +965,22 @@ def reference_shift(runs_root: Path) -> int:
                        for im in imgs) / len(imgs), 5)
         stored = (json.loads(rep.read_text(encoding="utf-8"))
                   .get("programmatic", {}).get("frames", {}).get("mean_ink"))
-        if stored is not None and stored != f0:
+        # ABSENT IS NOT AGREEMENT. A record with no `mean_ink` cannot prove the
+        # extraction on itself, so it counts as an unproved row rather than being
+        # skipped past the check and into the shift table - the fail-open shape rule 7
+        # names. 0 of the 67 stored records are in this state today, which is exactly
+        # why it has to be written rather than left to be noticed.
+        if stored is None:
+            mismatches.append((r["trial"], "absent", f0))
+        elif stored != f0:
             mismatches.append((r["trial"], stored, f0))
         rows.append((r["run"], r["trial"], f0, pf, unreadable))
 
     print(f"  {len(rows)} frame sets read, {no_frames} submission(s) with no readable "
           f"frame on disk, of {len(kept)} submissions")
     if mismatches:
-        print(f"  EXTRACTION NOT PROVED: the frame-0 arm disagrees with {len(mismatches)}"
-              f" stored record(s) it should reproduce exactly. No shift is reported.")
+        print(f"  EXTRACTION NOT PROVED on {len(mismatches)} stored record(s) the "
+              f"frame-0 arm should reproduce exactly. No shift is reported.")
         for trial, stored, got in mismatches:
             print(f"    {trial}: stored {stored}, recomputed {got}")
         return -1
