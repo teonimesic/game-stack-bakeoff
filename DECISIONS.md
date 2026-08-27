@@ -1012,9 +1012,9 @@ state the range in two places must instead point at the one that does.
 
 ### A corpus figure in a live document is CURRENT or DATED, and which one is a choice — decided 2026-08-27
 
-A count of the stored corpus can move when a trial lands. **Which of CURRENT and DATED a figure
-is, is a property of the sentence, and it is decided per figure** — updating every one is wrong,
-and dating every one is wrong.
+A count of the stored corpus can move when a trial lands. **Classify each figure as CURRENT or
+DATED, one figure at a time.** Do not update every figure, and do not date every figure — the
+sentence decides which it is.
 
 | the sentence is | it must | why |
 |---|---|---|
