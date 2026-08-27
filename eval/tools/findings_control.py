@@ -50,11 +50,24 @@ WHAT IS CONTROLLED, and why each one is here rather than obvious:
                 validates every occurrence, so N correct copies are N passes — and an evil
                 merge duplicated the sentence in `AGENTS.md` and `README.md` on the same
                 day with `--sweep` green on both.
-  REFUSES       an empty findings directory, and a missing one, must exit 2. `0 findings`
-                is in range, plausible, and indistinguishable from a corpus nobody read;
-                `census.py` refuses for the same reason and this is the same rule.
+  REFUSES       an empty findings directory, a missing one, and a tree `git` cannot list
+                must all exit 2. `0 findings` is in range, plausible, and
+                indistinguishable from a corpus nobody read; `census.py` refuses for the
+                same reason and this is the same rule. The exit code is 2 rather than 1
+                because 1 means the sources DISAGREE, and a broken address reported as a
+                disagreement is the same fail-open shape one step later.
   ADDRESS       a document named in `RANGE_DOCS` and absent must be REPORTED. Skipping it
                 shrinks the corpus by one and the census goes on agreeing with itself.
+  ENTRIES       the count one short in the `entries` wording, beside the producer. This is
+                `README.md` line 187 as it stood on 2026-08-27 — `143 entries` against a
+                measured 171 — which the `N numbered findings` trigger read as clean while
+                reddening the same fact, in the same file, phrased its way. Its VARIANT
+                pairs it: the same wording stating the count correctly must go back green.
+  WIDER CORPUS  a stale count in a live document that is in neither `RANGE_DOCS` nor the
+                archive. The count was reconciled in three documents until task 179, so a
+                figure anywhere else was unreachable by a gate that reported itself clean.
+                Its VARIANT is the half that matters: a live document naming the log with
+                a line number, a singular noun, a date and a fenced example must stay green.
   REAL TREE     the same subprocess path over THIS repository must exit 0. The synthetic
                 cases prove the logic; this one proves the tool is pointed at the project.
 """
@@ -95,9 +108,34 @@ def _live(count: int, high: int, *, words: bool = False, twice: bool = False) ->
             f"\n{said}, and all but a few are instances of one pattern.\n")
 
 
+def _entries(count: int, high: int) -> str:
+    """README.md's real line 187 shape: the count in the `entries` wording, the range and
+    the producer all in one sentence. The wording the gate could not read until task 179."""
+    return ("# Doc\n\n| question | where |\n|---|---|\n"
+            f"| What went wrong? | [`eval/FINDINGS.md`](eval/FINDINGS.md) - {count} "
+            f"entries. Findings #{KNOWN_LO}-#{high}, count and range from "
+            f"`python3 eval/tools/docstat.py --findings` |\n")
+
+
+def _git(tmp: Path, *args: str) -> None:
+    """Run one git command in the fixture tree, and refuse to continue if it fails.
+
+    The tree has to BE a repository: `_live_corpus` lists the index rather than globbing
+    the disk (#198), and the count corpus is read from it. A silent failure here would
+    leave the corpus at three documents and every control would still pass.
+    """
+    p = subprocess.run(["git", *args], cwd=tmp, capture_output=True, text=True)
+    if p.returncode != 0:
+        raise SystemExit(f"the fixture tree could not be made a git repository: "
+                         f"`git {' '.join(args)}` exited {p.returncode} in {tmp}: "
+                         f"{(p.stderr or p.stdout).strip()[:200]}")
+
+
 def build(tmp: Path, *, bodies: list[int], indexed: list[int], count: int, high: int,
           words: bool = False, twice: bool = False, empty_bodies: bool = False,
-          no_dir: bool = False, no_readme: bool = False, mutant: str | None = None) -> Path:
+          no_dir: bool = False, no_readme: bool = False, mutant: str | None = None,
+          extra_docs: dict[str, str] | None = None,
+          readme_entries: int | None = None, no_git: bool = False) -> Path:
     """A whole repository root, with docstat.py inside it so ROOT resolves to `tmp`.
 
     THE MUTANT IS APPLIED HERE, to the COPY. An earlier version of this file patched the
@@ -124,7 +162,16 @@ def build(tmp: Path, *, bodies: list[int], indexed: list[int], count: int, high:
     (tmp / "eval" / "FINDINGS.md").write_text(_index(indexed or [KNOWN_LO]))
     (tmp / "AGENTS.md").write_text(_live(count, high, words=words, twice=twice))
     if not no_readme:
-        (tmp / "README.md").write_text(_live(count, high))
+        (tmp / "README.md").write_text(
+            _live(count, high) if readme_entries is None
+            else _entries(readme_entries, high))
+    for rel, text in (extra_docs or {}).items():
+        p = tmp / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    if not no_git:
+        _git(tmp, "init", "-q")
+        _git(tmp, "add", "-A")
     return tmp / "eval" / "tools" / "docstat.py"
 
 
@@ -182,6 +229,34 @@ def controls(mutant: str | None = None) -> int:
         ("ADDRESS: a document named in RANGE_DOCS and absent must be reported, not skipped",
          dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
               no_readme=True), 1, "one document fewer than it claims"),
+        ("REFUSES: a tree git cannot list is exit 2, not exit 1 - a broken address must "
+         "not be reported in the same code as a real disagreement",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              no_git=True), 2, "git ls-files failed"),
+        ("ENTRIES: the count one short in the `entries` wording, beside the producer - the "
+         "real README.md line 187, which the `N numbered findings` trigger read as clean",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              readme_entries=KNOWN_COUNT - 1), 1,
+         "names the findings log and states `2 entries`"),
+        ("ENTRIES VARIANT: the same wording stating the count CORRECTLY must go back to "
+         "green - a gate that cannot accept the repair is a gate that gets switched off",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              readme_entries=KNOWN_COUNT), 0, None),
+        ("WIDER CORPUS: a stale count in a live document that is in neither RANGE_DOCS nor "
+         "the archive - unreachable by this gate until task 179 widened what it reads",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              extra_docs={"eval/PROTOCOL.md":
+                          f"# Protocol\n\nThe log holds {KNOWN_COUNT + 4} separate "
+                          f"numbered entries (`docstat.py --findings`).\n"}), 1,
+         "eval/PROTOCOL.md:3 names the findings log and states `7 separate numbered "
+         "entries`"),
+        ("WIDER CORPUS VARIANT: a live document naming the log with a number that is NOT a "
+         "count - a line number, a singular noun, a date, and a fenced example",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              extra_docs={"eval/PROTOCOL.md":
+                          "# Protocol\n\nAn edit left a line stranded at line 6 of "
+                          "`eval/FINDINGS.md`, decided 2026-08-23, and `1 hit` remained.\n"
+                          "\n```\n99 entries. Findings #19-#21\n```\n"}), 0, None),
     ]
 
     failures: list[str] = []
@@ -239,6 +314,12 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "no_word_form": (
         "        m = _COUNT_WORD_RX.search(ln)",
         "        m = None  # MUTANT: only digits are read"),
+    "no_scoped_count": (
+        "        if _LOGREF_RX.search(ln):",
+        "        if False:  # MUTANT: only the `N numbered findings` wording is read"),
+    "count_corpus_is_range_docs": (
+        "    counted = {**live, **stated}",
+        "    counted = dict(stated)  # MUTANT: back to the three range documents"),
     "no_index_reconciliation": (
         "    if len(rows) != count:",
         "    if False:  # MUTANT"),

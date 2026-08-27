@@ -71,6 +71,13 @@ reached #131 — past a range gate that was green, because a range is not a coun
 disagrees when a finding is added, renumbered or duplicated — and still agrees when one is
 added correctly.
 
+The count question reads TWO triggers over the live corpus plus `RANGE_DOCS` — the phrase
+`N numbered findings`, and any cardinal governing a plural noun on a line that names the
+findings log by its range, its path or its producer. It read one wording over three
+documents until task 179, which is how `143 entries` stood in `README.md` beside
+`docstat.py --findings` against a measured 171. `_stated_counts` holds the measurement
+that chose the second trigger over the obvious quantifier widening.
+
 Exit code is 1 if --sweep finds anything unresolved, so it can gate a commit.
 `--renumbered` never gates: it is a smell detector, and its second half is explicitly
 undecidable. See `_check_renumbered_citations` for which half is which. `--withdrawn` DOES
@@ -1610,6 +1617,19 @@ _COUNT_WORD_RX = re.compile(
     r"fifteen|sixteen|seventeen|eighteen|nineteen|hundred)\s+numbered findings\b", re.I)
 _COUNT_DIGIT_RX = re.compile(r"\b(\d+)\s+numbered findings\b")
 
+#: A line that IDENTIFIES the findings log, by one of the three addresses this repository
+#: defines for it: the range sentence, the path, and the producer command. That is a closed
+#: class -- three identifiers, not a vocabulary of English -- which is what
+#: `DECISIONS.md`'s census-trigger section asks a trigger to be scoped on.
+_LOGREF_RX = re.compile(r"Findings #\d+-#\d+|eval/FINDINGS\.md|docstat\.py --findings")
+
+#: A cardinal governing a plural noun, up to two words away: `180 entries`,
+#: `180 numbered findings`, `180 separate numbered entries`. `(?<![#\w.-])` keeps `#19`, a
+#: commit prefix and `0.19` out. Alone this is the QUANTIFIER trigger `DECISIONS.md`
+#: rejected for the aspect census, and it costs the same here -- see `_stated_counts`.
+_CARDINAL_PLURAL_RX = re.compile(
+    r"(?<![#\w.-])(\d+)\s+(?:[a-z`*]+\s+){0,2}?([a-z][a-z-]+s)\b")
+
 
 def _stated_counts(rel: str, text: str, count: int) -> list[str]:
     """One live document's statement of HOW MANY findings there are, as a function of TEXT.
@@ -1617,9 +1637,30 @@ def _stated_counts(rel: str, text: str, count: int) -> list[str]:
     Pure, like `_check_range_in`, so the pins feed it a mutated copy rather than editing a
     live instruction document to prove the gate works.
 
-    The word form is reported rather than tolerated. A gate that only reads digits is a gate
-    the next stale count can walk straight past by being written out in full -- which is not
-    hypothetical, it is what the one instance in this repository did.
+    TWO TRIGGERS, AND THE SECOND IS WHY THIS DOCSTRING IS LONG. The first reads the exact
+    phrase `N numbered findings`. That is an enumeration of one wording, and it failed the
+    way an enumeration fails: `README.md` line 187 read `143 entries. Findings #19-#189,
+    count and range from python3 eval/tools/docstat.py --findings` against a measured 171,
+    and this function was green on it while reddening a count in the SAME FILE that happened
+    to be phrased the gated way (task 179).
+
+    The second trigger is scoped on the closed class `_LOGREF_RX` -- a line that names the
+    findings log by its range sentence, its path or its producer -- and reads any cardinal
+    governing a plural noun on that line as a statement of the count. The quantifier half is
+    the shape `DECISIONS.md` rejected for the aspect census, and unscoped it is just as bad
+    here: over the live corpus plus RANGE_DOCS, a cardinal governing `findings|entries`
+    turns 6 correct lines red and the fuller quantifier form 12, every one a false positive
+    -- lint findings, Bevy migration entries, and DECISIONS.md's own worked example of why a
+    range is not a count. Conjoined with the address it is 2 matches and 0 red.
+
+    A count on a line that names the log and is NOT the findings count therefore reds, and
+    the repair is the one the aspect census already declares: put the example in a ``` fence,
+    where a line is an example rather than a claim.
+
+    The word form is reported rather than tolerated, and stays on the `numbered findings`
+    phrasing alone. Scoping the word form the same way costs 2 false positives on the live
+    corpus (`eight ... lines`, `eleven ... days`), so a count spelled in words in any other
+    phrasing is still invisible -- which is why AGENTS.md tells you to write it in digits.
     """
     problems = []
     lines = text.split("\n")
@@ -1627,13 +1668,26 @@ def _stated_counts(rel: str, text: str, count: int) -> list[str]:
     for i, ln in enumerate(lines):
         if fenced[i]:
             continue
+        seen: set[int] = set()
         for m in _COUNT_DIGIT_RX.finditer(ln):
+            seen.add(m.start())
             if int(m.group(1)) != count:
                 problems.append(
                     f"{rel}:{i + 1} says there are {m.group(1)} numbered findings; "
                     f"eval/findings/ holds {count}. Produce it with "
                     f"`python3 eval/tools/docstat.py --findings` rather than editing the "
                     f"digit, and check the range sentence in the same pass.")
+        if _LOGREF_RX.search(ln):
+            for m in _CARDINAL_PLURAL_RX.finditer(ln):
+                if m.start() in seen or int(m.group(1)) == count:
+                    continue
+                problems.append(
+                    f"{rel}:{i + 1} names the findings log and states `{m.group(0)}`; "
+                    f"eval/findings/ holds {count}. Produce it with "
+                    f"`python3 eval/tools/docstat.py --findings` rather than editing the "
+                    f"digit. If that number is not the findings count, put the line in a "
+                    f"``` fence or reword it - a count beside the log's own address reads "
+                    f"as derived, which is what made `143 entries` survive (task 179).")
         m = _COUNT_WORD_RX.search(ln)
         if m:
             problems.append(
@@ -1644,7 +1698,8 @@ def _stated_counts(rel: str, text: str, count: int) -> list[str]:
 
 
 def findings_census(bodies: dict[int, list[str]], index_text: str,
-                    stated: dict[str, str], corpus_files: list[str] | None = None) -> dict:
+                    stated: dict[str, str], corpus_files: list[str] | None = None,
+                    counted: dict[str, str] | None = None) -> dict:
     """How many numbered findings exist, from both sources, and where the two disagree.
 
     A FUNCTION OF ITS INPUTS, for the same reason `_check_index` is: the pins hand it a
@@ -1652,10 +1707,17 @@ def findings_census(bodies: dict[int, list[str]], index_text: str,
     finding never writes to the archive.
 
     `bodies` is `{number: [file, ...]}` from `eval/findings/`; `index_text` is
-    `eval/FINDINGS.md`; `stated` is `{relative path: text}` for the live documents that
-    quote the figure. Every disagreement is a string, and the caller's exit code is
+    `eval/FINDINGS.md`. Every disagreement is a string, and the caller's exit code is
     `bool(disagreements)`.
+
+    TWO DOCUMENT CORPORA, because the two questions have different populations. `stated` is
+    `RANGE_DOCS` -- the three documents required to carry the range sentence, where a
+    document that does NOT state it is itself a defect. `counted` is every document that may
+    state how many findings there are: `stated` plus the whole live corpus, where saying
+    nothing is the normal case. Defaults to `stated` so a caller asking only about the three
+    range documents keeps the older behaviour.
     """
+    counted = stated if counted is None else counted
     rows = _index_rows(index_text)
     indexed = collections.Counter(n for _, n in rows)
     with_findings = {f for fs in bodies.values() for f in fs}
@@ -1688,10 +1750,12 @@ def findings_census(bodies: dict[int, list[str]], index_text: str,
             f"the count ({count}) is not the range width ({hi - lo + 1}), and any document "
             f"deriving one from the other is wrong")
 
+    for rel, text in sorted(counted.items()):
+        disagreements += _stated_counts(rel, text, count)
+
     occurrences = {rel: _range_occurrences(text) for rel, text in sorted(stated.items())}
     for rel, text in sorted(stated.items()):
         disagreements += _check_range_in(rel, text, hi) if numbers else []
-        disagreements += _stated_counts(rel, text, count)
         if len(occurrences[rel]) > 1:
             at = ", ".join(str(o["line"]) for o in occurrences[rel])
             disagreements.append(
@@ -1721,6 +1785,12 @@ def findings_census(bodies: dict[int, list[str]], index_text: str,
             "distinct": len(indexed),
         },
         "stated": occurrences,
+        "counted": {
+            "population": "unfenced lines of the live corpus and RANGE_DOCS that state a "
+                          "findings count, by `N numbered findings` or by a cardinal on a "
+                          "line naming the log's range, path or producer",
+            "documents": len(counted),
+        },
         "disagreements": disagreements,
     }
 
@@ -1776,11 +1846,19 @@ def read_findings_census() -> dict:
             absent.append(f"{rel} is named in RANGE_DOCS as a place the findings count and "
                           f"range are stated, and it does not exist at {p} - the census "
                           f"covered one document fewer than it claims to")
+    # The COUNT corpus is wider than the RANGE corpus, and the widening is fail-closed and
+    # measured. Until task 179 the count was reconciled in `RANGE_DOCS` alone, so a stale
+    # figure in any other live document - a skill, `eval/PROTOCOL.md`, the CI register - was
+    # unreachable by the gate. `_live_corpus` raises rather than returning an empty tree, so
+    # a failed listing stops here instead of shrinking the corpus to three and reading clean.
+    live, live_problems = _live_corpus()
+    counted = {**live, **stated}
     c = findings_census(
         bodies, open(index_path, encoding="utf-8", errors="replace").read(), stated,
         corpus_files=[os.path.basename(p)
-                      for p in sorted(glob.glob(os.path.join(fdir, "*.md")))])
-    c["disagreements"] = absent + c["disagreements"]
+                      for p in sorted(glob.glob(os.path.join(fdir, "*.md")))],
+        counted=counted)
+    c["disagreements"] = absent + live_problems + c["disagreements"]
     c["read_on"] = _dt.date.today().isoformat()
     c["findings_dir"] = fdir
     c["index_path"] = index_path
@@ -1800,8 +1878,9 @@ def _findings_summary() -> str:
         return "findings count: NOT READ"
     b = c["bodies"]
     return (f"{b['count']} findings #{b['lowest']}-#{b['highest']} agreeing with "
-            f"{c['index']['rows']} index rows and with every live document that states "
-            f"either (--findings)")
+            f"{c['index']['rows']} index rows, with the range in {len(c['stated'])} "
+            f"document(s) and with every count stated across {c['counted']['documents']} "
+            f"(--findings)")
 
 
 def cmd_findings(as_json: bool = False) -> int:
@@ -1813,7 +1892,10 @@ def cmd_findings(as_json: bool = False) -> int:
     """
     try:
         c = read_findings_census()
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, RuntimeError) as exc:
+        # RuntimeError is `_tracked_md` refusing a failed git listing. It exits 2 with the
+        # refusals rather than 1, because 1 means "the sources disagree" - a broken address
+        # reported as a disagreement is the fail-open shape one step later (#60).
         print(f"docstat --findings: {exc}", file=sys.stderr)
         return 2
     if as_json:
@@ -1835,6 +1917,12 @@ def cmd_findings(as_json: bool = False) -> int:
         for rel, occ in c["stated"].items():
             where = ", ".join(f"line {o['line']}: #{o['lo']}-#{o['hi']}" for o in occ)
             print(f"  stated   {rel}: {where or 'states no range'}")
+        # The count corpus is printed as a NUMBER, for the reason `_index_row_count` prints
+        # its own: a gate that only says "clean" reads the same over three documents as
+        # over none, and this one silently ran over three until task 179.
+        print(f"  counted  {c['counted']['documents']} document(s) reconciled for the "
+              f"count itself")
+        print(f"           {c['counted']['population']}")
     if c["disagreements"]:
         print(f"\n{len(c['disagreements'])} disagreement(s):")
         for d in c["disagreements"]:
@@ -3539,12 +3627,67 @@ def _findings_census_pins(verbose: bool = False) -> list[str]:
         ("GREEN: `the numbered findings` - a determiner is not a cardinal",
          (bodies, index, doc(hi, count, extra="All of the numbered findings resolve.\n")),
          False),
+        # --- task 179: the count check was bound to ONE wording, and a figure 28 short
+        # survived beside its own producer. These pass `counted` explicitly, which is also
+        # what proves the count corpus is separate from the three RANGE_DOCS.
+        ("THE REAL DEFECT, in shape: a count 28 short in the `entries` wording with "
+         "`docstat.py --findings` named in the same sentence, which is README.md line 187 "
+         "on 2026-08-27 - `143 entries` against a measured 171",
+         (bodies, index, doc(hi, count),
+          {"README.md": f"| What went wrong? | [`eval/FINDINGS.md`](eval/FINDINGS.md) - "
+                        f"{count - 28} entries. Findings #19-#{hi}, count and range from "
+                        f"`python3 eval/tools/docstat.py --findings` |\n"}),
+         f"names the findings log and states `{count - 28} entries`"),
+        ("a stale count in a live document that is NOT in RANGE_DOCS - unreachable by the "
+         "gate until the count corpus was widened",
+         (bodies, index, doc(hi, count),
+          {".agents/skills/update-readme/SKILL.md":
+           f"The log holds {count - 1} separate numbered entries "
+           f"(`docstat.py --findings`).\n"}),
+         "names the findings log and states"),
+        # GREEN, and these are the half that matters (rule 15): every one is a real live
+        # line that names the findings log and carries a number which is not the count.
+        # The scoped trigger's quantifier half, run unscoped over the live corpus, reds 6
+        # correct lines; scoped it reds none of these.
+        ("GREEN: a LINE NUMBER inside the log's own path",
+         (bodies, index, doc(hi, count),
+          {"DECISIONS.md": "an edit left its last line stranded at line 6 of "
+                           "`eval/FINDINGS.md`, the file every session reads first.\n"}),
+         False),
+        ("GREEN: `1 hit` beside the log's path - a singular noun is not a count",
+         (bodies, index, doc(hi, count),
+          {"DECISIONS.md": "| `1f6fb65:eval/FINDINGS.md:6` | 1 hit | **0** |\n"}), False),
+        ("GREEN: a cardinal and a plural noun in DIFFERENT table cells",
+         (bodies, index, doc(hi, count),
+          {"DECISIONS.md": "| `!eval/findings/**`, `!eval/FINDINGS.md` | 10 | archives. A "
+                           "figure proven wrong **stays** there |\n"}), False),
+        ("GREEN: a DATE on a line naming the producer",
+         (bodies, index, doc(hi, count),
+          {"DECISIONS.md": "### The producer for the findings count is "
+                           "`docstat.py --findings` - decided 2026-08-23\n"}), False),
+        ("GREEN: the count stated correctly in the `entries` wording",
+         (bodies, index, doc(hi, count),
+          {"README.md": f"[`eval/FINDINGS.md`](eval/FINDINGS.md) - {count} entries. "
+                        f"Findings #19-#{hi}, from `docstat.py --findings`\n"}), False),
+        ("GREEN: a stale count beside the log INSIDE a ``` fence - an example, not a claim",
+         (bodies, index, doc(hi, count),
+          {"DECISIONS.md": f"Planted as:\n\n```\n{count - 28} entries. Findings "
+                           f"#19-#{hi}\n```\n\nand it went red.\n"}), False),
     ]
 
     failed = []
-    for name, (b, ix, st), expect_red in cases:
-        got = findings_census(b, ix, st)["disagreements"]
-        good = bool(got) == expect_red
+    for name, payload, expect_red in cases:
+        b, ix, st, ct = payload + (None,) * (4 - len(payload))
+        got = findings_census(b, ix, st, counted=ct)["disagreements"]
+        # `expect_red` may be a SUBSTRING rather than True. A red case is only controlling
+        # the mechanism it names if the disagreement it produced is that mechanism's -
+        # three mutants once survived here because another check happened to fire on the
+        # same input, which reads exactly like a pass.
+        good = bool(got) == bool(expect_red)
+        if good and isinstance(expect_red, str):
+            good = any(expect_red in g for g in got)
+            if not good:
+                name += f" [no disagreement contained `{expect_red}`]"
         if not good:
             failed.append(
                 f"findings-census pin came out wrong: `{name}` produced {len(got)} "
