@@ -2902,7 +2902,7 @@ one directory; or a tier-2 instrument that serves both classes, which would reti
 `bot_mutants.py` carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
 down; every run asserts the measured set equals the declared one, and each entry names the
-ticket that owns its repair. **3 are live**, on `ref_tetris3d` and `ref_arena`;
+ticket that owns its repair. **1 is live**, on `ref_arena`;
 `python3 eval/judge/bot_mutants.py` is the producer for that count and prints it beside the
 variant count on its last line.
 
@@ -2911,7 +2911,17 @@ and a criterion change moves stored verdicts across 68 graded submissions — a 
 event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
 *found* it would bundle a measurement change into a coverage change, which is the
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
-reproduces it, and the open repairs are `tasks/158` and `tasks/160`.
+reproduces it, and the open repair is `tasks/160`.
+
+**The mechanism has closed 2 entries, and what they cost to close says the split was right.**
+`tasks/158` gave `bot_tetris3d` one `OPENING_BUDGET` in place of the 20-, 120- and two 60-tick
+waits it had, and both `ref_tetris3d` card subjects were promoted into `VARIANTS`. The
+re-scoring event the split was protecting against turned out to be empty: over the 19 stored
+`g2_tetris3d` trials, `piece.spawns` and `piece.falls` have **0** failures each
+(`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`), and the game's only 2
+tier-2 failures are a Unity probe-session abort. **That an entry closes for nothing is not an
+argument against declaring it** — the cost of finding out was one census, and it was not
+knowable when the subject was written.
 
 **A pending entry has a second way to close: the subject is not a correct game.**
 `ref_pong/rally.counts` carries no pending entry, and `tasks/159` is where the decision is

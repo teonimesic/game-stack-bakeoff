@@ -91,6 +91,30 @@ def _int(t: Tick, key: str, default: int = 0) -> int:
         return default
 
 
+#: How long the bot waits at the START of a session for the game to hand play over.
+#: Eight seconds at 64 Hz covers an opening title card, a countdown and a pause, and a
+#: game that has not started by then is not withholding play for presentation.
+#:
+#: ONE CONSTANT, FOUR PLACES, because a card gates the whole opening rather than one
+#: criterion: the first piece appearing, the first piece descending, and the first piece
+#: of each of the two fresh sessions `_play_for_a_clear` and `_gameover_check` open. The
+#: budgets were 20, 120, 60 and 60, so a repair to any one of them left the others red -
+#: which is why the two subjects in `bot_mutants.PENDING_VARIANTS` declared different
+#: failing sets against the same card.
+#:
+#: `bot_pong.LIVE_BUDGET` and `bot_platformer._CONTROL_TICKS` are this same 512, both
+#: bought by a Godot submission that held the ball for `OPENING_DELAY = 104` so its title
+#: card would be readable (FINDINGS #34). This bot was never revisited, and against a
+#: 96-tick card - the platformer REFERENCE's own `OPENING_TICKS`, so no longer than one
+#: this repository ships - it failed `piece.falls` over a frozen well and four of fifteen
+#: criteria over an empty one (`tasks/158`).
+OPENING_BUDGET = 512
+
+#: What an await costs once play HAS started and a piece has already been seen. Not an
+#: opening budget: a game that stops spawning mid-play is failing, not presenting itself.
+MIDGAME_AWAIT = 60
+
+
 class Tetris3DBot(Bot):
     #: Long enough to lock a few dozen pieces, so "how often does something happen"
     #: is a property of the game rather than of the criteria drive (FINDINGS #52).
@@ -186,7 +210,7 @@ class Tetris3DBot(Bot):
         # --- spawn, fall, lock, bounds ----------------------------------- #
         spawned = _cells(t0)
         spawn_evt = False
-        for _ in range(20):
+        for _ in range(OPENING_BUDGET):
             if len(spawned) == 4:
                 break
             t = s.step_raw({})
@@ -198,7 +222,7 @@ class Tetris3DBot(Bot):
         y_start = min((c[1] for c in spawned), default=-1)
         fell = False
         oob: list[str] = []
-        for _ in range(120):
+        for _ in range(OPENING_BUDGET):
             t = s.step_raw({})
             for (x, y, z) in _cells(t):
                 if not (0 <= x < w and 0 <= y < h and 0 <= z < d):
@@ -258,7 +282,7 @@ class Tetris3DBot(Bot):
         return next(q for c, q in self.criteria if c == cid)
 
     @staticmethod
-    def _await_piece(s: ProbeSession, limit: int = 60) -> Tick | None:
+    def _await_piece(s: ProbeSession, limit: int = MIDGAME_AWAIT) -> Tick | None:
         for _ in range(limit):
             if len(_cells(s.last)) == 4:
                 return s.last
@@ -539,7 +563,12 @@ class Tetris3DBot(Bot):
                 pieces = 0
                 budget = 9000
                 while pieces < 150 and s.ticks_sent < budget:
-                    t = self._await_piece(s, 60)
+                    # THIS SESSION HAS ITS OWN OPENING. It is a fresh `ProbeSession`,
+                    # so the title card that gated the criteria drive gates this one
+                    # too, from tick 0 - and until a piece has been placed there is no
+                    # evidence play has started. `MIDGAME_AWAIT` only applies after it.
+                    t = self._await_piece(
+                        s, OPENING_BUDGET if pieces == 0 else MIDGAME_AWAIT)
                     if t is None or _int(t, "game_over", 0) or \
                             s.last.state.get("game_over") is True:
                         break
@@ -610,8 +639,11 @@ class Tetris3DBot(Bot):
             with ProbeSession(repo=repo, env=env, seed=7,
                               total_timeout_s=900.0) as s:
                 over_at = None
-                for _ in range(60):
-                    t = self._await_piece(s, 60)
+                for placed in range(60):
+                    # A fresh session, so its first await is an opening budget for the
+                    # same reason `_play_for_a_clear`'s is - see the note there.
+                    t = self._await_piece(
+                        s, OPENING_BUDGET if placed == 0 else MIDGAME_AWAIT)
                     if t is None:
                         # NO FALLING PIECE IS WHAT GAME OVER LOOKS LIKE.
                         # The contract says `piece` is null when no piece is falling, and
