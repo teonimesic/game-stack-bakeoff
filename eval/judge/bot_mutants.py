@@ -45,9 +45,11 @@ and #46 adjudicated. `--selftest` proves the registry gate and the pending adjud
 can go red; both are offline and drive nothing.
 
 A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture, never per
-suite - and the population is the 70 criterion instances the four bots report, not the
-36 that carry a mutant. 2 of the 6 pending false negatives are on criteria with no
-mutant at all.
+suite - and the population is every criterion instance the four bots report, not the
+smaller set that carries a mutant. Some pending false negatives sit on criteria with no
+mutant at all, so a repair there has nothing asking whether the criterion can still
+fail. `--hazards` is the producer for all three counts; a figure typed into this
+docstring instead goes stale without anything disagreeing with it.
 """
 
 from __future__ import annotations
@@ -105,6 +107,14 @@ WALLS_OFF = ("""        top = ARENA_HALF_H - BALL_RADIUS
 """, """        top = ARENA_HALF_H - BALL_RADIUS
         # MUTANT: the vertical reflection at the walls is gone.
 """)
+
+#: `rally.counts` carried no mutant of its own until 2026-08-26 - only collateral on
+#: `ball.moves` and `paddle.deflects`, both of which stop the rally happening at all, so
+#: neither asks whether the COUNTER can be read wrong while the game plays normally.
+#: Here the ball still rallies and the counter never moves. `rally.resets` survives it:
+#: a frozen 0 is 0 on the scoring tick too, which is what makes this mutant isolated.
+RALLY_FROZEN = ("        self.rally += 1\n",
+                "        # MUTANT: the rally counter never moves.\n")
 
 DEFLECT_OFF = ("        self.ball_vx = sign * self.speed * math.cos(angle)",
                "        self.ball_vx = -sign * self.speed * math.cos(angle)  # MUTANT")
@@ -662,28 +672,6 @@ TETRIS_CARD_OVER_AN_EMPTY_WELL = ("""        self._spawn()  # the first piece is
             return self._spawn()
 """)
 
-#: `rally.counts` reads the counter on the tick `paddle_hit` fires. Nothing in the task
-#: orders the two, and a sim that emits the event where the collision is resolved and
-#: settles its counters in an end-of-tick pass lands the increment one tick later.
-#: WEAKER PROVENANCE THAN THE OTHER THREE, and it is worth saying so: those trace to an
-#: adjudicated submission, this one is constructed from the state contract, and
-#: `rally.counts` has never failed in the 25 stored `g1_pong` gradings.
-RALLY_SETTLES_LATE = ("""    def step(self, inputs: dict) -> list:
-        \"\"\"Advance exactly one tick. Returns the events raised this tick.\"\"\"
-        events: list = []
-        self.tick += 1
-""", """    def step(self, inputs: dict) -> list:
-        \"\"\"Advance exactly one tick. Returns the events raised this tick.\"\"\"
-        events: list = []
-        self.tick += 1
-        if getattr(self, "_rally_pending", False):
-            self.rally = self.rally + 1   # VARIANT: the counter settles next tick
-            self._rally_pending = False
-"""), ("""        self.rally += 1
-""", """        self._rally_pending = True
-""")
-
-
 #: `fire.rate_limited` asks about SHOTS and counts BULLET IDS. A weapon that fires a
 #: spread puts several in the world per shot, which is an ordinary design for a game the
 #: prompt asks to make "loud, fast and readable at a glance". The criterion prints the
@@ -744,12 +732,6 @@ PENDING_VARIANTS: list[Pending] = [
             (SPREAD_WEAPON,), ("fire.rate_limited",), task="tasks/160",
             notes="measured `90 bullets from 120 ticks of held fire (30 fire events)`. "
                   "30 shots in 120 ticks IS a rate limit; the criterion read the 90"),
-    Pending("ref_pong", "the rally counter settles one tick after the hit",
-            RALLY_SETTLES_LATE, ("rally.counts",), task="tasks/159",
-            notes="`_rally` compares `rally` across the `paddle_hit` tick only. "
-                  "Measured: `rally counter incremented on paddle hits (33 hits seen)` "
-                  "- the evidence string does not say which way it read, which is a "
-                  "second, smaller defect in the same criterion"),
 ]
 
 
@@ -770,6 +752,11 @@ MUTANTS: list[Mutant] = [
                                        "ball.wall_bounce"),
            notes="a ball that is never sent back never leaves the paddle, so the "
                  "whole match flow stops with it"),
+    Mutant("rally.counts", "ref_pong", "the rally counter never moves",
+           (RALLY_FROZEN,),
+           notes="the rally still happens and every hit is still reported; only the "
+                 "counter is dead. `rally.resets` is NOT collateral - a counter frozen "
+                 "at 0 reads 0 on the scoring tick, which is what that criterion asks"),
     Mutant("determinism.replay", "ref_pong", "seeded from pid and wall-clock time",
            WALLCLOCK_SEED),
     Mutant("determinism.seed", "ref_pong", "the seed argument is ignored",
@@ -959,7 +946,6 @@ _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
 _P_FROZEN = "a 96-tick card over a frozen well"
 _P_EMPTY = "a 96-tick card over an empty well"
 _P_SPREAD = "a faster three-round spread weapon"
-_P_RALLY = "the rally counter settles one tick after the hit"
 
 _SESSION = ("the three session-lock controls, which also pin that a permanently locked "
             "project comes back NOT MEASURED rather than FALSE")
@@ -1003,9 +989,11 @@ HAZARDS: list[Hazard] = [
     Hazard("ref_pong", "rally.counts", "contract-reading",
            "a sim that emits `paddle_hit` where the collision resolves and settles its "
            "counters in an end-of-tick pass, landing the increment one tick later",
-           "PENDING, measured red. Weaker provenance than the other five: constructed "
-           "from the state contract, and rally.counts has never failed in the 25 stored "
-           "g1_pong gradings", _P_RALLY),
+           "DECLINED, tasks/159: that game is not correct. The task defines `rally` as "
+           "the number of paddle hits since the last point, and all four starter guides "
+           "put the tick's line AFTER its step - so a line carrying `paddle_hit` and a "
+           "rally that excludes it contradicts itself. `bot_pong._rally` holds the "
+           "derivation and now reports `rose_late` so the fail says WHICH way it read"),
     Hazard("ref_pong", "rally.resets", "contract-reading",
            "the same ordering at the point rather than at the hit",
            "the criterion ORs two independent observations - the reset seen during the "
@@ -1189,8 +1177,11 @@ HAZARDS: list[Hazard] = [
            "a game that drops the multiplier on the tick AFTER the hit, the same "
            "ordering as `rally.counts`",
            "OPEN, and not constructed. The criterion reads the multiplier on the tick "
-           "`player_hit` fires. It is the same shape as tasks/159 and should be settled "
-           "with it rather than separately"),
+           "`player_hit` fires. tasks/159 settled the pong case and DID NOT settle this "
+           "one: it turned on `rally` being DEFINED by the g1 contract as a count of "
+           "the very events the line carries, and the g3 contract defines no value for "
+           "`multiplier` at all - only that it 'falls when the player is hit'. Its own "
+           "adjudication is tasks/170"),
     Hazard("ref_arena", "wave.advances", "design-branch",
            "a wave that ends on a timer rather than on the last kill",
            "the criterion asks only that the wave number rose, by any mechanism"),
@@ -1420,8 +1411,15 @@ def hazard_census() -> None:
         for i, line in enumerate(textwrap.wrap(text, 84)):
             print(f"       {tag if i == 0 else '':<8}{line}")
 
+    mutated = {(m.fixture, m.criterion) for m in MUTANTS}
+    declared = {(p.fixture, c) for p in PENDING_VARIANTS for c in p.fails}
+    unmutated = sorted(declared - mutated)
     print(f"{len(HAZARDS)} criteria across {len(BOT_FOR)} fixtures; "
-          f"{len(VARIANTS)} variants, {len(PENDING_VARIANTS)} pending")
+          f"{len(VARIANTS)} variants, {len(PENDING_VARIANTS)} pending entries")
+    print(f"{len(mutated)} of those criteria carry a mutant. "
+          f"{len(declared)} declared false negatives, of which {len(unmutated)} sit on "
+          f"a criterion with no mutant at all"
+          + (f": {', '.join(f'{f}/{c}' for f, c in unmutated)}" if unmutated else ""))
     for shape, meaning in SHAPES.items():
         rows = sorted((h for h in HAZARDS if h.shape == shape),
                       key=lambda r: (r.fixture, r.criterion))
