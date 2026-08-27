@@ -70,6 +70,14 @@ WHAT IS CONTROLLED, and why each one is here rather than obvious:
                 a line number, a singular noun, a date and a fenced example must stay green.
   REAL TREE     the same subprocess path over THIS repository must exit 0. The synthetic
                 cases prove the logic; this one proves the tool is pointed at the project.
+  COUNT         `--count-triggers` publishes a false-positive cost per candidate trigger,
+  TRIGGERS      so an incomplete corpus must stop it at exit 2 rather than be published one
+                document smaller with nothing saying so. `--findings` merely RECORDS a
+                missing range document, which is right for a gate whose exit code already
+                means "something is wrong" and wrong for a producer whose exit code means
+                nothing. Its VARIANT asserts the SHAPE of the output, not the exit code:
+                shipped row at 0 and the rejected quantifier row above it, because an
+                extractor that has stopped matching reports 0 on every row.
   HOSTILE       an inherited `GIT_DIR` outranks `cwd`, silently and at exit 0, so the
   GIT_DIR       fixture builder could `git add -A` into the CALLER's index. This row is
                 about THIS file rather than about `docstat.py`, and carries its own red
@@ -193,9 +201,9 @@ def build(tmp: Path, *, bodies: list[int], indexed: list[int], count: int, high:
     return tmp / "eval" / "tools" / "docstat.py"
 
 
-def run(script: Path) -> tuple[int, str]:
+def run(script: Path, *flags: str) -> tuple[int, str]:
     """The real command, real argparse, real exit status. Never through a pipe."""
-    p = subprocess.run([sys.executable, str(script), "--findings", "--json"],
+    p = subprocess.run([sys.executable, str(script), *(flags or ("--findings", "--json"))],
                        capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
 
@@ -269,6 +277,7 @@ def controls(mutant: str | None = None) -> int:
     added = consistent + [KNOWN_HI + 1]
     renumbered = consistent[:-1] + [KNOWN_HI + 5]
 
+    # Every row runs `--findings --json` unless it names its own flags.
     cases: list[tuple[str, dict, int, str | None]] = [
         ("KNOWN ANSWER: 3 findings #19-#21, index and documents agreeing",
          dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI),
@@ -315,6 +324,17 @@ def controls(mutant: str | None = None) -> int:
          "not be reported in the same code as a real disagreement",
          dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
               no_git=True), 2, "git ls-files failed"),
+        ("COUNT TRIGGERS: a range document missing must be exit 2, not a candidate cost "
+         "published over a corpus one document smaller with nothing saying so",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              no_readme=True, _flags=("--count-triggers", "--json")), 2,
+         "refusing to publish a candidate cost"),
+        ("COUNT TRIGGERS VARIANT: the complete tree must publish, and the SHIPPED row must "
+         "read 0 while the quantifier row reads more than 0 - a producer whose extractor "
+         "has stopped matching reports 0 everywhere",
+         dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
+              extra_docs={"eval/PROTOCOL.md": "# P\n\nLint reports 72 findings today.\n"},
+              _flags=("--count-triggers", "--json")), 0, None),
         ("ENTRIES: the count one short in the `entries` wording, beside the producer - the "
          "real README.md line 187, which the `N numbered findings` trigger read as clean",
          dict(bodies=consistent, indexed=consistent, count=KNOWN_COUNT, high=KNOWN_HI,
@@ -343,14 +363,28 @@ def controls(mutant: str | None = None) -> int:
 
     failures: list[str] = []
     for name, kw, want_rc, want_text in cases:
+        kw = dict(kw)
+        flags = tuple(kw.pop("_flags", ()))
         with tempfile.TemporaryDirectory() as td:
             script = build(Path(td), mutant=mutant, **kw)
-            rc, out = run(script)
+            rc, out = run(script, *flags)
         ok = rc == want_rc and (want_text is None or want_text in out)
         # On the green cases, also check the producer reports the answer stated above -
         # an exit code alone would pass on a tool that counted nothing and found nothing
-        # to disagree with.
-        if ok and want_rc == 0:
+        # to disagree with. Only `--findings` prints `bodies`; a row naming its own flags
+        # asserts on its own output text instead.
+        if ok and want_rc == 0 and flags[:1] == ("--count-triggers",):
+            # An exit code proves the command ran. It does not prove the extractor still
+            # matches, and an extractor that has stopped reports `red 0` on EVERY row -
+            # which is also what a clean corpus reports. Assert the shape instead: the
+            # shipped row at 0, and the rejected quantifier row above it.
+            cands = json.loads(out[:out.rindex("}") + 1])["candidates"]
+            shipped, quantifier = cands[-1]["red"], cands[-2]["red"]
+            if shipped != 0 or quantifier < 1:
+                ok = False
+                name += (f" [SHIPPED row {shipped}, expected 0; quantifier row "
+                         f"{quantifier}, expected at least 1]")
+        if ok and want_rc == 0 and not flags:
             # Let a malformed payload raise. A `.get` chain with a default would turn an
             # unparseable output into `None != 3`, which is a failure with the wrong
             # reason, or into a pass if the default happened to match (rule 3's sibling).
@@ -405,8 +439,8 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "        if _LOGREF_RX.search(ln):",
         "        if False:  # MUTANT: only the `N numbered findings` wording is read"),
     "count_corpus_is_range_docs": (
-        "    return {**live, **stated}, problems",
-        "    return dict(stated), problems  # MUTANT: back to the 3 range documents"),
+        "    return {**live, **stated}, stated, absent + problems",
+        "    return dict(stated), stated, absent + problems  # MUTANT: back to RANGE_DOCS"),
     "no_index_reconciliation": (
         "    if len(rows) != count:",
         "    if False:  # MUTANT"),

@@ -1095,6 +1095,12 @@ documents that day.
 | the QUANTIFIER: a cardinal governing `findings\|entries` up to 2 words away | 13 | 0 of 19 |
 | **SHIPPED:** the enumeration, **or** a cardinal governing a plural noun on a line naming the log | **0** | **0 of 19** |
 
+The SHIPPED row is the **union** of the 2 triggers `_stated_counts` runs, deduplicated on start
+offset, and a pin compares it against that function on every case rather than sharing an object
+with it. Measuring the new half alone reported `red 0` on a stale count in the `N numbered
+findings` wording that names no address — one `--findings` gates on — so the published row
+described a trigger the gate does not run.
+
 **Every red line in the rejected rows is a false positive** — untriaged `lint.py` findings, Bevy
 migration entries, `eval/RUNS.md`'s undeclared scored entries, and this file's own worked example
 of why a range is not a count. The quantifier misses nothing the shipped trigger catches and costs
@@ -1109,9 +1115,10 @@ producer exists rather than a number: an open-class trigger's cost grows with th
 figure measured once describes a tree that no longer exists. Re-run `--count-triggers` before
 quoting any row.
 
-**The fence-or-reword rule fired twice on the author while this entry was being written**, on
-sentences counting the triggers and the range documents beside the log's own address. Both were
-reworded rather than fenced. That is the shipped trigger's whole cost, and it lands hardest on
+**The fence-or-reword rule fired 4 times on the author while this entry was being written** — on
+a quotation of the defective line, on sentences counting the triggers and the range documents
+beside the log's own address, and on an example of a stale count in the gated wording. 1 was
+fenced and 3 were reworded. That is the shipped trigger's whole cost, and it lands hardest on
 the documents that explain it.
 
 **What this deliberately still misses, with the price of closing it.** A count spelled in words is
@@ -1125,9 +1132,15 @@ named in the same sentence, while a count of the same fact 128 lines lower — p
 findings` — was gated and correct. One wording read and one not, in one file. The citation is what
 made it dangerous: a reader had every reason to treat the figure as derived.
 
+`--count-triggers` **refuses an incomplete corpus at exit 2** rather than publishing a cost over
+a population one document smaller with nothing saying so. `--findings` merely records a missing
+range document as a disagreement, which is right for a gate whose exit code already means
+*something is wrong* and wrong for a producer whose exit code means nothing.
+
 `python3 eval/tools/findings_control.py` is the out-of-process control, over a tree whose answer
 is written down before the tool sees it. Its `ENTRIES` and `WIDER CORPUS` rows each carry the
-variant that must go back green, `REFUSES` covers a tree `git` cannot list, and `HOSTILE GIT_DIR`
+variant that must go back green, `COUNT TRIGGERS` pairs the refusal with a variant asserting the
+shape of the published table, `REFUSES` covers a tree `git` cannot list, and `HOSTILE GIT_DIR`
 carries its own red half. `--mutate no_scoped_count` and `--mutate count_corpus_is_range_docs`
 restore the 2 halves of the old behaviour, and each is killed only by the rows that name it.
 

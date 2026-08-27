@@ -1699,8 +1699,30 @@ def _stated_counts(rel: str, text: str, count: int) -> list[str]:
     return problems
 
 
-def _count_corpus(stated: dict[str, str] | None = None) -> tuple[dict[str, str], list[str]]:
-    """({relpath: text}, problems) for every document a findings COUNT is reconciled in.
+def _range_doc_texts() -> tuple[dict[str, str], list[str]]:
+    """({relpath: text}, problems) for `RANGE_DOCS`, REPORTING any that is absent.
+
+    A document named as a place the figure is stated, and absent, must be reported. Skipping
+    it silently is the fail-open shape: the corpus quietly shrinks by one and the census goes
+    on agreeing with itself (rule 7, and #60 - the address is an input to the check).
+
+    `rel` comes from the module constant `RANGE_DOCS` and from nowhere else - there is no
+    caller-supplied path here to normalise.
+    """
+    stated, absent = {}, []
+    for rel in RANGE_DOCS:
+        p = os.path.join(ROOT, rel)
+        if os.path.exists(p):
+            stated[rel] = open(p, encoding="utf-8", errors="replace").read()
+        else:
+            absent.append(f"{rel} is named in RANGE_DOCS as a place the findings count and "
+                          f"range are stated, and it does not exist at {p} - the census "
+                          f"covered one document fewer than it claims to")
+    return stated, absent
+
+
+def _count_corpus() -> tuple[dict[str, str], dict[str, str], list[str]]:
+    """(counted, stated, problems): every document a findings COUNT is reconciled in.
 
     ONE SPELLING OF THE COUNT CORPUS, because two readers ask about it - the gate and
     `--count-triggers` - and a population spelled twice has two answers (rule 12). It is the
@@ -1710,15 +1732,17 @@ def _count_corpus(stated: dict[str, str] | None = None) -> tuple[dict[str, str],
     Wider than the RANGE corpus, deliberately and at a measured cost of 0 red lines. Until
     task 179 the count was reconciled in `RANGE_DOCS` alone, so a stale figure in any other
     live document - a skill, `eval/PROTOCOL.md`, the CI register - was unreachable by a gate
-    that reported itself clean. `_live_corpus` RAISES rather than returning an empty tree, so
-    a failed listing stops the caller instead of shrinking the corpus to 3 and reading clean.
+    that reported itself clean.
+
+    BOTH WAYS THE POPULATION CAN SHRINK ARE REPORTED, and neither is silent. `_live_corpus`
+    RAISES rather than returning an empty tree, so a failed listing stops the caller instead
+    of reducing the corpus to 3 documents and reading clean; a missing range document comes
+    back as a problem, because dropping it would publish a smaller corpus at exit 0. Raised
+    by CodeRabbit on PR #58, where `--count-triggers` did exactly that.
     """
-    if stated is None:
-        stated = {rel: open(os.path.join(ROOT, rel), encoding="utf-8",
-                            errors="replace").read()
-                  for rel in RANGE_DOCS if os.path.exists(os.path.join(ROOT, rel))}
+    stated, absent = _range_doc_texts()
     live, problems = _live_corpus()
-    return {**live, **stated}, problems
+    return {**live, **stated}, stated, absent + problems
 
 
 #: The candidate digit triggers task 179 chose between, kept so the choice can be RE-DERIVED
@@ -1727,17 +1751,22 @@ def _count_corpus(stated: dict[str, str] | None = None) -> tuple[dict[str, str],
 #: sweep keeps its rejected window sizes: an open-class trigger's cost GROWS with the corpus,
 #: so a number measured once is a number about a tree that no longer exists.
 #:
-#: Each is `(label, regex, needs the log's address on the line)`. The shipped row is the two
-#: `_stated_counts` actually runs, and it must stay at 0.
+#: Each is `(label, [(regex, needs the log's address on the line), ...])`. A candidate is a
+#: LIST because the shipped rule is a union of 2 triggers, and measuring only the new half
+#: would publish a row that disagrees with the gate: an off-address `143 numbered findings`
+#: reds `--findings` while a `_CARDINAL_PLURAL_RX`-only row reports 0. Raised by CodeRabbit
+#: on PR #58. Matches are deduplicated on start offset, exactly as `_stated_counts` does.
 _COUNT_TRIGGER_CANDIDATES = (
     ("`N numbered findings` alone - the enumeration that shipped until task 179",
-     _COUNT_DIGIT_RX, False),
+     [(_COUNT_DIGIT_RX, False)]),
     ("the same list plus one noun - `N (numbered )?(findings|entries)`",
-     re.compile(r"\b(\d+)\s+(?:numbered\s+)?(?:findings|entries)\b"), False),
+     [(re.compile(r"\b(\d+)\s+(?:numbered\s+)?(?:findings|entries)\b"), False)]),
     ("the QUANTIFIER - a cardinal governing findings|entries, up to two words away",
-     re.compile(r"(?<![#\w.-])(\d+)\s+(?:[\w`*-]+\s+){0,2}?(?:findings|entries)\b"), False),
-    ("SHIPPED - a cardinal governing a plural noun on a line naming the log",
-     _CARDINAL_PLURAL_RX, True),
+     [(re.compile(r"(?<![#\w.-])(\d+)\s+(?:[\w`*-]+\s+){0,2}?(?:findings|entries)\b"),
+       False)]),
+    ("SHIPPED - the enumeration, OR a cardinal governing a plural noun on a line naming "
+     "the log",
+     [(_COUNT_DIGIT_RX, False), (_CARDINAL_PLURAL_RX, True)]),
 )
 
 
@@ -1752,16 +1781,24 @@ def count_trigger_census(corpus: dict[str, str], count: int) -> list[dict]:
     A function of its inputs, so `--selftest` can hand it text rather than the repository.
     """
     out = []
-    for label, rx, scoped in _COUNT_TRIGGER_CANDIDATES:
-        rows = []
+    for label, triggers in _COUNT_TRIGGER_CANDIDATES:
+        rows, seen = [], set()
         for rel, text in sorted(corpus.items()):
             lines = text.split("\n")
             fenced = _fence_mask(lines)
             for i, ln in enumerate(lines):
-                if fenced[i] or (scoped and not _LOGREF_RX.search(ln)):
+                if fenced[i]:
                     continue
-                for m in rx.finditer(ln):
-                    if int(m.group(1)) != count:
+                for rx, scoped in triggers:
+                    if scoped and not _LOGREF_RX.search(ln):
+                        continue
+                    for m in rx.finditer(ln):
+                        # Deduplicated on start offset, as `_stated_counts` is: the two
+                        # shipped triggers both match `143 numbered findings` at the same
+                        # position, and counting it twice would inflate the SHIPPED row.
+                        if int(m.group(1)) == count or (rel, i, m.start()) in seen:
+                            continue
+                        seen.add((rel, i, m.start()))
                         rows.append({"doc": rel, "line": i + 1, "says": int(m.group(1)),
                                      "text": m.group(0)})
         out.append({"trigger": label, "red": len(rows), "rows": rows})
@@ -1779,6 +1816,13 @@ def _count_trigger_pins(verbose: bool = False) -> list[str]:
 
     Each case asserts an EXACT red count per candidate, never `bool(rows)`, because the
     whole claim of the table is the SIZE of the difference between the candidates.
+
+    THE LAST ROW IS A DIFFERENT KIND, and it is the one CodeRabbit's PR #58 review bought.
+    The SHIPPED row describes what `_stated_counts` does, and it is a second implementation
+    of it - so it can drift, and it had: measuring only the address-scoped half reported
+    `red 0` on an off-address `143 numbered findings` that `--findings` gates on. The repair
+    is not to make the two the same object, which would leave the row unable to disagree
+    (rule 12's corollary). It is a row that COMPARES them, on every case above.
     """
     count = 180
     cases = [
@@ -1792,9 +1836,12 @@ def _count_trigger_pins(verbose: bool = False) -> list[str]:
          {".github/workflows/README.md": "| the full `lint.py` rule set | 72 findings "
                                          "stand untriaged (`lint.py --counts`) |\n"},
          [0, 1, 1, 0]),
-        ("a count short in the gated wording, on a line naming nothing",
+        ("a count short in the gated wording, on a line naming NOTHING - the shipped row "
+         "must catch it, because the shipped rule is a union and `--findings` reds here",
          {"README.md": "143 numbered findings, and all but a few are one pattern.\n"},
-         [1, 1, 1, 0]),
+         [1, 1, 1, 1]),
+        ("both shipped triggers matching ONE number - the shipped row counts it once",
+         {"README.md": "`eval/FINDINGS.md` holds 143 numbered findings.\n"}, [1, 1, 1, 1]),
         ("GREEN: the count stated correctly in every wording",
          {"README.md": f"{count} numbered findings.\n",
           "AGENTS.md": f"`eval/FINDINGS.md` - {count} entries.\n"}, [0, 0, 0, 0]),
@@ -1815,29 +1862,55 @@ def _count_trigger_pins(verbose: bool = False) -> list[str]:
                 f"drift here is a drift in a published measurement.")
         if verbose:
             print(f"{'PASS' if ok else 'FAIL'}  {name}: red {got}, expected {want}")
+
+    # The SHIPPED row against the function it claims to describe, over every case above.
+    for name, corpus, _want in cases:
+        shipped = count_trigger_census(corpus, count)[-1]["red"]
+        gate = sum(len(_stated_counts(rel, text, count))
+                   for rel, text in sorted(corpus.items()))
+        ok = shipped == gate
+        if not ok:
+            failed.append(
+                f"the SHIPPED row of --count-triggers reported {shipped} red on `{name}` "
+                f"where _stated_counts reported {gate}. The row is a SECOND statement of "
+                f"the shipped rule and it has drifted from the rule, so the table in "
+                f"DECISIONS.md describes a trigger the gate does not run.")
+        if verbose:
+            print(f"{'PASS' if ok else 'FAIL'}  SHIPPED row agrees with _stated_counts on "
+                  f"`{name[:60]}`: {shipped} vs {gate}")
     return failed
 
 
 def cmd_count_triggers(as_json: bool = False) -> int:
-    """`--count-triggers`: what each candidate would cost over today's corpus. Never gates.
+    """`--count-triggers`: what each candidate would cost over today's corpus.
 
-    Exit 0 whatever it finds, like `--citations`: the SHIPPED row going above 0 is a fact
-    `--findings` already gates on, and the rejected rows are expected to be non-zero. This
-    prints the cost so a reader can see whether it has moved.
+    IT DOES NOT GATE ON WHAT IT FINDS. The SHIPPED row going above 0 is a fact `--findings`
+    already gates on, and the rejected rows are expected to be non-zero; this prints the cost
+    so a reader can see whether it has moved.
+
+    IT DOES REFUSE AN INCOMPLETE CORPUS, exit 2. Publishing a false-positive count over a
+    population that quietly lost a document is the fail-open shape the whole entry is about -
+    `--findings` merely RECORDS a missing range document as a disagreement, which is right
+    for a gate whose exit code already means "something is wrong" and wrong for a producer
+    whose exit code means nothing. Raised by CodeRabbit on PR #58.
     """
     try:
         count = read_findings_census()["bodies"]["count"]
-        corpus, problems = _count_corpus()
+        corpus, _stated, problems = _count_corpus()
     except (FileNotFoundError, RuntimeError) as exc:
         print(f"docstat --count-triggers: {exc}", file=sys.stderr)
         return 2
+    if problems:
+        for p in problems:
+            print(f"docstat --count-triggers: {p}", file=sys.stderr)
+        print("docstat --count-triggers: refusing to publish a candidate cost over a corpus "
+              "that is not the one it names", file=sys.stderr)
+        return 2
     rows = count_trigger_census(corpus, count)
     if as_json:
-        print(json.dumps({"documents": len(corpus), "count": count, "candidates": rows,
-                          "corpus_problems": problems}, indent=2))
+        print(json.dumps({"documents": len(corpus), "count": count, "candidates": rows},
+                         indent=2))
         return 0
-    for p in problems:
-        print(f"  corpus: {p}")
     print(f"{len(corpus)} document(s) - the live corpus, which already contains AGENTS.md "
           f"and README.md, plus eval/FINDINGS.md, which is archive")
     print(f"the measured count is {count} (--findings)\n")
@@ -1987,26 +2060,13 @@ def read_findings_census() -> dict:
             f"would report 0 findings over a full directory")
     if not os.path.exists(index_path):
         raise FileNotFoundError(f"no index at {index_path}")
-    stated, absent = {}, []
-    for rel in RANGE_DOCS:
-        p = os.path.join(ROOT, rel)
-        # A document named as a place the figure is stated, and absent, must be REPORTED.
-        # Skipping it silently is the fail-open shape: the corpus quietly shrinks by one and
-        # the census goes on agreeing with itself (rule 7, and #60 - the address is an input
-        # to the check).
-        if os.path.exists(p):
-            stated[rel] = open(p, encoding="utf-8", errors="replace").read()
-        else:
-            absent.append(f"{rel} is named in RANGE_DOCS as a place the findings count and "
-                          f"range are stated, and it does not exist at {p} - the census "
-                          f"covered one document fewer than it claims to")
-    counted, live_problems = _count_corpus(stated)
+    counted, stated, corpus_problems = _count_corpus()
     c = findings_census(
         bodies, open(index_path, encoding="utf-8", errors="replace").read(), stated,
         corpus_files=[os.path.basename(p)
                       for p in sorted(glob.glob(os.path.join(fdir, "*.md")))],
         counted=counted)
-    c["disagreements"] = absent + live_problems + c["disagreements"]
+    c["disagreements"] = corpus_problems + c["disagreements"]
     c["read_on"] = _dt.date.today().isoformat()
     c["findings_dir"] = fdir
     c["index_path"] = index_path
