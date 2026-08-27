@@ -185,12 +185,16 @@ def main() -> int:
                 f"exit {r.returncode}; missing from the refusal: {missing or 'nothing'}")
 
             # The variant a naive probe misses: from a linked worktree `git rev-parse
-            # --is-bare-repository` answers `false`, and everything the agent does still works.
+            # --is-bare-repository` answers `false`, and everything the agent does still
+            # works. That second half is asserted rather than only printed — it is the
+            # reason no git hook can carry this check, and a row that merely reported it
+            # would go on passing if linked worktrees stopped working.
             wt_status = _git(wt, "status", "--porcelain")
             r = _run_heartbeat(hb_wt)
             missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
             row("bare_red_from_linked_worktree",
-                r.returncode != 0 and not missing and str(main_ck) in r.stderr,
+                r.returncode != 0 and not missing and str(main_ck) in r.stderr
+                and wt_status.returncode == 0,
                 f"exit {r.returncode} while `git status` in that worktree is exit "
                 f"{wt_status.returncode}; missing: {missing or 'nothing'}")
 
@@ -214,13 +218,19 @@ def main() -> int:
             marker = _git(main_ck, "worktree", "list", "--porcelain")
             r = _run_heartbeat(hb_main)
             missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
+            # `marker.returncode == 0` IS PART OF THE CLAIM, not housekeeping. A failed
+            # `git worktree list` returns empty stdout, and `"bare" not in ""` is true — so
+            # without it this row could pass by the probe erroring rather than by the marker
+            # being absent, which is a reason not to count a failure (`AGENTS.md` rule 7).
+            # Raised by CodeRabbit on PR #64.
             row("core_worktree_missing_red",
                 r.returncode != 0 and not missing and str(main_ck) in r.stderr
                 and "config --unset core.worktree" in r.stderr
-                and status.returncode == 128 and "bare" not in marker.stdout.split("\n\n")[0],
+                and status.returncode == 128 and marker.returncode == 0
+                and "bare" not in marker.stdout.split("\n\n")[0],
                 f"exit {r.returncode} while `git status` there is exit {status.returncode} "
-                f"and `git worktree list` reports no `bare` marker; missing: "
-                f"{missing or 'nothing'}")
+                f"and `git worktree list` (exit {marker.returncode}) reports no `bare` "
+                f"marker; missing: {missing or 'nothing'}")
         finally:
             _git(main_ck, "config", "--unset", "core.worktree")
 

@@ -53,11 +53,12 @@ needs neither `ffmpeg` nor `just`.
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
 `heartbeat_control` is 0.9s and asks whether the hourly heartbeat still refuses to report a
-count when the **main checkout is not a work tree**. It covers both settings that reach that
-state — `core.bare`, and a `core.worktree` pointing at a directory that does not exist — read
-from the main checkout and from a linked worktree, against the three states where the checkout
-is fine and a root that is no repository at all. Its red rows run on throwaway repositories
-under `$TMPDIR` and restore the state in a `finally`; its mutant is the guard removed.
+count when the **main checkout is not a work tree**. Its red cases are `core.bare=true` read
+from the main checkout, the same read from a linked worktree, a `core.worktree` pointing at a
+directory that does not exist, and a root that is no repository at all. Its green cases are
+`core.bare=false`, `core.bare` absent, and a healthy checkout read from a linked worktree. It
+works on throwaway repositories under `$TMPDIR`, restores the configuration in a `finally`, and
+carries one mutant: the guard removed.
 `fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
