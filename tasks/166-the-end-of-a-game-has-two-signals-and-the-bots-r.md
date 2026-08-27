@@ -39,3 +39,61 @@ and expensive later.
 **Batching is on the table.** Tasks 151 and 152 were merged into one branch for exactly this
 reason and it worked; the argument there was that the second fix depended on the first's defect.
 If two of these four share that property, say so and take both.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — the ordering is SETTLED: 166 goes LAST, after 158 and 160
+
+This ticket asked for the order to be decided and written down, and to SHOW the independence
+rather than assume it. Shown, from the artifacts:
+
+| ticket | criterion | window it is computed over | truncated by end-detection? |
+|---|---|---|---|
+| 158 | first-piece timing, `bot_tetris3d` | `for _ in range(20)` at line 189 and `for _ in range(120)` at line 201 | **no** — fixed counts, and `_gameover_check` is a separate criterion built at line 250 from the method at line 607 |
+| 160 | `fire.rate_limited`, `bot_arena` | `for _ in range(ticks)` in the block built at line 905 | **no** — no `game_over` break in that block |
+
+The loops that DO break on the end signal are elsewhere in `bot_arena` — the wave/kills
+collection at lines 465-472 breaks on `t.state.get('game_over') is True`, the flag alone. So
+end-detection does truncate some scoring windows, which is why this ticket is real; it just does
+not truncate the two that 158 and 160 repair.
+
+**My first guess was the opposite and the artifacts corrected it.** I expected both to sit
+downstream of end-detection by construction. They do not, and the check that settled it was
+cheap — grep the loop bound, not the criterion's prose.
+
+**Why last rather than first, given they are independent either way:** 158 and 160 will move
+stored verdicts themselves. If this ticket runs first, its before/after census is immediately
+overtaken by two more re-scorings and stops isolating anything. Running last, the census measures
+the end-detection change alone against a baseline that has stopped moving. Take the before-census
+AFTER 158 and 160 have merged, not from a number recorded earlier in this file.
+
+**Not batched, and that is deliberate.** The standing instruction on this project is one agent per
+task. 158 and 160 serialise on `bot_mutants.py` regardless, so this costs an extra round and buys
+a reviewable branch per repair.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — correction: the cluster is FIVE tickets, not three
+
+The note above says `158`, `160` and `166` serialise on `eval/judge/bot_mutants.py`. That
+population was wrong. `grep -l bot_mutants tasks/*.md` over the todo tickets returns **158, 160,
+166, 170, 171** — and I wrote an ordering over three of them without running the grep that
+enumerates the file's users. This is the failure `AGENTS.md` names in the rule audit: a trigger
+written as the instances I happened to have in mind rather than as the property (*edits
+`bot_mutants.py`*), and it was committed by someone who had just re-read that rule.
+
+**What survives the correction:** 158 and 160 are independent of this ticket, shown from their
+loop bounds, and that showing stands. **What does not:** "158, then 160, then 166" is not a
+complete order, because two more tickets queue on the same file.
+
+**The independence check has NOT been run for 170 and 171, and must not be assumed from the
+other two.** 170 is `multiplier.falls` in `bot_arena`, the same module whose wave/kills loop at
+lines 465-472 does break on `game_over` — so it is the one cluster member with a prior reason to
+be entangled with end-detection, and it needs the loop-bound check run against it specifically
+before it is ordered. 171 is `rally.counts` in `bot_pong`, which this ticket's own filing note
+already called probably independent.
+
+**Standing order until that check is run:** 158 first (in flight), then 160, then 170 and 171 in
+either order, and this ticket **last** — the before/after census argument applies against all four,
+not just two. Whoever runs 170's check should record the result here and fix the order if it comes
+out the other way.
