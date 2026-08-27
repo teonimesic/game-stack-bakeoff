@@ -764,6 +764,12 @@ class ReliabilityCase:
     #: can the frames be read for this layer? STATED HERE, never computed
     readable: bool
     why: str
+    #: which key of `ParallaxScene.UNRESOLVED_REASONS` the note must give, or None when
+    #: the layer was not refused for resolvability at all. The VERDICT is not the whole
+    #: answer: a note that says a layer moved half its span, about a layer that simply
+    #: declared no span, is a false sentence in a durable record and no pass/fail check
+    #: can see it. Whichever key is named, the others' text must be ABSENT.
+    reason: str | None = None
 
 
 RELIABILITY_CASES: list[ReliabilityCase] = [
@@ -802,7 +808,7 @@ RELIABILITY_CASES: list[ReliabilityCase] = [
         "the variant's band, as records. It reads 0px on every pair and agrees with "
         "itself perfectly, exactly as the row above does - the reported offset is the "
         "only thing that separates a band the frames cannot resolve from a background "
-        "that never moved"),
+        "that never moved", "aliased"),
     ReliabilityCase(
         "a layer that declares no repeat length",
         (14, 16, 15, 12, 11, 12, 14, 16, 15, 13, 11),
@@ -810,16 +816,17 @@ RELIABILITY_CASES: list[ReliabilityCase] = [
         None, False,
         "nothing bounds the residue, so nothing establishes that the drawn displacement "
         "is the reported one. Fail closed: the pairs are as agreeable as the first "
-        "row's and the frames still cannot say what they show"),
+        "row's and the frames still cannot say what they show", "no_span"),
     ReliabilityCase(
         "three frame pairs", (14, 16, 15), (14.47, 15.63, 14.60), 120.0, False,
         f"under MIN_PAIRS_PER_LAYER; a median over 3 numbers is not a repeatability "
         f"claim"),
 ]
 
-#: Each is the shipped `scene_probe.py` with ONE line put back the way it was before
-#: `tasks/164`. A mutant that leaves every row of the table where it was has removed
-#: nothing the table can see.
+#: Each is the shipped `scene_probe.py` with ONE line changed - the first 2 put back the
+#: way they were before `tasks/164`, the third a wrong answer that moves no verdict at
+#: all. A mutant that leaves every row of the table where it was has removed nothing the
+#: table can see.
 RELIABILITY_MUTANTS: dict[str, tuple[Patch, ...]] = {
     "the agreement slack is a floor in RATIO units again": (
         Patch("scene_probe.py",
@@ -831,9 +838,18 @@ RELIABILITY_MUTANTS: dict[str, tuple[Patch, ...]] = {
               '                if abs(x["shift"] / x["d_offset"] - med) <= slack:'),),
     "a pair is usable whether or not its span resolves it": (
         Patch("scene_probe.py",
-              "            usable = [x for x in read\n"
-              "                      if self._resolvable(x, self.NYQUIST_SHARE)]",
+              "            usable = [x for x, w in zip(read, why, strict=True) "
+              "if w is None]",
               "            usable = list(read)  # MUTANT"),),
+    #: THE ONE THAT MOVES NO VERDICT. Every unresolvable pair reported as aliasing is
+    #: what the note said until this suite started reading it, and it is a false sentence
+    #: about a layer that merely declared no span - invisible to any pass/fail check.
+    "every unresolvable pair is reported as aliasing": (
+        Patch("scene_probe.py",
+              '        if span is None or not math.isfinite(span) or span <= 0:\n'
+              '            return "no_span"',
+              '        if span is None or not math.isfinite(span) or span <= 0:\n'
+              '            return "aliased"  # MUTANT'),),
 }
 
 
@@ -873,40 +889,53 @@ def _probe_with(patches: tuple[Patch, ...], label: str):
     return mod
 
 
-def _reliability_verdicts(mod) -> dict[str, bool]:
+def _reliability_verdicts(mod) -> dict[str, tuple[bool, str]]:
+    """Per case: was the layer readable, and what did the note say about it."""
     scene = mod.SCENES["s1_parallax"]()
     out = {}
     for case in RELIABILITY_CASES:
-        good, _ = scene._reliable({"L": _reliability_rows(case)})
-        out[case.label] = "L" in good
+        good, notes = scene._reliable({"L": _reliability_rows(case)})
+        out[case.label] = ("L" in good, " ".join(notes))
     return out
 
 
 def reliability_selftest() -> int:
-    """Can the reliability filter refuse a layer, and can it still accept one?
+    """Can the reliability filter refuse a layer, can it still accept one, and does it
+    say the right thing about the one it refused?
 
     Reads no fixture and needs no toolchain, so it runs where the suite above cannot.
     """
     print("the reliability filter - `which layers the frames can be read for`\n")
     shipped = _reliability_verdicts(scene_probe)
+    reasons = scene_probe.ParallaxScene.UNRESOLVED_REASONS
     problems = []
     w = max(len(c.label) for c in RELIABILITY_CASES)
     for case in RELIABILITY_CASES:
-        got = shipped[case.label]
+        readable, note = shipped[case.label]
         stated = "readable" if case.readable else "unreadable"
-        answered = "readable" if got else "unreadable"
-        ok = got == case.readable
+        answered = "readable" if readable else "unreadable"
+        ok = readable == case.readable
+        # The verdict is half the answer. A note naming a reason the record does not
+        # have is a false sentence in evidence, and it passes any pass/fail check.
+        said = sorted(k for k, text in reasons.items() if text in note)
+        want = [case.reason] if case.reason else []
+        reason_ok = said == want
         print(f"  {case.label:<{w}}  stated {stated:<10}  got {answered:<10}  "
-              f"{'ok' if ok else '<-- UNMET'}")
+              f"reason {str(want or ['-']):<12} said {str(said or ['-']):<12}  "
+              f"{'ok' if ok and reason_ok else '<-- UNMET'}")
         if not ok:
             problems.append(f"{case.label}: stated {stated}, got {answered} "
                             f"-- {case.why}")
+        if not reason_ok:
+            problems.append(f"{case.label}: the note gives {said or 'no reason'} where "
+                            f"the record has {want or 'none'} -- {note!r}")
 
-    print("\nmutants - the shipped file with one line put back:")
+    print("\nmutants - the shipped file with one line changed:")
     for label, patches in RELIABILITY_MUTANTS.items():
         got = _reliability_verdicts(_probe_with(patches, label))
-        moved = sorted(c.label for c in RELIABILITY_CASES
-                       if got[c.label] != shipped[c.label])
+        moved = sorted(
+            f"{c.label} ({'verdict' if got[c.label][0] != shipped[c.label][0] else 'note'})"
+            for c in RELIABILITY_CASES if got[c.label] != shipped[c.label])
         print(f"  {label}\n    moves {moved or 'NOTHING'}")
         if not moved:
             problems.append(f"mutant {label!r} SURVIVED: every row of the table sits "

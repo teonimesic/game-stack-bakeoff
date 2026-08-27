@@ -139,8 +139,8 @@ jobs:
       # `ParallaxScene._reliable` asks two separable questions of a layer -- can this pair
       # be resolved at all, and do the pairs agree -- and no fixture reaches both, so the
       # suite above pins only the first. This drives the filter over hand-written layer
-      # records against the shipped file and 2 mutants of it. Offline, like the census
-      # selftest, and for the same reason.
+      # records against the shipped file and 3 mutants of it, reading the evidence note as
+      # well as the verdict. Offline, like the census selftest, and for the same reason.
       - name: judge/scene_mutants --reliability-selftest
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/scene_mutants.py --reliability-selftest

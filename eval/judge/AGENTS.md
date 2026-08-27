@@ -97,12 +97,14 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
   `blind` counter both name it, so the robustness lives in the criteria rather than in the
   estimator. `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
 - **A band the frames cannot resolve is refused before agreement is asked, and agreement is
-  asked in PIXELS.** A layer that moves half its own span between 2 captures draws a picture that
-  is a residue of its repeat length, and it can agree with itself perfectly while doing it —
-  which is why the aliasing test is a precondition on the pair (`eval/SCENES.md`). Neither half
-  is reachable by a fixture that exercises the other, so `scene_mutants.py
-  --reliability-selftest` drives `_reliable` over hand-written layer records and 2 mutants of the
-  shipped file; it reads no fixture and needs no toolchain.
+  asked in PIXELS.** A layer that moves half its own span or more between 2 captures draws a
+  picture that is a residue of its repeat length, and it can agree with itself perfectly while
+  doing it — which is why the aliasing test is a precondition on the pair (`eval/SCENES.md`).
+  Neither half is reachable by a fixture that exercises the other, so `scene_mutants.py
+  --reliability-selftest` drives `_reliable` over hand-written layer records and 3 mutants of the
+  shipped file, and reads the NOTE as well as the verdict: a note naming a reason the record does
+  not have is a false sentence no pass/fail check can see, and 1 of the 3 mutants moves nothing
+  else. It reads no fixture and needs no toolchain.
 
 **Tier 3 for scenes is `fidelity`, `motion` and `framework_fluency`**, in the same `ASPECTS`
 registry as the 6 game aspects and at the same weight, 0.00. 2 things govern using them:

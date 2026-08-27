@@ -716,20 +716,38 @@ class ParallaxScene(Scene):
                 return row
         return {}
 
-    @staticmethod
-    def _resolvable(row: dict, share: float) -> bool:
-        """Can this frame pair's displacement be recovered from the two frames at all?
+    #: What `_unresolved` may answer, and the sentence each puts in the evidence. Keyed
+    #: so the note states the reason a pair was actually dropped: the guard is one
+    #: property - `the layer's own span resolves this pair` - but "it moved half a span"
+    #: is a CLAIM, and printing it about a row that simply declared no span would put a
+    #: false sentence in a durable record.
+    UNRESOLVED_REASONS = {
+        "aliased": "the layer moves at least half its own span between those captures, "
+                   "so what the frames show is a residue of its repeat length and not "
+                   "a rate",
+        "no_span": "the layer declares no usable `span` there, so nothing bounds the "
+                   "residue",
+        "no_offset": "the layer reports no offset change over those ticks",
+    }
 
-        Only if the layer moved less than `share` of its own repeat length between them.
-        A layer whose `span` is missing or non-positive declares no repeat length, so
-        nothing bounds the residue and the pair is not resolvable either - one property,
-        `the layer's own span resolves this pair`, rather than two guards (`NYQUIST_SHARE`).
+    @staticmethod
+    def _unresolved(row: dict, share: float) -> str | None:
+        """Why this frame pair's displacement cannot be recovered from the two frames,
+        as a key of `UNRESOLVED_REASONS`, or None when it can.
+
+        It can only when the layer moved less than `share` of its own repeat length
+        between them. A layer whose `span` is missing or non-positive declares no repeat
+        length, so nothing bounds the residue and that pair is not a measurement either -
+        one property, `the layer's own span resolves this pair`, rather than two guards
+        (`NYQUIST_SHARE`). The reasons are separated for the EVIDENCE, not for the guard.
         """
         span = row.get("span")
         d = row.get("d_offset")
-        if span is None or not math.isfinite(span) or span <= 0 or d is None:
-            return False
-        return abs(d) < span * share
+        if span is None or not math.isfinite(span) or span <= 0:
+            return "no_span"
+        if d is None:
+            return "no_offset"
+        return None if abs(d) < span * share else "aliased"
 
     def _reliable(self, shifts: dict[Any, list[dict]]) -> tuple[dict[Any, dict], list]:
         """Which layers the frames can be read for, and what each one measured.
@@ -766,16 +784,17 @@ class ParallaxScene(Scene):
             read = [x for x in rows
                     if x["confidence"] >= self.MIN_CONFIDENCE
                     and x["d_offset"] not in (None, 0.0)]
-            usable = [x for x in read
-                      if self._resolvable(x, self.NYQUIST_SHARE)]
-            aliased = len(read) - len(usable)
+            why = [self._unresolved(x, self.NYQUIST_SHARE) for x in read]
+            usable = [x for x, w in zip(read, why, strict=True) if w is None]
+            unresolved = len(read) - len(usable)
+            because = "; ".join(f"{why.count(k)} because {v}"
+                                for k, v in self.UNRESOLVED_REASONS.items()
+                                if why.count(k))
             if len(usable) < self.MIN_PAIRS_PER_LAYER:
                 notes.append(
                     f"layer {lid}: only {len(usable)} readable frame pairs"
-                    + (f" ({aliased} of {len(read)} dropped: the layer moves at least "
-                       f"half its own span between those captures, so what the frames "
-                       f"show is a residue of its repeat length and not a rate)"
-                       if aliased else ""))
+                    + (f" ({unresolved} of {len(read)} dropped, {because})"
+                       if unresolved else ""))
                 continue
             ks = [x["shift"] / x["d_offset"] for x in usable]
             med = statistics.median(ks)
@@ -789,13 +808,13 @@ class ParallaxScene(Scene):
             if agreement < self.K_AGREEMENT:
                 notes.append(f"layer {lid}: what it drew agrees with what it reported "
                              f"on only {agreement:.0%} of {len(usable)} pairs"
-                             + (f" ({aliased} more dropped as unresolvable against its "
-                                f"own span)" if aliased else ""))
+                             + (f" ({unresolved} more dropped, {because})"
+                                if unresolved else ""))
                 continue
             good[lid] = {"median_shift": statistics.median(abs(x["shift"])
                                                            for x in usable),
                          "k": med, "pairs": usable, "agreement": agreement,
-                         "aliased": aliased}
+                         "unresolved": unresolved}
         return good, notes
 
     # -- the criteria ---------------------------------------------------- #
