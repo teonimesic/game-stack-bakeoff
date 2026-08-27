@@ -148,3 +148,59 @@ No finding number is allocated. Whether the recursion measurement warrants one i
 orchestrator's call; the account above is complete either way, and its shape is
 `AGENTS.md` rule 15 — a mutant asks whether a check can fail, and both defects here were
 found by asking what the check could still *pass* on.
+
+## note 2026-08-27
+
+## The review, and one thing found on the way — 2026-08-27
+
+PR #60. **3 rounds, 7 comments, all acted on, none declined.** Every round found something
+real, and two of them found the same class of defect one level apart, which is the part worth
+keeping.
+
+| round | what it found |
+|---|---|
+| 1 | `GATES_DEPTH` was **incremented**, so `-1000` read as `-999` (1002 levels allowed) and `abc` read as `0` (count restarts). Also: a false sentence in the register, hook timings published in `DECISIONS.md` six lines above that file's own rule against publishing them, `endswith` where an equality belonged, and `eval/tools/ci_minutes.py` missing from its own duty-cycle census |
+| 2 | the depth rows tested **acceptance**, never **propagation**. They preset `GATES_DEPTH` and read the hook's own answer, so `1) depth=1` and a deleted `export GATES_DEPTH` both passed at exit 0 while a real nesting would recurse |
+| 3 | the propagation rows compared `sorted(set(...))` of the shim's records, so they had the **value** and not the **population**: a tier running 1 of its 6 gates reads identically |
+
+**Rounds 2 and 3 are one lesson at two scales.** Round 2: what a check reads must be the thing
+the mechanism protects, not the thing it is easiest to ask the mechanism about. Round 3: and it
+must be read over the whole population, not collapsed. Both were false negatives — a mutant
+asks whether a check *can* fail, and only asking what it can still *pass* on found either
+(`AGENTS.md` rule 15). Each was verified against the previous head rather than taken on trust:
+`no_advance`, `no_export` and `first_only` were each planted against the pins that were live
+before their round and came back **exit 0**.
+
+**Round 4 never arrived, and that is an allowance rather than a clean round.** Requested 3
+times; CodeRabbit answered *"You've used all 10 included reviews currently available"* each
+time, and the last notice stated no interval. `gh pr checks` reads `CodeRabbit pass — Review
+rate limited`, which must **not** be read as a clean review.
+
+### Found while sizing this branch's own step, and fixed here
+
+`gates` came back **3m13s** against a register publishing **75–115s**. The step was read
+per-step out of the jobs endpoint, as the register itself instructs: `ci_minutes --selftest` is
+not in the slowest 12 there, and `judge/ink_window_control` at 69s and `cost_census_mutants` at
+29s are what that run is made of. So the gate this ticket adds is not the cause — **the band
+was**.
+
+Re-read with the register's own command, last 12 successful runs of each workflow on `main`:
+
+| | published 2026-08-25 | read 2026-08-27 |
+|---|---|---|
+| `gates` | 75–115s | **127–208s** |
+| `controls` | 658–827s | **706–970s** |
+
+**24 of 24 runs sit outside the band published for them**, so this is not the run-to-run noise
+that row already warns about. Both replaced, with the span sentence (81s and 264s, from 40s and
+169s). The row now also says the band is a **reading, not a property of the tier** — the same
+lesson one level up from the one it already carried, and the reason to re-run the command
+rather than trust the digits. `tasks/129` and `tasks/153` hold the retired figures; a live
+document replaces superseded content rather than annotating it.
+
+### State at handback
+
+Branch merged up to `main` (6 commits) and re-verified at the merge head: the 9-mutant sweep is
+9 of 9 DIED, and the ticket's own control still gives `pre-push` exit 1 and `pre-commit` exit 0
+on a planted `controls.yml` step. `mergeable.py` refused the pre-merge head for being behind,
+which is what prompted the merge.
