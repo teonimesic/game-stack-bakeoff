@@ -757,3 +757,44 @@ documentation recommends* — #61's shape, where the guarded path was the one al
 `blind_ext_selftest.py` check 7 now drives `field.py pack` **as a subprocess**, for `architecture`
 (must be 16/16 neutral names and 0 tokens) and for `idiomatic` (must be 0 neutral names and >0
 tokens, so the check cannot pass by blinding everything).
+## #189 — the agreement test's slack grew with the speed it was testing, until it covered the window
+
+`ParallaxScene._reliable` kept a layer when 80% of its per-pair shift-to-offset ratios sat within
+`max(abs(median) * 0.15, 0.15)` of the median. The second term is a **floor in ratio units**, and
+what it is compared against is a ratio whose denominator is the layer's own reported offset. So the
+slack scaled with how fast the layer said it was moving.
+
+On the first stored scene's road band that floor is `0.15` against a median ratio of `0.053` —
+**2.8x the median**, or **±60 to ±81 px inside a ±89 px search window**. Every answer the estimator
+could physically return agreed with every other one. The layer was called readable on 8 of 8 pairs
+while its usable shifts ran **-73px to +3px**, and that promotion is what let `layers.image_parallax`
+establish itself on 3 bands and score the submission FALSE.
+
+**A guard whose tolerance is a function of the value being guarded has no failing input.** That is
+the fail-open shape with an extra step: nothing here excused a failure, it made failure
+unreachable. The repair moves the comparison into **pixels** — the unit the estimator answers in
+and the unit its error is bounded in — leaving the proportional term arithmetically unchanged.
+
+**And the second defect, which no slack value could have fixed.** A band that moves half its own
+repeat length or more between two captures draws a picture recoverable only modulo that span, so it
+**agrees with itself perfectly**: the `near layer repeats exactly twice between captures` variant
+reads 0px on 11 of 11 pairs at confidence 0.83-0.92. Tightening the tolerance makes such a band
+*more* readable, not less. It is now refused as a **precondition**, before agreement is asked at all
+(`NYQUIST_SHARE = 0.5`, the sampling limit rather than a tuned constant).
+
+**Both constants are derived, and the evidence that they were not fitted is in the source.**
+`K_PIXEL_FLOOR = 1.5` follows from `best_shift` answering in whole pixels: over 6 fixtures, 24
+layer rows and 264 pairs the worst pure-rounding residual is 0.78px, and exactly 1.00px on the
+constant-speed variant. It sits **60x below the 94px the road band would have needed to survive** —
+which is the point of quoting it. The submission that exposed the defect still fails.
+`eval/SCENES.md` records the decision that an aliased band is UNREADABLE rather than wrong, and
+that the 12-frame capture does not move, because `span` is the submission's choice and no capture
+rate is safe from it.
+
+**Still open, and visible only because the filter stopped lying:** the estimator locks onto one
+whole-frame feature rather than each band. At frame pair 4 all five lower bands answer -9px; at
+pairs 1, 3, 5 and 10 four of them answer -46, -19, -66 and +8. Three bands now fail on
+**confidence** rather than on aliasing, which is a different instrument defect and has its own
+ticket.
+
+---

@@ -136,6 +136,14 @@ jobs:
       - name: judge/scene_mutants --census-selftest
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/scene_mutants.py --census-selftest
+      # `ParallaxScene._reliable` asks two separable questions of a layer -- can this pair
+      # be resolved at all, and do the pairs agree -- and no fixture reaches both, so the
+      # suite above pins only the first. This drives the filter over hand-written layer
+      # records against the shipped file and 3 mutants of it, reading the evidence note as
+      # well as the verdict. Offline, like the census selftest, and for the same reason.
+      - name: judge/scene_mutants --reliability-selftest
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/scene_mutants.py --reliability-selftest
       # The RUNNER's side of the same question. `scene_mutants` asks whether each scene
       # criterion can fail; this asks whether the harness can reach the right instrument
       # at all and still refuse the wrong one -- 6 named routes from an operator's

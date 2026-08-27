@@ -640,3 +640,81 @@ wasted and is worth logging as a result: *scenes are covered* and *the harness i
 facts a future reader would otherwise re-derive. The find came from the third question — not *"is
 it current?"* but *"does every instruction in it still have a referent?"* — which is a different
 test and the one that caught something.
+
+## 2026-08-27 — `eval/tools/`, the instrument nobody had opened
+
+`eval/judge/` had a pass on 2026-08-25 and `eval/tools/` never had one, though it holds the 46
+scripts that produce every number this project publishes. Read for one question: **what is
+actually reachable from a gate?** A tool nobody runs is not merely idle — it is a check whose
+failure nobody would see, which is the duty-cycle problem the CI tier was built to fix.
+
+### Method note — the extraction was proved before it was believed
+
+The census is `basename` against the concatenation of `.github/workflows/*.yml` and `.githooks/*`,
+and a name-based match over shell is exactly the shape rule 12 keeps catching. So it was run first
+against a case whose answer is written down: `AGENTS.md` says `skill_layout_control.py` pins the
+layout gate red on all five ways the layout can break, and the census reports it gated. Only then
+was the negative half read.
+
+The second pass mattered too: the first cut listed 15 ungated tools and would have been a finding
+about nothing, because `heartbeat.py`, `prune_scan.py` and `disclosure.py` are manual by design.
+Partitioning by **what the tool is for** — a control exists to be a gate; a census exists to be
+asked — took it from 15 rows to 4.
+
+### Found — 4 controls no gate runs, and no register entry excusing any of them
+
+Filed as `tasks/177` (p2). `.github/workflows/README.md` promises to record every gate left out
+with its reason, and none of these 4 appears in it:
+
+| tool | reachable from | measured |
+|---|---|---|
+| `fragment_control.py` | nothing at all | 1.1s, exit 0, 12/12 |
+| `evidence_set_control.py` | nothing at all (one prose mention in a sibling docstring) | 1.5s, exit 0, 11/11 |
+| `starter_gate_control.py` | `precampaign_smoke.py`, itself ungated | — |
+| `disclosure_mutants.py` | `precampaign_smoke.py`, same | — |
+
+`fragment_control.py` is the sharpest: its own docstring says its `whole_line` mutant is *"the
+design that was tried first and measured as a complete false negative, so this control is what
+stops it being tried again silently"*. Nothing runs it, so nothing stops that. At ~1s it is
+pre-commit money.
+
+**The ticket is the census, not the four rows.** `tasks/175` is the same defect found independently
+one tool over (`ci_minutes.py --selftest`, in no hook tier), and repairing named instances leaves
+the next one — the enumeration-versus-property failure the rule audit describes. What is missing is
+a producer for *"which controls does no gate run, and which does the register excuse"*.
+
+### Examined and judged sound
+
+- **No dead tool.** All 46 scripts in `eval/tools/` have at least 2 referencing files; nothing is
+  orphaned by name. The defect here is reachability from a **gate**, not deadness.
+- **The two-tier split itself.** `ci_minutes.py` derives the hook list by *running* the hook rather
+  than restating it, which is the right shape and is why `tasks/175` was findable at all.
+- **`precampaign_smoke.py` being ungated is defensible** — it is a pre-run smoke suite, and running
+  it per commit would be the wrong tier. What is not defensible is that its two children are
+  reachable *only* through it while the register says nothing.
+
+### Disk, examined and deliberately NOT pruned
+
+The monitor flags gitignored build output as invisible to `git status`, so it was measured:
+`eval/runs` is **4.5G**, and the largest single items are `node_modules` trees inside stored trial
+work directories — 173M each for the two `t2_net__typescript_three` trials alone. `.godot` caches
+are trivial (24K). Outside the repo, `~/game-research-work` is 175M. The live agent worktree under
+`.claude/worktrees` is 3.0G, which is one full checkout and disappears when that agent finishes.
+
+**Deleting the `node_modules` trees would be wrong, and the reason is #45.** They are
+reconstructible from `package.json`, so the naive prune test passes — but #45 is precisely a
+toolchain that vanished between building and grading, and six TypeScript submissions then scored
+an identical 6/14 that read as a stack characteristic. A stored trial whose dependencies are gone
+does not fail loudly on re-grade; it fails in a way that looks like a property of the stack. The
+prune test that matters here is the log's own: *would removing this make a future wrong conclusion
+possible?* — and for this specific class of file the answer is yes, with a numbered instance.
+
+Not pressing regardless: 593Gi free against 7.9G used. Recorded so the next pass does not
+re-derive it, and so nobody deletes them for space later without meeting #45 first.
+
+### Not opened, and the next pass should take one
+
+`eval/suites/` (the task prompts), `eval/wholegame.py` and `eval/runner.py` (the harness itself),
+and the scene layer built 2026-08-25/27 (`eval/SCENES.md`, `scene_probe.py`, `scene_prompts.py`) —
+which is new enough that no pass has read it and old enough now to have accumulated its own
+corrections.

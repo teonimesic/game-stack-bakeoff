@@ -2733,10 +2733,13 @@ failure being repaired — one very strong edge dominating a sum — and it is 9
 doing nothing. *Choose between candidates on the live-corpus count, never on which one sounds
 more principled.*
 
-So the estimator stands and 2 gates absorb its error: a band is measured only when its own
-drawn-to-reported ratio agrees with itself on 80% of its pairs, and a wrap crossing measured at
-zero displacement while the band's own model predicts a large one is counted as unreadable rather
-than as a jump. **The shipped estimator misses 8 of the 132 pairs in the 3 fixtures — 1 of 44 on
+So the estimator stands and 2 gates absorb its error: a band is measured only when what it drew
+agrees with what it reported on 80% of its pairs, to within `max(15% of the predicted shift, 1.5
+px)` — *A band the captured frames cannot resolve is unreadable* below holds why that floor is in
+pixels, and which pairs it is not asked of — and a wrap crossing measured at zero displacement
+while the band's own model predicts a
+large one is counted as unreadable rather than as a jump. **The shipped estimator misses 8 of the
+132 pairs in the 3 fixtures — 1 of 44 on
 the reference, 5 of 44 on the nearest-first variant, 2 of 44 on the 1.5x variant — and every one
 of the 8 is the same shape**, on the band holding a car the camera follows.
 
@@ -3060,6 +3063,94 @@ reporting in each of those ways.
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
 all.
 
+## The improvement loop is triggered by a change, not by a run — decided 2026-08-27
+
+**The trigger is the change, not the occasion.** The loop fires when the **instrument** (graders,
+judges, rubric, blinding, the tools that produce the numbers), the **product** (`eval/starters/*/`,
+the task prompts) or the **guidance for either** is about to change and the effect can be measured
+before and after. Those three name a resource rather than a list of components, so a part of the
+instrument written tomorrow is covered. A matrix finishing is the occasion that supplies most such
+changes and it is not the only one: a ticket, a sweep of stored artifacts, and a loose end handed
+on by a previous iteration each supply them, and all land in the same file under the same standard.
+
+**An iteration and a finding are different records and one piece of work commonly produces both.**
+What was **observed** is a finding; what was **changed** is an iteration. Iteration 13 is the
+change; [`#95`] is the defect it repaired. **Guidance files with the thing it governs**: a
+document about the instrument is an iteration in `eval/IMPROVEMENTS.md`, one about the starters
+or the task prompts an iteration in `IMPROVEMENTS.md` at root, so no change the trigger admits is
+left without a destination.
+
+**The run-only alternative was declined.** Sending every change that did not come from a run to
+`eval/FINDINGS.md` makes the record worse rather than tidier: a finding has no pre-registration,
+no falsifier and no keep-or-revert, so filing a measured change there drops exactly the parts that
+make an iteration falsifiable — and it would still leave iterations 13-15 in a file whose trigger
+excluded them. **Nothing is retro-filed either way**: the evaluator changes of 2026-08-24 and
+08-25 that have the iteration shape stay where they were recorded, because rewriting them into the
+loop would narrate a loop that did not produce them.
+
+**What the skill said, and why it was wrong.** `.agents/skills/refine/SKILL.md` fired the loop on
+*"a matrix has finished AND been evaluated"*, which excludes every iteration the file has gained
+since. `grep -c '^## Iteration ' eval/IMPROVEMENTS.md` counts **17**; the last 3, read 2026-08-27:
+
+| iteration | origin, by `git log -S'<heading>' -- eval/IMPROVEMENTS.md` | the before/after it records |
+|---|---|---|
+| 13, the pack-versus-manifest gate | `tasks/33` | `judge/pack_selftest.py`: 8 of 8 real submissions fail unfixed, 0 of 16 fixed |
+| 14, blinding the extensions a file mentions | `tasks/87` | `judge/blind_ext_selftest.py`: 2,083 arm-naming tokens over 84 stored packs → 0 |
+| 15, rebuilding a blind `CHANGED.txt` | the loose end iteration 14 handed on | `judge/blind_dir_selftest.py`: 1,275 → 0 segments over 43 stored submissions |
+
+All 3 were committed 2026-08-23 and each measured a stored corpus offline. The last multi-cell
+matrix is `wg-g4c-2026-08-21T02-26-46`, at **8** by
+`ls eval/runs/wg-g4c-2026-08-21T02-26-46/artifacts | wc -l`; the 2 later run directories are at
+**1** by the same command. The root loop is the same shape at `grep -c '^## Iteration '
+IMPROVEMENTS.md` = **2**: *each template at its own stack's best* came from `tasks/26` and a
+capability survey, with no run between.
+
+`eval/IMPROVEMENTS.md`'s preamble holds the statement; `IMPROVEMENTS.md` at root points at it
+rather than restating it, and the skill and the `AGENTS.md` index row follow it.
+
+## A band the captured frames cannot resolve is unreadable, and the capture stays at 12 — decided 2026-08-27
+
+A layer repeats every `span`, so a displacement of `d` and one of `d + span` draw the same picture.
+At exactly half a span the two candidates are the same distance apart and neither is the answer;
+beyond it the smaller one is the wrong one. **A pair moving half a span or more is declared
+unreadable, and the capture contract does not change.**
+
+**More frames is not the repair, because `span` is the submission's choice and no fixed capture
+rate resolves every repeat length.** A band crossing 1.66 to 2.25 spans between captures needs
+more than 50 frames where the contract gives 12; one repeating every 10 world units needs
+thousands. Raising the frame count is also a regime boundary against every scene trial. So the
+contract stays at 12 and the instrument says it did not measure.
+
+**It has to be a PRECONDITION on the pair, not a tolerance**, and that is the part a test would
+not have found. An aliased band can agree with itself perfectly: `scene_mutants.py`'s `the near
+layer repeats twice between captures` variant is a correct scene whose nearest band crosses its
+span exactly twice between captures, so `best_shift` answers 0px on 11 of 11 pairs at confidence
+0.83–0.92. Nothing downstream of that number can tell it from a real background that never moved —
+only the reported offset can — and a background reported as moving and drawn stationary is the one
+thing `layers.image_parallax` exists to catch, so it must stay readable.
+
+**In the same repair, the agreement slack moved from RATIO units into PIXELS**, which is the unit
+the estimator answers in. The proportional term is unchanged — a ratio slack of `|median| * 0.15`
+is exactly `|predicted| * 0.15` pixels — but the floor was a constant in ratio units, so in pixels
+it was `0.15 * |d_offset|` and grew without bound as a submission reported its offsets in finer
+units. On the road band that floor admitted ±60 to ±81 pixels of a ±89-pixel search window: every
+answer the estimator could return agreed with every other, and the band was called readable on 8
+of 8 pairs while its shifts ran −73px to +3px. The pixel floor is 1.5, which is the estimator's own
+quantisation and not a number fitted to a population — `best_shift` answers in whole pixels, and
+the worst pure-rounding residual measured over the 6 s1_parallax fixtures is exactly 1.00px.
+
+**The two halves are pinned separately because no one input reaches both.** A fixture that aliases
+is refused by the precondition whatever the slack does, and isolating the slack needs a scene
+reporting offsets so large that the whole search window fits inside a ratio-unit slack — a property
+of the reported units, not of any scene worth filming. So `scene_mutants.py
+--reliability-selftest` drives `_reliable` over 7 hand-written layer records whose answers are
+stated before it runs, against the shipped file and against 2 mutants of it; each mutant moves
+exactly 2 records, in both directions.
+
+**To re-open:** a submission whose bands are all inside half a span per capture and which is still
+misread — that would mean aliasing was never the property that mattered; or a measured
+pure-rounding residual above 1.5px, which would mean the floor is fitted rather than derived.
+
 ## Reversal conditions — what would re-open a decision
 
 **Adopted 2026-08-23 from `game-research-gpt`, whose ADRs each end with one (task 11).
@@ -3234,3 +3325,5 @@ tokens); or a prime-agent release exposing a project-scoped context flag, which 
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
 annotating them — this file states what is true now, not how it got here.
+
+[`#95`]: eval/findings/one-arm-bias.md#95-a-judge-pack-is-a-numbering-not-a-set-so-re-evaluating-a-run-left-nine-passes-stacked-on-disk

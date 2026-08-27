@@ -31,11 +31,18 @@ than none.
     python3 judge/scene_mutants.py --only s2_glass
     python3 judge/scene_mutants.py --census        # what each criterion separated
     python3 judge/scene_mutants.py --census --runs-root <main checkout>/eval/runs
+    python3 judge/scene_mutants.py --reliability-selftest
+
+The last one is the exception to everything above, and it says why in `RELIABILITY_CASES`:
+`ParallaxScene._reliable` asks two questions no single scene can put to it at once, so its
+subjects are layer records written here rather than fixtures, and its mutants edit the
+shipped `scene_probe.py` rather than a copied fixture.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 import sys
@@ -257,6 +264,33 @@ V_WRAPPED_OFFSET = Patch(
     '                        "offset": _r(self.offsets[lid]), "span": span,',
     '                        "offset": _r(self.offsets[lid] % span), "span": span,'
     '  # VARIANT: reported inside its own span')
+
+#: THE NEAR LAYER REPEATS TWICE BETWEEN TWO CAPTURED FRAMES, and the frames therefore
+#: cannot say how fast it went. A tight repeat in the foreground - sleepers, kerbstones,
+#: a picket fence - is an ordinary thing to draw, and the scene is correct: the telemetry
+#: has that layer moving furthest of the four, and `layers.depth_ordered` reads it that
+#: way. Only the image half is blind, and it is blind for a reason no agreement test can
+#: reach: the band's picture at tick t and at tick t+60 is the SAME PICTURE.
+#:
+#: The constant speed is what makes it exact rather than approximate. At 120 units/s the
+#: car covers 120 units between captures and the nearest layer 60; a span of 30 is
+#: crossed exactly twice, so `best_shift` answers 0px on 11 of 11 pairs at confidence
+#: 0.83-0.92 and those 11 zeroes agree with each other perfectly. Before `tasks/164` the
+#: probe called the band readable, published `0px/frame` for the FASTEST layer in the
+#: scene, and failed `layers.image_parallax` on a correct submission.
+#:
+#: NO MUTANT COULD HAVE FOUND THIS either - it needs an input, not a missing mechanism.
+V_ALIASED_NEAR_LAYER = (
+    Patch("game.py", "SPEED_WOBBLE = 0.18",
+          "SPEED_WOBBLE = 0.0  # VARIANT: so the near layer's repeat is crossed an "
+          "exact whole number of times between captures"),
+    Patch("game.py",
+          "LAYERS = ((1, 8.0, 120.0), (2, 4.0, 160.0), (3, 2.0, 220.0), "
+          "(4, 1.0, 260.0))",
+          "LAYERS = ((1, 8.0, 120.0), (2, 4.0, 160.0), (3, 2.0, 220.0), "
+          "(4, 1.0, 30.0))  # VARIANT: the nearest layer repeats every 30 units, and "
+          "moves 60 between captures"),
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -530,6 +564,14 @@ VARIANTS: list[Variant] = [
                   "instead of accumulating. A criterion that subtracts two reported "
                   "offsets reads a modular residue rather than a scroll rate, which is "
                   "what the first real submission was scored on (`tasks/162`)"),
+    Variant("s1_parallax", "the near layer repeats twice between captures",
+            V_ALIASED_NEAR_LAYER, ("layers.image_parallax", "layers.depth_ordered"),
+            notes="a correct scene whose nearest band the 12 contracted frames cannot "
+                  "resolve: it crosses its own span exactly twice between two of them, "
+                  "so every pair draws the same picture and reads 0px. The telemetry "
+                  "half still has it moving furthest. `layers.image_parallax` must "
+                  "decline to read that band rather than publish 0px/frame for the "
+                  "fastest layer in the scene (`tasks/164`)"),
     Variant("s1_parallax", "the same scene filmed 1.5x larger", V_BIGGER_FRAMES,
             ("layers.image_parallax", "loop.seamless", "light.monotonic"),
             notes="submissions choose their own capture geometry, so every image-side "
@@ -697,6 +739,240 @@ def census(rows: list[tuple[str, str, str, dict[str, bool], dict[str, bool]]],
 
 
 # --------------------------------------------------------------------------- #
+# The reliability filter, pinned offline
+# --------------------------------------------------------------------------- #
+
+#: WHY THIS IS NOT A VARIANT. `ParallaxScene._reliable` asks two separable questions of a
+#: layer - is each pair a measurement at all, and do the measurements agree - and the two
+#: answer differently on inputs no fixture can hold at once. The `near layer repeats twice
+#: between captures` variant reaches the first and goes green through it whatever the
+#: second does; a fixture that isolated the second would have to report offsets so large
+#: that the estimator's whole search window fits inside a ratio-unit slack, which is a
+#: property of the reported UNITS and not of any scene worth filming.
+#:
+#: So the layer records go in by hand, with the answer stated before anything runs, and
+#: the mutants below are the shipped file with one line put back the way it was.
+@dataclass(frozen=True)
+class ReliabilityCase:
+    label: str
+    #: what `best_shift` answered, per consecutive frame pair, in whole pixels
+    shifts: tuple[int, ...]
+    #: what the submission reported the layer's offset changing by over the same ticks
+    d_offset: float | tuple[float, ...]
+    #: the repeat length it declared, or None for a layer that declared none
+    span: float | None
+    #: can the frames be read for this layer? STATED HERE, never computed
+    readable: bool
+    why: str
+    #: which key of `ParallaxScene.UNRESOLVED_REASONS` the note must give, or None when
+    #: the layer was not refused for resolvability at all. The VERDICT is not the whole
+    #: answer: a note that says a layer moved half its span, about a layer that simply
+    #: declared no span, is a false sentence in a durable record and no pass/fail check
+    #: can see it. Whichever key is named, the others' text must be ABSENT.
+    reason: str | None = None
+
+
+RELIABILITY_CASES: list[ReliabilityCase] = [
+    ReliabilityCase(
+        "the reference fixture's second band, measured",
+        (14, 16, 15, 12, 11, 12, 14, 16, 15, 13, 11),
+        (14.47, 15.63, 14.60, 12.37, 11.05, 11.91, 14.12, 15.58, 14.91, 12.74, 11.13),
+        120.0, True,
+        "the real numbers `judge/fixtures/ref_parallax` produces. Every pair is within "
+        "0.56px of what the band's own median ratio predicts, and the band moves at "
+        "most 0.13 of its span between captures"),
+    ReliabilityCase(
+        "a band drawn wherever the search window allowed, reported at 600 units a pair",
+        (-60, -30, 0, 20, 45, 60, -45, 15, 30, -15, 5),
+        600.0, 10000.0, False,
+        "the shape the first real submission's road band had, with the aliasing taken "
+        "out so the SLACK is what decides. The drawn displacement is unrelated to the "
+        "reported one, and a slack of 0.15 in RATIO units is 90px at 600 units a pair - "
+        "wider than the +/-89px the estimator can answer with, so every measurement it "
+        "is capable of returning agrees with every other"),
+    ReliabilityCase(
+        "a slow band whose only spread is whole-pixel rounding",
+        (5, 6, 5, 6, 5, 6, 5, 6, 5, 6, 5), 5.0, 400.0, True,
+        "a true 5.5px shift answered 5 on 6 pairs and 6 on 5. This is the direction a "
+        "tighter floor fails in: the band is correct and the estimator is doing the "
+        "best a whole-pixel answer can do"),
+    ReliabilityCase(
+        "a layer that reports no offset change at all",
+        (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 0.0, 400.0, False,
+        "a layer whose reported offset never moves. It is UNREADABLE for the same "
+        "reason an aliased one is - there is no reported rate to compare the drawn "
+        "shift against - and it must say so. Before 2026-08-27 `_reliable` dropped "
+        "these rows at the confidence filter, one line ABOVE the classifier, so "
+        "`no_offset` was a declared key of UNRESOLVED_REASONS that no evidence string "
+        "could ever contain and the layer was reported as `only 0 readable frame "
+        "pairs` with no reason attached. Note the ratio is also undefined here, which "
+        "is why the classifier has to run before `usable` rather than after",
+        reason="no_offset"),
+    ReliabilityCase(
+        "a background reported as moving and drawn stationary",
+        (0,) * 11, 8.0, 900.0, True,
+        "READABLE on purpose, and the one thing `layers.image_parallax` exists to catch. "
+        "A renderer that never draws the scroll it reports agrees with itself perfectly, "
+        "and excluding it here would be a fail-open channel round the criterion (rule 7)"),
+    ReliabilityCase(
+        "the near layer of `the near layer repeats twice between captures`",
+        (0,) * 11, 60.0, 30.0, False,
+        "the variant's band, as records. It reads 0px on every pair and agrees with "
+        "itself perfectly, exactly as the row above does - the reported offset is the "
+        "only thing that separates a band the frames cannot resolve from a background "
+        "that never moved", "aliased"),
+    ReliabilityCase(
+        "a layer that declares no repeat length",
+        (14, 16, 15, 12, 11, 12, 14, 16, 15, 13, 11),
+        (14.47, 15.63, 14.60, 12.37, 11.05, 11.91, 14.12, 15.58, 14.91, 12.74, 11.13),
+        None, False,
+        "nothing bounds the residue, so nothing establishes that the drawn displacement "
+        "is the reported one. Fail closed: the pairs are as agreeable as the first "
+        "row's and the frames still cannot say what they show", "no_span"),
+    ReliabilityCase(
+        "three frame pairs", (14, 16, 15), (14.47, 15.63, 14.60), 120.0, False,
+        f"under MIN_PAIRS_PER_LAYER; a median over 3 numbers is not a repeatability "
+        f"claim"),
+]
+
+#: Each is the shipped `scene_probe.py` with ONE line changed - the first 2 put back the
+#: way they were before `tasks/164`, the third a wrong answer that moves no verdict at
+#: all. A mutant that leaves every row of the table where it was has removed nothing the
+#: table can see.
+RELIABILITY_MUTANTS: dict[str, tuple[Patch, ...]] = {
+    "the agreement slack is a floor in RATIO units again": (
+        Patch("scene_probe.py",
+              '                slack = max(abs(predicted) * self.K_TOLERANCE, '
+              'self.K_PIXEL_FLOOR)\n'
+              '                if abs(x["shift"] - predicted) <= slack:',
+              '                slack = max(abs(med) * self.K_TOLERANCE, '
+              'self.K_TOLERANCE)  # MUTANT\n'
+              '                if abs(x["shift"] / x["d_offset"] - med) <= slack:'),),
+    "a pair is usable whether or not its span resolves it": (
+        Patch("scene_probe.py",
+              "            usable = [x for x, w in zip(read, why, strict=True) "
+              "if w is None]",
+              "            usable = list(read)  # MUTANT"),),
+    #: THE ONE THAT MOVES NO VERDICT. Every unresolvable pair reported as aliasing is
+    #: what the note said until this suite started reading it, and it is a false sentence
+    #: about a layer that merely declared no span - invisible to any pass/fail check.
+    "every unresolvable pair is reported as aliasing": (
+        Patch("scene_probe.py",
+              '        if span is None or not math.isfinite(span) or span <= 0:\n'
+              '            return "no_span"',
+              '        if span is None or not math.isfinite(span) or span <= 0:\n'
+              '            return "aliased"  # MUTANT'),),
+}
+
+
+def _reliability_rows(case: ReliabilityCase) -> list[dict]:
+    """One `_measure_shifts` record per frame pair. Confidence is well over
+    `MIN_CONFIDENCE` throughout: this table is about what the filter does with
+    measurements it accepts, not about which ones it accepts."""
+    n = len(case.shifts)
+    offs = (case.d_offset if isinstance(case.d_offset, tuple)
+            else (case.d_offset,) * n)
+    return [{"pair": i, "shift": s, "confidence": 0.9, "d_offset": offs[i],
+             "span": case.span, "wrapped": False}
+            for i, s in enumerate(case.shifts)]
+
+
+def _probe_with(patches: tuple[Patch, ...], label: str):
+    """`scene_probe.py`'s own source with `patches` applied, loaded as a fresh module.
+
+    The SUBJECT is edited, never the table - a control whose expectation moves with the
+    thing it is checking is not a control (AGENTS.md rule 12). Every patch asserts its
+    target appears exactly once, for the reason `apply_patches` does.
+    """
+    path = HERE / "scene_probe.py"
+    src = path.read_text()
+    for p in patches:
+        if src.count(p.old) != 1:
+            raise SystemExit(
+                f"{label!r}: its target appears {src.count(p.old)} times in {path}, "
+                f"expected exactly 1. The file has changed and this patch no longer "
+                f"bites.\n--- target ---\n{p.old}")
+        src = src.replace(p.old, p.new)
+    spec = importlib.util.spec_from_loader(f"scene_probe__{abs(hash(label))}",
+                                           loader=None)
+    mod = importlib.util.module_from_spec(spec)
+    mod.__file__ = str(path)
+    exec(compile(src, str(path), "exec"), mod.__dict__)  # noqa: S102
+    return mod
+
+
+def _reliability_verdicts(mod) -> dict[str, tuple[bool, str]]:
+    """Per case: was the layer readable, and what did the note say about it."""
+    scene = mod.SCENES["s1_parallax"]()
+    out = {}
+    for case in RELIABILITY_CASES:
+        # A MUTANT THAT RAISES IS CAUGHT, NOT A HARNESS FAILURE. The `usable = list(read)`
+        # mutant drops the resolvability filter, and since 2026-08-27 `read` carries the
+        # rows with no reported offset - so that mutant now divides by zero instead of
+        # returning a wrong verdict. Letting the exception escape would take the whole
+        # selftest down at exit 1 with a traceback, which is indistinguishable from the
+        # suite being broken. It is recorded as a distinct verdict instead, which differs
+        # from every real one and so reads as caught.
+        try:
+            good, notes = scene._reliable({"L": _reliability_rows(case)})
+        except Exception as e:  # noqa: BLE001 - the verdict IS "it raised"
+            out[case.label] = (False, f"RAISED {type(e).__name__}: {e}")
+            continue
+        out[case.label] = ("L" in good, " ".join(notes))
+    return out
+
+
+def reliability_selftest() -> int:
+    """Can the reliability filter refuse a layer, can it still accept one, and does it
+    say the right thing about the one it refused?
+
+    Reads no fixture and needs no toolchain, so it runs where the suite above cannot.
+    """
+    print("the reliability filter - `which layers the frames can be read for`\n")
+    shipped = _reliability_verdicts(scene_probe)
+    reasons = scene_probe.ParallaxScene.UNRESOLVED_REASONS
+    problems = []
+    w = max(len(c.label) for c in RELIABILITY_CASES)
+    for case in RELIABILITY_CASES:
+        readable, note = shipped[case.label]
+        stated = "readable" if case.readable else "unreadable"
+        answered = "readable" if readable else "unreadable"
+        ok = readable == case.readable
+        # The verdict is half the answer. A note naming a reason the record does not
+        # have is a false sentence in evidence, and it passes any pass/fail check.
+        said = sorted(k for k, text in reasons.items() if text in note)
+        want = [case.reason] if case.reason else []
+        reason_ok = said == want
+        print(f"  {case.label:<{w}}  stated {stated:<10}  got {answered:<10}  "
+              f"reason {str(want or ['-']):<12} said {str(said or ['-']):<12}  "
+              f"{'ok' if ok and reason_ok else '<-- UNMET'}")
+        if not ok:
+            problems.append(f"{case.label}: stated {stated}, got {answered} "
+                            f"-- {case.why}")
+        if not reason_ok:
+            problems.append(f"{case.label}: the note gives {said or 'no reason'} where "
+                            f"the record has {want or 'none'} -- {note!r}")
+
+    print("\nmutants - the shipped file with one line changed:")
+    for label, patches in RELIABILITY_MUTANTS.items():
+        got = _reliability_verdicts(_probe_with(patches, label))
+        moved = sorted(
+            f"{c.label} ({'verdict' if got[c.label][0] != shipped[c.label][0] else 'note'})"
+            for c in RELIABILITY_CASES if got[c.label] != shipped[c.label])
+        print(f"  {label}\n    moves {moved or 'NOTHING'}")
+        if not moved:
+            problems.append(f"mutant {label!r} SURVIVED: every row of the table sits "
+                            f"where the shipped file leaves it, so the table does not "
+                            f"pin the line this mutant removed")
+
+    print(f"\n{len(RELIABILITY_CASES)} layer records, "
+          f"{len(RELIABILITY_MUTANTS)} mutants, {len(problems)} expectation(s) unmet")
+    for p in problems:
+        print(f"  FAIL {p}")
+    return 1 if problems else 0
+
+
+# --------------------------------------------------------------------------- #
 
 
 def census_selftest() -> int:
@@ -771,10 +1047,15 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--census-selftest", action="store_true",
                     help="prove the census can report a criterion that separated "
                          "nothing; needs no fixtures and no toolchain")
+    ap.add_argument("--reliability-selftest", action="store_true",
+                    help="drive ParallaxScene._reliable over hand-written layer records "
+                         "and its own mutants; needs no fixtures and no toolchain")
     args = ap.parse_args(argv)
 
     if args.census_selftest:
         return census_selftest()
+    if args.reliability_selftest:
+        return reliability_selftest()
 
     wanted = [m for m in MUTANTS
               if args.only in (None, m.scene, m.criterion)]
