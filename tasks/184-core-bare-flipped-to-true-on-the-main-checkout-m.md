@@ -43,3 +43,28 @@ did not appear either.
 `tasks/176` has since made it impossible anyway — `docstat._git_at` drops every `GIT_*`
 variable from the child and `_assert_own_repo` refuses in front of the one call that writes.
 The ticket's instruction stands: build the guard, do not hunt the cause.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — 175 has MERGED and its agent says your guard folds into the same script cleanly
+
+`tasks/175` put `ci_minutes.py --selftest` into `pre-push` and, in doing so, hardened
+`.githooks/run-gates.sh` considerably — read what it did before adding to it (#202):
+
+- The hook now carries a **`GATES_DEPTH` ceiling**, because making a register-reading tool a hook
+  gate made the two mutually recursive: 8 hook levels in 25 seconds before it was killed.
+- Its first ceiling control **was itself the reason no recursion occurred** — it pinned
+  `GATES_DEPTH=1` and executed, and a control that pins a counter also resets it.
+- `$((${GATES_DEPTH:-0} + 1))` reads `-1000` as `-999` and `abc` as `0` under `/bin/sh`, so the
+  value is matched against a **closed set** now.
+
+**Two of those bear directly on your control.** Your ticket already says the red-direction control
+must restore `core.bare` in a `finally`, because a control that leaves the repository bare is worse
+than the defect. Add the second lesson to it: **do not let the control set the state and then read
+its own answer.** If the guard reads `core.bare`, the control must observe the refusal from a
+process that did not set it — acceptance is not propagation.
+
+The tier question is also now decided by precedent rather than by argument: 175 chose `pre-push`
+over `pre-commit` on **duty cycle**, not cost, because 88% of commits could not move its verdict
+while all would pay. `core.bare` flipping is rarer still. Say which tier you chose and on which of
+the two grounds.
