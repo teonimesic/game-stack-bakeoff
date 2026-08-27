@@ -259,7 +259,8 @@ Every number above is a checked row in `eval/judge/ink_window_control.py` (`MECH
 **Corroborated by what 0.85 had ever done.** The producer is `python3
 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`; its population is
 `tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on disk with 16
-superseded and held out. 4 firings:
+superseded and held out. It reports them **per class, never pooled: `game: n=68`, `scene: n=1`**.
+4 firings:
 
 | | mean ink | what it was |
 |---|---|---|
@@ -315,13 +316,18 @@ both repairs available inside the rubric were measured and neither works.
 
 `python3 eval/judge/tier2_census.py --runs-root <main checkout>/eval/runs` is the producer — the
 analogue of `tier1_census.py`, 17 expectations including a positive control, a variant and three
-mutants. Its output **today**, over 69 stored
-trials; the decision was taken on the 68-trial corpus of 2026-08-23, before the scene added an
-eleventh group of one, and no verdict moved:
+mutants. Its output **today**, over 69 stored trials — **68 games and 1 scene**; the decision was
+taken on the 68-trial corpus of 2026-08-23, before the scene added an eleventh group of one, and no
+verdict moved.
+
+**A `(run, game)` group is single-class by construction**, so the 11 groups are 10 game groups and
+1 scene group, nothing is compared across the boundary, and every count below can be read back to
+its class:
 
 - **5 of 11 (run, game) groups return a single tier-2 value** across every trial tier 2 could
   measure:
-  `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 — **35 of 69 trials**.
+  `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 — **all 5 are game groups, 35 of the 68
+  games**.
 - 12 trials failed anything; **2** were whole-trial (the #49 build failure, one fact recorded N
   times) and **10** were selective. **9 of the 10 are from `wg-matrix-2026-08-13`**; the 10th is
   the scene's `layers.depth_ordered`, the false negative `tasks/162` repaired, which the census
@@ -345,8 +351,8 @@ be drawn from one at any gap, which is the same bar the within-cell result alrea
 this is a second, independent reason for it, arrived at from the tier rather than from cell
 agreement. Trials in a saturated group are still reported, still gated, and still judged.
 
-**What it costs, named.** 35 of 69 stored trials — including all 16 of `wg-audio48` and all 8 of
-`wg-g4c` — bought a certificate rather than a ranking, at trial prices in `eval/RUNS.md`. The
+**What it costs, named.** 35 of the 68 stored game trials — including all 16 of `wg-audio48` and
+all 8 of `wg-g4c`; the 1 scene is not among them — bought a certificate rather than a ranking, at trial prices in `eval/RUNS.md`. The
 fourth game is the sharpest instance: `g4_platformer` was added because *"Pong, Tetris and arena
 all tied; a game exercising different systems is the most plausible remaining route to
 discrimination"* (below), and **20 of its 20 scored criteria have never failed**. The route was
@@ -1129,13 +1135,15 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
 - **The rubric ceiling — MEASURED and now DECIDED on both tiers, but only one of them is fixed.**
-  Tier 1 is at the ceiling on **61 of 69 stored submissions**, and returns a *single* value across
-  every measurable trial in **8 of the 11 (run, game) groups** — the 8 failures sit in 4 groups
+  Tier 1 is at the ceiling on **61 of 69 stored submissions — 61 of the 68 games, and 0 of the 1
+  scene** — and returns a *single* value across every measurable trial in **8 of the 11 (run, game)
+  groups**, which are 10 game groups and 1 scene. The 8 failures sit in 4 groups
   (`python3 eval/judge/tier1_census.py --runs-root <checkout>/eval/runs`, re-read 2026-08-27; #92
   is the narrower reading, over the 56 matrix trials that existed then). **What to do about it was
   decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not score" above, and
   #123). The ceiling did not go away; it stopped being reported as a score.
-  **Tier 2 is at the ceiling on 5 of 11 groups, 35 of 69 trials** (`python3
+  **Tier 2 is at the ceiling on 5 of 11 groups, all of them game groups, 35 of the 68 games**
+  (`python3
   eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`, same day), and it now carries the
   whole weight. That half is not fixed and will not be fixed inside the rubric: both in-rubric
   repairs were measured and neither works (#128), so a saturated group is reported as a completion
