@@ -1065,54 +1065,71 @@ state the range in two places must instead point at the one that does.
 ### The findings count is read from the log's ADDRESS, not from one wording — decided 2026-08-27
 
 **Every live document's statement of how many findings there are is reconciled against
-`python3 eval/tools/docstat.py --findings`.** Two triggers: the phrase `N numbered findings`,
-and any cardinal governing a plural noun on an unfenced line that names the log by one of its
-three addresses — the range sentence `Findings #A-#B`, the path `eval/FINDINGS.md`, or the
-producer command. The **range** is still required in `RANGE_DOCS` alone, where not stating it is
-itself a defect; the **count** is read across every live document, where saying nothing is normal.
+`python3 eval/tools/docstat.py --findings`.** The triggers are the phrase `N numbered findings`,
+and any cardinal governing a plural noun on an unfenced line that names the log by one of its 3
+addresses — the range sentence `Findings #A-#B`, the path `eval/FINDINGS.md`, or the producer
+command. The **range** is still required in `RANGE_DOCS` alone, where not stating it is itself a
+defect; the **count** is read across every live document, where saying nothing is normal.
+
+**If a line names the findings log but carries a number that is not the findings count, the gate
+goes red — put that line in a ``` fence, or reword it.** Inside a fence a line is an example
+rather than a claim, which is the same exemption the aspect census declares above. 4 shapes need
+no exemption because they are already green: a line number inside the log's own path, a singular
+noun, a cardinal and a plural noun in different table cells, and a date.
 
 **The trigger is scoped on the ADDRESS because the quantifier alone is unusable, and that was
-measured.** *red lines* is how many correct lines a candidate turns red over the 58 documents of
-the live corpus plus `RANGE_DOCS`; *pins wrong* is how many of the 19 cases in
-`_findings_census_pins` it gets wrong, with the word-form trigger held constant so the digit
-trigger is the only variable:
+measured.** *red* is how many correct lines a candidate turns red; **`python3
+eval/tools/docstat.py --count-triggers` is the producer**, and it re-derives the whole column.
+*pins wrong* is how many of the pin cases in `_findings_census_pins` a candidate gets wrong, with
+the word-form trigger held constant so the digit trigger is the only variable; `python3
+eval/tools/docstat.py --selftest` prints those pins and there were 19 of them on 2026-08-27, the
+day this was decided. Both columns are over the **count corpus** — `_count_corpus()`, the live
+corpus plus `RANGE_DOCS`, which adds only the archived `eval/FINDINGS.md` because `AGENTS.md`
+and `README.md` are live already. `--findings` prints its size on every run, and it was 58
+documents that day.
 
-| candidate | red lines | pins wrong |
+| candidate | red | pins wrong |
 |---|---|---|
 | the enumeration `N numbered findings` alone | 0 | 2 of 19 |
 | the same list plus one noun, `N (numbered )?(findings\|entries)` | 6 | 1 of 19 |
-| the QUANTIFIER: a cardinal governing `findings\|entries` up to two words away | 12 | 0 of 19 |
+| the QUANTIFIER: a cardinal governing `findings\|entries` up to 2 words away | 13 | 0 of 19 |
 | **SHIPPED:** the enumeration, **or** a cardinal governing a plural noun on a line naming the log | **0** | **0 of 19** |
 
-**All 6 and all 12 of those red lines are false positives** — untriaged `lint.py` findings, Bevy
+**Every red line in the rejected rows is a false positive** — untriaged `lint.py` findings, Bevy
 migration entries, `eval/RUNS.md`'s undeclared scored entries, and this file's own worked example
 of why a range is not a count. The quantifier misses nothing the shipped trigger catches and costs
-12 correct lines to do it: the census-trigger section's result reproduced exactly, *the obvious
-property is strictly worse than the list it was meant to fix*. Three identifiers are a closed
-class in the way a vocabulary of English verbs is not, which is what makes the conjunction free.
-Widening the corpus from 3 documents to 58 also costs 0, so it is fail-closed at no price.
+13 correct lines to do it: the census-trigger section's result reproduced exactly, *the obvious
+property is strictly worse than the list it was meant to fix*. 3 identifiers are a closed class in
+the way a vocabulary of English verbs is not, which is what makes the conjunction free. Widening
+the corpus from 3 documents to 58 also costs 0, so it is fail-closed at no price.
 
-**A number on a line that names the log and is not the count reds, and the repair is a fence** —
-the same exemption the aspect census declares, where a line is an example rather than a claim.
-Four shapes need no exemption because they are already green: a line number inside the log's own
-path, a singular noun, a cardinal and a plural noun in different table cells, and a date.
+**The quantifier row cost 12 lines when this entry was drafted and 13 when it was finished**, and
+the 13th is a sentence in `AGENTS.md` written to document this very decision. That is why the
+producer exists rather than a number: an open-class trigger's cost grows with the corpus, so a
+figure measured once describes a tree that no longer exists. Re-run `--count-triggers` before
+quoting any row.
+
+**The fence-or-reword rule fired twice on the author while this entry was being written**, on
+sentences counting the triggers and the range documents beside the log's own address. Both were
+reworded rather than fenced. That is the shipped trigger's whole cost, and it lands hardest on
+the documents that explain it.
 
 **What this deliberately still misses, with the price of closing it.** A count spelled in words is
-read only in the `numbered findings` wording — scoping the word form on the address costs **2**
-false positives on the live corpus, so `AGENTS.md`'s instruction to write counts in digits is the
+read only in the `numbered findings` wording — scoping the word form on the address costs 2 false
+positives on the count corpus, so `AGENTS.md`'s instruction to write counts in digits is the
 mechanism instead. A count governing no plural noun is invisible, and no candidate reached it at
 0 cost.
 
-**What forced this.** `README.md` line 187 carried a count **28 short** of the log with the
-producer named in the same sentence, while a count of the same fact 128 lines lower — phrased
-`N numbered findings` — was gated and correct. One wording read and one not, in one file. The
-citation is what made it dangerous: a reader had every reason to treat the figure as derived.
+**What forced this.** `README.md` line 187 carried a count 28 short of the log with the producer
+named in the same sentence, while a count of the same fact 128 lines lower — phrased `N numbered
+findings` — was gated and correct. One wording read and one not, in one file. The citation is what
+made it dangerous: a reader had every reason to treat the figure as derived.
 
 `python3 eval/tools/findings_control.py` is the out-of-process control, over a tree whose answer
 is written down before the tool sees it. Its `ENTRIES` and `WIDER CORPUS` rows each carry the
 variant that must go back green, `REFUSES` covers a tree `git` cannot list, and `HOSTILE GIT_DIR`
 carries its own red half. `--mutate no_scoped_count` and `--mutate count_corpus_is_range_docs`
-restore the two halves of the old behaviour, and each is killed only by the rows that name it.
+restore the 2 halves of the old behaviour, and each is killed only by the rows that name it.
 
 ### A corpus figure in a live document is CURRENT or DATED, and which one is a choice — decided 2026-08-27
 

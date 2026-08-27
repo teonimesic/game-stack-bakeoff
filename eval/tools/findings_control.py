@@ -405,8 +405,8 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "        if _LOGREF_RX.search(ln):",
         "        if False:  # MUTANT: only the `N numbered findings` wording is read"),
     "count_corpus_is_range_docs": (
-        "    counted = {**live, **stated}",
-        "    counted = dict(stated)  # MUTANT: back to the three range documents"),
+        "    return {**live, **stated}, problems",
+        "    return dict(stated), problems  # MUTANT: back to the 3 range documents"),
     "no_index_reconciliation": (
         "    if len(rows) != count:",
         "    if False:  # MUTANT"),

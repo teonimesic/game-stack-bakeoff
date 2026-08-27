@@ -49,6 +49,7 @@ Usage, from eval/:
     python3 tools/docstat.py --sweep            # names in docs that do not resolve
     python3 tools/docstat.py --findings         # THE PRODUCER for any count of the log
     python3 tools/docstat.py --findings --json  # ... machine-readable
+    python3 tools/docstat.py --count-triggers   # what each candidate count trigger costs
     python3 tools/docstat.py --renumbered       # citations of a finding that was renumbered
     python3 tools/docstat.py --renumbered --at REV   # ... as of any revision
     python3 tools/docstat.py --withdrawn        # live docs restating a retired figure
@@ -71,12 +72,13 @@ reached #131 — past a range gate that was green, because a range is not a coun
 disagrees when a finding is added, renumbered or duplicated — and still agrees when one is
 added correctly.
 
-The count question reads TWO triggers over the live corpus plus `RANGE_DOCS` — the phrase
-`N numbered findings`, and any cardinal governing a plural noun on a line that names the
-findings log by its range, its path or its producer. It read one wording over three
-documents until task 179, which is how `143 entries` stood in `README.md` beside
-`docstat.py --findings` against a measured 171. `_stated_counts` holds the measurement
-that chose the second trigger over the obvious quantifier widening.
+The count question reads 2 triggers over `_count_corpus()` — the live corpus plus
+`RANGE_DOCS`. One is the phrase `N numbered findings`; the other is any cardinal governing a
+plural noun on a line that names the findings log by its range, its path or its producer. It
+read 1 wording over 3 documents until task 179, which is how `143 entries` stood in
+`README.md` beside `docstat.py --findings` against a measured 171. `--count-triggers` is the
+producer for what each candidate trigger would cost, and `_stated_counts` holds the reasoning
+that chose the scoped one over the obvious quantifier widening.
 
 Exit code is 1 if --sweep finds anything unresolved, so it can gate a commit.
 `--renumbered` never gates: it is a smell detector, and its second half is explicitly
@@ -1697,6 +1699,158 @@ def _stated_counts(rel: str, text: str, count: int) -> list[str]:
     return problems
 
 
+def _count_corpus(stated: dict[str, str] | None = None) -> tuple[dict[str, str], list[str]]:
+    """({relpath: text}, problems) for every document a findings COUNT is reconciled in.
+
+    ONE SPELLING OF THE COUNT CORPUS, because two readers ask about it - the gate and
+    `--count-triggers` - and a population spelled twice has two answers (rule 12). It is the
+    live corpus plus `RANGE_DOCS`: `AGENTS.md` and `README.md` are already live, so the union
+    adds exactly `eval/FINDINGS.md`, which is archive and still states the figure.
+
+    Wider than the RANGE corpus, deliberately and at a measured cost of 0 red lines. Until
+    task 179 the count was reconciled in `RANGE_DOCS` alone, so a stale figure in any other
+    live document - a skill, `eval/PROTOCOL.md`, the CI register - was unreachable by a gate
+    that reported itself clean. `_live_corpus` RAISES rather than returning an empty tree, so
+    a failed listing stops the caller instead of shrinking the corpus to 3 and reading clean.
+    """
+    if stated is None:
+        stated = {rel: open(os.path.join(ROOT, rel), encoding="utf-8",
+                            errors="replace").read()
+                  for rel in RANGE_DOCS if os.path.exists(os.path.join(ROOT, rel))}
+    live, problems = _live_corpus()
+    return {**live, **stated}, problems
+
+
+#: The candidate digit triggers task 179 chose between, kept so the choice can be RE-DERIVED
+#: rather than believed. The rejected two are the shape `DECISIONS.md`'s census-trigger
+#: section rejected for the aspect census, and they are here for the same reason the window
+#: sweep keeps its rejected window sizes: an open-class trigger's cost GROWS with the corpus,
+#: so a number measured once is a number about a tree that no longer exists.
+#:
+#: Each is `(label, regex, needs the log's address on the line)`. The shipped row is the two
+#: `_stated_counts` actually runs, and it must stay at 0.
+_COUNT_TRIGGER_CANDIDATES = (
+    ("`N numbered findings` alone - the enumeration that shipped until task 179",
+     _COUNT_DIGIT_RX, False),
+    ("the same list plus one noun - `N (numbered )?(findings|entries)`",
+     re.compile(r"\b(\d+)\s+(?:numbered\s+)?(?:findings|entries)\b"), False),
+    ("the QUANTIFIER - a cardinal governing findings|entries, up to two words away",
+     re.compile(r"(?<![#\w.-])(\d+)\s+(?:[\w`*-]+\s+){0,2}?(?:findings|entries)\b"), False),
+    ("SHIPPED - a cardinal governing a plural noun on a line naming the log",
+     _CARDINAL_PLURAL_RX, True),
+)
+
+
+def count_trigger_census(corpus: dict[str, str], count: int) -> list[dict]:
+    """How many lines each candidate digit trigger would turn RED, over `corpus`.
+
+    THE PRODUCER for the candidate table in `DECISIONS.md`, *the findings count is read from
+    the log's ADDRESS*. A trigger chosen on a false-positive count is a claim about a corpus,
+    and the corpus grows: the aspect census's quantifier trigger cost 26 correct lines when it
+    was measured and 31 four weeks later. A number nothing re-derives cannot notice that.
+
+    A function of its inputs, so `--selftest` can hand it text rather than the repository.
+    """
+    out = []
+    for label, rx, scoped in _COUNT_TRIGGER_CANDIDATES:
+        rows = []
+        for rel, text in sorted(corpus.items()):
+            lines = text.split("\n")
+            fenced = _fence_mask(lines)
+            for i, ln in enumerate(lines):
+                if fenced[i] or (scoped and not _LOGREF_RX.search(ln)):
+                    continue
+                for m in rx.finditer(ln):
+                    if int(m.group(1)) != count:
+                        rows.append({"doc": rel, "line": i + 1, "says": int(m.group(1)),
+                                     "text": m.group(0)})
+        out.append({"trigger": label, "red": len(rows), "rows": rows})
+    return out
+
+
+def _count_trigger_pins(verbose: bool = False) -> list[str]:
+    """Pin `count_trigger_census` in both directions, on text built in memory.
+
+    WHY A PRODUCER THAT GATES NOTHING NEEDS PINS. Its output is a table `DECISIONS.md`
+    quotes, and every row of it is a number someone will act on. An extractor that has
+    silently stopped matching returns `red 0` for every candidate - which is also what a
+    corpus with nothing wrong returns, and which would read as *the rejected triggers are
+    fine after all*. That is the ambiguity this repository keeps paying for.
+
+    Each case asserts an EXACT red count per candidate, never `bool(rows)`, because the
+    whole claim of the table is the SIZE of the difference between the candidates.
+    """
+    count = 180
+    cases = [
+        ("the real defect: a count short in the `entries` wording, beside the producer",
+         {"README.md": "[`eval/FINDINGS.md`](eval/FINDINGS.md) - 143 entries. Findings "
+                       "#19-#198, from `python3 eval/tools/docstat.py --findings`\n"},
+         # the enumeration misses it; `entries` alone and the quantifier catch it because
+         # the noun is on their list; the shipped trigger catches it via the address
+         [0, 1, 1, 1]),
+        ("a real live false positive: untriaged lint findings, naming no log",
+         {".github/workflows/README.md": "| the full `lint.py` rule set | 72 findings "
+                                         "stand untriaged (`lint.py --counts`) |\n"},
+         [0, 1, 1, 0]),
+        ("a count short in the gated wording, on a line naming nothing",
+         {"README.md": "143 numbered findings, and all but a few are one pattern.\n"},
+         [1, 1, 1, 0]),
+        ("GREEN: the count stated correctly in every wording",
+         {"README.md": f"{count} numbered findings.\n",
+          "AGENTS.md": f"`eval/FINDINGS.md` - {count} entries.\n"}, [0, 0, 0, 0]),
+        ("GREEN: a stale count beside the log inside a ``` fence",
+         {"README.md": "```\n143 entries. Findings #19-#198\n```\n"}, [0, 0, 0, 0]),
+        ("GREEN: an empty corpus - and every row reads 0, which is why the rows above "
+         "assert exact counts rather than `some`", {}, [0, 0, 0, 0]),
+    ]
+    failed = []
+    for name, corpus, want in cases:
+        got = [r["red"] for r in count_trigger_census(corpus, count)]
+        ok = got == want
+        if not ok:
+            failed.append(
+                f"count-trigger pin came out wrong: `{name}` measured {got} red where "
+                f"{want} was expected, one per candidate in _COUNT_TRIGGER_CANDIDATES. "
+                f"The candidate table in DECISIONS.md is produced by this function, so a "
+                f"drift here is a drift in a published measurement.")
+        if verbose:
+            print(f"{'PASS' if ok else 'FAIL'}  {name}: red {got}, expected {want}")
+    return failed
+
+
+def cmd_count_triggers(as_json: bool = False) -> int:
+    """`--count-triggers`: what each candidate would cost over today's corpus. Never gates.
+
+    Exit 0 whatever it finds, like `--citations`: the SHIPPED row going above 0 is a fact
+    `--findings` already gates on, and the rejected rows are expected to be non-zero. This
+    prints the cost so a reader can see whether it has moved.
+    """
+    try:
+        count = read_findings_census()["bodies"]["count"]
+        corpus, problems = _count_corpus()
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"docstat --count-triggers: {exc}", file=sys.stderr)
+        return 2
+    rows = count_trigger_census(corpus, count)
+    if as_json:
+        print(json.dumps({"documents": len(corpus), "count": count, "candidates": rows,
+                          "corpus_problems": problems}, indent=2))
+        return 0
+    for p in problems:
+        print(f"  corpus: {p}")
+    print(f"{len(corpus)} document(s) - the live corpus, which already contains AGENTS.md "
+          f"and README.md, plus eval/FINDINGS.md, which is archive")
+    print(f"the measured count is {count} (--findings)\n")
+    for r in rows:
+        print(f"  red {r['red']:>3}  {r['trigger']}")
+        for row in r["rows"]:
+            print(f"           {row['doc']}:{row['line']} `{row['text']}`")
+    print("\nred = correct lines a candidate would turn red today. Every non-zero row here "
+          "has been\nadjudicated a false positive; see DECISIONS.md, the findings-count "
+          "entry.")
+    return 0
+
+
 def findings_census(bodies: dict[int, list[str]], index_text: str,
                     stated: dict[str, str], corpus_files: list[str] | None = None,
                     counted: dict[str, str] | None = None) -> dict:
@@ -1846,13 +2000,7 @@ def read_findings_census() -> dict:
             absent.append(f"{rel} is named in RANGE_DOCS as a place the findings count and "
                           f"range are stated, and it does not exist at {p} - the census "
                           f"covered one document fewer than it claims to")
-    # The COUNT corpus is wider than the RANGE corpus, and the widening is fail-closed and
-    # measured. Until task 179 the count was reconciled in `RANGE_DOCS` alone, so a stale
-    # figure in any other live document - a skill, `eval/PROTOCOL.md`, the CI register - was
-    # unreachable by the gate. `_live_corpus` raises rather than returning an empty tree, so
-    # a failed listing stops here instead of shrinking the corpus to three and reading clean.
-    live, live_problems = _live_corpus()
-    counted = {**live, **stated}
+    counted, live_problems = _count_corpus(stated)
     c = findings_census(
         bodies, open(index_path, encoding="utf-8", errors="replace").read(), stated,
         corpus_files=[os.path.basename(p)
@@ -4804,6 +4952,8 @@ def cmd_selftest() -> int:
     print()
     failed += _citation_census_pins(verbose=True)
     print()
+    failed += _count_trigger_pins(verbose=True)
+    print()
     failed += _orphan_tail_pins(verbose=True)
     print()
     failed += _duplicate_fragment_pins(verbose=True)
@@ -5152,6 +5302,10 @@ def cmd_sweep() -> int:
     # documents quote, and an extractor that has stopped matching returns 0 rows over a full
     # corpus - the same reading a clean corpus gives. In memory, no I/O.
     problems += _citation_census_pins()
+    # `--count-triggers` gates nothing either, and its failure mode is the same shape one
+    # step worse: an extractor that stopped matching reports `red 0` for the REJECTED
+    # candidates, which reads as "the obvious trigger was fine after all".
+    problems += _count_trigger_pins()
 
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
@@ -5231,6 +5385,10 @@ def main() -> int:
     ap.add_argument("--findings", action="store_true",
                     help="the producer for any count of the findings log: bodies, index "
                          "rows and every live document's statement of the two")
+    ap.add_argument("--count-triggers", action="store_true",
+                    help="what each candidate findings-count trigger would cost over "
+                         "today's corpus; the producer for DECISIONS.md's candidate "
+                         "table, and never a gate")
     ap.add_argument("--citations", action="store_true",
                     help="the producer for any count of `#NN` in a live document that "
                          "names no finding; a census, never a gate (FINDINGS #146)")
@@ -5245,6 +5403,8 @@ def main() -> int:
         return cmd_outline(a.outline)
     if a.findings:
         return cmd_findings(a.json)
+    if a.count_triggers:
+        return cmd_count_triggers(a.json)
     if a.citations:
         return cmd_citations(a.json)
     if a.selftest:

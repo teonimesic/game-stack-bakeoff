@@ -53,13 +53,13 @@ the working tree survives.
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
 `fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
-`findings_control` is 2.3s locally over 19 rows. It builds 17 fixture trees and `git init`s
-16 of them, because the count corpus is read from the index rather than from the disk (#198) —
-so it needs `git` and no history. The 17th is deliberately left un-`init`ed, and must exit **2**
-rather than 1: a tree git cannot list has to stop the producer rather than shrink its corpus to
-the 3 range documents and read clean. Its last row is about the control itself — an inherited
-`GIT_DIR` outranks `cwd` silently, so it reproduces that against a decoy repository before
-asserting the fixture builder is immune.
+`python3 eval/tools/findings_control.py` prints its own row count and takes about 2.3s locally.
+It needs `git` and no history: the count corpus is read from the index rather than from the disk
+(#198), so its fixture trees are repositories. One is deliberately left un-`init`ed and must exit
+**2** rather than 1, because a tree git cannot list has to stop the producer rather than shrink
+its corpus to `RANGE_DOCS` and read clean. Its last row is about the control itself — an
+inherited `GIT_DIR` outranks `cwd` silently — so it reproduces that against a decoy repository
+before asserting the fixture builder is immune.
 `corpus_control` asks which files the sweep reads at all, and its default runs the clean
 pass **and all 7 mutants** — 3.9s locally, most of it the 8 fixture repositories. `docstat
 --selftest` makes the same clean call, so a gate that only repeated it would duplicate a gate;
