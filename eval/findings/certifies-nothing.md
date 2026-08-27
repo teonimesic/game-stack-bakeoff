@@ -6297,3 +6297,44 @@ would pay for it. It went to `pre-push`. *A cheap check on a rarely-touched inpu
 check; it is a frequent check with a low hit rate.*
 
 ---
+## #203 - the gates cover the shipped walkers, and the analysis that files the tickets is not a walker
+
+A cleanup pass reported that two harnesses record trial wall-clock under two names and only one is
+read: `wholegame.py`'s `wall_s`, read in 6 places, and `runner.py`'s `duration_ms`, **read nowhere**,
+holding *"4.4 hours over 47 of 55 records"*. It became `tasks/186`. **Both halves of that were
+wrong**, and the way they were wrong is the finding.
+
+**`duration_ms` is not a second name for `wall_s`. It is a third quantity held by a different
+party** - the agent CLI's report of its own internal run, nested inside the timing script's
+stopwatch. Over 157 paired observations `wall_s - duration_ms/1000` is min 0.9 s, median 1.1 s, max
+6.5 s and **negative on none**: additive harness overhead, not a naming inconsistency. A repair that
+"reconciled the two names" would have destroyed a real nesting.
+
+**And the population was undercounted by a trap this repository has already numbered.** The census
+globbed `eval/runs/*/trials/*.json`. Reproduced at merge time: that shallow pattern sees **139 files
+and 47 carrying**; `runs/**/trials/*.json` sees **163 and 71**. Two run directories are wrappers
+holding others, which `#126` and `#127` record by file and by number, and which `tier1_census`'s
+walker was rewritten to handle.
+
+> **No shipped tool was at fault. Every walker that gates something already handles the nesting.**
+> The defect was in a one-off shell pipeline written to *look* at the tree - and that is the
+> population no gate covers, because it does not exist until someone asks a question.
+
+That is the gap. A gate protects the code that ships. The census that decides *what ticket to file*
+is written fresh each time, runs once, and its answer goes into a ticket where it reads as
+established. Here it produced a ticket whose premise was wrong in two independent ways, and only the
+agent re-deriving both from the artifacts caught it.
+
+> **An ad-hoc census is a measurement with no control, and it is the one most likely to be believed,
+> because it is the one that gets written down.** Before a hand-rolled walk becomes a ticket's
+> evidence, run it against a shipped walker over the same tree and reconcile the counts - the
+> disagreement is the control.
+
+Three smaller items from the same work, each the shape this file collects. A refusal returned
+`0 paired, 0 negative, exit 0` on an all-unpaired corpus - green over nothing. Fixing it made an
+existing mutant **survive**, because a second guard raising the same exception class disarmed a
+type-only check; both refusals assert their *cause* now. And `.github/workflows/README.md`'s opening
+table was the **third** copy of a number only two of whose copies were checked, and it drifted during
+a merge - now asserted against `gate_census()`.
+
+---
