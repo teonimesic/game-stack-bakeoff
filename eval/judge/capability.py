@@ -101,6 +101,13 @@ SUBMISSION = "submission_failed"         #: the command failed or the artifact i
 NOT_CAPTURED = "not_captured_in_this_run"  #: the harness did not record it back then.
 REASONS = (STACK_CANNOT, SUBMISSION, NOT_CAPTURED)
 
+#: The capture geometry every starter ships with - `VIEW_WIDTH` x `VIEW_HEIGHT`, the
+#: same pair in all four of `starters/{rust,ts,unity,godot}`. It is spelled here as
+#: well as there, and `capability_selftest.py` reads it back out of all four starter
+#: sources and compares: a second, independent statement of the fact rather than a
+#: shared object, which is what a control needs (AGENTS.md rule 12).
+STARTER_DEFAULT_GEOMETRY = (640, 400)
+
 
 #: Fields considered and DELIBERATELY NOT CAPTURED. This register is the answer to
 #: task 25, as much as `FIELDS` is: the ticket says an honest "these are reportable
@@ -178,14 +185,16 @@ DECLINED: dict[str, dict[str, str]] = {
                         "mono is necessary and nowhere near sufficient.",
     },
     "capture.resolution_as_a_variable": {
-        "why": "Measured, not assumed: 62 of 68 stored submissions captured at "
-               "exactly the starter default. Raising or varying the capture "
-               "resolution would move a field with almost no variance, at the cost "
-               "of invalidating every stored frame comparison. Capture geometry is "
-               "recorded (capture.width_px/height_px) precisely so that the three "
+        "why": "Measured, not assumed, and re-measured every time this report prints "
+               "- the census line below counts the records the invocation just read. "
+               "Capture geometry has almost no variance across the stored corpus, so "
+               "raising or varying it would move a field nothing exercises, at the "
+               "cost of invalidating every stored frame comparison. It is recorded "
+               "per submission (capture.width_px/height_px) precisely so that the "
                "submissions that DID change it stay visible without anything being "
                "forced to uniformity (#81).",
-        "source": "this module, swept over eval/runs on 2026-08-23",
+        "measured_by": "resolution_census",
+        "source": "this module, over whichever records the invocation swept",
         "would_change": "A run in which submissions actually vary their capture "
                         "geometry. Until then the field is recorded and not scored.",
     },
@@ -473,6 +482,72 @@ def stack_skew_warnings(records: list[Observation]) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# Censuses - a figure a DECLINED entry rests on is COUNTED, never written down
+# --------------------------------------------------------------------------- #
+
+@dataclass
+class ResolutionCensus:
+    """Capture geometry over the records one invocation actually read.
+
+    Three buckets, and the third is the reason this is a partition rather than a
+    ratio: a submission whose `film` failed has NO geometry, and folding it into the
+    denominator beside the ones that captured at the default makes "N of M" quietly
+    mean two things. Every record lands in exactly one bucket, and the ones that are
+    not at the default are named rather than counted.
+    """
+    default: tuple[int, int]
+    total: int
+    at_default: list[str] = dc_field(default_factory=list)
+    varied: dict[str, list[str]] = dc_field(default_factory=dict)
+    absent: dict[str, list[str]] = dc_field(default_factory=dict)
+
+    @property
+    def n_varied(self) -> int:
+        return sum(len(v) for v in self.varied.values())
+
+    @property
+    def n_absent(self) -> int:
+        return sum(len(v) for v in self.absent.values())
+
+    def sentence(self) -> str:
+        w, h = self.default
+        varied = ", ".join(f"{g} x{len(t)}" for g, t in sorted(self.varied.items()))
+        absent = ", ".join(f"{len(t)} {k}" for k, t in sorted(self.absent.items()))
+        return (f"{len(self.at_default)} of the {self.total} records swept captured "
+                f"at exactly the starter default {w}x{h}; {self.n_varied} varied "
+                f"({varied or 'none'}); {self.n_absent} "
+                f"{'has' if self.n_absent == 1 else 'have'} no geometry to compare "
+                f"({absent or 'none'})")
+
+
+def resolution_census(records: list[Observation],
+                      default: tuple[int, int] = STARTER_DEFAULT_GEOMETRY,
+                      ) -> ResolutionCensus:
+    """Is capture resolution a variable submissions exercise, over THESE records?"""
+    c = ResolutionCensus(default=default, total=len(records))
+    for r in records:
+        w = r.fields.get("capture.width_px")
+        h = r.fields.get("capture.height_px")
+        where = f"{r.run}/{r.trial}"
+        if w is None or h is None:
+            c.absent.setdefault(r.reason.get("capture.width_px") or "unclassified",
+                                []).append(where)
+        elif (w, h) == default:
+            c.at_default.append(where)
+        else:
+            c.varied.setdefault(f"{w}x{h}", []).append(where)
+    return c
+
+
+#: A DECLINED entry may not carry a corpus figure of its own. It names a producer
+#: here and the figure is counted when the report prints, from the same records the
+#: header counts. `capability_selftest.py` pins both halves: that every name resolves
+#: and no entry has re-acquired a frozen figure, and that the census tracks the
+#: population it is handed.
+CENSUSES = {"resolution_census": resolution_census}
+
+
+# --------------------------------------------------------------------------- #
 # Reporting
 # --------------------------------------------------------------------------- #
 
@@ -548,6 +623,17 @@ def report(records: list[Observation]) -> int:
     print(f"\nDECLINED - considered and deliberately not captured ({len(DECLINED)}):")
     for name, e in DECLINED.items():
         print(f"  - {name}: {e['why'].split('.')[0]}.")
+        producer = e.get("measured_by")
+        if not producer:
+            continue
+        cen = CENSUSES[producer](records)
+        print(f"      {producer}(): {cen.sentence()}")
+        for geo, trials in sorted(cen.varied.items()):
+            for t in trials:
+                print(f"        varied {geo}: {t}")
+        for kind, trials in sorted(cen.absent.items()):
+            for t in trials:
+                print(f"        no geometry, {kind}: {t}")
     return 0
 
 

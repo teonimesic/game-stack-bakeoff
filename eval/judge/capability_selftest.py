@@ -26,6 +26,7 @@ Exit code is 0 only if every expectation holds.
 from __future__ import annotations
 
 import json
+import re
 import struct
 import sys
 import tempfile
@@ -313,6 +314,201 @@ def test_declined_register() -> None:
     check("nothing is both captured and declined", overlap == set(), str(overlap))
 
 
+# --------------------------------------------------------------------------- #
+# 7. a figure the register rests on is COUNTED, and the count tracks its population
+# --------------------------------------------------------------------------- #
+
+#: The shape of a corpus figure written into prose: "62 of 68". A DECLINED entry may
+#: not carry one, because a literal cannot go stale visibly - and this one was printed
+#: two screens under a computed header reading 69, which is worse than having no
+#: producer at all, since it looked produced (tasks/182).
+FROZEN_FIGURE = re.compile(r"\b\d+\s+of\s+\d+\b")
+
+
+def resolution_fixture() -> list[capability.Observation]:
+    """5 records whose census is stated in the test, not read back from the subject.
+
+    2 at the starter default, 2 varied at 2 distinct geometries, 1 with no geometry
+    because its own `film` failed.
+    """
+    return [
+        capability.observe_doc(programmatic(), game="g1_pong", stack="rust",
+                               trial="g1_pong__rust__t0", run="fx"),
+        capability.observe_doc(programmatic(), game="g1_pong", stack="ts",
+                               trial="g1_pong__ts__t0", run="fx"),
+        capability.observe_doc(programmatic(sizes=[[800, 600]]), game="g1_pong",
+                               stack="unity", trial="g1_pong__unity__t0", run="fx"),
+        capability.observe_doc(programmatic(sizes=[[320, 200]]), game="g1_pong",
+                               stack="godot", trial="g1_pong__godot__t0", run="fx"),
+        capability.observe_doc(programmatic(film_exit=1, sizes=[], frames=0),
+                               game="g1_pong", stack="rust",
+                               trial="g1_pong__rust__t1", run="fx"),
+    ]
+
+
+def census_disagreements(recs: list[capability.Observation],
+                         cen: capability.ResolutionCensus) -> list[str]:
+    """Does this census describe THESE records? Re-derived here from the records.
+
+    The expectation is a second, independent statement of the answer: it reads the
+    input the census was handed, never the census's own buckets. A control that
+    builds its expectation by calling its subject is not a control (AGENTS.md rule 12,
+    task 113).
+    """
+    want_default = want_varied = want_absent = 0
+    for r in recs:
+        w, h = r.fields.get("capture.width_px"), r.fields.get("capture.height_px")
+        if w is None or h is None:
+            want_absent += 1
+        elif (w, h) == capability.STARTER_DEFAULT_GEOMETRY:
+            want_default += 1
+        else:
+            want_varied += 1
+    bad = []
+    if cen.total != len(recs):
+        bad.append(f"total {cen.total} for {len(recs)} records")
+    if len(cen.at_default) != want_default:
+        bad.append(f"at_default {len(cen.at_default)} want {want_default}")
+    if cen.n_varied != want_varied:
+        bad.append(f"varied {cen.n_varied} want {want_varied}")
+    if cen.n_absent != want_absent:
+        bad.append(f"absent {cen.n_absent} want {want_absent}")
+    if len(cen.at_default) + cen.n_varied + cen.n_absent != cen.total:
+        bad.append("the three buckets do not partition the population")
+    return bad
+
+
+def test_declined_figures_are_produced() -> None:
+    print("\n[declined: every corpus figure has a producer]")
+    for name, entry in capability.DECLINED.items():
+        prose = " ".join(str(entry.get(k, ""))
+                         for k in ("why", "source", "would_change"))
+        hit = FROZEN_FIGURE.search(prose)
+        check(f"{name} states no frozen 'N of M' figure of its own", hit is None,
+              hit.group(0) if hit else "")
+    named = {e["measured_by"] for e in capability.DECLINED.values()
+             if e.get("measured_by")}
+    check("at least one entry names a producer", named != set(), str(named))
+    for producer in sorted(named):
+        check(f"{producer} resolves to a callable",
+              callable(capability.CENSUSES.get(producer)), str(producer))
+    check("a producer name that resolves to nothing would be RED",
+          not callable(capability.CENSUSES.get("no_such_census")))
+
+    # MUTANT and VARIANT for the rows above. Without them the sweep is green and
+    # nothing shows it could ever have been red - the shape this whole file exists
+    # to refuse.
+    relapse = {"why": "Measured, not assumed: 62 of 68 stored submissions captured "
+                      "at exactly the starter default.",
+               "source": "swept on some date", "would_change": ""}
+    check("MUTANT: the literal put back is caught",
+          FROZEN_FIGURE.search(" ".join(relapse.values())) is not None)
+    innocent = ("wgpu 29 sets BUFFER_BINDING_ARRAY only on Vulkan; `just film` writes "
+                "12 frames at 640x400, and Three of four arms expose a counter.")
+    check("VARIANT: digits that are not a corpus figure stay GREEN",
+          FROZEN_FIGURE.search(innocent) is None,
+          str(FROZEN_FIGURE.search(innocent)))
+
+
+def test_resolution_census() -> None:
+    print("\n[census: resolution - positive control]")
+    recs = resolution_fixture()
+    cen = capability.resolution_census(recs)
+    # Stated here in literals, ahead of running it.
+    check("the population is the one it was handed", cen.total == 5, str(cen.total))
+    check("2 at the starter default", len(cen.at_default) == 2, str(cen.at_default))
+    check("2 varied, in 2 distinct geometries",
+          cen.n_varied == 2 and sorted(cen.varied) == ["320x200", "800x600"],
+          str(cen.varied))
+    check("1 with no geometry, classified as a submission failure",
+          cen.n_absent == 1 and list(cen.absent) == [capability.SUBMISSION],
+          str(cen.absent))
+    check("the re-derived expectation agrees",
+          census_disagreements(recs, cen) == [], str(census_disagreements(recs, cen)))
+    s = cen.sentence()
+    for want in ("2 of the 5", "640x400", "800x600", "320x200", capability.SUBMISSION):
+        check(f"the sentence states {want!r}", want in s, s)
+    # The denominator is the whole population: drop the record whose capture failed
+    # and this reads "2 of the 4", which is the shape the ticket was filed against.
+    check("the failed capture is accounted for, not dropped from the denominator",
+          "2 of the 5" in s and "1 has no geometry to compare" in s, s)
+
+
+def test_resolution_census_mutant() -> None:
+    print("\n[census: MUTANT - the figure is frozen instead of counted]")
+    recs = resolution_fixture()
+    frozen = capability.ResolutionCensus(
+        default=capability.STARTER_DEFAULT_GEOMETRY, total=68,
+        at_default=[f"stale/t{i}" for i in range(62)],
+        varied={"768x576": ["stale/a"], "720x540": ["stale/b"], "420x640": ["stale/c"]})
+    bad = census_disagreements(recs, frozen)
+    check("a census that ignores its records is RED", bad != [], str(bad))
+    check("...and the disagreement names the population",
+          any("total" in b for b in bad), str(bad))
+    check("...while the real census over the same records is GREEN",
+          census_disagreements(recs, capability.resolution_census(recs)) == [])
+
+
+def test_resolution_census_variant() -> None:
+    print("\n[census: VARIANT - populations a frozen figure would still 'pass' on]")
+    # (a) every record at the default: no varied, no absent, and the sentence must
+    #     still say so rather than omitting an empty bucket.
+    uniform = [capability.observe_doc(programmatic(), game="g1_pong", stack=s,
+                                      trial=f"g1_pong__{s}__t0", run="fx")
+               for s in STACKS]
+    cen = capability.resolution_census(uniform)
+    check("all-default: 4 of 4 at the default",
+          len(cen.at_default) == 4 and cen.n_varied == 0 and cen.n_absent == 0,
+          cen.sentence())
+    check("...and the empty buckets are stated, not omitted",
+          "0 varied (none)" in cen.sentence(), cen.sentence())
+    check("...and it re-derives", census_disagreements(uniform, cen) == [])
+
+    # (b) the empty corpus. A ratio would divide by zero; a partition reports 0 of 0.
+    empty = capability.resolution_census([])
+    check("an empty sweep says 0 of the 0, and does not crash",
+          "0 of the 0" in empty.sentence(), empty.sentence())
+
+    # (c) a corpus where the default is NOT the majority. Nothing in the census may
+    #     assume which way the answer comes out.
+    odd = [capability.observe_doc(programmatic(sizes=[[1280, 720]]), game="g1_pong",
+                                  stack=s, trial=f"g1_pong__{s}__t0", run="fx")
+           for s in STACKS]
+    cen = capability.resolution_census(odd)
+    check("a corpus that varies reports 0 of 4 at the default",
+          len(cen.at_default) == 0 and cen.n_varied == 4, cen.sentence())
+    check("...and it re-derives", census_disagreements(odd, cen) == [])
+
+
+def test_starter_default_is_what_the_starters_say() -> None:
+    print("\n[starter default: the constant against the four starter sources]")
+    # `STARTER_DEFAULT_GEOMETRY` names the starter default, so the starters are the
+    # address that settles it. Spelled in two places and compared by a row here,
+    # rather than shared as one object (AGENTS.md rule 12).
+    starters = Path(__file__).resolve().parent.parent / "starters"
+    sources = {
+        "rust":  starters / "rust/crates/game/src/lib.rs",
+        "ts":    starters / "ts/src/view/index.ts",
+        "unity": starters / "unity/Assets/View/GameView.cs",
+        "godot": starters / "godot/view/view.gd",
+    }
+    decl = re.compile(r"VIEW_(WIDTH|HEIGHT)\s*(?::\s*\w+\s*)?=\s*(\d+)")
+    for arm, path in sources.items():
+        if not path.is_file():
+            check(f"{arm} view source is readable", False, str(path))
+            continue
+        seen: dict[str, int] = {}
+        for line in path.read_text().splitlines():
+            m = decl.search(line)
+            if m and m.group(1) not in seen:
+                seen[m.group(1)] = int(m.group(2))
+        got = (seen.get("WIDTH"), seen.get("HEIGHT"))
+        check(f"{arm} declares the geometry the constant claims",
+              got == capability.STARTER_DEFAULT_GEOMETRY,
+              f"{path.name} says {got}, constant says "
+              f"{capability.STARTER_DEFAULT_GEOMETRY}")
+
+
 def main() -> int:
     test_schema_is_stack_independent()
     test_values()
@@ -324,6 +520,11 @@ def main() -> int:
     test_gate_needs_all_four()
     test_reads_disk()
     test_declined_register()
+    test_declined_figures_are_produced()
+    test_resolution_census()
+    test_resolution_census_mutant()
+    test_resolution_census_variant()
+    test_starter_default_is_what_the_starters_say()
     print()
     if FAILURES:
         print(f"FAILED: {len(FAILURES)}")

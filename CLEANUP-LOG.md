@@ -769,3 +769,51 @@ about turned out to BE the finding.
 pointed at my own instrument, and it is the third time in this session I have hit that. The reason
 it kept getting caught quickly is that a known-good row was available each time: I know `--run-dir`
 works and I know `--scenes` works, so a census reporting them dead is reporting itself.
+
+## 2026-08-27 (third pass) — `eval/runner.py`, the other half of the harness
+
+1,136 lines, and the pass on `wholegame.py` earlier today left it as the obvious pair. Read for one
+question, chosen because #194 had just established that stored records are what every census reads:
+**what does the runner WRITE into a record, and is any of it read by nothing?**
+
+### Method note — the census was wrong once, and the flaw was mine again
+
+The first cut asked *"does any file OTHER than `runner.py` mention this field name"* and reported 3
+dead fields: `corr`, `duration_ms`, `n_tasks`. Excluding `runner.py` from its own consumers is the
+error — `corr` and `n_tasks` are returned by `paired_delta()` and consumed at line 984, in-process,
+inside the same file. Live, both of them.
+
+The extraction was validated first on two rows whose answer is known — `cost_usd` at 131 consumers
+and `terminal_reason` at 124 — which is why the three zeros stood out as worth checking rather than
+worth believing.
+
+### Found — one field genuinely read by nothing, holding 4.4 hours of evidence
+
+Filed as `tasks/186` (p3). Both harnesses time a trial, under different names, and only one is read:
+
+| written by | field | consumers outside its own module |
+|---|---|---|
+| `wholegame.py:450` | `wall_s` | **6+** — `RUBRIC.md`, `capability.py`, `bot_mutants.py`, `BAKEOFF.md`, two findings files |
+| `runner.py:726` | `duration_ms` | **0, anywhere** |
+
+`agent.duration_ms` is positive in **47 of 55** non-whole-game trial records and **0 of 84**
+whole-game ones; min 36s, median 332s, max 659s, **4.4 hours** in total. `ci_minutes.py`'s
+`run_duration_ms` is GitHub Actions' field for a workflow run and unrelated — checked, not assumed.
+
+It is #83's shape: a capture nobody has read since 2026-08-12, of a quantity `eval/RUNS.md` treats as
+a **comparison metric**. A comparison spanning the two harnesses must know the two names are the same
+thing, and nothing says so — not the names, not the docs, not a producer. Live rather than
+historical, because a second harness became a recorded arm dimension on 2026-08-25.
+
+### Examined and judged sound
+
+- **`paired_delta()`** — `n_tasks`, `mean`, `se`, `ci95` and `corr` are all consumed by the report at
+  line 984. `corr` is `nan` for fewer than 2 common tasks and the caller handles it.
+- **Field coverage otherwise.** Of 36 record fields the runner writes, 33 have consumers outside the
+  module, several with 100+ — the record is read, not written into a void.
+
+### Not opened, and the next pass should take one
+
+`eval/suites/` (the task prompts — note that editing one is a regime boundary, so a pass there files
+tickets and changes nothing), and the scene layer, which has now absorbed five repairs in three days
+(`tasks/162`, `163`, `164`, `174`, `178`) and has never been read as a whole.
