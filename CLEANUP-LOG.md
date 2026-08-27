@@ -718,3 +718,54 @@ re-derive it, and so nobody deletes them for space later without meeting #45 fir
 and the scene layer built 2026-08-25/27 (`eval/SCENES.md`, `scene_probe.py`, `scene_prompts.py`) —
 which is new enough that no pass has read it and old enough now to have accumulated its own
 corrections.
+
+## 2026-08-27 (second pass) — `eval/wholegame.py`, the harness no pass had opened
+
+1,365 lines that build every trial, and no pass had read it. Read for one question: **which of its
+21 CLI flags no longer earns its space?** A flag that parses and does nothing is the worst shape a
+dead option can take, because it accepts input silently.
+
+### Found — 5 flags bound to the code by a STRING, and one of them is an arm dimension
+
+Filed as `tasks/183` (p2). `wholegame.py` reads `scenes`, `harness`, `turn_limit`, `only` and
+`prompt_file` through `getattr(a, "<name>", <default>)` rather than `a.<name>`. The defensive form
+buys nothing: the four subcommands that reach this code — plan, build, evaluate, report — are built
+in **one loop** at line 1282 with every one of those flags inside it, and the only other subparser,
+`concurrency-check`, dispatches elsewhere and never reaches `cmd_build`. No legitimate call can find
+the attribute missing.
+
+What the default *can* do is absorb a rename. `getattr(a, "harness", None) or HARNESS` would, if the
+dest ever moved, build every trial with the **default harness** — silently, with no crash and no
+warning, producing a completed run whose recorded arm is wrong. `eval/RUNS.md` records the harness
+as an arm dimension, and the second harness exists precisely so runs can be compared across it.
+
+**This is rule 12 in code rather than in a check:** the address is a string, the string is not
+asserted against the thing it names, and the failure is silent.
+
+### Examined and judged sound
+
+- **No dead flag.** All 21 are read and all 21 reach behaviour. 14 are documented in the four main
+  docs; the 7 that are not (`--judge-model`, `--k`, `--no-audio`, `--no-judge`, `--prompt-file`,
+  `--seed`, `--starter`, `--turn-limit`) are development and repair options rather than run
+  configuration, and `--turn-limit`'s own help text points at `AGENTS.md` rule 8 for why it must not
+  be used to match an earlier run's ceiling.
+- **`--scenes` defaulting to NONE** while `--games` defaults to all is deliberate and the reason is
+  written at the declaration and again in `select_tasks()`: a scene is not a cheap addition to a
+  game run.
+- **The `$TMPDIR` comment above `default_work`** gives BOTH reasons the work root is what it is, and
+  says why it gives both — "a comment giving one of two reasons is how the next person simplifies
+  this back into /tmp". That is #45's evidence and must not be pruned.
+
+### Method note — the census was wrong twice before it was right, both times rule 12
+
+The first pass matched `args.<dest>` and reported **14 of 21 flags never read**, including
+`--run-dir` and `--stacks`, which the standing build command demonstrably uses. The namespace is
+bound to **`a`**, not `args`. The second pass matched any `\w+\.<dest>` and reported **3** never
+read — `harness`, `scenes`, `turn-limit` — which are read by `getattr` with a string and are
+invisible to an attribute regex. The third pass found them, and the thing the first two were wrong
+about turned out to BE the finding.
+
+**Both wrong answers were uniform across a population that should have varied**, which is rule 9
+pointed at my own instrument, and it is the third time in this session I have hit that. The reason
+it kept getting caught quickly is that a known-good row was available each time: I know `--run-dir`
+works and I know `--scenes` works, so a census reporting them dead is reporting itself.
