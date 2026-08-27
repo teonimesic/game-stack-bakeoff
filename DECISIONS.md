@@ -3227,6 +3227,21 @@ re-mean 25 stored `g1_pong` gradings
 (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
 criterion has never once withheld.
 
+**Every hit the play-bot can read must be counted, and the same three facts decide that
+(`tasks/171`).** A count of the hits the lines carry is contradicted by a line whose counter skips
+one, exactly as it is by a line whose counter arrives late. So `rally.counts` reads all-or-nothing,
+which is the standard `paddle.deflects` holds in the same loop.
+
+**The floor is ONE countable hit.** A higher floor fails a correct game for producing a short
+rally, which is #46's shape; the contract is per hit, so one hit measures it. **A hit tick that
+also carries the point is counted in neither half** — the point zeroes `rally` on that same line —
+and the verdict requires a non-empty denominator, so the exclusion cannot swallow the criterion
+(rule 7).
+
+**To re-open the all-or-nothing reading:** a correct submission whose rally counter rises on some
+but not all of its non-scoring `paddle_hit` ticks. The comparability statement, and why no stored
+grading can be re-read against this, are in `eval/RUNS.md`.
+
 **The same reading was declined for the arena and it went the other way** (`tasks/170`).
 `ref_arena/multiplier.falls` reads the multiplier across the `player_hit` tick and looks
 identical, but step 2 is missing there: the g3 contract gives `multiplier` no definition at all —
@@ -3271,7 +3286,7 @@ reason to retire the mechanism** — the pending loop iterates it, so it costs n
 and what it buys is the alternative to a silent `Variant.tolerates` on the next false negative
 found.
 
-**To re-open the `rally.counts` decline specifically:** a real submission whose counter settles
+**To re-open the one-tick reading of `rally.counts`:** a real submission whose counter settles
 a tick late. It would be a submission that violates the state contract, so the question it
 raises is whether tier 2 should fail it or whether the g1 prompt should say the ordering out
 loud — and only a submission can raise it, because the decline rests on reading the contract
@@ -3302,8 +3317,10 @@ reported ticks, a layer that stops reporting and never resumes, and a row declar
 `span`.
 
 `eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds both
-directions: a variant reporting `offset` inside its own span, and 3 mutants that break a layer's
-reporting in each of those ways.
+directions: **1 variant** reporting `offset` inside its own span, and **3 mutants, one per
+failure above** - the sky stops being reported for ticks 101-119, the same layer is gone for
+good from tick 501, and a row declares no usable `span`. Read the count from
+`python3 eval/judge/scene_mutants.py`, not from this sentence.
 
 **To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
@@ -3419,7 +3436,7 @@ settled question is noise that makes the live ones harder to find.
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |
 | The cost route is adjudicated and does not resolve | **4 qualifying groups that share neither a run nor a game.** The adjudication ran (`cost_census.py --ordering`) and came back unresolved for a structural reason, not a marginal one: 6 of the 7 stored groups are one cluster once game recurrence is counted, so the smallest p the design can return is **0.25** and no outcome could have reached α. Re-reading the stored tree cannot change that — only new runs on non-recurring games can. **A fifth stack also re-opens it**, by widening the label space the permutation draws from |
-| Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. Currently 62 of 68 sit on the starter default |
+| Performance fields are captured, not scored | `capability.py` reporting **real variance in `capture.megapixels`** across a run. At that point capture geometry is a choice submissions actually exercise and it is worth asking whether the judges should see it. `python3 eval/judge/capability.py --runs eval/runs` counts this beside the entry every time it prints; read 2026-08-27, **64 of the 69 stored records sit on the starter default 640x400**, 3 vary, and 2 have no geometry at all because their own `film` failed |
 | No frametime or fps field | The TypeScript capture path getting a **real GPU backend**. Nothing else changes it: the asymmetry is the renderer, not the stack (§3 of the capability matrix) |
 | An unreachable private method is deleted, never exempted | A hit that is genuinely reachable and cannot be made visible to the census — in practice a `getattr(self, ...)` whose name is assembled at runtime, the known false positive, appearing in real `eval/judge/` code. There are **0** such sites today: all three `getattr(` calls there take a literal or a non-private attribute. If one appears, the repair is a marker the census reads that names *why*, never a bare name list — an exemption that does not state its reason is indistinguishable from a mistake |
 | The git hooks run a named subset, not the whole of `gates.yml` | **2** pushes to `main` reddened by the **same** gate outside that subset. It is aimed at the failure that recurs locally — stale citations and a malformed queue — so a repeat from one uncovered gate is evidence the subset is drawn wrong, where **1** is a normal miss. `python3 eval/tools/ci_minutes.py --hooks` says what is in it today. Widening it is a re-timing, not a re-argument: read the new tier with `time .githooks/run-gates.sh pre-push` before adding, because the tier's value is that nobody reaches for `--no-verify` |
