@@ -192,11 +192,19 @@ by different parties:**
 
 **The conversion, and it is measured rather than asserted.** Over **157** paired observations
 `wall_s - duration_ms/1000` is min **0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on
-none of them** — the self-report is 97.4-99.9% of the harness figure and the remainder is the
-harness's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` is the producer and
-re-derives every number in this paragraph; it **exits non-zero if a negative delta ever appears**,
-which is what a clock moving mid-trial would look like on the arm that does not use a monotonic
-one.
+none of them**. That difference is the harness's own spawn-and-parse overhead.
+`python3 eval/tools/wallclock.py` is the producer and re-derives every number in this paragraph;
+it **exits non-zero if a negative delta ever appears**, which is what a clock moving mid-trial
+would look like on the arm that does not use a monotonic one.
+
+> **The conversion is a CONSTANT, and stating it as a percentage pools two populations.** The
+> overhead does not scale with the trial: it is ~1 s on a 1.6 s trial and ~1 s on a 4961 s one,
+> and the largest value in the corpus, 6.5 s, belongs to the longest trial rather than to a
+> proportion. Expressed as a ratio, `duration_ms/1000` over `wall_s` runs from **0.2347 to
+> 0.9998** — and the 5 lowest are all `wg-g4b-2026-08-17T19-50-43`, the run this file records as
+> a null, whose 8 trials the API refused in under 2 seconds each. A range that wide describes
+> the length of those trials and nothing about the two clocks. **Quote the difference in
+> seconds, never the fraction.**
 
 **Which figure each suite uses after this: both use `wall_s`, exactly as before.** That the
 published figures do not move was checked rather than assumed — `duration_ms` has no reader

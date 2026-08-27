@@ -16,6 +16,12 @@ The second is nested inside the first, so `wall_s - duration_ms/1000` is the har
 overhead and can never be negative unless a clock moved. That is the assertion this tool
 makes: `agreement.negative_deltas` must be 0, and a non-zero exit says which trial.
 
+**The overhead is reported in SECONDS and never as a fraction, because it is a constant.** It
+is ~1 s on a 1.6 s trial and ~1 s on a 4961 s one, so the ratio of the two clocks is a
+measurement of trial LENGTH: over the stored corpus it runs 0.2347 to 0.9998, and the 5 lowest
+belong to one run whose trials the API refused in under 2 seconds each. A percentage here pools
+those with real builds and describes neither (`AGENTS.md` rule 4).
+
 **It is not a vacuous assertion, because one of the two harnesses does not use a monotonic
 clock.** `wholegame.py` brackets with `time.monotonic()`; `runner.py` brackets with
 `datetime.now()`, which an NTP step or a DST transition moves under it. A negative delta is
