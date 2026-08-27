@@ -240,6 +240,14 @@ and `events` is a list of strings drawn from:
 Field names and event names are a contract — spell them exactly as written. Everything
 else about the game is yours to design.
 
+`game_over` is both a field and an event, and they say different things. The event
+announces the tick the game ended on; **the field is the condition, and it is what
+"the game has ended" means.** It must be true from the tick the game stops accepting
+play, and stay true for as long as it stays ended. Raising the event and leaving the
+field false has not ended the game. They need not be the same tick — a game may
+announce the end and settle into it a moment later — but the field is the one anything
+reading your trace will believe.
+
 `just film SEED TICKS SCRIPT OUTDIR` must keep producing frames of the running game.
 **Everything the player sees on screen must appear in those frames**, including the
 score, any HUD, menus and end-of-game screens. If your platform draws some of that

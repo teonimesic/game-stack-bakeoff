@@ -2739,6 +2739,69 @@ single background colour, so the per-frame mode tracks the subject. `--reference
 producer to run: a set reading near 0 per frame and high against frame 0's, whose frames visibly
 drew something, is the case this did not anticipate. Nothing in the 67 stored sets is one.
 
+## THE END OF A GAME BECAME ONE SIGNAL ON 2026-08-27 — a TWENTY-SEVENTH comparability break, and it moves no stored verdict
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+**Both sides moved, which none of the breaks above did.** The task prompt gained a paragraph and
+two bots changed how they read a trace, and they are the same change: `state.game_over` is now the
+authoritative end signal everywhere, and the `game_over` event announces it.
+
+| where | before | after |
+|---|---|---|
+| `suites/wholegame_prompts.py` `_probe_section()` | the state field and the event were both listed, and nothing said which one *means* the game ended | 8 lines saying the field is the condition, the event is the announcement, and they need not land on the same tick |
+| `judge/bot_arena.py` `_death` | `flag is True or "game_over" in t.events` | the flag alone |
+| `judge/bot_tetris3d.py` `_gameover_check` | the same disjunction, in **2** places — the post-drop scan and the no-falling-piece branch | the flag alone |
+| `judge/probe.py` `end_condition_holds` | scored the flag whatever the caller located the end with | refuses a session whose flag is not `True` at the hand-over, and says so |
+
+**Why:** the bots located the end with one signal and scored it with the other. `bot_pong` and
+`bot_platformer` never read the event, so 2 of 4 already had the resolution this break adopts.
+
+**What it fixes, measured on both fixtures before and after** (`judge/bot_mutants.py`, the two
+`the end is announced ... state` subjects):
+
+| subject | before | after |
+|---|---|---|
+| a **correct** game that announces the end and enters it 6 ticks later | **FAIL** — `BROKE at tick 537: game_over went False with nothing pressed` (arena), `BROKE at tick 54: …` (tetris) | **PASS** |
+| a **broken** game that announces the end and never enters it | FAIL, with that same sentence about a flag that had never been True | FAIL — `the player never died in 9001 idle ticks (hp 0.0)`, `stacked into one corner for 169 ticks without the game ending; game_over=False` |
+| each reference, untouched | PASS | PASS |
+
+The false negative is the first row: a criterion that could not pass a correct game, which only a
+variant asks about (`AGENTS.md` rule 15). The second row is what must still fail, and does.
+
+**16 rendered prompts moved and no scene prompt did**, measured rather than reasoned:
+`python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` exited 1 against the pre-edit
+snapshot and named **16 of 24** — 4 games x 4 stacks, 8 lines each — and **0 of the 8** scene
+prompts, which render from `scene_prompts.py`'s own preamble. The snapshot is re-recorded in the
+same commit and `eval/tools/prompt_guard_control.py` is green on all 25 rows.
+
+### What it invalidates, and what it does not
+
+**Invalidated: pooling whole-game trials across this date on anything derived from the task text.**
+The **91** stored whole-game trial records (`python3 eval/tools/census.py --runs-dir <main
+checkout>/eval/runs`, population *stored trial records carrying a `game` field*, read 2026-08-27)
+were built from a prompt that did not say which signal ends a game.
+
+**Not invalidated:**
+
+- **No stored verdict moves.** `python3 eval/judge/tier2_census.py --runs-root <main
+  checkout>/eval/runs` is byte-identical before and after — **11 groups, 5 saturated, 10 selective
+  failures over the whole corpus, VERDICT: SATURATED**. It reads stored verdicts, and re-grading
+  tier 2 means re-running a bot against a submission tree, which nothing here did.
+- **Nothing under `eval/runs/**` was rewritten.**
+- **No stored submission is known to carry the shape this repairs.** Whether one does is not
+  answerable from the stored tree: a trace is not kept, so what any submission published on its
+  end tick cannot be read back. The two fixtures are the evidence.
+- **The starters are untouched**, so every starter-keyed boundary above is unaffected.
+- **The scene suite is untouched.**
+
+**What re-opens it.** A correct game whose state flag lags its `game_over` event by more than the
+window a bot spends looking for the end — 9000 idle ticks on the arena, 60 placements on tetris.
+Nothing constructed here comes close, and a game that never sets the flag is refused by design
+rather than by a budget.
+
+
 ## Rules
 
 - **Never pool across a regime boundary.** Report per regime, with `n` per group.
