@@ -2874,6 +2874,41 @@ stationary-object shape, which would mean the 2 gates are aimed at the wrong pro
 contract change adding `car.screen`, which is the one field that would let `front.occludes` be
 measured twice instead of once.
 
+**A declared band is not a region of the frame that belongs to one layer, so a layer is measured
+only from rows no other declared band contains — decided 2026-08-27.** A layer left fewer than
+`band_profile`'s own 10-row sample is UNATTRIBUTABLE: reported, excluded from the score, and never
+given a neighbour's motion. `eval/SCENES.md` states the rule for a reader of the criteria;
+`ParallaxScene.MIN_OWN_ROWS` is where it lives.
+
+The 88 pairs above were all read from `ref_parallax`, whose 4 bands **tile the frame** — its
+author's choice, not the contract's. `layers[].top`/`bottom` say where a layer is DRAWN, and a
+layered background overlaps by construction, so a band holds the nearer layers' pixels where they
+cover it and the farther ones' where they show through. `best_shift` then answers for whichever
+content carries the gradient energy, and the 3 gates cannot see it: a band reading a neighbour's
+motion agrees with itself as well as a band reading its own.
+
+Three measurements decided it, and each could have come out the other way:
+
+- **The subtraction is over every other band, not only the nearer ones.** The nearer-only rule is
+  the painter's-algorithm reading and would be right if every layer painted its band opaquely. It
+  leaves the first real submission's `range` and `grove` bands returning the identical 11-pair
+  series 20, 17, 15, 19, 20, 15, 16, −4, 6, 5, 6 px, which is the rate of `clouds` — **farther**
+  than both, and showing through them.
+- **It is a refusal, not a recovery.** Where the old code erred is exactly where a band has
+  nothing of its own, so there is nothing to fall back to. On the one stored scene trial tier 2 is
+  unchanged at 6 of 6 and `layers.image_parallax` stays `scored=False`; what changes is that the
+  recorded reason is now true (`eval/RUNS.md`).
+- **What it buys is a false negative the fixtures could never fire.** A correct scene declaring
+  its bands at the layers' full extents was read at 25px/frame for a band whose drawn shift is
+  13.5px, and **failed**. It is now refused instead. That variant is in `scene_mutants.py`, and
+  because it must `tolerate` the criterion it exercises, the mechanism is pinned offline by
+  `--attribution-selftest`: 7 hand-written band tables with the row counts stated before it runs,
+  and 3 mutants of the shipped file.
+
+**To re-open this one:** a windowing that attributes a row of an overlapping band to one layer and
+survives the `range`/`grove` measurement above; or a contract change declaring the bands disjoint,
+which would be a prompt change and a regime boundary.
+
 ## The scene performance pass is an uncapped ramp on a spaced, exclusive machine — decided 2026-08-24
 
 `eval/SCENES.md` proposes scoring a scene as a ramp, which reads the stack only if the machine

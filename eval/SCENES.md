@@ -262,6 +262,55 @@ Three things decided it, and the third is why raising the frame count is not the
 the camera samples it. On the one submission graded so far that is 2 bands of 7 — the road at
 1.66–2.25 spans per pair and the verge at 0.76–0.99 — while the other 5 sit between 0.00 and 0.48.
 
+### A band with fewer than 10 rows of its own is UNATTRIBUTABLE, and the contract does not change either
+
+The rule, in order:
+
+1. Clip every declared band to the frame. `top`/`bottom` are fractions of the frame's height and
+   nothing stops a submission reporting one that runs off it.
+2. Measure a layer only on the tallest run of rows **no other declared band covers**.
+3. Below `ParallaxScene.MIN_OWN_ROWS` such rows, the layer is UNATTRIBUTABLE: reported, excluded,
+   and never given a neighbour's motion. The floor is `band_profile`'s own sample count, because
+   a window thinner than the 10 rows a profile averages is not what the thresholds were set on.
+4. Below `MIN_LAYERS` readable bands, `layers.image_parallax` comes back `scored=False`, exactly
+   as it does when the bands are aliased.
+
+After changing any of it, run:
+
+    python3 eval/judge/scene_mutants.py --attribution-selftest
+
+`layers[].top` and `layers[].bottom` say where a layer is **drawn**, and that does not partition
+the frame. A layered background overlaps by construction: a far layer sits behind the near ones,
+so its band holds their pixels where they cover it, and it is mostly transparent, so it holds the
+farther ones' where they show through. There is no contracted way to say which pixel is whose.
+
+Three measurements chose that rule over its alternatives, and each is what "to re-open" would
+have to beat:
+
+- **Masking to the rows no *nearer* band covers does not work.** That is the painter's-algorithm
+  reading, and it would be right if every layer painted its band opaquely. It leaves the first
+  real submission's `range` and `grove` bands returning the identical 11-pair series 20, 17, 15,
+  19, 20, 15, 16, −4, 6, 5, 6 px — the rate of `clouds`, which is **farther** than both and shows
+  through them. Both neighbours contaminate, so the subtraction is over every other band.
+- **Counting a band where it was declared rather than where the frame is admits an undersized
+  window.** A band declared −1.000 to 0.010 holds 363 rows of a 360-row frame, clears the floor,
+  and is then profiled from the 3 rows that exist — hence the clip, before anything counts.
+- **Not doing any of it costs a false negative on a correct scene.** `scene_mutants.py`'s `the
+  layers are declared at their full extent` variant is the reference scene with its bands at the
+  layers' true extents rather than their visible ones — same simulation, same painter's order,
+  same picture — and the probe read 25px/frame for a band whose drawn shift is 13.5px, the rate
+  of a layer two steps nearer, and **failed** `layers.image_parallax` on it.
+
+**It is a refusal, not a recovery.** Where the whole-band reading erred is where a band has
+nothing of its own, so there is nothing to fall back to; `eval/RUNS.md` has the one submission
+this has met, where 6 of 7 bands are refused and the verdict does not move.
+
+**The pin is offline, and it has to be.** A variant carrying such a scene must tolerate
+`layers.image_parallax`, and a tolerated criterion can never go red. So the selftest above drives
+`_bands` and `_own_band` over hand-written band tables whose windows and row counts are written
+down before it runs, against mutants of the shipped file. It reads no fixture and needs no
+toolchain.
+
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks
 
 A transparent glass holds water. The water drains slowly. The glass tilts, then falls, hits the
