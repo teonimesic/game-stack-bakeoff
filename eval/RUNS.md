@@ -173,17 +173,14 @@ record does, and it was not asked to build pong.
 
 ## THE TWO CLOCKS THAT TIME A TRIAL, and they agree to a measured median 1.1 s — 2026-08-27
 
-**Not a comparability break, and no figure in this file moves.** It is here because wall clock
-is a comparison metric above and nothing said what the stored figures were measuring.
+**Not a comparability break, and no figure in this file moves.**
 
-Every wall-clock figure in this ledger is **`wall_s`**, which both harnesses record on every
-trial. **Where the agent CLI reports one**, a second quantity is stored beside it —
-**`duration_ms`**, the CLI's own account of how long it ran — and until `tasks/186` nothing in
-the repository read it, so no document could say whether the two were the same measurement.
-6 stored records have no self-report at all; they are enumerated at the end of this section.
+**Use `wall_s` for every wall-clock figure**, and both harnesses record it on every trial. Where
+the agent CLI reports a duration, `duration_ms` is stored separately — the CLI's own account of
+the same trial. **6 stored records have no self-report**, enumerated at the end of this section.
 
-**They are not two names for one quantity. They are two stopwatches on nested intervals, held
-by different parties:**
+**The two are not one quantity under two names. They are two stopwatches on nested intervals,
+held by different parties:**
 
 | | who holds the stopwatch | interval | clock |
 |---|---|---|---|
@@ -191,37 +188,27 @@ by different parties:**
 | `wall_s`, `runner.py` | the harness, around the same call | the same span | `datetime.now()`, which an NTP step or a DST change moves under it |
 | `duration_ms` | the `claude` CLI, in its own result object | its internal run alone | the CLI's own |
 
-**The conversion, and it is measured rather than asserted.** Over **157** paired observations
-`wall_s - duration_ms/1000` is min **0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on
-none of them**. That difference is the harness's own spawn-and-parse overhead.
-`python3 eval/tools/wallclock.py` is the producer and re-derives every number in this paragraph;
-it **exits non-zero if a negative delta ever appears**, which is what a clock moving mid-trial
-would look like on the arm that does not use a monotonic one.
+**The conversion.** Over **157** paired observations `wall_s - duration_ms/1000` is min
+**0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on none of them**. That difference is
+the harness's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` is the producer,
+and it **exits non-zero if a negative delta ever appears** — which is what a clock moving
+mid-trial would look like on the arm that does not use a monotonic one.
 
-> **The overhead is ADDITIVE, not proportional — which is not the same as fixed.** It does not
-> scale with the trial: ~1 s on a 1.6 s trial and ~1 s on a 4961 s one, and the corpus maximum
-> of 6.5 s belongs to the longest trial rather than to a proportion of it. **It still varies
-> across a 7x range, so 1.1 s is the median and not a figure to subtract from any single
-> trial.** Expressed instead as a ratio, `duration_ms/1000` over `wall_s` runs from **0.2347 to
-> 0.9998** — and the 5 lowest are all `wg-g4b-2026-08-17T19-50-43`, the run this file records as
-> a null, whose 8 trials the API refused in under 2 seconds each. A range that wide describes
-> the length of those trials and nothing about the two clocks. **Quote the difference in
-> seconds, never the fraction, and quote the distribution rather than one number.**
+> **The overhead is additive, not proportional**: ~1 s on a 1.6 s trial and ~1 s on a 4961 s
+> one. **Report the distribution in seconds. Do not subtract the median from an individual
+> trial, and do not report a ratio** — as a ratio it runs 0.2347 to 0.9998, and the 5 lowest are
+> all `wg-g4b-2026-08-17T19-50-43`, whose 8 trials the API refused in under 2 seconds each. That
+> range measures trial length, not the two clocks.
 
-**Which figure each suite uses after this: both use `wall_s`, exactly as before.** That the
-published figures do not move was checked rather than assumed — `duration_ms` has no reader
-outside `wallclock.py`, and never had one.
-
-**The self-report is at two addresses, which is why it looked absent from the live harness.**
-The address is an input to the check, so the producer reports which one each record used rather
-than guessing:
+**The self-report is at two addresses**, so the producer reports which one each record used
+rather than guessing:
 
 | address | written by | records |
 |---|---|---|
 | `trials/<tid>.json` -> `agent.duration_ms` | `runner.py`, the retired spec-change suite | 71 of 71 |
 | `artifacts/<tid>/agent_result.json` -> `duration_ms` | `wholegame.py`, which stores the CLI's whole result object and lifts no duration out of it | 86 of 91 whole-game |
 
-**The 6 records with no self-report are 6 explained records, not a gap.** 4 are
+**The 6 records with no self-report are explained, not a gap.** 4 are
 `archive-arena2d-wg-audio48`'s wedged arena trials, whose `agent_result.json` is an empty
 object; 1 is the prime-agent probe, whose CLI reports no such field at all; 1 is the scene
 trial, killed externally before any result object was written. **Every trial whose agent
