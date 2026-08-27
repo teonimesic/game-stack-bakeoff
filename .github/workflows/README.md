@@ -39,8 +39,8 @@ run is what the runner's noise moves.
 **`gates.yml`** covers the doc sweep and its pins, the findings and withdrawal producers,
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
 control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that runs on Python
-alone — `cost_census_mutants` and `pr_review_state_mutants` are both offline and about 1 second
-each. `judge/stored_rounds_mutants` is offline at about 4.3s — it drives a 0.6s selftest 8 times
+alone — `cost_census_mutants`, `pr_review_state_mutants` and `mergeable_mutants` are all offline
+and about 1 second each. `judge/stored_rounds_mutants` is offline at about 4.3s — it drives a 0.6s selftest 8 times
 over a symlinked mirror of `eval/`, once as the control and once per mutant — and its
 `--variant-control` is a further 1.7s over 3 more runs.
 `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
@@ -275,6 +275,12 @@ head**, and it refuses a branch that is **behind its base**. The second is why i
 pull requests can each be green against a base containing neither, so merging one that is behind
 lands a head no run has ever tested — which is how `main` can go red with every contributing
 pull request green.
+
+It also prints a **REVIEW STATE** block. That block lists the non-required rollup rows, keeps
+their commit-status descriptions, and names the head where the reviewer last wrote. A `CodeRabbit`
+row reading `pass` shows only that a round was attempted, not that the current head was reviewed.
+The block is informational and gates nothing; `DECISIONS.md`, *A review is reported against the
+head it was written at, and never gated*, holds the evidence.
 
 **GitHub now enforces both natively.** `main` is protected, and the settings are the two
 questions above plus the ways round them:

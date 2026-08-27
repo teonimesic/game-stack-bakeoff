@@ -6338,3 +6338,46 @@ table was the **third** copy of a number only two of whose copies were checked, 
 a merge - now asserted against `gate_census()`.
 
 ---
+## #204 - the reviewer's row reached the merge gate with no verdict, and its meaning in a field the payload drops
+
+`mergeable.py` printed `gates SUCCESS` and `controls SUCCESS` for PR #58 and **CodeRabbit appeared in
+no line of its output at all.** Two mechanisms had to combine: `report()` iterated the required checks
+only, and CodeRabbit arrives as a `StatusContext`, which carries `state` and has **neither
+`conclusion` nor `status`** - so the gate's `conclusion or status` read returned `None` for it even
+where it looked. The `description`, the field carrying the words a human reads, is **not in
+`statusCheckRollup` at all**.
+
+Meanwhile `gh pr checks` showed `CodeRabbit pass — Review rate limited`. A refused request presenting
+as a pass, in the view a person reads, while the view the gate reads carried no verdict at all.
+
+**The obvious repair - match on the description - is wrong, and a case nobody had seen proves it.**
+PR #62's description is **byte-identical** to a genuinely reviewed PR's, at a head where no round
+finished: `queued` → `in progress` → `completed` in **6 seconds**, with nothing written.
+
+> **No set of description strings separates a reviewed head from an unreviewed one.** A status is
+> posted when a round is *attempted*, not when one *completes*. Matching the words would have been the
+> open-class trigger this repository already rejects, and here it has a live counterexample rather
+> than an argument.
+
+The reading is the **review timeline**: `pulls/<n>/reviews` → `commit_id`, filtered to
+`coderabbitai[bot]` - **with the `[bot]` suffix**, the exact spelling whose absence produced an empty
+result read as "no warning exists" earlier in this project, and which `AGENTS.md`'s rule-12 table
+records. The description is quoted and never matched on.
+
+**It reports and does not gate, and that is not timidity.** The merge recipe ends by merging `main`
+in, so the landing head is unreviewed **by construction** - a gate here would be red on every pull
+request at merge time, and a gate that is always red is a gate that gets bypassed. Recorded in
+`DECISIONS.md` with the condition that would reverse it.
+
+**The limit is stated rather than hidden.** A clean incremental round writes no review object, so the
+note says the head *"carries no review of its own"*, adds that this is not proof it went unread, and
+prints the command that can say more. `mergeable_mutants.py` requires every mutant to turn a **named**
+row red; a crash-only catch is reported NOT CAUGHT, which forced two mechanisms to be factored out so
+they fail by disagreement rather than by exception.
+
+A defect found in review and worth carrying: the gap between the reviewed head and the current one was
+first counted in `/pulls/<n>/commits`, which **caps at 250**. On a long-lived branch that list need not
+reach the head, so the count would have been a plausible in-range number rather than an error - the
+shape rule 3 names, arriving through pagination instead of through a pipe.
+
+---
