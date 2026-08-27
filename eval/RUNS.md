@@ -2745,12 +2745,12 @@ drew something, is the case this did not anticipate. Nothing in the 67 stored se
 sessions that could not see each other. Cite the heading, not the number.
 
 **Both sides moved, which none of the breaks above did.** The task prompt gained a paragraph and
-two bots changed how they read a trace, and they are the same change: `state.game_over` is now the
+2 bots changed how they read a trace, and they are the same change: `state.game_over` is now the
 authoritative end signal everywhere, and the `game_over` event announces it.
 
 | where | before | after |
 |---|---|---|
-| `suites/wholegame_prompts.py` `_probe_section()` | the state field and the event were both listed, and nothing said which one *means* the game ended | 8 lines saying the field is the condition, the event is the announcement, and they need not land on the same tick |
+| `suites/wholegame_prompts.py` `_probe_section()` | the state field and the event were both listed, and nothing said which one *means* the game ended | 6 lines saying the field is the condition, the event is an announcement, and an announcement is not a state |
 | `judge/bot_arena.py` `_death` | `flag is True or "game_over" in t.events` | the flag alone |
 | `judge/bot_tetris3d.py` `_gameover_check` | the same disjunction, in **2** places — the post-drop scan and the no-falling-piece branch | the flag alone |
 | `judge/probe.py` `end_condition_holds` | scored the flag whatever the caller located the end with | refuses a session whose flag is not `True` at the hand-over, and says so |
@@ -2772,9 +2772,10 @@ variant asks about (`AGENTS.md` rule 15). The second row is what must still fail
 
 **16 rendered prompts moved and no scene prompt did**, measured rather than reasoned:
 `python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` exited 1 against the pre-edit
-snapshot and named **16 of 24** — 4 games x 4 stacks, 8 lines each — and **0 of the 8** scene
-prompts, which render from `scene_prompts.py`'s own preamble. The snapshot is re-recorded in the
-same commit and `eval/tools/prompt_guard_control.py` is green on all 25 rows.
+snapshot, and `git diff --name-only <the commit before> -- eval/suites/rendered/` names **16 of
+the 24** — 4 games x 4 stacks, 7 added lines each — and **0 of the 8** scene prompts, which
+render from `scene_prompts.py`'s own preamble. The snapshot is re-recorded in the same commit and
+`eval/tools/prompt_guard_control.py` is green on all 25 rows.
 
 ### What it invalidates, and what it does not
 
@@ -2792,7 +2793,7 @@ were built from a prompt that did not say which signal ends a game.
 - **Nothing under `eval/runs/**` was rewritten.**
 - **No stored submission is known to carry the shape this repairs.** Whether one does is not
   answerable from the stored tree: a trace is not kept, so what any submission published on its
-  end tick cannot be read back. The two fixtures are the evidence.
+  end tick cannot be read back. The 2 fixtures are the evidence.
 - **The starters are untouched**, so every starter-keyed boundary above is unaffected.
 - **The scene suite is untouched.**
 

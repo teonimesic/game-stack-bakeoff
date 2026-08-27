@@ -810,6 +810,17 @@ SPREAD_WEAPON = ("""        self.fire_cooldown = FIRE_INTERVAL
 #:
 #: SIX TICKS, and the length is doing work: at one tick the bots pass either way,
 #: because `end_condition_holds` reads its first idle tick after the one it was handed.
+#:
+#: THE SIX TICKS GATE THE SIMULATION, and that is what makes this a correct game rather
+#: than a sloppy one (raised by CodeRabbit on PR #66, which read the earlier prompt
+#: wording as forbidding it). It is the same shape as the four opening-card variants
+#: this file already declares correct - presentation that stops the sim from stepping is
+#: a design choice the prompt leaves open, and a closing flourish is an opening card at
+#: the other end of the run. What the game must not do is claim to be over while it is
+#: still playing, and it does not: `game_over` is false throughout the flourish and true
+#: from the tick the run is finished. The prompt paragraph this pair is read against says
+#: only that the field is the condition and the event is an announcement, so nothing here
+#: turns on when input stopped being answered.
 ARENA_ANNOUNCE_THEN_ENTER = (
     ARENA_ANNOUNCED_ONLY[0],
     """                    # VARIANT: the end is announced here and entered in the
