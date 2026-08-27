@@ -229,11 +229,10 @@ jobs:
       - name: hook_audit_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/hook_audit_control.py
-      # The hourly heartbeat reported byte-identical counts at exit 0 through a main
-      # checkout that `git status` refused to look at (`tasks/184`). This asks whether its
-      # work-tree guard can go red, and whether it still goes green in the three states
-      # where the checkout is fine -- including from a linked worktree, where git answers
-      # `false` to `--is-bare-repository` about a repository whose main checkout is bare.
+      # The heartbeat's counts are byte-identical whether or not the main checkout is a
+      # work tree, so nothing but this asks. It pins the guard red on both settings that
+      # reach that state and green on the three where the checkout is fine -- read from the
+      # main checkout and from a linked worktree, where every git command still succeeds.
       # 0.9s locally; throwaway git repositories under $TMPDIR, no history and no toolchain.
       - name: heartbeat_control (the main checkout is a work tree, both directions)
         if: ${{ !cancelled() }}

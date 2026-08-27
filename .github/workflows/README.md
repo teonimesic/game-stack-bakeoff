@@ -53,10 +53,11 @@ needs neither `ffmpeg` nor `just`.
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
 `heartbeat_control` is 0.9s and asks whether the hourly heartbeat still refuses to report a
-count when the **main checkout is not a work tree** — the state `core.bare=true` puts it in,
-where `git status` exits 128 and the heartbeat used to print byte-identical counts at exit 0.
-Its red rows run against throwaway repositories under `$TMPDIR` and restore the flag in a
-`finally`, and its mutant is the pre-fix heartbeat.
+count when the **main checkout is not a work tree**. It covers both settings that reach that
+state — `core.bare`, and a `core.worktree` pointing at a directory that does not exist — read
+from the main checkout and from a linked worktree, against the three states where the checkout
+is fine and a root that is no repository at all. Its red rows run on throwaway repositories
+under `$TMPDIR` and restore the state in a `finally`; its mutant is the guard removed.
 `fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
@@ -224,12 +225,11 @@ git log --format=%H main | wc -l
 ```
 
 **The work-tree guard is in the heartbeat and in NO hook tier, and that is reachability
-rather than duty cycle.** With `core.bare` true in the main checkout, `git commit` exits 128
-**before any hook runs** — measured in a fixture whose `pre-commit` printed nothing — so a hook
-could only ever reach the check from a linked worktree, and linked worktrees keep working while
-the main checkout is bare. The heartbeat fires hourly whether or not anyone is committing, which
-is also the shape the incident had: `tasks/184` observed the flip while nothing was committing.
-`eval/tools/heartbeat_control.py` is what gates it.
+rather than duty cycle.** When the main checkout is not a work tree, `git commit` there exits
+128 **before any hook runs**, so no hook can reach the check. The one place a hook does still
+run is a linked worktree, and that is where the state is invisible: `status`, `commit` and
+`ls-files` all succeed there. The heartbeat fires hourly whether or not anyone is committing.
+`eval/tools/heartbeat_control.py` gates it.
 
 Two things about that population. Editing a gate script is **not** in it — the census reads the
 *set* of them, so only an add, a delete or a rename moves the verdict, which is why the second

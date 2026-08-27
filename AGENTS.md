@@ -124,11 +124,11 @@ separate occasions. `project_lines` is defined over **git-tracked files**, so ag
 which are full checkouts and once made it read a fivefold jump in one hour — are excluded by
 construction rather than by a list.
 
-**It refuses rather than counts when the MAIN CHECKOUT is not a work tree.** `core.bare` went
-true there on 2026-08-27 and every git command in it failed while every working file stayed
-normal — so nothing but git could report it, and the heartbeat printed byte-identical counts at
-exit 0. The refusal names the repair. No git hook can carry this check: `git commit` exits 128
-in that state before any hook runs.
+**It refuses rather than counts when the MAIN CHECKOUT is not a work tree.** Every git command
+there fails while every working file stays normal, so nothing but git reports the state — the
+counts are byte-identical to a healthy run. The refusal names the path, both settings that
+reach that state, and the one-line repair. **No git hook can carry this check**: `git commit`
+exits 128 before any hook runs.
 
 > **"Nothing moved" is a claim about the snapshot, not about the world.** Three times the
 > counters sat still through real work: once the file list went by extension, once by

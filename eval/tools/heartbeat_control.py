@@ -53,11 +53,13 @@ ROOT = TOOLS.parents[1]
 
 #: The four things the refusal has to say, stated here and NOT read from `heartbeat.py`.
 #: `tasks/184`: the guard "names `core.bare` and states the one-line repair in its own output,
-#: so the next session reads the fix rather than deriving it".
+#: so the next session reads the fix rather than deriving it". The refusal prints BOTH keys it
+#: knows about whichever one is set, so a reader who meets the other state still learns that the
+#: check looked at it.
 WANT_IN_REFUSAL = (
     "NOT A WORK TREE",
     "core.bare",
-    "config core.bare false",
+    "core.worktree",
 )
 
 
@@ -178,7 +180,8 @@ def main() -> int:
             r = _run_heartbeat(hb_main)
             missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
             row("bare_red_from_main",
-                r.returncode != 0 and not missing and str(main_ck) in r.stderr,
+                r.returncode != 0 and not missing and str(main_ck) in r.stderr
+                and "config core.bare false" in r.stderr,
                 f"exit {r.returncode}; missing from the refusal: {missing or 'nothing'}")
 
             # The variant a naive probe misses: from a linked worktree `git rev-parse
@@ -199,7 +202,29 @@ def main() -> int:
         finally:
             _git(main_ck, "config", "core.bare", "false")
 
-        # The `finally` above is the whole reason this row can run at all.
+        # ---- red: the SECOND way to reach the identical symptom -------------------------
+        # `core.worktree` at a directory that does not exist. `git status` exits 128 with the
+        # same message and `git ls-files` still exits 0, but `git worktree list` prints an
+        # ordinary NON-BARE record -- so the marker this check first read cannot see it, and
+        # the shipped `--is-inside-work-tree` probe can. Raised by CodeRabbit on PR #64.
+        gone = base / "gone-work-tree"
+        _git(main_ck, "config", "core.worktree", str(gone))
+        try:
+            status = _git(main_ck, "status", "--porcelain")
+            marker = _git(main_ck, "worktree", "list", "--porcelain")
+            r = _run_heartbeat(hb_main)
+            missing = [w for w in WANT_IN_REFUSAL if w not in r.stderr]
+            row("core_worktree_missing_red",
+                r.returncode != 0 and not missing and str(main_ck) in r.stderr
+                and "config --unset core.worktree" in r.stderr
+                and status.returncode == 128 and "bare" not in marker.stdout.split("\n\n")[0],
+                f"exit {r.returncode} while `git status` there is exit {status.returncode} "
+                f"and `git worktree list` reports no `bare` marker; missing: "
+                f"{missing or 'nothing'}")
+        finally:
+            _git(main_ck, "config", "--unset", "core.worktree")
+
+        # The two `finally` blocks above are the whole reason this row can run at all.
         st = _git(main_ck, "status", "--porcelain")
         row("fixture_restored", st.returncode == 0,
             f"`git status` in the fixture main checkout after the red rows: exit "

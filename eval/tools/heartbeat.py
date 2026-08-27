@@ -59,11 +59,12 @@ The mapping is `TASK_METRIC`, asserted against `tasks.STATUSES` on every run.
 
 THE MAIN CHECKOUT MUST BE A WORK TREE, AND NOTHING ELSE ASKS
 ------------------------------------------------------------
-`core.bare` flipped to true on the main checkout on 2026-08-27: every git command there
-failed, every working file stayed normal, and this script went on printing byte-identical
-counts at exit 0 (`tasks/184`). `collect` now refuses before counting anything and prints
-the one-line repair. `_assert_main_checkout_is_a_work_tree` holds the measurement, and why
-the git hooks cannot carry this check.
+Every git command in a main checkout that is not a work tree fails, every working file
+stays normal, and every count below is byte-identical to a healthy run — so this script
+could not tell the two apart, and nothing else looks (`tasks/184`). `collect` refuses
+before counting anything and prints the one-line repair.
+`_assert_main_checkout_is_a_work_tree` holds the measurement, the two settings that reach
+that state, and why no git hook can carry this check.
 
     python3 eval/tools/heartbeat.py          # key=value lines, one per metric
     python3 eval/tools/heartbeat.py --json
@@ -82,11 +83,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _main_checkout() -> tuple[str, bool]:
-    """(path of the main checkout, is it reported bare). Raises if git will not answer.
+def _main_checkout_path() -> str:
+    """Where the main checkout is, asked from wherever this is running.
 
-    `git worktree list --porcelain` prints one blank-line-separated record per worktree, the
-    MAIN one first, and gives it a bare `bare` line exactly when it is not a work tree.
+    `git worktree list --porcelain` prints one blank-line-separated record per worktree and
+    the MAIN one first, so this answers the same from the main checkout and from any linked
+    worktree. It is also the only probe here that keeps working in every broken state below:
+    it needs no work tree, and it exits 0 whether `core.bare` is true, false or absent.
     """
     out = subprocess.run(
         ["git", "-C", str(ROOT), "worktree", "list", "--porcelain"],
@@ -96,71 +99,96 @@ def _main_checkout() -> tuple[str, bool]:
         raise SystemExit(
             f"heartbeat: `git worktree list` failed in {ROOT} (exit {out.returncode}).\n"
             f"{out.stderr.strip()}\n"
-            "Every count below is about a repository git will not describe, so none is "
-            "reported."
+            "No count is reported: they would be counts of a repository git will not describe."
         )
-    first = out.stdout.split("\n\n", 1)[0].splitlines()
-    paths = [ln[len("worktree "):] for ln in first if ln.startswith("worktree ")]
-    if not paths:
-        raise SystemExit(
-            "heartbeat: `git worktree list --porcelain` named no worktree in its first "
-            f"record, so the main checkout could not be identified from {ROOT}. It printed:\n"
-            f"{out.stdout.strip()!r}"
-        )
-    return paths[0], any(ln.strip() == "bare" for ln in first)
+    for line in out.stdout.split("\n\n", 1)[0].splitlines():
+        if line.startswith("worktree "):
+            return line[len("worktree "):]
+    raise SystemExit(
+        "heartbeat: `git worktree list --porcelain` named no worktree in its first record, "
+        f"so the main checkout could not be identified from {ROOT}. It printed:\n"
+        f"{out.stdout.strip()!r}"
+    )
+
+
+def _config(repo: str, key: str) -> str:
+    """One config value, or `<unset>`. Exit 1 from `--get` means absent, not an error."""
+    out = subprocess.run(["git", "-C", repo, "config", "--get", key],
+                         capture_output=True, text=True)
+    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else "<unset>"
 
 
 def _assert_main_checkout_is_a_work_tree() -> None:
     """The main checkout must be a work tree, and nothing else here notices when it is not.
 
-    On 2026-08-27 `core.bare` became `true` in the main checkout's `.git/config` (`tasks/184`).
-    Every git command run there began failing with `fatal: this operation must be run in a work
-    tree`. The repair is one line; the cause is not established. What makes it worth a check is
-    the asymmetry -- git is loud and everything else is silent, because every working file is
-    present and unchanged, so an editor, a test runner and this script all read a completely
-    normal repository.
+    `core.bare` went true in the main checkout's `.git/config` on 2026-08-27 (`tasks/184`).
+    Every git command run there failed with `fatal: this operation must be run in a work tree`,
+    and the repair was one line. What makes it worth a standing check is the asymmetry: git is
+    loud and everything else is silent, because every working file is present and unchanged.
+    Measured in a throwaway repository in that state, `git status` exits 128 while `git
+    ls-files` exits 0 listing the index -- and `heartbeat.py` exited 0 printing output
+    BYTE-IDENTICAL to the healthy run, because `_tracked_files` asks `git ls-files` and
+    `_count_lines` opens paths on the filesystem.
 
-    Measured in a throwaway repository before this guard existed, with `core.bare` true:
+    THE PROPERTY IS "GIT CAN OPERATE ON A WORK TREE THERE", NOT "core.bare IS FALSE".
+    The first version of this check read the `bare` marker out of `git worktree list`, which is
+    the vocabulary of the one incident that produced it rather than the property it protects
+    (`AGENTS.md`, the rule audit). A second setting reaches the identical symptom and that
+    marker cannot see it: with `core.worktree` pointing at a directory that does not exist,
+    `git worktree list` prints an ordinary non-bare record, `git status` still exits 128 with
+    the same message, `git ls-files` still exits 0, and the marker check passed. So the probe
+    is `git rev-parse --is-inside-work-tree`, asked AT the main checkout, which answers `false`
+    in both states and in any third one that has the same effect. Raised by CodeRabbit on
+    PR #64.
 
-      * `git status` -- exit 128, `fatal: this operation must be run in a work tree`
-      * `git ls-files` -- exit 0, listing the index, because it needs no work tree
-      * `heartbeat.py` -- exit 0, output BYTE-IDENTICAL to the healthy run, because
-        `_tracked_files` asks `git ls-files` and `_count_lines` opens paths on the filesystem
+    Asked AT the main checkout, because the answer is about a place: run in a linked worktree
+    it says `true` while the main checkout is unusable. That is also the case a naive probe
+    misses, since linked worktrees go on working -- `status`, `commit`, `ls-files` and
+    `rev-parse --show-toplevel` in one were all exit 0 against a bare main checkout.
 
     WHY THIS IS HERE RATHER THAN IN `.githooks/run-gates.sh`. The hook cannot fire in the state
     it would detect: in the same fixture `git commit` exited 128 and the `pre-commit` hook
-    printed nothing, so no hook runs at all in a bare main checkout. A hook guard would
-    therefore only ever be reached from a linked worktree -- and linked worktrees keep working
-    while the main checkout is bare: `status`, `commit`, `ls-files` and `rev-parse
-    --show-toplevel` in one were all exit 0. Duty cycle argues the same way and more weakly:
-    the flip appeared while nothing was committing, and the heartbeat runs hourly regardless.
-
-    `git worktree list --porcelain` is the probe rather than `git config --get core.bare`
-    because it exits 0 whether the key is true, false or absent -- an unset key exits 1, which
-    is a third value to get wrong -- and because it prints the main checkout's PATH, so the
-    refusal names the directory to repair rather than the directory it was run from.
-
-    It fires from a linked worktree too, which is the case a naive probe misses: asked there,
-    `git rev-parse --is-bare-repository` answers `false` about the worktree while the main
-    checkout is bare.
+    printed nothing, so no hook runs at all in a main checkout that is not a work tree. A hook
+    guard would therefore only ever be reached from a linked worktree, where the state is
+    invisible. Duty cycle argues the same way and more weakly: the flip appeared while nothing
+    was committing, and the heartbeat runs hourly regardless.
     """
-    path, bare = _main_checkout()
-    if not bare:
+    path = _main_checkout_path()
+    probe = subprocess.run(["git", "-C", path, "rev-parse", "--is-inside-work-tree"],
+                           capture_output=True, text=True)
+    if probe.returncode == 0 and probe.stdout.strip() == "true":
         return
+
+    # REPORTED AS FACTS, not branched on. Which of these is the cause decides only which
+    # repair is printed; the refusal itself is the same one, so there is no second path
+    # through here to get wrong. `directory exists` is in the census because a main checkout
+    # that has been moved or deleted reaches this with both keys unreadable.
+    bare = _config(path, "core.bare")
+    worktree = _config(path, "core.worktree")
+    exists = "yes" if Path(path).is_dir() else "NO"
+    if bare == "true":
+        repair = f"git -C {path} config core.bare false"
+    elif worktree != "<unset>":
+        repair = f"git -C {path} config --unset core.worktree"
+    else:
+        repair = (f"read {path}/.git/config -- neither `core.bare` nor `core.worktree` "
+                  "explains this, so the repair is not one this check can name")
     raise SystemExit(
         "heartbeat: THE MAIN CHECKOUT IS NOT A WORK TREE.\n"
         f"\n    {path}\n\n"
-        "is listed `bare` by `git worktree list`, which means `core.bare` is true in its "
-        "`.git/config`.\nEvery git command run there fails with `fatal: this operation must "
-        "be run in a work tree`,\nwhile every working file is present and unchanged -- so "
-        "nothing but git reports it, and\nlinked worktrees go on working, which is why no "
-        "agent will notice.\n"
+        "`git rev-parse --is-inside-work-tree` answers "
+        f"{(probe.stdout.strip() or probe.stderr.strip())!r} there.\n"
+        "Every git command run in it fails with `fatal: this operation must be run in a work "
+        "tree`,\nwhile every working file is present and unchanged -- so nothing but git "
+        "reports it, and\nlinked worktrees go on working, which is why no agent will notice.\n"
+        "\nWhat that address says for itself:\n"
+        f"\n    directory exists = {exists}\n    core.bare        = {bare}\n"
+        f"    core.worktree    = {worktree}\n"
         "\nRepair, one line:\n"
-        f"\n    git -C {path} config core.bare false\n"
+        f"\n    {repair}\n"
         "\nNo count is reported: they would be counts of a checkout nobody can commit to or "
         "merge into."
     )
-
 
 
 def _tracked_files() -> list[Path]:
