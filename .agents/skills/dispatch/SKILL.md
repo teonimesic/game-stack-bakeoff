@@ -189,6 +189,16 @@ with the 2 PR numbers in it.
 died, so that head was never reviewed whatever summary comment sits at it. Treat the pull request
 as unreviewed rather than as reviewed-clean.
 
+**Do not read the `CodeRabbit` row of `gh pr checks` as an answer to any of this.** It says `pass`
+whether a round completed, was rate-limited or was paused; on 2026-08-27 one read `pass` /
+`Review completed` at a head where no round had finished. `mergeable.py` prints a **REVIEW STATE**
+block — the row's description verbatim, and which head the reviewer last wrote at against the head
+you are about to merge — and it is reported, never gated, because the merge recipe below ends by
+merging `main` into the branch and so leaves the landing head unreviewed by construction.
+`DECISIONS.md`, *A review is reported against the head it was written at, and never gated*, holds
+the three measured pull requests and the reason the description is quoted rather than matched on.
+`pr_review_state.py` is still the producer of the verdict; the block names the exact command.
+
 ### Merging
 
 **Merge through the pull request, not with a local `git merge`.** The PR is the durable record
