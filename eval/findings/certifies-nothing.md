@@ -6211,3 +6211,42 @@ which therefore answers over 68 of 69 records without saying so. Nothing is wron
 silent-exclusion channel, and that is `tasks/185`.
 
 ---
+## #201 - a filter written before a population existed excluded it silently and reported clean
+
+`capability.py`'s four-arm gate asks whether any declared field is missing in a stack-correlated way.
+Its trial-id pattern was `^(g\d+_[a-z0-9]+)__([a-z]+)__t(\d+)$`, written when every submission was a
+game. Scenes arrived on 2026-08-25 with ids like `s1_parallax__ts__t0`, which the pattern does not
+match, so `parse_trial` returned `('?','?')` for the one stored scene.
+
+The consequences compound quietly. Every per-stack partition dropped it into a `?` row of `n=1` beside
+the four arms, in all 9 field tables. `no_stack_correlated_gap` and `stack_skew_warnings` both filter
+on the declared arms, so its fields were **never asked the question the gate exists to ask**. And the
+gate then printed `no stack-correlated gap in any declared field` - **true of the 68 records it
+looked at, and silent about the 69th.**
+
+> **Not wrong. Answering a narrower question than the one it printed.** Nothing was miscomputed; the
+> population was quietly smaller than the sentence implied, and no consistency check can find that,
+> because the gate agrees with itself perfectly over whatever it was handed.
+
+This is the enumeration failure `AGENTS.md`'s rule audit describes, in a **regex** rather than a
+sentence, and with the sharpest possible timing: the pattern was not wrong when written - it was
+exhaustive over every population that existed. It became an enumeration the day a second task class
+was added, and it failed on exactly the class that did not exist when it was authored.
+
+> **The repair that generalises is not "widen the pattern".** A wider pattern is the same enumeration
+> one class later. It is **"a gate prints the population it asked and what it left out"** - the report
+> now opens `69 stored submissions (68 game, 1 scene)` and closes `GATE POPULATION: the four-arm gate
+> is asked of the 68 'game' submissions; 1 'scene' record excluded`. A reader can now see the
+> denominator without knowing the regex.
+
+Both halves were done, and each alone leaves the other standing: parsing without partitioning pools a
+scene into the `ts` arm's min/median/max, and partitioning without parsing leaves the record in a `?`
+row nothing reads.
+
+**What the `?` row was hiding, found only because it was opened:** `capture.cpu_seconds` and
+`capture.peak_rss_mb` are populated on the scene record and on **0 of 68** game records - rusage
+capture landed after every game run and before the scene run. Uniform within each `(run, class)` cell,
+so not a gate failure; but it is a real per-field discontinuity that sat in a row nobody read. **The
+excluded population is where the evidence about the exclusion lives.**
+
+---

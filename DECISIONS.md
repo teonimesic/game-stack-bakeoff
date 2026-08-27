@@ -1443,12 +1443,29 @@ performance fields. Rejected, and the reason generalises past this case:
 
 Two consequences that made the choice cheap as well as right: no starter changes, so this is **not
 a regime boundary** and every stored run stays in the comparison; and four of the nine fields turn
-out to have been recorded on all 68 stored submissions already, unread (#97).
+out to have been recorded on every stored submission already, unread (#97).
+
+**The corpus the module sweeps is stated once, by the module.** `python3 eval/judge/capability.py
+--runs eval/runs` opens with its own count and its classes — read 2026-08-27, **69 stored
+submissions, 68 game and 1 scene**.
 
 `judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
 `no_stack_correlated_gap()`, which fails if a declared field is ever absent for any reason other
 than the submission's own capture failing. `judge/capability_selftest.py` carries its mutant and
 its variant.
+
+**The four-arm half of that gate is asked of the game submissions only, and the module prints the
+population it asked and the records it left out.** Four arms is a property of the game matrix;
+the scene class has been built on one arm, so demanding four of it would report the state of the
+corpus as a defect. Everything else the gate asks — an unexplained null, a record whose class the
+module cannot name, a field populated on some arms and never captured on another — is asked of
+every record, and each per-arm comparison happens inside one **(run, task class)** cell so that a
+run launching both classes cannot let one population cover for a gap in the other.
+
+**A record excluded from a claim must still be visible.** `TRIAL_RE` accepts both class letters, so
+every stored submission parses to its game and its arm and none can fall into a `?` row that every
+per-stack partition drops. The report names the population the gate asked, and the records it left
+out, in the same breath as its verdict.
 
 **No frametime and no fps field, at any point.** The four arms do not render the judged frames on
 comparable hardware: Rust, Unity and Godot draw on the M3 Max, the TypeScript arm draws on
