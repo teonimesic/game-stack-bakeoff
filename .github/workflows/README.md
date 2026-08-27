@@ -51,7 +51,8 @@ no document corpus: it kills a child mid-plant in a throwaway git repository and
 the working tree survives.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
-`aim_contract_control`, `scene_mutants` and its `--census-selftest`, `scene_runner_control`,
+`aim_contract_control`, `scene_mutants` with its `--census-selftest` and
+`--reliability-selftest`, `scene_runner_control`,
 `tasks_mutants`, `audio_selftest`, `rusage_selftest`, `skill_layout_control`.
 `scene_runner_control` is the runner's half of the scene question. It names 6 routes from an
 operator's command to a grading instrument or a judge pack and drives each one. Every group of

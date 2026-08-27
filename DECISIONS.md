@@ -2691,10 +2691,13 @@ failure being repaired — one very strong edge dominating a sum — and it is 9
 doing nothing. *Choose between candidates on the live-corpus count, never on which one sounds
 more principled.*
 
-So the estimator stands and 2 gates absorb its error: a band is measured only when its own
-drawn-to-reported ratio agrees with itself on 80% of its pairs, and a wrap crossing measured at
-zero displacement while the band's own model predicts a large one is counted as unreadable rather
-than as a jump. **The shipped estimator misses 8 of the 132 pairs in the 3 fixtures — 1 of 44 on
+So the estimator stands and 2 gates absorb its error: a band is measured only when what it drew
+agrees with what it reported on 80% of its pairs, to within `max(15% of the predicted shift, 1.5
+px)` — *A band the captured frames cannot resolve is unreadable* below holds why that floor is in
+pixels, and which pairs it is not asked of — and a wrap crossing measured at zero displacement
+while the band's own model predicts a
+large one is counted as unreadable rather than as a jump. **The shipped estimator misses 8 of the
+132 pairs in the 3 fixtures — 1 of 44 on
 the reference, 5 of 44 on the nearest-first variant, 2 of 44 on the 1.5x variant — and every one
 of the 8 is the same shape**, on the band holding a car the camera follows.
 
@@ -3004,6 +3007,49 @@ reporting in each of those ways.
 **To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
 all.
+
+## A band the captured frames cannot resolve is unreadable, and the capture stays at 12 — decided 2026-08-27
+
+A layer repeats every `span`, so a displacement of `d` and one of `d + span` draw the same picture.
+Past half a span the smallest-magnitude candidate stops being the true one, and the estimator
+returns a residue of the repeat length rather than a rate. **Such a pair is declared unreadable
+and the capture contract does not change.**
+
+**The alternative was more frames, and it cannot work, because `span` is the submission's choice.**
+Resolving the first real submission's road band — 1.66 to 2.25 spans between captures — takes more
+than 50 frames where the contract gives 12; a band repeating every 10 world units would take
+thousands. Raising the frame count is also a regime boundary against every scene trial. A contract
+cannot chase a number the subject picks, so the instrument says it did not measure.
+
+**It has to be a PRECONDITION on the pair, not a tolerance**, and that is the part a test would
+not have found. An aliased band can agree with itself perfectly: `scene_mutants.py`'s `the near
+layer repeats twice between captures` variant is a correct scene whose nearest band crosses its
+span exactly twice between captures, so `best_shift` answers 0px on 11 of 11 pairs at confidence
+0.83–0.92. Nothing downstream of that number can tell it from a real background that never moved —
+only the reported offset can — and a background reported as moving and drawn stationary is the one
+thing `layers.image_parallax` exists to catch, so it must stay readable.
+
+**In the same repair, the agreement slack moved from RATIO units into PIXELS**, which is the unit
+the estimator answers in. The proportional term is unchanged — a ratio slack of `|median| * 0.15`
+is exactly `|predicted| * 0.15` pixels — but the floor was a constant in ratio units, so in pixels
+it was `0.15 * |d_offset|` and grew without bound as a submission reported its offsets in finer
+units. On the road band that floor admitted ±60 to ±81 pixels of a ±89-pixel search window: every
+answer the estimator could return agreed with every other, and the band was called readable on 8
+of 8 pairs while its shifts ran −73px to +3px. The pixel floor is 1.5, which is the estimator's own
+quantisation and not a number fitted to a population — `best_shift` answers in whole pixels, and
+the worst pure-rounding residual measured over the 6 s1_parallax fixtures is exactly 1.00px.
+
+**The two halves are pinned separately because no one input reaches both.** A fixture that aliases
+is refused by the precondition whatever the slack does, and isolating the slack needs a scene
+reporting offsets so large that the whole search window fits inside a ratio-unit slack — a property
+of the reported units, not of any scene worth filming. So `scene_mutants.py
+--reliability-selftest` drives `_reliable` over 7 hand-written layer records whose answers are
+stated before it runs, against the shipped file and against 2 mutants of it; each mutant moves
+exactly 2 records, in both directions.
+
+**To re-open:** a submission whose bands are all inside half a span per capture and which is still
+misread — that would mean aliasing was never the property that mattered; or a measured
+pure-rounding residual above 1.5px, which would mean the floor is fitted rather than derived.
 
 ## Reversal conditions — what would re-open a decision
 

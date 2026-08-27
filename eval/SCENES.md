@@ -215,6 +215,38 @@ reported ticks, a layer that stops reporting and never resumes, and a row that d
 mutants that break a layer's reporting — a hole, a truncation, and a row with no span.
 `eval/RUNS.md` holds what the first submission measured.
 
+### A band that moves half its own span between captures is UNREADABLE, and the frames stay at 12
+
+A layer repeats every `span`, so a displacement of `d` and one of `d + span` draw the same picture
+and no estimator can tell them apart. Past half a span the smallest-magnitude candidate stops being
+the true one, and what the frames carry is a residue of the repeat length rather than a rate.
+
+**The decision is that such a band is declared unreadable, and the capture contract does not
+change.** `ParallaxScene._reliable` drops those pairs before it asks anything else, and a layer
+left with fewer than `MIN_PAIRS_PER_LAYER` is reported as unread. Where that leaves fewer than
+`MIN_LAYERS` readable bands, `layers.image_parallax` comes back `scored=False` — the experiment
+could not be set up — which is the same verdict as a light ramp no captured frame lands inside.
+
+Three things decided it, and the third is why raising the frame count is not the repair:
+
+- **A band that agrees with itself perfectly can still be aliased**, so no agreement test reaches
+  this. `scene_mutants.py`'s `the near layer repeats twice between captures` variant is a correct
+  scene whose nearest band crosses its span exactly twice between captures: every pair draws the
+  same picture, `best_shift` answers 0px on 11 of 11 at confidence 0.83–0.92, and before this the
+  probe published `0px/frame` for the fastest layer in the scene and failed a correct scene on it.
+- **Only the reported offset separates it from a real background that never moves**, and a
+  renderer that draws no scroll it reports is the one thing `layers.image_parallax` exists to
+  catch. So the aliasing test is a precondition on the pair, never a widened tolerance.
+- **`span` is the submission's own choice, so no capture rate is safe from it.** Resolving the
+  first real submission's road band — 1.66 to 2.25 spans between captures — needs more than 50
+  frames where the contract gives 12, and a submission that repeats every 10 world units would
+  need thousands. A contract cannot chase a number the subject picks; the instrument can say it
+  did not measure.
+
+**12 frames is not too few for `s1_parallax`.** It is too few for a band that repeats faster than
+the camera samples it. On the one submission graded so far that is 2 bands of 7 — the road at
+1.66–2.25 spans per pair and the verge at 0.76–0.99 — while the other 5 sit between 0.00 and 0.48.
+
 ## `s2_glass` — 3D, a glass of water that falls, breaks and un-breaks
 
 A transparent glass holds water. The water drains slowly. The glass tilts, then falls, hits the

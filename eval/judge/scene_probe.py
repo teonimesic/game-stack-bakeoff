@@ -43,7 +43,16 @@ variant, 2 of 44 on the `1.5x larger` one - and every one of the 8 is the same s
 the band holding the car: a large object that is stationary on screen offers a competing
 match at zero displacement. `ParallaxScene._reliable` and the wrap check's `blind` counter
 both name it, and `DECISIONS.md` holds the 5-candidate comparison that decided the
-estimator. Expect the rate to be worse on a submission that fills its foreground.
+estimator. Expect the rate to be worse on a submission that fills its foreground: on the
+one graded so far, at least 4 of its 5 lower bands returned the SAME whole-pixel shift at
+5 of the 11 frame pairs, and at one of those all 5 did.
+
+THE SECOND ERROR, WHICH IS NOT THE ESTIMATOR'S: a band that moves half its own span or
+more between two captures draws a picture the estimator can only read modulo that span,
+so what it returns is a residue and not a rate. It is not detectable downstream - an
+aliased band can agree with itself perfectly, at high confidence - so `_reliable` refuses
+those pairs as a PRECONDITION before it asks anything else. `eval/SCENES.md` decides that
+the capture contract does not move to accommodate it, and why.
 """
 
 from __future__ import annotations
@@ -472,14 +481,56 @@ class ParallaxScene(Scene):
     #: 3x its own mean - the textbook fix for one strong edge dominating a sum - came
     #: back 9 pairs WORSE than doing nothing.
     #:
-    #: A layer is measurable when its per-pair ratio of drawn pixels to reported offset
-    #: AGREES WITH ITSELF: at least this share of its pairs within `K_TOLERANCE` of the
-    #: layer's own median. That is a statement about repeatability, derived from the
-    #: measurements and not from the answer expected of them - a band whose estimates do
-    #: not agree with each other cannot support a conclusion drawn from one of them.
+    #: A layer is measurable when its per-pair displacement AGREES WITH ITSELF: at least
+    #: this share of its readable pairs drawing what the layer's own median ratio
+    #: predicts. That is a statement about repeatability, derived from the measurements
+    #: and not from the answer expected of them - a band whose estimates do not agree
+    #: with each other cannot support a conclusion drawn from one of them.
     #: `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
+    #:
+    #: THE COMPARISON IS IN PIXELS, which is the unit the estimator answers in. It used
+    #: to be in RATIO units - `max(abs(median) * K_TOLERANCE, K_TOLERANCE)` - and the
+    #: proportional term is unchanged by the move, because a ratio slack of
+    #: `abs(median) * K_TOLERANCE` is exactly `abs(predicted) * K_TOLERANCE` pixels. The
+    #: FLOOR is what changed, and it was the defect: a constant in ratio units is
+    #: `K_TOLERANCE * abs(d_offset)` pixels, which grows without bound as a submission
+    #: reports its offsets in finer units. On the first real scene submission the road
+    #: band moved ~450 reported units between captures, so a floor of 0.15 admitted
+    #: +/-67 pixels in a +/-89-pixel search window - every measurement the estimator was
+    #: capable of returning agreed with every other, and the band was called readable on
+    #: 8 of 8 pairs while its shifts ran -73px to +67px (`tasks/164`).
     K_AGREEMENT = 0.8
     K_TOLERANCE = 0.15
+    #: The floor, in pixels, and it is the estimator's own quantisation rather than a
+    #: number chosen against a population. `best_shift` answers in WHOLE pixels, so two
+    #: pairs of one layer whose true displacements differ by less than a pixel can still
+    #: report displacements a whole pixel apart, and the median ratio the prediction is
+    #: built from is itself one of those rounded answers.
+    #:
+    #: Measured over the 6 s1_parallax fixtures on this branch (the reference and its 5
+    #: variants; 24 layer rows, 264 frame pairs): setting aside the 8 pairs that are the
+    #: estimator's one documented miss above, the largest residual from a layer's own
+    #: median-ratio prediction is 0.78px, and EXACTLY 1.00px on the constant-speed
+    #: variant - where a true shift of 13.33px is answered 13 on 7 pairs and 14 on 4.
+    #: 1.5 leaves half a pixel over the worst pure-rounding case measured, and is 60x
+    #: below the 94px the road band's worst pair needed to survive.
+    #:
+    #: It binds only where `abs(predicted) < K_PIXEL_FLOOR / K_TOLERANCE` = 10px, and no
+    #: fixture pair is that slow, so the fixture census is unmoved by it either way.
+    K_PIXEL_FLOOR = 1.5
+    #: A PAIR THE LAYER'S OWN REPEAT LENGTH CANNOT RESOLVE IS NOT A MEASUREMENT.
+    #:
+    #: `span` is contracted as the width after which the layer repeats itself, so the
+    #: drawn displacement between two frames is only ever recoverable modulo `span`, and
+    #: a displacement and that displacement plus a span are the same picture. Half a
+    #: span is where the smallest-magnitude candidate stops being the true one - the
+    #: sampling limit, not a tuned constant - and past it the estimator returns a residue
+    #: that carries no rate at all. `eval/SCENES.md` decides that such a band is
+    #: UNREADABLE rather than wrong, and says why 12 frames is the reason.
+    #:
+    #: No fixture pair comes near it: the widest is 0.27 of a span. The first real
+    #: submission's road band crossed 1.6-2.25 spans on every one of its 11 pairs.
+    NYQUIST_SHARE = 0.5
     MIN_PAIRS_PER_LAYER = 4
     #: A layer's per-pair shift-to-offset ratio at a wrap must stay within this of its
     #: ratio away from wraps, or the loop is visibly jumping.
@@ -665,37 +716,86 @@ class ParallaxScene(Scene):
                 return row
         return {}
 
+    @staticmethod
+    def _resolvable(row: dict, share: float) -> bool:
+        """Can this frame pair's displacement be recovered from the two frames at all?
+
+        Only if the layer moved less than `share` of its own repeat length between them.
+        A layer whose `span` is missing or non-positive declares no repeat length, so
+        nothing bounds the residue and the pair is not resolvable either - one property,
+        `the layer's own span resolves this pair`, rather than two guards (`NYQUIST_SHARE`).
+        """
+        span = row.get("span")
+        d = row.get("d_offset")
+        if span is None or not math.isfinite(span) or span <= 0 or d is None:
+            return False
+        return abs(d) < span * share
+
     def _reliable(self, shifts: dict[Any, list[dict]]) -> tuple[dict[Any, dict], list]:
         """Which layers the frames can be read for, and what each one measured.
 
         See `K_AGREEMENT`. Returns `{lid: {median_shift, k, pairs, agreement}}` for the
         layers whose estimates agree with themselves, and a note per layer that did not.
 
+        TWO THINGS ARE ASKED, IN THIS ORDER, AND ONLY THE SECOND IS ABOUT AGREEMENT.
+
+        First, whether each pair is a measurement at all: a layer that moved half its
+        own span or more between two frames draws a picture the estimator can only read
+        modulo that span, so the pair is dropped and counted (`NYQUIST_SHARE`). This has
+        to come first, because a band aliased against its own tile can agree with itself
+        perfectly - the `near layer repeats exactly twice between captures` variant reads
+        0px on 11 of 11 pairs at confidence 0.83-0.92, which no agreement test can refuse.
+
+        Then, whether the pairs that survived agree: at least `K_AGREEMENT` of them
+        within `max(abs(predicted) * K_TOLERANCE, K_PIXEL_FLOOR)` PIXELS of what the
+        layer's own median ratio predicts. In pixels, because that is the unit the
+        estimator answers in and the unit its error is bounded in; the ratio-unit floor
+        this replaces grew with the layer's reported speed until it covered the whole
+        search window (`K_PIXEL_FLOOR`).
+
         A median of exactly zero is RELIABLE, not excluded: a renderer that draws a
         background it reports as moving produces zero on every pair, agreeing with
         itself perfectly, and that is the answer - excluding it would be a fail-open
-        channel round the one thing this criterion exists to catch (rule 7).
+        channel round the one thing this criterion exists to catch (rule 7). That is
+        why the aliasing test above is a PRECONDITION and not a widened tolerance:
+        the two look identical from here, and only the reported offset tells them apart.
         """
         good: dict[Any, dict] = {}
         notes: list[str] = []
         for lid, rows in shifts.items():
-            usable = [x for x in rows
-                      if x["confidence"] >= self.MIN_CONFIDENCE
-                      and x["d_offset"] not in (None, 0.0)]
+            read = [x for x in rows
+                    if x["confidence"] >= self.MIN_CONFIDENCE
+                    and x["d_offset"] not in (None, 0.0)]
+            usable = [x for x in read
+                      if self._resolvable(x, self.NYQUIST_SHARE)]
+            aliased = len(read) - len(usable)
             if len(usable) < self.MIN_PAIRS_PER_LAYER:
-                notes.append(f"layer {lid}: only {len(usable)} readable frame pairs")
+                notes.append(
+                    f"layer {lid}: only {len(usable)} readable frame pairs"
+                    + (f" ({aliased} of {len(read)} dropped: the layer moves at least "
+                       f"half its own span between those captures, so what the frames "
+                       f"show is a residue of its repeat length and not a rate)"
+                       if aliased else ""))
                 continue
             ks = [x["shift"] / x["d_offset"] for x in usable]
             med = statistics.median(ks)
-            slack = max(abs(med) * self.K_TOLERANCE, self.K_TOLERANCE)
-            agreement = sum(1 for k in ks if abs(k - med) <= slack) / len(ks)
+            agreed = 0
+            for x in usable:
+                predicted = med * x["d_offset"]
+                slack = max(abs(predicted) * self.K_TOLERANCE, self.K_PIXEL_FLOOR)
+                if abs(x["shift"] - predicted) <= slack:
+                    agreed += 1
+            agreement = agreed / len(usable)
             if agreement < self.K_AGREEMENT:
-                notes.append(f"layer {lid}: its drawn-to-reported ratio agrees with "
-                             f"itself on only {agreement:.0%} of {len(ks)} pairs")
+                notes.append(f"layer {lid}: what it drew agrees with what it reported "
+                             f"on only {agreement:.0%} of {len(usable)} pairs"
+                             + (f" ({aliased} more dropped as unresolvable against its "
+                                f"own span)" if aliased else ""))
                 continue
             good[lid] = {"median_shift": statistics.median(abs(x["shift"])
                                                            for x in usable),
-                         "k": med, "pairs": usable, "agreement": agreement}
+                         "k": med, "pairs": usable, "agreement": agreement,
+                         "aliased": aliased}
         return good, notes
 
     # -- the criteria ---------------------------------------------------- #
