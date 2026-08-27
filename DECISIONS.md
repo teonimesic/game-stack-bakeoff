@@ -3289,8 +3289,10 @@ reported ticks, a layer that stops reporting and never resumes, and a row declar
 `span`.
 
 `eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds both
-directions: a variant reporting `offset` inside its own span, and 3 mutants that break a layer's
-reporting in each of those ways.
+directions: **1 variant** reporting `offset` inside its own span, and **3 mutants, one per
+failure above** - the sky stops being reported for ticks 101-119, the same layer is gone for
+good from tick 501, and a row declares no usable `span`. Read the count from
+`python3 eval/judge/scene_mutants.py`, not from this sentence.
 
 **To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
