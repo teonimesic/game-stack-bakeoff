@@ -107,18 +107,78 @@ def is_vendored(p: str) -> bool:
     return any(v in p for v in VENDORED)
 
 
-def project_docs() -> list[str]:
-    """Every project markdown file OUTSIDE a dot-directory.
+def _tracked_md(root: str | None = None, rev: str | None = None) -> list[str]:
+    """Every markdown path IN THE TREE, relative to `root`, `/`-separated.
 
-    `glob("**")` does not descend into `.claude/`, so this list contains no `SKILL.md`.
-    That is now a PROPERTY of this helper and not a gap: the reference checks read
-    `reference_docs()` instead, and the size report and the bare-trial-id ratchet read
-    this one, because the ratchet is pinned to an exact count a larger corpus would move.
+    ONE spelling of "which files are in this repository". Three checks used to ask that
+    question three ways - a filesystem `glob`, `git ls-files`, and `git ls-tree` - and a
+    tree with two spellings has two answers (#60). The filesystem is the one that is
+    wrong: a file can sit on disk without being in the repository, and then a document
+    nobody wrote and nobody can review is an input to a gate.
+
+    RAISES rather than returning empty when git itself fails. An empty corpus is the one
+    result indistinguishable from a clean one; every caller here reports "clean over N
+    documents", and N=0 would print as a pass. `_git_at` is what makes the two
+    distinguishable - a tree that genuinely holds no markdown returns `[]` at exit 0 and
+    is the caller's business, while a failed listing stops here.
+
+    `-z`, AND IT IS LOAD-BEARING. `core.quotePath` defaults to true, so a path holding any
+    byte outside ASCII comes back C-quoted and wrapped in double quotes -
+    `"caf\\303\\251.md"` for `café.md` - and `endswith(".md")` is then False. The document
+    would leave the corpus silently, which is the same fail-open shape as the untracked
+    file entering it, one filter later. `-z` turns quoting off and separates on NUL, so a
+    name holding a newline survives too. `corpus_control.py --mutate no_nul` is the pin.
     """
+    base = ROOT if root is None else root
+    ok, out = (_git_at(base, "ls-tree", "-r", "--name-only", "-z", rev) if rev
+               else _git_at(base, "ls-files", "-z"))
+    if not ok:
+        raise RuntimeError(
+            f"git {'ls-tree ' + rev if rev else 'ls-files'} failed in {base}: {out.strip()[:200]}. "
+            f"The corpus is an input to every check in this file, and an empty one reads "
+            f"as clean.")
+    return sorted(r for r in out.split("\0") if r.endswith(".md"))
+
+
+def project_docs(root: str | None = None) -> list[str]:
+    """Every TRACKED project markdown file outside a dot-directory, as absolute paths.
+
+    Two exclusions, and they are different in kind:
+
+    `runs/` and vendored trees are stored data, filtered here by path.
+
+    Dot-directories are excluded because the skills live under them and this helper feeds
+    the size report and the bare-trial-id ratchet, which is pinned to an EXACT count a
+    larger corpus would move. The reference checks want the skills and read
+    `reference_docs()` instead. Until 2026-08-27 that exclusion was an accident of `glob`
+    not descending into a dotted name; it is now stated, so a reader can see it is a
+    choice and a mutant can remove it.
+
+    TRACKED, not "on disk". `glob` counted any markdown lying in the tree, so an untracked
+    scratch note under a gitignored directory joined a corpus the ratchet is pinned to:
+    writing `staging/task-176-note.md` took `--sweep` from 249 documents to 250 at exit 0,
+    and the same note under `staging/findings/` citing three trial ids took the ratchet
+    from 18 to 21 and failed the sweep. A file that is not in the repository must not be
+    able to move a gate that is.
+
+    The INDEX, not `HEAD`: a document written and `git add`ed is swept before it is
+    committed, which is what the pre-commit hook needs and why `.agents/skills/work`
+    tells you to stage before running the gates. A document written and never staged is
+    not in the repository yet, and this says so rather than guessing.
+
+    `root` exists for `_corpus_pins`, which drives a fixture repository through this
+    function. Everything else takes the default.
+    """
+    base = ROOT if root is None else root
     out = []
-    for p in glob.glob(os.path.join(ROOT, "**", "*.md"), recursive=True):
+    for rel in _tracked_md(root=base):
+        if any(part.startswith(".") for part in rel.split("/")):
+            continue
+        p = os.path.join(base, *rel.split("/"))
         if is_vendored(p) or f"{os.sep}runs{os.sep}" in p:
             continue
+        if not os.path.exists(p):
+            continue                      # tracked, deleted in the working tree
         out.append(p)
     return sorted(out)
 
@@ -146,8 +206,8 @@ def _all_skill_files() -> list[str]:
 def github_docs(root: str | None = None) -> list[str]:
     """Every non-vendored markdown file under `.github/`, at any depth.
 
-    `glob("**")` does not descend into a name beginning with a dot, so `.github/` is
-    invisible to `project_docs()` for exactly the reason `.claude/` was. That left
+    `project_docs()` excludes every dot-directory, so `.github/` is invisible to it for
+    exactly the reason `.claude/` is. That left
     `.github/workflows/README.md` - the register `AGENTS.md` tells every session to read
     before adding a gate, and which names dozens of this repository's own tools and flags -
     outside every reference check, passing nothing rather than passing. Measured with the
@@ -225,8 +285,8 @@ def reference_docs() -> list[str]:
 
     The skills are always-loaded instruction documents. A skill naming a flag or an aspect
     that does not exist is the exact defect this sweep was built for (#38), and until
-    2026-08-23 nothing had ever looked: `project_docs()` globs, `glob` does not descend into
-    dot-directories, and every skill lives under one.
+    2026-08-23 nothing had ever looked: `project_docs()` excludes dot-directories, and every
+    skill lives under one.
 
     `project_docs()` is deliberately NOT widened to fix that. It also feeds the size report
     and the bare-trial-id ratchet, and the ratchet is pinned to an EXACT count; a larger
@@ -306,10 +366,10 @@ GATED_DIRS = (SKILLS_REAL, "tasks")
 def gated_docs() -> list[str]:
     """Instruction documents the structure checks may hold to a format.
 
-    The skills live under DOT-directories, which `glob(**)` does not descend into, so
-    `project_docs()` has never contained a single `SKILL.md` and neither has any check
-    built on it. They are globbed explicitly here. Reading a scope off a helper whose
-    exclusions you have not checked is how a gate comes to run over 0 of its subjects.
+    The skills live under DOT-directories, which `project_docs()` excludes, so it has
+    never contained a single `SKILL.md` and neither has any check built on it. They are
+    globbed explicitly here. Reading a scope off a helper whose exclusions you have not
+    checked is how a gate comes to run over 0 of its subjects.
     """
     out = []
     for p in project_docs():
@@ -2301,6 +2361,23 @@ _HEADING_RX = re.compile(r"^##\s+#?(\d+)\s*[.—-]\s*(.*)$")
 _CITE_RX = re.compile(r"(?:#|FINDINGS?\s+#?|[Ff]inding\s+#?)(\d{2,3})\b")
 
 
+def _git_at(root: str, *args: str) -> tuple[bool, str]:
+    """git in `root`, with the exit status RETURNED rather than folded into the output.
+
+    `_git` below is the right shape for a question whose negative answer is a non-zero exit.
+    It is the wrong shape for a question whose answer is a POPULATION: a failed `ls-files`
+    and a tree with no files both come back "", and a corpus that is empty for the wrong
+    reason gets scanned clean. `_tracked_md` needs the two kept apart, so the split lives
+    here and the folding happens only where it is safe.
+    """
+    try:
+        r = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True,
+                           check=False)
+    except (OSError, ValueError) as exc:
+        return False, str(exc)
+    return r.returncode == 0, r.stdout
+
+
 def _git(*args: str) -> str:
     """git in the repository this file lives in. Empty string on failure, never a raise.
 
@@ -2310,12 +2387,8 @@ def _git(*args: str) -> str:
     reading into a crash. The exit code is read (#105); it is just read here, once, instead
     of at every call site.
     """
-    try:
-        r = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True,
-                           check=False)
-    except (OSError, ValueError):
-        return ""
-    return r.stdout if r.returncode == 0 else ""
+    ok, out = _git_at(ROOT, *args)
+    return out if ok else ""
 
 
 class _History:
@@ -2565,10 +2638,8 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
         return ([], [], f"no finding has ever been renumbered under {rev}; "
                         f"{len(current)} findings, nothing to check")
 
-    listing = (_git("ls-files") if hist.worktree
-               else _git("ls-tree", "-r", "--name-only", rev))
-    files = [f for f in listing.split("\n")
-             if f.endswith(".md") and "/runs/" not in f and not is_vendored(f)]
+    files = [f for f in _tracked_md(rev=None if hist.worktree else rev)
+             if "/runs/" not in f and not is_vendored(f)]
 
     stale: list[str] = []
     undecided: list[str] = []
@@ -2999,15 +3070,14 @@ def scan_withdrawn(entries: list[dict], corpus: dict[str, str]) -> list[str]:
 def _live_corpus(rev: str | None = None) -> tuple[dict[str, str], list[str]]:
     """({relpath: text}, problems) for every LIVE markdown document.
 
-    THE ADDRESS IS AN INPUT TO THE CHECK (#60). `git ls-files` and `ARCHIVE_PATHS` are two
-    spellings of one tree; an empty corpus is the one result indistinguishable from a clean
-    one, so it is reported rather than returned as green.
+    THE ADDRESS IS AN INPUT TO THE CHECK (#60). The tree is spelled once, in `_tracked_md`,
+    which `project_docs()` also reads - and `_corpus_pins` asserts the two agree about
+    membership rather than leaving it to a comment. An empty corpus is the one result
+    indistinguishable from a clean one, so it is reported rather than returned as green.
     """
-    listing = (_git("ls-tree", "-r", "--name-only", rev) if rev
-               else _git("ls-files"))
     corpus, problems, empty = {}, [], []
-    for rel in listing.split("\n"):
-        if not rel.endswith(".md") or is_vendored(rel) or is_archive(rel):
+    for rel in _tracked_md(rev=rev):
+        if is_vendored(rel) or is_archive(rel):
             continue
         if rev:
             # `_git` returns "" on a non-zero exit, so an unreadable blob would enter the
@@ -4201,11 +4271,59 @@ def _harness_trigger_census(docs: list[str] | None = None) -> dict:
             "wide": wide_admitted, "new_rows": sorted(new_rows)}
 
 
+def _tree_fixture(tmp: str) -> dict[str, str]:
+    """A throwaway git repository whose tracked set is known in advance.
+
+    The live tree cannot pin `project_docs()`'s TRACKED filter: it is clean, so globbing
+    the filesystem and reading the index return the same 238 documents and a mutant that
+    deletes the filter survives. The discriminating input is a repository holding markdown
+    that is NOT in it, which has to be built.
+
+    Returns the absolute paths by role so the caller states its expectation itself, rather
+    than deriving it from the subject (rule 12, task 113).
+    """
+    def write(relpath: str, text: str = "# fixture\n") -> str:
+        p = os.path.join(tmp, *relpath.split("/"))
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return p
+
+    paths = {
+        "gitignore": write(".gitignore", "staging/\n"),
+        "tracked_top": write("doc.md"),
+        "tracked_nested": write("sub/nested.md"),
+        # A VARIANT, not a mutant (rule 15): correct input the repaired reader could
+        # mishandle. `git ls-files` C-quotes any path outside ASCII unless `-z` is passed,
+        # and a quoted name fails `endswith(".md")`. U+00F8 has no canonical decomposition,
+        # so this row cannot turn on a filesystem's unicode normalisation.
+        "tracked_unicode": write("sub/nøte.md"),
+        "tracked_dotdir": write(".dotdir/hidden.md"),
+        "tracked_runs": write("runs/stored.md"),
+        "tracked_deleted": write("gone.md"),
+        "ignored": write("staging/scratch.md"),
+        "untracked": write("loose.md"),
+    }
+    _git_at(tmp, "-c", "init.defaultBranch=main", "init", "-q")
+    # `add` respects .gitignore, which is what makes `staging/scratch.md` untracked, and
+    # `loose.md` is simply never named. No commit: `ls-files` reads the INDEX, and the
+    # gate runs against staged content for exactly that reason.
+    _git_at(tmp, "add", ".gitignore", "doc.md", "sub/nested.md", "sub/nøte.md",
+            ".dotdir/hidden.md", "runs/stored.md", "gone.md")
+    # In the index, gone from the disk. Every caller OPENS what this returns, so a path
+    # that cannot be read is a crash rather than a finding.
+    os.remove(paths["tracked_deleted"])
+    return paths
+
+
 def _corpus_pins(verbose: bool = False) -> list[str]:
     """The two corpora reach what they are meant to reach, and nothing else.
 
-    A corpus is an input to a check (#60), and this one failed silently: a dot-directory is
-    skipped by `glob`, so a document could be read by every session and by no gate.
+    A corpus is an input to a check (#60), and this one failed silently twice. A
+    dot-directory is skipped by `glob`, so a document could be read by every session and by
+    no gate. And `glob` reads the FILESYSTEM, so a scratch note under a gitignored
+    directory joined a corpus the bare-trial-id ratchet is pinned to - a file that is not in
+    the repository moving a gate that is.
 
     ASKED AS COMPLETENESS, not as one filename. Pinning only
     `.github/workflows/README.md` passes for a `github_docs()` that returns exactly that
@@ -4224,12 +4342,29 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
       NOT in `project_docs()`    that helper feeds the size report and the bare-trial-id
                                  ratchet, and the ratchet is pinned to an EXACT count a
                                  larger corpus would move in the direction that passes
+
+    THE TRACKED FILTER NEEDS A FIXTURE, not the live tree. On a clean checkout the
+    filesystem and the index hold the same documents, so a mutant deleting the filter
+    passes every live case here. `_tree_fixture` builds the repository that tells them
+    apart.
     """
     register = os.path.join(ROOT, ".github", "workflows", "README.md")
     rel = os.path.relpath(register, ROOT)
     refs = set(reference_docs())
     walked = _github_docs_by_walk()
     unswept = sorted(os.path.relpath(q, ROOT) for q in walked if q not in refs)
+
+    # THE TWO SPELLINGS OF THE TREE, COMPARED rather than promised equal. They filter
+    # differently on purpose - `project_docs()` keeps the archive and drops dot-directories
+    # and `runs/`, `_live_corpus()` does the opposite on the archive - so what is asserted
+    # is the overlap each one claims to hold, after removing exactly the deliberate
+    # differences. Comparing the raw lists would only say they are different, which is
+    # already known; this says they agree about WHICH FILES ARE IN THE REPOSITORY.
+    proj_rel = {os.path.relpath(p, ROOT).replace(os.sep, "/") for p in project_docs()}
+    live_rel = set(_live_corpus()[0])
+    proj_live = {r for r in proj_rel if not is_archive(r)}
+    live_proj = {r for r in live_rel
+                 if not any(part.startswith(".") for part in r.split("/"))}
 
     with tempfile.TemporaryDirectory() as tmp:
         # ADVERSARIAL: nested two deep, and a sibling at the top. A one-level glob, a
@@ -4263,6 +4398,30 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
         cens = _harness_trigger_census(docs=[no_harness, quiet])
         surfaced = [r for r in cens["new_rows"] if "--zzq-unresolved-tok" in r]
 
+    with tempfile.TemporaryDirectory() as tree_tmp:
+        fx = _tree_fixture(tree_tmp)
+        fx_docs = project_docs(root=tree_tmp)
+        # STATED HERE, not derived from the subject. Three documents survive every filter;
+        # each of the other four is excluded by a DIFFERENT one, so a mutant that removes
+        # any single filter reddens this row.
+        fx_want = sorted([fx["tracked_top"], fx["tracked_nested"], fx["tracked_unicode"]])
+        fx_ignored_on_disk = os.path.exists(fx["ignored"]) and os.path.exists(fx["untracked"])
+        fx_tracked = _tracked_md(root=tree_tmp)
+        # The fixture is only discriminating if the subject could have reached it. A
+        # `$TMPDIR` under a vendored name would drop every fixture document and the rows
+        # below would go red for a reason that is not the subject's fault, so say which.
+        fx_root_reachable = not is_vendored(tree_tmp + os.sep)
+
+        # An empty corpus is the one result indistinguishable from a clean one. `_git`
+        # folds a failed listing into "" and every check downstream would then report
+        # itself clean over 0 documents. A path that does not exist is the unambiguous
+        # failure: "not a repository" depends on where `$TMPDIR` happens to sit.
+        try:
+            _tracked_md(root=os.path.join(tree_tmp, "no-such-directory"))
+            raised = False
+        except RuntimeError:
+            raised = True
+
     census = _harness_trigger_census()
     reg_text = open(register, encoding="utf-8", errors="replace").read()
     reg_lines = reg_text.split("\n")
@@ -4274,6 +4433,38 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
          register in project_docs(), False),
         ("every .md under .github/ is swept, found by walking rather than by the same glob",
          unswept, []),
+        # project_docs() and _live_corpus() are two READERS of one tree. Asserted, not
+        # promised in a comment: the deliberate differences are removed and what is left
+        # must match exactly, in both directions.
+        ("project_docs() holds no live document _live_corpus() is missing",
+         sorted(proj_live - live_proj), []),
+        ("..._live_corpus() holds no non-dot document project_docs() is missing",
+         sorted(live_proj - proj_live), []),
+        ("...and that overlap is not the empty set agreeing with itself",
+         len(proj_live) > 0, True),
+        # THE TRACKED FILTER. Every row below is red under the glob this replaced.
+        ("fixture: the untracked and the gitignored .md are really on the fixture's disk",
+         fx_ignored_on_disk, True),
+        ("...and the fixture root is not itself vendored, so the subject can reach it",
+         fx_root_reachable, True),
+        ("fixture: project_docs() returns the 3 TRACKED, non-dot, non-runs, on-disk "
+         "documents and nothing else", fx_docs == fx_want, True),
+        ("variant: a tracked .md whose name is not ASCII stays in the tree - `ls-files` "
+         "C-quotes it without -z", "sub/nøte.md" in fx_tracked, True),
+        ("fixture: a path in the index but deleted from the disk is dropped, because "
+         "every caller opens what this returns",
+         "gone.md" in fx_tracked and fx["tracked_deleted"] not in fx_docs, True),
+        ("fixture: the gitignored scratch note is not in the tree at all",
+         "staging/scratch.md" in fx_tracked, False),
+        ("fixture: nor is the untracked one, which no .gitignore mentions",
+         "loose.md" in fx_tracked, False),
+        ("fixture: a TRACKED .md under a dot-directory is in the tree, and project_docs() "
+         "drops it", ".dotdir/hidden.md" in fx_tracked
+         and fx["tracked_dotdir"] not in fx_docs, True),
+        ("fixture: a TRACKED .md under runs/ is in the tree, and project_docs() drops it",
+         "runs/stored.md" in fx_tracked and fx["tracked_runs"] not in fx_docs, True),
+        ("_tracked_md RAISES on a git failure rather than returning an empty corpus",
+         raised, True),
         ("the walk found the register too - neither side is an empty set agreeing",
          register in walked, True),
         ("adversarial: a nested and a top-level .github doc, and no .txt",
@@ -4593,7 +4784,7 @@ def cmd_sweep() -> int:
     if len(bare) > LEGACY_BARE_IDS:
         problems.append(
             f"trial ids cited without a run: {len(bare)}, ratchet allows {LEGACY_BARE_IDS}. "
-            f"An id is not unique across runs (#70). Newest: {bare[-1]}")
+            f"An id is not unique across runs (#70). Last by path: {bare[-1]}")
     elif len(bare) < LEGACY_BARE_IDS:
         print(f"note: bare trial-id citations down to {len(bare)} "
               f"(ratchet {LEGACY_BARE_IDS}) - lower LEGACY_BARE_IDS in docstat.py")

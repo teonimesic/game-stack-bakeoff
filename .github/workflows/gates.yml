@@ -91,6 +91,14 @@ jobs:
       - name: fragment_control (the duplicate-fragment check, and the mutant it kills)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/fragment_control.py
+      # WHICH FILES THE SWEEP READS. `docstat --selftest` above runs the same pins, but only
+      # this names the mutants: on a clean checkout the filesystem and the index hold the
+      # same documents, so the glob this replaced passes every live row. 0.66s locally. It
+      # builds a throwaway git repository under $TMPDIR holding markdown that is NOT in it,
+      # which is the only input that separates the two.
+      - name: corpus_control (an untracked .md cannot join the swept corpus)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/corpus_control.py
 
       # ---- the queue ---------------------------------------------------------------
       - name: tasks.py check
