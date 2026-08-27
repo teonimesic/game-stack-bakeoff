@@ -262,8 +262,8 @@ plainly: at frame pair 4 all 5 of range, ridge, grove, verge and road answer −
 all have moved the same distance.
 
 The cause is not the estimator. **A declared band is not a region of the frame that belongs to one
-layer**, and on this submission it never was: subtracting every other declared band leaves 6 of the
-7 with fewer than the 10 rows a profile averages, and 5 of them with **none at all**.
+layer.** Subtracting the rows every other declared band covers leaves 6 of the 7 with fewer than
+the 10 rows a profile averages, and 5 of those 6 with none at all.
 
 | band | declared band, as frame fractions | rows of its own, of 400 |
 |---|---|---|
@@ -275,7 +275,7 @@ layer**, and on this submission it never was: subtracting every other declared b
 | verge | 0.308–0.692 | 0 of 153 |
 | road | 0.460–1.000 | 124 of 216 |
 
-Every threshold in the estimator was set against `judge/fixtures/ref_parallax`, whose four bands
+Every threshold in the estimator was set against `judge/fixtures/ref_parallax`, whose 4 bands
 **tile** the frame and overlap nowhere. That is a choice its author made, not something the
 contract asks for, and this submission — which declares its layers at their true screen extents,
 sky from the top of the frame down to the horizon and the rest drawn inside that — is the ordinary
@@ -297,7 +297,7 @@ this submission's mean ink coverage is **0.966**. So `measured_twice` came back 
 criteria designed to have both halves.
 
 **`loop.seamless` is `scored=False` under all 4 gradings, and after `tasks/164` for a reason worth
-writing down**: it needs one band that both wrapped between two captured frames and can be read
+writing down**: it needs 1 band that both wrapped between two captured frames and can be read
 there. The road wraps on **every one of the 11 captured pairs** — so it has no away-from-the-wrap
 baseline even before its pairs are dropped as unresolvable — and the 2 bands that were readable
 then, sky and clouds, never wrap at all. 12 frames over 660 ticks cannot see this scene's seam.
@@ -320,7 +320,7 @@ this trial offline from its stored frames:
 | gate | FAIL, 4 of 9 | **FAIL, 3 of 9** |
 
 **The gate verdict does not move, and that is the result rather than a disappointment.** The
-other three failures — `verify.green`, `lint.clean`, `tests.green` — are the interruption and
+other 3 failures — `verify.green`, `lint.clean`, `tests.green` — are the interruption and
 not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
 and the trial is not `completed` either way.
 

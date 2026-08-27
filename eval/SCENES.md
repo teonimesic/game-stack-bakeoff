@@ -262,7 +262,7 @@ Three things decided it, and the third is why raising the frame count is not the
 the camera samples it. On the one submission graded so far that is 2 bands of 7 — the road at
 1.66–2.25 spans per pair and the verge at 0.76–0.99 — while the other 5 sit between 0.00 and 0.48.
 
-### A band that shares every row with another band is UNATTRIBUTABLE, and the contract does not change either
+### A band with fewer than 10 rows of its own is UNATTRIBUTABLE, and the contract does not change either
 
 The rule, in order:
 
