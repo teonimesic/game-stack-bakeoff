@@ -1,8 +1,9 @@
 # Improvement loop — the evaluator
 
-`IMPROVEMENTS.md` at the repository root is the same loop for the **templates**; this file is
-the loop for the **instrument** — graders, judges, the rubric, the blinding, and the tools that
-produce the numbers.
+`IMPROVEMENTS.md` at the repository root is the same loop for the **product** — the starters and
+the task prompts. This file is the loop for the **instrument**: graders, judges, the rubric, the
+blinding, and the tools that produce the numbers. Guidance for either — the documents that say
+how it is used — belongs to whichever loop it serves.
 
 Each iteration is a hypothesis, a change, and a measurement that could have come out against it.
 The falsification criterion is written **before** the measurement runs. A reverted change is a

@@ -1,7 +1,7 @@
 ---
 name: refine
-description: "Turn a change to the evaluator, the starters, the task prompts, the rubric or the docs into an iteration - a hypothesis, a change, and a measurement that could have come out against it."
-when_to_use: "You are about to change the instrument or the product and the effect can be measured before and after - a matrix has finished and been evaluated, or a ticket or a sweep of stored artifacts sent you; an improvement iteration is ending; asked what to change next or what a run taught. Where a run's results are the evidence, run evaluate-run first. Trigger phrases: what did we learn, improve the template, what should change, next iteration, reflect on the run."
+description: "Turn a change to the instrument, the product, or the guidance for either into an iteration - a hypothesis, a change, and a measurement that could have come out against it."
+when_to_use: "Use this skill before a measurable change to the instrument, the product, or the guidance for either - a change whose effect you can measure before and after. A finished and evaluated matrix is one common occasion that supplies such a change, never a trigger on its own; a ticket or a sweep of stored artifacts is another. Also when an improvement iteration is ending, or you are asked what to change next or what a run taught. Where a run's results are the evidence, run evaluate-run first. Trigger phrases: what did we learn, improve the template, what should change, next iteration, reflect on the run."
 ---
 
 # Refining the instrument and the product
@@ -11,9 +11,11 @@ about it. This skill turns a change into an iteration.
 
 ## The trigger is a change, not an occasion
 
-The loop fires when you are about to change **the instrument** — graders, judges, the rubric,
-the blinding, the tools that produce the numbers — or **the product** (`eval/starters/*/`, the
-task prompts), and the change's effect can be measured before and after.
+The loop fires when you are about to change **the instrument** (graders, judges, the rubric, the
+blinding, the tools that produce the numbers), **the product** (`eval/starters/*/`, the task
+prompts) or **the guidance for either**, and the change's effect can be measured before and
+after. Those three name a resource, not a list of components: a new part of the instrument is
+covered the day it is written.
 
 A finished matrix is the occasion that supplies most such changes. It is not the only one: a
 ticket, a sweep of stored artifacts, or the loose end a previous iteration handed on supply the
@@ -90,8 +92,9 @@ Before changing anything:
 
 > **Hypothesis** — what you believe is wrong.
 > **Change** — what you will do about it.
-> **Prediction** — what the measurement shows if you are right, naming the measurement:
-> the next run, a re-sweep of the stored artifacts, or the control you are about to write.
+> **Prediction** — the pre-change baseline, the post-change measurement, and the comparison
+> between them that comes out one way if you are right. Name where each comes from: the next
+> run, a re-sweep of the stored artifacts, or the control you are about to write.
 > **Falsifier** — what result would mean you were wrong.
 
 Pre-register it in the relevant `IMPROVEMENTS.md`. A prediction written after the result

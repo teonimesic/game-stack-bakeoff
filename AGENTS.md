@@ -78,7 +78,7 @@ so `docstat.py --sweep` asserts the symlink exists and resolves, rather than onl
 | `run-matrix` | launching, watching, diagnosing or stopping a trial run | `eval/PROTOCOL.md` |
 | `evaluate-run` | grading a finished matrix, re-grading offline, running the judges | `eval/judge/RUBRIC.md`, `JUDGING.md` |
 | `add-game` | writing a task prompt, a play-bot criterion, or changing one | `eval/suites/wholegame_prompts.py` docstring |
-| `refine` | changing the evaluator, a starter, a prompt, a rubric or a doc — state it as a hypothesis and measure it. A finished run is the commonest occasion, not the trigger | `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md` |
+| `refine` | changing the instrument, the product, or the guidance for either, where the effect can be measured before and after. A finished run is the commonest occasion, not the trigger | `eval/IMPROVEMENTS.md`, `IMPROVEMENTS.md` |
 | `audit-docs` | after a session, or when a rule failed to prevent what it was written for | this file |
 | `tasks` | reading, claiming, closing or writing an item in the open-work queue | `tasks/` |
 | `prune` | a cleanup exploration pass — text or code that no longer earns its space | `CLEANUP-LOG.md`, this file |

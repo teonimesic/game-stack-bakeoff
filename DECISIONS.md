@@ -3007,47 +3007,45 @@ all.
 
 ## The improvement loop is triggered by a change, not by a run — decided 2026-08-27
 
-`.agents/skills/refine/SKILL.md` fired the loop on *"a matrix has finished AND been evaluated"*,
-and the file it feeds does not obey that. Read 2026-08-27 over `eval/IMPROVEMENTS.md`, the last
-**3** iterations and where each came from:
+**The trigger is the change, not the occasion.** The loop fires when the **instrument** (graders,
+judges, rubric, blinding, the tools that produce the numbers), the **product** (`eval/starters/*/`,
+the task prompts) or the **guidance for either** is about to change and the effect can be measured
+before and after. Those three name a resource rather than a list of components, so a part of the
+instrument written tomorrow is covered. A matrix finishing is the occasion that supplies most such
+changes and it is not the only one: a ticket, a sweep of stored artifacts, and a loose end handed
+on by a previous iteration each supply them, and all land in the same file under the same standard.
 
-| iteration | origin | what it measured |
+**An iteration and a finding are different records and one piece of work commonly produces both.**
+What was **observed** is a finding; what was **changed** is an iteration. Iteration 13 is the
+change; [`#95`] is the defect it repaired.
+
+**The run-only alternative was declined.** Sending every change that did not come from a run to
+`eval/FINDINGS.md` makes the record worse rather than tidier: a finding has no pre-registration,
+no falsifier and no keep-or-revert, so filing a measured change there drops exactly the parts that
+make an iteration falsifiable — and it would still leave iterations 13-15 in a file whose trigger
+excluded them. **Nothing is retro-filed either way**: the evaluator changes of 2026-08-24 and
+08-25 that have the iteration shape stay where they were recorded, because rewriting them into the
+loop would narrate a loop that did not produce them.
+
+**What the skill said, and why it was wrong.** `.agents/skills/refine/SKILL.md` fired the loop on
+*"a matrix has finished AND been evaluated"*, which excludes every iteration the file has gained
+since. `grep -c '^## Iteration ' eval/IMPROVEMENTS.md` counts **17**; the last 3, read 2026-08-27:
+
+| iteration | origin, by `git log -S'<heading>' -- eval/IMPROVEMENTS.md` | the before/after it records |
 |---|---|---|
-| 13, the pack-versus-manifest gate | `tasks/33` | 8 of 8 real submissions failing the new check before the fix, 0 of 16 after |
-| 14, blinding the extensions a file mentions | `tasks/87` | 2,083 arm-naming tokens over 84 stored packs → 0 |
-| 15, rebuilding a blind `CHANGED.txt` | the loose end iteration 14 handed on | 1,275 → 0 segments over 43 stored submissions |
+| 13, the pack-versus-manifest gate | `tasks/33` | `judge/pack_selftest.py`: 8 of 8 real submissions fail unfixed, 0 of 16 fixed |
+| 14, blinding the extensions a file mentions | `tasks/87` | `judge/blind_ext_selftest.py`: 2,083 arm-naming tokens over 84 stored packs → 0 |
+| 15, rebuilding a blind `CHANGED.txt` | the loose end iteration 14 handed on | `judge/blind_dir_selftest.py`: 1,275 → 0 segments over 43 stored submissions |
 
-All 3 were committed 2026-08-23 and **0 of the 3** was written on the documented occasion: the
-last multi-cell matrix is `wg-g4c-2026-08-21T02-26-46` (8 artifact directories) and the only
-later run records hold 1 trial each. Each measured a stored corpus offline. The root loop has the
-same shape — *each template at its own stack's best* came from `tasks/26` and a capability survey,
-with no run between.
+All 3 were committed 2026-08-23 and each measured a stored corpus offline. The last multi-cell
+matrix is `wg-g4c-2026-08-21T02-26-46`, at **8** by
+`ls eval/runs/wg-g4c-2026-08-21T02-26-46/artifacts | wc -l`; the 2 later run directories are at
+**1** by the same command. The root loop is the same shape at `grep -c '^## Iteration '
+IMPROVEMENTS.md` = **2**: *each template at its own stack's best* came from `tasks/26` and a
+capability survey, with no run between.
 
-**The trigger is the change, not the occasion.** The loop fires when the instrument (graders,
-judges, rubric, blinding, the tools that produce the numbers) or the product (`eval/starters/*/`,
-the task prompts) is about to change and the effect can be measured before and after. A matrix
-finishing is the occasion that supplies most such changes and it is not the only one — a ticket,
-a sweep of stored artifacts, and a loose end handed on by a previous iteration each supply them,
-and all land in the same file under the same standard.
-
-**The alternative was to make the loop run-only and send everything else to `eval/FINDINGS.md`.**
-It was declined because it makes the record worse, not tidier: a finding states what was
-**observed**, and it has no pre-registration, no falsifier and no keep-or-revert. Filing a
-measured change there would drop exactly the parts that make an iteration falsifiable, and it
-would still leave iterations 13-15 sitting in a file whose trigger excluded them.
-
-**The two records are not alternatives and one piece of work commonly produces both**: iteration
-13 is the change; #95 is the defect it repaired. What was observed is a finding; what was
-changed is an iteration.
-
-**Nothing is retro-filed.** The 3 evaluator changes of 2026-08-24 and 08-25 that have the
-iteration shape — excluding cross-stack-barred aspects from the pooled figure, repairing the
-grader's transcription of declared events, specifying the zero-aim contract — stay where they
-were recorded. Rewriting them into the loop would narrate a loop that did not produce them, and
-a document states what is true now rather than how it got here.
-
-The statement lives in `eval/IMPROVEMENTS.md`'s preamble, which `IMPROVEMENTS.md` at root points
-at rather than restating, and the skill and the `AGENTS.md` index row follow it.
+`eval/IMPROVEMENTS.md`'s preamble holds the statement; `IMPROVEMENTS.md` at root points at it
+rather than restating it, and the skill and the `AGENTS.md` index row follow it.
 
 ## Reversal conditions — what would re-open a decision
 
@@ -3223,3 +3221,5 @@ tokens); or a prime-agent release exposing a project-scoped context flag, which 
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
 annotating them — this file states what is true now, not how it got here.
+
+[`#95`]: eval/findings/one-arm-bias.md#95-a-judge-pack-is-a-numbering-not-a-set-so-re-evaluating-a-run-left-nine-passes-stacked-on-disk
