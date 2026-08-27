@@ -274,9 +274,10 @@ FAIL and nothing under `eval/runs/**` was rewritten** — `eval/RUNS.md`'s *`ren
 its ink ceiling* break holds both readings side by side.
 
 **What re-opens it.** Re-open this decision only if `eval/judge/ink_window_control.py` reports a
-ceiling firing that is a real defect. The frame must have rendered with no flat region, and the
-play-bot or the scene probe must condemn the submission too. The output recorded on 2026-08-27
-holds 2 ceiling firings, and neither meets that test. `eval/judge/RUBRIC.md` holds the table.
+ceiling firing that is a real defect. The frame set must contain no flat frames — every frame drew
+something — and the play-bot or the scene probe must condemn the submission too. The output
+recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that test.
+`eval/judge/RUBRIC.md` holds the table.
 
 **`task_class` stays in `BOUND_POPULATIONS` with 0 members.** It is the value a future
 class-dependent bound declares, and `assert_tier1_bounds_declared()` is what makes declaring it

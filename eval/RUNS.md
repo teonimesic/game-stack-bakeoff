@@ -277,8 +277,8 @@ not the criterion. The stored `programmatic.json` still holds the FAIL; this tab
 and the trial is not `completed` either way.
 
 **Since `tasks/168` the ceiling is gone for games as well, so this re-grade no longer depends on
-the task class.** `render.nonempty` lost its ink ceiling records what the ceiling did over the 69
-stored submissions and the offline re-grade of the one game it refused.
+the task class.** The section *`render.nonempty` lost its ink ceiling* holds what the ceiling did
+over the 69 stored submissions, and the offline re-grade of the one game it refused.
 
 **`verify.green`, `lint.clean` and `tests.green` are the interruption, not the submission.** 118
 of 119 of its own tests pass and the lint finding is `'previous' is never reassigned. Use
@@ -2541,7 +2541,7 @@ mode and `analyse_frames` counts them as `flat_frames`; the criterion fails all 
 `flat_frames` absent is a third value — a record written before this date is re-graded on the
 floor alone and says so in its evidence.
 
-Every number in both tables is a checked row in `judge/ink_window_control.py`, so the derivation
+Every number in both tables is a checked row in `eval/judge/ink_window_control.py`, so the derivation
 goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
 
 **The 68 stored game values are a continuum, not 2 populations.** The 6 highest are 0.679, 0.703,
@@ -2581,9 +2581,9 @@ are untouched. Removing a tier-1 failure can only reduce tier-1 variance, so no 
 `both_vary`.
 
 **What re-opens it.** Re-open the ceiling decision only if `eval/judge/ink_window_control.py`
-reports a ceiling firing that is a real defect. The frame must have rendered with no flat region,
-and the play-bot or the scene probe must condemn the submission too. The output recorded on
-2026-08-27 holds 2 ceiling firings, and neither meets that test.
+reports a ceiling firing that is a real defect. The frame set must contain no flat frames — every
+frame drew something — and the play-bot or the scene probe must condemn the submission too. The
+output recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that test.
 
 ## Rules
 
