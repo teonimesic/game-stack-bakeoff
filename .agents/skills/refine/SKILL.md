@@ -27,16 +27,9 @@ unadjudicated results refines against grader defects, which is how three matrice
 rankings that were withdrawn.
 
 **An iteration and a finding are different records, and one piece of work commonly produces
-both** — a repaired gate is an iteration; the defect it repaired is a finding.
-
-| record | what goes in it |
-|---|---|
-| `eval/FINDINGS.md` | what was **observed** — a defect, a null, a published number that turned out wrong. Written whether or not anything changed in response |
-| `eval/IMPROVEMENTS.md` (the instrument) · `IMPROVEMENTS.md` at root (the product) | a change you **made**, pre-registered with a falsifier, kept or reverted on the measurement |
-
-**A change to guidance is filed with the thing it governs** — a document about the graders is an
-iteration in `eval/IMPROVEMENTS.md`, one about the starters or the task prompts an iteration in
-`IMPROVEMENTS.md` at root. `eval/IMPROVEMENTS.md`'s preamble is the authority on that split.
+both** — a repaired gate is an iteration; the defect it repaired is a finding. Which of the two
+`IMPROVEMENTS.md` files a change is filed in, and what separates an iteration from a finding, is
+`eval/IMPROVEMENTS.md`'s preamble. Read it before filing rather than deciding here.
 
 Authoritative references: `eval/FINDINGS.md`, `eval/RUNS.md`, `eval/IMPROVEMENTS.md`
 (the evaluator loop), `IMPROVEMENTS.md` at root (the template loop), `DECISIONS.md`.
