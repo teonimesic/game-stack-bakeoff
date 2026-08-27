@@ -714,6 +714,16 @@ def run_trial(template: Path, task: Task, arm_name: str, arm: dict[str, Any],
     session_id = str(uuid.uuid4())
     rec["session_id"] = session_id
 
+    # THE HARNESS'S OWN STOPWATCH, and it is one of TWO clocks on this trial. `wall_s`
+    # brackets the whole call - subprocess spawn, the CLI's life, reading and parsing its
+    # stdout - while `agent.duration_ms` below is the CLI's report of its own internal
+    # run, nested inside it. `eval/tools/wallclock.py` is what reads them together, and
+    # `eval/RUNS.md` states the measured gap; a comparison across the two harnesses needs
+    # that gap because it is the only thing saying the two figures are the same quantity.
+    #
+    # `datetime.now()` IS NOT MONOTONIC and `wholegame.py` uses `time.monotonic()`. An NTP
+    # step or a DST change lands in this figure and not in that one, which is why
+    # `wallclock.py` asserts the delta never goes negative rather than only reporting it.
     t0 = dt.datetime.now()
     agent, stderr = run_agent(work, task, arm, session_id, target_dir)
     rec["wall_s"] = round((dt.datetime.now() - t0).total_seconds(), 1)

@@ -171,6 +171,52 @@ floor or range is computed.
 **Never pool this record with a game population.** It carries `game: g1_pong` because every
 record does, and it was not asked to build pong.
 
+## THE TWO CLOCKS THAT TIME A TRIAL, and they agree to a measured 1.1 s — 2026-08-27
+
+**Not a comparability break, and no figure in this file moves.** It is here because wall clock
+is a comparison metric above and nothing said what the stored figures were measuring.
+
+Every wall-clock figure in this ledger is **`wall_s`**, which both harnesses record. A second
+quantity is stored beside it — **`duration_ms`**, the agent CLI's own report of how long it ran
+— and until `tasks/186` nothing in the repository read it, so no document could say whether the
+two were the same measurement.
+
+**They are not two names for one quantity. They are two stopwatches on nested intervals, held
+by different parties:**
+
+| | who holds the stopwatch | interval | clock |
+|---|---|---|---|
+| `wall_s`, `wholegame.py` | the harness, around its own `run_agent()` | subprocess spawn, the CLI's whole life, reading its stdout, parsing it | `time.monotonic()` |
+| `wall_s`, `runner.py` | the harness, around the same call | the same span | `datetime.now()`, which an NTP step or a DST change moves under it |
+| `duration_ms` | the `claude` CLI, in its own result object | its internal run alone | the CLI's own |
+
+**The conversion, and it is measured rather than asserted.** Over **157** paired observations
+`wall_s - duration_ms/1000` is min **0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on
+none of them** — the self-report is 97.4-99.9% of the harness figure and the remainder is the
+harness's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` is the producer and
+re-derives every number in this paragraph; it **exits non-zero if a negative delta ever appears**,
+which is what a clock moving mid-trial would look like on the arm that does not use a monotonic
+one.
+
+**Which figure each suite uses after this: both use `wall_s`, exactly as before.** That the
+published figures do not move was checked rather than assumed — `duration_ms` has no reader
+outside `wallclock.py`, and never had one.
+
+**The self-report is at two addresses, which is why it looked absent from the live harness.**
+The address is an input to the check, so the producer reports which one each record used rather
+than guessing:
+
+| address | written by | records |
+|---|---|---|
+| `trials/<tid>.json` -> `agent.duration_ms` | `runner.py`, the retired spec-change suite | 71 of 71 |
+| `artifacts/<tid>/agent_result.json` -> `duration_ms` | `wholegame.py`, which stores the CLI's whole result object and lifts no duration out of it | 86 of 91 whole-game |
+
+**The 6 records with no self-report are 6 explained records, not a gap.** 4 are
+`archive-arena2d-wg-audio48`'s wedged arena trials, whose `agent_result.json` is an empty
+object; 1 is the prime-agent probe, whose CLI reports no such field at all; 1 is the scene
+trial, killed externally before any result object was written. **Every trial whose agent
+process terminated and reported carries both clocks.**
+
 ## THE FIRST SCENE EVER BUILT AND GRADED — `wg-scene-s1ts-2026-08-25`. INTERRUPTED, and NOT a submission
 
 | | |

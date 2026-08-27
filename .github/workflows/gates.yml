@@ -163,6 +163,16 @@ jobs:
       - name: cost_census_mutants (can that selftest fail?)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/cost_census_mutants.py
+      # The wall-clock reconciliation `eval/RUNS.md` quotes. Only --selftest runs here,
+      # for the same reason as cost_census: the tool itself needs eval/runs/, which is
+      # gitignored and exits 2 in any checkout. The mutant half is the producer for the
+      # count that says the selftest can fail at all.
+      - name: wallclock --selftest (the two clocks agree, pinned both ways)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/wallclock.py --selftest
+      - name: wallclock_mutants (can that selftest fail?)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/wallclock_mutants.py
       # The review poll an agent runs against its own pull request. Both halves are offline:
       # --selftest injects its own `gh` runner and its own clock, so nothing here touches the
       # network or the GitHub API. The mutant sweep is the producer for the count DECISIONS.md
