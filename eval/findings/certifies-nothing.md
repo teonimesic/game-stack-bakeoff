@@ -5982,3 +5982,46 @@ copy nothing executed. `AGENTS.md` rule 12 lists that exact shape, and it was co
 who had just cited it in the surrounding comment. It now patches `globals()`, and the mutant dies.
 
 ---
+## #191 — the ink window bounded a quantity that does not measure what was drawn, and blank frames passed it
+
+`render.nonempty` asked whether the frames contain anything by putting `mean_ink` inside
+`0.001–0.85`. The name says ink coverage. What `ink_coverage` actually computes is the share of
+pixels differing from **one** reference colour, and `analyse_frames` takes that reference from
+**frame 0's mode** — so `mean_ink` is departure from the first frame's palette, not a measure of
+how much was drawn. A screen flooded with a single colour reads **0.0**; a gradient sky reads near
+**1.0**.
+
+**The demonstration is 12 frames that each hold exactly one colour.** They have drawn nothing, and
+where `mean_ink` lands depends only on how those colours are arranged:
+
+| arrangement | `mean_ink` | the retired `0.001–0.85` |
+|---|---|---|
+| all 12 one colour | 0.0 | caught, on the floor |
+| frame 0, then 11 of another | 0.91667 | caught, above the ceiling |
+| alternating 2 colours | 0.5 | **ADMITTED** |
+| 6 of one, 6 of another | 0.5 | **ADMITTED** |
+
+**The window admitted 2 of the 3 non-zero arrangements of a blank render.** It closed one and
+looked like a guard — the shape this file exists for. `render.nonempty` now asks the question
+directly, through `png.Image.is_flat` and a `flat_frames` count, and fails all four.
+
+**The ceiling's record over the stored corpus agrees, and could not have settled it alone.** 4
+firings in 69 submissions: the 2 floor firings are true positives, and of the 2 ceiling firings
+there are **0 true positives and 2 false negatives** — a scene drawing what it was asked to draw
+(#189's subject) and `wg-g4c g4_platformer__godot__t1`, a night platformer over a gradient sky
+whose only tier-1 failure was this one and which scored **1.000** on tier 2. The 6 highest game
+values are all `g4_platformer`, and 0.85 fell in a gap of 0.0536 between two trials **of the same
+game**. Re-graded, that trial moves `FAIL 1/14` to `PASS 14/14`.
+
+> **A bound is only as good as the quantity it bounds. Before tuning a threshold, ask what the
+> number under it is a measurement OF** — `0.001–0.85` was defensible for every value it had ever
+> seen and indefensible against a quantity that does not answer the question the criterion asks.
+
+Two details that are the fail-closed direction, and worth copying: `flat_frames` **absent** is a
+third value rather than zero, so records written before 2026-08-27 are refused rather than read as
+having no flat frames; and the retired ceiling is kept as a per-row comparison in
+`ink_window_control.py`, each fixture stating in advance whether 0.85 would have caught or admitted
+it, so the table above is re-measured on real pixels rather than remembered. 0 of the 67 stored
+frame sets contain a flat frame, so nothing else moves.
+
+---
