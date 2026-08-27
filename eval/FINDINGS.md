@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#194 from building and running this evaluator. **Check whether a
+Findings #19-#195 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -270,6 +270,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **192** | a positive control that exercises half the mechanism proves half the mechanism | [certifies-nothing](findings/certifies-nothing.md) |
 | **193** | a criterion validated against a tidy fixture reports the fixture's geometry | [one-arm-bias](findings/one-arm-bias.md) |
 | **194** | a census reads stored gradings, so a criterion repair never reaches it | [certifies-nothing](findings/certifies-nothing.md) |
+| **195** | the baseline was 459 ticks from the event it was attributed to | [fail-open](findings/fail-open.md) |
 
 ---
 

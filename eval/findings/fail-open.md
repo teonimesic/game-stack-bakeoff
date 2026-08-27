@@ -842,3 +842,42 @@ all must still fail"* — one clause, naming no mechanism, and it kills the repa
 actually suggested.
 
 ---
+## #195 — the baseline was 459 ticks from the event it was attributed to
+
+`multiplier.falls` asks whether taking damage drops the multiplier back. It compared the **peak the
+killing phase reached** against the value on the `player_hit` tick — and on `ref_arena` those two
+readings are **459 idle ticks apart**: 188 ticks to raise the multiplier, then 459 more before the
+first hit lands.
+
+So the criterion attributed to *damage* any decline that happened anywhere in that gap. A game with
+**no damage link at all** passed it, because a combo timer lowered the multiplier somewhere inside
+those 459 ticks. The baseline is now the value on the tick **before** the damage, which makes the
+repair a widening in time (the damage tick and the 8 after it) and a **tightening** in what is
+compared.
+
+> **A criterion that names two events and reads a value at each has a third thing it never states:
+> the interval between them. Everything that happens in that interval is silently attributed to the
+> second event.** The gap here was not a bug anyone introduced — it is how long a competent bot
+> takes to get hit.
+
+**Its evidence string was byte-identical to a correct submission's**, which is why no amount of
+reading stored records finds it: the criterion printed a real drop and a real hit, and the sentence
+does not contain the thing that was wrong. That is #83's shape again — the record was kept and
+recorded something true and useless.
+
+**`NO_MULT_FALL` could never have found it.** A mutant removes the mechanism the check names; this
+defect needs an input the check **mishandles** — a correct-shaped game whose multiplier falls for
+the wrong reason. Rule 15, and the fourth instance now.
+
+**On the ordering question this ticket was told to answer for `tasks/166`:** `multiplier.falls`'
+windows **are** truncated by end-detection, unlike `158`'s and `160`'s, which were fixed tick
+counts. It does not re-open the ordering — both loops break on the **state flag alone**, never on a
+`game_over` event, so adding the event branch could only make them exit earlier on a game whose
+verdict is a fail either way. **That is a measured answer to a question the orchestrator had guessed
+the other way**, and the guess was recorded as a guess.
+
+The remaining hazard is left **open and bounded rather than closed**: a correct game carrying both a
+combo timer and a damage collapse, whose timer lapses inside the window. The span it could land in
+was 459 ticks; it is now 9.
+
+---
