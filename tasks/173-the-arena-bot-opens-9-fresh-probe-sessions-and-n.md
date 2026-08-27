@@ -27,3 +27,31 @@ The other 8 are `bot_arena.py` lines 357, 448, 501, 730, 860, 936, 1015 and 1066
 1200-second timeout and plays until three kinds have been met, so its budget may already
 swallow a card; the question is per session, and the answer that closes this ticket is the
 per-session number, not a single verdict about the bot.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — 158 and 160 have MERGED; you are next on bot_mutants.py
+
+This ticket was filed by 158's agent and says it is serialised behind 160 and 166. **160 merged.**
+166 is still todo and is deliberately LAST — see `tasks/166`, which carries the ordering and its
+derivation. Nothing else holds `eval/judge/bot_mutants.py` right now, so branch from `main` and
+expect no rebase.
+
+**Your baseline, re-run by the orchestrator at the merged head:** `python3 eval/judge/bot_mutants.py`
+exits 0 at **45 mutants pinned in both directions over 41 criteria, 12 variants, 0 pending, 3
+session-lock controls, 70 criteria with a recorded hazard, 0 unmet**. State the new figures after
+your change rather than assuming only your own rows moved — two tickets in a row found the summary
+line's populations had drifted.
+
+**What 158 established, since this ticket is its direct descendant.** `bot_tetris3d` had FOUR
+opening budgets, not the two its ticket named, because `_play_for_a_clear` and `_gameover_check`
+each open a *fresh* `ProbeSession` and so meet a title card from their own tick 0.
+`OPENING_BUDGET = 512` now feeds all four, with `MIDGAME_AWAIT = 60` kept separate on the
+reasoning that **a game that stops spawning mid-play is failing, not presenting itself**. That
+distinction is the one to carry: your 9 sessions are not all opening sessions, and the ticket is a
+construction rather than a measurement — nobody has driven a carded `ref_arena`. Measure before
+repairing, and if some of the 9 turn out not to need a budget, that is a result.
+
+**And from 170, which merged an hour ago and is the same module:** `multiplier.falls` compared a
+peak against a value **459 ticks** later and credited everything in between to the damage (#195).
+If your work touches a window, state what must still FAIL after the change.
