@@ -647,8 +647,9 @@ Two refinements that pattern does not cover:
     the 68 stored trials of 2026-08-23 moved **no ordering at any weight**, which sounds like a
     clean bill of health and is not. In 7 of those 10 groups tier 1 returned a **single value
     across every submission**, so the weight was inert for the reason that matters least: there
-    was nothing for it to weigh (#92). Over the corpus as it stands the sweep says the same thing
-    at 8 of 11.
+    was nothing for it to weigh (#92). Over the corpus as it stands `python3
+    eval/judge/weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` says the same
+    thing at 8 of 11.
 
     The check is free, it is offline, and it comes out either way — which is what makes it worth
     running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the

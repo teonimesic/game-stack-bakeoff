@@ -157,12 +157,13 @@ Both figures below are what the producers print **today**, over 69 stored submis
 decision was taken on the 68-submission corpus of 2026-08-23, which held every group but the
 scene; the scene added an eleventh group of one, and no verdict moved.
 
-- `eval/judge/weight_sensitivity.py --all` — **FLIPS=0** at every weight in (0,1), but **8 of 11
-  groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
+- `python3 eval/judge/weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` —
+  **FLIPS=0** at every weight in (0,1), but **8 of 11 groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
   for the reason that matters least (#92). It sweeps the *open* interval, and the gate regime is
   w1=0, so this tool cannot settle what the change does — see the next one.
-- `eval/judge/tier1_census.py` — 69 stored submissions, **8 with any tier-1 failure**, and in **0 of 11
-  groups do both tiers vary among the trials tier 2 could measure**. Comparing the two schemes
+- `python3 eval/judge/tier1_census.py --runs-root <main checkout>/eval/runs` — 69 stored
+  submissions, **8 with any tier-1 failure**, and in **0 of 11 groups do both tiers vary among the
+  trials tier 2 could measure**. Comparing the two schemes
   pairwise at w1=0: **0 orderings reversed, 3 coarsened, 8 identical** (#123).
 
 Six of those eight failures were a lint finding, three of a submission's own unit tests, or an
@@ -271,8 +272,9 @@ true positives and are counted separately — both are the #49 build failure at 
 `render.frames` reports in the same record, so the floor has never fired on a frame that was
 rendered at all.
 
-The 68 game values among those 69 — the scene is the 69th — are also a continuum rather than 2
-populations. **That split is inferred, not read**: the producer prints `task_class` read from the
+**Within the game class**, the 68 game values are also a continuum rather than 2 populations. The
+scene is the 69th and stays its own population, here as everywhere: no aggregate crosses the task
+classes. **The split is inferred, not read** — the producer prints `task_class` read from the
 record on **1** of the 69 and `_class_of`'s reading of the trial id on the other **68**, so every
 sentence here about *the game corpus* rests on the id shape. The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of them
 `g4_platformer` — the one game whose background scrolls across the whole frame — and the largest
@@ -311,12 +313,14 @@ Tier 1 becoming a gate left `overall = tier2`, and tier 2 is itself at the ceili
 accepted as a property of the current task set rather than treated as a rubric defect**, because
 both repairs available inside the rubric were measured and neither works.
 
-`eval/judge/tier2_census.py` is the producer — the analogue of `tier1_census.py`, 17 expectations
-including a positive control, a variant and three mutants. Its output **today**, over 69 stored
+`python3 eval/judge/tier2_census.py --runs-root <main checkout>/eval/runs` is the producer — the
+analogue of `tier1_census.py`, 17 expectations including a positive control, a variant and three
+mutants. Its output **today**, over 69 stored
 trials; the decision was taken on the 68-trial corpus of 2026-08-23, before the scene added an
 eleventh group of one, and no verdict moved:
 
-- **5 of 11 (run, game) groups return a single tier-2 value** across every measurable trial:
+- **5 of 11 (run, game) groups return a single tier-2 value** across every trial tier 2 could
+  measure:
   `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 — **35 of 69 trials**.
 - 12 trials failed anything; **2** were whole-trial (the #49 build failure, one fact recorded N
   times) and **10** were selective. **9 of the 10 are from `wg-matrix-2026-08-13`**; the 10th is
@@ -1000,10 +1004,9 @@ state the range in two places must instead point at the one that does.
 
 ### A corpus figure in a live document is CURRENT or DATED, and which one is a choice — decided 2026-08-27
 
-Every count of the stored corpus moves when a trial lands. The first scene took the submission
-census from 68 to 69 and the group count from 10 to 11, and 4 live documents were left restating
-68. Updating all of them is wrong, and dating all of them is wrong; **which of the two applies is
-a property of the sentence, and it has to be decided per figure.**
+Every count of the stored corpus moves when a trial lands. **Which of CURRENT and DATED a figure
+is, is a property of the sentence, and it is decided per figure** — updating every one is wrong,
+and dating every one is wrong.
 
 | the sentence is | it must | why |
 |---|---|---|
