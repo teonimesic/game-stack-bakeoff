@@ -153,25 +153,40 @@ four documents and derived in none of them; git history holds no derivation eith
 nothing to state and the question became what the tier is for. Two offline sweeps, both able to
 come out the other way, and both re-runnable:
 
-- `eval/judge/weight_sensitivity.py --all` — **FLIPS=0** at every weight in (0,1), but **7 of 10
-  groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
+Both figures below are what the producers printed **on 2026-08-27**, over 69 stored submissions;
+they are live counts, so re-run the commands rather than trusting the date. The decision was taken
+on the 68-submission corpus of 2026-08-23, which held every group but the scene; the scene added an
+eleventh group of one, and no verdict moved.
+
+- `python3 eval/judge/weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` —
+  **FLIPS=0** at every weight in (0,1), but **8 of 11 groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
   for the reason that matters least (#92). It sweeps the *open* interval, and the gate regime is
   w1=0, so this tool cannot settle what the change does — see the next one.
-- `eval/judge/tier1_census.py` — 68 stored submissions, **7 with any tier-1 failure**, and in **0 of 10
-  groups do both tiers vary among the trials tier 2 could measure**. Comparing the two schemes
-  pairwise at w1=0: **0 orderings reversed, 3 coarsened, 7 identical** (#123).
+- `python3 eval/judge/tier1_census.py --runs-root <main checkout>/eval/runs` — 69 stored
+  submissions, **8 with any tier-1 failure**, and in **0 of 11 groups do both tiers vary among the
+  trials tier 2 could measure**. Comparing the two schemes
+  pairwise at w1=0: **0 orderings reversed, 3 coarsened, 8 identical** (#123).
 
-Five of those seven failures were a lint finding, three of a submission's own unit tests, and one
-ink-coverage window, on games that all scored **1.000** on tier 2; the other two were the #49 build
-failure, whose tier-2 zero is the same fact told twice. Tier 1 is a floor test and is now reported
-as one: `gate: PASS`, or `FAIL` with the failing ids. **A gate failure does not deduct and does not
-exclude the trial** — deducting restores what was removed, excluding is a reason not to count a
+Six of those eight failures were a lint finding, three of a submission's own unit tests, or an
+ink-coverage window; the 5 games among them all scored **1.000** on tier 2, and the sixth is the
+scene, which is not a `completed` trial and is not pooled with them. The other two were the #49
+build failure, whose tier-2 zero is the same fact told twice.
+
+**The ink ceiling `tasks/168` removed fired on 2 of the 8**, and the census reads stored records,
+so it counts what tier 1 DID. Re-graded, one of the two leaves the failing set outright and the
+other keeps the 3 failures of an interrupted build; `eval/RUNS.md` holds both. Removing a tier-1
+failure can only reduce tier-1 variance, so neither re-grade can give a group a varying tier 1.
+
+Tier 1 is a floor test and is now reported as one: `gate: PASS`, or `FAIL` with the failing ids.
+**A gate failure does not deduct and does not exclude the trial** — deducting restores what was removed, excluding is a reason not to count a
 failure (rule 7). `build.compiles` and `probe.responds` are marked *blocking*, because the play-bot
 drives through `just probe` and cannot produce independent evidence without them.
 
 `RUBRIC.md` carries the full derivation and the condition that re-opens it: the census prints
 `DISCRIMINATES` the moment a tier-1 criterion with real headroom exists. **Stored scores were not
-rewritten** — 14 of 68 would move, largest 0.2273 — and the regime boundary is in `eval/RUNS.md`.
+rewritten** — 14 of the 68 submissions stored on the day the regime changed would move, largest
+0.2273; that is a count of that date's corpus, not a live one — and the regime boundary is in
+`eval/RUNS.md`.
 
 **The judge is unweighted for two independent reasons, either sufficient:**
 
@@ -245,7 +260,8 @@ Every number above is a checked row in `eval/judge/ink_window_control.py` (`MECH
 **Corroborated by what 0.85 had ever done.** The producer is `python3
 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`; its population is
 `tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on disk with 16
-superseded and held out. 4 firings:
+superseded and held out. It reports them **per class, never pooled: `game: n=68`, `scene: n=1`**.
+4 firings:
 
 | | mean ink | what it was |
 |---|---|---|
@@ -258,11 +274,14 @@ true positives and are counted separately — both are the #49 build failure at 
 `render.frames` reports in the same record, so the floor has never fired on a frame that was
 rendered at all.
 
-The 68 stored game values are also a continuum rather than 2 populations. The 6 highest are 0.679,
-0.703, 0.736, 0.772, 0.828 and 0.881, every one of them `g4_platformer` — the one game whose
-background scrolls across the whole frame — and the largest gap among those 6 is 0.0555. **0.85
-fell in a gap of 0.0536, between 2 trials of that same game**, so what it separated was a **task**
-and not a quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
+**Within the game class**, the 68 game values are also a continuum rather than 2 populations. The
+scene is the 69th and stays its own population, here as everywhere: no aggregate crosses the task
+classes. **The split is inferred, not read** — the producer prints `task_class` read from the
+record on **1** of the 69 and `_class_of`'s reading of the trial id on the other **68**, so every
+sentence here about *the game corpus* rests on the id shape. The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of them
+`g4_platformer` — the one game whose background scrolls across the whole frame — and the largest
+gap among those 6 is 0.0555. **0.85 fell in a gap of 0.0536, between 2 trials of that same game**,
+so what it separated was a **task** and not a quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
 
 **It was removed, not widened.** Widening it to admit `g4_platformer__godot__t1` would have been a
 threshold chosen from the subject that exposed it; no number on this measure means *too full*, so
@@ -296,14 +315,26 @@ Tier 1 becoming a gate left `overall = tier2`, and tier 2 is itself at the ceili
 accepted as a property of the current task set rather than treated as a rubric defect**, because
 both repairs available inside the rubric were measured and neither works.
 
-`eval/judge/tier2_census.py` is the producer — the analogue of `tier1_census.py`, 17 expectations
-including a positive control, a variant and three mutants. Over 68 stored trials:
+`python3 eval/judge/tier2_census.py --runs-root <main checkout>/eval/runs` is the producer — the
+analogue of `tier1_census.py`, 17 expectations including a positive control, a variant and three
+mutants. Its output **re-read 2026-08-27**, over 69 stored trials — **68 games and 1 scene**; the
+decision was taken on the 68-trial corpus of 2026-08-23, before the scene added an eleventh group
+of one, and no verdict moved. **Re-run it rather than trusting the date**: these are live counts,
+and the date says when they were last read, not that they are still right.
 
-- **5 of 10 (run, game) groups return a single tier-2 value** across every measurable trial:
-  `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 — **35 of 68 trials**.
-- 11 trials failed anything; **2** were whole-trial (the #49 build failure, one fact recorded N
-  times) and **9** were selective. **All 9 selective failures are from `wg-matrix-2026-08-13`.**
-  Tier 2 has not separated two submissions in any run since.
+**A `(run, game)` group is single-class by construction**, so the 11 groups are 10 game groups and
+1 scene group, nothing is compared across the boundary, and every count below can be read back to
+its class:
+
+- **5 of 11 (run, game) groups return a single tier-2 value** across every trial tier 2 could
+  measure:
+  `wg-audio` g1/g2, `wg-audio48` g1/g2, `wg-g4c` g4 — **all 5 are game groups, 35 of the 68
+  games**.
+- 12 trials failed anything; **2** were whole-trial (the #49 build failure, one fact recorded N
+  times) and **10** were selective. **9 of the 10 are from `wg-matrix-2026-08-13`**; the 10th is
+  the scene's `layers.depth_ordered`, the false negative `tasks/162` repaired, which the census
+  still counts because it reads stored records (`eval/RUNS.md` holds the re-grade). Tier 2 has not
+  separated two submissions in any run since `wg-matrix`.
 - **Promoting a withheld diagnostic cannot help.** `layer.clears`, `score.rewards_clears` and
   `stage.completes` take a single value — `False` — on all 7 group-criterion pairs where they are
   recorded, so scoring one lowers every submission in its group by the same amount and leaves the
@@ -322,8 +353,8 @@ be drawn from one at any gap, which is the same bar the within-cell result alrea
 this is a second, independent reason for it, arrived at from the tier rather than from cell
 agreement. Trials in a saturated group are still reported, still gated, and still judged.
 
-**What it costs, named.** 35 of 68 stored trials — including all 16 of `wg-audio48` and all 8 of
-`wg-g4c` — bought a certificate rather than a ranking, at trial prices in `eval/RUNS.md`. The
+**What it costs, named.** 35 of the 68 stored game trials — including all 16 of `wg-audio48` and
+all 8 of `wg-g4c`; the 1 scene is not among them — bought a certificate rather than a ranking, at trial prices in `eval/RUNS.md`. The
 fourth game is the sharpest instance: `g4_platformer` was added because *"Pong, Tetris and arena
 all tied; a game exercising different systems is the most plausible remaining route to
 discrimination"* (below), and **20 of its 20 scored criteria have never failed**. The route was
@@ -395,7 +426,7 @@ decides whether the money would buy anything. The spend itself is the operator's
 taken here.**
 
 **First, the corpus is flatter than the group count says.** Tier 2 has produced **no selective
-failure anywhere in the 68-trial corpus that survives adjudication.** `wg-matrix-2026-08-13` is
+failure anywhere in the 69-trial corpus that survives adjudication.** `wg-matrix-2026-08-13` is
 the only run where tier 2 ever separated submissions, and its 9 selective-failure trials carry
 **38 criterion-failures**: 22 are a probe that died before tick 0 (both Unity arena trials,
 detected by signature), and the other **16 are every entry in `ADJUDICATED` in
@@ -403,6 +434,11 @@ detected by signature), and the other **16 are every entry in `ADJUDICATED` in
 work. The **7 distinct criteria** involved (`ball.wall_bounce`, `move.translates`,
 `piece.stacks`, `gameover.triggers`, `determinism.replay`, `determinism.seed`, `enemies.chase`)
 are each marked `REPAIRED` in `CONSTRUCTIBLE_FAILURE` in the same file, for that reason.
+
+**The census reports 10 selective-failure trials, not 9, and the 10th does not weaken this.** It
+is the scene's `layers.depth_ordered` — a false negative `tasks/162` repaired, adjudicated the
+same way and by the same standard, and still stored as a FAIL because nothing under `eval/runs/`
+was rewritten.
 `python3 eval/judge/discrimination.py eval/runs/wg-matrix-2026-08-13T14-02-50` prints an
 **ADJUDICATED spread of 0.0000 in all three games**, against a raw 0.2308 / 0.3077 / 0.7333.
 
@@ -974,6 +1010,31 @@ finds, so N identical correct copies are N passes: an evil merge duplicated the 
 shape recurred while task 88 was in flight. The cost of the rule is that a document wanting to
 state the range in two places must instead point at the one that does.
 
+### A corpus figure in a live document is CURRENT or DATED, and which one is a choice — decided 2026-08-27
+
+A count of the stored corpus can move when a trial lands. **Classify each figure as CURRENT or
+DATED, one figure at a time.** Do not update every figure, and do not date every figure — the
+sentence decides which it is.
+
+| the sentence is | it must | why |
+|---|---|---|
+| present tense, or under a *what it reports today* heading, or introduced as a producer's output | **match the producer, re-run in the same session, and carry the date it was last read** | a reader who runs the command and gets a different number cannot tell a stale document from a broken tool. The date is provenance, not permission: a live count is still expected to match, and *"today"* means nothing in a document read later |
+| the evidence a decision was taken on, or a measurement of a fix at the moment it landed | **name its date and its population, and not be updated** | overwriting it erases the population the decision rests on, and the decision then cites evidence nobody can reconstruct |
+
+A decision entry may carry both: the *heading* dates the decision, and the evidence bullets under
+it may be re-run and marked as current, provided the entry says the corpus has moved and whether
+the verdict moved with it. *Tier 1 gates, it does not score* and *A saturated tier 2 is reported
+as a completion certificate* are both in that shape.
+
+**A census reads STORED gradings, so a criterion repair does not reach it.** `tier1_census.py`,
+`tier2_census.py` and `ink_window_control.py` all report what the instrument DID, and nothing
+under `eval/runs/` is rewritten when a criterion changes. 3 stored verdicts are currently against
+rules that no longer exist — 2 `render.nonempty` ceiling firings (`tasks/168`) and the scene's
+`layers.depth_ordered` (`tasks/162`). **A live document quoting one of them says so and points at
+`eval/RUNS.md`**, which holds the re-grades beside the as-graded records. The alternative —
+quoting the re-grade as though the producer printed it — makes the document and the tool disagree
+with no way for a reader to tell which is wrong.
+
 ### A citation of a renumbered finding is reported, never gated — decided 2026-08-23
 
 `docstat.py --renumbered` asks the one question the two above cannot: does a name still *mean* what
@@ -1076,13 +1137,16 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
 - **The rubric ceiling — MEASURED and now DECIDED on both tiers, but only one of them is fixed.**
-  Tier 1 is at the ceiling on **61 of 68 stored submissions**, and returns a *single* value across
-  every measurable trial in **7 of the 10 (run, game) groups** — the 7 failures sit in 3 groups
-  (`python3 eval/judge/tier1_census.py --runs-root <checkout>/eval/runs`, re-read 2026-08-23; #92
+  There are **11 (run, game) groups: 10 game groups and 1 scene**, and a group never holds both
+  classes. Tier 1 is at the ceiling on **61 of the 69 stored submissions** — 61 of the 68 games,
+  and 0 of the 1 scene — and its 8 failures sit in 4 of those groups. It returns a *single* value
+  across every measurable trial in **8 of the 11**
+  (`python3 eval/judge/tier1_census.py --runs-root <checkout>/eval/runs`, re-read 2026-08-27; #92
   is the narrower reading, over the 56 matrix trials that existed then). **What to do about it was
   decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not score" above, and
   #123). The ceiling did not go away; it stopped being reported as a score.
-  **Tier 2 is at the ceiling on 5 of 10 groups, 35 of 68 trials** (`python3
+  **Tier 2 is at the ceiling on 5 of 11 groups, all of them game groups, 35 of the 68 games**
+  (`python3
   eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`, same day), and it now carries the
   whole weight. That half is not fixed and will not be fixed inside the rubric: both in-rubric
   repairs were measured and neither works (#128), so a saturated group is reported as a completion
@@ -3046,7 +3110,7 @@ anything is declared. A self-test drawing its subject from the list would stop e
 `adjudicate_pending` the moment the list emptied — silently, at exit 0.
 
 **Why the defect is declared rather than repaired here.** Every one is a criterion change, and
-a criterion change is a re-scoring event over 68 graded submissions, carrying its own
+a criterion change is a re-scoring event over 69 graded submissions, carrying its own
 `tier2_census.py` before-and-after — whether or not any verdict turns out to move. Landing the
 repair inside the ticket that *found* it would bundle a measurement change into a coverage
 change, which is the multi-variable comparison rule 8 exists to prevent. So the finding lands
@@ -3257,8 +3321,8 @@ settled question is noise that makes the live ones harder to find.
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
 | The code half of the directory leak stays unrepaired | A rewrite that **stops isolating an arm per field** — a strict threshold on one pack's redaction count naming a whole arm in fewer than a third of the stored fields. Currently 6 of 9 for the arm-exclusive vocabulary and 9 of 9 for all three alternatives, against 7.1% by chance. **This row asked for a uniform per-arm density until 2026-08-23, and that was the wrong quantity**: a vocabulary-free rewrite satisfies it at 2.1x with no arm at zero and is *worse* on the per-field figure, because per-arm density is an aggregate the judge never sees. `judge/blind_dir_selftest.py --runs-root` reports both and fails if any candidate stops partitioning |
 | Deterministic tiers may not rank stacks | **`python3 eval/judge/discrimination.py <run_dir>` printing `CROSSES` for any one (run, game) group.** SIZE: the adjudicated between-stack range of tier 2 must exceed the mean within-cell difference by **at least one criterion, `1/N`** — today 0.0435 to 0.0769 depending on the game. SCOPE: **one run × one game**, never pooled (`eval/RUNS.md` bans both poolings), counting only stacks whose two trials are `completed` **and gate-green**, since tier 1 gates and a submission that does not build has no rank position. Read 2026-08-23 over the 9 stored groups: the test is **asked of 8** and **0 cross** — each of the 8 sits at range 0.0000 against a floor of 0.0000, stacks tied at the tier-2 ceiling. The 9th is **NOT ASKED**, a third value and not a pass: `wg-audio` `g2_tetris3d` has one gate-green stack, so there is nothing to compare. Only 5 of the 8 are four-way; the other 3 compare 2 or 3 stacks and say so. What would cross it is a game where the gate-green stacks are **not** all at that ceiling (tasks 65, 74). Set by task 70; the previous wording is adjudicated below the table |
-| Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 10. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
-| A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 10 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
+| Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 11. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
+| A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 11 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
 | The play-bot tier carries 1.00 | `weight_sensitivity.py` reporting **FLIPS on a group whose variance is not a confound** — it needs a second scored tier to be worth re-running for that, so this re-opens only alongside the row above |
 | No budget cap, `--max-turns 1000` | A trial **reaching 1000 turns**. The 250 limit became binding without anyone noticing (#35); the same failure at 1000 would mean the backstop has become an instruction |
 | 2 trials per cell | A stack difference landing inside the ~0.015 the design cannot separate — at which point n=2 is the constraint, not the evidence |

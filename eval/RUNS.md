@@ -454,9 +454,10 @@ which makes it easier to miss and no less disqualifying:
 - **Every `report.json` written before that date holds `overall = 0.31*tier1 + 0.69*tier2`** and
   has no `gate` and no `scoring_regime` field. Records written after carry both, and their
   `overall` is `tier2`.
-- **14 of the 68 stored trials would move** if re-scored — 5 upward by 0.0221-0.0443, 9 downward
-  by up to **0.2273** (`wg-matrix-2026-08-13`'s `g3_arena__unity__t0` and `g3_arena__unity__t1`,
-  which the constant 0.31 was cushioning).
+- **14 of the 68 trials stored on the day the regime changed would move** if re-scored — 5 upward
+  by 0.0221-0.0443, 9 downward by up to **0.2273** (`wg-matrix-2026-08-13`'s
+  `g3_arena__unity__t0` and `g3_arena__unity__t1`, which the constant 0.31 was cushioning). That
+  is a count of that date's corpus, not a live one.
   **They were not re-scored.** Nothing in `eval/runs/**` was rewritten for this change.
 - **Never average a stored `overall` with a new one.** `wholegame.py report` marks pre-gate rows
   `w` in a `regime` column and refuses to pass over a mixed run silently;
@@ -2592,11 +2593,13 @@ floor alone and says so in its evidence.
 Every number in both tables is a checked row in `eval/judge/ink_window_control.py`, so the derivation
 goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
 
-**The 68 stored game values are a continuum, not 2 populations.** The 6 highest are 0.679, 0.703,
-0.736, 0.772, 0.828 and 0.881, every one of them `g4_platformer` — the one game whose background
-scrolls across the whole frame — and the largest gap among those 6 is 0.0555. **0.85 fell in a gap
-of 0.0536, between 2 trials of that same game**, so what it separated was a **task**, not a
-quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
+**Within the game class, the 68 game values are a continuum, not 2 populations.** The scene is the
+69th stored submission and stays its own population — no aggregate crosses the task classes. The
+split is **inferred**: `ink_window_control.py` prints `task_class` read from the record on 1 of the
+69 and `_class_of`'s reading of the trial id on the other 68. The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of
+them `g4_platformer` — the one game whose background scrolls across the whole frame — and the
+largest gap among those 6 is 0.0555. **0.85 fell in a gap of 0.0536, between 2 trials of that same
+game**, so what it separated was a **task**, not a quality. The 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.
 
 **What the bounds had ever done**, from the producer, over the 69 stored submissions — the most
 recent grading of each, from 85 on disk with 16 superseded and held out:
