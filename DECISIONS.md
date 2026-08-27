@@ -1004,7 +1004,7 @@ state the range in two places must instead point at the one that does.
 
 ### A corpus figure in a live document is CURRENT or DATED, and which one is a choice — decided 2026-08-27
 
-Every count of the stored corpus moves when a trial lands. **Which of CURRENT and DATED a figure
+A count of the stored corpus can move when a trial lands. **Which of CURRENT and DATED a figure
 is, is a property of the sentence, and it is decided per figure** — updating every one is wrong,
 and dating every one is wrong.
 
