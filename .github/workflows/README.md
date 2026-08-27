@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 56 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 58 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 

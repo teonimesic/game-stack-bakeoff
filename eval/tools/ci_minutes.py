@@ -989,6 +989,17 @@ COVERAGE_RE = re.compile(
     r"`pre-push`\s+runs\s+\*\*(\d+)\*\*\s+of\s+`gates\.yml`'s\s+\*\*(\d+)\*\*\s+checks;"
     r"\s+`pre-commit`\s+runs\s+\*\*(\d+)\*\*")
 
+#: The `checks` row of the register's opening table: `gates.yml`'s count, then
+#: `controls.yml`'s.
+#:
+#: THE SAME FACT LIVES AT THREE ADDRESSES IN THIS REPOSITORY -- this row, the coverage
+#: sentence ~180 lines below it, and `_selftest`'s pin -- and until PR #63 only the last
+#: two were asserted equal. The row read 56 while both of the others read 58, which is
+#: `AGENTS.md` rule 12 inside a single document: a comment promising two copies match is
+#: not a defence, so the third copy is now asserted too.
+CHECKS_ROW_RE = re.compile(
+    r"^\|\s*checks\s*\|\s*(\d+)\b[^|]*\|\s*(\d+)\b[^|]*\|", re.M)
+
 
 def _md_cells(line: str) -> list[str] | None:
     """The cells of a markdown table row, or None if this line is not one."""
@@ -1865,6 +1876,15 @@ def _selftest() -> int:
           _live_hooks["coverage_claim"],
           (len(_live_hooks["tiers"]["pre-push"]), _cen["gates"]["gates"],
            len(_live_hooks["tiers"]["pre-commit"])))
+    # THE SUMMARY TABLE'S OWN COUNTS, which the sentence above does not cover. See
+    # CHECKS_ROW_RE: the row is a third copy of a number the other two agree on, and it
+    # was the one that drifted.
+    _row = CHECKS_ROW_RE.search(read_register())
+    check("the register's opening table states a checks row", bool(_row), True)
+    if _row:
+        check("the opening table's gate counts are the measured ones",
+              (int(_row.group(1)), int(_row.group(2))),
+              (_cen["gates"]["gates"], _cen["controls"]["gates"]))
     # THIS TOOL IS ITSELF A PRE-PUSH GATE, and every row above would stay green if it were
     # dropped from the hook and the table together -- they check each other, so agreeing on
     # an absence is agreement. Nothing else would notice: `--controls` censuses stems ending
