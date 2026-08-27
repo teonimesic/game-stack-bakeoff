@@ -2741,9 +2741,6 @@ drew something, is the case this did not anticipate. Nothing in the 67 stored se
 
 ## THE END OF A GAME BECAME ONE SIGNAL ON 2026-08-27 — a TWENTY-SEVENTH comparability break, and it moves no stored verdict
 
-**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
-sessions that could not see each other. Cite the heading, not the number.
-
 **Both sides moved, which none of the breaks above did.** The task prompt gained a paragraph and
 2 bots changed how they read a trace, and they are the same change: `state.game_over` is now the
 authoritative end signal everywhere, and the `game_over` event announces it.
