@@ -19,7 +19,7 @@ Three tiers. The building agent must see none of them.
 ```bash
 python3 judge/bot_mutants.py               # all 3, ~90s, needs `just`
 python3 judge/bot_mutants.py --hazards     # the per-criterion registry, offline
-python3 judge/bot_mutants.py --selftest    # can the registry gate go red? offline
+python3 judge/bot_mutants.py --selftest    # the gate, and rally.counts on tapes
 ```
 
 | | asks | subject |

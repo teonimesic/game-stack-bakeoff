@@ -923,3 +923,48 @@ is #194's distinction. `WR-ink-arrangement-0-91667` retires the one figure that 
 of any render.
 
 ---
+## #200 - the same evidence string read PASS under one verdict and FAIL under the other
+
+`rally.counts` asks whether the rally counter rises on **each** paddle hit. Its verdict was
+`rose_on_hit > 0`, which answers *"on at least one of them"*. A `ref_pong` whose counter takes only
+the left paddle's returns **PASSED**, and the evidence it printed was
+`rally rose on 3 of 6 paddle_hit ticks`.
+
+> **The criterion printed the number that condemns the game beside a verdict that cleared it.** The
+> measurement was right the whole time; only the comparison was wrong. Reverting the repair
+> reproduces it exactly - *"expected FAIL rally rose on 3 of 6 paddle_hit ticks, got PASS rally rose
+> on 3 of 6 paddle_hit ticks"*. Byte-identical evidence, opposite verdict.
+
+That is the third instance of this shape in one week - `fire.rate_limited` printed the right bullet
+count beside a verdict computed from the wrong one (#190), and `multiplier.falls` printed a real drop
+and a real hit while attributing 459 ticks of decay to the wrong cause (#195). **A stored evidence
+string is not a check on the verdict beside it, and reading one to audit the other is reading the
+same half twice.**
+
+`paddle.deflects` - computed in the **same loop over the same hits** - was already all-or-nothing. So
+the defect was visible from ten lines away, in a file where the correct form sat adjacent, for as
+long as the criterion has existed.
+
+**The one-tick question was decided from the contract, and its two precedents point opposite ways.**
+`tasks/159` declined a one-tick reading for this very criterion; `tasks/170` repaired one for
+`multiplier.falls` a day later (#195). Neither is a house rule to inherit. g1 **defines** rally as the
+number of consecutive paddle hits since the last point - a count of the very events the trace line
+carries - so a skipped hit makes a line publish a rally its own event history contradicts. That is
+159's case, and it is the contract that says so rather than the precedent.
+
+**The floor was argued at one countable hit, not six.** A reviewer proposed requiring 6 hits; that
+fails a correct game for a short rally, which is #46's shape, and it was declined with the
+measurement. `countable > 0` is required so that excluding a hit tick which also carries the point
+cannot swallow the criterion whole (rule 7).
+
+**What could not be established, and is recorded rather than guessed:** whether any stored grading
+would flip. All 50 stored evidence strings read `rally counter incremented on paddle hits (6 hits
+seen)`, and `grep -rl "rally rose on" eval/runs/` returns 0 files - `rose_on_hit` was never recorded,
+so only re-driving those submissions could answer it. Logged as a comparability break.
+
+A smaller trap from the same work, worth carrying: **a mutant that degenerates into an existing
+mutant's shape pins nothing.** The literal *"moves once and stops"* mutant reads `0 of 33` and is red
+under *both* verdicts, because `_rally` shares its session with the wall-bounce drive. Only the
+evidence string revealed that the mutant was not testing what its name claimed.
+
+---

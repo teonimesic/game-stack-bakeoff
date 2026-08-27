@@ -1,11 +1,12 @@
 ---
 id: 179
 title: The findings-count check is bound to one phrasing, and a count 28 short survived beside its own producer
-status: in_review
+status: in_testing
 priority: 2
 refs: eval/tools/docstat.py,README.md,AGENTS.md,tasks/177
 done_when: 'Every place a live document states how many findings there are is reconciled against `docstat.py --findings`, not only those phrased ''N numbered findings''. The trigger is chosen the way the census-trigger section of DECISIONS.md requires: candidates measured against the live corpus and selected on false positives, with the count of red lines and the number of shipped pins each candidate gets wrong both recorded - the quantifier-based trigger that section rejected is the obvious wrong answer here too. Pinned red and green, with the ''entries'' phrasing among the pins. A null result is acceptable and closes this: if no closed-class trigger beats the current enumeration on the live corpus, extend the enumeration to cover ''entries'', say so with the numbers, and note that the next unlisted wording will fail the same way.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/58
+established_by: 'docstat --count-triggers is the producer for the candidate table; shipped trigger 0 red / 0 of 19 pins wrong against the quantifier''s 13 red; 21 controls 0 failed, 9 mutants 0 survived; PR #58, 3 review rounds, reviewer rate-limited at the final head'
 ---
 
 Found while clearing review on PR #46 on 2026-08-27.
@@ -116,3 +117,71 @@ Round 4 never started. `gh pr checks` reads `CodeRabbit — pass — Review rate
 minutes of polling at the final head returned `NOT_YET` with no round ever in flight. 3 rounds
 ran; every comment in all 3 was acted on or answered with evidence in its thread. The head
 CI `gates` job is green.
+
+## note 2026-08-27
+
+## note 2026-08-27 (agent) — correction to the handback note above, and the final state
+
+The section above said "3 rounds ran ... the head CI `gates` job is green" and gave the control
+count as of round 3. Two things changed after it was written, and this replaces those figures:
+
+- A 4th commit landed, `86bd391`, registering `docstat --count-triggers` in
+  `.github/workflows/README.md` as a gate deliberately left out. `AGENTS.md` requires the
+  register to name every gate excluded with the reason, and a producer that gates nothing is
+  one — its rejected-candidate rows are meant to be non-zero, so gating on them would gate the
+  wrong sign.
+- `findings_control.py` is **21 controls, 0 failed**; `--all-mutants` **9 mutants, 0 survived**.
+
+**The last head CodeRabbit reviewed is `bee8160`.** `6a37e30` (round 3's own repairs) and
+`86bd391` are unreviewed, and the reason is the reviewer's allowance, not a clean round:
+`gh pr checks` reads `CodeRabbit — pass — Review rate limited`, polling at the final head
+returns `NOT_YET` with no round ever in flight, and one `@coderabbitai review` request did not
+start one. The round budget was not restarted, because the pool is shared. This is stated in a
+comment on the pull request as well as here.
+
+**Every gate re-read at the final tree, unpiped, all exit 0**: `docstat --sweep`, `--selftest`,
+`--findings`, `--count-triggers`, `--withdrawn`, `--renumbered`, `--citations`;
+`findings_control.py` and `--all-mutants`; `withdrawn_control`, `corpus_control`,
+`fragment_control`, `triage_control`, `integrity_census --windows`, `ci_minutes --selftest`,
+`tasks.py check`, `linkcheck`. CI `gates` green at `86bd391`; CI `controls` was still running.
+
+## note 2026-08-27
+
+## note 2026-08-27 (agent) — the branch was merged with `main` by someone else, and the merged head is verified
+
+`3ab6ab9 Merge branch 'main' into task-179-findings-count-trigger` was pushed to this branch
+after the handback. `pr_review_state.py` refused with **`STALE HEAD`** at exit 1 rather than
+polling — the head was `3ab6ab9` where `86bd391` was expected — which is the guard working as
+`tasks/127` intended: the poll would otherwise have answered about a head nobody had verified.
+
+**The merge is what this work most needed to be tested against, and it passes.** `main` brought
+finding **#199**, moving the log from 180 to 181, so both of `README.md`'s count statements had to
+move — the gated `181 numbered findings` on line 315 **and the `181 entries` on line 187 that
+this task's trigger is the only thing that can see.** Both are correct at the merged head and
+`--findings` is exit 0 over 58 documents.
+
+Re-read at `3ab6ab9`, unpiped, all exit 0: `docstat --sweep`, `--selftest`, `--findings`,
+`--count-triggers`, `--withdrawn`, `--renumbered`, `--citations`; `findings_control.py` and
+`--all-mutants`; `withdrawn_control`, `corpus_control`, `fragment_control`, `triage_control`,
+`integrity_census --windows`, `ci_minutes --selftest`, `tasks.py check`, `linkcheck`.
+
+**The candidate rows did not move across the merge** — 0 / 6 / 13 / 0 — while the count they are
+measured against did, which is the separation the producer exists to make visible. The figures in
+`DECISIONS.md` are dated 2026-08-27 and stand as written; re-run `--count-triggers` rather than
+quoting them.
+
+Nothing to push: the local branch was fast-forwarded to the merged head, and the working tree is
+clean. CI was re-triggered by the merge and was running at `3ab6ab9` when this was written.
+
+## note 2026-08-27
+
+## note 2026-08-27 (agent) — CI outcome at the merged head
+
+All checks terminal and green at `3ab6ab9`: **`gates` pass 3m14s, `controls` pass 15m59s.**
+`controls` is the long job and had not finished at the previous handback; it has now.
+
+The third row reads `CodeRabbit — pass — Review rate limited`. **That is the rate limiter, not a
+review.** The last head CodeRabbit actually read is still `bee8160`, and `3ab6ab9` is 3 commits
+past it — the round-3 repairs, the CI-register row, and the `main` merge. Anyone reading the
+checks table alone would take that row for a clean review, which is the reason it is written down
+here.
