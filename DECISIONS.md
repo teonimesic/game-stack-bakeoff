@@ -3199,25 +3199,19 @@ re-mean 25 stored `g1_pong` gradings
 (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
 criterion has never once withheld.
 
-**And it is exact in the other direction too, as of `tasks/171`: every hit the drive can read must
-be counted.** The verdict was `rose_on_hit > 0`, which answers *"on at least one of them"* to a
-criterion that asks *"on each"* — and the three facts above decide this half as well, because a
-count of the hits the lines carry is contradicted by a line whose counter skips one. Its sibling
-`paddle.deflects` was already all-or-nothing, so the two halves of one loop had been holding a
-submission to different standards. **Measured before the change**: a `ref_pong` whose counter takes
-only the left paddle's returns PASSED with `rally rose on 3 of 6 paddle_hit ticks`, and it is now
-the mutant *only one paddle's returns are counted*.
+**Every hit the drive can read must be counted, and the same three facts decide that half
+(`tasks/171`).** A count of the hits the lines carry is contradicted by a line whose counter skips
+one, exactly as it is by a line whose counter arrives late. So `rally.counts` reads all-or-nothing,
+which is the standard `paddle.deflects` holds in the same loop.
 
-**The sample floor is ONE countable hit, and that is the half worth arguing.** The tightening was
-proposed as `hits >= 6 and rose_on_hit == hits`; the floor of six is not taken, because it fails a
-correct game for producing a short rally, which is #46's shape and a false-negative channel the
-criterion has no need of. One hit is enough because the contract is per hit, and it is the floor
-`paddle.deflects` already uses. A hit tick that **also carries the point** is counted in neither
-half — the point zeroes `rally` on that same line — and the verdict requires a non-empty
-denominator, so the exclusion cannot swallow the criterion (rule 7).
+**The floor is ONE countable hit.** A higher floor fails a correct game for producing a short
+rally, which is #46's shape; the contract is per hit, so one hit measures it. **A hit tick that
+also carries the point is counted in neither half** — the point zeroes `rally` on that same line —
+and the verdict requires a non-empty denominator, so the exclusion cannot swallow the criterion
+(rule 7).
 
-**To re-open this half:** a correct submission that fails with `0 < rose_on_hit < countable` —
-a game whose counter really does skip hits and which a reader would still call correct. The
+**To re-open this half:** a correct submission that fails with `0 < rose_on_hit < countable` — a
+game whose counter really does skip hits and which a reader would still call correct. The
 comparability statement, and why no stored grading can be re-read against it, are in
 `eval/RUNS.md`.
 

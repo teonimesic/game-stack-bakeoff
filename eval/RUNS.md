@@ -2644,8 +2644,6 @@ output recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that te
 
 ## `rally.counts` BECAME ALL-OR-NOTHING ON 2026-08-27 — a TWENTY-SIXTH comparability break, and no stored verdict can be re-read against it
 
-**Check the ordinal before citing it**, as the twenty-fifth says: cite the heading, not the number.
-
 `bot_pong._rally` returned `rose_on_hit > 0` — the rally counter had to rise on **one** paddle hit
 of the drive. It now requires a rise on **every** hit the drive can read, which is the standard
 `paddle.deflects` beside it already held. The criterion's question did not change; the reading of
