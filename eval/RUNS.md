@@ -2770,12 +2770,16 @@ authoritative end signal everywhere, and the `game_over` event announces it.
 The false negative is the first row: a criterion that could not pass a correct game, which only a
 variant asks about (`AGENTS.md` rule 15). The second row is what must still fail, and does.
 
-**16 rendered prompts moved and no scene prompt did**, measured rather than reasoned:
-`python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` exited 1 against the pre-edit
-snapshot, and `git diff --name-only <the commit before> -- eval/suites/rendered/` names **16 of
-the 24** — 4 games x 4 stacks, 7 added lines each — and **0 of the 8** scene prompts, which
-render from `scene_prompts.py`'s own preamble. The snapshot is re-recorded in the same commit and
-`eval/tools/prompt_guard_control.py` is green on all 25 rows.
+**16 rendered prompts carry the paragraph and no scene prompt does**, measured rather than
+reasoned, and re-measurable at any commit without one:
+
+    grep -l 'A \*\*state field\*\* and an \*\*event\*\*' eval/suites/rendered/*.txt | wc -l   # 16
+    ls eval/suites/rendered/*.txt | wc -l                                             # 24
+
+4 games x 4 stacks. The 8 scene prompts render from `scene_prompts.py`'s own preamble and never
+reach `_probe_section()`. `python3 eval/tools/prompt_guard.py --diff eval/suites/rendered` exited
+1 against the pre-edit snapshot and named the same 16; the snapshot is re-recorded in the same
+commit and `eval/tools/prompt_guard_control.py` is green on all 25 rows.
 
 ### What it invalidates, and what it does not
 
