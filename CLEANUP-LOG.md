@@ -600,3 +600,43 @@ The disk figure came from the hourly heartbeat and was **already stale when it p
 had been removed between the measurement and the report. A number sampled from a directory that
 several processes are creating and deleting is a reading of the moment, not of the tree; the useful
 version is measured when nothing is running, which is what this pass did.
+
+## 2026-08-26 — `eval/PROTOCOL.md`, the launch document no pass had opened
+
+Chosen because it is the `run-matrix` skill's authoritative file, is named in `AGENTS.md`'s index,
+and no previous pass had read it. Both agents were holding `eval/judge/`, so the pass stayed clear
+of that.
+
+### Examined and judged sound — it is CURRENT, and the obvious suspicion was wrong
+
+The pass expected staleness: scenes became launchable on 2026-08-25 and the harness became
+selectable on 2026-08-24, and a launch document written before either would describe a narrower
+world. It does not. **`scene` appears 10 times and the harness 3**, the file was touched
+2026-08-25, and the pre-flight table carries two harness rows that did not exist two days ago —
+*"state the harness, and check the arm it is not"* and *"on a non-claude arm, let `preflight()`
+refuse"*.
+
+**The two statements about what bounds a trial agree with `DECISIONS.md`**: `--max-turns 1000`, no
+budget cap, and *"do not pass `--max-budget-usd`"* — which is #159's conclusion, correctly
+propagated into the file an operator reads before launching.
+
+### Found — a pre-flight check that cannot fire
+
+One row of that table asks the operator to **verify `--max-budget-usd` in the live driver's process
+list**. The standing configuration never passes it, and the same file says so 66 lines below. So a
+check sits in a table headed *"run every check below; each has cost trials at least once"* and
+there is nothing for it to find.
+
+**The lesson is right and its instance is stale.** Read-at-import is real and applies to
+`--max-turns 1000`, which every trial does carry. Filed as **`tasks/172`** at p3, with the trap
+named: the row **below** begins *"Same mechanism as the cap"*, so deleting this one orphans its
+antecedent — the renaming-breaks-references shape. The ticket also asks the same question of every
+other row, with *"this was the only one"* recorded as a complete answer.
+
+### Method note
+
+The pass's first two probes both came back **sound**, which is the outcome that makes a pass feel
+wasted and is worth logging as a result: *scenes are covered* and *the harness is covered* are
+facts a future reader would otherwise re-derive. The find came from the third question — not *"is
+it current?"* but *"does every instruction in it still have a referent?"* — which is a different
+test and the one that caught something.
