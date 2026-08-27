@@ -5888,3 +5888,55 @@ whether any of the 62 stored PASSes would move — that needs a live probe again
 and the ticket says so rather than implying the census covers it.
 
 ---
+
+## 187. A criterion earned its pass off its own backlog, and the evidence string cannot say whether it ever did
+
+`rally.counts` compares the rally counter across the tick that raises `paddle_hit`. A submission
+that settles counters in an end-of-tick pass fails it — the ticket's constructed case, and it was
+**declined**, because the contract settles the question: the starter guides say *"line one is tick
+0, before any"* stepping, so a line describes the state **after** its own tick, and the g1 prompt
+defines `rally` as *"the number of consecutive paddle hits since the last point was scored"*. A
+line cannot both raise `paddle_hit` and publish a rally that excludes it. The constructed fixture
+was not a correct game.
+
+**But the criterion had a fail-open channel that predates the ticket.** When two hits land on
+consecutive ticks, a *late*-settling counter still rises **on** the second hit's tick — the rise is
+the *first* hit's deferred increment. Read as this hit's own, the submission earns the pass off its
+own backlog:
+
+| tape | `origin/main` | repaired |
+|---|---|---|
+| correct, spaced / back to back | PASS | PASS 6 of 6 |
+| **late, back to back** | **PASS** | **FAIL 0 of 6, 6 late** |
+| late, spaced | FAIL | FAIL 0 of 6 |
+
+`ref_pong`'s physics cannot produce consecutive-tick hits, so no fixture in the suite could reach
+it. **CodeRabbit found it, not the suite, and a mutant could not have** — it needed a
+correct-shaped input the criterion mishandles, which is rule 15 for the fourth time this week.
+
+### The part that cannot be repaired
+
+**Whether any of the 25 stored `g1_pong` gradings passed through that channel cannot be read back**,
+because the old evidence string printed *"rally counter incremented on paddle hits"* **on both
+verdicts**. The stored records carry a boolean and a sentence that does not depend on it.
+
+> **An evidence string that reads the same whether the criterion passed or failed is not evidence —
+> it is a caption.** It costs nothing while the verdict is fresh, because the boolean is right
+> there. It costs everything afterwards: it is the difference between *"this repair may have moved
+> a stored verdict, and here is which"* and *"this repair may have moved a stored verdict, and
+> nothing on disk can say."*
+
+This is #83's rule — *capture what the instrument DID, not only what it concluded* — one layer
+below where that finding put it. There the missing capture was which files a judge opened; here it
+is which of two readings a criterion took, in a field that already existed and was already stored.
+**The record was kept and it recorded the wrong thing.**
+
+The repaired string reads differently on each verdict and separates *"settles a tick late"* from
+*"never moves"*. That is what makes the *next* such repair auditable — and it is the whole argument
+for fixing an evidence string that looks cosmetic.
+
+**Also closed:** `rally.counts` had no mutant of its own, only collateral from `ball.moves` and
+`paddle.deflects`, both of which stop the rally happening at all — so a criterion carrying weight
+was pinned by two checks that could not isolate it.
+
+---

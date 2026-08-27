@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#186 from building and running this evaluator. **Check whether a
+Findings #19-#187 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -262,6 +262,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **184** | Whether a wrapped series can be unwrapped is a property of the SAMPLING RATE — per capture impossible, per tick comfortable, same algorithm | [certifies-nothing](findings/certifies-nothing.md) |
 | **185** | A review that FAILED reported as a review that found nothing, in one second — every hole in this poll has been an artifact that exists for more than one reason | [certifies-nothing](findings/certifies-nothing.md) |
 | **186** | The repair the ticket prescribed was fail-open — an end-condition check that only idles watches a score nothing can move, and the ticket was the orchestrator's | [certifies-nothing](findings/certifies-nothing.md) |
+| **187** | A criterion earned its pass off its own backlog, and the evidence string printed the same sentence on both verdicts — so whether it ever did cannot be read back | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
