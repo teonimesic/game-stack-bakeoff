@@ -1,10 +1,11 @@
 ---
 id: 138
 title: 'eval/RUNS.md''s judge-ledger heading says the calls spend money, which is the claim #159 exists to retire'
-status: todo
+status: in_review
 priority: 3
 refs: 'eval/RUNS.md, #159, eval/tools/tokenvalue.py, eval/tools/docstat.py, tasks/128, tasks/130'
 done_when: 'The heading no longer claims the calls spend money, and every anchor or link that pointed at it still resolves (`linkcheck.py` exit 0, checked BEFORE and AFTER so the anchor move is observed rather than assumed). Plus a decision, recorded either way: whether any gate can cover a prose expenditure claim - chosen on a measured live-corpus false-positive count, with ''no trigger beats the corpus, so none was added'' being a complete and preferred answer over an open-class word list.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/62
 ---
 
 `eval/RUNS.md` heads its specialist-judge ledger *"Specialist-judge calls — a separate ledger,
