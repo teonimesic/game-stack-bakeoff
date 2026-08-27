@@ -42,3 +42,84 @@ ceiling until the platformer passes. Its own ticket says it - either a ceiling w
 a named population, or no ceiling. `tasks/164` is the worked example of doing this right: its new
 constants are derived from whole-pixel rounding, and its source states they sit 60x below what the
 failing subject would have needed, so the subject that exposed the defect still fails.
+
+## note 2026-08-27
+
+## What was decided, and the derivation that decided it
+
+**No ceiling, for any task class.** `render.nonempty` is a **floor of 0.001** plus a refusal of
+**a frame set in which every frame is a single colour**. Both halves are properties every starter
+shares, so `TIER1_BOUND_POPULATION["render.nonempty"]` moved `task_class` -> `starter`,
+`TASK_CLASS_BOUND_TABLES` is `{}`, and 0 tier-1 bounds are class-dependent.
+
+**The ceiling was not decided on the corpus.** It was decided on what `mean_ink` measures.
+`ink_coverage` counts pixels differing from **one** reference colour and `analyse_frames` takes
+that colour from **frame 0's** mode - so the quantity is departure from the first frame's mode, a
+property of the palette. A solid flood reads **0.0** and lands on the floor; what reads near 1.0
+is a gradient.
+
+**The measurement that settles it, and the review found it.** 12 frames each holding one colour
+have drawn nothing, and `mean_ink` depends only on how the colours are ARRANGED:
+
+| 12 uniform frames | mean_ink | floor-only | old 0.001-0.85 |
+|---|---|---|---|
+| all one colour | 0.0 | FAIL | FAIL |
+| frame 0, then 11 of another | 0.91667 | PASS | FAIL |
+| alternating 2 colours | 0.5 | PASS | **PASS** |
+| 6 of one, then 6 of another | 0.5 | PASS | **PASS** |
+
+`0.001-0.85` admitted **2 of the 3** non-zero arrangements. So the ceiling was never the guard
+against a blank render - it closed 1 of 3 and looked like one. `png.Image.is_flat` reads each
+frame against **its own** mode, `analyse_frames` counts them as `flat_frames`, and all 4 rows now
+FAIL. **0 of the 67 stored frame sets contain a flat frame**, worst per-set cost 0.46 s.
+
+## Numbers the next agent should not re-derive
+
+- Corpus: 85 gradings / 69 submissions. 4 `render.nonempty` failures. The 2 **floor** firings are
+  true positives (`wg-arena3d` rust cells, 0 frames). Among the 2 **ceiling** firings: **0 true
+  positives, 2 false negatives**. `task_class` is READ on 1 of 69 and INFERRED on 68.
+- Game `mean_ink`, 6 highest: 0.67885, 0.70252, 0.73621, 0.77226, 0.82777, 0.88137 - **all
+  `g4_platformer`**. Largest gap among those 6 is **0.0555**. **0.85 fell in a gap of 0.0536**,
+  between 2 trials of the same game. The 7th value down is `g3_arena__rust__t0` at **0.60285**,
+  0.076 below the 6th.
+- **The first draft of that sentence said 0.053 and "the 7 highest", and both were wrong.** Review
+  round 2 caught the first; re-deriving it from the stored records rather than re-reading the
+  prose found the second. Rule 5, and it fired against the author.
+- Re-grade: `wg-g4c g4_platformer__godot__t1` gate `FAIL 1/14` -> **`PASS 14/14`**, tier 2 1.000
+  unchanged. It is an **offline** re-grade; the stored record still holds the FAIL and nothing
+  under `eval/runs/**` was rewritten.
+- Tier-1 census today: **8 failing submissions in 69**, 2 blocking / 6 non-blocking.
+  `weight_sensitivity --all`: **8 of 11** groups single-valued. The `7 of 68` / `7 failing trials`
+  breakdown in `README.md` and root `AGENTS.md` was already stale before this ticket - the scene
+  had joined the population - and is repaired against the producers.
+
+## Traps met, so they are not met again
+
+- **`flat_frames` absent is a third value.** Every stored record predates it, so a re-grade asks
+  the floor alone and its evidence says so. Anything reading a missing count as 0 re-opens the
+  hole for the stored corpus.
+- **`mean_ink` was deliberately NOT changed to a per-frame background.** Doing so moves 8 of the
+  67 stored sets - `g3_arena__rust__t0` 0.60285 -> 0.04481, `g3_arena__ts__t0` 0.51997 -> 0.03886,
+  `g4_platformer__godot__t1` 0.88137 -> 0.67869, `g4_platformer__godot__t0` 0.67885 -> 0.78194,
+  `s1_parallax__ts__t0` 0.96561 -> 0.85042. That is **`tasks/178`**, filed with all of it.
+- **`blank` and `flood` can no longer test the floor**, because they fail on both halves. The
+  floor's subject is the new `whisper` fixture at 0.00025. A mutant aimed at the floor and checked
+  against `blank` would pass for the other reason (#37).
+- **Two different wrong-class failures, two different catchers.** `static.assert_task_class`
+  refuses an **unregistered** class before a toolchain is spent; a **registered but wrong** one -
+  a scene routed as a game - is caught by `eval/tools/scene_runner_control.py`. An earlier draft
+  called the first "the only place a wrong class can be caught", which is false.
+
+## Handed over
+
+- **A finding number is needed** and was not allocated. The claim: *the ink ceiling ran 68 game
+  gradings, separated nothing `render.frames` did not, its only independent firing was a false
+  negative, and it caught 1 of 3 arrangements of a render that drew nothing - so it was not the
+  guard it looked like.*
+- **The regime ordinal `TWENTY-FOURTH`** was hand-allocated while 2 pull requests were in flight
+  against `eval/RUNS.md`. `docstat.py --sweep`'s regime-ordinal check goes red on a collision.
+  Every cross-reference cites the heading *`render.nonempty` lost its ink ceiling*, not the number.
+- **2 review comments declined**, each answered in its thread: the `scene_runner_control` mutant
+  rows (they already assert the negation of the row they guard, written out independently), and
+  the *"check the ordinal before citing it"* sentence (it stands verbatim on the twenty-third
+  break, and ordinals here have collided).
