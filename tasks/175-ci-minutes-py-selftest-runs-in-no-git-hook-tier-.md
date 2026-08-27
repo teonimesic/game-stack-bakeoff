@@ -38,3 +38,113 @@ new census will hold you to it either way.
 
 Note `tasks/184` also wants a guard in `.githooks/run-gates.sh`. It is NOT dispatched, to avoid
 colliding with you. If your work makes 184 easy to fold in, say so rather than doing it silently.
+
+## note 2026-08-27
+
+## What landed — 2026-08-27
+
+PR #60, `task-175-ci-minutes-selftest-in-a-hook-tier`. `ci_minutes --selftest` runs in
+**`pre-push`**. `.github/workflows/README.md` is the authority for the hook table, the
+coverage sentence and the duty-cycle figure; `DECISIONS.md` for the decision.
+
+### The gap, measured before anything changed
+
+The plant is `tasks/164`'s: one step appended to `.github/workflows/controls.yml`.
+
+| | before | after |
+|---|---|---|
+| `ci_minutes.py --selftest` | exit 1, `controls.yml gate count: got 12, want 11` | exit 1 |
+| `run-gates.sh pre-commit` | exit 0 | exit 0, by design |
+| `run-gates.sh pre-push` | **exit 0** | **exit 1**, naming the gate |
+
+### Why `pre-push`, and why no timing went into the register
+
+Local wall clock, one host, unpiped: the gate is **1.78s / 1.85s**; the `pre-commit` tier is
+**3.26s / 2.95s** and its largest member (`tasks.py check`) is **1.70s**; `pre-push` went
+**18.45s → 20.41s**. So by the register's own cost rule — `pre-push` holds "the one gate that
+costs a multiple of the others" — the gate belongs in `pre-commit`.
+
+**The tier was chosen on DUTY CYCLE instead, and that is the reusable part.** Its inputs are
+the two workflows, `.githooks/run-gates.sh`, the register, the *set* of gate scripts under
+`eval/`, and the tool itself — **79** of `main`'s **678** commits touch one of those
+(2026-08-27), so 88% of commits cannot move its verdict while every one would pay. Catching
+it at push instead of commit costs an amend. The `git log` pair that re-derives that fraction
+is in the register; the extraction was proved on two rows whose answer was known in advance
+(`43d1760`, the task-164 merge, is in the set; `cf31c0d` is not).
+
+**The ticket asked for the runtime "added to the register's own cost column". There is no such
+column and there must not be** — `.github/workflows/README.md` and `DECISIONS.md` both record
+that no hook timing is published, because two readings of `pre-push` on one host minutes apart
+have differed by more than the whole `pre-commit` tier costs. The register names
+`time .githooks/run-gates.sh <tier>`; the figures live here and in the pull request.
+
+### Making it a hook gate makes the pair mutually recursive
+
+`ci_minutes --selftest` **runs the hook** as its own control — once under `GATES_LIST_ONLY`,
+once for real with `python3` shadowed by a shim. The shim was the only thing between the pair
+and unbounded recursion once the tool became a gate. Measured with the shim disabled: **8 hook
+levels in 25s and still climbing**, killed rather than finished. `run-gates.sh` now reads
+`GATES_DEPTH`, and the same mutant then **terminates in 39s at exit 1**.
+
+**A check whose failure mode is a hang reports nothing at all**, so the ceiling is what turns
+the pair back into something that can go red.
+
+Three things about that guard that the next agent should not re-derive.
+
+1. **The value is MATCHED against `unset`/`0`/`1`, never incremented.** Arithmetic on an
+   unexpected value sets the ceiling aside rather than reaching it, and does it fail-open:
+   under `/bin/sh`, `$((${GATES_DEPTH:-0} + 1))` reads `-1000` as `-999` (1002 levels allowed)
+   and reads `abc` as `0`, which **restarts the count**. The accepted set is closed because
+   this hook is the only writer.
+2. **`""` is accepted, not refused.** `${GATES_DEPTH:-0}` substitutes on empty as well as
+   unset, so an empty value *is* 0; refusing it would redden a hook whose caller merely
+   exported the name.
+3. **The ceiling is 2, not 1.** Depth 2 is what a hook-driven selftest legitimately reaches.
+   A ceiling of 1 reddens `pre-push` on every push rather than only on a broken shim, and
+   there is a variant pinning exactly that.
+
+### Two failures worth carrying out of this ticket
+
+**A control that PINS a counter also RESETS it.** The first ceiling control fixed
+`GATES_DEPTH=1` and executed the tier, so every level restored the level beneath it and the
+ceiling could never be reached — the control was the recursion engine, and it was found only
+by running the broken-shim mutant, which hung. `abc` reading as 0 is the same failure through
+a different door. The acceptance probes now list rather than execute; listing still passes
+through the ceiling, which sits above `list_only`.
+
+**Acceptance is not propagation, and only the second bounds anything.** Every depth row in
+round 1 preset `GATES_DEPTH` and read the hook's *own* answer, so it asked whether the hook
+accepts a value and never what the level *below* inherits. Two mutants a real nesting would
+recurse under — `1) depth=1` (accepted, never advanced) and `export GATES_DEPTH` deleted —
+**passed those pins at exit 0**, verified by checking out 57b28eb's `ci_minutes.py` and
+planting each. The shim now records the `GATES_DEPTH` it was invoked with, one line per gate,
+and `_depth_seen` executes the tier once per inbound value: `unset`/`""`/`0` reach `1`, `1`
+reaches `2`, `2` reaches no gate at all. Those rows execute safely because the depth is pinned
+**outside** the recursion rather than inside it — one hook, all its gates the shim, nothing
+beneath able to re-enter.
+
+### The pins, and the one that has to exist
+
+`ci_minutes --selftest` closes at **101 mutants / 63 variants** (was 94/55). Eight planted
+mutants, all DIED: `dropped`, `no_guard`, `ceiling_1`, `silent_refusal`, `arithmetic`,
+`suffix_match`, `no_advance`, `no_export`.
+
+**`dropped` is the one to understand before touching this.** The hook table and the hook check
+each other, so removing the gate from both *and* correcting the coverage sentence leaves every
+pre-existing row green — agreeing on an absence is agreement. `--controls` cannot see it
+either: it censuses stems ending `_control`/`_mutants`/`_selftest`, and `ci_minutes.py` is
+none of them. So there is one live row asserting `pre-push` names this tool, by **equality on
+the normalised command** rather than a suffix. Removing the gate is now an edit somebody has
+to make deliberately.
+
+### Not done here, deliberately
+
+`tasks/184` wants a `core.bare` guard in this same `.githooks/run-gates.sh`. It would fold in
+cleanly — the file now has a place for cheap fail-closed assertions above the gate list, and
+`GATES_DEPTH` is the pattern to copy (refuse by name, state the repair in the message). It was
+left alone so this diff stayed one ticket.
+
+No finding number is allocated. Whether the recursion measurement warrants one is the
+orchestrator's call; the account above is complete either way, and its shape is
+`AGENTS.md` rule 15 — a mutant asks whether a check can fail, and both defects here were
+found by asking what the check could still *pass* on.
