@@ -3,10 +3,10 @@
 
     python3 eval/tools/heartbeat_control.py
 
-`heartbeat.py` refuses to report a count when the MAIN CHECKOUT is not a work tree
-(`core.bare` true). This is the pair of questions `AGENTS.md` rules 1 and 15 ask of that
-guard: a mutant asks whether it *can* fail, and the variants ask whether it can still *pass*
-on inputs it might mishandle.
+`heartbeat.py` refuses to report a count when the MAIN CHECKOUT is not a work tree — the
+state `core.bare=true` reaches, and a `core.worktree` pointing nowhere reaches too. This is
+the pair of questions `AGENTS.md` rules 1 and 15 ask of that guard: a mutant asks whether it
+*can* fail, and the variants ask whether it can still *pass* on inputs it might mishandle.
 
 THE SUBJECT IS A FIXTURE, AND THE LIVE REPOSITORY IS ONLY EVER READ
 ------------------------------------------------------------------
@@ -27,16 +27,16 @@ against (`AGENTS.md` rule 12, task 113).
 
 WHAT THE MUTANT ESTABLISHES
 ---------------------------
-`mutant_bare_silent` deletes the guard call and runs the result against the bare fixture. It
-must exit **0 with a full count block** — which is not only "the check can fail", it is the
-pre-fix behaviour reproduced: on 2026-08-27 `heartbeat.py` printed byte-identical output in a
-bare checkout and in a healthy one, at exit 0 both times, while `git status` beside it exited
-128.
+`mutant_bare_silent` deletes the guard call and runs the result against the broken fixture.
+It must exit **0 with a full count block** — which is not only "the check can fail", it is
+the pre-fix behaviour reproduced: `heartbeat.py` printed byte-identical output in a bare
+checkout and in a healthy one, at exit 0 both times, while `git status` beside it exited 128.
 
 WHAT IT DOES NOT COVER
 ----------------------
-It does not ask what set `core.bare`. That cause is unestablished and `tasks/184` says
-explicitly not to spend the ticket hunting it — the guard is worth more than the attribution.
+It does not ask what set `core.bare` in the incident behind `tasks/184`. That cause is
+unestablished and the ticket says explicitly not to spend itself hunting it — the guard is
+worth more than the attribution.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ from pathlib import Path
 TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parents[1]
 
-#: The four things the refusal has to say, stated here and NOT read from `heartbeat.py`.
+#: The 3 things every refusal has to say, stated here and NOT read from `heartbeat.py`.
 #: `tasks/184`: the guard "names `core.bare` and states the one-line repair in its own output,
 #: so the next session reads the fix rather than deriving it". The refusal prints BOTH keys it
 #: knows about whichever one is set, so a reader who meets the other state still learns that the
@@ -74,11 +74,13 @@ def _clean_env() -> dict[str, str]:
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """One git command against `repo`, never raising: the exit code IS the measurement here."""
     return subprocess.run(["git", "-C", str(repo), *args],
                           capture_output=True, text=True, env=_clean_env())
 
 
 def _run_heartbeat(script: Path) -> subprocess.CompletedProcess[str]:
+    """A heartbeat in a FRESH process, so it cannot inherit what the caller just set."""
     return subprocess.run([sys.executable, str(script)],
                           capture_output=True, text=True, env=_clean_env())
 
@@ -137,9 +139,11 @@ def _mutant(script: Path) -> Path:
 
 
 def main() -> int:
+    """Run every row, print each with its measurement, and exit 1 if any came out wrong."""
     rows: list[tuple[str, bool, str]] = []
 
     def row(name: str, ok: bool, note: str) -> None:
+        """Record one row: its name, whether it came out as expected, and what was read."""
         rows.append((name, ok, note))
 
     # ---- the known-good row: the live repository, read and not touched -------------------
