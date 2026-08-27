@@ -1277,14 +1277,73 @@ def register_exclusions(text: str) -> tuple[list[str], list[str]]:
     return spans, problems
 
 
-def _named_by(script: str, commands: list[str]) -> bool:
+def command_tokens(commands: list[str]) -> tuple[list[list[str]], list[str]]:
+    """Every gate command as the shell would tokenise it, and what would not tokenise.
+
+    TOKENISED, NOT SPLIT ON WHITESPACE. `str.split` keeps the quotes, so a gate written
+    `run: python3 "eval/tools/fragment_control.py"` yields the token
+    `"eval/tools/fragment_control.py"`, never equals the script, and the census reddens a
+    control a gate really runs -- and a check that fires where nothing is wrong spends
+    exactly the attention a real firing needs. A quoted script path is already on the
+    register's list of VARIANTS the scope step must accept, and
+    `scope_invocation_problems` already reads its line with `shlex`. Raised by CodeRabbit
+    on PR #49.
+
+    TEXT THAT WILL NOT TOKENISE IS REPORTED, never guessed at. Falling back to
+    `str.split` on an unbalanced quote answers the question with the reading already known
+    to be wrong; the census cannot say what such a command runs, and a control it silently
+    calls ungated is a red row with the wrong cause on it.
+    """
+    tokens: list[list[str]] = []
+    problems: list[str] = []
+    for cmd in commands:
+        try:
+            tokens.append(shlex.split(cmd, comments=True))
+        except ValueError as exc:
+            problems.append(
+                f"a gate command does not tokenise as a shell command "
+                f"({exc.__class__.__name__}: {exc}), so what it runs cannot be read and "
+                f"every control would report as ungated: {cmd[:120]!r}")
+    return tokens, problems
+
+
+def _named_by(script: str, tokens: list[list[str]]) -> bool:
     """Does any gate command name THIS script?
 
     WHOLE TOKEN, never containment. `nested/eval/tools/fragment_control.py` is a file a
     branch can add, it contains the real path, and it is not this script -- the same
     substitution `_is_scope_script` refuses for the scope step.
     """
-    return any(script in cmd.split() for cmd in commands)
+    return any(script in t for t in tokens)
+
+
+def gate_command_lines(census: dict[str, dict] | None = None,
+                       hooks: dict | None = None) -> list[str]:
+    """Every command a workflow step or a git hook runs, or a refusal naming why not.
+
+    THE PRODUCERS FAIL SOFT AND THIS MUST NOT. `gate_census` never raises: an unreadable
+    or unparseable workflow comes back `gates: 0, commands: []` with the cause in
+    `malformed`, and `_list_hook` returning non-zero leaves that tier's list empty. Read
+    for `commands` alone, either one turns the controls census into 36 rows saying every
+    control in the repository is ungated and unrecorded -- the exit status right, every
+    word of the diagnosis wrong, and nothing naming the one thing that broke. That is the
+    defect `hook_census` was repaired for on PR #33, one screen up. Raised by CodeRabbit
+    on PR #49; measured before the repair at 36 rows, none of which named `gates.yml`.
+    """
+    cen = gate_census() if census is None else census
+    hks = hook_census(census=cen) if hooks is None else hooks
+    unread = [m for wf in cen.values() for m in wf["malformed"]]
+    # A tier that listed nothing is a tier whose list could not be read. `hook_census`
+    # reports it too, among register disagreements this mode does not own -- the empty
+    # list is the property, and it is what would silently shrink the command set here.
+    unread += [f"`GATES_LIST_ONLY=1 .githooks/run-gates.sh {t}` listed no command"
+               for t in HOOK_TIERS if not hks["tiers"].get(t)]
+    if unread:
+        raise DataError(
+            "the gate commands could not be read, so every control would report as "
+            f"ungated: {'; '.join(unread)}")
+    return sorted({c for wf in cen.values() for c in wf["commands"]}
+                  | {c for t in hks["tiers"].values() for c in t})
 
 
 def _span_stems(span: str) -> set[str]:
@@ -1336,11 +1395,7 @@ def controls_census(scripts: list[str] | None = None,
     # census whose output order depends on its input order is one whose rows cannot be
     # compared between two runs.
     scripts = sorted(control_scripts() if scripts is None else scripts)
-    if commands is None:
-        cen = gate_census()
-        hooks = hook_census(census=cen)
-        commands = sorted({c for wf in cen.values() for c in wf["commands"]}
-                          | {c for t in hooks["tiers"].values() for c in t})
+    commands = gate_command_lines() if commands is None else list(commands)
     if register_text is None:
         register_text = REGISTER.read_text(encoding="utf-8")
 
@@ -1351,6 +1406,9 @@ def controls_census(scripts: list[str] | None = None,
             "population is reporting the instrument, not the population -- this repository "
             f"has never had zero scripts whose stem ends in one of {CONTROL_SUFFIXES}")
 
+    tokens, token_problems = command_tokens(commands)
+    problems += token_problems
+
     spans, span_problems = register_exclusions(register_text)
     problems += span_problems
     # A span of ONE token names a whole script; one with more names a MODE of it, and only
@@ -1360,7 +1418,7 @@ def controls_census(scripts: list[str] | None = None,
     # stale row today against a register that is exactly right. Both directions are pinned.
     excused = {stem for s in spans if len(s.split()) == 1 for stem in _span_stems(s)}
 
-    gated = [s for s in scripts if _named_by(s, commands)]
+    gated = [s for s in scripts if _named_by(s, tokens)]
     ungated = [s for s in scripts if s not in gated]
     recorded = [s for s in ungated if pathlib.PurePosixPath(s).stem in excused]
     unrecorded = [s for s in ungated if s not in recorded]
@@ -2071,6 +2129,67 @@ def _selftest() -> int:
           _cx(commands=["python3 eval/tools/fragment_control.py --sweep"])["ungated"],
           ["eval/tools/disclosure_mutants.py", "eval/tools/evidence_set_control.py",
            "eval/tools/tasks_control.py"])
+    counts["variants"] += 1
+    # VARIANTS: the command is tokenised the way a shell tokenises it. A QUOTED script path
+    # is on the register's own list of things the scope step must accept, and `str.split`
+    # keeps the quotes -- so this reddened a control a gate really runs (CodeRabbit, PR
+    # #49). A trailing shell comment is the same shape one flag along.
+    for _label, _cmd in (
+        ("a quoted script path", 'python3 "eval/tools/fragment_control.py"'),
+        ("a single-quoted script path", "python3 'eval/tools/fragment_control.py'"),
+        ("a trailing shell comment", "python3 eval/tools/fragment_control.py  # the gate"),
+        ("an absolute interpreter", "/usr/bin/python3 eval/tools/fragment_control.py"),
+    ):
+        check(f"a gate command written with {_label} still names its script",
+              "eval/tools/fragment_control.py" in _cx(commands=[_cmd])["gated"], True)
+        counts["variants"] += 1
+    # MUTANT: text that will not tokenise is REPORTED, never split on whitespace and
+    # answered anyway. Guessing here says "ungated" about a command nobody can read.
+    check("a gate command with an unbalanced quote is reported, not guessed at",
+          [p.split(" (")[0] for p in _cx(commands=['python3 "eval/tools/x.py'])["problems"]
+           if "does not tokenise" in p],
+          ["a gate command does not tokenise as a shell command"])
+    counts["mutants"] += 1
+    # MUTANT: the PRODUCERS fail soft, and reading them for `commands` alone turns an
+    # unreadable workflow into "every control in the repository is ungated" -- 36 rows,
+    # exit status right, every word of the diagnosis wrong. Measured at 36 before the
+    # repair, none of them naming `gates.yml` (CodeRabbit, PR #49).
+    #
+    # THE DIAGNOSIS, NOT THE EXIT STATUS. `hook_census` carries the same row for the same
+    # reason: a refusal that names the wrong cause is indistinguishable from one that
+    # names the right one, by anything reading only the status.
+    _broken = gate_census(texts={"gates.yml": "jobs: [unbalanced", "controls.yml": "jobs: {}"})
+    _ok_hooks = {"tiers": {t: ["python3 eval/tools/docstat.py --sweep"] for t in HOOK_TIERS}}
+    try:
+        gate_command_lines(census=_broken, hooks=_ok_hooks)
+        failures.append("gate_command_lines accepted a gates.yml that does not parse -- "
+                        "every control would report as ungated against an empty list")
+    except DataError as _exc:
+        check("an unreadable workflow is refused, and the refusal names it",
+              ("gates.yml does not parse" in str(_exc),
+               "every control would report as ungated" in str(_exc)), (True, True))
+    counts["mutants"] += 1
+    # MUTANT: a hook tier that listed nothing. `_list_hook` returning non-zero leaves the
+    # tier empty, which silently shrinks the command set rather than refusing.
+    _good = gate_census()
+    for _tier in HOOK_TIERS:
+        _short = {"tiers": {t: ([] if t == _tier else ["python3 eval/tools/tasks.py check"])
+                            for t in HOOK_TIERS}}
+        try:
+            gate_command_lines(census=_good, hooks=_short)
+            failures.append(f"gate_command_lines accepted an empty `{_tier}` listing")
+        except DataError as _exc:
+            check(f"an empty `{_tier}` hook listing is refused by name",
+                  _tier in str(_exc), True)
+        counts["mutants"] += 1
+    # VARIANT: with both producers healthy it returns the live list, sorted and unioned,
+    # and it must contain a workflow-only gate AND a hook command. A refusal that fired
+    # here would take the whole mode out.
+    _lines = gate_command_lines()
+    check("the live producers return a command list covering both sources",
+          ("python3 eval/tools/fragment_control.py" in _lines,
+           "python3 eval/tools/tasks.py check" in _lines, _lines == sorted(set(_lines))),
+          (True, True, True))
     counts["variants"] += 1
     # MUTANT: the gate that runs it is removed. This is the whole point of the check, and
     # `tasks_control` in the answer is the second half: its register row excuses one MODE,

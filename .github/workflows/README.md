@@ -263,6 +263,13 @@ reached only through another script is ungated here, which is why `starter_gate_
 The reverse direction goes red too: a row here naming a control that a tier **does** run is a
 row that outlived its exclusion, and a reader trusting it concludes a live check is not running.
 
+**Gate commands are tokenised the way a shell tokenises them**, so a quoted script path or a
+trailing comment still names its script, and text that will not tokenise is reported rather than
+split on whitespace and answered anyway. **And when the command producers cannot be read at all
+— an unparseable workflow, a hook tier that lists nothing — this refuses with exit 2 naming the
+cause**, because reading them for their command lists alone turns one broken file into a report
+that every control in the repository is ungated.
+
 | left out | why |
 |---|---|
 | trials, judge rounds, `field_sweep.py`, `precampaign_smoke.py` | they drive the `claude` CLI. The operator's call, every time |
