@@ -58,13 +58,14 @@ class Image:
     def is_flat(self, tolerance: int = 8) -> bool:
         """Is every pixel of THIS frame within `tolerance` of THIS frame's own mode?
 
-        i.e. the frame holds one colour and nothing else. Asked per frame and against
-        the frame's own background, which is the whole point: `analyse_frames` measures
-        `ink_coverage` against FRAME 0's background, so a blank frame in any other
-        colour reads 1.0 there rather than 0.0. That is why no ceiling on `mean_ink`
-        can be the guard against a blank render - 12 uniform frames measure 0.0, 0.5 or
-        0.91667 depending only on how their colours are arranged, and the retired
-        0.001-0.85 window admitted 2 of those 3 (`tasks/168`).
+        i.e. the frame holds one colour and nothing else.
+
+        THE ONE ADDRESS FOR THAT DEFINITION. Since `tasks/178` `analyse_frames` measures
+        `ink_coverage` against each frame's own background too, so this is the same
+        quantity asked as a boolean: `is_flat` is exactly `mean_ink`'s per-frame term
+        being 0.0. `judge/ink_window_control.py` asserts the two agree rather than
+        leaving a sentence here promising it, and `judge/static.py` says why the
+        redundancy is kept.
         """
         return self.ink_coverage(self.dominant_background(), tolerance) == 0.0
 

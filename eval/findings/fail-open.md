@@ -881,3 +881,45 @@ combo timer and a damage collapse, whose timer lapses inside the window. The spa
 was 459 ticks; it is now 9.
 
 ---
+## #196 - four pixels of 256,000 passed "did the frames contain anything"
+
+`ink_coverage` counts pixels differing from a reference colour, and `analyse_frames` took that
+reference from **frame 0's mode** and applied it to all twelve frames. #191 established that this
+makes `mean_ink` departure-from-a-palette rather than a measure of what was drawn, and removed the
+ceiling. It left the reference alone. The reference was the other half.
+
+**The case that closes it**, measured on the pre-change code before anything was changed: 12 frames
+where frame 0 is uniform black and the other 11 are uniform white carrying a single **2x2 speck** -
+**4 pixels of 256,000 drawn** - read `mean_ink = 0.91665` and **PASSED**. Under each frame's own
+background it reads `0.00001` and fails.
+
+**Both halves of the criterion admitted it**, which is why the #191 repair did not catch this: a
+frame carrying a speck is not flat, so `flat_frames` saw 1 of 12 and had nothing to say. Two
+independent-looking guards, one blind spot, because both were reading the same wrong reference.
+
+**The corroborating measurement is rule 12's signature.** 14 of 804 stored frames read *exactly*
+`1.00000` under frame 0's mode, in 3 sets - `wg-matrix` `g3_arena__rust__t0` flashes its arena red at
+frame 5,
+and its last 7 frames saturate while drawing the same 4% of the frame they had drawn all along. Under
+a per-frame reference: **0 of 804**. A value pinned at the top of its range across a population is
+the instrument, not the subject.
+
+> **The objection to the repair applied equally to the thing being defended, and that is what
+> settled it.** The ticket worried that a per-frame mode moves when a subject grows past half the
+> frame. True - and equally true of frame 0's mode, which is the same computation on one arbitrary
+> frame. **A fixed reference does not avoid the error; it freezes one frame's version of it and
+> applies it to eleven frames it was never measured on.** When an objection to a change is also an
+> objection to the status quo, it is not an argument for the status quo.
+
+Two practices from the repair worth copying. The now-redundant all-flat half was **kept** - it is
+the fail-closed direction and still reports *how many* frames were blank - and its dead mutant was
+replaced by an implication row rather than deleted quietly, so the redundancy is recorded instead of
+hidden. And the control's advance values were **re-derived** rather than re-recorded when the
+reference moved.
+
+This is a **regime break** (`eval/RUNS.md`, twenty-fifth) and not a withdrawal: the stored `mean_ink`
+values remain true of their records, computed under the rule in force when they were written, which
+is #194's distinction. `WR-ink-arrangement-0-91667` retires the one figure that was never a property
+of any render.
+
+---

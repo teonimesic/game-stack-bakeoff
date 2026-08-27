@@ -330,21 +330,32 @@ def analyse_frames(frames: list[Path]) -> dict[str, Any]:
         info.update(mean_ink=0.0, max_ink=0.0, mean_frame_delta=0.0, sizes=[],
                     flat_frames=0)
         return info
-    # ONE background for every frame, taken from FRAME 0. That is what `mean_ink` has
-    # always measured and it is not changed here: switching to a per-frame background
-    # moves 8 of the 67 stored frame sets, one of them 0.60285 -> 0.04481, which is a
-    # re-measurement of the corpus and needs its own derivation (`tasks/178`).
-    bg = imgs[0].dominant_background()
-    inks = [im.ink_coverage(bg) for im in imgs]
-    # WHICH FRAMES HOLD ONE COLOUR AND NOTHING ELSE, asked per frame against each
-    # frame's OWN mode - the question `mean_ink` structurally cannot answer, and the
-    # one `render.nonempty` is actually about. 0 of the 67 stored frame sets contain a
-    # flat frame, and the worst-case cost over those sets is 0.46 s.
+    # EACH FRAME AGAINST ITS OWN MODAL COLOUR, since 2026-08-27 (`tasks/178`). The
+    # reference used to be frame 0's mode applied to all 12 frames, which measured
+    # departure from the FIRST frame's palette and saturated at exactly 1.00000 the
+    # moment a submission changed its clear colour - `g3_arena__rust__t0`'s arena
+    # flashes red at frame 5 and its last 7 frames all read 1.00000 while drawing the
+    # same 0.043 of the frame they drew before. Per frame, `mean_ink` is what
+    # `render.nonempty` names: the fraction of the frame that is not its background.
+    # `eval/judge/ink_window_control.py` carries the derivation and both directions.
+    bgs = [im.dominant_background() for im in imgs]
+    inks = [im.ink_coverage(b) for im, b in zip(imgs, bgs)]
+    # WHICH FRAMES HOLD ONE COLOUR AND NOTHING ELSE. `png.Image.is_flat` is the
+    # definition and stays the one address for it, so this is not a second policy - but
+    # it is now IMPLIED by the floor rather than independent of it: `is_flat` is
+    # `ink_coverage(own mode) == 0.0`, which is this frame's own `inks` term, so a set
+    # in which every frame is flat has `mean_ink` 0.0 and fails the floor as well. Kept
+    # as fail-closed redundancy, and `flat_frames` still says HOW MANY frames were
+    # blank, which a mean cannot. `ink_window_control.py` asserts the implication
+    # rather than promising it here (rule 12).
     flat = sum(1 for im in imgs if im.is_flat())
     deltas = [imgs[i].differs_from(imgs[i - 1]) for i in range(1, len(imgs))]
     info.update(
         sizes=sorted({(im.width, im.height) for im in imgs}),
-        background=bg,
+        # WHAT THE INSTRUMENT USED, one per frame, not merely what it concluded. A
+        # single `background` field could not express a reference that moves, and the
+        # stored list is what makes a colour drift readable after the fact.
+        backgrounds=[list(b) for b in bgs],
         flat_frames=flat,
         mean_ink=round(sum(inks) / len(inks), 5),
         max_ink=round(max(inks), 5),
@@ -399,57 +410,61 @@ DELTA_MIN = 0.0005
 #: `TIER1_BOUND_POPULATION` files this criterion under `starter`.
 #:
 #: THERE IS NO CEILING, AND THE REASON IS THAT `mean_ink` CANNOT CARRY ONE.
-#: `ink_coverage` counts pixels differing from ONE reference colour, and
-#: `analyse_frames` takes that colour from FRAME 0's mode. So the quantity is departure
-#: from the first frame's modal colour - a property of the PALETTE, not of how much was
-#: drawn - and it runs backwards from what a ceiling would want:
+#: `ink_coverage` counts pixels differing from ONE reference colour per frame, and
+#: since `tasks/178` that colour is the frame's OWN mode. So the quantity is the
+#: fraction of the frame that is not its background - which is what the criterion
+#: names, and which still runs backwards from what a ceiling would want:
 #:
-#:   - a solid flood in frame 0's own colour, the archetypal "the render broke and
-#:     filled the screen", measures 0.0. Measured on solid white, magenta and black:
-#:     0.0 each. Every one hits the FLOOR.
+#:   - a solid flood, the archetypal "the render broke and filled the screen",
+#:     measures 0.0 in ANY colour, because a uniform frame is entirely its own mode.
+#:     Measured on solid white, magenta and black: 0.0 each. Every one hits the FLOOR.
 #:   - what drives the number toward 1.0 is the ABSENCE of a modal region - a gradient,
-#:     a dither, a wide palette. A night platformer over a gradient sky reads 0.881
+#:     a dither, a wide palette. A night platformer over a gradient sky reads 0.679
 #:     with its subject drawn correctly on top.
 #:
-#: AND THE CEILING WAS NOT A BLANK-FRAME GUARD EITHER, which is the measurement that
-#: settles it rather than the argument. 12 frames each holding a single colour have
-#: drawn nothing, and `mean_ink` reads:
+#: A CEILING WOULD THEREFORE REFUSE A PALETTE, and the corpus says which one: over the
+#: 66 stored GAME frame sets the 7 highest values are all `g4_platformer`, the one game
+#: whose background scrolls across the whole frame. The scene is its own population; of
+#: all 67 sets 0.85 refuses exactly 1, and it is that scene at 0.85042 - a submission
+#: drawing exactly what it was asked to draw.
 #:
-#:   all one colour                  0.0       floor FAIL   0.001-0.85 FAIL
-#:   frame 0, then 11 of another     0.91667   floor PASS   0.001-0.85 FAIL
-#:   alternating 2 colours           0.5       floor PASS   0.001-0.85 PASS
-#:   6 of one, then 6 of another     0.5       floor PASS   0.001-0.85 PASS
+#: WHY THE REFERENCE IS PER FRAME, which is what `tasks/178` decided. It used to be
+#: frame 0's mode applied to all 12 frames, and a fixed reference cannot survive a
+#: submission changing its clear colour: every pixel of a later frame then differs from
+#: it and the frame saturates at exactly 1.00000. Over the stored corpus that happened
+#: to 14 of 804 frames in 3 sets, and against their own modes those same frames read
+#: 0.04336, 0.03777 and 0.44721 - so the instrument reported a full screen for frames
+#: drawing 4% of one. Under the per-frame reference 0 of the 804 read 1.00000.
 #:
-#: The same blank render lands anywhere on the scale depending only on how its colours
-#: are ARRANGED, and 0.001-0.85 admitted 2 of the 3 non-zero arrangements. A bound on
-#: this quantity was never the guard, so removing the ceiling is not what opens that
-#: door - `nonempty_verdict` asks the question directly instead, via `flat_frames`, and
-#: fails all 4 rows above. 0 of the 67 stored frame sets contain a flat frame, so the
-#: added half moves no stored verdict.
+#: AND A FIXED REFERENCE IS FAIL-OPEN, which is the measurement that settles it rather
+#: than the argument. 12 frames of which frame 0 is uniform black and the other 11 are
+#: uniform white carrying one 2x2 speck have drawn nothing worth the name. Against
+#: frame 0 they read 0.91665 and `render.nonempty` PASSED them; `flat_frames` cannot
+#: see them either, because only frame 0 is flat. Against their own modes they read
+#: 0.00001 and fail the floor. `judge/ink_window_control.py` keeps that set as a row.
 #:
-#: WHAT 0.85 DID, over every grading this project has stored:
+#: THE STORED CORPUS, and the producer that re-derives all of it:
 #:
 #:   python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 #:
-#: 69 submissions, the most recent grading of each from 85 on disk. 4 `render.nonempty`
-#: failures. The 2 floor firings are `wg-arena3d`'s rust cells at **0 frames**, which
-#: `render.frames` reports in the same record. Among the 2 CEILING firings: 0 true
-#: positives and 2 false negatives, both submissions that drew what they were asked to
-#: draw - `wg-scene-s1ts` `s1_parallax__ts__t0` at 0.966 (repaired by `tasks/163`) and
-#: `wg-g4c` `g4_platformer__godot__t1` at 0.881, which scored 1.000 on tier 2 (#123).
-#: Tier 1 GATES, so a false negative here does not cost a fraction of a score, it stops
-#: a correct submission being scored at all.
+#: 69 submissions, the most recent grading of each from 85 on disk, 67 with frames on
+#: disk. Changing the reference moves 10 of those 67 sets and moves 0 floor verdicts:
+#: the lowest value under either reference is 0.00811, 8x the floor. What the stored
+#: records hold is the frame-0 reading, and `eval/RUNS.md` records the break.
 #:
-#: AND THE 68 GAME VALUES ARE A CONTINUUM, not 2 populations with a gap between them.
-#: The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of them
-#: `g4_platformer` - the one game whose background scrolls across the whole frame - and
-#: the largest gap among those 6 is 0.0555. 0.85 fell in a gap of 0.0536, between 2
-#: trials of that same game, so what it separated was a TASK and not a quality. (The
-#: 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.)
+#: WHAT 0.85 DID BEFORE IT WAS RETIRED, on the frame-0 readings the records hold: 4
+#: `render.nonempty` failures. The 2 floor firings are `wg-arena3d`'s rust cells at
+#: **0 frames**, which `render.frames` reports in the same record. Among the 2 CEILING
+#: firings: 0 true positives and 2 false negatives, both submissions that drew what
+#: they were asked to draw - `wg-scene-s1ts` `s1_parallax__ts__t0` and `wg-g4c`
+#: `g4_platformer__godot__t1`, which scored 1.000 on tier 2 (#123). Tier 1 GATES, so a
+#: false negative here does not cost a fraction of a score, it stops a correct
+#: submission being scored at all.
 #:
 #: 0.85 was not moved to admit the submission that exposed it; it was removed, because
 #: no number on this measure means "too full". `judge/ink_window_control.py` keeps the
-#: 4 blank-render arrangements as rows and the restored 0.85 as a mutant.
+#: 4 blank-render arrangements as rows, the frame-0 reference as a mutant, and the
+#: restored 0.85 as another.
 INK_FLOOR = 0.001
 INK_FLOOR_WHY = ("the 4 render harnesses' own `renders a non-empty frame` floor; "
                  "the starter's placeholder marker covers 0.0015 of a 640x400 frame")
@@ -491,15 +506,19 @@ def nonempty_verdict(frame_info: dict[str, Any],
     names the floor rather than a window, because a reader who sees a range printed will
     look for the number that closed it.
 
-    TWO HALVES, because `mean_ink` alone cannot answer the criterion's own question.
-    A frame set in which every frame is a single colour has drawn nothing, and its
-    `mean_ink` is 0.0, 0.5 or 0.91667 depending only on how those colours are arranged
-    against frame 0's - so it is asked directly instead.
+    TWO HALVES, and since `tasks/178` the second is REDUNDANT RATHER THAN INDEPENDENT.
+    `analyse_frames` measures every frame against its own mode, so a frame set in which
+    every frame is a single colour has `mean_ink` 0.0 and fails the floor as well. The
+    all-flat half is kept as the fail-closed direction and because `flat_frames` says
+    how many frames were blank, which a mean cannot. It was load-bearing under the
+    frame-0 reference, where the same blank render read 0.0, 0.5 or 0.91667 depending
+    only on how its colours were arranged.
 
     `flat_frames` ABSENT IS A THIRD VALUE and is not zero: every record written before
     2026-08-27 lacks it, and for those the verdict is the floor alone. Re-grading a
     stored record therefore asks the half its record can answer and says so, rather than
-    reading a missing count as "none were flat".
+    reading a missing count as "none were flat" - and a stored `mean_ink` is a frame-0
+    reading, which is the other half of why a re-grade is not a re-measurement.
     """
     mean_ink = float(frame_info.get("mean_ink", 0.0))
     flat = frame_info.get("flat_frames")

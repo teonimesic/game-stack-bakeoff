@@ -16,3 +16,30 @@ Observed 2026-08-27 ~11:34-11:42. Every git command in the main checkout began f
 It also blocks every agent at once - a worktree-isolated agent depends on the main checkout's object store and on `core.hookspath` pointing into it - so a recurrence during a matrix would stop all concurrent work with an error message that names none of this.
 
 **Do NOT spend the ticket hunting the cause.** It may not be reproducible, and a guard is worth more than an attribution: the point is that this state existed for some minutes and the only thing that reported it was an unrelated command failing.
+
+## note 2026-08-27
+
+## From task 176: one candidate in that window, TESTED AND RULED OUT
+
+Not the cause, recorded so the next agent does not re-derive it. `tasks/176` was in flight in
+the same window and was running `git init` in `$TMPDIR` **with an inherited `GIT_DIR`
+pointing at a real checkout** — a shape that does write to the repository `GIT_DIR` names.
+It was measured: on 2026-08-27 it staged 6 fixture paths into a worktree's index at exit 0
+with `.gitignore` replaced there.
+
+So it is a genuine writer, in the window, aimed at a real `.git`. **It still does not
+produce `core.bare=true`.** Asked three ways against a victim repository:
+
+| `git init` under an inherited `GIT_DIR`, victim's state | `core.bare` after |
+|---|---|
+| victim has `core.bare=false` | `false` |
+| victim has `core.bare` **unset** | `false` (written as false, not true) |
+| cwd is a directory that no longer exists | rc 128, victim untouched |
+
+`git status` in the victim stayed rc 0 in every row, so the symptom `tasks/184` describes
+did not appear either.
+
+**What this leaves.** The `GIT_DIR`-steered writer is ruled out as the mechanism, and
+`tasks/176` has since made it impossible anyway — `docstat._git_at` drops every `GIT_*`
+variable from the child and `_assert_own_repo` refuses in front of the one call that writes.
+The ticket's instruction stands: build the guard, do not hunt the cause.
