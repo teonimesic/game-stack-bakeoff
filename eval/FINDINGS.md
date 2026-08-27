@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#188 from building and running this evaluator. **Check whether a
+Findings #19-#189 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -264,6 +264,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **186** | The repair the ticket prescribed was fail-open — an end-condition check that only idles watches a score nothing can move, and the ticket was the orchestrator's | [certifies-nothing](findings/certifies-nothing.md) |
 | **187** | A criterion earned its pass off its own backlog, and the evidence string printed the same sentence on both verdicts — so whether it ever did cannot be read back | [certifies-nothing](findings/certifies-nothing.md) |
 | **188** | the merge gate enumerated the blockers it knew, and the host had one it did not | [certifies-nothing](findings/certifies-nothing.md) |
+| **189** | the agreement test's slack grew with the speed it was testing, until it covered the window | [fail-open](findings/fail-open.md) |
 
 ---
 

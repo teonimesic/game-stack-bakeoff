@@ -74,6 +74,34 @@ The agent is the one holding the tree. **Where a cause is cheap for them to meas
 for you to verify from outside, state the symptom and let them find it** — the ticket's job is to
 say what is wrong and how you know, not to pre-solve it.
 
+#### A prescribed REPAIR is not a stated cause, and it fails in one direction
+
+The rule above was in this file, listing the pong case by name, when `tasks/160` was written with a
+prescribed repair — *"count fire events rather than bullet ids"* — that the agent measured and found
+**fail-open**. So the rule was read and did not fire, which makes it wrong as written rather than
+unlucky. What it missed is that a *cause* and a *repair* are different objects:
+
+| | if it is wrong |
+|---|---|
+| a stated **cause** | the agent measures, disagrees, and costs an hour. Self-correcting |
+| a prescribed **repair** | the agent implements it. If it weakens a check, nothing disagrees — the suite goes green *because* the check stopped being able to fail |
+
+**And every prescribed repair that has been wrong here was wrong in the same direction: fail-open.
+2 for 2.** That is not chance, it is the situation. A repair gets prescribed when a ticket is about
+a **false negative** — a check failing something correct — and the repair that comes to mind while
+staring at a wrongly-red check is, by construction, one that makes it pass. `tasks/157`: press
+nothing after the end, which with the player dead excused everything. `tasks/160`: count `fire`
+events, which would have called a gun with **no** rate limit rate-limited on 1 shot in 120 ticks,
+because the verdict fails on a HIGH count and the lower signal always excuses.
+
+> **When you file a false-negative ticket, the repair you are about to suggest makes the check
+> pass. Say what must still FAIL after it, and let the agent choose the mechanism.** `tasks/160`
+> should have said *"a weapon with no interval at all must still fail"* — one clause, no mechanism,
+> and it is the clause that kills the repair the ticket actually suggested. The good version of
+> this is `tasks/163`'s ticket, which named the temptation outright: *"the fix is not to widen the
+> window until this one passes"*, and the agent's window came back derived, with the failing
+> subject still failing.
+
 ## 2. Check it is safe to run now
 
 - **Dependencies.** The ticket's `refs` may say "blocked by". Do not launch behind an unmet one.
