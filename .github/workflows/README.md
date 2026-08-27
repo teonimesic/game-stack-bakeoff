@@ -179,9 +179,10 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/docstat.py --findings` | yes | yes |
 | `python3 eval/tools/docstat.py --withdrawn` | yes | yes |
 | `python3 eval/tools/tasks.py check` | yes | yes |
+| `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **5** of `gates.yml`'s **56** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **56** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -193,12 +194,33 @@ comes out of the same control flow the hook takes. `ci_minutes --selftest` asser
 above equals what came back, and goes red if either moves without the other — which is what keeps
 a description of a script true (`AGENTS.md` rule 12).
 
-**What the hooks do NOT cover is most of it, and that is the direction that costs you.** All 5
-are documentation and queue checks over the working tree. No mutant suite runs before a push, no
-`*_control.py`, and no `--selftest` but `docstat`'s own — so nothing here checks a checker, and
-`controls.yml` is not touched at all. **A green `pre-push` is not evidence that CI will be
-green.** The hooks are a cheap filter on the failure that recurs here — stale citations, a
-malformed queue; the workflows are the gate.
+**What the hooks do NOT cover is most of it, and that is the direction that costs you.** No
+mutant suite runs before a push and no `*_control.py` does either, so the only checker either
+tier checks is the one that reads this file. **A green `pre-push` is not evidence that CI will
+be green.** The hooks are a cheap filter on the failures that recur here — stale citations, a
+malformed queue, and a register overtaken by the workflow edit in the same commit; the workflows
+are the gate.
+
+**`ci_minutes --selftest` is in `pre-push` and not in `pre-commit`, and the reason is its duty
+cycle rather than its cost.** Its inputs are the two workflows, `.githooks/run-gates.sh`, this
+file, and the *set* of gate scripts under `eval/`. Read 2026-08-27, **78** of `main`'s **678**
+commits touch one of those, so 88% of commits cannot move its verdict while every one of them
+would pay for it — and what it is worth is that a stale register never reaches CI, which makes a
+push the last moment it can act:
+
+```bash
+{ git log --format=%H main -- .github/ .githooks/
+  git log --format=%H --diff-filter=ADR main -- \
+      'eval/**/*_control.py' 'eval/**/*_mutants.py' 'eval/**/*_selftest.py'; } | sort -u | wc -l
+git log --format=%H main | wc -l
+```
+
+Editing a gate script is **not** in that set: the census reads the set of them, so only an add,
+a delete or a rename moves it — which is why the second command filters on `ADR`.
+The pair it guards is self-referential — the hook runs the gate, the gate runs the hook in
+list-only mode and asserts the table above equals what came back — so `run-gates.sh` counts
+`GATES_DEPTH` and refuses past 2 rather than recursing if that control's `python3` shim ever
+stops intercepting.
 
 **No hook timing is published.** Both tiers are local wall clock on one machine, and two readings
 of `pre-push` on the same host minutes apart have differed by more than the whole `pre-commit`

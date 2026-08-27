@@ -1865,6 +1865,16 @@ def _selftest() -> int:
           _live_hooks["coverage_claim"],
           (len(_live_hooks["tiers"]["pre-push"]), _cen["gates"]["gates"],
            len(_live_hooks["tiers"]["pre-commit"])))
+    # THIS TOOL IS ITSELF A PRE-PUSH GATE, and every row above would stay green if it were
+    # dropped from the hook and the table together -- they check each other, so agreeing on
+    # an absence is agreement. Nothing else would notice: `--controls` censuses stems ending
+    # `_control`/`_mutants`/`_selftest` and this file is none of them. So the membership is
+    # asserted here, which makes removing it a decision somebody has to edit rather than an
+    # omission (task 175).
+    check("pre-push runs this tool, the only thing that reads the register",
+          [c for c in _live_hooks["tiers"]["pre-push"]
+           if c.endswith("eval/tools/ci_minutes.py --selftest")],
+          ["python3 eval/tools/ci_minutes.py --selftest"])
     # LIST-ONLY MUST NOT EXECUTE, and the control runs in BOTH directions. A mode that
     # listed AND ran would be green on every row above while costing a full sweep, and a
     # shim that never fires would make the "did not execute" half vacuous -- so the same
@@ -1897,6 +1907,45 @@ def _selftest() -> int:
               (_ran.returncode, _marker.exists(), len(_marker.read_text())
                if _marker.exists() else 0),
               (0, True, len(_live_hooks["tiers"]["pre-push"])))
+        counts["variants"] += 1
+
+        # THE DEPTH CEILING, both directions. This tool is a `pre-push` gate and it also
+        # RUNS the hook, so the two are mutually recursive and the shim above is the only
+        # thing breaking the cycle. Were it ever to stop intercepting `python3`, hook and
+        # gate would call each other without bound -- and a check whose failure mode is a
+        # HANG reports nothing at all, which is the lesson `_main_rc` below records one exit
+        # away. `run-gates.sh` counts GATES_DEPTH and refuses past 2, which turns that hang
+        # into a red line. Both rows run under the shim, so neither executes a gate.
+        # BOTH ROWS ARE LIST-ONLY, AND THAT IS NOT AN OPTIMISATION. A row that PINS
+        # GATES_DEPTH also RESETS it, so an executing one hands the hook beneath it a
+        # counter that starts again -- and the ceiling can never be reached from a level
+        # that keeps restoring the level below it. Measured: the first draft ran the
+        # depth-1 variant for real, and under the broken-shim mutant it drove 8 hook levels
+        # in 25s and was still going. The control was the recursion engine. Listing goes
+        # through the ceiling (which sits above `list_only`) and executes no gate, so it
+        # asks the same question without being able to answer it wrongly.
+        def _run_hook_at(depth: str):
+            return subprocess.run(["sh", str(HOOK_RUNNER), "pre-push"], cwd=str(ROOT),
+                                  capture_output=True, text=True, check=False,
+                                  env={**_env, "GATES_DEPTH": depth, "GATES_LIST_ONLY": "1"})
+
+        _deep = _run_hook_at("2")
+        check("the hook refuses to run past depth 2", _deep.returncode, 3)
+        check("it refuses before listing, so no caller reads a gate list from it",
+              _deep.stdout, "")
+        check("and says which variable stopped it, so the diagnosis is not re-derived",
+              [w for w in ("GATES_DEPTH", "depth 3", "ceiling 2") if w not in _deep.stderr],
+              [])
+        counts["mutants"] += 1
+        # The variant, and it is the one that matters: depth 2 is what a HOOK-DRIVEN
+        # selftest reaches, so a ceiling one lower would redden `run-gates.sh pre-push` on
+        # every push rather than only on a broken shim. Asserted on the LIST, not on the
+        # status alone -- a hook that exited 0 having done nothing would pass on the status.
+        _at_two = _run_hook_at("1")
+        check("depth 2 -- what a hook-driven selftest reaches -- still runs its tier",
+              (_at_two.returncode,
+               [_norm_command(ln) for ln in _at_two.stdout.splitlines() if ln.strip()]),
+              (0, _live_hooks["tiers"]["pre-push"]))
         counts["variants"] += 1
 
     # The fixture pair the mutants below are edits of. It is deliberately NOT the live one:
