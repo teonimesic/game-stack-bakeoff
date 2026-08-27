@@ -97,3 +97,32 @@ already called probably independent.
 either order, and this ticket **last** — the before/after census argument applies against all four,
 not just two. Whoever runs 170's check should record the result here and fix the order if it comes
 out the other way.
+
+## note 2026-08-27
+
+## note 2026-08-27 (tasks/170) — the loop-bound check for 170, run rather than inherited
+
+`tasks/170`'s ticket asked for this specifically, because `bot_arena` is the module whose
+wave/kills collection breaks on `t.state.get('game_over') is True`. Read from the artifacts at
+`4258c135e`, before 170's repair:
+
+| ticket | criterion | window it is computed over | truncated by end-detection? |
+|---|---|---|---|
+| 170 | `multiplier.falls`, `bot_arena` | `for _ in range(6000)` at line 1065 and `for _ in range(4000)` at line 1086 | **yes, both** — each carries `if t.state.get("game_over") is True: break` |
+
+So the answer is the opposite of 158's and 160's: this window **is** truncated by end-detection.
+**It does not re-open the order, and the reason is which SIGNAL it reads.** Both loops break on
+the **state flag alone**, never on a `game_over` event — which is the signal this ticket says
+every bot already *scores* from. The two readings the loops could take under either resolution:
+
+- *flag only everywhere, event branches deleted* — these loops are already that. Unchanged.
+- *`end_condition_holds` takes the end signal as an argument, callers keep flag-or-event* — the
+  loops would gain an event branch, and it can only make them exit EARLIER on a game that raises
+  the event and leaves the flag `False`. On such a game the criterion today runs the full 4000
+  idle ticks in a dead simulation and returns *"the player was never hit"*; with the branch it
+  returns the same failure sooner. **The verdict is a fail either way**, so no stored `g3_arena`
+  verdict can move on that account.
+
+170 has since landed and its two new loop bounds are the same shape: the 8-tick window it opens
+after the damage tick also breaks on the flag alone. **This ticket stays last**, and 170's own
+re-scoring is already recorded in its before/after census.
