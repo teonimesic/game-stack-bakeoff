@@ -153,9 +153,10 @@ four documents and derived in none of them; git history holds no derivation eith
 nothing to state and the question became what the tier is for. Two offline sweeps, both able to
 come out the other way, and both re-runnable:
 
-Both figures below are what the producers print **today**, over 69 stored submissions. The
-decision was taken on the 68-submission corpus of 2026-08-23, which held every group but the
-scene; the scene added an eleventh group of one, and no verdict moved.
+Both figures below are what the producers printed **on 2026-08-27**, over 69 stored submissions;
+they are live counts, so re-run the commands rather than trusting the date. The decision was taken
+on the 68-submission corpus of 2026-08-23, which held every group but the scene; the scene added an
+eleventh group of one, and no verdict moved.
 
 - `python3 eval/judge/weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` —
   **FLIPS=0** at every weight in (0,1), but **8 of 11 groups UNIDENTIFIABLE**: tier 1 returns one value across the whole group, so the weight is inert
@@ -316,9 +317,10 @@ both repairs available inside the rubric were measured and neither works.
 
 `python3 eval/judge/tier2_census.py --runs-root <main checkout>/eval/runs` is the producer — the
 analogue of `tier1_census.py`, 17 expectations including a positive control, a variant and three
-mutants. Its output **today**, over 69 stored trials — **68 games and 1 scene**; the decision was
-taken on the 68-trial corpus of 2026-08-23, before the scene added an eleventh group of one, and no
-verdict moved.
+mutants. Its output **re-read 2026-08-27**, over 69 stored trials — **68 games and 1 scene**; the
+decision was taken on the 68-trial corpus of 2026-08-23, before the scene added an eleventh group
+of one, and no verdict moved. **Re-run it rather than trusting the date**: these are live counts,
+and the date says when they were last read, not that they are still right.
 
 **A `(run, game)` group is single-class by construction**, so the 11 groups are 10 game groups and
 1 scene group, nothing is compared across the boundary, and every count below can be read back to
@@ -1016,7 +1018,7 @@ and dating every one is wrong.
 
 | the sentence is | it must | why |
 |---|---|---|
-| present tense, or under a *what it reports today* heading, or introduced as a producer's output | **match the producer, re-run in the same session** | a reader who runs the command and gets a different number cannot tell a stale document from a broken tool |
+| present tense, or under a *what it reports today* heading, or introduced as a producer's output | **match the producer, re-run in the same session, and carry the date it was last read** | a reader who runs the command and gets a different number cannot tell a stale document from a broken tool. The date is provenance, not permission: a live count is still expected to match, and *"today"* means nothing in a document read later |
 | the evidence a decision was taken on, or a measurement of a fix at the moment it landed | **name its date and its population, and not be updated** | overwriting it erases the population the decision rests on, and the decision then cites evidence nobody can reconstruct |
 
 A decision entry may carry both: the *heading* dates the decision, and the evidence bullets under
@@ -1135,9 +1137,10 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   cannot separate them. The earlier spec-change suite already failed to separate four stacks that
   all scored 6/6.
 - **The rubric ceiling — MEASURED and now DECIDED on both tiers, but only one of them is fixed.**
-  Tier 1 is at the ceiling on **61 of 69 stored submissions — 61 of the 68 games, and 0 of the 1
-  scene** — and returns a *single* value across every measurable trial in **8 of the 11 (run, game)
-  groups**, which are 10 game groups and 1 scene. The 8 failures sit in 4 groups
+  There are **11 (run, game) groups: 10 game groups and 1 scene**, and a group never holds both
+  classes. Tier 1 is at the ceiling on **61 of the 69 stored submissions** — 61 of the 68 games,
+  and 0 of the 1 scene — and its 8 failures sit in 4 of those groups. It returns a *single* value
+  across every measurable trial in **8 of the 11**
   (`python3 eval/judge/tier1_census.py --runs-root <checkout>/eval/runs`, re-read 2026-08-27; #92
   is the narrower reading, over the 56 matrix trials that existed then). **What to do about it was
   decided on 2026-08-23: tier 1 became a gate** (see "Tier 1 gates, it does not score" above, and
