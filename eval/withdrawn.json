@@ -210,6 +210,21 @@
       "declared_in": "eval/RUNS.md, '`mean_ink` MOVED TO A PER-FRAME BACKGROUND ON 2026-08-27'",
       "replaced_by": "python3 eval/judge/ink_window_control.py, phase [a render that drew nothing, in the 4 ways 12 uniform frames arrange]: all 4 arrangements read 0.0 and every one fails. The retired reading of each is the fourth column of `BLANK_RENDERS`.",
       "retired_from_live_docs_by": "task 178"
+    },
+    {
+      "id": "WR-capture-default-62-of-68",
+      "withdrawn": "2026-08-27",
+      "kind": "figure",
+      "claim": "capture geometry stated as `62 of 68` stored submissions at the starter default, the evidence `capability.py`'s DECLINED register gave for not making capture resolution a variable",
+      "why": "It was a literal in the module's prose rather than a count of the records the sweep had just read, and it printed two screens under that sweep's own computed header - so it looked produced, which is worse than carrying no producer. It is also wrong for the population it names: over those same 68 game submissions the census is 63 at the default, 3 varied and 2 with no geometry at all, and 62 + 3 + 2 never reached 68. `resolution_census` now counts all three buckets from the records in hand.",
+      "match": [
+        "(?<![0-9.])62 of 68(?![0-9])",
+        "starter default"
+      ],
+      "anchor": "eval/findings/certifies-nothing.md",
+      "declared_in": "tasks/182",
+      "replaced_by": "python3 eval/judge/capability.py --runs eval/runs, which counts it beside the DECLINED entry from the records that invocation swept. Read 2026-08-27: 64 of the 69 records at the starter default 640x400, 3 varied (768x576, 720x540, 420x640), 2 with no geometry because their own `film` failed.",
+      "retired_from_live_docs_by": "task 182"
     }
   ]
 }
