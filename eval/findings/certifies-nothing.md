@@ -6025,3 +6025,55 @@ it, so the table above is re-measured on real pixels rather than remembered. 0 o
 frame sets contain a flat frame, so nothing else moves.
 
 ---
+## #192 — a positive control that exercises half the mechanism proves half the mechanism
+
+`.github/workflows/README.md` promises that every gate left out of CI is left out **with the
+reason**, and `AGENTS.md` sends every session to read it before adding a gate, before concluding one
+is missing, and before assuming a green run covered something. **Nothing checked that promise for
+the entire life of CI.** `ci_minutes.py --controls` does now: 40 git-tracked scripts whose stem ends
+`_control`/`_mutants`/`_selftest`, of which 36 are named by a workflow step or a git hook and 4 are
+recorded as deliberate exclusions. Two were neither, and one of those is
+`eval/tools/fragment_control.py` — which exists specifically so that a design measured as a complete
+false negative cannot be retried silently.
+
+**The instructive part is not the gap. It is that the hand census which found it was wrong in both
+directions, and its author had run a positive control first.**
+
+The cleanup pass that filed the ticket reported *"4 ungated controls, and the register records none
+of them"*. Measured against the merged producer:
+
+| the ticket said | it actually was |
+|---|---|
+| none of the 4 is in the register | **3 of the 4** had carried exclusion rows since the commit that introduced CI |
+| 4 ungated controls | 6, and the 2 it missed — `eval/runner_capture_selftest.py`, `eval/judge/parity_selftest.py` — are outside `eval/tools/`, where the scan was pointed |
+
+The cause is rule 12, in one character: the register writes the stem, `` `evidence_set_control` ``,
+and the check searched for `evidence_set_control.py`. It could never match, so it returned the same
+verdict for every subject — **the uniformity tell of rule 9, and the author had used that exact tell
+an hour earlier to diagnose four pull requests all reading `BLOCKED`.**
+
+> **The census asked TWO questions — is it gated, and is it excused — and the positive control
+> tested only the first.** `skill_layout_control.py` is documented as pinning a gate, the check
+> reported it gated, and that was read as the extraction being sound. It established nothing about
+> the register half, which is the half that was broken.
+
+This is #37's shared-assumption failure with a new surface. There, a control ran down a path
+carrying the same defect as the thing it controlled. Here the control was *correct* and simply did
+not reach the second mechanism. Both produce a confident answer.
+
+> **A positive control certifies exactly the path it traverses. When a check asks more than one
+> question, it needs a known-good case per question — and the count of questions is easy to
+> undercount, because the second one is usually the one you added last.**
+
+Two further properties the shipped census establishes, each measured rather than argued:
+
+- **Gated means NAMED, not reachable.** `backup_evidence_control.py` is gated and cites
+  `evidence_set_control` in a module docstring; a reachability-based census counts the second as
+  covered. It is not — nothing runs it. That row is pinned live.
+- **The register's stated reasons can themselves be wrong, and one was checkable.** The ticket
+  recorded `evidence_set_control` at 1.5s / 11 passing, read in the main checkout. In any other
+  checkout it exits 2 in 0.06s, because `eval/runs/` is gitignored — which is exactly what the
+  register's exclusion row says. The row was right and the ticket's measurement was taken in the one
+  place that hides the reason for it.
+
+---

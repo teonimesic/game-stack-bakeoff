@@ -81,6 +81,16 @@ jobs:
       - name: linkcheck (markdown links that resolve to nothing)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/linkcheck.py
+      # `docstat`'s duplicate-fragment check, both ways, over the live document corpus. Its
+      # `whole_line` mutant is the design that was tried first and measured as a complete
+      # false negative, so this is what stops that being tried again silently -- and until
+      # 2026-08-27 nothing ran it. 0.42s locally. It reads a historical blob for its REAL
+      # row, so it needs the `fetch-depth: 0` checkout above; in a shallow clone it goes RED
+      # rather than skipping, because no hits with nothing to find is indistinguishable from
+      # a check that cannot fire.
+      - name: fragment_control (the duplicate-fragment check, and the mutant it kills)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/fragment_control.py
 
       # ---- the queue ---------------------------------------------------------------
       - name: tasks.py check
@@ -265,6 +275,16 @@ jobs:
       - name: judge/capture_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/judge/capture_selftest.py
+      # The same question pointed at the OTHER harness: `judge/static.py` stores what the
+      # grader ran, `runner.py` stores what the agent's own gate said, and until #114 both
+      # merged the two streams into one buffer -- so a Rust trial's stdout was thrown away
+      # by a stderr flood (#100/#103). Mutants and variants both, and the variants run
+      # against the UNFIXED capture so the defect is measured rather than assumed. Ungated
+      # and unrecorded until 2026-08-27. 2.26s locally, of which 2.0 is a deliberate child
+      # timeout, so it costs wall clock rather than CPU and does not move with the runner.
+      - name: runner_capture_selftest (the agent harness's half of the capture question)
+        if: ${{ !cancelled() }}
+        run: python3 eval/runner_capture_selftest.py
       # Both offline and both under 0.1 s. `field_ranks` carries the guards that decide what
       # may be POOLED (a control must not enter a pooled figure) and what may be RANKED
       # ACROSS STACKS (`idiomatic` and `framework_fluency` may not); `weight_sensitivity`
