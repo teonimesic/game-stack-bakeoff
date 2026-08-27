@@ -76,23 +76,38 @@ Two offline sweeps answer it, both re-runnable and both able to come out the oth
 | tool | what it reports today |
 |---|---|
 | `weight_sensitivity.py --all --runs-root <main checkout>/eval/runs` | 10 groups, **FLIPS=0** at every weight in (0,1); **7 of 10 UNIDENTIFIABLE** — tier 1 returns a single value across the whole group, so the weight cannot act (#92) |
-| `tier1_census.py --runs-root <main checkout>/eval/runs` | 68 stored submissions, **7 with any tier-1 failure**. In **0 of 10** groups do both tiers vary among the trials tier 2 could measure. Verdict **FLOOR-ONLY** |
+| `tier1_census.py --runs-root <main checkout>/eval/runs` | 69 stored submissions, **8 with any tier-1 failure**. In **0 of 11** groups do both tiers vary among the trials tier 2 could measure. Verdict **FLOOR-ONLY** |
 
 **Read the caveat on the first before quoting it.** `weight_sensitivity.py` sweeps the
 *open* interval, because w1=0 and w1=1 discard a tier outright and are not candidate
 weightings. The gate regime **is** w1=0 — outside the interval it sweeps — so `FLIPS=0`
 is not evidence that this change moves nothing. The question at that point is asked by
 `tier1_census.py`, which compares the two schemes pairwise: **0 orderings reversed, 3
-coarsened, 7 identical.** Every distinction the gate removes is one tier 1 made alone.
+coarsened, 8 identical.** Every distinction the gate removes is one tier 1 made alone.
 
 What the census found tier 1 actually doing, across every trial it has ever scored:
 
 - **2 trials** failed a criterion tier 2 depends on — both the `syspolicyd` build failure
   of #49 — and both scored 0.00 on tier 2, which is the same fact told twice.
-- **5 trials** failed only other criteria: one Godot lint finding, one Unity lint finding,
-  three of a TypeScript submission's own unit tests, and one frame whose ink coverage was
-  0.881 against a window ending at 0.85. **All five scored 1.000 on tier 2.**
-- Every one of the 14 criteria has failed at least once, so none is dead weight.
+- **6 trials** failed only criteria tier 2 does not depend on. One row per trial, because
+  counting some of them as trials and others as criteria is what made the earlier wording
+  irreconcilable — it listed 4 items for 5 trials, collapsing the two arena TypeScript trials
+  into one:
+
+  | trial | what it failed | tier 2 |
+  |---|---|---|
+  | `wg-arena3d` `g3_arena__ts__t0` | `verify.green`, `tests.green` — 3 of its own 103 unit tests | 1.000 |
+  | `wg-arena3d` `g3_arena__ts__t1` | `verify.green`, `tests.green` — 3 of its own 109 unit tests | 1.000 |
+  | `wg-audio` `g1_pong__godot__t1` | `verify.green`, `lint.clean` | 1.000 |
+  | `wg-g4c` `g4_platformer__unity__t1` | `verify.green`, `lint.clean` | 1.000 |
+  | `wg-g4c` `g4_platformer__godot__t1` | `render.nonempty` — ink 0.881 against a ceiling ending at 0.85 | 1.000 |
+  | `wg-scene-s1ts` `s1_parallax__ts__t0` | `verify.green`, `lint.clean`, `tests.green` to an interrupted build, and `render.nonempty` to a game's ceiling | 0.833 |
+
+  The 5 games scored **1.000** on tier 2; the scene is not a `completed` trial and is not
+  pooled with them.
+- Every one of the 14 criteria has failed at least once, so none is dead weight. What
+  `render.nonempty` in particular has ever done is below, and it is not what it looks like
+  from this count.
 
 So tier 1 separates a submission that fails outright from one that does not, and has never
 separated two submissions that the play-bot could tell apart. As 0.31 of a quality score
@@ -115,7 +130,7 @@ gate = PASS iff every SCORED tier-1 criterion passed
   project that does not build or whose probe never answers cannot produce tier-2 evidence:
   `score_is_independent` goes false and its `overall` restates the gate rather than adding
   to it. Corroborated over the corpus — blocked trials have tier 2 = 0.00 (2 of 2), trials
-  failing only other criteria have tier 2 > 0 (5 of 5). `render.frames` is **not** blocking:
+  failing only other criteria have tier 2 > 0 (6 of 6). `render.frames` is **not** blocking:
   the bot drives the probe, not the film.
 
 **What would re-open this.** `tier1_census.py` prints `DISCRIMINATES` on its **headline**
@@ -161,7 +176,7 @@ as a fraction of `overall`** — see above.
 | `tests.exist` | Does the project ship more than a token number of its own tests? (floor: 8) |
 | `tests.green` | Do all of the project's own tests pass, with none skipped? |
 | `render.frames` | Does the game render frames at all? |
-| `render.nonempty` | Do the frames contain something other than a blank background? (ink coverage 0.001–0.85, matching the floor the four render harnesses already use) |
+| `render.nonempty` | Do the frames contain something other than a blank background? Mean ink coverage inside a window that is **per task class** — see below |
 | `render.animates` | Do consecutive frames of a played run differ? (>0.0005 of pixels) |
 | `probe.responds` | Does the headless probe start and advance the simulation? |
 
@@ -169,6 +184,72 @@ Also collected, **reported but not scored** (they are diagnostics, not verdicts 
 nobody in the open-source world hard-fails CI on wall-clock performance, and neither do
 we): coverage percentages, code file and line counts by extension, the full output tail
 of every command, and the nine **capture and performance fields** below.
+
+### Which population each tier-1 bound was calibrated on
+
+**Tier 1 GATES**, so a bound calibrated on one task class does not cost a correct member of
+another a fraction of a score — it stops that submission being scored at all. The question
+*is this bound a property of the artifact, or of games?* is therefore asked of every tier-1
+criterion, and the answer is kept as code in `static.TIER1_BOUND_POPULATION` rather than in
+a paragraph, so a criterion added without an answer fails
+`static.assert_tier1_bounds_declared()`.
+
+| population | criteria | why it transfers |
+|---|---|---|
+| `no_bound` | `build.compiles`, `verify.green`, `lint.clean`, `tests.green`, `render.frames`, `probe.responds`, `audio.manifest`, `audio.files_exist` | they read an exit status, a file count or a boolean. There is no number to calibrate |
+| `starter` | `tests.exist` (floor 8) | every starter already ships more, and both classes are built from the same four starters |
+| `capture_contract` | `render.animates` (>0.0005) | a property of `just film`, identical in both classes; a scene is a timed sequence and must move too |
+| `audio_signal` | `audio.not_silent`, `audio.distinct`, `audio.music_loops` | dBFS floors and spectral similarity. Not asked of a scene at all |
+| **`task_class`** | **`render.nonempty`** | the ceiling does not transfer — below |
+
+### `render.nonempty`: the floor transfers, the ceiling does not
+
+| task class | window (inclusive) |
+|---|---|
+| game | 0.001 – 0.85 |
+| scene | 0.001 – 1.00, i.e. a floor and no ceiling |
+
+**The floor is a property of the starter.** It is the floor the four render harnesses use in
+their own `renders a non-empty frame` test, and the starter's placeholder marker covers 0.0015
+of a 640x400 frame — anything tighter measures *the placeholder is small*. A **blank scene
+frame still fails**, and `judge/ink_window_control.py` pins that row.
+
+**The ceiling was a property of nothing.** 0.85 applied to every task from this repository's
+first commit and is derived in no document, no comment and no commit message — the same shape
+as the 0.31/0.69 split retired above. What it has done, from the producer:
+
+```bash
+python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
+```
+
+The population is **69 submissions** — 68 games and 1 scene, the most recent grading of each,
+from 85 on disk with 16 superseded and held out, which is `tier1_census`'s population and its
+walker rather than a fifth glob. Among those 69, `render.nonempty` has fired **4** times:
+
+| trial | mean ink | hit | what it was |
+|---|---|---|---|
+| `wg-arena3d` `g3_arena__rust__t0` / `t1` | 0.0 | floor | **0 frames** — `just check` exited 101 (#49). `render.frames` reports the same fact in the same record |
+| `wg-g4c` `g4_platformer__godot__t1` | 0.881 | ceiling | a night platformer over a gradient sky. **Tier 2 = 1.000** |
+| `wg-scene-s1ts` `s1_parallax__ts__t0` | 0.966 | ceiling | sky, road and scenery — the scene drawing what it was asked to draw |
+
+So the ceiling has **0 true positives and 2 false negatives**, and the floor has never fired on
+a frame that was rendered at all.
+
+**For a scene the ceiling's sign is inverted**, which is why this is a per-class table rather
+than a wider number. `eval/SCENES.md` contracts a scene to fill the frame — `s1_parallax` asks
+for a layered background with real distance in it, `s2_glass` for a full 3D render — and a
+large flat region is the naive implementation `scene_probe` exists to catch. There is no ink
+level from which a scene can be inferred defective from above. That is read off the task
+contract rather than off the submission that produced the firing: 0.966 passes, and so would
+0.87 or 0.999.
+
+**The game ceiling is left where it is, and not because it is right.** Moving it changes a
+stored *game* gate verdict and the figure three live documents quote, which is a re-scoring
+event on the game population with a ticket of its own (`tasks/168`).
+
+`judge/ink_window_control.py` pins both directions per class on real pixels, drives `collect`
+end to end with the toolchain stubbed so the class it was handed is proved to reach the
+criterion, and carries a mutant per mechanism.
 
 ### The performance fields — captured since 2026-08-23, scored by nothing
 

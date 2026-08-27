@@ -203,6 +203,72 @@ NEVER_ENDS = ("""        if not self._valid(cells):
             self.piece_cells = []
             return []  # MUTANT: stacking out never sets game_over""")
 
+#: `piece.spawns` and `piece.falls` are the two criteria `bot_tetris3d.OPENING_BUDGET`
+#: widened, from 20 and 120 ticks to 512 (`tasks/158`). Widening a budget can only make
+#: a criterion easier to pass, which is this file's own stated hazard, and neither
+#: carried a mutant before that change - so a criterion that had become incapable of
+#: failing would have read as a clean suite. These two are the negative controls for it,
+#: and each removes the mechanism its criterion names rather than stalling the game:
+#: NO_PIECE_EVER_SPAWNS pins the TIMEOUT path, which is the path a longer budget
+#: touches, and NO_GRAVITY leaves hard drop working so the descent is the only thing gone.
+NO_PIECE_EVER_SPAWNS = ("""        self.piece_kind = kind
+        self.piece_cells = cells
+        return ["spawn"]
+""", """        # MUTANT: no piece is ever handed to the player.
+        self.piece_kind = None
+        self.piece_cells = []
+        return []
+""")
+
+NO_GRAVITY = ("""        self.fall_timer += 1
+        if self.fall_timer >= interval:
+            self.fall_timer = 0
+            if not self._translate(0, -1, 0):
+                self._lock(events)
+        return events
+""", """        self.fall_timer += 1
+        if self.fall_timer >= interval:
+            self.fall_timer = 0
+            # MUTANT: the piece never descends on its own; only a hard drop moves it.
+        return events
+""")
+
+# NOT mutants - two VARIANTS that must still PASS, and the reason there are two of them.
+# A title card can be drawn over a well that already holds its first piece, frozen, or
+# over an empty one the first piece drops into when the card clears. Those two readings
+# meet DIFFERENT opening budgets, so before `bot_tetris3d.OPENING_BUDGET` existed a
+# repair to either left the other red: the frozen well failed `piece.falls` alone, and
+# the empty well failed `gameover.triggers`, `piece.falls`, `piece.spawns` and
+# `piece.stacks` - four of fifteen criteria from one 20-tick await. Both were declared
+# PENDING against `tasks/158` and promoted here when the budgets became one constant.
+#
+# 96 is the platformer REFERENCE's own `OPENING_TICKS`, so neither card is longer than
+# one this repository ships, and `bot_pong.LIVE_BUDGET` is the same 512 - bought by a
+# Godot submission that held the ball for `OPENING_DELAY = 104` "so the title card is
+# readable" (#34). Keep both cards at 96: the old boundary was exact, an 18-tick card
+# passing and a 21-tick one failing, so a shorter card here would stop biting.
+TETRIS_CARD_OVER_A_FROZEN_WELL = ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            return events
+        if self.tick <= 96:
+            # VARIANT: a title card. Control is not handed over yet; nothing falls.
+            return events
+""")
+
+TETRIS_CARD_OVER_AN_EMPTY_WELL = ("""        self._spawn()  # the first piece is already falling at tick 0
+""", """        # VARIANT: the well is shown empty behind a title card; the first piece
+        # arrives when the card clears.
+"""), ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            return events
+        if self.tick <= 96:
+            return events
+        if self.piece_kind is None and not self.grid:
+            return self._spawn()
+""")
+
 # -- ref_arena (3D / analog spec, 2026-08-15) -------------------------------- #
 #
 # Every criterion the 3D rewrite ADDED is pinned here. A criterion written against a
@@ -608,6 +674,26 @@ VARIANTS: list[Variant] = [
                   "restart's own score reset satisfied the frozen test. At 190 the "
                   "unrepaired bot reads `still over after 200 more ticks of input: "
                   "False`, so this length is what makes the row report the bot"),
+    Variant("ref_tetris3d", "a 96-tick card over a frozen well",
+            (TETRIS_CARD_OVER_A_FROZEN_WELL,), ("piece.falls",),
+            notes="the well is drawn with its first piece already in it and nothing "
+                  "moving, which is how the platformer REFERENCE reads a card, and it "
+                  "isolates the DESCENT budget. `piece.falls` stepped 120 ticks against "
+                  "a fall interval of 48 and read `lowest cell height went from 11 to "
+                  "11 without input`; a 60-tick card passed, so the budget was not "
+                  "absent - it was a quarter of what the same shape bought pong. "
+                  "PENDING against `tasks/158` until `OPENING_BUDGET` landed"),
+    Variant("ref_tetris3d", "a 96-tick card over an empty well",
+            TETRIS_CARD_OVER_AN_EMPTY_WELL,
+            ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
+            notes="the other reading of a card: the well is shown empty and the first "
+                  "piece arrives when the card clears. Four of fifteen criteria went "
+                  "red off one 20-tick await - `piece.spawns` read `first piece has 0 "
+                  "cells: []`, and `piece.stacks` and `gameover.triggers` each opened a "
+                  "FRESH session the same card gated, so their own 60-tick first awaits "
+                  "expired too (`played 0 pieces over 60 ticks`, `stacked into one "
+                  "corner for 60 ticks`). That is why `OPENING_BUDGET` reaches four "
+                  "call sites and not two. PENDING against `tasks/158` until it landed"),
 ]
 
 
@@ -636,41 +722,6 @@ VARIANTS: list[Variant] = [
 # takes a control as a reset both stop the sim from stepping, so the play-bot sees them;
 # a paddle that bobs, a screen that shakes and a score that counts up on screen live in
 # the view layer, which the prompt puts in a different module and the probe never reads.
-
-#: `bot_pong.LIVE_BUDGET` is 512 ticks and `bot_platformer._CONTROL_TICKS` is 512,
-#: both of them bought by a Godot submission that held the ball for `OPENING_DELAY =
-#: 104` "so the title card is readable" (#34). `bot_tetris3d` was never revisited and
-#: has TWO opening budgets, which is why there are two subjects here rather than one:
-#: `piece.falls` steps 120 ticks and wants a descent, and `_await_piece` gives the first
-#: piece 20. A repair to either leaves the other red. 96 is the platformer REFERENCE's
-#: own `OPENING_TICKS`, so neither card is longer than one this repository ships.
-#:
-#: The well is shown with the piece already in it, frozen - the platformer reference's
-#: reading of a card, and the one that isolates the descent budget.
-TETRIS_CARD_OVER_A_FROZEN_WELL = ("""        if self.game_over:
-            return events
-""", """        if self.game_over:
-            return events
-        if self.tick <= 96:
-            # VARIANT: a title card. Control is not handed over yet; nothing falls.
-            return events
-""")
-
-#: The well is shown empty until the card clears, which is the other reading of a card
-#: and the one that meets the 20-tick await. The boundary is exact and measured: an
-#: 18-tick card passes, a 21-tick card fails.
-TETRIS_CARD_OVER_AN_EMPTY_WELL = ("""        self._spawn()  # the first piece is already falling at tick 0
-""", """        # VARIANT: the well is shown empty behind a title card; the first piece
-        # arrives when the card clears.
-"""), ("""        if self.game_over:
-            return events
-""", """        if self.game_over:
-            return events
-        if self.tick <= 96:
-            return events
-        if self.piece_kind is None and not self.grid:
-            return self._spawn()
-""")
 
 #: `fire.rate_limited` asks about SHOTS and counts BULLET IDS. A weapon that fires a
 #: spread puts several in the world per shot, which is an ordinary design for a game the
@@ -713,21 +764,6 @@ class Pending:
 
 
 PENDING_VARIANTS: list[Pending] = [
-    Pending("ref_tetris3d", "a 96-tick card over a frozen well",
-            (TETRIS_CARD_OVER_A_FROZEN_WELL,), ("piece.falls",), task="tasks/158",
-            notes="`piece.falls` steps 120 ticks and requires the piece to descend, "
-                  "against a fall interval of 48. Measured: `lowest cell height went "
-                  "from 11 to 11 without input`. A 60-tick card passes, so the budget "
-                  "is not absent - it is a quarter of what the same shape bought pong"),
-    Pending("ref_tetris3d", "a 96-tick card over an empty well",
-            TETRIS_CARD_OVER_AN_EMPTY_WELL,
-            ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
-            task="tasks/158",
-            notes="four of fifteen criteria, from one 20-tick await. `piece.spawns` "
-                  "reads `first piece has 0 cells: []` and the rest follow it. The "
-                  "declared set is wide ON PURPOSE: a repair that raises one budget "
-                  "and not the other will come back with a DIFFERENT set rather than "
-                  "an empty one, which is the report a partial fix should produce"),
     Pending("ref_arena", "a faster three-round spread weapon",
             (SPREAD_WEAPON,), ("fire.rate_limited",), task="tasks/160",
             notes="measured `90 bullets from 120 ticks of held fire (30 fire events)`. "
@@ -761,6 +797,24 @@ MUTANTS: list[Mutant] = [
            WALLCLOCK_SEED),
     Mutant("determinism.seed", "ref_pong", "the seed argument is ignored",
            (SEED_IGNORED,)),
+    Mutant("piece.spawns", "ref_tetris3d", "no piece is ever handed to the player",
+           (NO_PIECE_EVER_SPAWNS,),
+           collateral=("piece.falls", "piece.locks", "move.translates",
+                       "rotate.reorients", "harddrop.locks", "piece.stacks",
+                       "gameover.triggers"),
+           notes="the TIMEOUT path, and the negative control for `OPENING_BUDGET`: "
+                 "widening the first await from 20 ticks to 512 can only make this "
+                 "criterion easier to pass, so what needs pinning is that a game which "
+                 "never spawns still goes red after the longer wait. The collateral is "
+                 "wide because a game with no piece has nothing to move, rotate, drop "
+                 "or stack out with"),
+    Mutant("piece.falls", "ref_tetris3d", "the piece never descends on its own",
+           (NO_GRAVITY,), collateral=("piece.locks",),
+           notes="the other half of the `OPENING_BUDGET` control, on the budget that "
+                 "went from 120 ticks to 512. Hard drop is a separate branch and still "
+                 "works, so the piece still locks, stacks and ends the game when the "
+                 "bot drops it - gravity is the only mechanism removed, and 512 ticks "
+                 "of no input is 512 ticks of the piece sitting where it spawned"),
     Mutant("move.translates", "ref_tetris3d", "horizontal move inputs are ignored",
            (MOVES_IGNORED,)),
     Mutant("piece.stacks", "ref_tetris3d", "locked cells never enter the settled grid",
@@ -943,8 +997,8 @@ _V_PIT = "the opening ledge overlooks a bottomless pit"
 _V_PONG_RESTART = "a game-over card, then a control starts a new match"
 _V_RESTART = "a game-over card, then a control starts a new run"
 _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
-_P_FROZEN = "a 96-tick card over a frozen well"
-_P_EMPTY = "a 96-tick card over an empty well"
+_V_FROZEN = "a 96-tick card over a frozen well"
+_V_EMPTY = "a 96-tick card over an empty well"
 _P_SPREAD = "a faster three-round spread weapon"
 
 _SESSION = ("the three session-lock controls, which also pin that a permanently locked "
@@ -1030,15 +1084,18 @@ HAZARDS: list[Hazard] = [
            "no correct game constructed: the prompt fixes the geometry, so a different "
            "well is a spec miss rather than an unusual correct game"),
     Hazard("ref_tetris3d", "piece.spawns", "opening-card",
-           "a title card, a next-piece beat or a materialise animation longer than the "
-           "20 ticks `_await_piece` allows at tick 0",
-           "PENDING, measured red, and the boundary is exact: an 18-tick card passes "
-           "and a 21-tick card fails. A beat between LATER pieces passes, because those "
-           "are awaited with a limit of 60", _P_EMPTY),
+           "a title card, a next-piece beat or a materialise animation before the first "
+           "piece appears at all",
+           "the variant, plus `bot_tetris3d.OPENING_BUDGET`: the await was 20 ticks and "
+           "the boundary was exact, an 18-tick card passing and a 21-tick one failing, "
+           "so a beat between LATER pieces passed on 60 while the OPENING failed. Now "
+           "512 at tick 0 and `MIDGAME_AWAIT` after (`tasks/158`)", _V_EMPTY),
     Hazard("ref_tetris3d", "piece.falls", "opening-card",
            "a title card that holds the well before the first piece descends",
-           "PENDING, measured red. 120 ticks against a fall interval of 48 is a quarter "
-           "of the 512 the same shape bought pong and the platformer", _P_FROZEN),
+           "the variant, plus `bot_tetris3d.OPENING_BUDGET`: 120 ticks against a fall "
+           "interval of 48 was a quarter of the 512 the same shape bought pong and the "
+           "platformer, and it read `lowest cell height went from 11 to 11 without "
+           "input` on a correct game (`tasks/158`)", _V_FROZEN),
     Hazard("ref_tetris3d", "piece.locks", "tuning",
            "a game with a lock delay, so the `lock` event lands well after the piece "
            "reaches the bottom",
@@ -1068,7 +1125,10 @@ HAZARDS: list[Hazard] = [
     Hazard("ref_tetris3d", "piece.stacks", "tuning",
            "a game that clears layers as fast as the bot stacks them, so the maximum "
            "column height never rises",
-           "the criterion accepts either a higher stack OR a non-zero `layers_cleared`"),
+           "the criterion accepts either a higher stack OR a non-zero `layers_cleared`. "
+           "It opens its OWN session, so an opening card gates it a second time: that "
+           "first await is `bot_tetris3d.OPENING_BUDGET` rather than `MIDGAME_AWAIT`, "
+           "which is what the empty-well variant reads (`tasks/158`)"),
     Hazard("ref_tetris3d", "layer.clears", "late-unlock",
            "any correct game: the placement policy cannot fill a 25-cell layer out of "
            "four-cell pieces",

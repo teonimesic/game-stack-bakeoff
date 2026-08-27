@@ -5939,4 +5939,46 @@ for fixing an evidence string that looks cosmetic.
 `paddle.deflects`, both of which stop the rally happening at all — so a criterion carrying weight
 was pinned by two checks that could not isolate it.
 
+## #188 — the merge gate enumerated the blockers it knew, and the host had one it did not
+
+`eval/tools/mergeable.py` exists because two individually-green pull requests reddened `main`, and
+it checks two things: the required checks are green **at the current head**, and the branch is not
+behind its base. On 2026-08-27 it read PR #42 as:
+
+```
+  gates      SUCCESS
+  controls   SUCCESS
+  head 76bf6b63 -> main (behind by 0)
+```
+
+Every named check passed. Squash auto-merge was armed. **GitHub refused to merge it**, and went on
+refusing for the better part of an hour, reporting only `mergeStateStatus: BLOCKED` — which the
+tool read and did nothing with.
+
+The cause was `required_conversation_resolution` on `main`, and two unresolved CodeRabbit threads.
+`gh pr view --json` has **no field for review threads**: they are GraphQL-only, so the REST rollup
+the tool reads cannot see them at any level of care. The gate was not mistaken about its inputs; it
+could not observe the input that decided the outcome.
+
+**Four pull requests all read `BLOCKED`, and the uniformity was the tell** — rule 9, pointed at the
+label rather than the population. It was also, for once, hiding two different causes: 42 and 44
+were held by unresolved threads, 45 and 46 merely had `controls` still running. A single status
+word covering two mechanisms is what made the first diagnosis available and wrong.
+
+**The repair is two checks, and only the second one generalises.** Reading the threads by GraphQL
+names the blocker and makes it actionable. But an enumeration of blockers has now been incomplete
+once, and `AGENTS.md` is explicit that a trigger written as the instances you happened to meet must
+be re-derived by every reader who meets one that is not on the list. So the second check asserts the
+**property**: if this tool finds no problem and the host still says `BLOCKED`, that disagreement is
+reported as *this tool's* list being incomplete — never as permission to merge.
+
+That row is the only one in the selftest that compares two independent statements of the same fact
+rather than sharing an address with it, which is the distinction task 113 bought: a control that
+imports its expectation from its subject is not a control.
+
+**And the mutant for it came back SURVIVED on its first run**, from `import mergeable as _self`
+inside a module executing as `__main__` — a second module object, so the patched constant was a
+copy nothing executed. `AGENTS.md` rule 12 lists that exact shape, and it was committed by someone
+who had just cited it in the surrounding comment. It now patches `globals()`, and the mutant dies.
+
 ---

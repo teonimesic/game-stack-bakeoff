@@ -42,6 +42,16 @@ REQUIRED = ("gates", "controls")
 #: comparison as the real test and treats this as corroboration only.
 BEHIND_STATES = ("behind", "dirty")
 
+#: `mergeStateStatus` values where GITHUB refuses the merge, whatever this tool thinks.
+#: The named checks above enumerate the reasons this tool knows about; that enumeration
+#: has already been incomplete once, so this is the PROPERTY that catches the rest. On
+#: 2026-08-27 PR #42 had both required checks green at its own head and 0 commits of
+#: drift, and every named check here passed - while GitHub refused it for two unresolved
+#: review threads, because `main` sets `required_conversation_resolution`. A gate that
+#: reports `mergeable` on a pull request the host will not merge is the shape this
+#: repository logs as "a mechanism that runs, reports success, and measures nothing".
+REFUSING_STATES = ("blocked", "behind", "dirty", "draft", "unstable")
+
 
 def _gh(args: list[str]) -> str:
     """Run `gh` and return stdout. Raises on non-zero: never `|| echo 0` a measurement."""
@@ -119,13 +129,74 @@ def staleness_problems(facts: dict, ahead: int) -> list[str]:
     return problems
 
 
+def unresolved_threads(pr: str) -> list[dict] | None:
+    """Unresolved review threads, or `None` if the query could not be run.
+
+    `gh pr view --json` has no field for these, so the REST rollup this tool reads
+    cannot see them at all - which is exactly how they went unnoticed. `None` is a
+    THIRD value and never an empty list: "nobody could ask" must not read as "no
+    unresolved threads", which is the fail-open direction (rule 7).
+    """
+    q = ("query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r)"
+         "{pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved path "
+         "comments(first:1){nodes{author{login}}}}}}}}")
+    try:
+        slug = json.loads(_gh(["repo", "view", "--json", "nameWithOwner"]))
+        owner, repo = slug["nameWithOwner"].split("/", 1)
+        raw = _gh(["api", "graphql", "-f", f"query={q}", "-F", f"o={owner}",
+                   "-F", f"r={repo}", "-F", f"n={int(pr)}"])
+        nodes = json.loads(raw)["data"]["repository"]["pullRequest"][
+            "reviewThreads"]["nodes"]
+    except Exception:
+        return None
+    out = []
+    for t in nodes:
+        if t.get("isResolved"):
+            continue
+        c = (t.get("comments") or {}).get("nodes") or [{}]
+        out.append({"path": t.get("path") or "?",
+                    "author": ((c[0] or {}).get("author") or {}).get("login") or "?"})
+    return out
+
+
+def conversation_problems(threads: list[dict] | None) -> list[str]:
+    """`main` requires conversation resolution, so an open thread blocks the merge."""
+    if threads is None:
+        return ["could not read review threads: this tool cannot tell whether an "
+                "unresolved conversation is blocking. Not the same as zero."]
+    if not threads:
+        return []
+    where = ", ".join(sorted({f"{t['path']} ({t['author']})" for t in threads})[:4])
+    return [f"{len(threads)} unresolved review thread(s): {where}. `main` sets "
+            f"required_conversation_resolution, so these block the merge even with "
+            f"every check green. Read them and reply - resolving one you did not act "
+            f"on is tidying feedback away."]
+
+
+def agreement_problems(facts: dict, problems: list[str]) -> list[str]:
+    """Does this tool's verdict AGREE with the host's? A disagreement is OUR bug.
+
+    An expectation is a SECOND, independent statement of a fact, and this is the only
+    row here that compares the two rather than sharing an address with them.
+    """
+    state = (facts.get("mergeStateStatus") or "").lower()
+    if problems or state not in REFUSING_STATES:
+        return []
+    return [f"every check in this tool passes and GitHub still reports "
+            f"mergeStateStatus={state!r}. The tool's list of blockers is INCOMPLETE - "
+            f"do not merge on its say-so; read the pull request and then fix this tool."]
+
+
 def report(pr: str) -> int:
     facts = pr_facts(pr)
     if facts.get("state") != "OPEN":
         print(f"PR #{facts['number']} is {facts['state']}, not open")
         return 1
     ahead = behind_by(facts["baseRefName"], facts["headRefOid"])
-    problems = check_problems(facts) + staleness_problems(facts, ahead)
+    threads = unresolved_threads(pr)
+    problems = (check_problems(facts) + staleness_problems(facts, ahead)
+                + conversation_problems(threads))
+    problems += agreement_problems(facts, problems)
 
     print(f"PR #{facts['number']}  {facts['title'][:64]}")
     print(f"  head {facts['headRefOid'][:8]} on {facts['headRefName']} "
@@ -140,7 +211,8 @@ def report(pr: str) -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
-    print("\nmergeable: required checks green at the current head, branch up to date")
+    print("\nmergeable: required checks green at the current head, branch up to "
+          "date, no unresolved review thread, and GitHub agrees")
     return 0
 
 
@@ -232,6 +304,52 @@ def selftest() -> int:
     # ---- REQUIRED is the address, and the address is an input to the check (rule 12).
     check("REQUIRED names the two workflows that exist",
           sorted(REQUIRED), ["controls", "gates"])
+
+    # ---- The gate can go GREEN on conversations too: zero threads is not a problem.
+    check("no unresolved thread is not a problem", conversation_problems([]), [])
+
+    # ---- THE #42 SHAPE. Every named check green, and GitHub refuses it anyway.
+    thr = [{"path": "DECISIONS.md", "author": "coderabbitai"},
+           {"path": "eval/judge/ink_window_control.py", "author": "coderabbitai"}]
+    check("two unresolved threads are refused", len(conversation_problems(thr)), 1)
+    check("the refusal names the files, so it is actionable",
+          "DECISIONS.md" in conversation_problems(thr)[0], True)
+    blocked = _facts(merge_state="BLOCKED")
+    named = check_problems(blocked) + staleness_problems(blocked, 0)
+    check("PR #42 exactly: the NAMED checks all pass on it", named, [])
+    check("...and the conversation check is what catches it",
+          len(conversation_problems(thr)), 1)
+
+    # ---- VARIANT, and the fail-open direction: the query could not be run at all.
+    # `None` must not read as "no unresolved threads" - rule 7, every reason not to
+    # count a failure is a channel a bug can widen.
+    check("an unreadable thread query is refused, not read as zero",
+          len(conversation_problems(None)), 1)
+
+    # ---- The AGREEMENT row: this tool disagreeing with the host is THIS TOOL's bug.
+    check("a clean state with no problems raises no disagreement",
+          agreement_problems(_facts(merge_state="CLEAN"), []), [])
+    check("BLOCKED with no problems found is reported as an incomplete blocker list",
+          len(agreement_problems(blocked, [])), 1)
+    check("...but stays quiet when a problem was already found, to avoid double-"
+          "reporting the same refusal",
+          agreement_problems(blocked, ["something"]), [])
+
+    # ---- MUTANT: drop `blocked` from REFUSING_STATES and the #42 shape goes silent.
+    # Patch THIS module's globals, not `import mergeable`. Run as `__main__`, that
+    # import builds a SECOND module object, and `agreement_problems` would keep reading
+    # the original binding - the mutant edits a copy nothing executes and comes back
+    # SURVIVED. It did, on the first run of this row. `AGENTS.md` rule 12 already lists
+    # the shape: "a monkeypatched module constant / a value already derived at import".
+    g = globals()
+    saved = g["REFUSING_STATES"]
+    try:
+        g["REFUSING_STATES"] = ("behind", "dirty")
+        check("MUTANT: REFUSING_STATES without 'blocked' stops catching #42",
+              len(agreement_problems(blocked, [])), 0)
+    finally:
+        g["REFUSING_STATES"] = saved
+    check("...and REFUSING_STATES is restored", "blocked" in REFUSING_STATES, True)
 
     print(f"\nmergeable selftest: {'ok' if not failures else 'FAILED'} "
           f"({failures} failures)")

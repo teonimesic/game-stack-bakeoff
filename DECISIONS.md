@@ -193,6 +193,48 @@ reliability, and the reliability you measure is highest exactly where you need t
 Rewriting the three unstable criteria did not fix it; the rewrite made a contested submission
 *less* stable.
 
+### A tier-1 bound is decided per task class, and `render.nonempty`'s ceiling is a game's — decided 2026-08-26
+
+**Because tier 1 gates, a mis-calibrated bound does not cost a fraction of a score.** It stops a
+correct submission being scored at all. So the question *is this bound a property of the artifact,
+or of games?* is now asked of all 14 tier-1 criteria, and the answer is code —
+`static.TIER1_BOUND_POPULATION`, gated by `static.assert_tier1_bounds_declared()` — rather than a
+paragraph somebody re-derives. **8 carry no bound, 5 carry one that transfers, 1 does not.**
+
+`render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
+repository's first commit, derived in no document, no comment and no commit message. The producer
+is `python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`. Its
+population is `tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on
+disk with 16 superseded and held out. Among those 69 the criterion has fired **4** times:
+
+| | mean ink | what it was |
+|---|---|---|
+| `wg-arena3d` `g3_arena__rust__t0`/`t1` | 0.0, **floor** | 0 frames — the #49 build failure, which `render.frames` reports in the same record |
+| `wg-g4c` `g4_platformer__godot__t1` | 0.881, **ceiling** | a night platformer over a gradient sky. Tier 2 = 1.000 |
+| `wg-scene-s1ts` `s1_parallax__ts__t0` | 0.966, **ceiling** | the first scene, drawing what it was asked to draw |
+
+**The ceiling has 0 true positives and 2 false negatives; the floor has never fired on a frame
+that was rendered at all.**
+
+**The decision: the window is per task class. A scene gets the floor and no ceiling.** The floor
+is a property of the four starters — their own `renders a non-empty frame` test, and a
+placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank scene frame
+still fails. The ceiling's *sign* is inverted for a scene: `eval/SCENES.md` contracts a scene to
+fill the frame and a large flat region is the naive implementation `scene_probe` exists to catch,
+so no ink level makes a scene defective from above. That is read off the task contract rather
+than off the submission that produced the firing: 0.966 passes, and so would 0.87 or 0.999.
+
+**The game ceiling is left where it is, and not because it is right.** Moving it flips a stored
+*game* gate verdict and the figure three live documents quote, which is a re-scoring event on the
+game population and has its own ticket.
+
+**What re-opens it.** `python3 eval/judge/ink_window_control.py --runs-root <main
+checkout>/eval/runs` printing a ceiling firing that is a real defect — a rendered frame with
+no flat region that the play-bot or the scene probe also condemns. Its output recorded on
+2026-08-26 holds 2 ceiling firings, and neither firing is a real defect.
+`eval/judge/RUBRIC.md` holds the table; `eval/RUNS.md` holds the re-grade of the 1 affected
+trial.
+
 ### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23
 
 Tier 1 becoming a gate left `overall = tier2`, and tier 2 is itself at the ceiling. **This is
@@ -2902,7 +2944,7 @@ one directory; or a tier-2 instrument that serves both classes, which would reti
 `bot_mutants.py` carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
 down; every run asserts the measured set equals the declared one, and each entry names the
-ticket that owns its repair. **3 are live**, on `ref_tetris3d` and `ref_arena`;
+ticket that owns its repair. **1 is live**, on `ref_arena`;
 `python3 eval/judge/bot_mutants.py` is the producer for that count and prints it beside the
 variant count on its last line.
 
@@ -2911,7 +2953,15 @@ and a criterion change moves stored verdicts across 68 graded submissions — a 
 event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
 *found* it would bundle a measurement change into a coverage change, which is the
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
-reproduces it, and the open repairs are `tasks/158` and `tasks/160`.
+reproduces it, and the open repair is `tasks/160`.
+
+**A closed entry may re-score 0 stored verdicts. That does not weaken the declaration.**
+The 2 `ref_tetris3d` opening-card subjects are in `VARIANTS`, and their promotion moved 0 stored
+verdicts. `piece.spawns` and `piece.falls` each have 0 failures over the 19 stored `g2_tetris3d`
+trials (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`). That game's only
+2 tier-2 failures come from a Unity probe-session abort, not an opening card. Whether a repair
+re-scores anything is knowable only once it lands, so the split is what keeps the coverage change
+and the measurement change separable in both outcomes.
 
 **A pending entry has a second way to close: the subject is not a correct game.**
 `ref_pong/rally.counts` carries no pending entry, and `tasks/159` is where the decision is
