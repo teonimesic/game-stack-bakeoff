@@ -51,7 +51,8 @@ no document corpus: it kills a child mid-plant in a throwaway git repository and
 the working tree survives.
 `judge/ink_window_control` is there rather than in `controls.yml` despite being about frames:
 it writes its own PNGs through `judge/png.py` and stubs every subprocess `static.collect`
-makes, so it needs neither `just` nor a stack toolchain — 0.6s. Its corpus arm reads
+makes, so it needs neither `just` nor a stack toolchain — 0.6s. It carries `render.nonempty`'s
+floor in both directions and the measured derivation for having no ceiling. Its corpus arm reads
 `eval/runs`, which is gitignored, and prints `NOT ASKED` in CI rather than a count.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,

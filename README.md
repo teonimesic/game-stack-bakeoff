@@ -184,7 +184,7 @@ survives any particular value ([#144]). Design, result and controls:
 | question | where |
 |---|---|
 | What was decided, and why? | [`DECISIONS.md`](DECISIONS.md) |
-| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 171 entries. Findings #19-#189, count and range from `python3 eval/tools/docstat.py --findings` |
+| What went wrong, and what did it teach? | [`eval/FINDINGS.md`](eval/FINDINGS.md) — 172 entries. Findings #19-#190, count and range from `python3 eval/tools/docstat.py --findings` |
 | What resource did a run use, and what may I compare it with? | [`eval/RUNS.md`](eval/RUNS.md) |
 | How big is the stored corpus right now? | `python3 eval/tools/census.py` |
 | Why these four stacks? | [`research/DECISION.md`](research/DECISION.md) — the *prior*. The bake-off is the evidence, and it opens with a retraction |
@@ -219,10 +219,11 @@ GUID, its reachability from every ancestor directory, and every criterion id the
 | **3. LLM judge** | **0.00** | One specialist per aspect, each ranking a whole eight-submission field rather than scoring submissions one at a time. **Diagnostic only — contributes nothing, and stays at 0.00 until it passes its validation gates.** |
 
 `overall = tier2`. **Tier 1 stopped being 0.31 of the score on 2026-08-23** ([#92], [#123]): across
-68 stored submissions it returned a single value in 7 of 10 groups, and its 7 failing trials were
-2 build failures — whose tier-2 zero already says the same thing — and 5 lint, unit-test or
-ink-coverage findings on games that scored 1.000 on tier 2. It is a floor test and is now reported
-as one. Re-derive with `eval/judge/weight_sensitivity.py` and `eval/judge/tier1_census.py`.
+the 69 stored submissions it returns a single value in 8 of 11 groups, and its 8 failing
+submissions are 2 build failures — whose tier-2 zero already says the same thing — and 6 lint,
+unit-test and ink-coverage findings, the 5 games among them all scoring 1.000 on tier 2. It is a
+floor test and is now reported as one. Re-derive with `eval/judge/weight_sensitivity.py` and
+`eval/judge/tier1_census.py`.
 **Scores stored before that date are in the old weighted regime and are marked as such; they were
 not rewritten** ([`eval/RUNS.md`](eval/RUNS.md)).
 
@@ -308,7 +309,7 @@ without one lost 29.8% of all turns to denials, so runs across that change are *
 
 ## The one thing this project actually learned
 
-171 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
+172 numbered findings — `python3 eval/tools/docstat.py --findings` — and all but a few are
 instances of one pattern:
 
 > **A mechanism that runs, reports success, and measures nothing.**

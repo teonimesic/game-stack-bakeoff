@@ -327,14 +327,25 @@ def analyse_frames(frames: list[Path]) -> dict[str, Any]:
         except Exception as e:  # noqa: BLE001
             info["errors"].append(f"{f.name}: {e}")
     if not imgs:
-        info.update(mean_ink=0.0, max_ink=0.0, mean_frame_delta=0.0, sizes=[])
+        info.update(mean_ink=0.0, max_ink=0.0, mean_frame_delta=0.0, sizes=[],
+                    flat_frames=0)
         return info
+    # ONE background for every frame, taken from FRAME 0. That is what `mean_ink` has
+    # always measured and it is not changed here: switching to a per-frame background
+    # moves 8 of the 67 stored frame sets, one of them 0.60285 -> 0.04481, which is a
+    # re-measurement of the corpus and needs its own derivation (`tasks/178`).
     bg = imgs[0].dominant_background()
     inks = [im.ink_coverage(bg) for im in imgs]
+    # WHICH FRAMES HOLD ONE COLOUR AND NOTHING ELSE, asked per frame against each
+    # frame's OWN mode - the question `mean_ink` structurally cannot answer, and the
+    # one `render.nonempty` is actually about. 0 of the 67 stored frame sets contain a
+    # flat frame, and the worst-case cost over those sets is 0.46 s.
+    flat = sum(1 for im in imgs if im.is_flat())
     deltas = [imgs[i].differs_from(imgs[i - 1]) for i in range(1, len(imgs))]
     info.update(
         sizes=sorted({(im.width, im.height) for im in imgs}),
         background=bg,
+        flat_frames=flat,
         mean_ink=round(sum(inks) / len(inks), 5),
         max_ink=round(max(inks), 5),
         per_frame_ink=[round(v, 5) for v in inks],
@@ -378,86 +389,128 @@ CRITERIA = [
 MIN_OWN_TESTS = 8          # the starter already ships more than this
 DELTA_MIN = 0.0005
 
-#: The `render.nonempty` window, `(floor, ceiling, why)`, INCLUSIVE at both ends, PER
-#: TASK CLASS - and the ceiling is the half that does not transfer between them.
+#: `render.nonempty`'s FLOOR, and the derivation for why there is NO ceiling.
 #:
-#: THE FLOOR IS A PROPERTY OF THE STARTER and is the same number for every class. It is
-#: the floor the four render harnesses already use in their own `renders a non-empty
-#: frame` test, and the starter's placeholder marker covers 0.0015 of a 640x400 frame,
-#: so anything tighter measures "the placeholder is small" rather than "something is
-#: drawn". Every class is built from those same four starters, so it transfers.
+#: THE FLOOR IS A PROPERTY OF THE STARTER. It is the floor the 4 render harnesses
+#: already use in their own `renders a non-empty frame` test, and the starter's
+#: placeholder marker covers 0.0015 of a 640x400 frame, so anything tighter measures
+#: "the placeholder is small" rather than "something is drawn". Every task class is
+#: built from those same 4 starters, so it transfers - which is why
+#: `TIER1_BOUND_POPULATION` files this criterion under `starter`.
 #:
-#: THE CEILING WAS A PROPERTY OF NOTHING. 0.85 applied to every task from this
-#: repository's first commit and is derived in no document, no comment and no commit
-#: message - the same shape as the 0.31/0.69 split that task 29 retired. What it has
-#: actually done, over every grading this project has stored:
+#: THERE IS NO CEILING, AND THE REASON IS THAT `mean_ink` CANNOT CARRY ONE.
+#: `ink_coverage` counts pixels differing from ONE reference colour, and
+#: `analyse_frames` takes that colour from FRAME 0's mode. So the quantity is departure
+#: from the first frame's modal colour - a property of the PALETTE, not of how much was
+#: drawn - and it runs backwards from what a ceiling would want:
+#:
+#:   - a solid flood in frame 0's own colour, the archetypal "the render broke and
+#:     filled the screen", measures 0.0. Measured on solid white, magenta and black:
+#:     0.0 each. Every one hits the FLOOR.
+#:   - what drives the number toward 1.0 is the ABSENCE of a modal region - a gradient,
+#:     a dither, a wide palette. A night platformer over a gradient sky reads 0.881
+#:     with its subject drawn correctly on top.
+#:
+#: AND THE CEILING WAS NOT A BLANK-FRAME GUARD EITHER, which is the measurement that
+#: settles it rather than the argument. 12 frames each holding a single colour have
+#: drawn nothing, and `mean_ink` reads:
+#:
+#:   all one colour                  0.0       floor FAIL   0.001-0.85 FAIL
+#:   frame 0, then 11 of another     0.91667   floor PASS   0.001-0.85 FAIL
+#:   alternating 2 colours           0.5       floor PASS   0.001-0.85 PASS
+#:   6 of one, then 6 of another     0.5       floor PASS   0.001-0.85 PASS
+#:
+#: The same blank render lands anywhere on the scale depending only on how its colours
+#: are ARRANGED, and 0.001-0.85 admitted 2 of the 3 non-zero arrangements. A bound on
+#: this quantity was never the guard, so removing the ceiling is not what opens that
+#: door - `nonempty_verdict` asks the question directly instead, via `flat_frames`, and
+#: fails all 4 rows above. 0 of the 67 stored frame sets contain a flat frame, so the
+#: added half moves no stored verdict.
+#:
+#: WHAT 0.85 DID, over every grading this project has stored:
 #:
 #:   python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 #:
-#: 69 submissions - the most recent grading of each, from 85 on disk - and 4
-#: `render.nonempty` failures among them. The 2 floor firings
-#: are `wg-arena3d`'s rust cells, which produced **0 frames** because `just check` exited
-#: 101 - a fact `render.frames` reports in the same record. The 2 ceiling firings are
-#: both submissions that drew what they were asked to draw: `wg-g4c`
-#: `g4_platformer__godot__t1` at 0.881, a night platformer over a gradient sky that
-#: scored **1.000** on tier 2 (#123), and `wg-scene-s1ts` `s1_parallax__ts__t0` at
-#: 0.966. So the ceiling has 0 true
-#: positives and 2 false negatives, and tier 1 is a GATE: a false negative here does not
-#: cost a fraction of a score, it stops a correct submission being scored at all.
+#: 69 submissions, the most recent grading of each from 85 on disk. 4 `render.nonempty`
+#: failures. The 2 floor firings are `wg-arena3d`'s rust cells at **0 frames**, which
+#: `render.frames` reports in the same record. Among the 2 CEILING firings: 0 true
+#: positives and 2 false negatives, both submissions that drew what they were asked to
+#: draw - `wg-scene-s1ts` `s1_parallax__ts__t0` at 0.966 (repaired by `tasks/163`) and
+#: `wg-g4c` `g4_platformer__godot__t1` at 0.881, which scored 1.000 on tier 2 (#123).
+#: Tier 1 GATES, so a false negative here does not cost a fraction of a score, it stops
+#: a correct submission being scored at all.
 #:
-#: FOR A SCENE THE CEILING'S SIGN IS INVERTED, which is why this is a per-class table
-#: rather than a wider number. `eval/SCENES.md` contracts a scene to fill the frame -
-#: `s1_parallax` asks for a layered background with real distance in it, `s2_glass` for
-#: a full 3D render - and a large flat region is the NAIVE implementation `scene_probe`
-#: exists to catch. There is no ink level from which a scene can be inferred defective
-#: from above, so a scene gets a floor and no ceiling. That is read off the task
-#: contract, not off the one submission: 0.966 passes, and so would 0.87 or 0.999.
+#: AND THE 68 GAME VALUES ARE A CONTINUUM, not 2 populations with a gap between them.
+#: The 6 highest are 0.679, 0.703, 0.736, 0.772, 0.828 and 0.881, every one of them
+#: `g4_platformer` - the one game whose background scrolls across the whole frame - and
+#: the largest gap among those 6 is 0.0555. 0.85 fell in a gap of 0.0536, between 2
+#: trials of that same game, so what it separated was a TASK and not a quality. (The
+#: 7th value down is `g3_arena__rust__t0` at 0.60285, 0.076 below the 6th.)
 #:
-#: THE GAME CEILING IS LEFT WHERE IT IS, deliberately and not because it is right.
-#: Moving it changes a stored GAME gate verdict (`g4_platformer__godot__t1`, FAIL ->
-#: PASS) and the figure quoted in `RUBRIC.md`, `DECISIONS.md` and `eval/RUNS.md`; that
-#: is a re-scoring event on the game population and it has a ticket of its own
-#: (`tasks/168`).
-INK_WINDOW: dict[str, tuple[float, float, str]] = {
-    "game": (0.001, 0.85,
-             "a game draws a subject against a background"),
-    "scene": (0.001, 1.0,
-              "a scene is contracted to fill the frame (eval/SCENES.md), so it has a "
-              "floor and no ceiling"),
-}
+#: 0.85 was not moved to admit the submission that exposed it; it was removed, because
+#: no number on this measure means "too full". `judge/ink_window_control.py` keeps the
+#: 4 blank-render arrangements as rows and the restored 0.85 as a mutant.
+INK_FLOOR = 0.001
+INK_FLOOR_WHY = ("the 4 render harnesses' own `renders a non-empty frame` floor; "
+                 "the starter's placeholder marker covers 0.0015 of a 640x400 frame")
+
+#: The task classes tier 1 will grade, closed. `collect` refuses anything else BEFORE
+#: spending a toolchain: the class chooses the tick count and the audio criterion set as
+#: well as reaching the stored record, so a class nobody registered has already made
+#: those wrong by the time a criterion is evaluated. `judge/ink_window_control.py`
+#: asserts this set equals the one `judge/aspects.py` recognises rather than promising
+#: it in a comment (rule 12).
+TASK_CLASSES = ("game", "scene")
 
 
-def ink_window(task_class: str) -> tuple[float, float, str]:
-    """`render.nonempty`'s window for one task class, or raise.
+def assert_task_class(task_class: str) -> str:
+    """Return `task_class`, or raise if tier 1 does not grade that class.
 
-    FAILS CLOSED on a class it cannot place rather than falling back to the game
-    window. A fallback here is invisible: it returns a plausible number and fails a
-    correct submission of whatever class nobody registered, which is the defect this
-    function exists to remove rather than to relocate.
+    FAILS CLOSED on a class it cannot place rather than falling back to `"game"`. A
+    fallback here is invisible: it grades on somebody else's contract and reports a
+    plausible verdict, at a tier that GATES.
     """
-    try:
-        return INK_WINDOW[task_class]
-    except KeyError:
+    if task_class not in TASK_CLASSES:
         raise ValueError(
-            f"{task_class!r} is not a task class this module has an ink window for. "
-            f"Known: {sorted(INK_WINDOW)}. Refusing rather than grading it as a game: "
-            f"the ceiling is calibrated per class and a wrong one fails a correct "
-            f"submission at a tier that GATES.") from None
+            f"{task_class!r} is not a task class tier 1 grades. "
+            f"Known: {list(TASK_CLASSES)}. Refusing rather than grading it as a game: "
+            f"the class picks the capture length and the audio criterion set, and a "
+            f"wrong one fails a correct submission at a tier that GATES.")
+    return task_class
 
 
-def nonempty_verdict(frame_info: dict[str, Any], task_class: str,
+def nonempty_verdict(frame_info: dict[str, Any],
                      n_frames: int) -> tuple[bool, str]:
-    """`(passed, evidence)` for `render.nonempty`, with the class in the evidence.
+    """`(passed, evidence)` for `render.nonempty`: a FLOOR and an ALL-FLAT test.
 
-    Separate from `collect` so the decision can be driven without a toolchain, and so
-    the class it was asked about is in every stored record rather than in a comment
-    here - `judge/ink_window_control.py` pins both directions per class.
+    Separate from `collect` so the decision can be driven without a toolchain -
+    `judge/ink_window_control.py` pins it in both directions on real pixels.
+
+    It takes no task class, and that is the change `tasks/168` made: both halves are
+    properties of the four starters, so they are the same for every class. The evidence
+    names the floor rather than a window, because a reader who sees a range printed will
+    look for the number that closed it.
+
+    TWO HALVES, because `mean_ink` alone cannot answer the criterion's own question.
+    A frame set in which every frame is a single colour has drawn nothing, and its
+    `mean_ink` is 0.0, 0.5 or 0.91667 depending only on how those colours are arranged
+    against frame 0's - so it is asked directly instead.
+
+    `flat_frames` ABSENT IS A THIRD VALUE and is not zero: every record written before
+    2026-08-27 lacks it, and for those the verdict is the floor alone. Re-grading a
+    stored record therefore asks the half its record can answer and says so, rather than
+    reading a missing count as "none were flat".
     """
-    lo, hi, why = ink_window(task_class)
     mean_ink = float(frame_info.get("mean_ink", 0.0))
-    return lo <= mean_ink <= hi, (
+    flat = frame_info.get("flat_frames")
+    all_flat = flat is not None and n_frames > 0 and flat >= n_frames
+    where = (f"{flat} of {n_frames} frames hold one colour and nothing else"
+             if flat is not None else
+             "flat_frames not measured on this record (pre-2026-08-27), so the "
+             "all-flat half was not asked")
+    return (mean_ink >= INK_FLOOR and not all_flat), (
         f"mean ink coverage {frame_info.get('mean_ink')} over {n_frames} frames "
-        f"({task_class} window {lo}-{hi}: {why}); "
+        f"(floor {INK_FLOOR}, no ceiling: {INK_FLOOR_WHY}); {where}; "
         f"per frame {frame_info.get('per_frame_ink')}")
 
 
@@ -481,8 +534,12 @@ def nonempty_verdict(frame_info: dict[str, Any], task_class: str,
 #:   task_class        differs by class. The bound lives in a per-class table, and
 #:                     `TASK_CLASS_BOUND_TABLES` names it.
 #:
-#: The answer today: 8 carry no bound, 5 carry one that transfers, and exactly 1 -
-#: `render.nonempty` - carries one that does not.
+#: The answer today: 8 carry no bound and 6 carry one that transfers. NOTHING is
+#: class-dependent, and `task_class` stays in the closed list with 0 members on purpose
+#: - it is the value a future bound declares, and the gate below is what makes declaring
+#: it safe. `render.nonempty` held it until `tasks/168` removed the ink ceiling: the
+#: ceiling was the class-dependent half, and the floor it left behind is a property of
+#: the same 4 starters both classes are built from, exactly like `tests.exist`.
 BOUND_POPULATIONS = ("no_bound", "starter", "capture_contract", "audio_signal",
                      "task_class")
 
@@ -493,7 +550,7 @@ TIER1_BOUND_POPULATION: dict[str, str] = {
     "tests.exist": "starter",           # MIN_OWN_TESTS; every starter ships more
     "tests.green": "no_bound",          # exit status plus its own reported counts
     "render.frames": "no_bound",        # PNGs on disk, floor 0
-    "render.nonempty": "task_class",    # INK_WINDOW - the ceiling does not transfer
+    "render.nonempty": "starter",       # INK_FLOOR; the same 4 render harnesses' floor
     "render.animates": "capture_contract",   # DELTA_MIN; a scene is a timed sequence
     "probe.responds": "no_bound",       # the probe answered, or it did not
     "audio.manifest": "no_bound",       # `just audio-manifest` exit status plus JSON
@@ -506,9 +563,11 @@ TIER1_BOUND_POPULATION: dict[str, str] = {
 #: The per-class tables, keyed by the criterion that reads them. Every id declared
 #: `task_class` above must appear here and nothing else may, so the registry cannot
 #: claim a class-dependence that no table implements.
-TASK_CLASS_BOUND_TABLES: dict[str, dict[str, Any]] = {
-    "render.nonempty": INK_WINDOW,
-}
+#:
+#: EMPTY since `tasks/168`, which is a state and not a gap: no tier-1 bound differs by
+#: class today. The gate below still asks the question of both directions, so the first
+#: criterion to declare `task_class` without a table fails rather than promising one.
+TASK_CLASS_BOUND_TABLES: dict[str, dict[str, Any]] = {}
 
 
 def assert_tier1_bounds_declared() -> list[str]:
@@ -556,7 +615,7 @@ def assert_tier1_bounds_declared() -> list[str]:
             f"per-class tables are {sorted(TASK_CLASS_BOUND_TABLES)}. A declared "
             f"class-dependence with no table is a promise nothing keeps.")
     for cid, table in TASK_CLASS_BOUND_TABLES.items():
-        missing = sorted({"game", "scene"} - set(table))
+        missing = sorted(set(TASK_CLASSES) - set(table))
         if missing:
             problems.append(
                 f"{cid}'s per-class table has no entry for {missing}. Both task "
@@ -576,18 +635,19 @@ def collect(repo: Path, seed: int = 7, film_ticks: int = 900,
     entered the task set: scoring those against audio criteria would measure the task
     change rather than the work (RUBRIC.md).
 
-    `task_class` selects the bounds that differ by class - today `render.nonempty`'s
-    ink window alone, and `TIER1_BOUND_POPULATION` is the census that says so for all
-    14 criteria. The caller hands it over the way it already hands over `film_ticks`
-    and `audio_game`, and for the same reason: the class is the runner's fact, and a
-    tier that re-derives it from a task id is a second place for the two to disagree.
-    `eval/tools/scene_runner_control.py` pins that the runner passes all three.
-
-    The default is `"game"` because that is the STRICTER window, so a caller that
-    forgets it fails a correct scene rather than passing a broken one. An unknown class
-    raises (`ink_window`).
+    `task_class` is the runner's fact, handed over the way `film_ticks` and
+    `audio_game` already are - and it governs both of those: a scene is filmed at its
+    own contracted tick count and is asked none of the audio criteria. A tier that
+    re-derived the class from a task id would be a second place for the two to
+    disagree. `eval/tools/scene_runner_control.py` pins that the runner passes all
+    three, and it is the only thing that can: since `tasks/168` NO tier-1 bound differs
+    by class, so nothing downstream of here would read differently if the class were
+    wrong. That is exactly why the refusal is at the door.
     """
-    ink_window(task_class)   # refuse an unknown class BEFORE spending a toolchain on it
+    # Refuse an unplaceable class BEFORE spending a toolchain. Fail-closed: by the time
+    # a criterion is evaluated, a class nobody registered has already chosen the wrong
+    # capture length and the wrong audio criterion set.
+    assert_task_class(task_class)
     cmds: list[Cmd] = []
 
     c_check = run(repo, "check", ["just", "check"], timeout_s=1800, env=env)
@@ -642,7 +702,7 @@ def collect(repo: Path, seed: int = 7, film_ticks: int = 900,
         f"`just film` exit {c_film.code}, produced {len(frames)} PNGs; "
         f"decode errors: {frame_info.get('errors') or 'none'}")
     add("render.nonempty",
-        *nonempty_verdict(frame_info, task_class, len(frames)))
+        *nonempty_verdict(frame_info, len(frames)))
     add("render.animates", float(frame_info.get("mean_frame_delta", 0.0)) > DELTA_MIN,
         f"mean fraction of pixels changing between consecutive frames "
         f"{frame_info.get('mean_frame_delta')} (floor {DELTA_MIN})")

@@ -798,3 +798,47 @@ pairs 1, 3, 5 and 10 four of them answer -46, -19, -66 and +8. Three bands now f
 ticket.
 
 ---
+## #190 — the repair a false-negative ticket suggests is fail-open, and this is the second time
+
+`fire.rate_limited` asks whether there is a minimum interval between **shots** and counted **bullet
+ids**. On the `ref_arena` spread fixture it read `90 bullets from 120 ticks of held fire (30 fire
+events)` and returned `passed=False` — the right number printed beside a verdict computed from the
+wrong one, failing a weapon that is correctly rate-limited and fires three bullets per shot.
+
+**`tasks/160` told the agent how to fix it, and the instruction was wrong.** *"Count fire events
+rather than bullet ids"* is fail-open taken literally: the verdict fails on a **high** count, so
+whichever signal reads lower always excuses. The agent measured it instead of complying, and built
+the mutant that proves it — `ref_arena` with `FIRE_INTERVAL` removed **and** `fire` emitted only on
+the rising edge reads `120 shooting ticks out of 120 (1 carried a fire event, 120 put a new bullet
+id in the world)`. An event-only criterion would have certified a gun with **no interval at all**
+as rate-limited, on 1 shot in 120 ticks.
+
+The shipped repair counts shooting ticks by both signals and takes the **maximum**, so neither can
+excuse alone. The union was the other candidate and was rejected on a case rather than on taste: a
+game whose spawn reaches the snapshot one tick late has two disjoint sets, so a legal 60-shot weapon
+would read 120. `max` does not double-count.
+
+> **A criterion that fails on a HIGH count must take the maximum of its candidate signals; one that
+> fails on a LOW count must take the minimum. Picking the "better" signal is picking the one that
+> excuses.**
+
+**The part that generalises past this criterion is where the bad instruction came from.** It was
+written by the orchestrator, and it is the second prescribed repair here to be fail-open —
+`tasks/157` was the first, telling an agent to carry pong's *press nothing after the end* across to
+`ref_arena`, where with the player dead nothing moves the score (#186). Two for two is not chance,
+it is the situation:
+
+> **A repair gets prescribed when the ticket is about a FALSE NEGATIVE — a check failing something
+> correct — and the repair that comes to mind while looking at a wrongly-red check is, by
+> construction, one that makes it pass.**
+
+A wrong *cause* in a ticket is self-correcting: the agent measures, disagrees, and costs an hour. A
+wrong *repair* gets implemented, and if it weakens a check nothing disagrees — the suite goes green
+precisely because the check stopped being able to fail. `.agents/skills/dispatch/SKILL.md` had a
+rule against stating unmeasured causes, listing the `tasks/157` case by name, and it did not fire,
+because a repair is not a cause. It now asks for the **falsifier instead of the mechanism**: say
+what must still FAIL after the repair. `tasks/160` should have said *"a weapon with no interval at
+all must still fail"* — one clause, naming no mechanism, and it kills the repair the ticket
+actually suggested.
+
+---

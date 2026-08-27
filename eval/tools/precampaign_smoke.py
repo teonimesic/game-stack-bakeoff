@@ -65,10 +65,10 @@ def check_tier1_bounds_declared() -> tuple[int, str]:
 
     Tier 1 GATES, so a bound calibrated on one task class does not cost a correct member
     of another a fraction of a score - it stops that submission being scored at all.
-    `render.nonempty`'s ink ceiling was a game's for 85 stored gradings, and it is the
-    kind of thing nobody looks for until it refuses something (tasks/163). Asked here as
-    well as in `judge/ink_window_control.py` because this is what runs before a campaign
-    spends anything.
+    `render.nonempty`'s ink ceiling was a game's for 85 stored gradings before anyone
+    asked, and it is the kind of thing nobody looks for until it refuses something
+    (tasks/163, tasks/168). Asked here as well as in `judge/ink_window_control.py`
+    because this is what runs before a campaign spends anything.
     """
     sys.path.insert(0, str(EVAL / "judge"))
     import static
