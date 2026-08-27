@@ -277,8 +277,8 @@ not the criterion. The stored `programmatic.json` still holds the FAIL; this tab
 and the trial is not `completed` either way.
 
 **The ceiling is gone for games too, since `tasks/168`**, so the re-grade above no longer turns
-on the class. What the ceiling did over the 69 stored submissions, its re-grade of the one game
-it refused, and the derivation are the twenty-fourth comparability break below.
+on the class. What the ceiling did over the 69 stored submissions, the offline re-grade of the one
+game it refused, and the derivation are in *`render.nonempty` lost its ink ceiling* below.
 
 **`verify.green`, `lint.clean` and `tests.green` are the interruption, not the submission.** 118
 of 119 of its own tests pass and the lint finding is `'previous' is never reassigned. Use
@@ -1086,7 +1086,7 @@ Two further grader defects were adjudicated and repaired, and one template defec
 | trial | overall | prog | bot | remaining failures |
 |---|---|---|---|---|
 | `godot__t0` | **1.000** | 1.00 | 1.00 | — |
-| `godot__t1` | 0.978 | 0.93 | 1.00 | `render.nonempty` (ink 0.881 vs the ceiling retired by the twenty-fourth comparability break — re-graded **PASS**, gate **PASS 14/14**) |
+| `godot__t1` | 0.978 | 0.93 | 1.00 | **as graded:** `render.nonempty` (ink 0.881 vs a ceiling since retired). The **offline re-grade** under today's rule passes it, gate PASS 14/14 — see *`render.nonempty` lost its ink ceiling* |
 | `rust__t0` | **1.000** | 1.00 | 1.00 | — |
 | `rust__t1` | **1.000** | 1.00 | 1.00 | — |
 | `ts__t0` | **1.000** | 1.00 | 1.00 | — |
@@ -2504,55 +2504,72 @@ believed (rule 12): `player.moves` opens the run with exactly **90** pure-moveme
 must read as zero-aim, and `aim.independent` sends **120** ticks aiming +x that must not. Both
 are rows in the control.
 
-## `render.nonempty` LOST ITS INK CEILING ON 2026-08-27 — a TWENTY-FOURTH comparability break, and it moves one stored GAME gate verdict
+## `render.nonempty` LOST ITS INK CEILING ON 2026-08-27 — a TWENTY-FOURTH comparability break, and one offline re-grade changes a derived GAME gate verdict
 
 **Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
 sessions that could not see each other. Cite the heading, not the number.
 
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
 repository's first commit. `tasks/163` took the ceiling off scenes; `tasks/168` removed it
-outright. **The criterion is now a floor of 0.001 and no upper bound, for every task class.**
+outright and replaced it with a direct test. **The criterion is now a floor of 0.001, plus a
+refusal of a frame set every one of whose frames holds a single colour, for every task class.**
 
-**The derivation is that the measure cannot express what a ceiling would name.**
-`png.Image.ink_coverage` counts pixels differing from `dominant_background()` — the frame's own
-modal quantised colour — so the quantity is departure from the frame's own mode, which is a
-property of the palette:
+**The derivation is that `mean_ink` cannot carry a ceiling.** `ink_coverage` counts pixels
+differing from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's**
+mode — so the quantity is departure from the first frame's mode, a property of the palette:
 
-| frame | measures | which bound it hits |
+| frames | measures | which half decides |
 |---|---|---|
-| solid white, solid magenta, solid black — "the render broke and filled the screen" | **0.0** each | the **floor** |
-| a gradient with a subject drawn on it — a night platformer's sky | **0.881** | the ceiling, when there was one |
+| solid white, magenta or black, all frames the same — "the render broke and filled the screen" | **0.0** | the **floor** |
+| a gradient with a subject drawn on it — a night platformer's sky | **0.881** | neither; it passes |
 
-So the defect a ceiling was for lands on the floor, and what reaches the top of the scale is a
-wide palette. `judge/ink_window_control.py` keeps both rows as `MECHANISM_ROWS` and a `flood`
-fixture, so the derivation goes red if `ink_coverage` ever changes rather than surviving as a
-paragraph.
+**And the ceiling was not a blank-frame guard either.** 12 frames each holding one colour have
+drawn nothing, and where they land depends only on how the colours are *arranged*:
 
-**And the 68 stored game values are a continuum, not two populations.** The top six are 0.679,
-0.703, 0.736, 0.772, 0.828, 0.881, the largest gap among them is 0.053, and the seven highest are
-all `g4_platformer` — the one game whose background scrolls across the whole frame. 0.85 landed
-inside that continuum, so what it separated was a **task**, not a quality.
+| 12 frames, each one colour | mean ink | floor-only | old 0.001–0.85 |
+|---|---|---|---|
+| all one colour | 0.0 | FAIL | FAIL |
+| frame 0, then 11 of another | 0.91667 | PASS | FAIL |
+| alternating 2 colours | 0.5 | PASS | **PASS** |
+| 6 of one, then 6 of another | 0.5 | PASS | **PASS** |
 
-**What it had ever done**, from the producer, over the 69 stored submissions — the most recent
-grading of each, from 85 on disk with 16 superseded and held out:
+`0.001–0.85` admitted **2 of the 3** non-zero arrangements, so the bound was never what stood
+between the grader and a blank render. `png.Image.is_flat` reads each frame against **its own**
+mode and `analyse_frames` counts them as `flat_frames`; the criterion fails all 4 rows. **0 of the
+67 stored frame sets contain a flat frame**, so the added half moves no stored verdict, and
+`flat_frames` absent is a third value — a record written before this date is re-graded on the
+floor alone and says so in its evidence.
+
+Every number in both tables is a checked row in `judge/ink_window_control.py`, so the derivation
+goes red if `ink_coverage` ever changes rather than surviving as a paragraph.
+
+**The 68 stored game values are a continuum, not 2 populations.** The top 6 are 0.679, 0.703,
+0.736, 0.772, 0.828, 0.881, the largest gap among them is 0.053, and the 7 highest are all
+`g4_platformer` — the one game whose background scrolls across the whole frame. 0.85 landed inside
+that continuum, so what it separated was a **task**, not a quality.
+
+**What the bounds had ever done**, from the producer, over the 69 stored submissions — the most
+recent grading of each, from 85 on disk with 16 superseded and held out:
 
     python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 
-4 `render.nonempty` failures. The 2 floor firings are `wg-arena3d`'s rust cells at **0 frames**,
-a fact `render.frames` reports in the same record. The 2 ceiling firings both drew what they were
-asked to draw. **0 true positives, 2 false negatives** — and tier 1 GATES, so a false negative
-does not cost a fraction of a score, it stops a correct submission being scored at all.
+4 `render.nonempty` failures. The 2 **floor** firings are true positives: `wg-arena3d`'s rust
+cells at **0 frames**, a fact `render.frames` reports in the same record. Among the 2 **ceiling**
+firings: **0 true positives and 2 false negatives**, both submissions that drew what they were
+asked to draw. Tier 1 GATES, so a false negative does not cost a fraction of a score — it stops a
+correct submission being scored at all.
 
-**THE ONE STORED GAME VERDICT THAT MOVES**, re-graded offline from its stored frames. Nothing
+**THE ONE DERIVED GATE VERDICT THAT CHANGES.** The stored record is untouched and still holds the
+FAIL; the right-hand column is an offline re-grade computed from the stored frames, and nothing
 under `eval/runs/**` was rewritten:
 
-| `wg-g4c` `g4_platformer__godot__t1` | as graded | re-graded |
+| `wg-g4c` `g4_platformer__godot__t1` | as graded, and still stored | offline re-grade |
 |---|---|---|
 | `render.nonempty` | FAIL (0.881 against 0.001–0.85) | **PASS** (0.881 against the floor 0.001) |
 | gate | FAIL, 1 of 14 — `render.nonempty` alone | **PASS, 14 of 14** |
 | tier 2 | 1.000 | 1.000, unchanged |
 
-It is the only gate verdict in the corpus that this change flips. The scene's re-grade above is
+It is the only gate verdict in the corpus this change re-grades. The scene's re-grade above is
 unchanged by it: `s1_parallax__ts__t0` still fails 3 of 9 on `verify.green`, `lint.clean` and
 `tests.green`.
 

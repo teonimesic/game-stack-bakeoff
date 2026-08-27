@@ -204,26 +204,39 @@ class-dependent.**
 
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
 repository's first commit, derived in no document, no comment and no commit message. **The
-decision: the floor stays and the ceiling is removed, for every task class.**
+decision: the floor stays, the ceiling is removed, and an all-flat test replaces it — for every
+task class.**
 
-**The floor is a property of the four starters** — their own `renders a non-empty frame` test, and
-a placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank frame fails
+**The floor is a property of the 4 starters** — their own `renders a non-empty frame` test, and a
+placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank frame fails
 in either class.
 
-**The ceiling was removed because the measure cannot express what a ceiling would name.**
-`png.Image.ink_coverage` counts pixels differing from `dominant_background()`, the frame's own
-modal quantised colour, so the quantity is departure from the frame's own mode — a property of the
-palette rather than of how much was drawn — and it runs backwards from what a ceiling wants:
+**The ceiling went because `mean_ink` cannot carry one.** `ink_coverage` counts pixels differing
+from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's** mode. So
+the quantity is departure from the first frame's mode — a property of the palette rather than of
+how much was drawn — and it runs backwards from what a ceiling wants:
 
-| frame | measures | which bound it hits |
+| frames | measures | which half decides |
 |---|---|---|
-| solid white, magenta or black — "the render broke and filled the screen" | **0.0** each | the **floor** |
-| a gradient with a subject on it — a night platformer's sky | **0.881** | the ceiling, when there was one |
+| solid white, magenta or black, all frames the same — "the render broke and filled the screen" | **0.0** | the **floor** |
+| a gradient with a subject on it — a night platformer's sky | **0.881** | neither; it passes |
 
-There is therefore no defect a ceiling catches that the floor does not catch better, and the
-criterion's own question — *do the frames hold more than a blank background?* — has no upper bound
-in it. The two rows are checked in `judge/ink_window_control.py` (`MECHANISM_ROWS` and the `flood`
-fixture) rather than asserted here, so the derivation goes red if `ink_coverage` changes.
+**And the ceiling was not a blank-frame guard either, which is the measurement that settles it
+rather than the argument.** 12 frames each holding a single colour have drawn nothing, and
+`mean_ink` reads 0.0, 0.91667 or 0.5 depending only on how those colours are *arranged* against
+frame 0's. `0.001–0.85` admitted **2 of the 3** non-zero arrangements. A bound on this quantity was
+never what stood between the grader and a blank render.
+
+**So the criterion asks the question directly instead.** `png.Image.is_flat` reads each frame
+against **its own** mode, `analyse_frames` counts them as `flat_frames`, and `render.nonempty`
+fails when every frame is flat — all 4 arrangements, whatever their ink. **0 of the 67 stored frame
+sets contain a flat frame**, so the added half moves no stored verdict, and `flat_frames` absent is
+a third value: a record written before 2026-08-27 is re-graded on the floor alone and its evidence
+says so.
+
+Every number above is a checked row in `judge/ink_window_control.py` (`MECHANISM_ROWS`,
+`BLANK_RENDERS`, the `flood` fixture) rather than a sentence here, so the derivation goes red if
+`ink_coverage` changes.
 
 **Corroborated by what 0.85 had ever done.** The producer is `python3
 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`; its population is
@@ -236,19 +249,24 @@ superseded and held out. 4 firings:
 | `wg-g4c` `g4_platformer__godot__t1` | 0.881, **ceiling** | a night platformer over a gradient sky. Tier 2 = 1.000 |
 | `wg-scene-s1ts` `s1_parallax__ts__t0` | 0.966, **ceiling** | the first scene, drawing what it was asked to draw |
 
-**0 true positives and 2 false negatives**, and the 68 stored game values are a continuum rather
-than two populations — top six 0.679, 0.703, 0.736, 0.772, 0.828, 0.881, largest gap among them
-0.053, and the seven highest all `g4_platformer`, the one game whose background scrolls across the
-whole frame. 0.85 landed inside that continuum, so what it separated was a **task**.
+**Among the 2 ceiling firings: 0 true positives and 2 false negatives.** The 2 floor firings are
+true positives and are counted separately — both are the #49 build failure at 0 frames, which
+`render.frames` reports in the same record, so the floor has never fired on a frame that was
+rendered at all.
+
+The 68 stored game values are also a continuum rather than 2 populations — top 6 are 0.679, 0.703,
+0.736, 0.772, 0.828, 0.881, largest gap among them 0.053, and the 7 highest all `g4_platformer`,
+the one game whose background scrolls across the whole frame. 0.85 landed inside that continuum,
+so what it separated was a **task**.
 
 **It was removed, not widened.** Widening it to admit `g4_platformer__godot__t1` would have been a
 threshold chosen from the subject that exposed it; no number on this measure means *too full*, so
-there is no number to choose. `ink_window_control.py` carries the restored 0.85 as a mutant, and
-the flood fixture as the variant proving the removal opened no hole.
+there is no number to choose. `ink_window_control.py` carries the restored 0.85 as a mutant.
 
-**The cost, paid deliberately:** one stored *game* gate verdict moves, `wg-g4c`
-`g4_platformer__godot__t1` from `FAIL 1/14` to `PASS 14/14`. `eval/RUNS.md`'s twenty-fourth
-comparability break holds that re-grade; nothing under `eval/runs/**` was rewritten.
+**The cost, paid deliberately:** an offline re-grade changes the derived gate verdict of `wg-g4c`
+`g4_platformer__godot__t1` from `FAIL 1/14` to `PASS 14/14`. **The stored record still holds the
+FAIL and nothing under `eval/runs/**` was rewritten** — `eval/RUNS.md`'s *`render.nonempty` lost
+its ink ceiling* break holds both readings side by side.
 
 **What re-opens it.** That producer printing a ceiling firing that is a real defect — a rendered
 frame with no flat region that the play-bot or the scene probe also condemns. Its output recorded

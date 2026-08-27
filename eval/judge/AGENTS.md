@@ -179,18 +179,20 @@ boundary. `NOT ASKED` (fewer than two gate-green stacks) is a third value and is
 **Because tier 1 GATES, a bound calibrated on one task class does not cost the other a
 fraction of a score — it stops a correct submission being scored at all.** So every tier-1
 criterion declares which population its bound came from, in `static.TIER1_BOUND_POPULATION`,
-and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. **0**
-bounds are class-dependent today, and `task_class` keeps its slot in the closed list for the
-next one — declaring it without a per-class table fails.
+and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. **0** bounds
+are class-dependent today — `python3 judge/ink_window_control.py` prints the whole tally and pins
+it — and `task_class` keeps its slot in the closed list for the next one, since declaring it
+without a per-class table fails.
 
 `render.nonempty` held that slot until 2026-08-27. It is now a **floor of 0.001 and no ceiling**,
-for both classes: the floor is a property of the four starters and transfers, and a blank frame
-still fails. The ceiling went because `ink_coverage` measures departure from the frame's own modal
-colour, so a solid flood — the defect a ceiling names — reads **0.0** and lands on the floor,
-while what reads near 1.0 is a gradient. **Before changing the floor, run the producer** —
-`python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which prints what
-the bounds have ever done over the stored corpus and re-grades every firing under today's rule.
-`RUBRIC.md` holds the table and the derivation.
+plus a refusal of a frame set every one of whose frames holds a single colour — both the same in
+either class, both properties of the 4 starters. The ceiling went because `mean_ink` measures
+departure from **frame 0's** modal colour, so the same blank render reads 0.0, 0.5 or 0.91667
+depending only on how its colours are arranged, and `0.001–0.85` admitted 2 of the 3 non-zero
+arrangements. **Before changing the floor, run the producer** — `python3
+judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which prints what the bounds
+have ever done over the stored corpus and re-grades every firing under today's rule. `RUBRIC.md`
+holds the table and the derivation.
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two

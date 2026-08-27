@@ -123,6 +123,17 @@ def blank() -> bytes:
     return bytes(_flat())
 
 
+def whisper() -> bytes:
+    """An 8x8 mark: 0.00025 of a 640x400 frame, and the only fixture BELOW the floor.
+
+    The floor's subject. `blank` and `flood` are below it too, but they are also
+    entirely flat, so they fail on BOTH halves and cannot tell which one acted - a
+    mutant that deletes the floor leaves them red for the other reason, which is a
+    control that passes for the wrong reason (#37).
+    """
+    return bytes(_rect(_flat(), 8, 8))
+
+
 def placeholder() -> bytes:
     """The starter's own placeholder marker: 0.0015 of a 640x400 frame."""
     return bytes(_rect(_flat(), 24, 16))
@@ -153,12 +164,38 @@ def flood() -> bytes:
     """THE DEFECT A CEILING WOULD NAME: every pixel one colour that is not the clear
     colour, i.e. the render broke and filled the screen.
 
-    It measures 0.0, not 1.0, because `dominant_background()` returns the frame's own
-    modal colour and here that is the flood. So this fixture fails on the FLOOR, and
-    removing the ceiling opened no hole for it - which is the whole reason the fixture
-    is here rather than in a comment.
+    It measures 0.0, not 1.0, because `analyse_frames` takes its reference colour from
+    frame 0 and every frame here IS frame 0's colour. So this fails on the FLOOR, and
+    removing the ceiling opened no hole for it. `BLANK_RENDERS` below asks the harder
+    version, where the frames are uniform in DIFFERENT colours.
     """
     return bytes(bytes((255, 0, 255)) * (W * H))
+
+
+def _uniform(rgb: tuple[int, int, int]) -> bytes:
+    return bytes(bytes(rgb) * (W * H))
+
+
+BLACK, WHITE = (0, 0, 0), (255, 255, 255)
+
+#: A RENDER THAT DREW NOTHING, in the 4 ways 12 uniform frames can be arranged, with
+#: `(name, per-frame pixels, mean_ink stated in advance, did 0.001-0.85 catch it)`.
+#:
+#: This is the measurement that settles the ceiling, and it comes out against the
+#: ceiling rather than for it. Every row has drawn nothing; `mean_ink` reads anywhere
+#: from 0.0 to 0.91667 depending only on how the colours are ARRANGED against frame
+#: 0's, and the retired window admitted 2 of the 3 non-zero arrangements. So a bound on
+#: `mean_ink` was never the guard against a blank render, and `render.nonempty` asks
+#: the question directly via `flat_frames` instead. Every row must FAIL today.
+BLANK_RENDERS: list[tuple[str, Any, float, bool]] = [
+    ("all one colour", lambda i: _uniform(BLACK), 0.0, True),
+    ("frame 0, then 11 of another", lambda i: _uniform(BLACK if i == 0 else WHITE),
+     0.91667, True),
+    ("alternating 2 colours", lambda i: _uniform(BLACK if i % 2 == 0 else WHITE),
+     0.5, False),
+    ("6 of one, then 6 of another", lambda i: _uniform(BLACK if i < 6 else WHITE),
+     0.5, False),
+]
 
 
 #: `(name, pixels, low, high)` - the coverage each fixture must measure at, STATED
@@ -168,6 +205,7 @@ def flood() -> bytes:
 FIXTURES: list[tuple[str, Any, float, float]] = [
     ("blank", blank, 0.0, 0.0),
     ("flood", flood, 0.0, 0.0),
+    ("whisper", whisper, 0.0002, 0.0003),
     ("placeholder", placeholder, 0.001, 0.005),
     ("sparse", sparse, 0.015, 0.030),
     ("filled", filled, 0.950, 1.000),
@@ -182,8 +220,8 @@ FIXTURES: list[tuple[str, Any, float, float]] = [
 #: turns the derivation red instead of leaving three documents confidently wrong.
 MECHANISM_ROWS = [
     ("flood", "at most", 0.001,
-     "a frame that is entirely one colour reads 0.0, because that colour IS the modal "
-     "colour - so 'the render filled the screen' hits the FLOOR, never a ceiling"),
+     "a frame that is entirely frame 0's colour reads 0.0 - so 'the render filled the "
+     "screen' hits the FLOOR, never a ceiling"),
     ("filled", "at least", 0.950,
      "a frame with no modal region reads near 1.0 whatever is drawn on it - so a high "
      "reading is a property of the palette, not of how much was drawn"),
@@ -199,6 +237,47 @@ def measure(make: Any, tmp: Path) -> dict[str, Any]:
     for i in range(2):
         png.write_rgb(d / f"frame_{i:04d}.png", W, H, pixels)
     return static.analyse_frames(sorted(d.glob("*.png")))
+
+
+def measure_sequence(per_frame: Any, tmp: Path, n: int = 12) -> dict[str, Any]:
+    """`n` frames whose pixels come from `per_frame(i)`, through the real reader.
+
+    Separate from `measure` because the arrangement across frames is the whole subject
+    of `BLANK_RENDERS`: a set of identical frames cannot express it, and `analyse_frames`
+    takes its reference colour from frame 0.
+    """
+    d = tmp / "seq"
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True, exist_ok=True)
+    for i in range(n):
+        png.write_rgb(d / f"frame_{i:04d}.png", W, H, per_frame(i))
+    return static.analyse_frames(sorted(d.glob("*.png")))
+
+
+def test_a_blank_render_fails_however_its_colours_are_arranged(tmp: Path) -> None:
+    """12 frames, each one colour, in the 4 ways they can be arranged. All must FAIL.
+
+    Each row also prints what the retired `0.001-0.85` window said, which is the
+    measurement the ceiling decision rests on: it caught 1 of these 3 non-zero
+    arrangements of the SAME blank render, so a bound on `mean_ink` was never the guard.
+    """
+    print("\n[a render that drew nothing, in the 4 ways 12 uniform frames arrange]")
+    for name, per_frame, want_ink, caught_by_ceiling in BLANK_RENDERS:
+        info = measure_sequence(per_frame, tmp)
+        got = info["mean_ink"]
+        n = info["count"]
+        passed, ev = static.nonempty_verdict(info, n)
+        then = static.INK_FLOOR <= got <= RETIRED_GAME_CEILING
+        expect(f"{name}: mean_ink {want_ink}, and render.nonempty FAILS",
+               got == want_ink and passed is False and info["flat_frames"] == n,
+               f"mean_ink={got} flat_frames={info['flat_frames']}/{n}; "
+               f"the retired {RETIRED_GAME_CEILING} ceiling "
+               f"{'caught' if not then else 'ADMITTED'} it "
+               f"(stated in advance: {'caught' if caught_by_ceiling else 'ADMITTED'})"
+               f" -- {ev[:60]}")
+        expect(f"{name}: and the ceiling's verdict is what BLANK_RENDERS states",
+               (not then) is caught_by_ceiling,
+               f"stated caught={caught_by_ceiling}, measured caught={not then}")
 
 
 def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> None:
@@ -236,6 +315,7 @@ def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> No
 CRITERION_ROWS = [
     ("blank", False),          # nothing drawn
     ("flood", False),          # VARIANT: the screen is full, and the floor catches it
+    ("whisper", False),        # below the floor, and the only row the floor decides
     ("placeholder", True),     # the starter's own marker
     ("sparse", True),          # a subject against a background
     ("filled", True),          # VARIANT: no modal region (tasks/163, tasks/168)
@@ -305,7 +385,8 @@ def test_an_unplaceable_class_is_refused() -> None:
 # --------------------------------------------------------------------------- #
 
 @contextlib.contextmanager
-def stubbed_toolchain(mean_ink: float, ran_commands: list[str]):
+def stubbed_toolchain(mean_ink: float, ran_commands: list[str],
+                      flat_frames: int = 0):
     """Everything `collect` would spawn, replaced - and every command it ran, recorded.
 
     `ran_commands` is what separates *refused before spending a toolchain* from *refused
@@ -326,11 +407,19 @@ def stubbed_toolchain(mean_ink: float, ran_commands: list[str]):
         return cmd
 
     frame_info = {"count": 12, "errors": [], "mean_ink": mean_ink,
+                  "flat_frames": flat_frames,
                   "per_frame_ink": [mean_ink], "mean_frame_delta": 0.5}
     with contextlib.ExitStack() as st:
         st.enter_context(patched(static, "run", record))
+        # 12 frame PATHS, never read: `analyse_frames` is stubbed below. `collect`
+        # passes `len(frames)` to `nonempty_verdict` as `n_frames`, and the all-flat
+        # half is a comparison against that count - returning `[]` here would make it
+        # unaskable and the row would pass for the wrong reason.
         st.enter_context(patched(static, "film",
-                                 lambda *a, **k: (cmd, [], Path(tempfile.mkdtemp()))))
+                                 lambda *a, **k: (cmd,
+                                                  [Path(f"frame_{i:04d}.png")
+                                                   for i in range(12)],
+                                                  Path(tempfile.mkdtemp()))))
         st.enter_context(patched(static, "analyse_frames", lambda frames: frame_info))
         st.enter_context(patched(static, "probe_throughput",
                                  lambda *a, **k: {"ok": True}))
@@ -350,13 +439,14 @@ def refuses_before_spending(task_class: str) -> tuple[bool, list[str]]:
     return refused and not ran_commands, ran_commands
 
 
-def drive_collect(task_class: str, mean_ink: float) -> dict[str, Any]:
+def drive_collect(task_class: str, mean_ink: float,
+                  flat_frames: int = 0) -> dict[str, Any]:
     """The real `collect`, offline: every subprocess it makes is replaced.
 
     Driving the decision function alone leaves a `collect` that never calls it - or
     calls something else - entirely green, so the wiring gets its own rows.
     """
-    with stubbed_toolchain(mean_ink, []):
+    with stubbed_toolchain(mean_ink, [], flat_frames):
         rec = static.collect(Path("/nonexistent"), task_class=task_class)
     return next(c for c in rec["criteria"] if c["id"] == "render.nonempty")
 
@@ -379,6 +469,17 @@ def test_collect_reaches_the_criterion() -> None:
            drive_collect("game", 0.0)["passed"] is False)
     expect("collect(scene) still fails a blank frame",
            drive_collect("scene", 0.0)["passed"] is False)
+    # THE ALL-FLAT HALF, THROUGH `collect`. Ink 0.91667 clears the floor, so only the
+    # second half can fail this - and only if `collect` carries `flat_frames` through.
+    flat = drive_collect("game", 0.91667, flat_frames=12)
+    expect("collect fails 12 frames that each hold one colour, at ink 0.91667",
+           flat["passed"] is False, flat["evidence"][:150])
+    # A RECORD THAT NEVER MEASURED IT is not a record of zero flat frames. Same ink,
+    # `flat_frames` absent: the floor alone decides and the evidence says so.
+    absent = static.nonempty_verdict({"mean_ink": 0.91667, "per_frame_ink": []}, 12)
+    expect("a record with no flat_frames is graded on the floor alone, and says so",
+           absent[0] is True and "not measured on this record" in absent[1],
+           absent[1][:150])
 
 
 # --------------------------------------------------------------------------- #
@@ -449,7 +550,7 @@ def test_bound_census() -> None:
 # mutants
 # --------------------------------------------------------------------------- #
 
-def mutants(inks: dict[str, dict[str, Any]]) -> None:
+def mutants(inks: dict[str, dict[str, Any]], mutant_tmp: Path) -> None:
     """Each removes one mechanism a row above names; that row must go red.
 
     A bound that cannot fail is worse than none, because it looks like a pass. Each
@@ -471,15 +572,33 @@ def mutants(inks: dict[str, dict[str, Any]]) -> None:
            "filled row", caught)
 
     with patched(static, "INK_FLOOR", 0.0):
-        caught = static.nonempty_verdict(blank_ink, 2)[0] is True
-    expect("mutant 'the floor is removed' is caught by the blank row", caught)
+        caught = static.nonempty_verdict(inks["whisper"], 2)[0] is True
+    expect("mutant 'the floor is removed' is caught by the whisper row", caught)
 
-    # THE FLOOD, AND IT IS THE VARIANT'S MUTANT. Removing the floor is what would let
-    # "the render filled the screen" through, and this row proves the flood fixture is
-    # the input that catches it rather than a picture nothing looks at.
+    # THE TWO HALVES ARE INDEPENDENTLY LOAD-BEARING, which is what makes the row above
+    # a fair test of the floor. With the floor gone, `blank` and `flood` are still
+    # refused - by the all-flat half - so neither of them could have told you which
+    # half acted (#37: a control that shares its subject's assumptions).
     with patched(static, "INK_FLOOR", 0.0):
-        caught = static.nonempty_verdict(inks["flood"], 2)[0] is True
-    expect("mutant 'the floor is removed' is caught by the flood row too", caught)
+        still = [n for n in ("blank", "flood")
+                 if static.nonempty_verdict(inks[n], 2)[0] is False]
+    expect("with no floor at all, blank and flood are still refused by the all-flat "
+           "half", still == ["blank", "flood"], str(still))
+
+    # THE HALF THE FLOOR CANNOT CARRY. `png.Image.is_flat` is what `analyse_frames`
+    # counts, so a mutant that makes nothing look flat has to go through it - and only
+    # the 3 non-zero BLANK_RENDERS rows can see the difference, because the all-one-
+    # colour row still fails on the floor.
+    with patched(png.Image, "is_flat", lambda self, tolerance=8: False):
+        survived = []
+        for name, per_frame, _ink, _caught in BLANK_RENDERS:
+            info = measure_sequence(per_frame, mutant_tmp)
+            if static.nonempty_verdict(info, info["count"])[0]:
+                survived.append(name)
+    expect("mutant 'no frame is ever flat' is caught by the blank-render rows",
+           len(survived) == 3,
+           f"{len(survived)} of {len(BLANK_RENDERS)} blank renders would then PASS: "
+           f"{survived} - the 4th still fails on the floor")
 
     # The mutant installs the fallback and the row RE-RUNS `collect`'s pre-flight - the
     # only caller that spends anything. Asserting that the patched lambda does not raise
@@ -683,23 +802,27 @@ def _gate(g: dict[str, Any]) -> str:
 
 # --------------------------------------------------------------------------- #
 
-def phases(inks: dict[str, dict[str, Any]]) -> list[tuple[str, Any, int]]:
+def phases(inks: dict[str, dict[str, Any]],
+           tmp: Path) -> list[tuple[str, Any, int]]:
     """Every mandatory phase and **how many expectations it must contribute**.
 
     A single total cannot see a phase that stopped running: drop the mutant sweep and
-    the remaining 25 still print as a clean pass. Counts derived from a table move with
-    it; the rest are written out, because an expectation taken from its subject is not
-    an expectation.
+    the rest still print as a clean pass. Counts derived from a table move with it; the
+    rest are written out, because an expectation taken from its subject is not an
+    expectation.
     """
     return [
         ("fixtures", lambda: test_fixtures_measure_what_they_claim(inks),
          len(FIXTURES) + 1),
         ("criterion", lambda: test_the_criterion(inks),
          len(CRITERION_ROWS) + 1 + len(MECHANISM_ROWS)),
+        ("blank renders",
+         lambda: test_a_blank_render_fails_however_its_colours_are_arranged(tmp),
+         2 * len(BLANK_RENDERS)),
         ("class refusal", test_an_unplaceable_class_is_refused, 3),
-        ("collect wiring", test_collect_reaches_the_criterion, 4),
+        ("collect wiring", test_collect_reaches_the_criterion, 6),
         ("bound census", test_bound_census, 6),
-        ("mutants", lambda: mutants(inks), 11),
+        ("mutants", lambda: mutants(inks, tmp), 12),
     ]
 
 
@@ -717,7 +840,7 @@ def main() -> int:
     short: list[str] = []
     try:
         inks = {name: measure(make, tmp) for name, make, _lo, _hi in FIXTURES}
-        for name, phase, want in phases(inks):
+        for name, phase, want in phases(inks, tmp):
             before = CHECKS
             phase()
             got = CHECKS - before

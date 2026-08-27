@@ -55,6 +55,19 @@ class Image:
                 hit += 1
         return hit / n
 
+    def is_flat(self, tolerance: int = 8) -> bool:
+        """Is every pixel of THIS frame within `tolerance` of THIS frame's own mode?
+
+        i.e. the frame holds one colour and nothing else. Asked per frame and against
+        the frame's own background, which is the whole point: `analyse_frames` measures
+        `ink_coverage` against FRAME 0's background, so a blank frame in any other
+        colour reads 1.0 there rather than 0.0. That is why no ceiling on `mean_ink`
+        can be the guard against a blank render - 12 uniform frames measure 0.0, 0.5 or
+        0.91667 depending only on how their colours are arranged, and the retired
+        0.001-0.85 window admitted 2 of those 3 (`tasks/168`).
+        """
+        return self.ink_coverage(self.dominant_background(), tolerance) == 0.0
+
     def dominant_background(self) -> tuple[int, int, int]:
         """The most common pixel colour, quantised - a decent guess at the clear
         colour when we do not know the game's palette."""
