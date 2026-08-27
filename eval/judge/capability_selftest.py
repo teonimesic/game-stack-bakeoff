@@ -480,6 +480,205 @@ def test_resolution_census_variant() -> None:
     check("...and it re-derives", census_disagreements(odd, cen) == [])
 
 
+# --------------------------------------------------------------------------- #
+# 8. THE SECOND TASK CLASS. A scene record is a record like any other, and the
+#    four-arm claim is not a question that can be asked of it.
+# --------------------------------------------------------------------------- #
+
+#: The one stored scene submission, spelled here as literals. `capability.py` learns a
+#: trial's class through `aspects.task_class`; a control that called the same function
+#: would be importing its expectation from its subject (AGENTS.md rule 12, task 113),
+#: so the answer is written down here and compared by a row.
+SCENE_TRIAL = "s1_parallax__ts__t0"
+SCENE_GAME = "s1_parallax"
+SCENE_STACK = "ts"
+SCENE_CLASS = "scene"
+
+
+def scene_obs(run: str = "wg-scene", stack: str = SCENE_STACK, t: int = 0,
+              **kw) -> capability.Observation:
+    """One scene record. Its `programmatic.json` is the same shape as a game's."""
+    return capability.observe_doc(programmatic(**kw), game=SCENE_GAME, stack=stack,
+                                  trial=f"{SCENE_GAME}__{stack}__t{t}", run=run)
+
+
+def mixed_class_set() -> list[capability.Observation]:
+    """8 game records over 4 arms in one run, plus 1 scene record on `ts` in another."""
+    recs = [capability.observe_doc(
+                programmatic(), game="g2_tetris3d", stack=s,
+                trial=f"g2_tetris3d__{s}__t{t}", run="wg-games")
+            for s in STACKS for t in (0, 1)]
+    recs.append(scene_obs())
+    return recs
+
+
+def test_scene_trial_id_parses() -> None:
+    print("\n[scene: the id parses to its game and its stack]")
+    game, stack = capability.parse_trial(SCENE_TRIAL)
+    check("a scene trial id parses to its game", game == SCENE_GAME, game)
+    check("...and to its stack", stack == SCENE_STACK, stack)
+    check("a game trial id still parses",
+          capability.parse_trial("g2_tetris3d__godot__t1") == ("g2_tetris3d", "godot"),
+          str(capability.parse_trial("g2_tetris3d__godot__t1")))
+    # VARIANT: widening the class letter must not widen anything else.
+    for junk in ("notes__ts__t0", "x1_thing__ts__t0", "s1_parallax__ts__tX",
+                 "s1_parallax__ts"):
+        check(f"{junk!r} is still unparsed",
+              capability.parse_trial(junk) == ("?", "?"),
+              str(capability.parse_trial(junk)))
+
+
+def test_scene_record_lands_in_the_scene_population() -> None:
+    print("\n[scene: which population a swept record lands in]")
+    with tempfile.TemporaryDirectory(prefix="cap-scene-") as td:
+        root = Path(td)
+        write_eval_dir(root / "wg-games" / "artifacts", "g2_tetris3d__rust__t0",
+                       programmatic())
+        write_eval_dir(root / "wg-scene" / "artifacts", SCENE_TRIAL, programmatic())
+        recs = {r.trial: r for r in capability.sweep(root)}
+        check("both records found",
+              sorted(recs) == ["g2_tetris3d__rust__t0", SCENE_TRIAL], str(sorted(recs)))
+        s = recs.get(SCENE_TRIAL)
+        if s is None:
+            check("the scene record exists", False, str(sorted(recs)))
+            return
+        check("the scene record's stack is 'ts', not '?'", s.stack == SCENE_STACK,
+              s.stack)
+        check("the scene record's game is the scene, not '?'", s.game == SCENE_GAME,
+              s.game)
+        check("the scene record is classified 'scene'", s.task_class == SCENE_CLASS,
+              s.task_class)
+        check("the game record is classified 'game'",
+              recs["g2_tetris3d__rust__t0"].task_class == "game",
+              recs["g2_tetris3d__rust__t0"].task_class)
+        check("the class travels with the record into --json output",
+              s.to_dict().get("task_class") == SCENE_CLASS,
+              str(s.to_dict().get("task_class")))
+        per_class = capability.by_task_class(list(recs.values()))
+        check("the scene population holds exactly the scene record",
+              [r.trial for r in per_class.get(SCENE_CLASS, [])] == [SCENE_TRIAL],
+              str({k: [r.trial for r in v] for k, v in per_class.items()}))
+
+
+def test_gate_population_is_stated_and_counted() -> None:
+    print("\n[scene: the gate says which population it asked, and what it excluded]")
+    recs = mixed_class_set()
+    asked, excluded = capability.gate_population(recs)
+    check("the four-arm gate is asked of the game submissions only",
+          capability.GATE_TASK_CLASS == "game", capability.GATE_TASK_CLASS)
+    check("8 game records are asked", len(asked) == 8, str(len(asked)))
+    check("1 record is excluded, and it is the scene one",
+          [r.trial for rs in excluded.values() for r in rs] == [SCENE_TRIAL],
+          str({k: [r.trial for r in v] for k, v in excluded.items()}))
+    check("the exclusion is keyed by class", sorted(excluded) == [SCENE_CLASS],
+          str(sorted(excluded)))
+    sentence = capability.population_sentence(recs)
+    for want in ("the 8 'game' submissions", "1 'scene' record excluded", "['ts']"):
+        check(f"the population sentence states {want!r}", want in sentence, sentence)
+    # VARIANT: a corpus of games alone must say so rather than omitting the line.
+    only_games = capability.population_sentence(
+        [r for r in recs if r.task_class == "game"])
+    check("a game-only corpus states that nothing was excluded",
+          "0 records excluded" in only_games, only_games)
+
+
+def test_gate_scene_arms_are_not_the_four_arm_claim() -> None:
+    print("\n[scene: VARIANT - one arm of scenes must not fire the four-arm check]")
+    recs = mixed_class_set()
+    check("a full game matrix beside a single-arm scene run is GREEN",
+          capability.no_stack_correlated_gap(recs) == [],
+          str(capability.no_stack_correlated_gap(recs)))
+    # MUTANT for the same check: "asked of games only" must not degrade to "asked of
+    # nothing". Drop an arm from the GAME population and it still fires.
+    fewer = [r for r in recs if not (r.task_class == "game" and r.stack == "unity")]
+    problems = capability.no_stack_correlated_gap(fewer)
+    check("MUTANT: an arm missing from the GAME population is RED", problems != [],
+          str(problems))
+    check("...and it names the absent arm", any("unity" in p for p in problems),
+          str(problems))
+
+
+def test_gate_still_reads_the_excluded_record() -> None:
+    print("\n[scene: MUTANT - an excluded record is still READ, not skipped]")
+    # Narrowing the FOUR-ARM claim to games must not excuse a scene record from the
+    # fail-closed record check. Every reason not to count a failure is a channel a bug
+    # can widen (AGENTS.md rule 7).
+    recs = mixed_class_set()
+    for r in recs:
+        if r.task_class == SCENE_CLASS:
+            r.fields["capture.cpu_seconds"] = None
+            r.reason.pop("capture.cpu_seconds", None)
+            r.why.pop("capture.cpu_seconds", None)
+    problems = capability.no_stack_correlated_gap(recs)
+    check("an unexplained null on a SCENE record is a gate failure", problems != [],
+          str(problems))
+    check("...and the problem names the scene trial",
+          any(SCENE_TRIAL in p for p in problems), str(problems))
+
+    # And a record of no known class at all: it can be asked no per-arm question, so
+    # it is counted rather than dropped into a '?' row nothing partitions.
+    with tempfile.TemporaryDirectory(prefix="cap-unknown-") as td:
+        root = Path(td)
+        for stack in STACKS:
+            write_eval_dir(root / "wg-games" / "artifacts",
+                           f"g2_tetris3d__{stack}__t0", programmatic())
+        write_eval_dir(root / "wg-games" / "artifacts", "notes-and-scratch",
+                       programmatic())
+        swept = capability.sweep(root)
+        odd = [r for r in swept if r.trial == "notes-and-scratch"]
+        check("the unparsed record is swept, not silently dropped", len(odd) == 1,
+              str([r.trial for r in swept]))
+        problems = capability.no_stack_correlated_gap(swept)
+        check("a record of unknown class is a gate failure", problems != [],
+              str(problems))
+        check("...and the problem names it",
+              any("notes-and-scratch" in p for p in problems), str(problems))
+
+
+def test_scene_gap_is_not_hidden_by_the_game_population() -> None:
+    print("\n[scene: MUTANT - a per-arm gap inside the scene population]")
+    # One run that launched games AND scenes. Every game record reports
+    # capture.cpu_seconds; the godot SCENE records never captured it. Pooled by run
+    # alone the godot arm looks populated - by its GAME records - and the gap is
+    # invisible, which is what "the scene's fields are never asked the question"
+    # means. Grouped by (run, class) it is a gap in the scene population.
+    recs = [capability.observe_doc(programmatic(), game="g2_tetris3d", stack=s,
+                                   trial=f"g2_tetris3d__{s}__t0", run="wg-both")
+            for s in STACKS]
+    recs += [scene_obs(run="wg-both", stack=s,
+                       cpu_seconds=None if s == "godot" else 6.25)
+             for s in STACKS]
+    problems = capability.no_stack_correlated_gap(recs)
+    check("the scene population's per-arm gap is RED", problems != [], str(problems))
+    check("...and the problem names the scene class",
+          any(f"({SCENE_CLASS})" in p for p in problems), str(problems))
+    check("...and names the arm and the field",
+          any("godot" in p and "capture.cpu_seconds" in p for p in problems),
+          str(problems))
+    games_only = capability.no_stack_correlated_gap(
+        [r for r in recs if r.task_class == "game"])
+    check("...while the game population of the same run is GREEN on its own",
+          games_only == [], str(games_only))
+
+    # VARIANT: the same one-arm absence for a SUBMISSION reason is data about a
+    # submission, not a gap - and it is reported as skew in the scene population.
+    variant = [capability.observe_doc(programmatic(), game="g2_tetris3d", stack=s,
+                                      trial=f"g2_tetris3d__{s}__t0", run="wg-both")
+               for s in STACKS]
+    variant += [scene_obs(run="wg-both", stack=s,
+                          **({"film_exit": 1, "sizes": [], "frames": 0}
+                             if s == "godot" else {}))
+                for s in STACKS]
+    vproblems = capability.no_stack_correlated_gap(variant)
+    check("a scene submission's own capture failure is not a gap", vproblems == [],
+          str(vproblems))
+    warn = capability.stack_skew_warnings(variant)
+    check("...it is reported as skew, in the scene population",
+          any(f"({SCENE_CLASS})" in w and "godot" in w for w in warn), str(warn))
+    check("...and no skew is attributed to the game population",
+          not any("(game)" in w for w in warn), str(warn))
+
+
 def test_starter_default_is_what_the_starters_say() -> None:
     print("\n[starter default: the constant against the four starter sources]")
     # `STARTER_DEFAULT_GEOMETRY` names the starter default, so the starters are the
@@ -524,6 +723,12 @@ def main() -> int:
     test_resolution_census()
     test_resolution_census_mutant()
     test_resolution_census_variant()
+    test_scene_trial_id_parses()
+    test_scene_record_lands_in_the_scene_population()
+    test_gate_population_is_stated_and_counted()
+    test_gate_scene_arms_are_not_the_four_arm_claim()
+    test_gate_still_reads_the_excluded_record()
+    test_scene_gap_is_not_hidden_by_the_game_population()
     test_starter_default_is_what_the_starters_say()
     print()
     if FAILURES:

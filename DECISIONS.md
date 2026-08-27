@@ -1450,6 +1450,20 @@ out to have been recorded on all 68 stored submissions already, unread (#97).
 than the submission's own capture failing. `judge/capability_selftest.py` carries its mutant and
 its variant.
 
+**The four-arm half of that gate is asked of the game submissions only, and the module prints the
+population it asked and the records it left out.** Four arms is a property of the game matrix;
+the scene class has been built on one arm, so demanding four of it would report the state of the
+corpus as a defect. Everything else the gate asks — an unexplained null, a record whose class the
+module cannot name, a field populated on some arms and never captured on another — is asked of
+every record, and each per-arm comparison happens inside one **(run, task class)** cell so that a
+run launching both classes cannot let one population cover for a gap in the other.
+
+**A record excluded from a claim must still be visible, and for eight days it was not.** `TRIAL_RE`
+matched a leading `g`, so the stored scene submission parsed to game `?` and stack `?`: it sat in a
+`?` row beside the four arms, every per-stack partition dropped it, and the gate reported no
+stack-correlated gap over 68 of 69 records without saying so. The report now names its population
+in the same breath as its verdict.
+
 **No frametime and no fps field, at any point.** The four arms do not render the judged frames on
 comparable hardware: Rust, Unity and Godot draw on the M3 Max, the TypeScript arm draws on
 **SwiftShader, a CPU rasteriser** (`research/10-stack-capability-matrix.md` §3). A frametime field
