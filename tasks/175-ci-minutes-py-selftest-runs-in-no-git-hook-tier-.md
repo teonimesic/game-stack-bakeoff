@@ -1,10 +1,11 @@
 ---
 id: 175
 title: ci_minutes.py --selftest runs in no git-hook tier, so a workflow edit can go red only in CI
-status: todo
+status: in_review
 priority: 3
 refs: .githooks/run-gates.sh,eval/tools/ci_minutes.py,.github/workflows/README.md,tasks/164
 done_when: 'Either `ci_minutes.py --selftest` runs in a hook tier - pre-commit if it is cheap enough, pre-push otherwise, with the measured runtime stated and added to the register''s own cost column - or it is deliberately excluded and .github/workflows/README.md records the exclusion with the reason, which that file already requires for every gate left out. A control proves the chosen tier actually fires: edit a workflow file the way tasks/164 did, and the hook must go red where it previously stayed green.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/60
 ---
 
 `eval/tools/ci_minutes.py --selftest` checks that the CI register in .github/workflows/README.md describes the workflows that actually exist, and it derives the hook list by RUNNING the hook rather than by restating it.
