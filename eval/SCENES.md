@@ -264,7 +264,7 @@ farther ones' where they show through. There is no contracted way to say which p
 **The decision is that a layer is measured only from rows no other declared band contains, and one
 left too few of them is declared unattributable** — reported, excluded, never given a neighbour's
 motion. `ParallaxScene.MIN_OWN_ROWS` is the floor and it is `band_profile`'s own sample count: a
-window thinner than the ten rows a profile averages is not the thing every threshold here was set
+window thinner than the 10 rows a profile averages is not the thing every threshold here was set
 against. Where that leaves fewer than `MIN_LAYERS` readable bands, `layers.image_parallax` comes
 back `scored=False`, exactly as an aliased band does.
 

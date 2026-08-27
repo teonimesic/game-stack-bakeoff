@@ -1018,7 +1018,8 @@ class ParallaxScene(Scene):
             f"(`id: own/declared @band`): {rows}"]
 
     def _image_parallax(self, r: SceneRun, shifts: dict[Any, list[dict]],
-                        unattributable: dict[Any, str]) -> Criterion:
+                        unattributable: dict[Any, tuple[int, int, float, float]]
+                        ) -> Criterion:
         cid = "layers.image_parallax"
         if not r.frames_usable:
             return self.ok(cid, False, r.why_frames_unusable())
@@ -1029,10 +1030,15 @@ class ParallaxScene(Scene):
             d = num(layer, "depth")
             if d is not None and layer.get("id") in good:
                 depths[layer["id"]] = d
+        # The DECLARED count, not `len(shifts) + len(unattributable)`. `_bands` drops a
+        # row with no usable `top`/`bottom`, and `state.shape` does not ask for either, so
+        # a layer can be declared and reach neither dict - and the evidence would then
+        # state a smaller denominator than the scene did.
+        declared = len(self._layers(r.trace_a[0].state))
         if len(depths) < self.MIN_LAYERS:
             return self.not_established(
-                cid, f"only {len(depths)} of {len(shifts) + len(unattributable)} "
-                     f"declared layers could be read in the frames at all: {notes}")
+                cid, f"only {len(depths)} of {declared} declared layers could be read "
+                     f"in the frames at all: {notes}")
         order = sorted(depths, key=lambda k: depths[k])
         med = [good[lid]["median_shift"] for lid in order]
         sep = self._separation(r.frames_a[0])
@@ -1046,7 +1052,8 @@ class ParallaxScene(Scene):
                        + (f"; not read: {notes}" if notes else ""))
 
     def _seamless(self, r: SceneRun, shifts: dict[Any, list[dict]],
-                  unattributable: dict[Any, str]) -> Criterion:
+                  unattributable: dict[Any, tuple[int, int, float, float]]
+                  ) -> Criterion:
         cid = "loop.seamless"
         wraps_fired = sum(t.events.count("wrap") for t in r.trace_a)
         if not r.frames_usable:

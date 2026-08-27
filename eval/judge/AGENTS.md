@@ -75,7 +75,7 @@ python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
 python3 judge/scene_mutants.py --attribution-selftest   # which rows are one layer's?
 ```
 
-4 things to know before you touch any of it:
+6 things to know before you touch any of it:
 
 - **1 submission has met these criteria** (`eval/RUNS.md`), and every threshold was still
   chosen against fixtures written by the same hand as the criterion. Treat a scene score as
