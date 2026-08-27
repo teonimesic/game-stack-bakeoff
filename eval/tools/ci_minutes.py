@@ -1887,9 +1887,23 @@ def _selftest() -> int:
         _shim_dir, _marker = pathlib.Path(_td) / "bin", pathlib.Path(_td) / "fired"
         _shim_dir.mkdir()
         _shim = _shim_dir / "python3"
-        _shim.write_text(f'#!/bin/sh\nprintf x >> "{_marker}"\nexit 0\n')
+        # THE SHIM RECORDS WHAT IT WAS INVOKED WITH, not merely THAT it was invoked. One
+        # line per gate, carrying the GATES_DEPTH the hook exported into it -- which is the
+        # only place the ceiling's arithmetic is observable from outside the script. See
+        # `_depth_seen` below for what that buys.
+        _shim.write_text('#!/bin/sh\n'
+                         f'printf \'%s\\n\' "${{GATES_DEPTH-unset}}" >> "{_marker}"\n'
+                         'exit 0\n')
         _shim.chmod(0o755)
         _env = {**os.environ, "PATH": f"{_shim_dir}:{os.environ.get('PATH', '')}"}
+
+        def _fired() -> list[str]:
+            """The GATES_DEPTH each shimmed gate saw, and the file is consumed."""
+            if not _marker.exists():
+                return []
+            seen = [ln for ln in _marker.read_text().splitlines() if ln.strip() != ""]
+            _marker.unlink()
+            return seen
 
         def _run_hook_shimmed(listing: bool):
             env = {**_env, "GATES_LIST_ONLY": "1"} if listing else _env
@@ -1907,9 +1921,8 @@ def _selftest() -> int:
         # row, a shim that could never run would report "executed nothing" for free.
         _ran = _run_hook_shimmed(False)
         check("without the flag the hook really executes its gates",
-              (_ran.returncode, _marker.exists(), len(_marker.read_text())
-               if _marker.exists() else 0),
-              (0, True, len(_live_hooks["tiers"]["pre-push"])))
+              (_ran.returncode, len(_fired())),
+              (0, len(_live_hooks["tiers"]["pre-push"])))
         counts["variants"] += 1
 
         # THE DEPTH CEILING, both directions. This tool is a `pre-push` gate and it also
@@ -1967,6 +1980,40 @@ def _selftest() -> int:
                    [_norm_command(ln) for ln in _at.stdout.splitlines() if ln.strip()]),
                   (0, _live_hooks["tiers"]["pre-push"]))
             counts["variants"] += 1
+
+        # ACCEPTANCE IS NOT PROPAGATION, and only the second one bounds anything. Every row
+        # above presets GATES_DEPTH and reads the hook's own answer, so a hook that accepted
+        # 1 and then exported 1 -- or exported nothing at all -- passes all of them, while a
+        # real nesting never advances and recurses exactly as before. What the ceiling
+        # protects is the value the level BELOW inherits, so that is what is read here: the
+        # shim records the GATES_DEPTH it was invoked with, and these rows execute the tier
+        # to make it speak. Raised by CodeRabbit on PR #60.
+        #
+        # This executes and the rows above deliberately do not, and the difference is that
+        # the depth is pinned OUTSIDE the recursion rather than inside it: one hook runs, its
+        # gates are all the shim, and nothing beneath it can re-enter. The failure that made
+        # the first draft the recursion engine was a control resetting the counter on every
+        # level of a live nesting, which one bounded call cannot do.
+        def _depth_seen(inbound: str | None) -> list[str]:
+            env = {**_env}
+            env.pop("GATES_DEPTH", None)
+            if inbound is not None:
+                env["GATES_DEPTH"] = inbound
+            proc = subprocess.run(["sh", str(HOOK_RUNNER), "pre-push"], cwd=str(ROOT),
+                                  capture_output=True, text=True, check=False, env=env)
+            return [str(proc.returncode), *sorted(set(_fired()))]
+
+        _gates_n = len(_live_hooks["tiers"]["pre-push"])
+        for _inbound, _want in ((None, "1"), ("", "1"), ("0", "1"), ("1", "2")):
+            check(f"a gate under GATES_DEPTH={_inbound!r} inherits {_want}",
+                  _depth_seen(_inbound), ["0", _want])
+            counts["variants"] += 1
+        # And the refusal reaches no gate at all -- the third value, not depth 3.
+        check("GATES_DEPTH=2 runs no gate to inherit anything", _depth_seen("2"), ["3"])
+        counts["mutants"] += 1
+        check("the shim really is what those gates ran, all of them",
+              (_run_hook_shimmed(False).returncode, len(_fired())), (0, _gates_n))
+        counts["variants"] += 1
 
     # The fixture pair the mutants below are edits of. It is deliberately NOT the live one:
     # a mutant of the live register would have to be a string replacement that keeps working
