@@ -230,3 +230,17 @@ any verdict turns out to move."*
 CI at `cc1ca3b`: `gates` PASS (1m54s), `CodeRabbit` PASS, `controls` still in flight when this
 was handed back, with its `judge/bot_mutants` and `judge/aim_contract_control` steps already
 green and only unrelated later steps outstanding.
+
+## note 2026-08-27
+
+## note 2026-08-27 — CI is fully green at `cc1ca3b`
+
+The note above recorded `controls` as still in flight at handback. It has since finished:
+
+    CodeRabbit  pass
+    controls    pass  14m10s   run 33047224173
+    gates       pass  1m54s    run 33047224111
+
+All 3 required checks green at the head that is up for merge. The 14m10s is `controls`' normal
+shape here rather than anything this change added: `judge/bot_mutants` dominates it, and the
+session-lock controls inside it wait out a retry backoff (~10m of the run locally too).

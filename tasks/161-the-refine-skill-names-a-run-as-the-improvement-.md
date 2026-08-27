@@ -1,12 +1,12 @@
 ---
 id: 161
 title: The refine skill names a run as the improvement loop's trigger, and three of its iterations did not come from one
-status: in_testing
+status: done
 priority: 3
 refs: .agents/skills/refine/SKILL.md, eval/IMPROVEMENTS.md, IMPROVEMENTS.md, AGENTS.md
 done_when: The refine skill states the loop's trigger as a property that covers the iterations the file actually contains - checked by naming iterations 13, 14 and 15 and saying whether each qualifies - and says where an evaluator change that did not come from a run belongs. Deciding the loop is run-only, with ticket-driven changes going to findings, closes this. No iteration is retro-filed.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/44
-established_by: 'PR #44, 4 review rounds then a clean one; iterations 13/14/15 traced to tasks/33, tasks/87 and iteration 14''s loose end, 0 of 3 from a finished matrix; gates green unpiped and linkcheck pinned red then green on the citation'
+established_by: 'Merged as PR #44. Verified against the branch before merge: docstat --sweep, linkcheck and tasks check all exit 0, and eval/IMPROVEMENTS.md holds 17 ''## Iteration'' headings both before and after, which is the mechanical check that nothing was retro-filed as the handback claimed. The substantive result is that the trigger changed from an ENUMERATION (''a matrix has finished AND been evaluated'') to a PROPERTY (''the loop fires when you are about to change the instrument, the product, or the guidance for either, and can measure the effect'') - the same correction AGENTS.md draws from its own rule audit, applied to the one skill whose trigger excluded three of the iterations its own file contains. The run-only alternative was considered and declined with the reason recorded in DECISIONS.md: a finding has no pre-registration, no falsifier and no keep-or-revert, so filing a measured change there would drop what makes an iteration falsifiable. eval/IMPROVEMENTS.md now owns the record contract and the skill points at it rather than restating it, which is what closed the CodeRabbit thread I resolved at merge time - correctly citing this project''s own #38.'
 ---
 
 `.agents/skills/refine/SKILL.md` says the improvement loop fires when *"a matrix has finished AND

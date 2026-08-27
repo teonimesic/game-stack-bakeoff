@@ -1,10 +1,11 @@
 ---
 id: 168
 title: the GAME ink ceiling has fired once in 68 gradings and it was a false negative too
-status: todo
+status: in_review
 priority: 3
 refs: eval/judge/static.py,eval/judge/ink_window_control.py,eval/judge/RUBRIC.md,eval/RUNS.md,tasks/163
 done_when: the game half of INK_WINDOW is decided on the same standard tasks/163 applied to the scene half - either a ceiling with a derivation and a population, or no ceiling - and if it moves, wg-g4c g4_platformer__godot__t1 is re-graded, the regime move is recorded in eval/RUNS.md, and every live document quoting the 0.881 figure or the 7-of-68 tier-1 census breakdown is repaired
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/48
 ---
 
 tasks/163 made render.nonempty's ink window per task class and gave a scene the floor with no ceiling. It deliberately left the GAME ceiling at 0.85, because moving it flips a stored game gate verdict and the figure three live documents quote - a re-scoring event on the game population. But the measurement it left behind says the game ceiling is the same defect. python3 eval/judge/ink_window_control.py --runs-root <main>/eval/runs, over 85 gradings / 69 submissions: the ceiling has fired TWICE and neither firing was a defect. One is the scene, repaired. The other is wg-g4c g4_platformer__godot__t1 at mean ink 0.881 - a night platformer drawn over a gradient sky, whose only tier-1 failure is this one and which scored 1.000 on tier 2 (RUBRIC.md already records it as one of the five non-blocking failures). Read the frame: eval/runs/wg-g4c-2026-08-21T02-26-46/artifacts/g4_platformer__godot__t1/eval/frames/frame_0005.png. The mechanism is that ink_coverage counts pixels differing from the single most-common quantised colour, so a GRADIENT SKY has no modal region and reads as ~1.0 whatever is drawn on it - which is a property of the palette, not of the render. The floor, meanwhile, has fired twice and both times on trials with ZERO frames, where render.frames reports the same fact in the same record. So over the whole game corpus render.nonempty has never separated anything render.frames did not, and its only independent firing was wrong. Decide it on evidence, not by widening: state the ceiling's population and its derivation, or remove it and say what the floor is then carrying.
