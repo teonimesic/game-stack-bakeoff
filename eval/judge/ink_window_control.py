@@ -457,12 +457,23 @@ def corpus(runs_root: Path) -> None:
     kept, superseded = tier1_census.latest_per_submission(gradings)
 
     rows, skipped = [], []
+    stored_class = inferred_class = 0
     for r in kept:
         rec = json.loads(Path(r["report"]).read_text(encoding="utf-8"))
         # `task_class` is stamped only on records written since 2026-08-23. The id shape
         # is a SECOND channel and not the same fact, so a record neither can place is
         # counted out loud rather than read as a game.
-        klass = rec.get("task_class") or _class_of(str(rec.get("game")))
+        #
+        # A record placed by INFERENCE is counted out loud too. Reporting `game: n=68`
+        # without saying how many of the 68 were read and how many were guessed makes
+        # `_class_of` unfalsifiable from this output: if the id shape ever places a
+        # record wrongly, every figure below moves and nothing here would disagree.
+        klass = rec.get("task_class")
+        if klass:
+            stored_class += 1
+        else:
+            klass = _class_of(str(rec.get("game")))
+            inferred_class += 1
         crit = next((c for c in r["criteria"] if c["id"] == "render.nonempty"), None)
         if crit is None or klass not in static.INK_WINDOW:
             skipped.append((r["trial"], "no render.nonempty" if crit is None
@@ -473,6 +484,8 @@ def corpus(runs_root: Path) -> None:
     print(f"  {len(gradings)} gradings over {len(kept)} submissions "
           f"({len(superseded)} superseded, {len(skipped_paths)} paths not a run); "
           f"{len(rows)} carry render.nonempty, {len(skipped)} skipped")
+    print(f"  task_class read from the record on {stored_class}, inferred from the id "
+          f"shape by _class_of on {inferred_class} (of {len(kept)} submissions examined)")
     for name, why in skipped:
         print(f"    skipped {name}: {why}")
     # A record with no `frames.mean_ink` is PARTITIONED OUT and counted, never sorted
