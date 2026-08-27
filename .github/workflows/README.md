@@ -263,9 +263,11 @@ reached only through another script is ungated here, which is why `starter_gate_
 The reverse direction goes red too: a row here naming a control that a tier **does** run is a
 row that outlived its exclusion, and a reader trusting it concludes a live check is not running.
 
-**Gate commands are tokenised the way a shell tokenises them**, so a quoted script path or a
-trailing comment still names its script, and text that will not tokenise is reported rather than
-split on whitespace and answered anyway. **And when the command producers cannot be read at all
+**Gate commands are tokenised the way a shell tokenises them, and each token is matched as a
+PATH resolved against the repository root** — so a quote, a trailing comment, a `./` prefix or
+an absolute path all name the same script, while `nested/eval/tools/x_control.py` is a different
+address and does not. Text that will not tokenise is reported rather than split on whitespace and
+answered anyway. **And when the command producers cannot be read at all
 — an unparseable workflow, a hook tier that lists nothing — this refuses with exit 2 naming the
 cause**, because reading them for their command lists alone turns one broken file into a report
 that every control in the repository is ungated.

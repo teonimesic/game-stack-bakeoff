@@ -1277,8 +1277,23 @@ def register_exclusions(text: str) -> tuple[list[str], list[str]]:
     return spans, problems
 
 
-def command_tokens(commands: list[str]) -> tuple[list[list[str]], list[str]]:
-    """Every gate command as the shell would tokenise it, and what would not tokenise.
+def _abs_path(spelling: str) -> str | None:
+    """The one address a command-line token or a repository path both name, or None.
+
+    NEVER RAISES: a token can be any text a workflow holds, and one `pathlib` refuses -- a
+    null byte, a path past the system limit -- is not a script, which is the fail-closed
+    answer. `_is_scope_script` resolves the scope step's token the same way, against the
+    same root.
+    """
+    try:
+        p = pathlib.Path(spelling)
+        return str((p if p.is_absolute() else ROOT / p).resolve())
+    except (OSError, ValueError):
+        return None
+
+
+def command_paths(commands: list[str]) -> tuple[list[set[str]], list[str]]:
+    """The addresses each gate command names, and any command that will not tokenise.
 
     TOKENISED, NOT SPLIT ON WHITESPACE. `str.split` keeps the quotes, so a gate written
     `run: python3 "eval/tools/fragment_control.py"` yields the token
@@ -1286,35 +1301,43 @@ def command_tokens(commands: list[str]) -> tuple[list[list[str]], list[str]]:
     control a gate really runs -- and a check that fires where nothing is wrong spends
     exactly the attention a real firing needs. A quoted script path is already on the
     register's list of VARIANTS the scope step must accept, and
-    `scope_invocation_problems` already reads its line with `shlex`. Raised by CodeRabbit
-    on PR #49.
+    `scope_invocation_problems` already reads its line with `shlex`.
+
+    RESOLVED AS A PATH, NOT COMPARED AS TEXT, and that is the same lesson one turn later.
+    The first repair pinned 4 quoting spellings, which is an enumeration of the instances
+    that had come up: `./eval/tools/x.py`, `eval/tools//x.py` and an absolute
+    `$GITHUB_WORKSPACE/eval/tools/x.py` are all commands a shell really runs, all three
+    read as ungated, and no list of spellings closes. The PROPERTY is path identity
+    against `ROOT`. Both rounds raised by CodeRabbit on PR #49.
+
+    IT STILL REFUSES A SUFFIX. `nested/eval/tools/fragment_control.py` is a file a branch
+    can add and resolves to a different address, so it names a different script -- the
+    substitution `_is_scope_script` refuses for the scope step.
 
     TEXT THAT WILL NOT TOKENISE IS REPORTED, never guessed at. Falling back to
     `str.split` on an unbalanced quote answers the question with the reading already known
     to be wrong; the census cannot say what such a command runs, and a control it silently
     calls ungated is a red row with the wrong cause on it.
     """
-    tokens: list[list[str]] = []
+    paths: list[set[str]] = []
     problems: list[str] = []
     for cmd in commands:
         try:
-            tokens.append(shlex.split(cmd, comments=True))
+            tokens = shlex.split(cmd, comments=True)
         except ValueError as exc:
             problems.append(
                 f"a gate command does not tokenise as a shell command "
                 f"({exc.__class__.__name__}: {exc}), so what it runs cannot be read and "
                 f"every control would report as ungated: {cmd[:120]!r}")
-    return tokens, problems
+            continue
+        paths.append({a for a in (_abs_path(t) for t in tokens) if a is not None})
+    return paths, problems
 
 
-def _named_by(script: str, tokens: list[list[str]]) -> bool:
-    """Does any gate command name THIS script?
-
-    WHOLE TOKEN, never containment. `nested/eval/tools/fragment_control.py` is a file a
-    branch can add, it contains the real path, and it is not this script -- the same
-    substitution `_is_scope_script` refuses for the scope step.
-    """
-    return any(script in t for t in tokens)
+def _named_by(script: str, paths: list[set[str]]) -> bool:
+    """Does any gate command name THIS script? Compared as an ADDRESS, resolved both ways."""
+    here = _abs_path(script)
+    return here is not None and any(here in p for p in paths)
 
 
 def gate_command_lines(census: dict[str, dict] | None = None,
@@ -1406,8 +1429,8 @@ def controls_census(scripts: list[str] | None = None,
             "population is reporting the instrument, not the population -- this repository "
             f"has never had zero scripts whose stem ends in one of {CONTROL_SUFFIXES}")
 
-    tokens, token_problems = command_tokens(commands)
-    problems += token_problems
+    paths, path_problems = command_paths(commands)
+    problems += path_problems
 
     spans, span_problems = register_exclusions(register_text)
     problems += span_problems
@@ -1418,7 +1441,7 @@ def controls_census(scripts: list[str] | None = None,
     # stale row today against a register that is exactly right. Both directions are pinned.
     excused = {stem for s in spans if len(s.split()) == 1 for stem in _span_stems(s)}
 
-    gated = [s for s in scripts if _named_by(s, tokens)]
+    gated = [s for s in scripts if _named_by(s, paths)]
     ungated = [s for s in scripts if s not in gated]
     recorded = [s for s in ungated if pathlib.PurePosixPath(s).stem in excused]
     unrecorded = [s for s in ungated if s not in recorded]
@@ -2130,19 +2153,42 @@ def _selftest() -> int:
           ["eval/tools/disclosure_mutants.py", "eval/tools/evidence_set_control.py",
            "eval/tools/tasks_control.py"])
     counts["variants"] += 1
-    # VARIANTS: the command is tokenised the way a shell tokenises it. A QUOTED script path
-    # is on the register's own list of things the scope step must accept, and `str.split`
-    # keeps the quotes -- so this reddened a control a gate really runs (CodeRabbit, PR
-    # #49). A trailing shell comment is the same shape one flag along.
+    # VARIANTS: a command is read as a shell reads it, and the script is matched as an
+    # ADDRESS. Every row below is a command a shell really runs, and every one of them read
+    # as UNGATED at some point on this branch -- the first four because `str.split` keeps
+    # the quotes, the next three because an address was compared as text (CodeRabbit, PR
+    # #49, two rounds). They are pinned as a list because they are what came up; the
+    # property is in `command_paths`, and the list is what proves it covers them.
     for _label, _cmd in (
         ("a quoted script path", 'python3 "eval/tools/fragment_control.py"'),
         ("a single-quoted script path", "python3 'eval/tools/fragment_control.py'"),
         ("a trailing shell comment", "python3 eval/tools/fragment_control.py  # the gate"),
         ("an absolute interpreter", "/usr/bin/python3 eval/tools/fragment_control.py"),
+        ("a ./-prefixed path", "python3 ./eval/tools/fragment_control.py"),
+        ("a doubled separator", "python3 eval/tools//fragment_control.py"),
+        ("a path through ..", "python3 eval/judge/../tools/fragment_control.py"),
+        ("an absolute script path", f"python3 {ROOT}/eval/tools/fragment_control.py"),
+        ("the script executed directly", "./eval/tools/fragment_control.py"),
     ):
         check(f"a gate command written with {_label} still names its script",
               "eval/tools/fragment_control.py" in _cx(commands=[_cmd])["gated"], True)
         counts["variants"] += 1
+    # MUTANTS: resolving must not have made the match loose. A same-named script under
+    # another directory is a different address, and so is a directory that merely contains
+    # the name -- both are files a branch can add.
+    for _label, _cmd in (
+        ("a same-named script elsewhere",
+         "python3 nested/eval/tools/fragment_control.py"),
+        ("a parent directory of it", "python3 eval/tools"),
+        ("the name as a bare word", "python3 -m fragment_control"),
+        # A token `pathlib` refuses is not a script, and it must not take the census down
+        # with it: `_abs_path` returns None rather than raising, for the reason
+        # `_is_scope_script` gives. Without this row a mutant that re-raises survives.
+        ("a token with an embedded null byte", "python3 \x00eval/tools/fragment_control.py"),
+    ):
+        check(f"{_label} does not name the script",
+              "eval/tools/fragment_control.py" in _cx(commands=[_cmd])["gated"], False)
+        counts["mutants"] += 1
     # MUTANT: text that will not tokenise is REPORTED, never split on whitespace and
     # answered anyway. Guessing here says "ungated" about a command nobody can read.
     check("a gate command with an unbalanced quote is reported, not guessed at",
@@ -2207,12 +2253,6 @@ def _selftest() -> int:
               "| left out | why |\n|---|---|\n"
               "| `field_sweep.py` | it drives `fragment_control.py` sometimes |\n"))
               ["problems"]), True)
-    counts["mutants"] += 1
-    # MUTANT: the command names a same-stemmed script somewhere else. A branch can add
-    # `nested/eval/tools/fragment_control.py`; containment would read it as the real one.
-    check("a same-named script elsewhere does not count as running it",
-          "eval/tools/fragment_control.py" in
-          _cx(commands=["python3 nested/eval/tools/fragment_control.py"])["ungated"], True)
     counts["mutants"] += 1
     # MUTANT: a register row that outlived its exclusion -- the control it excuses is now
     # gated, and a reader trusting the row concludes a live check is not running.
