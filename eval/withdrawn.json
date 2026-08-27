@@ -196,6 +196,20 @@
       "declared_in": "eval/RUNS.md, 'THE TIER-3 POOLED POPULATION CHANGED ON 2026-08-24'",
       "replaced_by": "python3 eval/judge/field_ranks.py --rounds eval/runs/wg-tetris-judge-2026-08-17/post, value=rank order=pool over the 4 poolable aspects: 1.8750 against 2.0938.",
       "retired_from_live_docs_by": "task 146"
+    },
+    {
+      "id": "WR-ink-arrangement-0-91667",
+      "withdrawn": "2026-08-27",
+      "kind": "figure",
+      "claim": "12 uniform frames arranged as one colour then eleven of another read mean_ink 0.91667, i.e. a blank render's ink depends on how its colours are arranged",
+      "why": "It was a property of the reference, not of the frames. `analyse_frames` took one background from frame 0 and applied it to all 12, so every frame uniform in another colour read 1.0; `tasks/178` moved the reference to each frame's own mode and all 4 arrangements now read 0.0. The figure stays true of the code as it stood on 2026-08-27 before that change, which is why the derivations built on it - the ceiling removal in `tasks/168` - are not disturbed.",
+      "match": [
+        "(?<![0-9.])0\\.916670?(?![0-9])"
+      ],
+      "anchor": "tasks/168-the-game-ink-ceiling-has-fired-once-in-68-gradin.md",
+      "declared_in": "eval/RUNS.md, '`mean_ink` MOVED TO A PER-FRAME BACKGROUND ON 2026-08-27'",
+      "replaced_by": "python3 eval/judge/ink_window_control.py, phase [a render that drew nothing, in the 4 ways 12 uniform frames arrange]: all 4 arrangements read 0.0 and every one fails. The retired reading of each is the fourth column of `BLANK_RENDERS`.",
+      "retired_from_live_docs_by": "task 178"
     }
   ]
 }

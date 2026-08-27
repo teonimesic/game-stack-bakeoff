@@ -293,6 +293,55 @@ ANALOG_SNAPPED = ("""    mag = math.sqrt(x * x + y * y + z * z)
         return x / mag, y / mag, z / mag
     return x, y, z""")
 
+#: A 96-tick opening title card over `ref_arena`, the same length as the 2 tetris cards
+#: and the platformer reference's own `OPENING_TICKS`. It gates the SIMULATION, so it
+#: meets every one of the 10 sessions this bot opens from that session's own tick 0.
+#:
+#: Before `bot_arena.OPENING_BUDGET` it failed `player.moves` and `move.analog` - both
+#: read a 30-tick push - and lengthening the card took that to 9 criteria by 400 ticks,
+#: 7 more than these 2 (`tasks/173`). Keep it at 96: the boundary was exact, a 29-tick
+#: card passing and a 30-tick one failing, so a shorter one would stop biting.
+ARENA_OPENING_TITLE_CARD = ("""        if self.game_over:
+            return events
+""", """        if self.game_over:
+            return events
+        if self.tick <= 96:
+            # VARIANT: a title card. Control is not handed over yet; nothing steps.
+            return events
+""")
+
+#: THE TIMEOUT PATH, and the negative control for `OPENING_BUDGET`. Widening every
+#: session's opening from nothing to 512 ticks can only make a criterion easier to pass,
+#: so what needs pinning is that a game which NEVER hands control over still goes red
+#: after the longer wait. Its collateral is nearly the whole suite by construction: a
+#: bot that cannot take control cannot establish any condition, and every criterion says
+#: so in the same sentence rather than inventing a downstream reason for it.
+ARENA_MOVES_IGNORED = ("""        dx, dy, dz = _vector(inputs, "move")""",
+                       """        dx, dy, dz = 0.0, 0.0, 0.0   # MUTANT: movement input is ignored""")
+
+#: `enemies.spawn` had no mutant until 2026-08-27, and the opening budget is what made
+#: one necessary: the criterion now tolerates a card before its 300-tick wait, so
+#: "cannot fail" and "no longer produces false negatives" needed separating (#29). The
+#: wave is still announced - `wave_start` fires and the counter still advances - and
+#: nothing arrives, which is the half of the criterion the event cannot carry.
+NO_ENEMIES = ("""        for i in range(self.wave_count(self.wave)):""",
+              """        for i in range(0):   # MUTANT: a wave is announced and nothing arrives""")
+
+#: `fire.spawns_bullets` asks for bullets THAT TRAVEL, and this is the half a bullet
+#: count cannot see: the gun still fires on its own interval, the snapshot still carries
+#: a bullet per shot, and none of them ever leaves the muzzle. `fire.rate_limited` reads
+#: shooting ticks and is unmoved, which is what keeps this mutant pointed at one thing.
+BULLETS_DO_NOT_TRAVEL = ("BULLET_SPEED = 520.0",
+                         "BULLET_SPEED = 0.0   # MUTANT: bullets appear and stay put")
+
+#: A twin-stick game ported from a single-stick one: the gun points wherever the player
+#: is walking. Pixel-identical to a correct game in any frame where the two happened to
+#: agree, and the defect `aim.independent` exists to catch - which had no mutant of its
+#: own until the opening budget made one necessary.
+AIM_FOLLOWS_MOVEMENT = ("""        ax, ay, az = _vector(inputs, "aim")""",
+                        """        # MUTANT: the firing direction is tied to the movement direction.
+        ax, ay, az = _vector(inputs, "move")""")
+
 NO_MATERIALISATION = ("SPAWN_TICKS = 32",
                       "SPAWN_TICKS = 0   # MUTANT: enemies appear fully formed")
 
@@ -822,6 +871,19 @@ VARIANTS: list[Variant] = [
                   "is read by `multiplier.rises` over hundreds of ticks by any "
                   "mechanism. Measured against the one-tick reading: `multiplier was 2 "
                   "before damage and 2 on the tick of the first hit`, FAIL"),
+    Variant("ref_arena", "a 96-tick opening title card holds the whole arena",
+            (ARENA_OPENING_TITLE_CARD,),
+            ("player.moves", "move.analog", "fire.spawns_bullets",
+             "fire.rate_limited", "aim.independent", "aim.three_axis",
+             "enemy.materialises", "enemies.chase", "enemies.spawn"),
+            notes="the 4th game to get one, and the one whose bot had no opening budget "
+                  "anywhere. Measured before `bot_arena.OPENING_BUDGET`: this card "
+                  "failed `player.moves` (`displacement along each axis after 30 ticks "
+                  "of full push: x=0.0, y=0.0, z=0.0`) and `move.analog` (`a full push "
+                  "moved only 0.00 units`), and lengthening it took that to 9 by 400 "
+                  "ticks. Those 9 are every criterion a card at or under the 512-tick "
+                  "budget used to break, and they are the 9 listed here; the sweep is "
+                  "in `tasks/173`"),
     Variant("ref_tetris3d", "a 96-tick card over an empty well",
             TETRIS_CARD_OVER_AN_EMPTY_WELL,
             ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
@@ -922,6 +984,48 @@ MUTANTS: list[Mutant] = [
                                          "gameover.triggers")),
     Mutant("gameover.triggers", "ref_tetris3d", "game_over is never set",
            (NEVER_ENDS,)),
+    Mutant("player.moves", "ref_arena", "the player never answers a movement input",
+           (ARENA_MOVES_IGNORED,),
+           collateral=("move.analog", "player.bounded", "wall.graze", "enemies.spawn",
+                       "enemy.kinds", "enemies.chase", "enemy.materialises",
+                       "fire.spawns_bullets", "fire.rate_limited", "aim.independent",
+                       "aim.three_axis", "bullets.kill", "score.on_kill",
+                       "multiplier.rises", "multiplier.falls", "wave.advances",
+                       "player.takes_damage", "gameover.triggers",
+                       "determinism.replay", "determinism.seed"),
+           notes="the TIMEOUT path, and the negative control for `OPENING_BUDGET`: the "
+                 "wait every session now opens with can only make a criterion easier to "
+                 "pass, so a game that never hands control over has to stay red after "
+                 "it. The collateral is everything but `state.shape`, which is read at "
+                 "tick 0 before the wait - a bot that cannot take control establishes "
+                 "no condition, and each criterion reports that rather than a "
+                 "downstream symptom of it"),
+    Mutant("enemies.spawn", "ref_arena", "a wave is announced and nothing arrives",
+           (NO_ENEMIES,),
+           collateral=("enemy.kinds", "enemies.chase", "enemy.materialises",
+                       "bullets.kill", "score.on_kill", "multiplier.rises",
+                       "multiplier.falls", "player.takes_damage", "gameover.triggers"),
+           notes="`wave_start` still fires and the wave counter still advances, so the "
+                 "event half of the criterion is untouched and only the enemies are "
+                 "missing. That is the half `wave.advances` cannot stand in for"),
+    Mutant("fire.spawns_bullets", "ref_arena", "bullets appear and never travel",
+           (BULLETS_DO_NOT_TRAVEL,),
+           collateral=("aim.independent", "aim.three_axis", "bullets.kill",
+                       "score.on_kill", "multiplier.rises", "multiplier.falls",
+                       "wave.advances", "enemy.kinds"),
+           notes="the criterion asks for bullets THAT TRAVEL, and a bullet count cannot "
+                 "see this: the gun fires on its own interval and every shot is in the "
+                 "snapshot. `fire.rate_limited` counts shooting ticks and is unmoved"),
+    Mutant("aim.independent", "ref_arena", "the gun points where the player is walking",
+           (AIM_FOLLOWS_MOVEMENT,),
+           collateral=("aim.three_axis", "multiplier.rises", "multiplier.falls",
+                       "wave.advances"),
+           notes="aiming and moving are separate vectors in the prompt, so this is the "
+                 "single-stick port. `aim.three_axis` is collateral because the bot "
+                 "moves along -y in every firing phase, so a gun following the movement "
+                 "fires along -y whatever it is aimed at; the rest follow from a bot "
+                 "that kites AWAY from its target, which now points the gun away too, "
+                 "so the killing streak those criteria have to establish never happens"),
     Mutant("enemies.chase", "ref_arena", "enemies walk a fixed heading",
            (FIXED_HEADING,), collateral=("player.takes_damage", "gameover.triggers",
                                          "wave.advances", "bullets.kill",
@@ -958,7 +1062,10 @@ MUTANTS: list[Mutant] = [
     Mutant("wall.graze", "ref_arena", "the boundary is never reported",
            (NO_GRAZE,)),
     Mutant("aim.three_axis", "ref_arena", "the depth axis is dropped from aim",
-           (FLAT_AIM,)),
+           (FLAT_AIM,), collateral=("multiplier.rises", "multiplier.falls"),
+           notes="a gun that cannot point along z misses any enemy off the player's own "
+                 "depth plane, so the killing streak the multiplier criteria have to "
+                 "establish first mostly does not happen"),
     Mutant("player.bounded", "ref_arena", "the volume does not hold the player",
            (UNBOUNDED,), collateral=("wall.graze",)),
     Mutant("fire.rate_limited", "ref_arena", "a bullet every tick",
@@ -1115,6 +1222,7 @@ _V_PIT = "the opening ledge overlooks a bottomless pit"
 _V_PONG_RESTART = "a game-over card, then a control starts a new match"
 _V_RESTART = "a game-over card, then a control starts a new run"
 _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
+_V_ARENA_CARD = "a 96-tick opening title card holds the whole arena"
 _V_FROZEN = "a 96-tick card over a frozen well"
 _V_EMPTY = "a 96-tick card over an empty well"
 _V_SPREAD = "a faster three-round spread weapon"
@@ -1274,11 +1382,17 @@ HAZARDS: list[Hazard] = [
     Hazard("ref_arena", "state.shape", "no-construction",
            "a game that reports the arena, player, enemies and bullets under other "
            "names", _CONTRACT),
-    Hazard("ref_arena", "player.moves", "tuning",
-           "a player that accelerates slowly enough that 30 ticks of full push moves "
-           "less than the 2-unit floor",
-           "the reference travels ~130 units in those 30 ticks, so the floor is two "
-           "orders of magnitude below it and only a near-immobile player fails"),
+    Hazard("ref_arena", "player.moves", "opening-card",
+           "a title card, a countdown or a wave-1 announcement that holds the arena "
+           "before the player can be walked at all",
+           "the variant, plus `bot_arena.OPENING_BUDGET`: the criterion reads a 30-tick "
+           "push, so the boundary was exact - a 29-tick card passed and a 30-tick one "
+           "failed, on a game this bot had no opening wait for anywhere. Every session "
+           "now opens with `_take_control`, which steps up to 512 ticks until the "
+           "player answers a movement input (`tasks/173`). The other reading of the "
+           "criterion is unchanged: the reference travels ~130 units in its 30 ticks, "
+           "so the 2-unit floor is two orders of magnitude below it and only a "
+           "near-immobile player fails it on speed", _V_ARENA_CARD),
     Hazard("ref_arena", "move.analog", "design-branch",
            "a deadzone above half the stick range, which rounds a half push to nothing "
            "and lands outside the 0.25-0.75 band",
@@ -1298,8 +1412,12 @@ HAZARDS: list[Hazard] = [
     Hazard("ref_arena", "enemies.spawn", "opening-card",
            "a wave announcement that plays before the enemies appear, beyond the 300 "
            "ticks the criterion waits",
-           "300 ticks is about 4.7 seconds of card, against 96 in the platformer "
-           "reference and 104 in the submission that bought pong its budget"),
+           "the variant, plus `bot_arena.OPENING_BUDGET`: the 300 ticks are counted "
+           "from the end of `_take_control` rather than from the session's tick 0, so a "
+           "card is no longer spent out of them. Measured before that: the wait ran out "
+           "at a 390-tick card, which is 6.1 seconds against the 96 the platformer "
+           "reference holds and the 104 that bought pong its budget (`tasks/173`)",
+           _V_ARENA_CARD),
     Hazard("ref_arena", "enemy.kinds", "late-unlock",
            "four kinds gated behind wave >= 2, wave >= 3 and wave >= 4, which is what "
            "all six adjudicated submissions shipped (#46)",

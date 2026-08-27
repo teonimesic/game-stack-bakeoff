@@ -34,6 +34,16 @@ criterion instances the 4 bots report rather than the smaller set that carries a
 a `ref_pong` variant says nothing about `ref_arena`. Read the per-fixture count, and read it out
 of `--hazards` rather than off a total.
 
+**A TITLE CARD GATES THE SIMULATION, so it gates every session from that session's own tick 0.
+The opening budget goes at every session head — count the sessions, not the criteria.** Each bot
+spends 1 constant on it and all 4 are 512 ticks: `bot_pong.LIVE_BUDGET`,
+`bot_tetris3d.OPENING_BUDGET`, `bot_platformer._CONTROL_TICKS` and `bot_arena.OPENING_BUDGET`,
+the length bought by a Godot submission that held the ball for `OPENING_DELAY = 104` so its card
+would be readable (#34). **Where the budget is spent is the half that has been got wrong
+twice**: a criterion that opens a fresh session meets the card again from tick 0 (`tasks/158`),
+and a bot with no budget anywhere fails 2 of 22 criteria on a 96-tick card and 9 by 400
+(`tasks/173`).
+
 **An end condition has 2 ways to be wrong and both need pinning.** *Does the game ever say it
 is over*, and *does saying so stop it* — the prompt's own second clause. Every bot reaches the
 second through `probe.end_condition_holds`, 1 copy for all 4: it idles with nothing
@@ -206,14 +216,21 @@ without a per-class table fails.
 
 `render.nonempty` is a **floor of 0.001 and no ceiling**, plus a refusal of a frame set in which
 every frame is a single colour — both the same in either class, both properties every starter
-shares. **`mean_ink` does not measure how much was drawn**: it is departure from **frame 0's**
-modal colour, so a full screen reads 0.0 and a gradient reads near 1.0, and no bound on it can
-stand for a blank render. `RUBRIC.md` holds the rule, both derivation tables and what the retired
-ceiling did.
+shares. **`mean_ink` does not measure how much was drawn**: it is the fraction of a frame that is
+not its own modal colour, so a full screen reads 0.0 and a gradient reads near 1.0, and no bound
+on it can stand for a blank render. The reference is **each frame's own mode**, not frame 0's
+applied to all 12; the second half is now redundant with the floor rather than independent of it,
+and is kept as the fail-closed direction. `RUBRIC.md` holds the rule, both derivation tables and
+what the retired ceiling did.
+
+**A stored `mean_ink` is a frame-0 reading and is not comparable with one measured today** —
+`eval/RUNS.md`, *`mean_ink` moved to a per-frame background*. 10 of the 67 stored sets read
+differently under the two references and no verdict moves.
 
 **Before changing either half, run the producer** — `python3 judge/ink_window_control.py
 --runs-root <main checkout>/eval/runs` — which verifies both tables on real pixels, prints what
 the bounds have ever done over the stored corpus, and re-grades every firing under today's rule.
+Add `--reference-shift` to re-read the stored PNGs and print both readings per set.
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two

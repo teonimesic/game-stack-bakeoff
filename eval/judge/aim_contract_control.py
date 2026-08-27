@@ -243,19 +243,38 @@ def census(sent: list[dict]) -> dict:
 def extraction_control(sent: list[dict], problems: list[str]) -> list[tuple[str, str, str]]:
     """Two rows whose true value is stated before the census is believed (rule 12).
 
-    `_moves` opens the run with exactly 90 pure-movement ticks; `_firing_in` sends 120
-    ticks aiming +x. If the reader cannot tell those apart it is reporting itself.
+    The tape opens with exactly 92 pure-movement ticks and `ref_arena` is what makes
+    that number what it is: 1 from the main session's `_take_control`, which holds a
+    full +x push and returns on the first tick the player answers - here tick 1, moving
+    3.4 units against a 1.0-unit threshold - then 90 from `_moves`, 30 on each axis,
+    then 1 more because `enemies.spawn` finds the wave already present and steps
+    nothing, so the next tick on the tape is `_kinds`' own `_take_control`. Tick 93 is
+    that session's first `_play_inputs`, which carries an aim and a fire.
+    `_firing_in` sends 120 ticks aiming +x. If the reader cannot tell those apart it is
+    reporting itself.
+
+    BOTH DIRECTIONS, because "the first 92 are pure movement" is also true of any
+    smaller prefix: the row asserts that tick 93 is NOT one of them, so the boundary is
+    exact rather than merely satisfied. The 92 is written here rather than read out of
+    `bot_arena` - a control that imports its expectation from its subject is not a
+    control - so a change to the opening wait, to the per-axis push or to the order of
+    the sessions turns this row red, which is the point of it.
     """
     rows = []
-    head = sent[:90]
-    ok = (len(head) == 90
+    opening = 92
+    head = sent[:opening]
+    ok = (len(head) == opening
           and all(set(d) == {"move_x", "move_y", "move_z"} for d in head)
-          and all(_aim_mag(d) <= 1e-6 for d in head))
-    rows.append(("the 90 opening `player.moves` ticks carry no aim field",
-                 "all read as zero-aim", "ok" if ok else "UNMET"))
+          and all(_aim_mag(d) <= 1e-6 for d in head)
+          and len(sent) > opening
+          and set(sent[opening]) != {"move_x", "move_y", "move_z"})
+    rows.append((f"the {opening} opening `_take_control` and `player.moves` ticks carry "
+                 f"no aim field", "all read as zero-aim, and tick 93 does not",
+                 "ok" if ok else "UNMET"))
     if not ok:
-        problems.append("the census extraction: the 90 opening pure-movement ticks did "
-                        "not read as zero-aim, so its zero is not trustworthy.")
+        problems.append(f"the census extraction: the {opening} opening pure-movement "
+                        f"ticks did not read as zero-aim, or the tick after them did, "
+                        f"so its zero is not trustworthy.")
 
     aimed = [d for d in sent
              if abs(_axis(d, "aim_x") - 1.0) < 1e-9
