@@ -215,11 +215,13 @@ reported ticks, a layer that stops reporting and never resumes, and a row that d
 mutants that break a layer's reporting — a hole, a truncation, and a row with no span.
 `eval/RUNS.md` holds what the first submission measured.
 
-### A band that moves half its own span between captures is UNREADABLE, and the frames stay at 12
+### A band that moves half its own span or more between captures is UNREADABLE, and the frames stay at 12
 
 A layer repeats every `span`, so a displacement of `d` and one of `d + span` draw the same picture
-and no estimator can tell them apart. Past half a span the smallest-magnitude candidate stops being
-the true one, and what the frames carry is a residue of the repeat length rather than a rate.
+and no estimator can tell them apart. At exactly half a span the two candidates are the same
+distance apart and neither is the answer, and beyond it the smaller one is the wrong one — so half
+a span or more is refused, and what the frames carry there is a residue of the repeat length
+rather than a rate.
 
 **The decision is that such a band is declared unreadable, and the capture contract does not
 change.** `ParallaxScene._reliable` drops those pairs before it asks anything else, and a layer

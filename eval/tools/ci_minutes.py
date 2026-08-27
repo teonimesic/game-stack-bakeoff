@@ -1430,7 +1430,7 @@ def _selftest() -> int:
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
     check("gates.yml gate count", _cen["gates"]["gates"], 50)
-    check("controls.yml gate count", _cen["controls"]["gates"], 9)
+    check("controls.yml gate count", _cen["controls"]["gates"], 10)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
     check("controls.yml setup is not counted", _cen["controls"]["setup"], 5)
@@ -1747,7 +1747,7 @@ def _selftest() -> int:
     # VARIANT: the injected reader must not have replaced the real one -- a default that
     # no longer reads the files would make every pin above vacuous.
     check("the default reader still reads the real workflows",
-          gate_census(None, _import_yaml)["controls"]["gates"], 9)
+          gate_census(None, _import_yaml)["controls"]["gates"], 10)
 
     # VARIANT: a clean census must still be published, and exit 0, in both modes.
     for _as_json in (False, True):

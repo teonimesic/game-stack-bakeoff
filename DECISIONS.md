@@ -3011,15 +3011,15 @@ all.
 ## A band the captured frames cannot resolve is unreadable, and the capture stays at 12 — decided 2026-08-27
 
 A layer repeats every `span`, so a displacement of `d` and one of `d + span` draw the same picture.
-Past half a span the smallest-magnitude candidate stops being the true one, and the estimator
-returns a residue of the repeat length rather than a rate. **Such a pair is declared unreadable
-and the capture contract does not change.**
+At exactly half a span the two candidates are the same distance apart and neither is the answer;
+beyond it the smaller one is the wrong one. **A pair moving half a span or more is declared
+unreadable, and the capture contract does not change.**
 
-**The alternative was more frames, and it cannot work, because `span` is the submission's choice.**
-Resolving the first real submission's road band — 1.66 to 2.25 spans between captures — takes more
-than 50 frames where the contract gives 12; a band repeating every 10 world units would take
-thousands. Raising the frame count is also a regime boundary against every scene trial. A contract
-cannot chase a number the subject picks, so the instrument says it did not measure.
+**More frames is not the repair, because `span` is the submission's choice and no fixed capture
+rate resolves every repeat length.** A band crossing 1.66 to 2.25 spans between captures needs
+more than 50 frames where the contract gives 12; one repeating every 10 world units needs
+thousands. Raising the frame count is also a regime boundary against every scene trial. So the
+contract stays at 12 and the instrument says it did not measure.
 
 **It has to be a PRECONDITION on the pair, not a tolerance**, and that is the part a test would
 not have found. An aliased band can agree with itself perfectly: `scene_mutants.py`'s `the near

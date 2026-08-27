@@ -522,11 +522,11 @@ class ParallaxScene(Scene):
     #:
     #: `span` is contracted as the width after which the layer repeats itself, so the
     #: drawn displacement between two frames is only ever recoverable modulo `span`, and
-    #: a displacement and that displacement plus a span are the same picture. Half a
-    #: span is where the smallest-magnitude candidate stops being the true one - the
-    #: sampling limit, not a tuned constant - and past it the estimator returns a residue
-    #: that carries no rate at all. `eval/SCENES.md` decides that such a band is
-    #: UNREADABLE rather than wrong, and says why 12 frames is the reason.
+    #: a displacement and that displacement plus a span are the same picture. At exactly
+    #: half a span the 2 candidates are equally far from zero and neither is the answer;
+    #: beyond it the smaller one is the wrong one. So half a span or more is refused -
+    #: the sampling limit, not a tuned constant. `eval/SCENES.md` decides that such a
+    #: band is UNREADABLE rather than wrong, and why the capture stays at 12.
     #:
     #: No fixture pair comes near it: the widest is 0.27 of a span. The first real
     #: submission's road band crossed 1.6-2.25 spans on every one of its 11 pairs.
