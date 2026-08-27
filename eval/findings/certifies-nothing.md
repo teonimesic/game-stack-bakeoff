@@ -6122,3 +6122,52 @@ verdicts are against retired rules" is a lower bound established by the tickets 
 check.
 
 ---
+## #198 - `git -C <dir>` names a directory, and an inherited `GIT_DIR` outranks it silently
+
+`docstat.py`'s corpus was `ROOT/**/*.md`, so **any markdown lying in the working tree was a project
+document**. Measured before the repair: one untracked note at `staging/task-176-note.md` took
+`--sweep` from 249 documents to 250 at exit 0, and the same note citing three trial ids took the
+bare-trial-id ratchet from 18 to 21 and **failed the sweep**. A file not in the repository could move
+a gate that is. The corpus is now `git ls-files -z`, and `project_docs()` and `_live_corpus()` share
+one lister that the pins assert agree.
+
+**No pinned count moved** - on a clean checkout the glob and the index return the same 238 documents,
+set difference empty both ways - which is the shape a corpus repair should have and is also why the
+live tree cannot pin the new filter. The control builds a throwaway repository holding markdown that
+is *not* in it.
+
+**The finding is what building that control uncovered.**
+
+> **`git -C <dir>` selects a working DIRECTORY, not a repository. An inherited `GIT_DIR` in the
+> environment outranks it, silently, at exit 0.** `init` creates no `.git`; `add` writes to the
+> *other* repository's index; `ls-files` reads it.
+
+This is not hypothetical: it **happened during the work**, leaving 6 paths staged in the agent's
+worktree index with its `.gitignore` replaced there, working tree untouched. Every command reported
+success. A fixture that believed it was building an isolated repository was editing the repository
+under test.
+
+**Why this extends rule 12 rather than repeating it.** Every instance recorded there is an address
+written in *our* code - a path, a root, a login, a flag - and the defence is the same each time:
+assert the address against the thing it is meant to identify, or take it as an argument at the moment
+of use. Here **the competing address came from the process environment**. There is no second spelling
+of ours to reconcile, and no amount of care at the call site helps, because the caller's argument is
+the one that loses.
+
+> **When a tool reads its target from the environment as well as from its arguments, passing the
+> argument is not selecting the target. The defence is to REFUSE the environment, then assert what
+> you actually got.**
+
+`_git_at` now drops every `GIT_*` variable before invoking git, and `_assert_own_repo` checks
+`--absolute-git-dir`. The choice of flag was measured, not assumed: **`--show-toplevel` agrees with
+the caller on exactly this input** and would have certified the hijack.
+
+Two smaller defects from the same reading, both latent and both the fail-open direction:
+`git ls-files` **C-quotes non-ASCII paths** without `-z`, so `café.md` fails an `endswith(".md")`
+test - the corpus holds 0 such paths today, and two checks were already reading git that way. And a
+helper folded a **non-zero exit into `""`**, making a failed listing and an empty tree the same
+answer, so a downstream check would report clean over zero documents. That is rule 3's sibling, and
+it is the third time in this repository that an error has been turned into a plausible in-range
+value.
+
+---

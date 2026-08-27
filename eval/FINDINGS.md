@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#197 from building and running this evaluator. **Check whether a
+Findings #19-#198 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -273,6 +273,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **195** | the baseline was 459 ticks from the event it was attributed to | [fail-open](findings/fail-open.md) |
 | **196** | four pixels of 256,000 passed the render.nonempty floor | [fail-open](findings/fail-open.md) |
 | **197** | the arena bot had no opening budget in any of its ten sessions | [one-arm-bias](findings/one-arm-bias.md) |
+| **198** | `git -C` names a directory, and an inherited `GIT_DIR` outranks it silently | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

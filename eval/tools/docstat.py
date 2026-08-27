@@ -677,7 +677,8 @@ FOREIGN_FLAG_PREFIXES = (
 # the only turn ceiling that arm has, and it comes with continuations and gate re-runs the
 # claude arm never sees, so a document that could not name it could not say why the arm is
 # bounded by wall clock instead.
-FOREIGN_FLAGS_EXACT = frozenset({"--paginate", "--slurp", "--jq", "--admin",
+FOREIGN_FLAGS_EXACT = frozenset({"--absolute-git-dir", "--show-toplevel",
+                                 "--paginate", "--slurp", "--jq", "--admin",
                                  "--print", "--cwd", "--provider", "--thinking",
                                  "--autonomous", "--autonomous-max-turns",
                                  # git's own, named whenever a merge method is discussed in prose
