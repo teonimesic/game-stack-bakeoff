@@ -64,9 +64,7 @@ established was homogeneous.
 game submissions, because four arms is a property of the game matrix and the scene
 class has been built on 1 arm. Everything else the gate asks is asked of every record,
 and `population_sentence()` prints what the narrowing left out. **Excluded is not
-unread**, and until 2026-08-27 it was neither: `TRIAL_RE` matched `g` alone, so the one
-stored scene submission parsed to stack `?` and no per-stack partition here could see
-it at all.
+unread**: a record a claim does not cover is still swept, still counted and still named.
 
 --------------------------------------------------------------------------------
 NOTHING HERE IS A CRITERION, DELIBERATELY
@@ -249,10 +247,9 @@ class Observation:
 
 
 #: A trial directory name. The leading class letter is `[gs]` because THERE ARE 2 TASK
-#: CLASSES: `eval/AGENTS.md` says so and `suites/scene_prompts.py` names the scenes.
-#: It read `g` alone until 2026-08-27, so the one stored scene submission,
-#: `s1_parallax__ts__t0`, parsed to game `?` stack `?` - a record on the `ts` arm sitting
-#: in a `?` row that no per-stack partition here could see.
+#: CLASSES: `eval/AGENTS.md` says so and `suites/scene_prompts.py` names the scenes. A
+#: pattern that admits one class turns every record of the other into game `?` stack `?`,
+#: which no per-stack partition here can see and no reader is told about.
 #:
 #: The class letter is NOT decoded here. `aspects.task_class` is the project's one
 #: answer to *what class is this task*, it is 3-valued, and it consults the suites
