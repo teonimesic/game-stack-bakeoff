@@ -262,8 +262,8 @@ plainly: at frame pair 4 all 5 of range, ridge, grove, verge and road answer −
 all have moved the same distance.
 
 The cause is not the estimator. **A declared band is not a region of the frame that belongs to one
-layer.** Subtracting the rows every other declared band covers leaves 6 of the 7 with fewer than
-the 10 rows a profile averages, and 5 of those 6 with none at all.
+layer.** After removing the rows any other declared band covers, 6 of the 7 have fewer than the
+10 rows a profile averages, and 5 of those 6 have 0.
 
 | band | declared band, as frame fractions | rows of its own, of 400 |
 |---|---|---|
@@ -296,9 +296,9 @@ the direction — *"expect the rate to be worse on a submission that fills its f
 this submission's mean ink coverage is **0.966**. So `measured_twice` came back as 2 of the 3
 criteria designed to have both halves.
 
-**`loop.seamless` is `scored=False` under all 4 gradings, and after `tasks/164` for a reason worth
-writing down**: it needs 1 band that both wrapped between two captured frames and can be read
-there. The road wraps on **every one of the 11 captured pairs** — so it has no away-from-the-wrap
+**`loop.seamless` is `scored=False` under all 4 gradings.** It needs 1 band that both wrapped
+between two captured frames and can be read there. The road wraps on **every one of the 11
+captured pairs** — so it has no away-from-the-wrap
 baseline even before its pairs are dropped as unresolvable — and the 2 bands that were readable
 then, sky and clouds, never wrap at all. 12 frames over 660 ticks cannot see this scene's seam.
 
@@ -320,8 +320,8 @@ this trial offline from its stored frames:
 | gate | FAIL, 4 of 9 | **FAIL, 3 of 9** |
 
 **The gate verdict does not move, and that is the result rather than a disappointment.** The
-other 3 failures — `verify.green`, `lint.clean`, `tests.green` — are the interruption and
-not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
+other 3 failures — `verify.green`, `lint.clean` and `tests.green` — come from the interruption,
+not from the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
 and the trial is not `completed` either way.
 
 **Since `tasks/168` the ceiling is gone for games as well, so this re-grade no longer depends on
