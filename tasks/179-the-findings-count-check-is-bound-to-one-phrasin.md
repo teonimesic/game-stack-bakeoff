@@ -16,3 +16,25 @@ AGENTS.md's rule is 'a count with a producer goes stale for an hour; a count wit
 The mechanism is that `docstat.py --findings` reconciles counts written as 'N numbered findings' - it does enforce that, and correctly reddened `README.md` line 311 during this same session - while line 187 says 'entries' and matches nothing. **Same file, same fact, one gated and one not.** The RANGE on line 187 is checked (my first repair reworded it and the gate went red immediately, which is the system working); the COUNT beside it is not.
 
 This is the open-class trigger problem AGENTS.md's rule audit records at length, in its documented-failure direction: the trigger is an enumeration of wordings, so it fails on the first wording nobody had when it was written. The audit's conclusion applies - prefer a CLOSED class, and choose between candidate triggers on the live-corpus false-positive count rather than on which sounds more general.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — 176 has MERGED and it changed the corpus your check runs over
+
+`tasks/176` landed as #198: `docstat.project_docs()` no longer globs the filesystem — it and
+`_live_corpus()` share `_tracked_md()`, which lists with `git ls-files -z`, and `_corpus_pins`
+asserts the two agree about membership. **No pinned count moved**, because on a clean checkout the
+glob and the index returned the same 238 documents.
+
+That matters for you in one specific way: **the population your count check runs over is now
+defined by the index rather than by the disk**, so a candidate trigger's false-positive rate is
+measurable against a stable corpus. Measure it there.
+
+Also from that work, because it is the same file and you will read it: `_git` used to fold a
+non-zero exit into `""`, so a failed listing and an empty tree were the same answer. It raises now.
+If your repair adds any git read, do not reintroduce that shape.
+
+**And the case your ticket exists for is still live.** `README.md` line 187 carried '143 entries'
+against a measured 171 while naming `docstat.py --findings` in the same sentence, because the check
+matches 'N numbered findings' and that line says 'entries'. It has since been corrected by hand and
+the count has moved again — read it from the producer, do not trust any digit written here.
