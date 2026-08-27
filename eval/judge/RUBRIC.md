@@ -394,9 +394,10 @@ Three are genre-defining and none can be settled from a frame:
 
 **13 of the 22 are pinned by a mutant.** A mutant is the reference fixture with one
 behaviour surgically removed: the criterion must pass the reference and fail the mutant.
-`python3 eval/judge/bot_mutants.py --hazards` counts the mutated criteria per fixture,
-and the full run drives every mutant, variant and control, prints one row per mutant,
-and must exit 0.
+`python3 eval/judge/bot_mutants.py --hazards` reports how many criteria carry a mutant
+across all four fixtures together, and prints the hazard registry grouped by shape. It
+gives no per-fixture figure; the full run does, by driving every mutant, variant and
+control and printing one row per mutant with its fixture. That run must exit 0.
 
 A criterion may carry more than one mutant, so the mutants outnumber the criteria. The
 list below is the `ref_arena` rows of that run; read the run for the current set,
