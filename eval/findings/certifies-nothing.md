@@ -6077,3 +6077,48 @@ Two further properties the shipped census establishes, each measured rather than
   place that hides the reason for it.
 
 ---
+## #194 — a census reads stored gradings, so a criterion repair never reaches it
+
+Five tickets in three days changed what a criterion means — `tasks/162`, `163`, `164`, `168`,
+`174` — and every one of them rewrote **nothing** under `eval/runs/`. The stored records are what a
+grader wrote on the day, under the rule that was in force on the day. `tier1_census.py` and
+`tier2_census.py` read those records. **So a census is a report about the past, and repairing a
+criterion does not move it by a digit.**
+
+That is correct behaviour and it is not obviously correct behaviour, which is the problem. It
+produces pairs of live sentences that contradict each other and are **both true**:
+
+| | says | correct because |
+|---|---|---|
+| `eval/AGENTS.md` | the scene's re-grade stands at **6 of 6 = 1.000** | it reports what today's rule gives |
+| `tier2_census.py` | that trial scored **0.833** | it reports what the stored record holds |
+
+Three stored verdicts are currently against rules that no longer exist. No consistency check can
+find this, for #119's reason: the two figures do not disagree about anything: they answer different
+questions and neither says which question it answered.
+
+> **A figure drawn from stored results and a figure drawn from today's rules are different
+> quantities. A document that publishes either without saying which has published a number nobody
+> can reproduce — the reader runs the producer and cannot tell a stale document from a broken
+> tool.**
+
+The decision recorded in `DECISIONS.md` is per figure rather than per document: classify each as
+**CURRENT** — must match its producer re-run in the same session, and carry the date it was last
+read — or **DATED**, naming the population and the date it describes. **The date is provenance, not
+permission:** a CURRENT figure is still expected to match, and *"today"* means nothing in a document
+read later.
+
+**Neither classification was applied as a blanket, and the two rows that show why are worth
+keeping.** `61 of 68` became `61 of 69` — the numerator was right *by coincidence*, because the one
+submission added is a scene and the criterion counted games. `35 of 68` became `35 of the 68 games`,
+its numerator re-derived from the group table rather than carried across. A sweep that had simply
+replaced 68 with 69 everywhere would have been wrong in both places and green everywhere.
+
+**The gap this leaves open, stated rather than closed:** whether the re-graded corpus differs from
+the stored one anywhere nobody has looked. Every re-grade figure cited in a live document is one a
+ticket computed offline while `eval/runs/` stayed read-only. There is no producer that re-grades the
+whole tree under today's rules and diffs it against what is stored — and until there is, "3 stored
+verdicts are against retired rules" is a lower bound established by the tickets that happened to
+check.
+
+---
