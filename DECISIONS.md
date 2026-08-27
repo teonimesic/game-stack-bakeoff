@@ -203,9 +203,10 @@ paragraph somebody re-derives. **8 carry no bound, 6 carry one that transfers, 0
 class-dependent.**
 
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
-repository's first commit, derived in no document, no comment and no commit message. **The
-decision: the floor stays, the ceiling is removed, and an all-flat test replaces it — for every
-task class.**
+repository's first commit until `tasks/163`, which removed the ceiling for **scenes** on
+2026-08-26. That range was derived in no document, no comment and no commit message. **The
+decision: for every task class, the floor stays, the ceiling is removed, and a test for a frame
+set in which every frame is a single colour replaces it.**
 
 **The floor is a property every starter shares** — their own `renders a non-empty frame` test, and
 a placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank frame fails

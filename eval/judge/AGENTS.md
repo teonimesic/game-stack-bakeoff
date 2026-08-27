@@ -184,15 +184,16 @@ are class-dependent today — `python3 judge/ink_window_control.py` prints the w
 it — and `task_class` keeps its slot in the closed list for the next one, since declaring it
 without a per-class table fails.
 
-`render.nonempty` held that slot until 2026-08-27. It is now a **floor of 0.001 and no ceiling**,
-plus a refusal of a frame set every one of whose frames holds a single colour — both the same in
-either class, both properties every starter shares. The ceiling was removed because `mean_ink`
-measures departure from **frame 0's** modal colour rather than how much was drawn, so the same
-blank render reads 0.0, 0.5 or 0.91667 depending only on how its colours are arranged, and
-`0.001–0.85` admitted 2 of the 3 non-zero arrangements. **Before changing the floor, run the
-producer** — `python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which
-prints what the bounds have ever done over the stored corpus and re-grades every firing under
-today's rule. `RUBRIC.md` holds the table and the derivation.
+`render.nonempty` is a **floor of 0.001 and no ceiling**, plus a refusal of a frame set in which
+every frame is a single colour — both the same in either class, both properties every starter
+shares. **`mean_ink` does not measure how much was drawn**: it is departure from **frame 0's**
+modal colour, so a full screen reads 0.0 and a gradient reads near 1.0, and no bound on it can
+stand for a blank render. `RUBRIC.md` holds the rule, both derivation tables and what the retired
+ceiling did.
+
+**Before changing either half, run the producer** — `python3 judge/ink_window_control.py
+--runs-root <main checkout>/eval/runs` — which verifies both tables on real pixels, prints what
+the bounds have ever done over the stored corpus, and re-grades every firing under today's rule.
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
 `gate: FAIL` with the failing criterion ids rather than deducted — the derivation, the two

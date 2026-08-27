@@ -2512,8 +2512,8 @@ sessions that could not see each other. Cite the heading, not the number.
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
 repository's first commit until `tasks/163`, which removed the ceiling for **scenes** on
 2026-08-26. `tasks/168` removes it for **every** task class and replaces it with a direct test.
-**The criterion is now a floor of 0.001, plus a refusal of a frame set every one of whose frames
-holds a single colour.**
+**The criterion is now a floor of 0.001, plus a refusal of a frame set in which every frame is a
+single colour.**
 
 **The derivation is that `mean_ink` cannot carry a ceiling.** `ink_coverage` counts pixels
 differing from **one** reference colour, and `analyse_frames` takes that colour from **frame 0's**

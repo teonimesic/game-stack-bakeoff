@@ -492,9 +492,9 @@ def nonempty_verdict(frame_info: dict[str, Any],
     look for the number that closed it.
 
     TWO HALVES, because `mean_ink` alone cannot answer the criterion's own question.
-    A frame set every one of whose frames holds a single colour has drawn nothing, and
-    its `mean_ink` is 0.0, 0.5 or 0.91667 depending only on how those colours are
-    arranged against frame 0's - so it is asked directly instead.
+    A frame set in which every frame is a single colour has drawn nothing, and its
+    `mean_ink` is 0.0, 0.5 or 0.91667 depending only on how those colours are arranged
+    against frame 0's - so it is asked directly instead.
 
     `flat_frames` ABSENT IS A THIRD VALUE and is not zero: every record written before
     2026-08-27 lacks it, and for those the verdict is the floor alone. Re-grading a
