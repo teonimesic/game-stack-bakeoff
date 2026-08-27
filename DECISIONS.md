@@ -2913,17 +2913,22 @@ event with its own `tier2_census.py` before-and-after. Landing the repair inside
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
 reproduces it, and the open repairs are `tasks/158` and `tasks/160`.
 
-**A pending entry has a second way to close: the subject is not a correct game.** A trace line
-must publish a `rally` that counts its own line's `paddle_hit`, so a sim settling that counter a
-tick later fails `rally.counts` correctly and `ref_pong` carries no pending entry for it
-(`tasks/159`). The contract decides it, not taste: all four starter guides put a tick's line
-**after** its step — the probe prints a tick-0 line before anything is stepped, then one line
-per stepped tick — and the g1 prompt defines `rally` as *"the number of consecutive paddle hits
-since the last point was scored"*. `rally` is a **count of the very events the line carries**, so
-a line raising `paddle_hit` with a `rally` that excludes it contradicts itself. Where the sim
-increments stays free; what the tick's line **publishes** does not. `bot_pong._rally` holds the
-derivation and records the same-tick and following-tick observations separately, so a failure
-says which one it saw.
+**A pending entry has a second way to close: the subject is not a correct game.**
+`ref_pong/rally.counts` carries no pending entry, and `tasks/159` is where the decision is
+written down. A trace line that raises `paddle_hit` must publish a `rally` that already counts
+that hit, so a sim settling the counter a tick later fails the criterion correctly.
+
+Three facts from the task decide that, in order.
+
+1. The probe prints a tick-0 line before anything is stepped, then one line after each step.
+   All four starter guides say so, so a line describes the state **after** its own tick.
+2. The g1 prompt defines `rally` as *"the number of consecutive paddle hits since the last point
+   was scored"* — a count of the events the line carries, not a free variable.
+3. A line therefore cannot both raise `paddle_hit` and report a `rally` that excludes it.
+
+Where the sim increments stays free; what the tick's line **publishes** does not.
+`bot_pong._rally` holds the derivation and records the same-tick and following-tick observations
+separately, so a failure says which one it saw.
 
 **The criterion stays exact rather than accepting an increment within a window**, which would be
 a reason not to count a failure (rule 7), would accept an increment caused by anything, and would

@@ -433,11 +433,20 @@ class PongBot(Bot):
         adjudicator can tell "settles a tick late" from "never moves". It is DIAGNOSTIC
         ONLY and enters no verdict.
 
-        THE VERDICT IS STILL `rose_on_hit > 0`, which passes a counter that moves once
-        and stops — weaker than the question the criterion asks and weaker than
-        `deflect_ok` beside it. Tightening it changes stored verdicts, which is a
-        re-scoring event with its own `tier2_census.py` before-and-after (`tasks/171`),
-        so it is not bundled in here.
+        ONE TRANSITION HAS ONE OWNER, and that closed a fail-open channel. A counter
+        that settles late still rises on a hit tick whenever two hits land back to back
+        — the rise is the PREVIOUS hit's deferred increment — so reading it as this
+        hit's own let a late game earn `rose_on_hit` off its own backlog and pass.
+        Driven over scripted tapes, a six-hit late game with back-to-back hits scored
+        `5 of 6` and PASSED before `settled_late` existed; it now scores `0 of 6` with
+        `6` late and fails. Whether any stored grading passed through that channel
+        cannot be read back, because the evidence string of the day did not record which
+        way it read — which is the argument for the one it has now.
+
+        THE VERDICT IS OTHERWISE `rose_on_hit > 0`, which passes a counter that moves
+        once and stops — weaker than the question the criterion asks and weaker than
+        `deflect_ok` beside it. Tightening that is a re-scoring event with its own
+        `tier2_census.py` before-and-after (`tasks/171`), so it is not bundled in here.
         """
         start = len(s.history)
         prev = s.last
@@ -457,12 +466,13 @@ class PongBot(Bot):
             r_a, r_b = prev.state.get("rally"), t.state.get("rally")
             numeric = (isinstance(r_a, (int, float))
                        and isinstance(r_b, (int, float)))
+            scored = "score_left" in t.events or "score_right" in t.events
             # Settle the outstanding watch FIRST, on every tick. Reading it only on a
             # hitless tick loses the observation whenever two hits land back to back,
             # and back-to-back is exactly the arrangement that hides a late counter:
-            # the deferred increment arrives on the second hit's tick and gets read as
-            # that hit's own.
-            if late_watch is not None and numeric and r_b > late_watch:
+            # the deferred increment arrives on the second hit's tick.
+            settled_late = (late_watch is not None and numeric and r_b > late_watch)
+            if settled_late:
                 rose_late += 1
             late_watch = None
             if "paddle_hit" in t.events:
@@ -470,11 +480,18 @@ class PongBot(Bot):
                 vx_a, vx_b = _f(_ball(prev), "vx"), _f(_ball(t), "vx")
                 if not (vx_a is not None and vx_b is not None and vx_a * vx_b < 0):
                     deflect_ok = False
-                if numeric and r_b > r_a:
+                # ONE TRANSITION, ONE OWNER. `settled_late` already attributed this
+                # tick's rise to the PREVIOUS hit, so it cannot also be this hit's own
+                # same-tick increment - counting it twice would let a late counter earn
+                # `rose_on_hit` off its own backlog. This hit is then unobserved, so the
+                # watch is re-armed for it.
+                if numeric and r_b > r_a and not settled_late:
                     rose_on_hit += 1
-                else:
-                    late_watch = r_b if numeric else None
-            if "score_left" in t.events or "score_right" in t.events:
+                elif numeric and not scored:
+                    # A point zeroes `rally`, so a watch opened on a scoring tick has a
+                    # meaningless baseline and the next rise would read as late.
+                    late_watch = r_b
+            if scored:
                 if t.state.get("rally") == 0:
                     rally_reset = True
             prev = t
