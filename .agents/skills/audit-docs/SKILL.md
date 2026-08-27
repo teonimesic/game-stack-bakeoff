@@ -273,7 +273,7 @@ It has no fence exemption, and it is now **two halves with different triggers**:
 | bare (task 89) | a `--<flag>` on a **fenced** line, after the name of one of our argparse-owning scripts, before the first shell operator | all 10 | 0 hits over 56 such lines and 31 in-scope tokens, of which 30 resolve to our argparse and 1 is known-foreign |
 
 **The backticked half admitted only the 4 skills naming a harness until 2026-08-25**, and now
-reads 28 of the 28 backticked flag mentions the skills make, at a cost of 0 correct lines. Run
+reads 29 of the 29 backticked flag mentions the skills make, at a cost of 0 correct lines. Run
 `python3 eval/tools/docstat.py --selftest` for the live figures.
 
 Until 2026-08-23 only the first existed, so a **bare** flag on a fenced command line — the
