@@ -474,8 +474,8 @@ any per-aspect table, so the two must never be presented as summarising one anot
 
 Tier 2 is the only scored tier and it saturates, so the remedy proposed has been a harder task.
 **A harder task costs a matrix, so this entry brings the price and the one measurement that
-decides whether the capacity would buy anything. The spend itself is the operator's call and is not
-taken here.**
+decides whether that capacity would return anything. Whether to consume it is the operator's
+call and is not taken here.**
 
 **First, the corpus is flatter than the group count says.** Tier 2 has produced **no selective
 failure anywhere in the 69-trial corpus that survives adjudication.** `wg-matrix-2026-08-13` is
@@ -2610,13 +2610,13 @@ can see is an instruction, so it belongs outside the agent's view or not at all.
 
 `--money` needs a `$` beside the predicate, so a claim made in words alone is invisible to it.
 `eval/RUNS.md` headed its judge ledger *"Specialist-judge calls — a separate ledger, because
-they spend money too"* directly above the table of valuations it mislabelled — the exact claim
-#159 retires — and the gate was green on it. Widening the trigger was measured over the 57
-live documents, not argued:
+they spend money too"* directly above the table of valuations it mislabelled — the exact
+claim `#159` retires — and the gate was green on it. Widening the trigger was measured
+over the 57 live documents, not argued:
 
 | candidate | red blocks | after the repairs below |
 |---|---|---|
-| the predicate alone, `$` requirement dropped | 76 | 73 |
+| the predicate alone, `$` requirement dropped | 76 | 71 |
 | the predicate **and** a money noun (`money`/`dollar`/`cash`), no `$` | 13 | **5** |
 | **shipped**: the predicate **and** a `$` figure | 0 | 0 |
 
