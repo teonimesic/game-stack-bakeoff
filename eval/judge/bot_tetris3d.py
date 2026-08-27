@@ -102,7 +102,8 @@ def _int(t: Tick, key: str, default: int = 0) -> int:
 #: which is why the two card subjects now in `bot_mutants.VARIANTS` declared different
 #: failing sets against the same card while they were pending.
 #:
-#: `bot_pong.LIVE_BUDGET` and `bot_platformer._CONTROL_TICKS` are this same 512, both
+#: `bot_pong.LIVE_BUDGET`, `bot_platformer._CONTROL_TICKS` and
+#: `bot_arena.OPENING_BUDGET` are this same 512, all
 #: bought by a Godot submission that held the ball for `OPENING_DELAY = 104` so its title
 #: card would be readable (FINDINGS #34). This bot was never revisited, and against a
 #: 96-tick card - the platformer REFERENCE's own `OPENING_TICKS`, so no longer than one
