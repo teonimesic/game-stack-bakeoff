@@ -1,11 +1,12 @@
 ---
 id: 174
 title: The shift estimator answers for the whole frame, not for the band it was asked about
-status: in_review
+status: in_testing
 priority: 2
 refs: eval/judge/scene_probe.py,eval/SCENES.md,tasks/164,#189
 done_when: 'The estimator either scores each band from pixels belonging to that band only - masking or windowing the search to the band''s own region - or it is established with a measurement that it cannot, and the criterion is re-scoped to what it can actually read. Either way: the cross-band agreement above is re-measured and stated per pair, the 6 s1_parallax fixtures are run before and after with each criterion''s fail and unsc columns compared, scene_mutants.py exits 0 with its counts stated, and eval/runs/wg-scene-s1ts-2026-08-25 is re-graded READ-ONLY with layers.image_parallax recorded either way. A null result - the estimator is doing the best obtainable thing and three bands are genuinely unreadable - closes this, provided the cross-band figures are what establishes it.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/50
+established_by: 'PR #50, all 3 checks green at 0c2f44a; --attribution-selftest 9 band tables / 4 mutants / 0 unmet in CI; stored trial re-graded read-only, 6 of 6 = 1.000 unmoved'
 ---
 
 `ParallaxScene` measures each layer's per-frame shift by searching for the offset that best aligns a band between two captures. The repair in tasks/164 stopped the reliability filter from passing every layer regardless of what came back, and doing so made a SECOND defect legible that the first was hiding: the estimator locks onto one whole-frame feature rather than onto the band it is scoring.
@@ -104,3 +105,49 @@ spot came from: not a criterion written too narrowly, but a **fixture written to
 2026-08-25)"*. `python3 eval/tools/lint.py --counts` reads **96** on unmodified `main` as well
 as on this branch, so it was already stale. It is a comment, not a gate, and I left it rather
 than change a number whose history I had not looked into.
+
+## note 2026-08-27
+
+## What the review found that the measurements did not (2026-08-27)
+
+5 rounds on `https://github.com/teonimesic/game-stack-bakeoff/pull/50`. Rounds 1 and 2 found
+real defects; 3, 4 and 5 were documentation wording, and round 5 found nothing in the code.
+
+**The one worth carrying forward is a FAIL-OPEN neither the fixtures nor the stored trial
+could reach**, because neither carries a band declared outside `[0, 1]`:
+
+> `_bands` accepted any finite `top`/`bottom`. `_own_band` counted them raw while
+> `band_profile` clamps to the image — so a band declared `-1.000` to `0.010` counts **363
+> rows of a 360-row frame**, clears `MIN_OWN_ROWS`, and is then profiled from the **3 rows
+> that exist**. `_bands` now clips before either reads the band, and the `bottom <= top`
+> refusal moved AFTER the clip so a band entirely off the frame collapses to an edge and is
+> refused rather than measured as a sliver.
+
+That is `AGENTS.md` rule 7 in the shape this repository keeps meeting: **a guard whose input
+is unvalidated is a guard on a number rather than on the thing.** The pin grew with it —
+`--attribution-selftest` routes its table through `_bands` as well as `_own_band`, so the clip
+is inside what the table measures, and it carries 2 cases and a 4th mutant for exactly this.
+
+The other 3 code findings, all of which the suites were green through:
+
+- `only N of len(shifts) + len(unattributable) declared layers` under-counts, because `_bands`
+  drops a row with no usable `top`/`bottom` and `state.shape` asks for neither. The old code
+  had the same hole with `len(shifts)` alone. Now taken from `self._layers(r.trace_a[0].state)`.
+- The grouped evidence note said *"so nothing drawn there is theirs alone"* about every
+  refused layer, false of the 1-to-9 own-row case — and the stored trial has a layer at 3, so
+  the false form was already in a durable record. Now *"too few to attribute what is drawn
+  there"*, true of 0 through 9.
+- `_image_parallax` and `_seamless` annotated `unattributable` as `dict[Any, str]` where the
+  value is a 4-tuple.
+
+**A stale count I introduced and the review caught 2 commits later:** `eval/SCENES.md` said the
+selftest carries "3 mutants" after round 2 took it to 4. Counts in that section are now stated
+without a number that can go stale — the producer is the selftest's own closing line.
+
+### The final head is NOT the reviewed head
+
+Review round 5 read `658d8a3`. `main` moved again afterwards (`4258c13`), so the branch was
+merged forward to `0c2f44a` and that head has had no review round — the round ceiling is 5 and
+`.agents/skills/work/SKILL.md` says to hand back rather than open a sixth. The merge is a
+fast-forward of documents plus this ticket's own file; every gate was re-run at `0c2f44a` and
+is green.

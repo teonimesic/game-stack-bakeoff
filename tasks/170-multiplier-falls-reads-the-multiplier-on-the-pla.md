@@ -1,7 +1,7 @@
 ---
 id: 170
 title: multiplier.falls reads the multiplier on the player_hit tick, and the g3 contract does not define the multiplier at all
-status: todo
+status: in_progress
 priority: 3
 refs: eval/judge/bot_arena.py, eval/judge/bot_mutants.py, eval/suites/wholegame_prompts.py, tasks/159
 done_when: Either the one-tick reading is DECLINED with the reason written into bot_arena.py and the HAZARDS answer for ref_arena/multiplier.falls updated to state it, or a Pending is added to bot_mutants.PENDING_VARIANTS with a constructed correct game and its measured failing set, and the criterion repaired. Either way the ref_arena/multiplier.falls HAZARDS row stops saying OPEN and not constructed, and bot_mutants.py exits 0.

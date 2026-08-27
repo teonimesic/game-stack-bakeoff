@@ -1,7 +1,7 @@
 ---
 id: 169
 title: the first scene moved the stored-submission census from 68 to 69 and four live documents still say 68
-status: todo
+status: in_progress
 priority: 3
 refs: README.md,DECISIONS.md,eval/AGENTS.md,eval/judge/RUBRIC.md,eval/judge/tier1_census.py,eval/judge/tier2_census.py,tasks/163
 done_when: every live document stating a tier-1 or tier-2 census figure either matches its producer's output today, or says in the same block which population and date it is reporting - and the distinction between the two is deliberate rather than whichever the author happened to leave. Both producers re-run unpiped with --runs-root <main>/eval/runs and their output pasted into the ticket.
