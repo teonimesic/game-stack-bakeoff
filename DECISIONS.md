@@ -2902,7 +2902,7 @@ one directory; or a tier-2 instrument that serves both classes, which would reti
 `bot_mutants.py` carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
 down; every run asserts the measured set equals the declared one, and each entry names the
-ticket that owns its repair. **4 are live**, on `ref_tetris3d`, `ref_arena` and `ref_pong`;
+ticket that owns its repair. **3 are live**, on `ref_tetris3d` and `ref_arena`;
 `python3 eval/judge/bot_mutants.py` is the producer for that count and prints it beside the
 variant count on its last line.
 
@@ -2911,7 +2911,35 @@ and a criterion change moves stored verdicts across 68 graded submissions — a 
 event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
 *found* it would bundle a measurement change into a coverage change, which is the
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
-reproduces it, and the repair is `tasks/157`, `tasks/158`, `tasks/159` and `tasks/160`.
+reproduces it, and the open repairs are `tasks/158` and `tasks/160`.
+
+**A pending entry has a second way to close: the subject is not a correct game.**
+`ref_pong/rally.counts` carries no pending entry, and `tasks/159` is where the decision is
+written down. A trace line that raises `paddle_hit` must publish a `rally` that already counts
+that hit, so a sim settling the counter a tick later fails the criterion correctly.
+
+Three facts from the task decide that, in order.
+
+1. The probe prints a tick-0 line before anything is stepped, then one line after each step.
+   All four starter guides say so, so a line describes the state **after** its own tick.
+2. The g1 prompt defines `rally` as *"the number of consecutive paddle hits since the last point
+   was scored"* — a count of the events the line carries, not a free variable.
+3. A line therefore cannot both raise `paddle_hit` and report a `rally` that excludes it.
+
+Where the sim increments stays free; what the tick's line **publishes** does not.
+`bot_pong._rally` holds the derivation and records the same-tick and following-tick observations
+separately, so a failure says which one it saw.
+
+**The criterion stays exact rather than accepting an increment within a window**, which would be
+a reason not to count a failure (rule 7), would accept an increment caused by anything, and would
+re-mean 25 stored `g1_pong` gradings
+(`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
+criterion has never once withheld.
+
+**This settles pong and settles nothing else.** `ref_arena/multiplier.falls` reads the
+multiplier across the `player_hit` tick and looks identical, but the g3 contract gives
+`multiplier` no definition at all — only that it *"falls when the player is hit"* — so the step
+that decides pong is missing there. `tasks/170` adjudicates it on its own evidence.
 
 **A pending entry is not a tolerance, and the difference is the assertion.** `Variant.tolerates`
 waives a criterion silently; a pending declares exactly which ids fail and goes red on **any**
@@ -2921,10 +2949,11 @@ says every reason not to count a failure is a channel a bug can widen — this o
 exactly one criterion wide, and it closes itself.
 
 **The registry is the other half.** `HAZARDS` holds one answer per criterion to *what
-correct-but-unusual game would mis-score this?* — **70** of them, the criterion instances the
-4 bots actually report, not the smaller set that carries a mutant. 2 of the 6 false negatives
-were on criteria with **no mutant at all**, so a registry scoped to the mutant set would have
-missed 1/3 of the answer. A criterion added without an entry fails the suite;
+correct-but-unusual game would mis-score this?* — one per criterion instance the 4 bots
+actually report, which is more than the set carrying a mutant. Some declared false negatives
+sit on criteria with **no mutant at all**, so a registry scoped to the mutant set would miss
+them. `python3 eval/judge/bot_mutants.py --hazards` is the producer for all three counts and
+names the unmutated criteria. A criterion added without an entry fails the suite;
 `no-construction` is a legitimate entry and says nobody could build a correct game that
 fails it.
 
@@ -2937,6 +2966,12 @@ total. A fixture can have **0** variants while the suite total is non-zero.
 carrying nothing and make it worth asking whether it earns its ~7s; or a pending entry that
 survives 3 tickets, which would mean the declaration is being used to live with a defect
 rather than to schedule its repair.
+
+**To re-open the `rally.counts` decline specifically:** a real submission whose counter settles
+a tick late. It would be a submission that violates the state contract, so the question it
+raises is whether tier 2 should fail it or whether the g1 prompt should say the ordering out
+loud — and only a submission can raise it, because the decline rests on reading the contract
+rather than on a measurement that could move.
 
 ## A scene layer's `offset` may accumulate or wrap, and the probe reads both — decided 2026-08-25
 

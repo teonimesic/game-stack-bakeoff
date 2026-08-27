@@ -173,12 +173,15 @@ class PongBot(Bot):
         # paddle phases first cost `paddle.deflects`, `rally.counts`, `rally.resets`,
         # `score.increments` and `serve.resets` - five false negatives, all from the
         # bot's own play order rather than from the game.
-        rally_ok, deflect_ok, rally_reset_ok, hits = self._rally(s)
+        rally_ok, deflect_ok, rally_reset_ok, hits, rally_detail = self._rally(s)
         add(Criterion("paddle.deflects", self._q("paddle.deflects"), deflect_ok,
                       f"{hits} paddle_hit events, each accompanied by a horizontal "
                       f"velocity sign flip: {deflect_ok}"))
-        add(Criterion("rally.counts", self._q("rally.counts"), rally_ok,
-                      f"rally counter incremented on paddle hits ({hits} hits seen)"))
+        # The evidence says which way it READ, not what it was looking for. Until
+        # 2026-08-26 this printed "rally counter incremented on paddle hits (N hits
+        # seen)" on a pass and on a fail alike, so a reader could not tell the verdict
+        # from the sentence beside it - the shape #183 found in `fire.rate_limited`.
+        add(Criterion("rally.counts", self._q("rally.counts"), rally_ok, rally_detail))
 
         # --- scoring, serve reset, rally reset --------------------------- #
         score_ok, serve_ok, reset_ok, detail = self._score_a_point(s)
@@ -398,35 +401,112 @@ class PongBot(Bot):
             a, b = unusable_criteria(ids, e, "the paddle-mechanics session")
             return a, b
 
-    def _rally(self, s: ProbeSession) -> tuple[bool, bool, bool, int]:
-        """Both paddles track the ball, so rallies happen. Watch hits and the counter."""
+    def _rally(self, s: ProbeSession) -> tuple[bool, bool, bool, int, str]:
+        """Both paddles track the ball, so rallies happen. Watch hits and the counter.
+
+        `rally.counts` reads the counter ON the tick that raises `paddle_hit`, and that
+        ONE-TICK CONTRACT IS THE TASK'S, not this bot's convenience. A counter that
+        settles a tick later was proposed as a correct-but-unusual game and DECLINED
+        (`tasks/159`), for a reason that is in the rendered prompt rather than in taste:
+
+        - the trace line labelled tick `T` is emitted AFTER step `T` - all four starter
+          guides say the probe prints a tick-0 line "before anything has been stepped",
+          then steps exactly one tick per input line and prints one line per tick;
+        - its `events` are what step `T` raised, and `"paddle_hit"` means "a paddle
+          deflected the ball";
+        - `rally` is defined by the task as "the number of consecutive paddle hits since
+          the last point was scored" - a COUNT OF THOSE EVENTS, not a free variable.
+
+        So a line carrying `paddle_hit` and a `rally` that excludes it states two facts
+        about one instant that contradict each other. WHERE the sim increments is still
+        free - a collision routine, an end-of-tick pass, a fold over history - as long as
+        the value PUBLISHED in a tick's line counts that line's own hit.
+
+        Widening this to a window was rejected on top of that: it is a reason not to
+        count a failure (`AGENTS.md` rule 7), it would accept an increment caused by
+        something else entirely, and it would change what 25 stored `g1_pong` gradings
+        mean (`python3 judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a
+        pass this criterion has never once withheld.
+
+        A late counter is therefore a FAILURE, and it is a failure the evidence names:
+        `rose_late` counts hit ticks whose increment arrived on the following tick, so an
+        adjudicator can tell "settles a tick late" from "never moves". It is DIAGNOSTIC
+        ONLY and enters no verdict.
+
+        ONE TRANSITION HAS ONE OWNER, and that closed a fail-open channel. A counter
+        that settles late still rises on a hit tick whenever two hits land back to back
+        — the rise is the PREVIOUS hit's deferred increment — so reading it as this
+        hit's own let a late game earn `rose_on_hit` off its own backlog and pass.
+        Driven over scripted tapes, a six-hit late game with back-to-back hits scored
+        `5 of 6` and PASSED before `settled_late` existed; it now scores `0 of 6` with
+        `6` late and fails. Whether any stored grading passed through that channel
+        cannot be read back, because the evidence string of the day did not record which
+        way it read — which is the argument for the one it has now.
+
+        THE VERDICT IS OTHERWISE `rose_on_hit > 0`, which passes a counter that moves
+        once and stops — weaker than the question the criterion asks and weaker than
+        `deflect_ok` beside it. Tightening that is a re-scoring event with its own
+        `tier2_census.py` before-and-after (`tasks/171`), so it is not bundled in here.
+        """
         start = len(s.history)
         prev = s.last
         hits = 0
         deflect_ok = True
-        rally_up = False
+        rose_on_hit = 0
+        rose_late = 0
         rally_reset = False
+        #: `rally` as of a hit tick that did not count its own hit; carried exactly one
+        #: tick, so the lookahead cannot drift into an unrelated increment.
+        late_watch: float | None = None
         for _ in range(3000):
             inputs: dict[str, Any] = {}
             inputs.update(self._track(prev, "left"))
             inputs.update(self._track(prev, "right"))
             t = s.step_raw(inputs)
+            r_a, r_b = prev.state.get("rally"), t.state.get("rally")
+            numeric = (isinstance(r_a, (int, float))
+                       and isinstance(r_b, (int, float)))
+            scored = "score_left" in t.events or "score_right" in t.events
+            # Settle the outstanding watch FIRST, on every tick. Reading it only on a
+            # hitless tick loses the observation whenever two hits land back to back,
+            # and back-to-back is exactly the arrangement that hides a late counter:
+            # the deferred increment arrives on the second hit's tick.
+            settled_late = (late_watch is not None and numeric and r_b > late_watch)
+            if settled_late:
+                rose_late += 1
+            late_watch = None
             if "paddle_hit" in t.events:
                 hits += 1
                 vx_a, vx_b = _f(_ball(prev), "vx"), _f(_ball(t), "vx")
                 if not (vx_a is not None and vx_b is not None and vx_a * vx_b < 0):
                     deflect_ok = False
-                r_a, r_b = prev.state.get("rally"), t.state.get("rally")
-                if isinstance(r_a, (int, float)) and isinstance(r_b, (int, float)) \
-                        and r_b > r_a:
-                    rally_up = True
-            if "score_left" in t.events or "score_right" in t.events:
+                # ONE TRANSITION, ONE OWNER. `settled_late` already attributed this
+                # tick's rise to the PREVIOUS hit, so it cannot also be this hit's own
+                # same-tick increment - counting it twice would let a late counter earn
+                # `rose_on_hit` off its own backlog. This hit is then unobserved, so the
+                # watch is re-armed for it.
+                if numeric and r_b > r_a and not settled_late:
+                    rose_on_hit += 1
+                elif numeric and not scored:
+                    # A point zeroes `rally`, so a watch opened on a scoring tick has a
+                    # meaningless baseline and the next rise would read as late.
+                    late_watch = r_b
+            if scored:
                 if t.state.get("rally") == 0:
                     rally_reset = True
             prev = t
-            if hits >= 6 and rally_up:
+            if hits >= 6 and rose_on_hit:
                 break
-        return (rally_up and hits > 0), (deflect_ok and hits > 0), rally_reset, hits
+        if hits == 0:
+            detail = (f"no paddle_hit in {len(s.history) - start} ticks of a tracking "
+                      f"rally, so the counter was never read against a hit")
+        else:
+            detail = f"rally rose on {rose_on_hit} of {hits} paddle_hit ticks"
+            if rose_late:
+                detail += (f"; on {rose_late} of them it rose on the FOLLOWING tick "
+                           f"instead, which is a counter a tick behind the hit its own "
+                           f"trace line reports")
+        return ((rose_on_hit > 0), (deflect_ok and hits > 0), rally_reset, hits, detail)
 
     def _score_a_point(self, s: ProbeSession) -> tuple[bool, bool, bool, str]:
         """Park the right paddle at an extreme; the left player should score."""
