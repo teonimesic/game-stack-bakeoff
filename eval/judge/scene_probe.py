@@ -704,12 +704,26 @@ class ParallaxScene(Scene):
 
     @staticmethod
     def _bands(layers: list[dict]) -> list[tuple[Any, float, float]]:
-        """Every declared `(id, top, bottom)` that names a usable band, in order."""
+        """Every declared `(id, top, bottom)` that names a usable band, in order,
+        CLIPPED TO THE FRAME.
+
+        The clip is the whole point of doing this here rather than at each caller.
+        `top`/`bottom` are contracted as fractions of the frame's height and nothing
+        stops a submission reporting a band that runs off it, and `band_profile` clamps
+        to the image while `_own_band` counts what it is given - so a band declared
+        `-1.0` to `0.01` counts 404 rows of a 400-row frame, clears `MIN_OWN_ROWS`, and
+        is then profiled from the 4 rows that exist. One clip, before either reads it.
+        """
         out: list[tuple[Any, float, float]] = []
         for row in layers:
             lid = row.get("id")
             top, bottom = num(row, "top"), num(row, "bottom")
-            if lid is None or top is None or bottom is None or bottom <= top:
+            if lid is None or top is None or bottom is None:
+                continue
+            top, bottom = max(0.0, min(1.0, top)), max(0.0, min(1.0, bottom))
+            # After the clip, not before: a band entirely off the frame collapses to a
+            # single edge and is refused here rather than measured as a sliver.
+            if bottom <= top:
                 continue
             out.append((lid, top, bottom))
         return out
@@ -1012,9 +1026,12 @@ class ParallaxScene(Scene):
             f"{lid}: {own}/{declared} @{top:.3f}-{bottom:.3f}"
             for lid, (own, declared, top, bottom)
             in sorted(unattributable.items(), key=lambda kv: str(kv[0])))
+        # "so nothing drawn there is theirs alone" was false of every row with 1 to 9
+        # own rows, which is most of them - the sentence has to be true of the whole
+        # group it is printed about, the same reason `UNRESOLVED_REASONS` is keyed.
         return notes + [
             f"{len(unattributable)} layer(s) have under {self.MIN_OWN_ROWS} rows no "
-            f"other declared band contains, so nothing drawn there is theirs alone "
+            f"other declared band contains, too few to attribute what is drawn there "
             f"(`id: own/declared @band`): {rows}"]
 
     def _image_parallax(self, r: SceneRun, shifts: dict[Any, list[dict]],

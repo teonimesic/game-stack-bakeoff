@@ -973,6 +973,19 @@ ATTRIBUTION_CASES: list[AttributionCase] = [
         "not one `band_profile`'s ten-row average was ever calibrated on - measured on "
         "that submission it answered -85px for a band whose drawn shift is 6px, at "
         "confidences 0.07 to 0.27 (`tasks/174`)"),
+    AttributionCase(
+        "a band that runs off the top of the frame",
+        ((1, -1.000, 0.010), (2, 0.500, 1.000)), 1, (0.000, 0.010), 3, False,
+        "`top`/`bottom` are fractions of the frame's height and nothing stops a "
+        "submission reporting one outside it. Counted raw this band holds 363 rows of a "
+        "360-row frame and clears the floor; `band_profile` clamps to the image and "
+        "would profile the 3 rows that exist"),
+    AttributionCase(
+        "a band declared entirely off the frame",
+        ((1, 1.200, 1.500), (2, 0.000, 1.000)), 1, None, 0, False,
+        "clipped it collapses to a single edge, which is no band at all. Counted raw it "
+        "is 108 rows that overlap nothing, so it would read as the most attributable "
+        "layer in the scene"),
 ]
 
 #: The shipped `scene_probe.py` with ONE line changed. Each removes a different half of
@@ -995,17 +1008,30 @@ ATTRIBUTION_MUTANTS: dict[str, tuple[Patch, ...]] = {
         Patch("scene_probe.py",
               "    MIN_OWN_ROWS = PROFILE_ROWS",
               "    MIN_OWN_ROWS = 0  # MUTANT"),),
+    "a band is counted where it was declared rather than where the frame is": (
+        Patch("scene_probe.py",
+              "            top, bottom = max(0.0, min(1.0, top)), "
+              "max(0.0, min(1.0, bottom))",
+              "            top, bottom = float(top), float(bottom)  # MUTANT: not "
+              "clipped to the frame"),),
 }
 
 
 def _attribution_verdicts(mod) -> dict[str, tuple]:
-    """Per case: the window, its row count, and whether the layer can be measured."""
+    """Per case: the window, its row count, and whether the layer can be measured.
+
+    THE TABLE GOES IN AS LAYER RECORDS AND THROUGH `_bands`, not straight into
+    `_own_band`. `_bands` is where a band running off the frame is clipped, and
+    `band_profile` clamps to the image whatever it is handed - so a table that skipped
+    it would count rows the profile can never sample and the bypass would be invisible.
+    """
     scene = mod.ParallaxScene
     out = {}
     for case in ATTRIBUTION_CASES:
         try:
-            window, rows = scene._own_band(list(case.bands), case.lid,
-                                           ATTRIBUTION_HEIGHT)
+            bands = scene._bands([{"id": i, "top": t, "bottom": b}
+                                  for i, t, b in case.bands])
+            window, rows = scene._own_band(bands, case.lid, ATTRIBUTION_HEIGHT)
         except Exception as e:  # noqa: BLE001 - the verdict IS "it raised"
             out[case.label] = (f"RAISED {type(e).__name__}: {e}", -1, False)
             continue

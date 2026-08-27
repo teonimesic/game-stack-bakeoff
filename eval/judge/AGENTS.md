@@ -98,17 +98,15 @@ python3 judge/scene_mutants.py --attribution-selftest   # which rows are one lay
   large object that is stationary on screen. `ParallaxScene._reliable` and the wrap check's
   `blind` counter both name it, so the robustness lives in the criteria rather than in the
   estimator. `DECISIONS.md` holds the 5-candidate comparison and the per-fixture miss counts.
-- **A DECLARED BAND IS NOT A REGION OF THE FRAME THAT BELONGS TO ONE LAYER**, and every threshold
-  here was set against a fixture whose 4 bands happen to tile. A layered background overlaps by
-  construction, so a band holds the nearer layers' pixels where they cover it and the farther
-  ones' where they show through, and `best_shift` answers for whichever content carries the
-  gradient energy. `MIN_OWN_ROWS` is the refusal: a layer is read only from rows no other declared
-  band contains. Both neighbours contaminate — masking to the rows no *nearer* band covers leaves
-  2 bands of the first real submission returning an identical 11-pair series that is a **farther**
-  band's rate — so the subtraction is over every other band, and `eval/SCENES.md` holds the
-  measurement. The pin is `scene_mutants.py --attribution-selftest`, offline, because a variant
-  carrying such a scene must tolerate `layers.image_parallax` and a tolerated criterion cannot go
-  red (`tasks/174`).
+- **A DECLARED BAND IS NOT A REGION OF THE FRAME THAT BELONGS TO ONE LAYER.** Declared bands
+  overlap, and `best_shift` answers for whichever visible content carries the band's gradient
+  energy rather than for the layer it was asked about. So a layer is measured only on rows no
+  other declared band covers, clipped to the frame; below `MIN_OWN_ROWS` of them it is
+  UNATTRIBUTABLE — reported, kept out of the ordering and out of the score, and never given
+  another layer's motion. The subtraction is over **every** other band, nearer and farther both,
+  and `eval/SCENES.md` holds the measurement that decided that. The pin is `scene_mutants.py
+  --attribution-selftest`, offline: a variant carrying such a scene must tolerate
+  `layers.image_parallax`, and a tolerated criterion cannot go red (`tasks/174`).
 - **A band the frames cannot resolve is refused before agreement is asked, and agreement is
   asked in PIXELS.** A layer that moves half its own span or more between 2 captures draws a
   picture that is a residue of its repeat length, and it can agree with itself perfectly while
