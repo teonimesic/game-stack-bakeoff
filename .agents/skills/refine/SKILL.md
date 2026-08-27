@@ -32,7 +32,11 @@ both** — a repaired gate is an iteration; the defect it repaired is a finding.
 | record | what goes in it |
 |---|---|
 | `eval/FINDINGS.md` | what was **observed** — a defect, a null, a published number that turned out wrong. Written whether or not anything changed in response |
-| `eval/IMPROVEMENTS.md` (the evaluator) · `IMPROVEMENTS.md` at root (the templates) | a change you **made**, pre-registered with a falsifier, kept or reverted on the measurement |
+| `eval/IMPROVEMENTS.md` (the instrument) · `IMPROVEMENTS.md` at root (the product) | a change you **made**, pre-registered with a falsifier, kept or reverted on the measurement |
+
+**A change to guidance is filed with the thing it governs** — a document about the graders is an
+iteration in `eval/IMPROVEMENTS.md`, one about the starters or the task prompts an iteration in
+`IMPROVEMENTS.md` at root. `eval/IMPROVEMENTS.md`'s preamble is the authority on that split.
 
 Authoritative references: `eval/FINDINGS.md`, `eval/RUNS.md`, `eval/IMPROVEMENTS.md`
 (the evaluator loop), `IMPROVEMENTS.md` at root (the template loop), `DECISIONS.md`.

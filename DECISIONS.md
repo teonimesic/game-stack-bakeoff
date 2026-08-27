@@ -3017,7 +3017,10 @@ on by a previous iteration each supply them, and all land in the same file under
 
 **An iteration and a finding are different records and one piece of work commonly produces both.**
 What was **observed** is a finding; what was **changed** is an iteration. Iteration 13 is the
-change; [`#95`] is the defect it repaired.
+change; [`#95`] is the defect it repaired. **Guidance files with the thing it governs**: a
+document about the instrument is an iteration in `eval/IMPROVEMENTS.md`, one about the starters
+or the task prompts an iteration in `IMPROVEMENTS.md` at root, so no change the trigger admits is
+left without a destination.
 
 **The run-only alternative was declined.** Sending every change that did not come from a run to
 `eval/FINDINGS.md` makes the record worse rather than tidier: a finding has no pre-registration,
