@@ -8,3 +8,17 @@ done_when: The criterion counts fire events rather than bullet ids, or states in
 ---
 
 The criterion's own question is: is there a minimum interval between shots rather than one bullet per tick. bot_arena._firing_in scores it as 0 less than n_x and n_x at most 80, where n_x is the number of distinct BULLET ids created over 120 ticks of held fire. A weapon that fires a spread puts several bullets in the world per shot, which is an ordinary design for a game the g3 prompt asks to make loud, fast and readable at a glance. Measured 2026-08-25 in eval/judge/bot_mutants.py PENDING_VARIANTS: a ref_arena fixture firing a three-round spread on a 4-tick cooldown fails with 90 bullets from 120 ticks of held fire (30 fire events). 30 shots in 120 ticks IS a rate limit, and the criterion prints that number in its own evidence string beside a verdict computed from the other one.
+
+## note 2026-08-27
+
+## note 2026-08-27 (orchestrator) — third in line; 158 lands before you, 166 after
+
+`158`, `160` and `166` serialise on `eval/judge/bot_mutants.py`. Order settled as **158, then 160,
+then 166**; the derivation is in `tasks/166`. Rebase on `main` after 158 merges — your conflict
+with it will be in the mutant registry, where both tickets add entries and both should be kept.
+
+**166 does not reach you.** It says end-detection is read inconsistently (flag-or-event to locate
+the end, flag alone to score it). `fire.rate_limited` is built in the block at `bot_arena.py` line
+905 and counts over `for _ in range(ticks)` — a fixed window with no `game_over` break — so which
+end signal wins cannot move your count. The loops that DO break on the flag are the wave/kills
+collection at lines 465-472, which is not yours.
