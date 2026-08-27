@@ -2913,13 +2913,13 @@ event with its own `tier2_census.py` before-and-after. Landing the repair inside
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
 reproduces it, and the open repair is `tasks/160`.
 
-**A closed entry may re-score nothing, and that is not an argument against declaring it.**
-The 2 `ref_tetris3d` opening-card subjects are promoted and moved **0** stored verdicts:
-`piece.spawns` and `piece.falls` each have 0 failures over the 19 stored `g2_tetris3d` trials
-(`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`), and that game's only 2
-tier-2 failures are a Unity probe-session abort rather than an opening card. Whether a repair
-re-scores anything is knowable only once it lands, so the split is what keeps the coverage
-change and the measurement change separable in both outcomes.
+**A closed entry may re-score 0 stored verdicts. That does not weaken the declaration.**
+The 2 `ref_tetris3d` opening-card subjects are in `VARIANTS`, and their promotion moved 0 stored
+verdicts. `piece.spawns` and `piece.falls` each have 0 failures over the 19 stored `g2_tetris3d`
+trials (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`). That game's only
+2 tier-2 failures come from a Unity probe-session abort, not an opening card. Whether a repair
+re-scores anything is knowable only once it lands, so the split is what keeps the coverage change
+and the measurement change separable in both outcomes.
 
 **A pending entry has a second way to close: the subject is not a correct game.**
 `ref_pong/rally.counts` carries no pending entry, and `tasks/159` is where the decision is
