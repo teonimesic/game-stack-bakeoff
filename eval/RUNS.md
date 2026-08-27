@@ -268,7 +268,7 @@ this trial offline from its stored frames:
 
 | | as graded | re-graded |
 |---|---|---|
-| `render.nonempty` | FAIL (0.966 against 0.001–0.85) | **PASS** (0.966 against the scene window 0.001–1.00) |
+| `render.nonempty` | FAIL (0.966 against 0.001–0.85) | **PASS** (0.966 against the floor 0.001, no ceiling) |
 | gate | FAIL, 4 of 9 | **FAIL, 3 of 9** |
 
 **The gate verdict does not move, and that is the result rather than a disappointment.** The
@@ -276,13 +276,9 @@ other three failures — `verify.green`, `lint.clean`, `tests.green` — are the
 not the criterion. The stored `programmatic.json` still holds the FAIL; this table holds both,
 and the trial is not `completed` either way.
 
-**The same producer reports what the ceiling has ever done**, over the 69 stored submissions —
-the most recent grading of each, from 85 on disk with 16 superseded and held out. Among those 69,
-4 `render.nonempty` failures, of which the 2 floor firings are `wg-arena3d`'s rust cells at
-**0 frames** — a fact `render.frames` reports in the same record — and the 2 ceiling firings are
-this trial and `wg-g4c` `g4_platformer__godot__t1` at 0.881, a night platformer over a gradient
-sky that scored **1.000** on tier 2. The game ceiling is unchanged here because moving it is a
-re-scoring event on the game population; `judge/RUBRIC.md` holds the derivation.
+**The ceiling is gone for games too, since `tasks/168`**, so the re-grade above no longer turns
+on the class. What the ceiling did over the 69 stored submissions, its re-grade of the one game
+it refused, and the derivation are the twenty-fourth comparability break below.
 
 **`verify.green`, `lint.clean` and `tests.green` are the interruption, not the submission.** 118
 of 119 of its own tests pass and the lint finding is `'previous' is never reassigned. Use
@@ -1090,7 +1086,7 @@ Two further grader defects were adjudicated and repaired, and one template defec
 | trial | overall | prog | bot | remaining failures |
 |---|---|---|---|---|
 | `godot__t0` | **1.000** | 1.00 | 1.00 | — |
-| `godot__t1` | 0.978 | 0.93 | 1.00 | `render.nonempty` (ink 0.881 vs window 0.001-0.85) |
+| `godot__t1` | 0.978 | 0.93 | 1.00 | `render.nonempty` (ink 0.881 vs the ceiling retired by the twenty-fourth comparability break — re-graded **PASS**, gate **PASS 14/14**) |
 | `rust__t0` | **1.000** | 1.00 | 1.00 | — |
 | `rust__t1` | **1.000** | 1.00 | 1.00 | — |
 | `ts__t0` | **1.000** | 1.00 | 1.00 | — |
@@ -2507,6 +2503,67 @@ is legitimate now that the prompt specifies the case.
 believed (rule 12): `player.moves` opens the run with exactly **90** pure-movement ticks that
 must read as zero-aim, and `aim.independent` sends **120** ticks aiming +x that must not. Both
 are rows in the control.
+
+## `render.nonempty` LOST ITS INK CEILING ON 2026-08-27 — a TWENTY-FOURTH comparability break, and it moves one stored GAME gate verdict
+
+**Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
+sessions that could not see each other. Cite the heading, not the number.
+
+`render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
+repository's first commit. `tasks/163` took the ceiling off scenes; `tasks/168` removed it
+outright. **The criterion is now a floor of 0.001 and no upper bound, for every task class.**
+
+**The derivation is that the measure cannot express what a ceiling would name.**
+`png.Image.ink_coverage` counts pixels differing from `dominant_background()` — the frame's own
+modal quantised colour — so the quantity is departure from the frame's own mode, which is a
+property of the palette:
+
+| frame | measures | which bound it hits |
+|---|---|---|
+| solid white, solid magenta, solid black — "the render broke and filled the screen" | **0.0** each | the **floor** |
+| a gradient with a subject drawn on it — a night platformer's sky | **0.881** | the ceiling, when there was one |
+
+So the defect a ceiling was for lands on the floor, and what reaches the top of the scale is a
+wide palette. `judge/ink_window_control.py` keeps both rows as `MECHANISM_ROWS` and a `flood`
+fixture, so the derivation goes red if `ink_coverage` ever changes rather than surviving as a
+paragraph.
+
+**And the 68 stored game values are a continuum, not two populations.** The top six are 0.679,
+0.703, 0.736, 0.772, 0.828, 0.881, the largest gap among them is 0.053, and the seven highest are
+all `g4_platformer` — the one game whose background scrolls across the whole frame. 0.85 landed
+inside that continuum, so what it separated was a **task**, not a quality.
+
+**What it had ever done**, from the producer, over the 69 stored submissions — the most recent
+grading of each, from 85 on disk with 16 superseded and held out:
+
+    python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs
+
+4 `render.nonempty` failures. The 2 floor firings are `wg-arena3d`'s rust cells at **0 frames**,
+a fact `render.frames` reports in the same record. The 2 ceiling firings both drew what they were
+asked to draw. **0 true positives, 2 false negatives** — and tier 1 GATES, so a false negative
+does not cost a fraction of a score, it stops a correct submission being scored at all.
+
+**THE ONE STORED GAME VERDICT THAT MOVES**, re-graded offline from its stored frames. Nothing
+under `eval/runs/**` was rewritten:
+
+| `wg-g4c` `g4_platformer__godot__t1` | as graded | re-graded |
+|---|---|---|
+| `render.nonempty` | FAIL (0.881 against 0.001–0.85) | **PASS** (0.881 against the floor 0.001) |
+| gate | FAIL, 1 of 14 — `render.nonempty` alone | **PASS, 14 of 14** |
+| tier 2 | 1.000 | 1.000, unchanged |
+
+It is the only gate verdict in the corpus that this change flips. The scene's re-grade above is
+unchanged by it: `s1_parallax__ts__t0` still fails 3 of 9 on `verify.green`, `lint.clean` and
+`tests.green`.
+
+**What does NOT move.** `judge/tier1_census.py` reads stored verdicts, so its `FLOOR-ONLY`
+headline, its 0-reversed / 3-coarsened / 8-identical comparison and the gate decision they support
+are untouched. Removing a tier-1 failure can only reduce tier-1 variance, so no group can gain a
+`both_vary`.
+
+**What re-opens it.** A ceiling firing that is a real defect — a rendered frame with no flat
+region that the play-bot or the scene probe also condemns — printed by that producer. The output
+recorded on 2026-08-27 holds 2 ceiling firings and neither is a real defect.
 
 ## Rules
 

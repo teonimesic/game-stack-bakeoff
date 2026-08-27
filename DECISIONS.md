@@ -193,19 +193,42 @@ reliability, and the reliability you measure is highest exactly where you need t
 Rewriting the three unstable criteria did not fix it; the rewrite made a contested submission
 *less* stable.
 
-### A tier-1 bound is decided per task class, and `render.nonempty`'s ceiling is a game's — decided 2026-08-26
+### `render.nonempty` is a floor with no ceiling, and no tier-1 bound is class-dependent — decided 2026-08-27
 
 **Because tier 1 gates, a mis-calibrated bound does not cost a fraction of a score.** It stops a
 correct submission being scored at all. So the question *is this bound a property of the artifact,
-or of games?* is now asked of all 14 tier-1 criteria, and the answer is code —
+or of games?* is asked of all 14 tier-1 criteria, and the answer is code —
 `static.TIER1_BOUND_POPULATION`, gated by `static.assert_tier1_bounds_declared()` — rather than a
-paragraph somebody re-derives. **8 carry no bound, 5 carry one that transfers, 1 does not.**
+paragraph somebody re-derives. **8 carry no bound, 6 carry one that transfers, 0 are
+class-dependent.**
 
 `render.nonempty` scored mean ink coverage inside `0.001–0.85` for every task from this
-repository's first commit, derived in no document, no comment and no commit message. The producer
-is `python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`. Its
-population is `tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on
-disk with 16 superseded and held out. Among those 69 the criterion has fired **4** times:
+repository's first commit, derived in no document, no comment and no commit message. **The
+decision: the floor stays and the ceiling is removed, for every task class.**
+
+**The floor is a property of the four starters** — their own `renders a non-empty frame` test, and
+a placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank frame fails
+in either class.
+
+**The ceiling was removed because the measure cannot express what a ceiling would name.**
+`png.Image.ink_coverage` counts pixels differing from `dominant_background()`, the frame's own
+modal quantised colour, so the quantity is departure from the frame's own mode — a property of the
+palette rather than of how much was drawn — and it runs backwards from what a ceiling wants:
+
+| frame | measures | which bound it hits |
+|---|---|---|
+| solid white, magenta or black — "the render broke and filled the screen" | **0.0** each | the **floor** |
+| a gradient with a subject on it — a night platformer's sky | **0.881** | the ceiling, when there was one |
+
+There is therefore no defect a ceiling catches that the floor does not catch better, and the
+criterion's own question — *do the frames hold more than a blank background?* — has no upper bound
+in it. The two rows are checked in `judge/ink_window_control.py` (`MECHANISM_ROWS` and the `flood`
+fixture) rather than asserted here, so the derivation goes red if `ink_coverage` changes.
+
+**Corroborated by what 0.85 had ever done.** The producer is `python3
+eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`; its population is
+`tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on disk with 16
+superseded and held out. 4 firings:
 
 | | mean ink | what it was |
 |---|---|---|
@@ -213,27 +236,31 @@ disk with 16 superseded and held out. Among those 69 the criterion has fired **4
 | `wg-g4c` `g4_platformer__godot__t1` | 0.881, **ceiling** | a night platformer over a gradient sky. Tier 2 = 1.000 |
 | `wg-scene-s1ts` `s1_parallax__ts__t0` | 0.966, **ceiling** | the first scene, drawing what it was asked to draw |
 
-**The ceiling has 0 true positives and 2 false negatives; the floor has never fired on a frame
-that was rendered at all.**
+**0 true positives and 2 false negatives**, and the 68 stored game values are a continuum rather
+than two populations — top six 0.679, 0.703, 0.736, 0.772, 0.828, 0.881, largest gap among them
+0.053, and the seven highest all `g4_platformer`, the one game whose background scrolls across the
+whole frame. 0.85 landed inside that continuum, so what it separated was a **task**.
 
-**The decision: the window is per task class. A scene gets the floor and no ceiling.** The floor
-is a property of the four starters — their own `renders a non-empty frame` test, and a
-placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and a blank scene frame
-still fails. The ceiling's *sign* is inverted for a scene: `eval/SCENES.md` contracts a scene to
-fill the frame and a large flat region is the naive implementation `scene_probe` exists to catch,
-so no ink level makes a scene defective from above. That is read off the task contract rather
-than off the submission that produced the firing: 0.966 passes, and so would 0.87 or 0.999.
+**It was removed, not widened.** Widening it to admit `g4_platformer__godot__t1` would have been a
+threshold chosen from the subject that exposed it; no number on this measure means *too full*, so
+there is no number to choose. `ink_window_control.py` carries the restored 0.85 as a mutant, and
+the flood fixture as the variant proving the removal opened no hole.
 
-**The game ceiling is left where it is, and not because it is right.** Moving it flips a stored
-*game* gate verdict and the figure three live documents quote, which is a re-scoring event on the
-game population and has its own ticket.
+**The cost, paid deliberately:** one stored *game* gate verdict moves, `wg-g4c`
+`g4_platformer__godot__t1` from `FAIL 1/14` to `PASS 14/14`. `eval/RUNS.md`'s twenty-fourth
+comparability break holds that re-grade; nothing under `eval/runs/**` was rewritten.
 
-**What re-opens it.** `python3 eval/judge/ink_window_control.py --runs-root <main
-checkout>/eval/runs` printing a ceiling firing that is a real defect — a rendered frame with
-no flat region that the play-bot or the scene probe also condemns. Its output recorded on
-2026-08-26 holds 2 ceiling firings, and neither firing is a real defect.
-`eval/judge/RUBRIC.md` holds the table; `eval/RUNS.md` holds the re-grade of the 1 affected
-trial.
+**What re-opens it.** That producer printing a ceiling firing that is a real defect — a rendered
+frame with no flat region that the play-bot or the scene probe also condemns. Its output recorded
+on 2026-08-27 holds 2 ceiling firings, and neither is a real defect. `eval/judge/RUBRIC.md` holds
+the table.
+
+**`task_class` stays in `BOUND_POPULATIONS` with 0 members.** It is the value a future
+class-dependent bound declares, and `assert_tier1_bounds_declared()` is what makes declaring it
+safe — a criterion that claims one without a per-class table fails. `static.collect` still takes
+the class and refuses one it cannot place before spending a toolchain: the class picks the capture
+length and the audio criterion set, and now that no bound reads it, the door is the only place a
+wrong one can be caught.
 
 ### A saturated tier 2 is reported as a completion certificate, not repaired — decided 2026-08-23
 

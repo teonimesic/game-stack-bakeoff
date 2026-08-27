@@ -101,10 +101,14 @@ What the census found tier 1 actually doing, across every trial it has ever scor
   | `wg-audio` `g1_pong__godot__t1` | `verify.green`, `lint.clean` | 1.000 |
   | `wg-g4c` `g4_platformer__unity__t1` | `verify.green`, `lint.clean` | 1.000 |
   | `wg-g4c` `g4_platformer__godot__t1` | `render.nonempty` — ink 0.881 against a ceiling ending at 0.85 | 1.000 |
-  | `wg-scene-s1ts` `s1_parallax__ts__t0` | `verify.green`, `lint.clean`, `tests.green` to an interrupted build, and `render.nonempty` to a game's ceiling | 0.833 |
+  | `wg-scene-s1ts` `s1_parallax__ts__t0` | `verify.green`, `lint.clean`, `tests.green` to an interrupted build, and `render.nonempty` to that same ceiling | 0.833 |
 
   The 5 games scored **1.000** on tier 2; the scene is not a `completed` trial and is not
-  pooled with them.
+  pooled with them. **The last two rows are stored verdicts against a bound that no longer
+  exists**: the ink ceiling was removed on 2026-08-27 and both re-grade to PASS. The census
+  reads stored records, so this table is what tier 1 DID; `eval/RUNS.md`'s twenty-fourth
+  comparability break holds the re-grades. It changes nothing below — removing a tier-1
+  failure can only reduce tier-1 variance, so no group gains a varying tier 1.
 - Every one of the 14 criteria has failed at least once, so none is dead weight. What
   `render.nonempty` in particular has ever done is below, and it is not what it looks like
   from this count.
@@ -197,26 +201,36 @@ a paragraph, so a criterion added without an answer fails
 | population | criteria | why it transfers |
 |---|---|---|
 | `no_bound` | `build.compiles`, `verify.green`, `lint.clean`, `tests.green`, `render.frames`, `probe.responds`, `audio.manifest`, `audio.files_exist` | they read an exit status, a file count or a boolean. There is no number to calibrate |
-| `starter` | `tests.exist` (floor 8) | every starter already ships more, and both classes are built from the same four starters |
+| `starter` | `tests.exist` (floor 8), `render.nonempty` (floor 0.001) | every starter already ships more than 8 tests and draws more than 0.001 of a frame, and both classes are built from the same four starters |
 | `capture_contract` | `render.animates` (>0.0005) | a property of `just film`, identical in both classes; a scene is a timed sequence and must move too |
 | `audio_signal` | `audio.not_silent`, `audio.distinct`, `audio.music_loops` | dBFS floors and spectral similarity. Not asked of a scene at all |
-| **`task_class`** | **`render.nonempty`** | the ceiling does not transfer — below |
+| `task_class` | — | **0 members.** The value a future class-dependent bound declares; the gate refuses one claimed without a per-class table |
 
-### `render.nonempty`: the floor transfers, the ceiling does not
+### `render.nonempty`: a floor, and no ceiling
 
-| task class | window (inclusive) |
-|---|---|
-| game | 0.001 – 0.85 |
-| scene | 0.001 – 1.00, i.e. a floor and no ceiling |
+**The floor is 0.001 and it is a property of the starter.** It is the floor the four render
+harnesses use in their own `renders a non-empty frame` test, and the starter's placeholder marker
+covers 0.0015 of a 640x400 frame — anything tighter measures *the placeholder is small*. A **blank
+frame still fails, in either class**, and `judge/ink_window_control.py` pins that row.
 
-**The floor is a property of the starter.** It is the floor the four render harnesses use in
-their own `renders a non-empty frame` test, and the starter's placeholder marker covers 0.0015
-of a 640x400 frame — anything tighter measures *the placeholder is small*. A **blank scene
-frame still fails**, and `judge/ink_window_control.py` pins that row.
+**There is no ceiling, because the measure cannot express one.** `png.Image.ink_coverage` counts
+pixels differing from `dominant_background()` — the frame's own modal quantised colour — so the
+quantity is departure from the frame's own mode, a property of the palette rather than of how much
+was drawn, and it runs backwards from what a ceiling wants:
 
-**The ceiling was a property of nothing.** 0.85 applied to every task from this repository's
-first commit and is derived in no document, no comment and no commit message — the same shape
-as the 0.31/0.69 split retired above. What it has done, from the producer:
+| frame | measures | which bound it hits |
+|---|---|---|
+| solid white, magenta or black — "the render broke and filled the screen" | **0.0** each | the **floor** |
+| a gradient with a subject drawn on it — a night platformer's sky | **0.881** | the ceiling, when there was one |
+
+So no defect a ceiling catches escapes the floor, and the criterion's own question — *do the
+frames hold more than a blank background?* — has no upper bound in it. Both rows are checked in
+`ink_window_control.py` (`MECHANISM_ROWS`, and a `flood` fixture that must still FAIL), so a change
+to `ink_coverage` turns the derivation red instead of leaving this table wrong.
+
+**0.85 applied to every task from this repository's first commit** and was derived in no document,
+no comment and no commit message — the same shape as the 0.31/0.69 split retired above. What it
+did, from the producer:
 
 ```bash
 python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
@@ -224,7 +238,7 @@ python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs
 
 The population is **69 submissions** — 68 games and 1 scene, the most recent grading of each,
 from 85 on disk with 16 superseded and held out, which is `tier1_census`'s population and its
-walker rather than a fifth glob. Among those 69, `render.nonempty` has fired **4** times:
+walker rather than a fifth glob. Among those 69, `render.nonempty` fired **4** times:
 
 | trial | mean ink | hit | what it was |
 |---|---|---|---|
@@ -232,24 +246,20 @@ walker rather than a fifth glob. Among those 69, `render.nonempty` has fired **4
 | `wg-g4c` `g4_platformer__godot__t1` | 0.881 | ceiling | a night platformer over a gradient sky. **Tier 2 = 1.000** |
 | `wg-scene-s1ts` `s1_parallax__ts__t0` | 0.966 | ceiling | sky, road and scenery — the scene drawing what it was asked to draw |
 
-So the ceiling has **0 true positives and 2 false negatives**, and the floor has never fired on
-a frame that was rendered at all.
+**0 true positives and 2 false negatives**, and the floor has never fired on a frame that was
+rendered at all. The 68 stored game values are also a continuum rather than two populations: top
+six 0.679, 0.703, 0.736, 0.772, 0.828, 0.881, largest gap among them 0.053, and the seven highest
+all `g4_platformer` — the one game whose background scrolls across the whole frame. **0.85 landed
+inside that continuum, so what it separated was a task.**
 
-**For a scene the ceiling's sign is inverted**, which is why this is a per-class table rather
-than a wider number. `eval/SCENES.md` contracts a scene to fill the frame — `s1_parallax` asks
-for a layered background with real distance in it, `s2_glass` for a full 3D render — and a
-large flat region is the naive implementation `scene_probe` exists to catch. There is no ink
-level from which a scene can be inferred defective from above. That is read off the task
-contract rather than off the submission that produced the firing: 0.966 passes, and so would
-0.87 or 0.999.
+**It was removed, not widened.** A larger ceiling would be a threshold read off the subject that
+exposed it; `ink_window_control.py` keeps the restored 0.85 as a mutant so that alternative stays
+visible. `eval/RUNS.md`'s twenty-fourth comparability break holds the one stored game verdict this
+moved — `g4_platformer__godot__t1`, `FAIL 1/14` → `PASS 14/14` — and `DECISIONS.md` the decision.
 
-**The game ceiling is left where it is, and not because it is right.** Moving it changes a
-stored *game* gate verdict and the figure three live documents quote, which is a re-scoring
-event on the game population with a ticket of its own (`tasks/168`).
-
-`judge/ink_window_control.py` pins both directions per class on real pixels, drives `collect`
-end to end with the toolchain stubbed so the class it was handed is proved to reach the
-criterion, and carries a mutant per mechanism.
+`judge/ink_window_control.py` pins both directions on real pixels, drives `collect` end to end
+with the toolchain stubbed so the criterion is proved to be reached, and carries a mutant per
+mechanism.
 
 ### The performance fields — captured since 2026-08-23, scored by nothing
 

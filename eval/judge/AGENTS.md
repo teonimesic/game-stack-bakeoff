@@ -179,12 +179,17 @@ boundary. `NOT ASKED` (fewer than two gate-green stacks) is a third value and is
 **Because tier 1 GATES, a bound calibrated on one task class does not cost the other a
 fraction of a score — it stops a correct submission being scored at all.** So every tier-1
 criterion declares which population its bound came from, in `static.TIER1_BOUND_POPULATION`,
-and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. **1**
-bound is class-dependent today: `render.nonempty`'s ink CEILING is a game's, so a scene gets
-the floor and no ceiling. The floor is a property of the starter and transfers, and a blank
-scene frame still fails. **Before changing either bound, run the producer** —
-`python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which prints
-what the window has ever done over the stored corpus and re-grades every firing under it.
+and `static.assert_tier1_bounds_declared()` fails a criterion added without an answer. **0**
+bounds are class-dependent today, and `task_class` keeps its slot in the closed list for the
+next one — declaring it without a per-class table fails.
+
+`render.nonempty` held that slot until 2026-08-27. It is now a **floor of 0.001 and no ceiling**,
+for both classes: the floor is a property of the four starters and transfers, and a blank frame
+still fails. The ceiling went because `ink_coverage` measures departure from the frame's own modal
+colour, so a solid flood — the defect a ceiling names — reads **0.0** and lands on the floor,
+while what reads near 1.0 is a gradient. **Before changing the floor, run the producer** —
+`python3 judge/ink_window_control.py --runs-root <main checkout>/eval/runs` — which prints what
+the bounds have ever done over the stored corpus and re-grades every firing under today's rule.
 `RUBRIC.md` holds the table and the derivation.
 
 **Tier 1 gates; it does not score.** `overall = tier2`, and a tier-1 failure is reported as
