@@ -2902,16 +2902,22 @@ one directory; or a tier-2 instrument that serves both classes, which would reti
 `bot_mutants.py` carries a third kind of subject beside its mutants and its variants. A
 `Pending` is a **correct game the suite fails today**, with the failing criterion ids written
 down; every run asserts the measured set equals the declared one, and each entry names the
-ticket that owns its repair. **1 is live**, on `ref_arena`;
-`python3 eval/judge/bot_mutants.py` is the producer for that count and prints it beside the
-variant count on its last line.
+ticket that owns its repair. **0 are live**; `python3 eval/judge/bot_mutants.py` is the
+producer for that count and prints it beside the variant count on its last line.
+
+**An empty list is a state this mechanism is allowed to be in, and it is still pinned.**
+Until `tasks/160` the list's only self-test borrowed its subject from
+`PENDING_VARIANTS[0]`, so an empty list would have stopped exercising `adjudicate_pending`
+altogether — silently, at exit 0, which is the shape this whole file exists to prevent.
+`--selftest` now builds a synthetic subject, so the three adjudication rows run whether or
+not anything is declared.
 
 **Why the defect is declared rather than repaired here.** Every one is a criterion change,
 and a criterion change moves stored verdicts across 68 graded submissions — a re-scoring
 event with its own `tier2_census.py` before-and-after. Landing the repair inside the ticket that
 *found* it would bundle a measurement change into a coverage change, which is the
 multi-variable comparison rule 8 exists to prevent. So the finding lands with the subject that
-reproduces it, and the open repair is `tasks/160`.
+reproduces it. `tasks/160` was the last such repair to land.
 
 **A closed entry may re-score 0 stored verdicts. That does not weaken the declaration.**
 The 2 `ref_tetris3d` opening-card subjects are in `VARIANTS`, and their promotion moved 0 stored
@@ -2970,10 +2976,16 @@ suite-wide variant count is not the number of observations any one criterion has
 per-fixture counts out of `bot_mutants.py --hazards`; do not infer them from the suite
 total. A fixture can have **0** variants while the suite total is non-zero.
 
-**To re-open:** every pending entry repaired and promoted, which would leave the mechanism
-carrying nothing and make it worth asking whether it earns its ~7s; or a pending entry that
-survives 3 tickets, which would mean the declaration is being used to live with a defect
-rather than to schedule its repair.
+**The first re-open condition has fired, and the mechanism is kept.** It read *every pending
+entry repaired and promoted, which would leave the mechanism carrying nothing and make it worth
+asking whether it earns its ~7s*. Every entry is now promoted, and the answer is that an empty
+list costs nothing to carry: the pending loop iterates it, so the ~7s was the price of the
+subjects rather than of the mechanism, and `tasks/170` names adding one as one of its two
+outcomes. What it buys is the alternative to a silent `Variant.tolerates` on the next false
+negative found.
+
+**Still open to re-open:** a pending entry that survives 3 tickets, which would mean the
+declaration is being used to live with a defect rather than to schedule its repair.
 
 **To re-open the `rally.counts` decline specifically:** a real submission whose counter settles
 a tick late. It would be a submission that violates the state contract, so the question it

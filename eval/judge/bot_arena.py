@@ -879,6 +879,44 @@ class ArenaBot(Bot):
         return vels
 
     @staticmethod
+    def _shot_ticks(phase: list[Tick], known_ids: set) -> tuple[int, int]:
+        """How many of these ticks were SHOOTING ticks, by each of the two signals.
+
+        `fire.rate_limited` asks about the interval between SHOTS, and a shot is a tick
+        the game fired on - not a bullet. A weapon that puts a spread of three bullets
+        in the world on one tick has taken one shot, and counting bullet ids scored it
+        as three.
+
+        Two independent signals say a tick was a shooting tick, and the caller takes the
+        LARGER of the two counts:
+
+          - the `fire` event, which the prompt defines as *the player fired a shot this
+            tick*. A game may emit it on the rising edge of a held control and report
+            one shot for the whole phase - the `edge-vs-level` shape.
+          - a bullet id in the snapshot that was not in it before. A game whose spawn
+            reaches the snapshot a tick late shifts every one of these off the event
+            that caused it, and a game that reports no `id` at all yields at most 1.
+
+        Each can UNDER-report, and under-reporting is the fail-open direction: the
+        verdict fails on a HIGH count, so a criterion reading the smaller signal would
+        pass a game that fires every tick. Neither over-reports a shot the game did not
+        take, except by emitting `fire` on a tick the game's own cooldown refused -
+        which contradicts the event's stated meaning, and is this criterion's recorded
+        hazard in `judge/bot_mutants.py`.
+
+        `known_ids` is consumed, not copied: pass a set the caller does not need.
+        """
+        events = spawns = 0
+        for t in phase:
+            if "fire" in t.events:
+                events += 1
+            ids = {b.get("id") for b in _list(t, "bullets")}
+            if ids - known_ids:
+                spawns += 1
+            known_ids |= ids
+        return events, spawns
+
+    @staticmethod
     def _mean_dir(v: list[Vec]) -> Vec | None:
         if not v:
             return None
@@ -894,8 +932,14 @@ class ArenaBot(Bot):
         # the volume inside the tick they are created and never appear in any snapshot.
         # Measured once as "the game cannot aim upward" on a correct implementation.
         base = _move((0.0, -1.0, 0.0))
+        # The phase is read by index rather than as `history[-120:]`: a session with
+        # fewer than 120 ticks behind it would silently take the opening await's ticks
+        # into the count (`AGENTS.md` rule 12 - the address is an input to the check).
+        opening = len(s.history)
+        ids_before = set(seen)
         vel_x = self._collect(s, 120, seen, {"fire": True, **base, **_aim((1.0, 0.0, 0.0))})
-        fired = sum(1 for t in s.history[-120:] if "fire" in t.events)
+        evt_ticks, spawn_ticks = self._shot_ticks(s.history[opening:], ids_before)
+        shots = max(evt_ticks, spawn_ticks)
         n_x = len(vel_x)
         fire_ok = n_x > 0 and any(_norm(v) > 1.0 for v in vel_x)
         fire_c = Criterion("fire.spawns_bullets", self._q("fire.spawns_bullets"),
@@ -903,9 +947,10 @@ class ArenaBot(Bot):
                            f"{n_x} bullets created over 120 ticks of holding fire; "
                            f"first velocities {[tuple(round(c, 1) for c in v) for v in vel_x[:3]]}")
         rate_c = Criterion("fire.rate_limited", self._q("fire.rate_limited"),
-                           0 < n_x <= 80,
-                           f"{n_x} bullets from 120 ticks of held fire ({fired} fire "
-                           f"events)")
+                           0 < shots <= 80,
+                           f"{shots} shooting ticks out of 120 ticks of held fire "
+                           f"({evt_ticks} carried a fire event, {spawn_ticks} put a "
+                           f"new bullet id in the world), producing {n_x} bullets")
 
         vel_y = self._collect(s, 120, seen, {"fire": True, **base, **_aim((0.0, 1.0, 0.0))})
         vel_z = self._collect(s, 120, seen, {"fire": True, **base, **_aim((0.0, 0.0, 1.0))})
