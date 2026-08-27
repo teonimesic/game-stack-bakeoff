@@ -8,12 +8,20 @@ correct submission being scored at all. The criterion is a FLOOR with no ceiling
 ceiling off scenes, and `tasks/168` took it off entirely.
 
 **The derivation is a measurement in this file, not a paragraph elsewhere**, because it
-is what the removal rests on. `png.Image.ink_coverage` counts pixels differing from
-`dominant_background()` - the frame's OWN modal quantised colour - so the quantity runs
-backwards from what a ceiling wants: a solid flood, the "the render broke and filled the
-screen" defect, measures 0.0 and lands on the FLOOR, while what reads near 1.0 is the
-absence of a modal region, which is a gradient. `MECHANISM_ROWS` states both before
-anything runs.
+is what the removal rests on. `png.Image.ink_coverage` counts pixels differing from one
+reference colour, and since `tasks/178` `analyse_frames` takes that colour from EACH
+FRAME'S OWN mode. So `mean_ink` is the fraction of a frame that is not its background,
+and it runs backwards from what a ceiling wants: a solid flood, the "the render broke
+and filled the screen" defect, measures 0.0 in any colour and lands on the FLOOR, while
+what reads near 1.0 is the absence of a modal region, which is a gradient.
+`MECHANISM_ROWS` states both before anything runs.
+
+**The reference itself is pinned here too**, because the fixed one was fail-open.
+Frame 0's mode applied to all 12 frames saturates at exactly 1.00000 the moment a
+submission changes its clear colour, so `COLOUR_DRIFT` - 11 uniform frames carrying a
+single 2x2 speck, after a frame 0 of another colour - read 0.91665 and PASSED, with
+`flat_frames` unable to see it because only frame 0 was flat. Per frame it reads
+0.00001 and fails. The mutant that restores the fixed reference turns that row red.
 
 Three halves, because a gate needs all three:
 
@@ -41,6 +49,13 @@ firing with the bound it hit, and the re-grade of each firing under the floor - 
 verdict before and after included. `eval/runs` is gitignored, so a worktree's copy is
 empty and the arm prints `NOT ASKED` rather than `0 firings`; the two are different
 claims.
+
+`--reference-shift` adds a second, slower corpus pass that RE-READS the stored PNGs and
+reports every set whose `mean_ink` moves between the two references, which is the
+producer for the table in `eval/RUNS.md`. It is separate because it decodes ~800 frames
+in pure Python and takes about 80 s, and because it proves its extraction first: the
+frame-0 arm must reproduce each stored record's own `mean_ink` to the digit before any
+per-frame figure it prints means anything (rule 12).
 """
 from __future__ import annotations
 
@@ -148,7 +163,7 @@ def filled() -> bytes:
     """A frame with no flat region at all: a gradient, which reads near 1.0.
 
     What a scene is contracted to draw, and also what a night game's sky looks like -
-    `wg-g4c` `g4_platformer__godot__t1` measured 0.881 with its subject drawn on top.
+    `wg-g4c` `g4_platformer__godot__t1` reads 0.67869 with its subject drawn on top.
     """
     px = bytearray(W * H * 3)
     for y in range(H):
@@ -164,10 +179,10 @@ def flood() -> bytes:
     """THE DEFECT A CEILING WOULD NAME: every pixel one colour that is not the clear
     colour, i.e. the render broke and filled the screen.
 
-    It measures 0.0, not 1.0, because `analyse_frames` takes its reference colour from
-    frame 0 and every frame here IS frame 0's colour. So this fails on the FLOOR, and
-    removing the ceiling opened no hole for it. `BLANK_RENDERS` below asks the harder
-    version, where the frames are uniform in DIFFERENT colours.
+    It measures 0.0, not 1.0, because a uniform frame is entirely its own modal colour.
+    So this fails on the FLOOR, and removing the ceiling opened no hole for it.
+    `BLANK_RENDERS` below asks the version that used to be harder, where the frames are
+    uniform in DIFFERENT colours.
     """
     return bytes(bytes((255, 0, 255)) * (W * H))
 
@@ -178,24 +193,57 @@ def _uniform(rgb: tuple[int, int, int]) -> bytes:
 
 BLACK, WHITE = (0, 0, 0), (255, 255, 255)
 
+
+def colour_drift(i: int) -> bytes:
+    """Frame `i` of `COLOUR_DRIFT`: uniform black at 0, else white with a 2x2 speck.
+
+    The speck is what defeats the all-flat half - a frame with 4 non-background pixels
+    is not flat - so the whole verdict falls to the floor, and the floor is only able to
+    see it when the reference is the frame's own mode.
+    """
+    if i == 0:
+        return _uniform(BLACK)
+    px = bytearray(_uniform(WHITE))
+    for y in range(2):
+        for x in range(2):
+            j = (y * W + x) * 3
+            px[j:j + 3] = bytes(BLACK)
+    return bytes(px)
+
 #: A RENDER THAT DREW NOTHING, in the 4 ways 12 uniform frames can be arranged, with
-#: `(name, per-frame pixels, mean_ink stated in advance, did 0.001-0.85 catch it)`.
+#: `(name, per-frame pixels, mean_ink stated in advance, mean_ink under the retired
+#: frame-0 reference)`.
 #:
-#: This is the measurement that settles the ceiling, and it comes out against the
-#: ceiling rather than for it. Every row has drawn nothing; `mean_ink` reads anywhere
-#: from 0.0 to 0.91667 depending only on how the colours are ARRANGED against frame
-#: 0's, and the retired window admitted 2 of the 3 non-zero arrangements. So a bound on
-#: `mean_ink` was never the guard against a blank render, and `render.nonempty` asks
-#: the question directly via `flat_frames` instead. Every row must FAIL today.
-BLANK_RENDERS: list[tuple[str, Any, float, bool]] = [
-    ("all one colour", lambda i: _uniform(BLACK), 0.0, True),
+#: RE-DERIVED FOR THE PER-FRAME REFERENCE, not re-recorded. Every row has drawn nothing
+#: and every row now reads **0.0**, because a uniform frame is entirely its own mode
+#: whatever that colour is - so the arrangement, which used to decide the number, no
+#: longer changes it at all. The fourth column is what the same 4 sets read against
+#: frame 0's mode, and it is the reason the reference moved: the same blank render
+#: landed anywhere from 0.0 to 0.91667, and the retired 0.001-0.85 window admitted 2 of
+#: the 3 non-zero arrangements. Every row must FAIL today, and `test_the_two_halves`
+#: establishes that each half of the criterion refuses all 4 on its own.
+BLANK_RENDERS: list[tuple[str, Any, float, float]] = [
+    ("all one colour", lambda i: _uniform(BLACK), 0.0, 0.0),
     ("frame 0, then 11 of another", lambda i: _uniform(BLACK if i == 0 else WHITE),
-     0.91667, True),
+     0.0, 0.91667),
     ("alternating 2 colours", lambda i: _uniform(BLACK if i % 2 == 0 else WHITE),
-     0.5, False),
+     0.0, 0.5),
     ("6 of one, then 6 of another", lambda i: _uniform(BLACK if i < 6 else WHITE),
-     0.5, False),
+     0.0, 0.5),
 ]
+
+#: THE ROW THE REFERENCE TURNS ON, and it is a VARIANT rather than a mutant: correct-
+#: looking input the fixed reference mishandled. 12 frames of which frame 0 is uniform
+#: black and the other 11 are uniform white carrying a single 2x2 speck.
+#:
+#: Nothing was drawn worth the name - 4 pixels of 256000 - and both halves of the
+#: pre-`tasks/178` criterion admitted it: `flat_frames` counts 1 of 12, because the 11
+#: speck-bearing frames are not flat, and against frame 0's mode those 11 frames read
+#: 0.99998 each for a `mean_ink` of 0.91665, well clear of the floor. Measured on the
+#: pre-change code before it was changed. Against their own modes the same 11 frames
+#: read 0.00002 and the set reads 0.00001, which fails.
+COLOUR_DRIFT_INK = 0.00001
+COLOUR_DRIFT_UNDER_FRAME0 = 0.91665
 
 
 #: `(name, pixels, low, high)` - the coverage each fixture must measure at, STATED
@@ -220,8 +268,8 @@ FIXTURES: list[tuple[str, Any, float, float]] = [
 #: turns the derivation red instead of leaving three documents confidently wrong.
 MECHANISM_ROWS = [
     ("flood", "at most", 0.001,
-     "a frame that is entirely frame 0's colour reads 0.0 - so 'the render filled the "
-     "screen' hits the FLOOR, never a ceiling"),
+     "a frame that is entirely one colour reads 0.0, whatever that colour is - so 'the "
+     "render filled the screen' hits the FLOOR, never a ceiling"),
     ("filled", "at least", 0.950,
      "a frame with no modal region reads near 1.0 whatever is drawn on it - so a high "
      "reading is a property of the palette, not of how much was drawn"),
@@ -257,27 +305,112 @@ def measure_sequence(per_frame: Any, tmp: Path, n: int = 12) -> dict[str, Any]:
 def test_a_blank_render_fails_however_its_colours_are_arranged(tmp: Path) -> None:
     """12 frames, each one colour, in the 4 ways they can be arranged. All must FAIL.
 
-    Each row also prints what the retired `0.001-0.85` window said, which is the
-    measurement the ceiling decision rests on: it caught 1 of these 3 non-zero
-    arrangements of the SAME blank render, so a bound on `mean_ink` was never the guard.
+    Each row also measures what the SAME set reads under the retired frame-0 reference,
+    which is what the reference decision rests on: the arrangement moved that number
+    from 0.0 to 0.91667 while the render was equally blank in all 4. The last row asks
+    the positive form - that the 4 no longer differ at all.
     """
     print("\n[a render that drew nothing, in the 4 ways 12 uniform frames arrange]")
-    for name, per_frame, want_ink, caught_by_ceiling in BLANK_RENDERS:
+    measured = []
+    for name, per_frame, want_ink, want_under_frame0 in BLANK_RENDERS:
         info = measure_sequence(per_frame, tmp)
         got = info["mean_ink"]
         n = info["count"]
+        measured.append(got)
         passed, ev = static.nonempty_verdict(info, n)
-        then = static.INK_FLOOR <= got <= RETIRED_GAME_CEILING
+        then = round(sum(_frame0_inks(per_frame, tmp)) / n, 5)
         expect(f"{name}: mean_ink {want_ink}, and render.nonempty FAILS",
                got == want_ink and passed is False and info["flat_frames"] == n,
-               f"mean_ink={got} flat_frames={info['flat_frames']}/{n}; "
-               f"the retired {RETIRED_GAME_CEILING} ceiling "
-               f"{'caught' if not then else 'ADMITTED'} it "
-               f"(stated in advance: {'caught' if caught_by_ceiling else 'ADMITTED'})"
-               f" -- {ev[:60]}")
-        expect(f"{name}: and the ceiling's verdict is what BLANK_RENDERS states",
-               (not then) is caught_by_ceiling,
-               f"stated caught={caught_by_ceiling}, measured caught={not then}")
+               f"mean_ink={got} flat_frames={info['flat_frames']}/{n} -- {ev[:60]}")
+        expect(f"{name}: and under the retired frame-0 reference it read "
+               f"{want_under_frame0}",
+               then == want_under_frame0,
+               f"measured {then}; that window "
+               f"{'caught' if not (static.INK_FLOOR <= then <= RETIRED_GAME_CEILING) else 'ADMITTED'}"
+               f" it")
+    # THE POSITIVE FORM. Four rows each reading 0.0 could also be four rows of a reader
+    # that stopped discriminating, so this is stated as *the arrangement no longer
+    # moves the number* rather than as a fourth repetition of 0.0 - and the fixture
+    # phase separately proves the reader still tells 5 pictures apart.
+    expect("the arrangement no longer moves the number at all",
+           len(set(measured)) == 1, f"{measured}")
+
+
+def _frame0_inks(per_frame: Any, tmp: Path, n: int = 12) -> list[float]:
+    """The same `n` frames read against FRAME 0's mode - the retired reference.
+
+    Measured rather than remembered, because `BLANK_RENDERS`' fourth column is the
+    evidence the reference moved and a column nobody recomputes is a column that was
+    copied.
+    """
+    d = tmp / "ref0"
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True, exist_ok=True)
+    for i in range(n):
+        png.write_rgb(d / f"frame_{i:04d}.png", W, H, per_frame(i))
+    imgs = [png.read(p) for p in sorted(d.glob("*.png"))]
+    bg0 = imgs[0].dominant_background()
+    return [im.ink_coverage(bg0) for im in imgs]
+
+
+def test_a_colour_drift_that_drew_nothing_fails(tmp: Path) -> None:
+    """`COLOUR_DRIFT`, the variant the fixed reference admitted. It must FAIL now.
+
+    Both halves of the pre-`tasks/178` criterion passed this set. It is the one row a
+    mutant restoring the frame-0 reference turns red, so it is also what keeps that
+    mutant honest.
+    """
+    print("\n[a colour drift carrying a 2x2 speck: 4 pixels of 256000 were drawn]")
+    info = measure_sequence(colour_drift, tmp)
+    n = info["count"]
+    passed, ev = static.nonempty_verdict(info, n)
+    then = round(sum(_frame0_inks(colour_drift, tmp)) / n, 5)
+    expect(f"mean_ink {COLOUR_DRIFT_INK}, flat_frames 1 of {n}, and it FAILS",
+           info["mean_ink"] == COLOUR_DRIFT_INK and info["flat_frames"] == 1
+           and passed is False and then == COLOUR_DRIFT_UNDER_FRAME0,
+           f"mean_ink={info['mean_ink']} flat_frames={info['flat_frames']}/{n} "
+           f"under frame 0 it read {then} (stated {COLOUR_DRIFT_UNDER_FRAME0}, which "
+           f"PASSED) -- {ev[:60]}")
+
+
+def test_the_two_halves(inks: dict[str, dict[str, Any]], tmp: Path) -> None:
+    """Which half of `render.nonempty` refuses a blank render, now that both do?
+
+    `tasks/168` made the all-flat half INDEPENDENT of the floor, because under the
+    frame-0 reference a blank render could read 0.91667. `tasks/178` makes it
+    REDUNDANT: `png.Image.is_flat` is `ink_coverage(own mode) == 0.0`, which is exactly
+    `mean_ink`'s per-frame term, so all-flat implies `mean_ink` 0.0 implies below the
+    floor. The redundancy is kept as the fail-closed direction, and it is asserted here
+    rather than promised in a comment, because the two live at different addresses
+    (rule 12).
+    """
+    print("\n[the two halves: each refuses every blank render on its own]")
+    disagreed = []
+    for name, per_frame, _ink, _then in BLANK_RENDERS:
+        info = measure_sequence(per_frame, tmp)
+        if (info["flat_frames"] == info["count"]) != (info["mean_ink"] == 0.0):
+            disagreed.append(name)
+    for name, _make, _lo, _hi in FIXTURES:
+        if (inks[name]["flat_frames"] == inks[name]["count"]) != \
+                (inks[name]["mean_ink"] == 0.0):
+            disagreed.append(name)
+    expect("png.Image.is_flat agrees with mean_ink's per-frame term on every fixture "
+           "and every arrangement", disagreed == [], str(disagreed))
+
+    with patched(static, "INK_FLOOR", 0.0):
+        survived = [name for name, per_frame, _i, _t in BLANK_RENDERS
+                    if static.nonempty_verdict(
+                        (info := measure_sequence(per_frame, tmp)), info["count"])[0]]
+    expect("with no floor at all, the all-flat half still refuses all 4",
+           survived == [], str(survived))
+
+    with patched(png.Image, "is_flat", lambda self, tolerance=8: False):
+        survived = [name for name, per_frame, _i, _t in BLANK_RENDERS
+                    if static.nonempty_verdict(
+                        (info := measure_sequence(per_frame, tmp)), info["count"])[0]]
+    expect("with no frame ever flat, the floor still refuses all 4 - which is what "
+           "makes the all-flat half redundant rather than independent",
+           survived == [], str(survived))
 
 
 def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> None:
@@ -456,12 +589,13 @@ def test_collect_reaches_the_criterion() -> None:
 
     The rows above call the decision function directly and stay green against a
     `collect` that inlined its own comparison. These are the only ones that would not,
-    and both stored ceiling firings are used as the input - 0.96561 and 0.88137, the two
-    coverages the retired 0.85 refused.
+    and both stored ceiling firings are used as the input - 0.85042 and 0.67869, what
+    those two submissions' frames read under today's reference. Their records hold the
+    frame-0 readings 0.96561 and 0.88137, which the retired 0.85 refused.
     """
     print("\n[collect decides the criterion with the same floor, in both classes]")
-    for klass, ink, label in (("scene", 0.96561, "the stored scene's"),
-                              ("game", 0.88137, "the stored platformer's")):
+    for klass, ink, label in (("scene", 0.85042, "the stored scene's"),
+                              ("game", 0.67869, "the stored platformer's")):
         got = drive_collect(klass, ink)
         expect(f"collect({klass}) passes {label} {ink}", got["passed"] is True,
                got["evidence"][:120])
@@ -469,8 +603,11 @@ def test_collect_reaches_the_criterion() -> None:
            drive_collect("game", 0.0)["passed"] is False)
     expect("collect(scene) still fails a blank frame",
            drive_collect("scene", 0.0)["passed"] is False)
-    # THE ALL-FLAT HALF, THROUGH `collect`. Ink 0.91667 clears the floor, so only the
-    # second half can fail this - and only if `collect` carries `flat_frames` through.
+    # THE ALL-FLAT HALF, THROUGH `collect`, on a CONSTRUCTED record: ink 0.91667 with
+    # every frame flat is a pair today's `analyse_frames` cannot produce, since all-flat
+    # now implies 0.0. It is kept because this row is about `collect` carrying
+    # `flat_frames` through to the verdict at all, which no other row would notice, and
+    # because the half must keep working for any record that presents that shape.
     flat = drive_collect("game", 0.91667, flat_frames=12)
     expect("collect fails 12 frames that each hold one colour, at ink 0.91667",
            flat["passed"] is False, flat["evidence"][:150])
@@ -585,20 +722,32 @@ def mutants(inks: dict[str, dict[str, Any]], mutant_tmp: Path) -> None:
     expect("with no floor at all, blank and flood are still refused by the all-flat "
            "half", still == ["blank", "flood"], str(still))
 
-    # THE HALF THE FLOOR CANNOT CARRY. `png.Image.is_flat` is what `analyse_frames`
-    # counts, so a mutant that makes nothing look flat has to go through it - and only
-    # the 3 non-zero BLANK_RENDERS rows can see the difference, because the all-one-
-    # colour row still fails on the floor.
-    with patched(png.Image, "is_flat", lambda self, tolerance=8: False):
-        survived = []
-        for name, per_frame, _ink, _caught in BLANK_RENDERS:
-            info = measure_sequence(per_frame, mutant_tmp)
-            if static.nonempty_verdict(info, info["count"])[0]:
-                survived.append(name)
-    expect("mutant 'no frame is ever flat' is caught by the blank-render rows",
-           len(survived) == 3,
-           f"{len(survived)} of {len(BLANK_RENDERS)} blank renders would then PASS: "
-           f"{survived} - the 4th still fails on the floor")
+    # THE REFERENCE ITSELF. `analyse_frames` measures each frame against its own mode;
+    # this restores the pre-`tasks/178` code, one background taken from frame 0 and
+    # applied to all 12. `COLOUR_DRIFT` is the only row that can see it - every fixture
+    # holds identical frames, so frame 0's mode IS each frame's own mode there, and the
+    # blank arrangements still fail on the all-flat half.
+    #
+    # THE MUTANT IS THE REAL BODY, not a stub returning a number: a lambda that simply
+    # reported 0.91665 would prove the row reads its argument and nothing about where
+    # `analyse_frames` gets its reference colour.
+    def frame0_reference(frames: list[Path]) -> dict[str, Any]:
+        imgs = [png.read(f) for f in frames]
+        bg = imgs[0].dominant_background()
+        inks = [im.ink_coverage(bg) for im in imgs]
+        return {"count": len(imgs), "errors": [],
+                "flat_frames": sum(1 for im in imgs if im.is_flat()),
+                "mean_ink": round(sum(inks) / len(inks), 5),
+                "per_frame_ink": [round(v, 5) for v in inks]}
+
+    with patched(static, "analyse_frames", frame0_reference):
+        info = measure_sequence(colour_drift, mutant_tmp)
+        admitted, _ev = static.nonempty_verdict(info, info["count"])
+    expect("mutant 'the reference is frame 0's mode again' is caught by the "
+           "colour-drift row",
+           admitted is True and info["mean_ink"] == COLOUR_DRIFT_UNDER_FRAME0,
+           f"it would read mean_ink={info['mean_ink']} with "
+           f"flat_frames={info['flat_frames']}/{info['count']} and PASS")
 
     # The mutant installs the fallback and the row RE-RUNS `collect`'s pre-flight - the
     # only caller that spends anything. Asserting that the patched lambda does not raise
@@ -719,6 +868,9 @@ def corpus(runs_root: Path) -> None:
           f"{len(rows)} carry render.nonempty, {len(skipped)} skipped")
     print(f"  task_class read from the record on {stored_class}, inferred from the id "
           f"shape by _class_of on {inferred_class} (of {len(kept)} submissions examined)")
+    print("  every mean_ink below is a FRAME-0 reading: it is what the grader that wrote "
+          "the record computed, and `tasks/178` moved the reference to each frame's own "
+          "mode. `--reference-shift` reports both.")
     for name, why in skipped:
         print(f"    skipped {name}: {why}")
     # A record with no `frames.mean_ink` is PARTITIONED OUT and counted, never sorted
@@ -766,6 +918,77 @@ def corpus(runs_root: Path) -> None:
         print(f"      re-graded under the floor {static.INK_FLOOR}, no ceiling: "
               f"{'PASS' if now else 'FAIL'}")
         print(f"      gate: {_gate(before)}  ->  {_gate(after)}")
+
+
+def reference_shift(runs_root: Path) -> int:
+    """Every stored frame set under BOTH references. The producer for `eval/RUNS.md`.
+
+    Slow on purpose: it decodes every stored PNG in pure Python rather than trusting the
+    record, because the record only holds one of the two readings.
+
+    IT PROVES ITS OWN EXTRACTION FIRST. The frame-0 arm recomputes what the grader that
+    wrote each record computed, so it must reproduce every stored `mean_ink` to the
+    digit; any disagreement is printed and the arm refuses to report a shift, since a
+    per-frame figure from a reader that cannot reproduce the known value means nothing
+    (rule 12). Returns the number of sets whose `mean_ink` moves.
+    """
+    print(f"\n[reference shift: every stored frame set under both references, "
+          f"{runs_root}]")
+    import tier1_census
+
+    kept, _superseded = tier1_census.latest_per_submission(
+        tier1_census.load_gradings(runs_root)[0])
+    if not kept:
+        print("  NOT ASKED - no stored grading under that root. `eval/runs` is "
+              "gitignored, so a worktree's copy is empty; this is not `0 sets move`.")
+        return 0
+    rows, mismatches, no_frames = [], [], 0
+    for r in kept:
+        rep = Path(r["report"])
+        frames = sorted((rep.parent / "frames").glob("*.png"))
+        if not frames:
+            no_frames += 1
+            continue
+        imgs, unreadable = [], 0
+        for f in frames:
+            try:
+                imgs.append(png.read(f))
+            except png.PngError:
+                unreadable += 1
+        if not imgs:
+            no_frames += 1
+            continue
+        bg0 = imgs[0].dominant_background()
+        f0 = round(sum(im.ink_coverage(bg0) for im in imgs) / len(imgs), 5)
+        pf = round(sum(im.ink_coverage(im.dominant_background())
+                       for im in imgs) / len(imgs), 5)
+        stored = (json.loads(rep.read_text(encoding="utf-8"))
+                  .get("programmatic", {}).get("frames", {}).get("mean_ink"))
+        if stored is not None and stored != f0:
+            mismatches.append((r["trial"], stored, f0))
+        rows.append((r["run"], r["trial"], f0, pf, unreadable))
+
+    print(f"  {len(rows)} frame sets read, {no_frames} submission(s) with no readable "
+          f"frame on disk, of {len(kept)} submissions")
+    if mismatches:
+        print(f"  EXTRACTION NOT PROVED: the frame-0 arm disagrees with {len(mismatches)}"
+              f" stored record(s) it should reproduce exactly. No shift is reported.")
+        for trial, stored, got in mismatches:
+            print(f"    {trial}: stored {stored}, recomputed {got}")
+        return -1
+    print(f"  extraction proved: the frame-0 arm reproduces all {len(rows)} stored "
+          f"mean_ink values to the digit")
+    moved = [x for x in rows if x[2] != x[3]]
+    print(f"  {len(moved)} of {len(rows)} sets move:")
+    for run, trial, f0, pf, _u in sorted(moved, key=lambda x: -abs(x[2] - x[3])):
+        print(f"    {trial:32s} {f0:>9} -> {pf:<9} ({pf - f0:+.5f})  {run}")
+    below = [(t, f0, pf) for _r, t, f0, pf, _u in rows
+             if min(f0, pf) < static.INK_FLOOR]
+    print(f"  sets below the floor {static.INK_FLOOR} under either reference: "
+          f"{len(below)} {below}")
+    lo = min(min(x[2], x[3]) for x in rows)
+    print(f"  lowest value under either reference: {lo}")
+    return len(moved)
 
 
 def _class_of(game: str) -> str:
@@ -818,7 +1041,9 @@ def phases(inks: dict[str, dict[str, Any]],
          len(CRITERION_ROWS) + 1 + len(MECHANISM_ROWS)),
         ("blank renders",
          lambda: test_a_blank_render_fails_however_its_colours_are_arranged(tmp),
-         2 * len(BLANK_RENDERS)),
+         2 * len(BLANK_RENDERS) + 1),
+        ("colour drift", lambda: test_a_colour_drift_that_drew_nothing_fails(tmp), 1),
+        ("the two halves", lambda: test_the_two_halves(inks, tmp), 3),
         ("class refusal", test_an_unplaceable_class_is_refused, 3),
         ("collect wiring", test_collect_reaches_the_criterion, 6),
         ("bound census", test_bound_census, 6),
@@ -834,7 +1059,13 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs-root", type=Path,
                     help="a main checkout's eval/runs, for the corpus arm")
+    ap.add_argument("--reference-shift", action="store_true",
+                    help="with --runs-root: re-read every stored PNG and report which "
+                         "sets move between the two references (~80 s)")
     args = ap.parse_args()
+    if args.reference_shift and not args.runs_root:
+        ap.error("--reference-shift needs --runs-root: it reads stored PNGs, and a "
+                 "worktree's eval/runs is empty")
 
     tmp = Path(tempfile.mkdtemp(prefix="inkwin-"))
     short: list[str] = []
@@ -848,6 +1079,11 @@ def main() -> int:
                 short.append(f"{name}: {got} of {want}")
         if args.runs_root:
             corpus(args.runs_root)
+            if args.reference_shift:
+                if reference_shift(args.runs_root) < 0:
+                    short.append("reference shift: extraction not proved")
+            else:
+                print("\n[reference shift: NOT RUN - add --reference-shift]")
         else:
             print("\n[corpus: NOT RUN - pass --runs-root <main checkout>/eval/runs]")
     finally:

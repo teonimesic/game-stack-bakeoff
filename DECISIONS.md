@@ -228,23 +228,24 @@ a placeholder marker covering 0.0015 of a 640x400 frame — so it transfers, and
 in either class.
 
 **The ceiling was removed because `mean_ink` does not measure how much was drawn.**
-`ink_coverage` counts pixels differing from **one** reference colour, and `analyse_frames` takes
-that colour from **frame 0's** mode. The quantity is therefore departure from the first frame's
-mode, which is a property of the palette:
+`ink_coverage` counts pixels differing from **one** reference colour per frame, so the quantity is
+a property of the palette:
 
 | frames | measures | which half decides |
 |---|---|---|
-| solid white, magenta or black, all frames the same — "the render broke and filled the screen" | **0.0** | the **floor** |
-| a gradient with a subject on it — a night platformer's sky | **0.881** | neither; it passes |
+| solid white, magenta or black — "the render broke and filled the screen" | **0.0**, in any colour | the **floor** |
+| a gradient with a subject on it — a night platformer's sky | **0.679** | neither; it passes |
 
 A high reading means the palette has no dominant colour, and a full screen reads at the bottom of
 the scale rather than the top.
 
 **And the ceiling was not a blank-frame guard either, which is the measurement that settles it
-rather than the argument.** 12 frames each holding a single colour have drawn nothing, and
-`mean_ink` reads 0.0, 0.91667 or 0.5 depending only on how those colours are *arranged* against
-frame 0's. `0.001–0.85` admitted **2 of the 3** non-zero arrangements. A bound on this quantity was
-never what stood between the grader and a blank render.
+rather than the argument.** 12 frames each holding a single colour have drawn nothing, and under
+the reference in force at the time `mean_ink` read 0.0, 0.91667 or 0.5 depending only on how those
+colours were *arranged* against frame 0's (`WR-ink-arrangement-0-91667` — the arrangement stopped
+moving the number when the reference did, later the same day). `0.001–0.85` admitted **2 of the 3**
+non-zero arrangements. A bound on this quantity was never what stood between the grader and a
+blank render.
 
 **So the criterion asks the question directly instead.** `png.Image.is_flat` reads each frame
 against **its own** mode, `analyse_frames` counts them as `flat_frames`, and `render.nonempty`
@@ -261,7 +262,9 @@ Every number above is a checked row in `eval/judge/ink_window_control.py` (`MECH
 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs`; its population is
 `tier1_census`'s — **69 submissions**, the most recent grading of each, from 85 on disk with 16
 superseded and held out. It reports them **per class, never pooled: `game: n=68`, `scene: n=1`**.
-4 firings:
+Every ink figure in this section is the **frame-0 reading the stored record holds**, which is what
+each ceiling verdict was decided against; the reference moved later the same day, and
+`--reference-shift` prints both. 4 firings:
 
 | | mean ink | what it was |
 |---|---|---|
@@ -297,6 +300,62 @@ ceiling firing that is a real defect. The frame set must contain no flat frames 
 something — and the play-bot or the scene probe must condemn the submission too. The output
 recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that test.
 `eval/judge/RUBRIC.md` holds the table.
+
+### `mean_ink` measures each frame against its own background, not against frame 0's — decided 2026-08-27
+
+**The decision: `analyse_frames` takes a background per frame.** It used to take one from frame 0
+and apply it to all 12, so `mean_ink` was departure from the *first frame's palette*. Nothing
+derived that choice, in this file or anywhere else, and the criterion it feeds asks whether the
+frames contain something other than a blank background — which is a question about each frame.
+
+**A fixed reference was fail-open, and that is the measurement rather than the argument.** Take 12
+frames of which frame 0 is uniform black and the other 11 are uniform white carrying a single 2x2
+speck. 4 pixels of 256000 were drawn. Both halves of the criterion admitted it: `flat_frames`
+counts 1 of 12, because a frame with a speck is not flat, and against frame 0's mode the 11 white
+frames read 0.99998 each for a `mean_ink` of **0.91665** — well clear of the floor. Measured on the
+pre-change code before it was changed. Against their own modes the set reads **0.00001** and fails.
+
+**And it saturated on real submissions.** A fixed reference cannot survive a submission changing
+its clear colour: every pixel of a later frame then differs from it, and the frame reads exactly
+1.00000. Over the stored corpus that happened to **14 of 804 frames** in 3 sets — `g3_arena__rust__t0`
+flashes its arena red at frame 5 and its last 7 frames all read 1.00000 while drawing the same
+0.043 of a frame they drew before. Under the per-frame reference **0** of the 804 read 1.00000. A
+census returning one saturated value across the population it exists to discriminate is reporting
+the instrument (rule 12).
+
+**The objection, and why it dissolves.** A per-frame mode moves when a drawn subject grows past the
+background in area. That is true — and it is equally true of frame 0's mode, which is the same
+computation on one arbitrary frame. The fixed reference does not avoid the error; it freezes one
+frame's version of it and applies it to 11 frames it was never measured on. What it buys is
+stability across a set, and nothing consumes `per_frame_ink` as a time series: change between
+frames is `render.animates`, measured separately by `differs_from`.
+
+**The cost, stated in full.** `python3 eval/judge/ink_window_control.py --runs-root <main
+checkout>/eval/runs --reference-shift` re-reads every stored PNG and reports **10 of the 67 stored
+frame sets move**, the largest `g3_arena__rust__t0` 0.60285 → 0.04481. **0 verdicts move**: the
+lowest value under either reference is 0.00811, 8x the floor. `eval/RUNS.md`'s *`mean_ink` moved to
+a per-frame background* break holds the 10 rows and the regime boundary they create.
+
+**This is a regime break and not a withdrawal.** The stored figures remain true of the records that
+hold them — they are what the grader that ran computed — so they are not retired, they are
+incomparable with what the grader computes now, which is exactly what `eval/RUNS.md` exists to
+record. The one figure that *is* retired is `0.91667`, because it was never a property of any
+render: `WR-ink-arrangement-0-91667`.
+
+**What the second half of `render.nonempty` is now.** `png.Image.is_flat` is
+`ink_coverage(own mode) == 0.0`, which is the floor's own per-frame term, so all-flat implies
+`mean_ink` 0.0 implies below the floor. The all-flat half is **redundant rather than independent**,
+and it is kept: it is the fail-closed direction, and `flat_frames` still reports *how many* frames
+were blank, which a mean cannot. `ink_window_control.py` asserts the implication over every fixture
+and every arrangement rather than leaving a comment promising it, and shows each half refusing all
+4 blank arrangements alone.
+
+**What re-opens it.** A submission whose drawn subject reliably exceeds its background in area, so
+that the per-frame mode tracks the subject rather than the background. Nothing in the 67 stored
+sets does — the 7 highest of the 66 game sets are all `g4_platformer`, whose gradient sky has no
+modal region at all, which is a different mechanism. The producer to run is `--reference-shift`; a set reading near 0
+under the per-frame reference and high under frame 0's, with frames that visibly drew something,
+would be the case this decision did not anticipate.
 
 **`task_class` stays in `BOUND_POPULATIONS` with 0 members.** It is the value a future
 class-dependent bound declares, and `assert_tier1_bounds_declared()` is what makes declaring it
