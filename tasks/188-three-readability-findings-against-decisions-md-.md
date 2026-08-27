@@ -18,3 +18,27 @@ The three, verbatim in substance:
 3. DECISIONS.md ~3309-3312, READABILITY: "Read the count from `python3 eval/judge/scene_mutants.py`, not from this sentence." tells the reader not to trust the sentence they are reading. The producer is right; the self-reference is the defect. Suggested: "Run `python3 eval/judge/scene_mutants.py` to refresh these counts."
 
 Whoever takes this should check each against the source before editing - a review comment is a second opinion, not a finding - and item 1 in particular needs `judge/bot_pong.py`'s rally.counts read alongside the paragraph, because the fix is either the sentence or the criterion and the two are not the same task.
+
+## note 2026-08-27
+
+**A fourth finding, in `eval/RUNS.md` rather than `DECISIONS.md`, and it is the same shape as
+item 1** — task 171's prose, reviewed inside somebody else's merge commit. It surfaced on pull
+request **#62** (task 138) at head `03189ef`, where merging `main` put those lines in the review's
+file set; task 138's own diff does not touch them.
+
+**`eval/RUNS.md:2647-2650`, READABILITY.** *"Replace the hard-to-parse comparison clause."*
+
+> It now requires a rise on **every** hit the drive can read, which is the standard
+> `paddle.deflects` beside it already held.
+
+The clause makes the reader reconstruct the comparison. Suggested: state the rule and the matching
+standard as separate sentences — *"...which is the standard already used by `paddle.deflects`."*
+
+Same caution as the three above: read it against `eval/judge/bot_pong.py` before editing, and note
+that this sentence and item 1 describe the **same** criterion in two documents — if item 1's
+adjudication changes what `rally.counts` requires, this sentence changes with it, and the two must
+not be edited to say different things.
+
+Task 138's agent declined it in #62's thread rather than editing task 171's landed prose inside
+task 138's squash commit, and filed it as `tasks/189` before this ticket was visible on `main`.
+**`tasks/189` is a duplicate of item 1 plus this one; close it in favour of this ticket.**

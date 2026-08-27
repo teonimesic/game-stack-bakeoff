@@ -112,3 +112,54 @@ beside `--money`'s. The trigger is what fails, not the population. Same entry.
   `LANDED_COMMENT ... notice=Review limit reached` at exit 0 — a landing verdict on a head no
   round had read. `--ignore-notice` does not help, because the stop is on the summary comment,
   not on the notice. **Read the `notice=` field, not only the verdict.**
+
+## note 2026-08-27
+
+Pull request #62, head `03189ef`. All three checks green — `gates`, `controls`, `CodeRabbit`.
+The branch is current with `main`.
+
+## The review, 4 rounds
+
+| round | head | outcome |
+|---|---|---|
+| 1 | `d101144` | 2 real findings, both fixed |
+| 2 | `a2e05e2` | 2 more, both readability of prose round 1 had introduced, both fixed |
+| 3 | `c2f7958` | *"No actionable comments were generated in the recent review."* |
+| 4 | `03189ef` | 2 outside-diff comments, **both on task 171's landed prose**, declined and filed |
+
+Round 1 caught **MD018 on my own edit**: `#159` sat at column 0 of a paragraph, which markdownlint
+reads as an ATX heading token. It is backticked and moved off the line start; the literal `#159`
+survives, which is what the money-gate exemption matches on. It also caught purchase language left
+beside the repairs.
+
+**Both review rounds moved the recorded measurement, and it was re-measured rather than adjusted.**
+Removing two more predicate words in round 1 took the predicate-alone candidate from 73 to 71, and
+the table in `DECISIONS.md` moved with it. The narrow candidate held at 5 red, 0 true positives
+throughout.
+
+Round 4 landed only after the branch was brought current with `main`, and both its comments are on
+`bot_pong._rally` / `rally.counts` prose that arrived through the merge and is already on `main`
+from task 171 (`e03be27`). **Declined in the thread with the reason** — editing another ticket's
+landed prose would bury task 171's wording change inside task 138's squash commit — and **filed as
+`tasks/189`**, which carries both suggestions and the caution that the `DECISIONS.md` one must be
+confirmed against `eval/judge/bot_pong.py` rather than taken from the review's wording. Nothing
+from this branch's own diff was declined.
+
+## The review pool, and how it reads when it is empty
+
+CodeRabbit's org allowance was exhausted twice during this ticket, and **the failure mode is
+fail-open in three places at once**:
+
+- `pr_review_state.py` answered `verdict=LANDED_COMMENT ... notice=Review limit reached` at
+  **exit 0** — a landing verdict on a head no round had read. `--ignore-notice` does not help: the
+  stop is on the summary comment, not on the notice. **Read the `notice=` field, not only the
+  verdict.**
+- The GitHub check read `CodeRabbit pass` with the description `Review rate limited`.
+- `@coderabbitai review` under a spent allowance answers *"Review rate limited"* and, separately,
+  *"does not re-review already reviewed commits; this command is applicable only when automatic
+  reviews are paused"* — so the manual command is not a way around it. What works is waiting out
+  the interval the notice states and letting the automatic round fire.
+
+`tasks/187` already covers the rate-limited-reads-as-pass shape; this ticket is a second instance
+of it, with the interval measured: the limit comment counted down from 3 minutes to 16 minutes
+across the session as other agents drew on the same pool.
