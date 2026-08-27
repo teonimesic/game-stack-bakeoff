@@ -1,7 +1,7 @@
 ---
 id: 173
 title: The arena bot opens 9 fresh probe sessions and none of them has an opening budget
-status: todo
+status: in_progress
 priority: 2
 refs: eval/judge/bot_arena.py, eval/judge/bot_tetris3d.py, eval/judge/bot_mutants.py, tasks/158
 done_when: 'Every fresh ProbeSession bot_arena opens is read for how many ticks it will wait before it concludes anything, that number is written down per session, and either all of them are at or above an arena opening budget sized like bot_pong.LIVE_BUDGET or the short ones are repaired from one named constant the way tasks/158 repaired bot_tetris3d. Either way bot_mutants.py gains a ref_arena subject carrying a 96-tick opening card: a Variant if it comes back with an empty failing set, a Pending declaring exactly what it fails with this ticket as owner if it does not. Every criterion the repair makes easier to pass carries a mutant proving it can still go red. bot_mutants.py exits 0.'
