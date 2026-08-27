@@ -1634,34 +1634,32 @@ register's table equal to it — red when a gate is added to either alone. **An 
 shape no check can read**; a hook whose published list is asserted against the hook is one a
 reader can act on, and the coverage gap is then stated rather than implied.
 
-**`ci_minutes.py --selftest` joined `pre-push` — decided 2026-08-27, task 175.** It is the only
-thing that reads the register, and nothing local ran it: a step added to `controls.yml` reddened
-it while both hook tiers stayed exit 0, so the register could drift until CI complained — at
-exactly the moment somebody is editing workflows and is least likely to be reading it.
-**The tier is `pre-push` on DUTY CYCLE, not on cost.** At 1.78s it is the cheaper half of the
-pre-commit tier's own largest gate and belongs there by the cost rule, but its inputs — the two
-workflows, `.githooks/run-gates.sh`, the register, and the *set* of gate scripts under `eval/` —
-are touched by a small minority of commits while every commit would pay. The register carries
-that fraction, the date it was read and the `git log` pair that re-derives it; it is not repeated
-here, because a second copy is one nothing can disagree with. Catching it one step later costs an
-amend, and what it is worth is that a stale
-register never reaches CI. `pre-commit` is unchanged at 4 commands; `pre-push` went from 5 to 6
-and from 18.4s to 20.4s on one host, which is inside the run-to-run spread the row below refuses
-to publish. **This widening is the re-timing the "named subset" row licenses, not a re-argument
-of it** — and the row's own trigger, 2 pushes to `main` reddened by the same uncovered gate, has
-not fired: `gates.yml` has 5 failed runs on `main`, all before this gate existed.
+**`ci_minutes.py --selftest` runs in `pre-push` — decided 2026-08-27, task 175.** It is the only
+thing that reads the register, so without it a workflow edit and the register describing it can
+part company until CI says so — at exactly the moment somebody is editing workflows and is least
+likely to be reading the register. **The tier is chosen on DUTY CYCLE, not on cost:** the gate is
+cheaper than the largest member of `pre-commit` and belongs there by the cost rule, but its
+inputs — the two workflows, `.githooks/run-gates.sh`, the register, the *set* of gate scripts
+under `eval/`, and the tool itself — are touched by a small minority of commits while every
+commit would pay. The register carries that fraction, the date it was read and the `git log` pair
+that re-derives it, and it is not repeated here. Catching this one step later costs an amend;
+what the gate is worth is that a stale register never reaches CI. **This is the re-timing the
+"named subset" row licenses rather than a re-argument of it** — that row's own trigger, 2 pushes
+to `main` reddened by the same uncovered gate, has not fired.
 
-**The hook and that gate now call each other, so `run-gates.sh` counts `GATES_DEPTH` and refuses
-past 2.** The gate runs the hook as its own control — once listing, once executing with `python3`
-shadowed by a shim — and that shim was the only thing between the pair and unbounded recursion.
-A ceiling is what turns the hang into a red line, because **a check whose failure mode is a hang
-reports nothing at all**: measured with the shim disabled, the pair drove 8 hook levels in 25s
-and was still going, and with the ceiling it terminates in 39s at exit 1.
-**The first ceiling control was itself the recursion engine, which is the part worth carrying.**
-It pinned `GATES_DEPTH=1` and executed — and a control that PINS a counter also RESETS it, so
-the level below started again and the ceiling could never be reached from a level that kept
-restoring the level beneath it. Both depth rows list instead of executing, which reaches the
-ceiling (it sits above `list_only`) without being able to defeat it.
+**`run-gates.sh` counts `GATES_DEPTH` and admits only unset, 0 or 1.** The hook runs that gate
+and the gate runs the hook — once listing, once executing with `python3` shadowed by a shim — so
+the two are mutually recursive and the shim is the only thing breaking the cycle. Without a
+ceiling a failed shim is an unbounded recursion, and **a check whose failure mode is a hang
+reports nothing at all**; with one it is a red line. The value is matched against that closed set
+rather than incremented, because arithmetic on an unexpected value sets the ceiling aside instead
+of reaching it: under `/bin/sh` a negative reading allows a thousand levels and a non-numeric one
+restarts the count.
+
+**A control that PINS a counter also RESETS it, and the first ceiling control was therefore the
+recursion engine.** It fixed `GATES_DEPTH=1` and executed, so every level restored the level
+beneath it and the ceiling could never be reached. Both depth rows list instead of executing:
+listing passes through the ceiling, which sits above `list_only`, and cannot defeat it.
 
 **No hook timing is published, and the workflow tiers are published as a SPREAD — decided
 2026-08-25, tasks 129 and 153.** A point figure in that table was wrong every time it was read:

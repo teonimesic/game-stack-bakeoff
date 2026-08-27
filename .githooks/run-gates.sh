@@ -40,13 +40,24 @@ cd "$root" || exit 1
 # other without bound. That is worse than either failing: a check whose failure mode is a
 # HANG reports nothing at all, which ci_minutes.py's own docstring records having measured
 # one exit away. So depth is counted -- one hook, one control invocation beneath it -- and
-# anything deeper refuses BY NAME, which turns the hang back into a red line.
-depth=$((${GATES_DEPTH:-0} + 1))
-if [ "$depth" -gt 2 ]; then
-    printf 'run-gates.sh: GATES_DEPTH refusing at depth %s (ceiling 2).\n' "$depth" >&2
-    printf 'A gate below is running this hook, and its shim is not intercepting python3.\n' >&2
-    exit 3
-fi
+# anything deeper refuses BY NAME and BY VALUE, which turns the hang back into a red line.
+# THE VALUE IS MATCHED, NEVER COMPUTED ON. This hook is the only writer of GATES_DEPTH and
+# it writes 1 or 2, so unset/0/1 is the whole set that may enter -- a CLOSED class, and the
+# default branch refuses everything else. Arithmetic here would set the ceiling aside rather
+# than reach it, and fail OPEN doing it: measured under /bin/sh, `$((${GATES_DEPTH:-0} + 1))`
+# reads -1000 as -999 and allows 1002 levels, and reads `abc` as 0 and starts the count over.
+# Raised by CodeRabbit on PR #60.
+case "${GATES_DEPTH:-0}" in
+    0) depth=1 ;;
+    1) depth=2 ;;
+    2) printf 'run-gates.sh: GATES_DEPTH=2 makes this depth 3, past the ceiling 2.\n' >&2
+       printf 'A gate below is running this hook, and its shim is not intercepting python3.\n' >&2
+       exit 3 ;;
+    *) printf 'run-gates.sh: GATES_DEPTH=%s is not a value this hook writes.\n' \
+           "${GATES_DEPTH:-0}" >&2
+       printf 'Only unset, 0 or 1 may enter; this hook writes 1 or 2 for the gate beneath it.\n' >&2
+       exit 3 ;;
+esac
 GATES_DEPTH="$depth"
 export GATES_DEPTH
 

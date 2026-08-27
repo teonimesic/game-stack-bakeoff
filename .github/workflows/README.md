@@ -195,28 +195,31 @@ above equals what came back, and goes red if either moves without the other — 
 a description of a script true (`AGENTS.md` rule 12).
 
 **What the hooks do NOT cover is most of it, and that is the direction that costs you.** No
-mutant suite runs before a push and no `*_control.py` does either, so the only checker either
-tier checks is the one that reads this file. **A green `pre-push` is not evidence that CI will
-be green.** The hooks are a cheap filter on the failures that recur here — stale citations, a
-malformed queue, and a register overtaken by the workflow edit in the same commit; the workflows
-are the gate.
+mutant suite runs before a push and no `*_control.py` does either; the only checkers in either
+tier are the two `--selftest` modes above, `docstat`'s and this file's. **A green `pre-push`
+confirms those 6 commands and predicts nothing about CI.** The hooks are a cheap filter on the
+failures that recur here — stale citations, a malformed queue, and a register overtaken by the
+workflow edit in the same commit; the workflows are the gate.
 
 **`ci_minutes --selftest` is in `pre-push` and not in `pre-commit`, and the reason is its duty
 cycle rather than its cost.** Its inputs are the two workflows, `.githooks/run-gates.sh`, this
-file, and the *set* of gate scripts under `eval/`. Read 2026-08-27, **78** of `main`'s **678**
-commits touch one of those, so 88% of commits cannot move its verdict while every one of them
-would pay for it — and what it is worth is that a stale register never reaches CI, which makes a
-push the last moment it can act:
+file, the *set* of gate scripts under `eval/`, and the tool itself. Read 2026-08-27, **79** of
+`main`'s **678** commits touch one of those, so 88% of commits cannot move its verdict while
+every one of them would pay for it — and what it is worth is that a stale register never reaches
+CI, which makes a push the last moment it can act:
 
 ```bash
-{ git log --format=%H main -- .github/ .githooks/
+{ git log --format=%H main -- .github/ .githooks/ eval/tools/ci_minutes.py
   git log --format=%H --diff-filter=ADR main -- \
       'eval/**/*_control.py' 'eval/**/*_mutants.py' 'eval/**/*_selftest.py'; } | sort -u | wc -l
 git log --format=%H main | wc -l
 ```
 
-Editing a gate script is **not** in that set: the census reads the set of them, so only an add,
-a delete or a rename moves it — which is why the second command filters on `ADR`.
+Two things about that population. Editing a gate script is **not** in it — the census reads the
+*set* of them, so only an add, a delete or a rename moves the verdict, which is why the second
+command filters on `ADR`. And `.github/` is a superset of the three files that matter, taken as
+a directory so a fourth workflow needs no edit here; over-counting is the safe direction,
+because it can only weaken the case for `pre-push`.
 The pair it guards is self-referential — the hook runs the gate, the gate runs the hook in
 list-only mode and asserts the table above equals what came back — so `run-gates.sh` counts
 `GATES_DEPTH` and refuses past 2 rather than recursing if that control's `python3` shim ever

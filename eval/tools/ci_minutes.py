@@ -1871,9 +1871,12 @@ def _selftest() -> int:
     # `_control`/`_mutants`/`_selftest` and this file is none of them. So the membership is
     # asserted here, which makes removing it a decision somebody has to edit rather than an
     # omission (task 175).
+    # EQUALITY, never a suffix: `python3 x/eval/tools/ci_minutes.py --selftest` ends with the
+    # string and is a different file, which is the same substitution the scope step is held
+    # to above. Raised by CodeRabbit on PR #60.
     check("pre-push runs this tool, the only thing that reads the register",
           [c for c in _live_hooks["tiers"]["pre-push"]
-           if c.endswith("eval/tools/ci_minutes.py --selftest")],
+           if _norm_command(c) == "python3 eval/tools/ci_minutes.py --selftest"],
           ["python3 eval/tools/ci_minutes.py --selftest"])
     # LIST-ONLY MUST NOT EXECUTE, and the control runs in BOTH directions. A mode that
     # listed AND ran would be green on every row above while costing a full sweep, and a
@@ -1937,16 +1940,33 @@ def _selftest() -> int:
               [w for w in ("GATES_DEPTH", "depth 3", "ceiling 2") if w not in _deep.stderr],
               [])
         counts["mutants"] += 1
+        # A VALUE THE HOOK NEVER WRITES IS REFUSED, not arithmetic'd. Under /bin/sh a
+        # negative reading makes the ceiling reachable only after a thousand levels and a
+        # non-numeric one restarts the count, so both defeat the ceiling while looking like
+        # a working guard. Raised by CodeRabbit on PR #60.
+        for _bad in ("-1000", "abc", "3", "01", " 1"):
+            _off = _run_hook_at(_bad)
+            check(f"GATES_DEPTH={_bad!r} is refused rather than counted from",
+                  (_off.returncode, _off.stdout), (3, ""))
+            check(f"and the refusal for {_bad!r} names GATES_DEPTH",
+                  "GATES_DEPTH" in _off.stderr, True)
+            counts["mutants"] += 1
         # The variant, and it is the one that matters: depth 2 is what a HOOK-DRIVEN
         # selftest reaches, so a ceiling one lower would redden `run-gates.sh pre-push` on
         # every push rather than only on a broken shim. Asserted on the LIST, not on the
         # status alone -- a hook that exited 0 having done nothing would pass on the status.
-        _at_two = _run_hook_at("1")
-        check("depth 2 -- what a hook-driven selftest reaches -- still runs its tier",
-              (_at_two.returncode,
-               [_norm_command(ln) for ln in _at_two.stdout.splitlines() if ln.strip()]),
-              (0, _live_hooks["tiers"]["pre-push"]))
-        counts["variants"] += 1
+        # `""` is here rather than above: `${GATES_DEPTH:-0}` substitutes on empty as well as
+        # unset, so an empty value IS 0, and refusing it would redden a hook whose caller
+        # merely exported the name.
+        for _ok, _why in (("1", "depth 2 -- what a hook-driven selftest reaches"),
+                          ("0", "depth 1 -- an explicit zero"),
+                          ("", "depth 1 -- an empty value, which `:-` reads as unset")):
+            _at = _run_hook_at(_ok)
+            check(f"{_why} -- still runs its tier",
+                  (_at.returncode,
+                   [_norm_command(ln) for ln in _at.stdout.splitlines() if ln.strip()]),
+                  (0, _live_hooks["tiers"]["pre-push"]))
+            counts["variants"] += 1
 
     # The fixture pair the mutants below are edits of. It is deliberately NOT the live one:
     # a mutant of the live register would have to be a string replacement that keeps working
