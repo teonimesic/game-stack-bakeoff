@@ -10,7 +10,7 @@ repository already had; the workflows are what make them run without being remem
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
 | checks | 56 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
-| takes | **75–115s** | **658–827s** |
+| takes | **127–208s** | **706–970s** |
 
 **Every number in that table has a producer, and none of them is remembered.** The check counts
 come from `python3 eval/tools/ci_minutes.py --gates`, which reads the workflows and counts steps
@@ -18,17 +18,20 @@ invoking something under `eval/`; they are pinned in `ci_minutes --selftest`.
 
 **The `takes` row is a SPREAD, and it is a spread because a point figure there cannot be right.**
 It is the full range of the last 12 successful runs of each workflow on `main`, read
-2026-08-25 with:
+2026-08-27 with:
 
 ```bash
 gh run list --workflow gates.yml --branch main --status success --limit 12 \
   --json startedAt,updatedAt --jq '.[] | ((.updatedAt|fromdate) - (.startedAt|fromdate))'
 ```
 
-`gates` spans 40s across those 12 runs and `controls` 169s, on content that differs by far less
+`gates` spans 81s across those 12 runs and `controls` 264s, on content that differs by far less
 than that — so a single reading is one draw from a wide band, and the difference between two of
 them says nothing about a step. **A timing that looks stale is not evidence that a step was
-added, and a step that was added is invisible next to the variance.** For the pull request in
+added, and a step that was added is invisible next to the variance.** **And the band itself is a
+reading, not a property of the tier**: both moved clear of the range published two days earlier,
+every one of the 24 runs behind this row landing outside it, so re-read the row rather than
+trusting the digits in it. For the pull request in
 front of you, read the current pair with `gh pr checks <n>`; to size a step, read it per-step out
 of `repos/<owner>/<repo>/actions/runs/<id>/jobs`, because the step is what a change moves and the
 run is what the runner's noise moves.
