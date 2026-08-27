@@ -1,7 +1,7 @@
 ---
 id: 160
 title: fire.rate_limited counts BULLETS and asks about SHOTS, and prints the right number beside the wrong verdict
-status: todo
+status: in_progress
 priority: 2
 refs: eval/judge/bot_arena.py, eval/judge/bot_mutants.py, tasks/155
 done_when: The criterion counts fire events rather than bullet ids, or states in bot_arena.py why a bullet count is the right proxy and what a spread weapon should score; the ref_arena spread entry in PENDING_VARIANTS comes back with an empty failing set and is promoted into VARIANTS; bot_mutants.py exits 0; and the stored g3_arena verdicts are re-derived with eval/judge/tier2_census.py against the main checkout's eval/runs with before and after counts recorded here.
