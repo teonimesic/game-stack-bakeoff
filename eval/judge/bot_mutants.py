@@ -42,7 +42,8 @@ THREE KINDS OF SUBJECT, AND THEY ASK THREE DIFFERENT QUESTIONS.
 `--hazards` prints `HAZARDS`, one recorded answer per criterion to *what
 correct-but-unusual game would mis-score this?*, grouped by the failure shapes #34, #29
 and #46 adjudicated. `--selftest` proves the registry gate and the pending adjudication
-can go red; both are offline and drive nothing.
+can go red, and reads `rally.counts` over written tapes; all three are offline and start
+no subprocess.
 
 A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture, never per
 suite - and the population is every criterion instance the four bots report, not the
@@ -115,6 +116,23 @@ WALLS_OFF = ("""        top = ARENA_HALF_H - BALL_RADIUS
 #: a frozen 0 is 0 on the scoring tick too, which is what makes this mutant isolated.
 RALLY_FROZEN = ("        self.rally += 1\n",
                 "        # MUTANT: the rally counter never moves.\n")
+
+#: The rally plays normally and the counter moves on SOME hits and not others - here the
+#: left paddle's returns are counted and the right paddle's are not. This is the mutant
+#: `rose_on_hit > 0` could not fail: it answers "on at least one of them" to a criterion
+#: that asks "on each", so a counter that misses hits read as correct (`tasks/171`).
+#: `rally.resets` survives it, as with `RALLY_FROZEN`: the point still zeroes the counter.
+#:
+#: MEASURED, and the reason the patch is this one rather than the literal "moves once
+#: and then stops": `_rally` shares its session with the wall-bounce drive, so the
+#: counter is already past 0 when the drive opens and no point is scored inside it. A
+#: patch that only ever counts the first hit of a rally therefore rises on NONE of the
+#: drive's hits and reads `0 of 33` - `RALLY_FROZEN`'s own shape, red under both
+#: verdicts, which pins nothing this file was not already pinning.
+RALLY_HALF_COUNTED = (
+    "        self.rally += 1\n",
+    "        if sign > 0:  # MUTANT: only the left paddle's returns are counted.\n"
+    "            self.rally += 1\n")
 
 DEFLECT_OFF = ("        self.ball_vx = sign * self.speed * math.cos(angle)",
                "        self.ball_vx = -sign * self.speed * math.cos(angle)  # MUTANT")
@@ -955,6 +973,13 @@ MUTANTS: list[Mutant] = [
            notes="the rally still happens and every hit is still reported; only the "
                  "counter is dead. `rally.resets` is NOT collateral - a counter frozen "
                  "at 0 reads 0 on the scoring tick, which is what that criterion asks"),
+    Mutant("rally.counts", "ref_pong", "only one paddle's returns are counted",
+           (RALLY_HALF_COUNTED,),
+           notes="the shape `rose_on_hit > 0` could not fail - the rally plays on and "
+                 "the counter skips half the hits. PASSED under that verdict on "
+                 "2026-08-27; it is what `tasks/171`'s all-or-nothing reading is "
+                 "pinned by, and `RALLY_FROZEN` cannot stand in for it because a "
+                 "counter that never moves is red under both readings"),
     Mutant("determinism.replay", "ref_pong", "seeded from pid and wall-clock time",
            WALLCLOCK_SEED),
     Mutant("determinism.seed", "ref_pong", "the seed argument is ignored",
@@ -1274,7 +1299,13 @@ HAZARDS: list[Hazard] = [
            "the number of paddle hits since the last point, and all four starter guides "
            "put the tick's line AFTER its step - so a line carrying `paddle_hit` and a "
            "rally that excludes it contradicts itself. `bot_pong._rally` holds the "
-           "derivation and now reports `rose_late` so the fail says WHICH way it read"),
+           "derivation and now reports `rose_late` so the fail says WHICH way it read. "
+           "The same contract makes the verdict ALL-OR-NOTHING as of tasks/171, which "
+           "opens two hazards of its own: a correct game with FEW hits in the drive - "
+           "answered by a floor of one countable hit, never the six proposed with the "
+           "tightening - and a hit tick that also carries the point, where `rally` is "
+           "zeroed on that same line and which is counted in neither half. Both are "
+           "rows of `--selftest`, which reads `_rally` over written tapes"),
     Hazard("ref_pong", "rally.resets", "contract-reading",
            "the same ordering at the point rather than at the hit",
            "the criterion ORs two independent observations - the reset seen during the "
@@ -1894,13 +1925,127 @@ def lock_controls(tmp: Path, problems: list[str]) -> list[tuple[str, str, str]]:
     return rows
 
 
+# --------------------------------------------------------------------------- #
+# `rally.counts` over written tapes
+# --------------------------------------------------------------------------- #
+#
+# A MUTANT NEEDS A GAME, AND THE ONE THING THIS CRITERION READS IS TWO FIELDS OF A TRACE
+# LINE. `ref_pong`'s physics cannot be steered into a hit that also carries the point, or
+# into a rally of exactly one hit, or into hits on consecutive ticks - so the shapes that
+# decide `rally.counts` are written here instead and driven straight through
+# `bot_pong.PongBot._rally`. It is offline, needs no toolchain, and takes milliseconds.
+#
+# This is where the numbers in `_rally`'s docstring come from. They were measured by hand
+# for `tasks/159` and quoted from memory afterwards, which is a figure with no producer.
+
+#: One written tick: the `rally` the game's own line publishes, and the events it carries.
+TapeTick = tuple[float | None, tuple[str, ...]]
+
+_HIT = ("paddle_hit",)
+#: A hit tick that ALSO carries the point - the one arrangement in which a correct game's
+#: counter must not rise, because the point zeroes it on that same line.
+_HIT_AND_POINT = ("paddle_hit", "score_left")
+
+
+class TapeSession:
+    """The 3 members of `ProbeSession` that `_rally` touches, over a written tape.
+
+    Past the end of the tape it emits hitless ticks holding the last `rally`, so the
+    drive ends on its own 3000-tick budget rather than on an exception. The ball's `vx`
+    flips on every hit, which is what `deflect_ok` reads - a tape is a rally, not a
+    counter in isolation.
+    """
+
+    def __init__(self, tape: list[TapeTick]) -> None:
+        self._tape = list(tape)
+        self._i = 0
+        self._vx = 1.0
+        self.history: list[probe.Tick] = []
+        self.history.append(self._tick(0, ()))
+
+    def _tick(self, rally: float | None, events: tuple[str, ...]) -> probe.Tick:
+        state = {"ball": {"x": 0.0, "y": 0.0, "vx": self._vx, "vy": 0.0},
+                 "paddles": [{"side": "left", "y": 0.0},
+                             {"side": "right", "y": 0.0}],
+                 "score": {"left": 0, "right": 0},
+                 "rally": rally}
+        return probe.Tick(len(self.history), "", state, list(events))
+
+    @property
+    def last(self) -> probe.Tick:
+        return self.history[-1]
+
+    def step_raw(self, inputs: dict) -> probe.Tick:
+        if self._i < len(self._tape):
+            rally, events = self._tape[self._i]
+            self._i += 1
+        else:
+            rally, events = self.last.state.get("rally"), ()
+        if "paddle_hit" in events:
+            self._vx = -self._vx
+        t = self._tick(rally, tuple(events))
+        self.history.append(t)
+        return t
+
+
+def _spaced(pairs: list[TapeTick]) -> list[TapeTick]:
+    """Two hitless ticks after each written tick, so hits are not back to back."""
+    out: list[TapeTick] = []
+    for rally, events in pairs:
+        out.extend([(rally, events), (rally, ()), (rally, ())])
+    return out
+
+
+def rally_tapes() -> list[tuple[str, list[TapeTick]]]:
+    """The shapes that decide `rally.counts`, each named by what game it is."""
+    correct: list[TapeTick] = [(i, _HIT) for i in range(1, 7)]
+    every_second: list[TapeTick] = []
+    r = 0
+    for i in range(6):
+        if i % 2 == 0:
+            r += 1
+        every_second.append((r, _HIT))
+    late: list[TapeTick] = []
+    for i in range(1, 7):
+        late.extend([(i - 1, _HIT), (i, ()), (i, ())])
+    return [
+        ("a correct counter, one hit in the whole drive", _spaced(correct[:1])),
+        ("a correct counter, six hits", _spaced(correct)),
+        ("a correct counter, hits on consecutive ticks", correct),
+        ("a counter that misses every second hit", _spaced(every_second)),
+        ("a counter that never moves", _spaced([(0, _HIT)] * 6)),
+        ("a counter a tick behind, hits spaced", late),
+        ("a counter a tick behind, hits back to back",
+         [(i - 1, _HIT) for i in range(1, 7)] + [(6, ())]),
+        ("a hit tick that also carries the point",
+         _spaced([(1, _HIT), (2, _HIT), (3, _HIT), (0, _HIT_AND_POINT)])),
+        ("every hit tick carries the point", _spaced([(0, _HIT_AND_POINT)] * 6)),
+        ("a drive with no hit in it", []),
+    ]
+
+
+def read_tape(tape: list[TapeTick]) -> str:
+    """`_rally`'s verdict and evidence for one tape, as one comparable line."""
+    import bot_pong
+
+    rally_ok, _deflect, _reset, _hits, detail = bot_pong.BOT._rally(TapeSession(tape))
+    return f"{'PASS' if rally_ok else 'FAIL'} {detail}"
+
+
 def selftest() -> int:
-    """Offline: can the registry gate and the pending adjudication FAIL?
+    """Offline: the registry gate, the pending adjudication, and `rally.counts`.
 
     `hazard_gate` and `adjudicate_pending` are checks like any other here, so each is
     mutated and must go red. A registry gate that cannot fail would report a complete
     per-criterion census of a file that had drifted out from under it, which is the
     shape this whole suite exists to prevent - and it costs no subprocess to pin.
+
+    The third arm drives `bot_pong._rally` over the written tapes of `rally_tapes()`,
+    which is where the games `ref_pong`'s physics cannot be steered into live: a rally
+    of one hit, hits on consecutive ticks, a counter a tick behind, and a hit tick that
+    also carries the point. Each row pins the EVIDENCE as well as the verdict, because
+    the two failures this criterion separates - never moved, and a tick behind - are the
+    same boolean and different sentences.
     """
     rows: list[tuple[str, str, str]] = []
     problems: list[str] = []
@@ -1968,6 +2113,47 @@ def selftest() -> int:
     expect("unmet names a failed-and-unscored criterion once", "['player.walks']",
            str(unmet(both, "ref_platformer")))
 
+    # `rally.counts` over written tapes. `want` is the whole line, verdict and evidence
+    # together. The first row is the one the all-or-nothing reading is argued against: a
+    # correct game whose drive produces a SINGLE hit still passes, so the criterion has
+    # no sample floor beyond one countable hit (`tasks/171`).
+    tape_wants = {
+        "a correct counter, one hit in the whole drive":
+            "PASS rally rose on 1 of 1 paddle_hit ticks",
+        "a correct counter, six hits":
+            "PASS rally rose on 6 of 6 paddle_hit ticks",
+        "a correct counter, hits on consecutive ticks":
+            "PASS rally rose on 6 of 6 paddle_hit ticks",
+        "a counter that misses every second hit":
+            "FAIL rally rose on 3 of 6 paddle_hit ticks",
+        "a counter that never moves":
+            "FAIL rally rose on 0 of 6 paddle_hit ticks",
+        "a counter a tick behind, hits spaced":
+            "FAIL rally rose on 0 of 6 paddle_hit ticks; on 6 of them it rose on the "
+            "FOLLOWING tick instead, which is a counter a tick behind the hit its own "
+            "trace line reports",
+        "a counter a tick behind, hits back to back":
+            "FAIL rally rose on 0 of 6 paddle_hit ticks; on 6 of them it rose on the "
+            "FOLLOWING tick instead, which is a counter a tick behind the hit its own "
+            "trace line reports",
+        "a hit tick that also carries the point":
+            "PASS rally rose on 3 of 3 paddle_hit ticks; 1 further hit tick carried the "
+            "point that zeroes `rally` on the same line, counted neither way",
+        "every hit tick carries the point":
+            "FAIL all 6 paddle_hit ticks also carried the point that zeroes `rally`, so "
+            "no hit could be read against the counter",
+        "a drive with no hit in it":
+            "FAIL no paddle_hit in 3000 ticks of a tracking rally, so the counter was "
+            "never read against a hit",
+    }
+    tapes = rally_tapes()
+    if sorted(name for name, _ in tapes) != sorted(tape_wants):
+        problems.append("selftest rally tapes: rally_tapes() and the expected lines "
+                        "name different tapes")
+    for name, tape in tapes:
+        if name in tape_wants:
+            expect(f"tape: {name}", tape_wants[name], read_tape(tape))
+
     w = max(len(r[0]) for r in rows)
     print(f"{'check':<{w}}  expected")
     print("-" * (w + 40))
@@ -1993,7 +2179,8 @@ def main(argv: list[str]) -> int:
                          "exit; offline, drives nothing")
     ap.add_argument("--selftest", action="store_true",
                     help="prove the registry gate and the pending adjudication can go "
-                         "red; offline, drives nothing")
+                         "red, and read `rally.counts` over written tapes; offline, "
+                         "starts no subprocess")
     args = ap.parse_args(argv)
 
     if args.selftest:

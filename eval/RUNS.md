@@ -2642,6 +2642,36 @@ reports a ceiling firing that is a real defect. The frame set must contain no fl
 frame drew something — and the play-bot or the scene probe must condemn the submission too. The
 output recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that test.
 
+## `rally.counts` BECAME ALL-OR-NOTHING ON 2026-08-27 — a TWENTY-SIXTH comparability break, and no stored verdict can be re-read against it
+
+**Check the ordinal before citing it**, as the twenty-fifth says: cite the heading, not the number.
+
+`bot_pong._rally` returned `rose_on_hit > 0` — the rally counter had to rise on **one** paddle hit
+of the drive. It now requires a rise on **every** hit the drive can read, which is the standard
+`paddle.deflects` beside it already held. The criterion's question did not change; the reading of
+it did. `tasks/171`.
+
+**A verdict written before 2026-08-27 is not comparable with one written on or after it**, and
+unlike the twenty-fifth this break **cannot be checked against the stored corpus**. `python3
+eval/judge/tier2_census.py --runs-root <checkout>/eval/runs` reads `rally.counts` at **25 gradings,
+0 failures** before the change and the same after it — a stored verdict is a record, not a
+re-derivation — and every one of the **50** stored evidence strings reads `rally counter
+incremented on paddle hits (6 hits seen)`, the format that predates `tasks/159`. `grep -rl "rally
+rose on" eval/runs/` returns **0** files, so the number the new reading needs was never written
+down. Whether any of the 25 would fail it is answerable only by re-driving those submissions.
+
+**What did not change.** The one-tick contract (`DECISIONS.md`, and `tasks/159`), the `rose_late`
+diagnostic, and `rally.resets` beside it. The floor is **one countable hit**, not the six proposed
+with the tightening, so a correct game with a short rally is not newly failed — pinned by the tape
+row *a correct counter, one hit in the whole drive*, which passes `1 of 1`.
+
+**Why it moved.** g1 defines `rally` as the number of consecutive paddle hits since the last point,
+so a hit the counter skips makes a line publish a rally its own event history contradicts. Measured
+on the reference before the change: a `ref_pong` counting only the left paddle's returns **PASSED**
+with `rally rose on 3 of 6 paddle_hit ticks`. It is now a mutant, and it is red.
+
+**What re-opens it.** A correct submission failing with `0 < rose_on_hit < countable`.
+
 ## `mean_ink` MOVED TO A PER-FRAME BACKGROUND ON 2026-08-27 — a TWENTY-FIFTH comparability break, and it moves no stored verdict
 
 **Check the ordinal before citing it.** Fifteen and sixteen were allocated the same day by
