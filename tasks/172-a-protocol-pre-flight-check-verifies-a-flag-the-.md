@@ -1,10 +1,11 @@
 ---
 id: 172
 title: A PROTOCOL pre-flight check verifies a flag the standing configuration never passes
-status: todo
+status: done
 priority: 3
 refs: 'eval/PROTOCOL.md, DECISIONS.md, #159, .agents/skills/run-matrix/SKILL.md'
 done_when: The cap row names a flag the standing configuration actually passes, or is removed with the row below it re-worded so it no longer depends on 'the cap' as its antecedent. Every other row in that table is checked for the same defect and the result stated, with 'this was the only one' being a complete answer. eval/PROTOCOL.md's two statements about what bounds a trial agree, and docstat --sweep and linkcheck stay green.
+established_by: 'Repaired by the orchestrator; no agent, since the queue''s bot_mutants cluster was blocking dispatch and this touches nothing task 163 holds. The row now names the TURN CEILING, and the reason is measured rather than argued: MAX_BUDGET_USD is None in eval/wholegame.py and no flag sets it, so a check for that cap cannot fire, while MAX_TURNS = 1000 is the live bound and carries the identical read-at-import property. The dependent row below - which began ''Same mechanism as the cap'' - now reads ''the same read-at-import mechanism as the turn ceiling above'', so nothing is orphaned. Every other row of the ten was checked for the same defect and none has it: the harness and preflight rows are new and correct, and the rest name verify_blind, audio_selftest, bot_mutants, the starters, the prompt snapshot, machine health and session capacity, all of which the standing configuration exercises. This was the only one. sweep and linkcheck both exit 0.'
 ---
 
 `eval/PROTOCOL.md`'s pre-flight table is headed *"run every check below. Each has cost trials at
