@@ -473,9 +473,9 @@ any per-aspect table, so the two must never be presented as summarising one anot
 ### A harder task is PRICED here, and gated behind a free pre-test — decided 2026-08-23
 
 Tier 2 is the only scored tier and it saturates, so the remedy proposed has been a harder task.
-**A harder task costs a matrix, so this entry brings the price and the one measurement that
-decides whether that capacity would return anything. Whether to consume it is the operator's
-call and is not taken here.**
+**A harder task costs a matrix, so this entry records the account capacity it would take and
+the one measurement that decides whether those extra trials would produce evidence.
+Committing that capacity is the operator's call and is not made here.**
 
 **First, the corpus is flatter than the group count says.** Tier 2 has produced **no selective
 failure anywhere in the 69-trial corpus that survives adjudication.** `wg-matrix-2026-08-13` is

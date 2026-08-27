@@ -805,8 +805,8 @@ Moved to `runs/archive-arena2d-wg-audio48/` with its records, artifacts and work
 `wg-audio48` (pong and tetris only), 0 arena records, 8 tarballs each opened and counted.
 Full rationale in that directory's `README.md`.
 
-`wg-audio48` is therefore now a **16-trial, two-game run**, and its tokval line above is the
-16 records only. The arena tokval moved with the arena trials.
+`wg-audio48` is therefore now a **16-trial, two-game run**, and the reported tokval covers only
+those 16 records. The arena tokval moved with the arena trials.
 
 ## Two arena trials were killed, and their `terminal_reason` is `None`
 
