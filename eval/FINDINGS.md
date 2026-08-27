@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#201 from building and running this evaluator. **Check whether a
+Findings #19-#202 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -277,6 +277,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **199** | a literal printed beside a computed header, whose own parts never summed | [certifies-nothing](findings/certifies-nothing.md) |
 | **200** | the same evidence string read PASS under one verdict and FAIL under the other | [fail-open](findings/fail-open.md) |
 | **201** | a filter written before a population existed excluded it silently and reported clean | [certifies-nothing](findings/certifies-nothing.md) |
+| **202** | the control that pinned the recursion ceiling was the thing preventing recursion | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

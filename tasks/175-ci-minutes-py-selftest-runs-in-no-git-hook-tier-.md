@@ -1,11 +1,12 @@
 ---
 id: 175
 title: ci_minutes.py --selftest runs in no git-hook tier, so a workflow edit can go red only in CI
-status: in_review
+status: done
 priority: 3
 refs: .githooks/run-gates.sh,eval/tools/ci_minutes.py,.github/workflows/README.md,tasks/164
 done_when: 'Either `ci_minutes.py --selftest` runs in a hook tier - pre-commit if it is cheap enough, pre-push otherwise, with the measured runtime stated and added to the register''s own cost column - or it is deliberately excluded and .github/workflows/README.md records the exclusion with the reason, which that file already requires for every gate left out. A control proves the chosen tier actually fires: edit a workflow file the way tasks/164 did, and the hook must go red where it previously stayed green.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/60
+established_by: 'Merged as PR #60. The gap was measured before any change: a step added to .github/workflows/controls.yml gave ci_minutes --selftest exit 1 while pre-commit AND pre-push both gave exit 0, so the check that guards the CI register ran in neither hook tier. It is in pre-push now. Verified by the orchestrator on the live path: I planted a step into controls.yml and ran the real hook - pre-push exits 1 naming ''python3 eval/tools/ci_minutes.py --selftest'' as the red gate, and exits 0 with the file restored. THE TIER WAS CHOSEN ON DUTY CYCLE RATHER THAN COST, AND AGAINST THE REGISTER''S OWN COST RULE: at 1.78s it is smaller than pre-commit''s largest existing gate, but its inputs are touched by 79 of main''s 678 commits, so 88 percent of commits cannot move its verdict while all would pay. pre-push went 18.45s to 20.41s. The ticket asked for the runtime to be added to the register''s cost column; there is no such column and there must not be, because the register and DECISIONS.md both record that no hook timing is published - the agent said so rather than inventing one. TWO FALSE NEGATIVES, BOTH FOUND BY ASKING WHAT A CHECK COULD STILL PASS ON. Making the tool a hook gate makes it and the hook mutually recursive: with the python3 shim disabled it reached 8 hook levels in 25 seconds and was still climbing when killed. The first ceiling control WAS THE RECURSION ENGINE - it pinned GATES_DEPTH=1 and executed, and a control that pins a counter also resets it, so no level could ever reach the ceiling. And acceptance is not propagation: round 1''s rows preset the value and read the hook''s own answer, so ''depth=1'' and a deleted export both passed at exit 0, verified by planting each against the earlier head rather than assumed. Also fail-open and now closed: $((${GATES_DEPTH:-0} + 1)) reads -1000 as -999 and abc as 0 under /bin/sh, so the value is matched against a closed set. 10 planted mutants all died; selftest 94/55 to 101/63. FOUND ON THE WAY AND FIXED: the register published gates at 75-115s and controls at 658-827s; re-read with its own command they are 127-208s and 706-970s, with 24 of 24 runs outside the band published for them - not caused by this ticket, and its own gate is not in gates.yml''s slowest 12. tasks/184''s core.bare guard wants a home in this same script and would fold in cleanly; left alone deliberately to keep one ticket to one change. Findings #202.'
 ---
 
 `eval/tools/ci_minutes.py --selftest` checks that the CI register in .github/workflows/README.md describes the workflows that actually exist, and it derives the hook list by RUNNING the hook rather than by restating it.
@@ -204,3 +205,40 @@ Branch merged up to `main` (6 commits) and re-verified at the merge head: the 9-
 9 of 9 DIED, and the ticket's own control still gives `pre-push` exit 1 and `pre-commit` exit 0
 on a planted `controls.yml` step. `mergeable.py` refused the pre-merge head for being behind,
 which is what prompted the merge.
+
+## note 2026-08-27
+
+## Correction, and the final state — 2026-08-27
+
+**The note above says "Round 4 never arrived". That is wrong, and the mechanism is worth
+keeping.** Round 4 landed on the *merge* head 15 minutes after it was written: merging `main`
+into the branch re-triggered a review, and `gh pr checks` had been reading `CodeRabbit pass —
+Review rate limited` while the round that would run was still ahead. **A rate-limited notice
+records a request that was refused, not a review that will never come** — the check name says
+`pass` either way, which is `tasks/187`.
+
+So: **4 rounds, 11 comments.** Round 4's own body states the allowance — *"up to 10 included
+reviews per hour"* — which is why 3 requests in a row bounced and the 4th, unrequested, ran.
+
+### Round 4
+
+| | |
+|---|---|
+| **acted on** | the noncanonical-value rows asserted only that `GATES_DEPTH` appeared in stderr, so a message naming the variable and dropping the value would pass. Several callers set it, and saying *which* value arrived is the guard's whole job. The ceiling row now asserts `GATES_DEPTH=2` and each rejection row `GATES_DEPTH=<bad>`; a tenth mutant, `no_value`, drops the value and keeps the name — it passed the round-3 pins at exit 0 |
+| **declined, 3 comments** | `DECISIONS.md` 3230–3293, 3320–3323 and 3439 are not this branch's changes. They arrived when `main` was merged in, and belong to `tasks/171`, `tasks/167` and the capability work. **`tasks/188` was filed independently for exactly those three while this was in flight**, which is where they belong: this branch's `DECISIONS.md` change is one block near line 1637 |
+
+**That decline is a reusable observation, not a special case.** Merging `main` mid-review puts
+other tickets' landed prose into the review's file set, and the comments come back addressed to
+whoever is holding the branch. `tasks/188` records the same thing from PR #61. The test is
+whether the lines are in *your* diff, and `git log -1 -L <range>:<file>` answers it.
+
+### State at handback
+
+`in_testing` at merge head `a90c5e8`, `main` merged twice (6 commits, then 5). Re-verified at
+that head: `ci_minutes --selftest` 101 mutants / 63 variants exit 0, the 10-mutant sweep 10 of
+10 DIED, and the ticket's own control gives `pre-push` exit 1 and `pre-commit` exit 0 on a
+planted `controls.yml` step. `gates` and `controls` were both SUCCESS at the previous head;
+they are re-running at this one, and `mergeable.py` is the gate on that.
+
+**Round 5 was requested twice and refused for allowance both times.** It is not a clean round
+and must not be read as one.
