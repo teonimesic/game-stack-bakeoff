@@ -6297,3 +6297,87 @@ would pay for it. It went to `pre-push`. *A cheap check on a rarely-touched inpu
 check; it is a frequent check with a low hit rate.*
 
 ---
+## #203 - the gates cover the shipped walkers, and the analysis that files the tickets is not a walker
+
+A cleanup pass reported that two harnesses record trial wall-clock under two names and only one is
+read: `wholegame.py`'s `wall_s`, read in 6 places, and `runner.py`'s `duration_ms`, **read nowhere**,
+holding *"4.4 hours over 47 of 55 records"*. It became `tasks/186`. **Both halves of that were
+wrong**, and the way they were wrong is the finding.
+
+**`duration_ms` is not a second name for `wall_s`. It is a third quantity held by a different
+party** - the agent CLI's report of its own internal run, nested inside the timing script's
+stopwatch. Over 157 paired observations `wall_s - duration_ms/1000` is min 0.9 s, median 1.1 s, max
+6.5 s and **negative on none**: additive harness overhead, not a naming inconsistency. A repair that
+"reconciled the two names" would have destroyed a real nesting.
+
+**And the population was undercounted by a trap this repository has already numbered.** The census
+globbed `eval/runs/*/trials/*.json`. Reproduced at merge time: that shallow pattern sees **139 files
+and 47 carrying**; `runs/**/trials/*.json` sees **163 and 71**. Two run directories are wrappers
+holding others, which `#126` and `#127` record by file and by number, and which `tier1_census`'s
+walker was rewritten to handle.
+
+> **No shipped tool was at fault. Every walker that gates something already handles the nesting.**
+> The defect was in a one-off shell pipeline written to *look* at the tree - and that is the
+> population no gate covers, because it does not exist until someone asks a question.
+
+That is the gap. A gate protects the code that ships. The census that decides *what ticket to file*
+is written fresh each time, runs once, and its answer goes into a ticket where it reads as
+established. Here it produced a ticket whose premise was wrong in two independent ways, and only the
+agent re-deriving both from the artifacts caught it.
+
+> **An ad-hoc census is a measurement with no control, and it is the one most likely to be believed,
+> because it is the one that gets written down.** Before a hand-rolled walk becomes a ticket's
+> evidence, run it against a shipped walker over the same tree and reconcile the counts - the
+> disagreement is the control.
+
+Three smaller items from the same work, each the shape this file collects. A refusal returned
+`0 paired, 0 negative, exit 0` on an all-unpaired corpus - green over nothing. Fixing it made an
+existing mutant **survive**, because a second guard raising the same exception class disarmed a
+type-only check; both refusals assert their *cause* now. And `.github/workflows/README.md`'s opening
+table was the **third** copy of a number only two of whose copies were checked, and it drifted during
+a merge - now asserted against `gate_census()`.
+
+---
+## #204 - the reviewer's row reached the merge gate with no verdict, and its meaning in a field the payload drops
+
+`mergeable.py` printed `gates SUCCESS` and `controls SUCCESS` for PR #58 and **CodeRabbit appeared in
+no line of its output at all.** Two mechanisms had to combine: `report()` iterated the required checks
+only, and CodeRabbit arrives as a `StatusContext`, which carries `state` and has **neither
+`conclusion` nor `status`** - so the gate's `conclusion or status` read returned `None` for it even
+where it looked. The `description`, the field carrying the words a human reads, is **not in
+`statusCheckRollup` at all**.
+
+Meanwhile `gh pr checks` showed `CodeRabbit pass — Review rate limited`. A refused request presenting
+as a pass, in the view a person reads, while the view the gate reads carried no verdict at all.
+
+**The obvious repair - match on the description - is wrong, and a case nobody had seen proves it.**
+PR #62's description is **byte-identical** to a genuinely reviewed PR's, at a head where no round
+finished: `queued` → `in progress` → `completed` in **6 seconds**, with nothing written.
+
+> **No set of description strings separates a reviewed head from an unreviewed one.** A status is
+> posted when a round is *attempted*, not when one *completes*. Matching the words would have been the
+> open-class trigger this repository already rejects, and here it has a live counterexample rather
+> than an argument.
+
+The reading is the **review timeline**: `pulls/<n>/reviews` → `commit_id`, filtered to
+`coderabbitai[bot]` - **with the `[bot]` suffix**, the exact spelling whose absence produced an empty
+result read as "no warning exists" earlier in this project, and which `AGENTS.md`'s rule-12 table
+records. The description is quoted and never matched on.
+
+**It reports and does not gate, and that is not timidity.** The merge recipe ends by merging `main`
+in, so the landing head is unreviewed **by construction** - a gate here would be red on every pull
+request at merge time, and a gate that is always red is a gate that gets bypassed. Recorded in
+`DECISIONS.md` with the condition that would reverse it.
+
+**The limit is stated rather than hidden.** A clean incremental round writes no review object, so the
+note says the head *"carries no review of its own"*, adds that this is not proof it went unread, and
+prints the command that can say more. `mergeable_mutants.py` requires every mutant to turn a **named**
+row red; a crash-only catch is reported NOT CAUGHT, which forced two mechanisms to be factored out so
+they fail by disagreement rather than by exception.
+
+A defect found in review and worth carrying: the gap between the reviewed head and the current one was
+first counted in `/pulls/<n>/commits`, which **caps at 250**. On a long-lived branch that list need not
+reach the head, so the count would have been a plausible in-range number rather than an error - the
+shape rule 3 names, arriving through pagination instead of through a pipe.
+
+---

@@ -347,6 +347,22 @@ grader owns its own three, listed in `judge/AGENTS.md`.
 - Score per task first, then take the SE across tasks. Pooling across trials is inconsistent.
 - Use paired per-task differences for arm comparisons, and Wilson intervals for pass rates.
 
+**Wall clock is TWO stored quantities, and its producer is
+`python3 tools/wallclock.py`.** `wall_s` is the harness's own stopwatch around `run_agent()`
+and is what every figure in `RUNS.md` quotes; `duration_ms` is the agent CLI's report of its
+own run, nested inside it. They are not two names for one thing, and the gap between them is
+the harness's spawn-and-parse overhead — median **1.1 s** over 157 paired observations, never
+negative. Two things to know before reading either:
+
+- **The self-report lives at a different address per harness.** `runner.py` puts it in the
+  record at `agent.duration_ms`; `wholegame.py` leaves it in
+  `artifacts/<tid>/agent_result.json`, so a sweep of `trials/*.json` alone finds it in **0**
+  whole-game records and concludes the live harness never captured it. The tool takes both
+  addresses and reports which one each record used.
+- **`wholegame.py` times with `time.monotonic()` and `runner.py` with `datetime.now()`**, so
+  only one arm's figure is immune to a clock step. The tool exits non-zero on a negative
+  delta, which is what a step would look like.
+
 **Reading the agent's own closing message — there is now a reader.** `wholegame.py report`
 prints each trial's located passages beside its score, and
 `python3 tools/disclosure.py --run-dir runs/<run>` gives them without waiting for evaluation;
