@@ -1,11 +1,12 @@
 ---
 id: 176
 title: docstat project_docs() globs the filesystem, so an untracked scratch .md joins a corpus a ratchet is pinned to
-status: in_review
+status: in_testing
 priority: 2
 refs: eval/tools/docstat.py, tasks/160
 done_when: project_docs() and _live_corpus() agree on which files are in the tree, asserted in code rather than promised in a comment; a planted untracked .md under a gitignored directory does not move the --sweep corpus count or the bare-trial-id ratchet, pinned as a control that goes red if the filter is removed; docstat.py --sweep and --selftest exit 0.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/54
+established_by: 'PR #54 at 53a387a. Planting an untracked .md under staging/ moved --sweep 249 to 250 before and 249 after; the same note under staging/findings/ with 3 bare trial ids moved the ratchet 18 to 21 (exit 1) before and 18 (exit 0) after, while the identical id in a tracked findings file still fires 19 (exit 1). No pinned count moved: glob and index return the same 238 project docs on a clean tree. corpus_control.py, 7 of 7 mutants dead. gates and controls SUCCESS, mergeable.py 54 says mergeable.'
 ---
 
 project_docs() in eval/tools/docstat.py builds its list with glob over ROOT, filtered only by is_vendored and a runs/ exclusion. git ls-files does not come into it, so any markdown file sitting in a gitignored directory enters the count. Measured 2026-08-27 while working tasks/160: writing one scratch note at staging/task-160-note.md moved docstat.py --sweep from "references over 239 docs (228 project + 10 skills + 1 under .github)" to 240 (229 project), at exit 0 both times. Renaming the file to .txt put it back to 239. The helper docstring says the bare-trial-id ratchet is "pinned to an exact count a larger corpus would move", so the failure mode is not only a wrong published number: a file that is not in the repository can move a gate that is. _live_corpus() in the same module reads git ls-files and is unaffected, which is the fix shape - two spellings of one tree, and only one of them is the tree.
@@ -158,3 +159,26 @@ path:`.
 adds `corpus_control`, so the merged count is **neither side's pinned number** — `python3
 eval/tools/ci_minutes.py --gates` decided it, and both pins and both register sentences
 state what it read.
+
+## note 2026-08-27
+
+## Review state at hand-back, stated rather than waited on
+
+**2 rounds of review, both worked, and the last one came back clean.** Round 1 raised 3
+comments, round 2 raised 2, all 5 real and all 5 acted on; every one has a reply in its
+thread. The round after round 2's push returned `LANDED_COMMENT` at `920e12f` — the reviewer
+finished and had nothing to say. That head carried the complete code diff.
+
+**No round has arrived at the head that will land, `53a387a`,** which is a merge of `main`
+plus queue files and changes no line of this branch's code. Measured: `pr_review_state.py`
+expired `UNRESOLVED` (exit 13) after 20 minutes with `in_flight=0` throughout, an explicit
+`@coderabbitai review` was posted, and a further 10 minutes of polling still reads
+`NOT_YET`. Per `.agents/skills/work/SKILL.md` that is the shared round pool being spent, not
+a clean review, so it is reported rather than waited on.
+
+**CI is green at `53a387a`**: `gates` SUCCESS, `controls` SUCCESS (12m52s), and
+`python3 eval/tools/mergeable.py 54` says *mergeable: required checks green at the current
+head, branch up to date, no unresolved review thread, and GitHub agrees.*
+
+`main` moved twice during the review and was merged in both times. The second merge is why
+the branch carries `tasks/176`'s own earlier note.
