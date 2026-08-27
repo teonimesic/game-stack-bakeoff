@@ -3053,7 +3053,8 @@ criterion has never once withheld.
 identical, but step 2 is missing there: the g3 contract gives `multiplier` no definition at all —
 only that it *"falls when the player is hit"* — and the other half of that one sentence is read
 by `multiplier.rises` over hundreds of ticks by any mechanism. Nothing licensed reading this half
-to the tick, so the fall is now read over **8** ticks from the damage.
+to the tick, so the criterion now reads the damage tick **and the 8 ticks after it**, and passes
+on the first of those 9 where the multiplier moves, if it moved down.
 
 **The widening is not the half that mattered.** The old criterion compared the peak the killing
 phase reached against the value on the hit tick, and on the reference those are **459 idle ticks**

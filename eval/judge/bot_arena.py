@@ -1041,7 +1041,9 @@ class ArenaBot(Bot):
 
     # -- the multiplier collapse, and dying --------------------------------- #
 
-    #: How long after the damage tick the collapse may still be published. THE G3
+    #: HOW MANY TICKS AFTER the damage tick the collapse may still be published. The
+    #: criterion reads the damage tick itself and then this many more, so the window is
+    #: 9 observations wide and the drop is `_FALL_WINDOW` ticks late at the latest. THE G3
     #: CONTRACT DOES NOT FIX THE TICK, which is why a window exists at all: it says a
     #: multiplier "rises with sustained killing and falls when the player is hit", and
     #: it declares a `multiplier` event meaning "the score multiplier changed". One
@@ -1052,7 +1054,7 @@ class ArenaBot(Bot):
     #: of the very events the tick line carries, so a line raising `paddle_hit` with a
     #: rally that excludes it contradicts itself. `multiplier` has no such definition.
     #:
-    #: 8 ticks admits the shape that motivates the window - a game that resolves the
+    #: 8 admits the shape that motivates the window - a game that resolves the
     #: collision in one pass and applies the score change in a later one, landing the
     #: drop a tick after the event - and the first step of a ramp that walks the
     #: multiplier down over several ticks. It is 1.7% of the 459 idle ticks the

@@ -392,15 +392,33 @@ Three are genre-defining and none can be settled from a frame:
   The bot finds an enemy on the tick it appears and fires into that window, so a game
   that reports the flag and ignores it fails.
 
-**13 of the 22 are pinned by a mutant** (`python3 eval/judge/bot_mutants.py --hazards`
-counts the mutated criteria per fixture; the full run reports the mutants, variants and
-controls and must exit 0): snapped
-analog input, enemies that appear fully formed, one kind wearing three names, a multiplier
-that never rises, one that survives damage, one that lapses on a combo timer while damage
-never touches it, a boundary that is never reported, a dropped
-depth axis, a volume that does not hold, a bullet every tick, a kill worth nothing,
-enemies that pass through the player, and a game that reports itself over and keeps
-stepping. The unpinned 9 are `state.shape`, `player.moves`, `enemies.spawn`,
+**13 of the 22 are pinned by a mutant.** A mutant is the reference fixture with one
+behaviour surgically removed: the criterion must pass the reference and fail the mutant.
+`python3 eval/judge/bot_mutants.py --hazards` counts the mutated criteria per fixture,
+and the full run drives every mutant, variant and control, prints one row per mutant,
+and must exit 0.
+
+A criterion may carry more than one mutant, so the mutants outnumber the criteria. The
+list below is the `ref_arena` rows of that run; read the run for the current set,
+because nothing keeps this copy in step with it.
+
+- `enemies.chase` — enemies walk a fixed heading
+- `move.analog` — analog input snapped to eight-way
+- `enemy.materialises` — enemies appear fully formed
+- `enemy.kinds` — one kind wearing three names
+- `multiplier.rises` — the multiplier never rewards a streak
+- `multiplier.falls` — the multiplier survives damage
+- `multiplier.falls` — the multiplier lapses on a combo timer, and damage never touches it
+- `wall.graze` — the boundary is never reported
+- `aim.three_axis` — the depth axis is dropped from aim
+- `player.bounded` — the volume does not hold the player
+- `fire.rate_limited` — a bullet every tick
+- `fire.rate_limited` — a bullet every tick, with `fire` reported only on the rising edge
+- `score.on_kill` — a kill is worth nothing
+- `player.takes_damage` — enemies pass through the player
+- `gameover.triggers` — game over is reported and the simulation keeps stepping
+
+The unpinned 9 are `state.shape`, `player.moves`, `enemies.spawn`,
 `fire.spawns_bullets`, `aim.independent`, `bullets.kill`, `wave.advances` and the 2
 determinism criteria — those 2 are pinned on `ref_pong` over shared code.
 
