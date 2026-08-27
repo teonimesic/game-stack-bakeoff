@@ -113,6 +113,7 @@ def self_report_seconds(runs_dir: Path, run: str, record: dict) -> tuple[float |
     | `artifact_unreadable` | a result object that will not parse: the capture broke |
     | `artifact_unusable` | it parsed, and the field is not a duration |
     | `no_self_report` | it parsed and this CLI reports no such field. prime-agent does not |
+    | `no_trial_id` | the record names no trial, so the artifact has no address to look at |
 
     The address is RETURNED rather than inferred by the caller, because a whole-game
     record and a spec-change record keep this figure in different places and a reader
@@ -214,6 +215,19 @@ def reconcile(runs_dir: Path) -> dict:
         pop["self_report_hours"] = round(pop["self_report_hours"], 2)
         pop["addresses"] = dict(sorted(pop["addresses"].items()))
         del pop["deltas"]
+
+    # A CORPUS WHERE NOTHING PAIRS IS A REFUSAL, NOT AN AGREEMENT. Without this,
+    # `paired_observations: 0, negative_deltas: 0` and exit 0 — `total=0 passed=0`, which
+    # `AGENTS.md` rule 1 says is indistinguishable from a correct pass. It is reachable:
+    # a tree of prime-agent records alone has no self-report anywhere, and so does one
+    # whose `artifacts/` was never synced. The message names the addresses so the two are
+    # told apart at a glance rather than by re-deriving them.
+    if not all_deltas:
+        raise CensusError(
+            f"{runs_dir} holds {sum(p['records'] for p in pops.values())} trial record(s) "
+            f"and not one carries both clocks — refusing to report agreement over 0 "
+            f"observations. Where the self-report was looked for, per population: "
+            + "; ".join(f"{n} {p['addresses']}" for n, p in sorted(pops.items())))
 
     return {
         "runs_dir": str(runs_dir),
@@ -322,11 +336,54 @@ def selftest() -> int:
         # Direction 1: a missing tree refuses. An agent worktree has no eval/runs/, and
         # "0 paired observations, no negatives" is the shape of a green gate that read
         # nothing.
+        #
+        # THE MESSAGE IS ASSERTED, NOT ONLY THE EXCEPTION TYPE, and the mutant sweep is
+        # what forced that. There are now TWO refusals raising `CensusError` - the tree
+        # could not be read, and the tree read fine and nothing paired - so a type-only
+        # check passes on either, and `empty_is_zero` (which deletes the first) survived
+        # by falling into the second. Both exits are correct; only one is the right
+        # DIAGNOSIS, and a reader handed the wrong one goes looking in the wrong place.
         try:
             reconcile(runs)
             failures.append("missing runs dir: returned a report instead of raising")
-        except CensusError:
-            pass
+        except CensusError as exc:
+            check("the missing-tree refusal names the tree, not the pairing",
+                  "no runs directory at" in str(exc), True)
+
+        # Direction 1a: an existing but EMPTY tree refuses too, and for its own reason.
+        runs.mkdir(parents=True)
+        try:
+            reconcile(runs)
+            failures.append("empty runs dir: returned a report instead of raising")
+        except CensusError as exc:
+            check("the empty-tree refusal names what it did not find",
+                  "holds no **/trials/*.json" in str(exc), True)
+
+        # Direction 1b: A CORPUS WHERE NOTHING PAIRS IS ALSO A REFUSAL. This one is not
+        # about a tree that cannot be read - the records are here, they parse, and the
+        # census is happy. Every one of them simply lacks a clock, which is reachable for
+        # real: a tree of prime-agent records alone, or one whose `artifacts/` was never
+        # synced. Without the guard this is `paired_observations: 0, negative_deltas: 0`
+        # at exit 0 - `total=0 passed=0`, the shape rule 1 forbids, and the ONLY assertion
+        # this tool makes would be vacuously green.
+        with tempfile.TemporaryDirectory() as tmp0:
+            unpaired = Path(tmp0) / "runs"
+            _write(unpaired / "wg-p" / "trials" / "g1__rust__t0.json",
+                   {"trial_id": "g1__rust__t0", "game": "g1", "stack": "rust",
+                    "wall_s": 10.3, "harness": {"name": "prime-agent"},
+                    "agent": {"harness": "prime-agent",
+                              "terminal_reason": "completed"}})
+            _write(unpaired / "wg-p" / "artifacts" / "g1__rust__t0" / ARTIFACT_NAME,
+                   {"harness": "prime-agent", "exit_code": 0, "messages": []})
+            try:
+                reconcile(unpaired)
+                failures.append("a corpus where nothing pairs: reported agreement over "
+                                "0 observations instead of raising")
+            except CensusError as exc:
+                # The refusal has to be diagnosable, or the next reader re-derives WHY
+                # nothing paired from the tree by hand.
+                check("the no-pair refusal names where it looked",
+                      "no_self_report" in str(exc), True)
 
         # THE KNOWN-ANSWER TREE, stated first.
         #

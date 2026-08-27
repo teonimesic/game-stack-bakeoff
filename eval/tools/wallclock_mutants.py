@@ -23,6 +23,7 @@ makes it necessary rather than tidy:
 | `one_unpaired_counter` | `no_harness_clock` as its own axis | a record missing the harness clock reported as a record missing the self-report — the wrong file again, and it makes the two failures uncountable |
 | `pool_populations` | the whole-game / scene / spec-change partition | a scene inside the game figures, which `eval/SCENES.md` forbids in as many words, and the retired suite's records inside the live harness's overhead |
 | `empty_is_zero` | the refusal on a tree that cannot be read | `0 paired observations, 0 negative deltas` for a directory that does not exist — a green gate that read nothing, the shape `AGENTS.md` rule 3 forbids by name |
+| `no_pair_is_agreement` | the refusal on a corpus where NOTHING pairs | the same `0 / 0` at exit 0, reached from a tree that reads perfectly — every record simply lacks a clock. A tree of prime-agent records alone does this, and the tool's only assertion goes vacuously green |
 | `drop_field` | a field the selftest reads, renamed | the selftest dying on a `KeyError` instead of reddening a row. It is here because a suite that crashes and a suite that fails both exit non-zero, and only one of them says what broke |
 
 **A mutant asks whether a check can fail. Only a variant asks whether it can still pass**
@@ -92,6 +93,9 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "    records, _ = load_records(runs_dir)",
         "    try:\n        records, _ = load_records(runs_dir)\n"
         "    except CensusError:\n        records = []"),
+    "no_pair_is_agreement": (
+        "    if not all_deltas:\n        raise CensusError(",
+        "    if False:\n        raise CensusError("),
     "drop_field": (
         '            "negative_deltas": len(negatives),',
         '            "negative_deltas_RENAMED": len(negatives),'),

@@ -171,15 +171,16 @@ floor or range is computed.
 **Never pool this record with a game population.** It carries `game: g1_pong` because every
 record does, and it was not asked to build pong.
 
-## THE TWO CLOCKS THAT TIME A TRIAL, and they agree to a measured 1.1 s — 2026-08-27
+## THE TWO CLOCKS THAT TIME A TRIAL, and they agree to a measured median 1.1 s — 2026-08-27
 
 **Not a comparability break, and no figure in this file moves.** It is here because wall clock
 is a comparison metric above and nothing said what the stored figures were measuring.
 
-Every wall-clock figure in this ledger is **`wall_s`**, which both harnesses record. A second
-quantity is stored beside it — **`duration_ms`**, the agent CLI's own report of how long it ran
-— and until `tasks/186` nothing in the repository read it, so no document could say whether the
-two were the same measurement.
+Every wall-clock figure in this ledger is **`wall_s`**, which both harnesses record on every
+trial. **Where the agent CLI reports one**, a second quantity is stored beside it —
+**`duration_ms`**, the CLI's own account of how long it ran — and until `tasks/186` nothing in
+the repository read it, so no document could say whether the two were the same measurement.
+6 stored records have no self-report at all; they are enumerated at the end of this section.
 
 **They are not two names for one quantity. They are two stopwatches on nested intervals, held
 by different parties:**
@@ -197,14 +198,15 @@ none of them**. That difference is the harness's own spawn-and-parse overhead.
 it **exits non-zero if a negative delta ever appears**, which is what a clock moving mid-trial
 would look like on the arm that does not use a monotonic one.
 
-> **The conversion is a CONSTANT, and stating it as a percentage pools two populations.** The
-> overhead does not scale with the trial: it is ~1 s on a 1.6 s trial and ~1 s on a 4961 s one,
-> and the largest value in the corpus, 6.5 s, belongs to the longest trial rather than to a
-> proportion. Expressed as a ratio, `duration_ms/1000` over `wall_s` runs from **0.2347 to
+> **The overhead is ADDITIVE, not proportional — which is not the same as fixed.** It does not
+> scale with the trial: ~1 s on a 1.6 s trial and ~1 s on a 4961 s one, and the corpus maximum
+> of 6.5 s belongs to the longest trial rather than to a proportion of it. **It still varies
+> across a 7x range, so 1.1 s is the median and not a figure to subtract from any single
+> trial.** Expressed instead as a ratio, `duration_ms/1000` over `wall_s` runs from **0.2347 to
 > 0.9998** — and the 5 lowest are all `wg-g4b-2026-08-17T19-50-43`, the run this file records as
 > a null, whose 8 trials the API refused in under 2 seconds each. A range that wide describes
 > the length of those trials and nothing about the two clocks. **Quote the difference in
-> seconds, never the fraction.**
+> seconds, never the fraction, and quote the distribution rather than one number.**
 
 **Which figure each suite uses after this: both use `wall_s`, exactly as before.** That the
 published figures do not move was checked rather than assumed — `duration_ms` has no reader
