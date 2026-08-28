@@ -81,6 +81,13 @@ jobs:
       - name: linkcheck (markdown links that resolve to nothing)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/linkcheck.py
+      # The mode, not the bare run above: it pins the link grammar and the GitHub anchor
+      # rule the bare form leans on, on a temp tree whose answers are stated in advance.
+      # Bare-but-not-the-mode was the shape task 180 filed; `ci_minutes --controls`
+      # now reads the two as different invocations. 0.04s locally.
+      - name: linkcheck --selftest (the anchor rule the bare form leans on)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/linkcheck.py --selftest
       # `docstat`'s duplicate-fragment check, both ways, over the live document corpus. Its
       # `whole_line` mutant is the design that was tried first and measured as a complete
       # false negative, so this is what stops that being tried again silently -- and until
@@ -124,6 +131,25 @@ jobs:
       - name: ci_minutes --selftest (the minutes producer, and controls.yml's filter)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/ci_minutes.py --selftest
+      # Three census producers whose `--selftest` pins their extraction on fixtures whose
+      # answers are stated before the tool runs. All offline, all under 0.06s locally;
+      # each ran in
+      # no tier and under no register row until task 180, which is the gap
+      # `ci_minutes --controls` now closes.
+      - name: tools/census --selftest (the stored-tree producer's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/census.py --selftest
+      # `--skip-corpus` because the corpus arm reads `eval/runs/`, which is gitignored,
+      # and disclosure refuses rather than scoring an absent corpus as clean — its own
+      # three-valued design (corpus / skip-corpus / UNMEASURABLE). The wholegame report
+      # path that consumes this tool is graded by rule 11, which is why the pins matter.
+      # 0.06s locally.
+      - name: tools/disclosure --selftest --skip-corpus (the disclosure locator's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/disclosure.py --selftest --skip-corpus
+      - name: tools/instruction_census --selftest (every count can rise and return to zero)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/instruction_census.py --selftest
 
       # ---- the prompts and the packs -----------------------------------------------
       - name: prompt_guard (engine names, per-stack rules, scene rubric vocabulary)
@@ -377,6 +403,30 @@ jobs:
       - name: judge/paired_verdicts --selftest (synthetic half; corpus pins need eval/runs)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/paired_verdicts.py --selftest
+      # Three more census producers, offline on fixtures whose census is stated in
+      # advance, all under 0.06s locally. `judge_ledger` pins the token-total arithmetic and the
+      # missing-round refusals; `tier1_census` and `tier2_census` pin their trial
+      # extraction with mutants. Each published no number that could be shown wrong
+      # until task 180 named them; the mode census in `ci_minutes --controls` holds that
+      # line from here.
+      - name: judge/judge_ledger --selftest (the judge-spend producer's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/judge_ledger.py --selftest
+      - name: judge/tier1_census --selftest (the floor-test producer's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/tier1_census.py --selftest
+      - name: judge/tier2_census --selftest (the play-quality producer's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/tier2_census.py --selftest
+      # `eval/instrfollow/pool.py` is the instruction-count experiment's apparatus: 16
+      # deterministic checkers, and its selftest is the gold artifact obeying all 16, a
+      # mutant sweep requiring each mutant to flip exactly one checker, the variant
+      # direction, and the fail-closed refusals -- over checked-in fixtures, no model in
+      # the loop. 1.7s locally. It lives outside eval/tools and eval/judge, which is why task
+      # 180's hand census over those two directories never saw it.
+      - name: instrfollow/pool --selftest (16 checkers, mutant sweep, gold artifact)
+        if: ${{ !cancelled() }}
+        run: python3 eval/instrfollow/pool.py --selftest
       # `skill_layout_control.py` itself is in controls.yml: its five plants need the real
       # document corpus, and it takes ~125s. What runs here is the half that only shows up
       # when that control DIES -- it plants into the real working tree, so an interrupted run
