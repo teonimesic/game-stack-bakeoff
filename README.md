@@ -292,9 +292,8 @@ python3 eval/judge/capability.py --runs eval/runs
 python3 eval/judge/regrade_wholegame.py eval/runs/<name>
 
 # prove blinding after a build. The trial trees live OUTSIDE this repository - a tree
-# inside it could reach the rubric by walking up - and `wholegame.py build` prints this
-# line with the work root it used. regrade_wholegame reads a run under eval/runs/;
-# verify_blind reads the WORK ROOT, never a stored run directory.
+# inside it could reach the rubric by walking up. `wholegame.py build` prints the work
+# root it used: pass its trial trees to verify_blind, never a stored run directory.
 python3 eval/judge/verify_blind.py <work-root>/<name>/*/
 ```
 
