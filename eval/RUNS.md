@@ -664,11 +664,12 @@ python3 eval/judge/prompt_capture_census.py --runs-root <main checkout>/eval/run
 | total | 57 | 39 | 18 | **0** | 0 |
 
 The classifier and every column of it are pinned on a fixture tree whose answers are written out
-beside it (`prompt_capture_census.py --selftest`), including the two rows that discriminate: a
-`.src` read inside a frames pack, and a `.png` outside `frames/`, which must not be counted as a
-frames read. It also pins the two shapes no capture ever takes — a dict where the list belongs,
-and a list holding a non-string — which are named `malformed` and refused whole: not counted as
-null, not partially classified, and never a reason the walk stops.
+beside it (`prompt_capture_census.py --selftest`). Two rows discriminate the un-carried column: a
+`.src` read inside a frames pack is counted un-carried, and a `.png` outside `frames/` lands in
+`other` rather than being counted as a frames read. Two more pin the malformed column: a dict
+where the list belongs, and a list holding a non-string. Each malformed shape is refused whole —
+named `malformed`, never counted as null, never partially classified — and neither stops the
+walk.
 
 **The defect is latent: 0 of the 39 captured non-code rounds read any evidence its pack did not
 carry.** The captured rounds' reads name only their own bucket's files and `BRIEF.md` — the audio
