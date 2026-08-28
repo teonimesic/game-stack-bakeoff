@@ -3803,6 +3803,11 @@ tokens); or a prime-agent release exposing a project-scoped context flag, which 
 
 ## The capture-geometry path measures, annotates and never refuses; the function that claimed to gate it is deleted — decided 2026-08-28
 
+`build_pack` measures each submission's capture geometry from its first frame, records it per
+blind label in the pack's `capture_geometry` mapping, and annotates `BRIEF.md` when the sizes
+differ; nothing on the path refuses a mixed-geometry field. That is the mechanism as it stands;
+this entry exists because two documents described a different one.
+
 `JUDGING.md` and `frame_parity.py`'s header said from 2026-08-21 that a frames-reading aspect on
 a field with mixed capture geometry was **refused** beside the completeness gate, and named
 `field.pack_parity` as that gate running inside `build_pack`. None of that was code:

@@ -104,8 +104,10 @@ absent corpus as clean.
 latent-null producers (task 201's: what the stored non-code judge rounds read against what their
 packs carried), each pinning its extraction on fixtures whose answers are stated beside them —
 all four under 0.06s locally — and `frame_parity --selftest` is the same shape for the
-capture-geometry census (task 202's: the property the pack path's first-frame read cannot
-see), with the first-frame read itself pinned as the mutant.
+capture-geometry census: a fixture field holding a submission whose frame size changes
+mid-film, a nested run directory a flat glob misses, and unreadable frames that must flag
+rather than pass, pinning the mid-film change as the property the pack path's first-frame
+read cannot see.
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and

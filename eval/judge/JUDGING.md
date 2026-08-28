@@ -907,8 +907,7 @@ aspect's absolute ranking of that submission.
 reading any frame-derived number." The completeness gate was run explicitly on instruction; this
 one was not, and the fact that it turned out not to carry the result is luck rather than method.
 
-**What the path does, corrected 2026-08-28 — the paragraph that stood here described a gate
-that never existed.** `build_pack` measures each submission's geometry from its first frame,
+**What the path does:** `build_pack` measures each submission's geometry from its first frame,
 records it per blind label in the pack's `capture_geometry` mapping, and when the sizes differ
 `_brief` renders a note into `BRIEF.md` naming each label's size and stating that the variation
 is a presentation choice the task left open. It never refuses. Refusing was rejected on
@@ -920,7 +919,9 @@ the field at 640x400 would erase a real difference between submissions and call 
 normalisation: the harness overwriting the thing it exists to measure. **Annotation here is
 right where #62's was wrong because of what is on the other end**: #62's caveat was
 `files_dropped_for_length`, a JSON field no code read and no human opened; this note goes into
-`BRIEF.md`, read by an agent whose whole task is to read it.
+`BRIEF.md`, read by an agent whose whole task is to read it. (A paragraph that stood here from
+2026-08-21 to 2026-08-28 described a refusing gate on this path; it was never code, and the
+correction is recorded in `DECISIONS.md`.)
 
 **What no code on the path sees:** the inline read is the first frame of each submission, so a
 submission whose frame size changes mid-film has no reader in `build_pack`. The producer for

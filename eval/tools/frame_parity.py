@@ -90,10 +90,12 @@ import png  # noqa: E402
 
 #: What a frame read can fail with, all of it documented: `png.read` raises
 #: `PngError` for every malformed shape it names, `OSError` for an unreadable
-#: file, and `struct.error`/`zlib.error` for bytes that pass the magic check
-#: and no further check. Anything else is a defect in this walker and
-#: propagates - a crash is visible, a silent skip is not.
-_FRAME_ERRORS = (png.PngError, OSError, struct.error, zlib.error)
+#: file, `struct.error`/`zlib.error` for bytes that pass the magic check and no
+#: further check, and `IndexError` when the IDAT stream decompresses shorter
+#: than the header's scanline count and the row walk runs off its end.
+#: Anything else is a defect in this walker and propagates - a crash is
+#: visible, a silent skip is not.
+_FRAME_ERRORS = (png.PngError, OSError, struct.error, zlib.error, IndexError)
 
 
 def frame_sizes(frames: list[Path], read=png.read) -> tuple[Counter, list[str]]:
@@ -240,6 +242,9 @@ def main(argv: list[str]) -> int:
                     help="run the fixture pins instead of any corpus")
     a = ap.parse_args(argv)
     if a.selftest:
+        if a.run or a.runs_root:
+            ap.error("--selftest takes no target: pass one of --run, "
+                     "--runs-root or --selftest, never a combination")
         return selftest()
     if a.run and a.runs_root:
         ap.error("--run and --runs-root are different questions; pass one")
@@ -306,6 +311,18 @@ def _fixture(root: Path) -> dict[str, dict]:
     frames("run-a/artifacts/t_odd/eval/frames", [(6, 6)])              # diverges across run-a
     frames("run-b/artifacts/t_unread/eval/frames", [(4, 2)])
     (root / "run-b/artifacts/t_unread/eval/frames/bad.png").write_bytes(b"\x89PNG\r\n\x1a\nxx")
+    # A png whose zlib stream is complete but whose payload holds too few
+    # scanlines for its own header: png.read's row walk runs off the end and
+    # raises IndexError - a third shape of unreadable, which must land in the
+    # unreadable flag rather than abort the census.
+    def _chunk(tag: bytes, body: bytes) -> bytes:
+        return (struct.pack(">I", len(body)) + tag + body
+                + struct.pack(">I", zlib.crc32(tag + body) & 0xFFFFFFFF))
+    (root / "run-b/artifacts/t_unread/eval/frames/short.png").write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+        + _chunk(b"IDAT", zlib.compress(b"\x00"))
+        + _chunk(b"IEND", b""))
     # Two poison rows for the population predicate, both present in the real
     # tree: a png under Unity's Library/artifacts build cache (an
     # artifacts-name walk reads 3147 of these as trials) and a frames dir
@@ -320,7 +337,10 @@ def _fixture(root: Path) -> dict[str, dict]:
                                     "nonuniform": True, "uniform": False},
         "run-a/artifacts/t_odd": {"n_frames": 1, "sizes": {"6x6": 1},
                                   "nonuniform": False, "uniform": True},
-        "run-b/artifacts/t_unread": {"n_frames": 2, "sizes": {"4x2": 1},
+        # n_frames counts frames PRESENT - 3 files, of which 1 readable and 2
+        # of unknown size - so the reader cannot lose an unreadable frame by
+        # dropping it from the denominator.
+        "run-b/artifacts/t_unread": {"n_frames": 3, "sizes": {"4x2": 1},
                                      "nonuniform": False, "uniform": False},
         "run-n/capped/artifacts/t_deep": {"n_frames": 2, "sizes": {"8x3": 2},
                                           "nonuniform": False, "uniform": True},
@@ -338,6 +358,15 @@ def selftest() -> int:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         want = _fixture(root)
+        # --selftest refuses a target: a contradictory invocation must fail
+        # loudly here rather than run the fixture and ignore what was asked.
+        try:
+            main(["--selftest", "--run", "somewhere"])
+            expect("selftest-exclusive", False,
+                   "--selftest with --run must be refused, not silently run")
+        except SystemExit as e:
+            expect("selftest-exclusive", e.code != 0,
+                   f"the refusal exited {e.code}, expected non-zero")
         rc, c = census(root)
         got = c["submissions"]
         expect("census-runs", rc == 0, f"census returned {rc}")
@@ -350,10 +379,11 @@ def selftest() -> int:
             for field in ("n_frames", "sizes", "nonuniform", "uniform"):
                 expect(f"{key}.{field}", g.get(field) == rec[field],
                        f"reads {g.get(field)!r}, expected {rec[field]!r}")
-        # The unreadable frame is itemised, not folded away.
+        # The unreadable frames are itemised, not folded away - both shapes:
+        # a non-PNG payload and a complete zlib stream too short for its header.
         expect("unreadable-itemised",
-               got["run-b/artifacts/t_unread"]["unreadable"] == ["bad.png"],
-               f"bad.png must be named, got "
+               got["run-b/artifacts/t_unread"]["unreadable"] == ["bad.png", "short.png"],
+               f"bad.png and short.png must both be named, got "
                f"{got['run-b/artifacts/t_unread']['unreadable']}")
         # MUTANT 1: the pack path's first-frame read, over the same fixture.
         # t_mixed's first frame is 4x2, so the on-path read reports one size -
