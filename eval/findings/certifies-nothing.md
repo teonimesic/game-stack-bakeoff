@@ -6431,3 +6431,59 @@ independently of the guard, so restoring the marker-based design turns it red.
 `GIT_DIR`-steered `git init` was tested and ruled out. This is a guard, not an attribution.
 
 ---
+
+## #207 - a gate ran on every commit for 4 days, reported itself clean, and could not see the figure it exists to protect, because its trigger was an enumeration of one wording
+
+`README.md` line 187 stated a findings count **28 short of the log**, with `python3
+eval/tools/docstat.py --findings` named in the same sentence. A second statement of the same fact
+128 lines lower, phrased `N numbered findings`, was gated and correct. The gate whose job was that
+count matched only the one wording it had been written against, so its own output said nothing was
+wrong — and the producer citation in the stale sentence made the wrong figure read as *derived*.
+
+This is `AGENTS.md`'s rule-audit conclusion firing against a regex for the second time — the first
+was #92, the aspect census, where the enumerated wordings were replaced by an open-class property
+and the property was strictly worse. The generalisation that is new here:
+
+> **"A count with a producer goes stale for an hour" does not cover a producer that is NAMED
+> beside a count and never run. The producer has to be run by something that is not a person.**
+> A citation without a runner is worse than no citation, because it buys the figure trust it has
+> not earned. `AGENTS.md` now carries that as a blockquote under the existing count rule.
+
+The repair reads the count from 2 triggers — the `N numbered findings` word form, and any cardinal
+governing a plural noun on an unfenced line naming the log by its range sentence, its path or its
+producer — over a corpus spelled once (`_count_corpus()`, 58 documents on 2026-08-27, against 3
+before). `python3 eval/tools/docstat.py --count-triggers` is the producer for the candidate table
+and refuses an incomplete corpus at exit 2; `_count_trigger_pins` runs inside `--sweep` on every
+invocation.
+
+**What the next reading of this finding must not re-derive, measured on the live corpus:**
+
+- Holding the word-form trigger constant: the shipped enumeration alone 0 red / 2 of 19 pins
+  wrong; adding `entries` 6 red / 1 wrong; a quantifier governing `findings|entries` 13 red / 0
+  wrong; the shipped conjunction 0 red / 0 wrong. **Every red line in the rejected rows is a
+  false positive** — the same ordering #92 found, twice now. Re-run `--count-triggers` rather
+  than quoting these: the quantifier row was 12 when drafted and 13 when finished, and the 13th
+  is a sentence in `AGENTS.md` written to document this decision.
+- The free parameter — the word gap between cardinal and plural noun — is 2: gaps 0-3 all measure
+  0 red, and 2 catches 4 of 5 planted phrasings where 1 catches 3 and 3 catches no more.
+- Two recorded gaps, deliberate: a count spelled in **words** is caught only in the `numbered
+  findings` wording (address-scoping it costs 2 false positives on the live corpus), and a count
+  governing **no plural noun** — `Findings #19-#198 — 143 of them` — is invisible to every
+  candidate at 0 cost. Both in `DECISIONS.md`, which is the authority for this decision.
+- The trigger's fence-or-reword cost lands on the documents that explain it: it fired 4 times on
+  this branch's own prose, which is the honest bound on how often it fires at all.
+
+Two defects review found that the work had not, both real: `findings_control.py`'s fixture
+builder ran `git init`/`git add -A` with `cwd=` alone, so an inherited `GIT_DIR` outranks it
+silently at exit 0 — **#198, committed inside the file whose job is to be the independent
+reader** (fixed with a `GIT_*` scrub written out rather than imported, plus a hostile-`GIT_DIR`
+control carrying its own red half). And `--count-triggers`' shipped row measured only the
+address-scoped half of a rule that is a union of 2 triggers, so it reported `red 0` on an input
+`--findings` gates on — fixed, and pinned by a row that **compares** the producer's row against
+`_stated_counts` rather than by making them the same object (rule 12's corollary).
+
+`--count-triggers` itself is registered as a deliberate exclusion from CI: its rows publish what
+each *rejected* candidate would cost, so they are meant to be non-zero and gating on them would
+gate the wrong sign.
+
+---
