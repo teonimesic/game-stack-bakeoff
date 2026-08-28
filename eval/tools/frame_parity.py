@@ -166,20 +166,39 @@ def corpus(runs_root: Path) -> dict:
     return {"submissions": subs}
 
 
+def _modal(per: Counter) -> tuple[str | None, bool]:
+    """One run's modal frame size, and whether the top two sizes TIE.
+
+    A tie means the run has NO modal geometry - no size is the field's norm -
+    and the fail-closed reading is that every submission diverges, rather
+    than whichever size the counter happened to encounter first. No readable
+    frame at all is modal None, and an unmeasured run is not a clean one.
+    """
+    counts = per.most_common()
+    if not counts:
+        return None, False
+    return counts[0][0], len(counts) > 1 and counts[0][1] == counts[1][1]
+
+
 def run_divergent(subs: dict[str, dict], members: list[str]) -> list[str]:
     """Which of one run's submissions diverge from the run's modal geometry.
 
     The rule is `geometry()`'s, lifted here so the corpus report and the
     selftest read one copy of it: a submission diverges when its size list is
-    not the run's modal size list, or when it is not uniform within itself, or
-    when any frame's size is unknown.
+    not the run's modal size list, or when it is not uniform within itself,
+    or when any frame's size is unknown. A run with no readable frame returns
+    [] - unmeasured, which `census` reports as such rather than as clean -
+    and a TIED run (equal frame counts in the top two sizes) has no modal
+    size to conform to, so EVERY member diverges.
     """
     per: Counter = Counter()
     for k in members:
         per.update(subs[k]["sizes"])
-    if not per:
+    modal, tied = _modal(per)
+    if modal is None:
         return []
-    modal = per.most_common(1)[0][0]
+    if tied:
+        return sorted(members)
     return sorted(k for k in members
                   if list(subs[k]["sizes"]) != [modal] or subs[k]["nonuniform"]
                   or subs[k]["unreadable"])
@@ -220,10 +239,18 @@ def census(runs_root: Path) -> tuple[int, dict]:
         per: Counter = Counter()
         for k in members:
             per.update(subs[k]["sizes"])
-        if not per:
-            continue
-        modal = per.most_common(1)[0][0]
+        modal, tied = _modal(per)
         odd = run_divergent(subs, members)
+        if modal is None:
+            # A run whose every frame is unreadable is UNMEASURED, never
+            # absent - a vanishing run line reads as parity.
+            print(f"  run {run}: {len(members)} submissions, no readable "
+                  f"frame - UNMEASURED")
+            continue
+        if tied:
+            print(f"  run {run}: {len(members)} submissions, NO MODAL GEOMETRY "
+                  f"(top sizes tied) - every submission diverges: {odd}")
+            continue
         print(f"  run {run}: {len(members)} submissions, modal {modal}, "
               f"divergent: {odd if odd else 'none'}")
         for k in odd:
@@ -251,6 +278,9 @@ def main(argv: list[str]) -> int:
         return selftest()
     if a.run and a.runs_root:
         ap.error("--run and --runs-root are different questions; pass one")
+    if a.json and not a.run:
+        ap.error("--json serialises the --run hand inspection; --runs-root and "
+                 "--selftest print their own reports and accept no --json")
     if a.runs_root:
         rc, _ = census(a.runs_root)
         return rc
@@ -259,12 +289,19 @@ def main(argv: list[str]) -> int:
 
     g = geometry(a.run)
     if not g:
-        print(f"no frames under {a.run}/artifacts/*/eval/frames")
-        return 0
+        print(f"no submissions with frames under {a.run}/artifacts - "
+              f"UNMEASURED, not clean", file=sys.stderr)
+        return 2
     all_sizes: Counter = Counter()
     for rec in g.values():
         for s, n in rec["sizes"].items():
             all_sizes[s] += n
+    if not all_sizes:
+        # Every frame unreadable: sizes{} everywhere. Reporting would index an
+        # empty counter; the honest verdict is that nothing was measured.
+        print(f"no readable frame under {a.run}/artifacts/*/eval/frames - "
+              f"UNMEASURED, not clean", file=sys.stderr)
+        return 2
     modal = all_sizes.most_common(1)[0][0]
     odd = {k: v for k, v in g.items()
            if list(v["sizes"]) != [modal] or not v["uniform_within_submission"]}
@@ -317,6 +354,17 @@ def _fixture(root: Path) -> dict[str, dict]:
     # full path.
     frames("run-a/artifacts/t_clone/eval/frames", [(4, 2)] * 2)
     frames("run-a/submissions/t_clone/eval/frames", [(4, 2)] * 2)
+    # An all-unreadable submission and a run whose ONLY submission is
+    # all-unreadable: the first crashed --run's modal lookup and the second
+    # vanished from the census's per-run report (read as parity). And a run
+    # whose top two sizes TIE has no modal geometry - the fail-closed verdict
+    # is that every submission diverges, not whichever the counter saw first.
+    (root / "run-b/artifacts/t_allbad/eval/frames").mkdir(parents=True)
+    (root / "run-b/artifacts/t_allbad/eval/frames/x.png").write_bytes(b"\x89PNG\r\n\x1a\nxx")
+    (root / "run-u/artifacts/t_onlybad/eval/frames").mkdir(parents=True)
+    (root / "run-u/artifacts/t_onlybad/eval/frames/x.png").write_bytes(b"not a png")
+    frames("run-t/artifacts/t_tie_a/eval/frames", [(4, 2)] * 2)
+    frames("run-t/artifacts/t_tie_b/eval/frames", [(6, 6)] * 2)
     frames("run-a/artifacts/t_odd/eval/frames", [(6, 6)])              # diverges across run-a
     frames("run-b/artifacts/t_unread/eval/frames", [(4, 2)])
     (root / "run-b/artifacts/t_unread/eval/frames/bad.png").write_bytes(b"\x89PNG\r\n\x1a\nxx")
@@ -355,6 +403,14 @@ def _fixture(root: Path) -> dict[str, dict]:
         # dropping it from the denominator.
         "run-b/artifacts/t_unread": {"n_frames": 3, "sizes": {"4x2": 1},
                                      "nonuniform": False, "uniform": False},
+        "run-b/artifacts/t_allbad": {"n_frames": 1, "sizes": {},
+                                     "nonuniform": False, "uniform": False},
+        "run-u/artifacts/t_onlybad": {"n_frames": 1, "sizes": {},
+                                      "nonuniform": False, "uniform": False},
+        "run-t/artifacts/t_tie_a": {"n_frames": 2, "sizes": {"4x2": 2},
+                                    "nonuniform": False, "uniform": True},
+        "run-t/artifacts/t_tie_b": {"n_frames": 2, "sizes": {"6x6": 2},
+                                    "nonuniform": False, "uniform": True},
         "run-n/capped/artifacts/t_deep": {"n_frames": 2, "sizes": {"8x3": 2},
                                           "nonuniform": False, "uniform": True},
     }
@@ -420,19 +476,23 @@ def selftest() -> int:
                folded and not got["run-b/artifacts/t_unread"]["uniform"],
                "t_unread must stay out of the uniform column while a frame's "
                "size is unknown")
-        # The corpus answer, stated in advance: 1 non-uniform submission, 2
-        # uniform, 1 unreadable-flagged, and run-a's cross-submission
-        # divergence is t_odd (modal 4x2, five frames) not t_mixed (2 frames
-        # at the modal size but not uniform within itself).
+        # The corpus answer, stated in advance: 1 non-uniform submission, 7
+        # uniform, 3 unreadable-flagged, and run-a's cross-submission
+        # divergence is t_odd (modal 4x2) not t_mixed (frames at the modal
+        # size but not uniform within itself).
         expect("mixed-total",
                sum(1 for r in got.values() if r["nonuniform"]) == 1,
                f"exactly t_mixed is non-uniform, got "
                f"{sum(1 for r in got.values() if r['nonuniform'])}")
         expect("uniform-total",
-               sum(1 for r in got.values() if r["uniform"]) == 5,
-               f"t_uni, t_odd, t_deep and both t_clone rows are uniform WITHIN "
-               f"themselves (t_odd holds one frame, one size), got "
-               f"{sum(1 for r in got.values() if r['uniform'])}")
+               sum(1 for r in got.values() if r["uniform"]) == 7,
+               f"t_uni, t_odd, t_deep, both t_clone rows and both t_tie rows "
+               f"are uniform WITHIN themselves (t_odd holds one frame, one "
+               f"size), got {sum(1 for r in got.values() if r['uniform'])}")
+        expect("unreadable-total",
+               sum(1 for r in got.values() if r["unreadable"]) == 3,
+               f"t_unread, t_allbad and t_onlybad hold an unreadable frame, got "
+               f"{sum(1 for r in got.values() if r['unreadable'])}")
         # ...while t_odd still diverges from run-a's modal: within-submission
         # uniformity and cross-submission parity are different properties, and
         # this row carries both verdicts at once.
@@ -443,6 +503,50 @@ def selftest() -> int:
                                                  "run-a/artifacts/t_odd"],
                f"t_odd is uniform within itself and divergent across run-a; "
                f"run-a's divergent list reads {run_divergent(got, run_a)}")
+        # A TIED run has no modal geometry: flagging only the half the counter
+        # happened to see first would let a 50/50 field read as one odd
+        # submission. The fail-closed verdict is that every member diverges.
+        run_t = [k for k, r in got.items() if r["run"] == "run-t"]
+        expect("tied-modal-all-diverge",
+               run_divergent(got, run_t) == ["run-t/artifacts/t_tie_a",
+                                             "run-t/artifacts/t_tie_b"],
+               f"both tie rows must diverge, got {run_divergent(got, run_t)}")
+        # The report says so rather than printing a phantom modal: the census's
+        # per-run line for run-u is UNMEASURED (never absent, never clean) and
+        # run-t's states no modal geometry.
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            census(root)
+        report = buf.getvalue()
+        expect("all-unreadable-run-reported",
+               "run run-u: 1 submissions, no readable frame - UNMEASURED" in report,
+               f"the all-unreadable run must read UNMEASURED, got:\n{report}")
+        expect("tied-run-reported",
+               "NO MODAL GEOMETRY" in report and "run run-t" in report,
+               f"the tied run must report no modal geometry, got:\n{report}")
+        # --run over the all-unreadable run must exit UNMEASURED rather than
+        # index an empty size counter (the IndexError crash this pins).
+        try:
+            rc_run = main(["--run", str(root / "run-u")])
+        except IndexError:
+            expect("run-mode-all-unreadable", False,
+                   "--run crashed on a submission with no readable frame")
+        else:
+            expect("run-mode-all-unreadable", rc_run == 2,
+                   f"--run on an all-unreadable run exited {rc_run}, "
+                   f"expected 2 UNMEASURED")
+        # --json serialises the --run table alone; elsewhere it would be an
+        # accepted-but-ignored flag (AGENTS.md rule 13), so it is refused.
+        try:
+            main(["--json", "--runs-root", str(root)])
+        except SystemExit as e:
+            expect("json-off-run-refused", e.code != 0,
+                   f"the refusal exited {e.code}, expected non-zero")
+        else:
+            expect("json-off-run-refused", False,
+                   "--json with --runs-root must be refused, not ignored")
 
     if failures:
         print(f"FRAME PARITY SELFTEST: {len(failures)} unmet\n")
@@ -452,7 +556,7 @@ def selftest() -> int:
     print("FRAME PARITY SELFTEST: the fixture answers every row as written - the "
           "mixed-size submission is caught, the unreadable frame is a flag and "
           "not a clean bill, the nested run is found, and the first-frame read "
-          "the pack path uses is pinned as the thing this tool exists to catch.")
+          "the pack path uses is pinned as the blind spot this census measures.")
     return 0
 
 
