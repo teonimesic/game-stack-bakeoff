@@ -61,7 +61,7 @@ stack. It does **not** license one arm knowing about the Stop hook while three d
 what happened for as long as the hook existed (task 78): `.claude/hooks/verify-gate.sh` and the
 `"Stop"` wiring are byte-identical across the four trees, and only `starters/rust/AGENTS.md` said
 so. Wording still differs per stack; silence is the thing forbidden. Enforced as an axis rather
-than a habit — `judge/starter_parity.py::mechanism_findings`, keyed on **every event wired in
+than a habit — `eval/judge/starter_parity.py::mechanism_findings`, keyed on **every event wired in
 every starter**, so the next hook is covered by the rule that caught this one.
 
 **A harness mechanism whose success path is silent records what it DID, outside the tree it
@@ -1460,7 +1460,7 @@ manifest line, Bevy and three.js have none at any effort below writing one.
   included because it is documented and reachable is defensible; one included because it seemed
   impressive is not. The survey also lists ten cells it could **not** establish; those are not
   available for "best" until someone settles them.
-- `judge/starter_parity.py` must continue to REPORT capability divergence rather than fail on it.
+- `eval/judge/starter_parity.py` must continue to REPORT capability divergence rather than fail on it.
   Under this decision, divergence is the design; a guard that reads it as drift would be wrong
   and would be switched off, which is worse.
 
@@ -1469,7 +1469,7 @@ sensitive to visual richness — was retired for correlating +0.53 to +0.73 with
 count (#59), so prettier output moves that metric in the direction that looks like improvement,
 for the reason it was retired. What the pipeline *can* now see about capture cost and capture
 geometry is the next section; what it still cannot see, and why, is the `DECLINED` register in
-`judge/capability.py`. **A capability change must name the field that would move if it worked**,
+`eval/judge/capability.py`. **A capability change must name the field that would move if it worked**,
 and if the only candidate is a palette-coupled one, it cannot be shown to have helped.
 
 **Implemented, 2026-08-23, in all four arms.** Rust is on Bevy's own default feature set, so
@@ -1531,9 +1531,9 @@ out to have been recorded on every stored submission already, unread (#97).
 --runs eval/runs` opens with its own count and its classes — read 2026-08-27, **69 stored
 submissions, 68 game and 1 scene**.
 
-`judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
+`eval/judge/capability.py` holds the contract — nine fields, each with its unit — plus the gate
 `no_stack_correlated_gap()`, which fails if a declared field is ever absent for any reason other
-than the submission's own capture failing. `judge/capability_selftest.py` carries its mutant and
+than the submission's own capture failing. `eval/judge/capability_selftest.py` carries its mutant and
 its variant.
 
 **The four-arm half of that gate is asked of the game submissions only, and the module prints the
@@ -1557,7 +1557,7 @@ real-time loop in any arm — twelve single frames of a deterministic replay —
 steady to time. `DECLINED` in that module records this and the other six candidates, each with the
 measurement that would move it back in.
 
-**Nothing here is a criterion, and `judge/RUBRIC.md` weighs none of it.** Capture is cheap and
+**Nothing here is a criterion, and `eval/judge/RUBRIC.md` weighs none of it.** Capture is cheap and
 reversible; scoring changes what agents optimise for and is a regime boundary. A criterion
 introduced alongside its own measurement has no baseline to be calibrated against.
 
@@ -1648,7 +1648,7 @@ the shape of a fix:
 | `MEASURED.json` | canonical = the first sync ever | `PROTOCOL.md` instructs a reader to take the evidence count from that name; it would hand back a stale number, and nothing would disagree with it |
 | sweep summaries | canonical = the first invocation's ceiling counter | `judge_ledger.explain_gap` looks for the carried-over rounds at the *head*; against a first-invocation counter the gap is the *suffix*, so every resumed sweep returns `UNEXPLAINED` and exits 1 |
 
-So `tools/manifest.py` carries both, in one file, with the criterion written next to them:
+So `eval/tools/manifest.py` carries both, in one file, with the criterion written next to them:
 **pinned where the directory has an identity the record is named for** (a run directory is named
 for one launch, and a later launch must not take the name); **rolling where the directory
 accumulates** and its record states the position as of the last invocation. Nothing is destroyed
@@ -1682,12 +1682,11 @@ need not edit the tool. **CI now calls it, for one rule only** — see the CI de
 **What the baseline means, and what it does not.** `PLW1510` and `BLE001` were triaged to **0**
 on 2026-08-23: every `subprocess.run` under the lint root stated its `check=`, and every blind
 `except Exception` that remained carried a `# noqa: BLE001` naming why the exception set is open
-there. A new hit from either rule is therefore a site nobody has considered — and **re-measured
-later the same day there are 11 of them**: 10 `PLW1510` (`judge/blind_dir_selftest.py`,
-`judge/blind_ext_selftest.py`, `judge/starter_parity.py` x2, `tools/disclosure_mutants.py`,
-`tools/findings_control.py`, `tools/tasks_control.py` x3, `tools/tasks_mutants.py`) and 1
-`BLE001` (`tools/tasks_control.py:497`). Re-derive with `python3 eval/tools/lint.py --counts`
-rather than quoting this paragraph. The other findings — `B905`, `F401`, `F541`, `B007`, `B023`,
+there. A new hit from either rule is therefore a site nobody has considered — and the zero did
+not hold: re-measured later that same day there were 11 new sites. **Neither rule is a clean
+baseline to gate on**, and the count is whatever `python3 eval/tools/lint.py --counts` prints
+when you read this — never the 11, which was one day's census; its per-site list is in the
+task-190 ticket. The other findings — `B905`, `F401`, `F541`, `B007`, `B023`,
 `F841` — were **not** triaged and are a standing backlog, not a clean baseline. The reasoning is
 in #105 and in `eval/tools/lint.py`.
 
@@ -1802,14 +1801,19 @@ lean anyway, because what a merge now waits on is wall clock in front of a requi
 than a bill: `ubuntu-latest`, push narrowed to `main`, `cancel-in-progress`, and the slow tier
 behind a path filter plus a nightly cron.
 
-**What CI has consumed has a producer: `python3 eval/tools/ci_minutes.py`.** Consumption is read
-from the Actions API per job, rounded up to the whole minute, and printed with the window it
-counted over. The projection that used to stand in the register was arithmetic over 2 guessed
-run-rates and is replaced by a measured total, not by a better estimate. 2 traps are encoded in the tool rather than in prose because
-both return plausible numbers: `run_duration_ms` is the run including its queue wait, and
-`billable.UBUNTU.total_ms` — the field named for exactly this quantity — read **0 for 58 of 58
-runs**, so anything summing it reports "0 minutes consumed" and is indistinguishable from a
-repository that has never built.
+**What CI has consumed has a producer: `python3 eval/tools/ci_minutes.py`.** The tool reads the
+run list from the Actions API and each run's jobs from `/actions/runs/{id}/jobs`. It bills each
+job the way GitHub does: wall clock rounded up to the next whole minute. It sums the completed
+jobs and keeps the in-flight ones in their own bucket. It prints the window it counted over, so
+the total cannot be quoted without its population. Two fields that look like the answer are
+refused as the total, because both return plausible numbers. `run_duration_ms` —
+from `/actions/runs/{id}/timing` — times the run rather than the job, queue wait included: on
+one measured run it read 607 s where the job itself ran 588 s, so summing it over-reports. And
+`billable.UBUNTU.total_ms`, the field named for exactly this quantity, read **0 for 58 of 58
+runs** — anything summing it reports "0 minutes consumed" and is indistinguishable from a
+repository that has never built. The projection the register carried before the tool existed
+was arithmetic over 2 guessed run-rates; the measured total replaced it rather than refining
+it.
 
 **`controls.yml`'s path filter is evaluated over the whole pull-request diff, and that is kept
 deliberately — decided 2026-08-23, task 124.** A `pull_request` run is evaluated against the
@@ -1824,28 +1828,29 @@ would therefore have been fail-open on every measured opportunity, for at most 1
 population up from 13 to 16, it was still 2 — a one-off from the branch that was editing the
 CI's own documentation, so the case for narrowing weakens as the denominator climbs.
 
-**The filter moved out of `on: paths:` and into a step on 2026-08-24, task 131 — and the
-population it is evaluated over did not change.** A workflow whose `paths:` do not match produces
-**no check at all**, not a passing one, and `controls` is a required check, so a pull request
-touching only `tasks/` or a root document waited on a check that could never arrive; updating the
-branch could not help, because nothing would ever produce it. Measured at PR #14's head: two
-`gates` check runs, **zero** `controls`. `controls.yml` now triggers on every pull request and
-its first step, `ci_minutes.py --scope`, diffs the merge commit against its first parent — which
-is exactly what `paths:` matched against — and writes `relevant=true|false` for the steps below.
+**`controls.yml` triggers on every pull request, and its first step decides whether the slow
+suites have anything to read — decided 2026-08-24, task 131.** The trigger cannot carry the
+filter: a workflow whose `paths:` do not match produces **no check at all**, not a passing
+one, and `controls` is a required check, so a pull request touching only `tasks/` or a root
+document would wait on a check that never arrives. So the filter lives in the job: the scope
+step runs `python3 eval/tools/ci_minutes.py --scope` before the slow suites. The tool compares
+the checked-out merge commit with its first parent — the pull request's accumulated diff
+against its base — and writes `relevant=true` when a changed path matches the filter, which is
+`eval/`, `.agents/`, `.claude/`, and `controls.yml` itself. It writes `relevant=false` only
+when it determines that no changed path matches.
 
-**This supersedes the step-gating form rejected the day before, and the objection to it was
-right.** That form buys its saving with a green `controls` run that executed no gate, which is the
-one pattern this project exists to catch. 3 things answer it, and none of them is the saving:
+**The guard is `!= 'false'`, never `== 'true'`.** An output the scope step never wrote reads
+as the empty string; `== 'true'` skips on it, `!= 'false'` runs. The only way to skip is for
+the scope step to have run and said so. An unknown or empty pull-request diff runs the whole
+suite, and so does every non-`pull_request` event, because scope filtering applies only to
+pull requests.
 
-1. **The guard is `!= 'false'`, never `== 'true'`.** An output the scope step never wrote reads
-   as the empty string; `== 'true'` skips on it, `!= 'false'` runs. The only way to skip is for
-   the scope step to have run and said so. Every unknown — an unreadable diff, an empty diff, a
-   non-`pull_request` event — runs the whole suite.
-2. **`push` to `main`, `schedule` and `workflow_dispatch` are never filtered.** Nothing waits on
-   those, so latency is not a cost there, and running unconditionally is what checks the filter's
-   claim. A wrong filter is therefore wrong for at most one merge rather than indefinitely.
-3. **The step prints what it read** — the filter, the changed paths, the verdict — so a skipped
-   run is auditable afterwards instead of being a silent green.
+**`push` to `main`, `schedule` and `workflow_dispatch` are never filtered.** Nothing waits on
+those, so latency is not a cost there, and running unconditionally is what checks the filter's
+claim: a wrong filter is wrong for at most one merge rather than indefinitely.
+
+**The step prints what it read** — the verdict, the filter, the reason and the changed paths —
+so a skipped run is auditable afterwards instead of being a silent green.
 
 `ci_minutes.py --selftest` pins the wiring in both directions, and its closing line is the
 producer for how many mutants and variants it carries. The two-job form stays rejected and is now
@@ -1908,7 +1913,7 @@ evidence, and the two look identical from a file listing:
 | `eval/runs/bakeoff-*`, `core-*`, `archive-run1-*` | 71 trials in 12 run directories. The results |
 | `eval/suites/*.toml`, `eval/suites/prompts.py` | **The sole copy of what those 71 trials were asked to do.** A trial record stores `task: "t1_rally"` and no prompt text; 0 files under `eval/runs/` contain it (#122) |
 | `eval/holdout*/`, `eval/variants/` | The answer key and the ablation arm — what "score 1.00" and "arm no_api_notes" meant |
-| `eval/runner.py`, whole | `judge/static.py` imports its capture policy by path. Two truncation policies in one repository is #100, which came back as #114. It is also the definition of the measurement the 71 stored verdicts report, and `report` / `regrade.py` still read them. `run` and `check-suite` now exit 2 naming the retirement instead of raising three frames down |
+| `eval/runner.py`, whole | `eval/judge/static.py` imports its capture policy by path. Two truncation policies in one repository is #100, which came back as #114. It is also the definition of the measurement the 71 stored verdicts report, and `report` / `regrade.py` still read them. `run` and `check-suite` now exit 2 naming the retirement instead of raising three frames down |
 | `eval/BAKEOFF.md`, `eval/FINE-TUNING-BRIEF.md` | The suite's design, which is the context those results are read in |
 
 **`eval/starters/*/` are untouched and are not substitutes.** They are the whole-game product and
@@ -1994,7 +1999,7 @@ the other six, measured per field, against **7.1%** by chance. Nothing measured 
 > costs 2,807 redactions instead of 536. **Optimising a proxy that the protected party never
 > observes is the shape of a fix that measures nothing.**
 
-The census is part 6 of `judge/blind_dir_selftest.py`, run with `--runs-root`, so the decision has
+The census is part 6 of `eval/judge/blind_dir_selftest.py`, run with `--runs-root`, so the decision has
 a producer; it pins the published table and refuses a `--runs-root` that is not the corpus. The
 table **excludes `bin`**, the one arm-exclusive segment that fires in all four arms, because 19 of
 its 26 hits are `#!/usr/bin/env` shebangs rather than the Rust starter's `src/bin/`; with it the
@@ -2329,7 +2334,7 @@ line.
 
 **The same question was asked of every other recipe in `.agents/skills/` that writes a file it
 later reads back.** Only one other had the shared-mutable-address shape:
-`audit-docs/SKILL.md`'s planted-phantom control backed up `judge/JUDGING.md` to a fixed name in
+`audit-docs/SKILL.md`'s planted-phantom control backed up `eval/judge/JUDGING.md` to a fixed name in
 the system temp directory and restored **into the repository** from it — so two audit passes at
 once restore each other's copy, and one may still carry a planted phantom. It now uses `mktemp`,
 which cannot collide. The rest are safe for a reason worth naming: `git commit -F`,
@@ -2791,7 +2796,7 @@ over the 57 live documents, not argued:
 
 8 of the narrow candidate's 13 named this project's own resource in the retired vocabulary and
 are repaired — the heading, 2 more lines of `eval/RUNS.md`, 3 skills, this file and
-`judge/JUDGING.md`. Re-running it over the repaired corpus is what decides the gate: **5 red
+`eval/judge/JUDGING.md`. Re-running it over the repaired corpus is what decides the gate: **5 red
 blocks, 0 true positives.** 2 are this file explaining the money gate and denying that the
 figures are real, which `#159` exempts by design. The other 3 cannot be exempted honestly,
 because the money in them is somebody else's — GitHub's billed Actions minutes,
@@ -3539,9 +3544,9 @@ since. `grep -c '^## Iteration ' eval/IMPROVEMENTS.md` counts **17**; the last 3
 
 | iteration | origin, by `git log -S'<heading>' -- eval/IMPROVEMENTS.md` | the before/after it records |
 |---|---|---|
-| 13, the pack-versus-manifest gate | `tasks/33` | `judge/pack_selftest.py`: 8 of 8 real submissions fail unfixed, 0 of 16 fixed |
-| 14, blinding the extensions a file mentions | `tasks/87` | `judge/blind_ext_selftest.py`: 2,083 arm-naming tokens over 84 stored packs → 0 |
-| 15, rebuilding a blind `CHANGED.txt` | the loose end iteration 14 handed on | `judge/blind_dir_selftest.py`: 1,275 → 0 segments over 43 stored submissions |
+| 13, the pack-versus-manifest gate | `tasks/33` | `eval/judge/pack_selftest.py`: 8 of 8 real submissions fail unfixed, 0 of 16 fixed |
+| 14, blinding the extensions a file mentions | `tasks/87` | `eval/judge/blind_ext_selftest.py`: 2,083 arm-naming tokens over 84 stored packs → 0 |
+| 15, rebuilding a blind `CHANGED.txt` | the loose end iteration 14 handed on | `eval/judge/blind_dir_selftest.py`: 1,275 → 0 segments over 43 stored submissions |
 
 All 3 were committed 2026-08-23 and each measured a stored corpus offline. The last multi-cell
 matrix is `wg-g4c-2026-08-21T02-26-46`, at **8** by
@@ -3610,7 +3615,7 @@ settled question is noise that makes the live ones harder to find.
 | Tier 3 weight stays 0.00 | Repeats at a **fixed presentation order** clear gate 0. More aspects do not count — already tried, verdict unchanged |
 | Separation figures reported under `rank`+`pool` | A field where the **ceiling gate passes on both orders**. The choice rests on scores saturating (6-7 of 8 on one modal value); on an unsaturated field a score-based figure loses its handicap and the comparison should be re-made. `field_ranks.py` prints all four either way |
 | Code aspects are within-stack only | **Never on a better anonymiser.** The judge identifies the language from syntax, so only a change to what is being asked could re-open it |
-| The code half of the directory leak stays unrepaired | A rewrite that **stops isolating an arm per field** — a strict threshold on one pack's redaction count naming a whole arm in fewer than a third of the stored fields. Currently 6 of 9 for the arm-exclusive vocabulary and 9 of 9 for all three alternatives, against 7.1% by chance. **This row asked for a uniform per-arm density until 2026-08-23, and that was the wrong quantity**: a vocabulary-free rewrite satisfies it at 2.1x with no arm at zero and is *worse* on the per-field figure, because per-arm density is an aggregate the judge never sees. `judge/blind_dir_selftest.py --runs-root` reports both and fails if any candidate stops partitioning |
+| The code half of the directory leak stays unrepaired | A rewrite that **stops isolating an arm per field** — a strict threshold on one pack's redaction count naming a whole arm in fewer than a third of the stored fields. Currently 6 of 9 for the arm-exclusive vocabulary and 9 of 9 for all three alternatives, against 7.1% by chance. **This row asked for a uniform per-arm density until 2026-08-23, and that was the wrong quantity**: a vocabulary-free rewrite satisfies it at 2.1x with no arm at zero and is *worse* on the per-field figure, because per-arm density is an aggregate the judge never sees. `eval/judge/blind_dir_selftest.py --runs-root` reports both and fails if any candidate stops partitioning |
 | Deterministic tiers may not rank stacks | **`python3 eval/judge/discrimination.py <run_dir>` printing `CROSSES` for any one (run, game) group.** SIZE: the adjudicated between-stack range of tier 2 must exceed the mean within-cell difference by **at least one criterion, `1/N`** — today 0.0435 to 0.0769 depending on the game. SCOPE: **one run × one game**, never pooled (`eval/RUNS.md` bans both poolings), counting only stacks whose two trials are `completed` **and gate-green**, since tier 1 gates and a submission that does not build has no rank position. Read 2026-08-23 over the 9 stored groups: the test is **asked of 8** and **0 cross** — each of the 8 sits at range 0.0000 against a floor of 0.0000, stacks tied at the tier-2 ceiling. The 9th is **NOT ASKED**, a third value and not a pass: `wg-audio` `g2_tetris3d` has one gate-green stack, so there is nothing to compare. Only 5 of the 8 are four-way; the other 3 compare 2 or 3 stacks and say so. What would cross it is a game where the gate-green stacks are **not** all at that ceiling (tasks 65, 74). Set by task 70; the previous wording is adjudicated below the table |
 | Tier 1 gates rather than scores | `tier1_census.py` reporting **DISCRIMINATES** on its **headline** verdict — a group where both tiers vary among the trials tier 2 could measure. Currently 0 of 11. Its *"if every grading were pooled"* line already reads DISCRIMINATES and is **not** a trigger: it counts 16 superseded re-gradings of 8 work trees `wg-g4c` already contributes (task 75). Adding a tier-1 criterion with real headroom is what would do it, and it would need a mutant *and* a variant before it counted |
 | A saturated tier-2 group certifies rather than ranks | `tier2_census.py` reporting **SEPARATES** — no group flat. Currently 5 of 11 are. It will not be moved by promoting a withheld diagnostic (single-valued wherever recorded) or by another existence-of-mechanic criterion (four measured, 8/8 on `wg-g4c`); it moves on a harder task |
