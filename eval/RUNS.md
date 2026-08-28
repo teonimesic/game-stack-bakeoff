@@ -700,6 +700,49 @@ buckets the pack carries, per pack shape in both completeness states, over the w
 registry, and on the argv `run_field` actually builds; with the pre-change hardcoded prompt, a
 prompt naming no bucket, and a `run_field` that passes the pack to nothing, each pinned red.
 
+## THE CAPTURE-GEOMETRY REFUSAL GATE NEVER EXISTED — corrected 2026-08-28, and the stored corpus measures clean against the property the path cannot see
+
+From 2026-08-21 to 2026-08-28, `eval/judge/JUDGING.md` and `eval/tools/frame_parity.py`
+described a refusing gate: `field.pack_parity` ran inside `build_pack` (it did not — no caller
+at any committed revision) and refused a frames-reading aspect on a field with mixed capture
+geometry (nothing refuses). `build_pack` measures each submission's geometry from its FIRST
+frame, records it per blind label in the pack's `capture_geometry` mapping, and renders a note
+into `BRIEF.md` when the sizes differ, stating that the variation is a presentation choice the
+task left open. Why annotation is right here and was wrong in #62, and why refusing stays
+rejected: `DECISIONS.md`, 2026-08-28. `pack_parity` is deleted (task 202).
+
+**The measurement the correction rides on.** The property the first-frame read loses is a
+submission holding frames of MORE THAN ONE SIZE — a mid-film capture change passes an inline
+read as uniform. The producer, and do not quote these from memory:
+
+```
+python3 eval/tools/frame_parity.py --runs-root <main checkout>/eval/runs
+```
+
+Over the stored tree as of 2026-08-28: **67 submissions with frames across 7 run dirs, 804
+frames, every one readable, and 0 submissions holding frames of more than one size.** The
+corpus's 3 cross-submission divergences are uniform within themselves at a non-modal size, and
+each is already recorded: 420x640 `g2_tetris3d__unity__t1` (`wg-matrix-2026-08-13`), 768x576
+`g2_tetris3d__rust__t0` (`wg-audio48-2026-08-14`), 720x540 `g2_tetris3d__ts__t1`
+(`wg-audio-2026-08-14`).
+
+**The extraction was proved before the census was believed**, on rows whose answer was known in
+advance: the two documented divergences come back divergent; the 804 frames match an
+independent count of PNGs under `artifacts/*/eval/frames`; and the population agrees with task
+182's record-based census — 69 records, 3 varied, 2 with no geometry because their own film
+failed, which is 67 with frames — an instrument sharing no code with this one. The first
+version of the walker keyed its population on directories NAMED `artifacts` and read 3147 of
+Unity's `Library/artifacts` build-cache subdirectories as trial dirs; the population is now
+keyed on the `eval/frames` layout, and the fixture carries both poison rows.
+
+**What this does not establish.** The stored corpus is clean; no claim covers a future
+submission, and the first-frame read stays a blind spot on the path — the tool is the way to
+see past it, run before spending on a field whose filming this harness did not just do. The
+fixture pins (`frame_parity.py --selftest`, in `gates.yml`) hold both directions: a mixed-size
+submission is caught, an unreadable frame is a flag and never a clean bill, a wrapper run two
+directories deep is found, and the first-frame read itself is pinned as the defect the census
+exists to catch.
+
 ## "completed" does not mean finished
 
 The calibration trial for the no-cap regime came back at **$72.83 / 369 turns / 118 min**, and

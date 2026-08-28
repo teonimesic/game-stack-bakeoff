@@ -535,36 +535,6 @@ def pack_matches_manifest(run: Path, game: str) -> dict[str, Any]:
     }
 
 
-def pack_parity(run: Path, game: str) -> dict[str, Any]:
-    """Capture geometry across the submissions a frames-reading aspect will be shown.
-
-    `tools/frame_parity.py` has been able to answer this since #59, and on 2026-08-21 it
-    was run AFTER a $10.20 judge round rather than before it - its own docstring says
-    "Run BEFORE reading any frame-derived number". It then reported
-    `g2_tetris3d__unity__t1` filmed at 420x640 against the field's 640x400, a
-    portrait/landscape flip shown directly to both frames-only aspects.
-
-    A rule that has to be remembered is a rule that will not fire, so it is code now, on
-    the path, beside the completeness gate that DID fire for exactly that reason.
-    """
-    import importlib.util as _ilu
-    spec = _ilu.spec_from_file_location(
-        "_frame_parity", Path(__file__).resolve().parent.parent / "tools" / "frame_parity.py")
-    fp = _ilu.module_from_spec(spec)
-    spec.loader.exec_module(fp)
-
-    geo = {k: v for k, v in fp.geometry(run).items() if k.startswith(f"{game}__")}
-    sizes: dict[str, int] = {}
-    for rec in geo.values():
-        for s, n in rec["sizes"].items():
-            sizes[s] = sizes.get(s, 0) + n
-    modal = max(sizes, key=lambda k: sizes[k]) if sizes else ""
-    divergent = sorted(k for k, v in geo.items()
-                       if list(v["sizes"]) != [modal] or not v["uniform_within_submission"])
-    return {"per_submission": geo, "modal_size": modal,
-            "divergent": divergent, "uniform": bool(geo) and not divergent}
-
-
 def build_pack(run: Path, game: str, dest: Path, order_seed: int,
                sees: str = "code", blind_language: bool = False,
                allow_truncated: bool = False) -> dict[str, Any]:

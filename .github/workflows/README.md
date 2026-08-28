@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 69 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 70 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -103,7 +103,9 @@ absent corpus as clean.
 `prompt_capture_census --selftest` are the same shape for the judge-spend, per-tier and
 latent-null producers (task 201's: what the stored non-code judge rounds read against what their
 packs carried), each pinning its extraction on fixtures whose answers are stated beside them —
-all four under 0.06s locally — and
+all four under 0.06s locally — and `frame_parity --selftest` is the same shape for the
+capture-geometry census (task 202's: the property the pack path's first-frame read cannot
+see), with the first-frame read itself pinned as the mutant.
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and
@@ -221,7 +223,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **69** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **70** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
