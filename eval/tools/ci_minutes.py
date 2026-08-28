@@ -1187,7 +1187,13 @@ def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
     i = live[k]
     delim = (_md_cells(lines[live[k + 1]])
              if k + 1 < len(live) and live[k + 1] == i + 1 else None)
-    if not delim or not all(_MD_DELIM.match(c) for c in delim):
+    # The delimiter must have AS MANY CELLS AS THE HEADER: `|---|---|` under a 3-cell
+    # header matches every cell against `_MD_DELIM` and would otherwise be accepted, and
+    # the reader would publish counts from a table whose own shape disagrees with
+    # itself. The same leniency was never offered to the rows -- each is held to the
+    # header's cell count below (CodeRabbit, PR #68).
+    if not delim or len(delim) != len(CHECKS_TABLE_HEADER) \
+            or not all(_MD_DELIM.match(c) for c in delim):
         problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the opening table's "
                         f"header has no `|---|---|---|` row under it, so it is not a table")
         return None, problems
@@ -2106,6 +2112,11 @@ def _selftest() -> int:
             "```\n",
         "two opening tables": _opening() + "\n" + _opening(),
         "the header with no delimiter row under it": _opening(delim=False),
+        # `|---|---|` matches the delimiter pattern cell by cell, so without the cell
+        # count the reader accepted a table whose shape disagrees with its own header and
+        # published counts from it (CodeRabbit, PR #68).
+        "the delimiter row with the wrong cell count":
+            _opening().replace("|---|---|---|", "|---|---|", 1),
         "the table carries no checks row": _opening(skip_checks=True),
         "the checks row with the wrong cell count":
             _opening(checks="| checks | 60 documentation, queue and selftest gates |"),
