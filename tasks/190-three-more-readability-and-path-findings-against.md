@@ -1,10 +1,12 @@
 ---
 id: 190
 title: Three more readability and path findings against DECISIONS.md prose from tasks 175 and 185, raised inside another branch's merge
-status: todo
+status: in_testing
 priority: 4
 refs: DECISIONS.md, eval/tools/ci_minutes.py, eval/judge/capability.py, tasks/175, tasks/185, tasks/188, pull request 62
 done_when: Each of the 3 is read against its source and either applied or declined in writing with the reason. The path one is settled by checking which paths exist. docstat.py --sweep and linkcheck.py exit 0 after, both unpiped.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/70
+established_by: 'PR #70 branch task-190-decisions-readability-and-paths head 33d8be8: all 3 findings adjudicated against source (item 1 applied as 23 existence-verified path repairs across DECISIONS.md plus task 193 filed for the repo-wide bare-path class; items 2 and 3 rewritten from controls.yml and ci_minutes.py at head, both declines recorded with reasons); 3 review rounds, round 3 clean with reviewer accepting both contested points; gates docstat --sweep, linkcheck, tasks check all exit 0 unpiped at head; mergeable.py confirms required checks green, branch behind by 0, no unresolved review threads.'
 ---
 
 CodeRabbit raised 3 outside-diff findings against DECISIONS.md prose that landed on main from tasks 175 and 185. They surfaced on pull request 62 (task 138) only because merging main put those lines in the review's file set; task 138's diff touches none of them, so they were declined there and filed here. One is a correctness issue, not style: two sentences name judge/capability.py and judge/capability_selftest.py while the command above them uses eval/judge/, and docstat.py --sweep deliberately does not check paths.
@@ -86,3 +88,69 @@ confirmed the pattern a third time. Do not decide it inside this ticket.
 
 **Baselines at the head you branch from:** `docstat.py --sweep` clean over 258 docs;
 `linkcheck.py` exit 0. Run both unpiped after staging, as your done_when says.
+
+## note 2026-08-28
+
+## Round 1 adjudications, and the relocated lint census (2026-08-28)
+
+CodeRabbit round 1 (PR #70) returned 2 comments, both on this task's own edits. Both threads
+answered on the pull request; this records what was done.
+
+**The dated lint census moved here out of DECISIONS.md** (review comment at DECISIONS.md ~1689).
+The paragraph there keeps the reason — the triage-to-0 did not hold — and points at the
+producer; the per-site list is archive material:
+
+> Re-measured later the same day as the 2026-08-23 triage there were 11 new sites: 10
+> `PLW1510` (`eval/judge/blind_dir_selftest.py`, `eval/judge/blind_ext_selftest.py`,
+> `eval/judge/starter_parity.py` x2, `eval/tools/disclosure_mutants.py`,
+> `eval/tools/findings_control.py`, `eval/tools/tasks_control.py` x3,
+> `eval/tools/tasks_mutants.py`) and 1 `BLE001` (`eval/tools/tasks_control.py:497`).
+> Paths in that list were bare (`judge/...`, `tools/...`) in DECISIONS.md until this task
+> prefixed them; they were verified to resolve under `eval/` before the edit.
+
+Current counts, read 2026-08-28 with the producer (`python3 eval/tools/lint.py --counts`):
+37 `PLW1510`, 8 `BLE001`, and the untriaged backlog 17 `F541`, 14 `F401`, 13 `B905`, 10 `B007`,
+7 `B023`, 4 `F841`, 1 `B904`, 1 `S112`. Never quote these without the command.
+
+**What this task established, for the next agent:**
+
+- Item 1 (the path finding) was applied to all 23 bare `judge/`-/`tools/`-prefixed references in
+  DECISIONS.md, each verified against the filesystem; `tools/boundary.gd` at the capability
+  decision is starter-relative (`eval/starters/godot/tools/boundary.gd`) and deliberately left
+  bare — prefixing it would manufacture a phantom path. The same class in OTHER live documents
+  is task 193, and there the frame differs: docs under `eval/` write eval-relative commands
+  (`python3 judge/bot_mutants.py` works from `eval/`), so bare paths there need a per-document
+  frame check, not a blind prefix. DECISIONS.md is root-frame, which is what made all 23 wrong.
+- Items 2 and 3 were rewritten from `eval/tools/ci_minutes.py` and
+  `.github/workflows/controls.yml` at the post-task-192 head, never from the review's wording.
+  Verified claims worth not re-deriving: `scope_decision` returns True for every
+  non-`pull_request` event, None and empty changed-path sets; `pull_request_changed_paths`
+  diffs the merge commit against its first parent; `emit_scope` prints verdict, filter, reason
+  and changed paths and treats an unwritable `$GITHUB_OUTPUT` as an error, not a false;
+  `run_duration_ms` is measured once in the tool's docstring (607 s run vs 588 s job,
+  run 32657248359) and is not fetched on the census path; `billable.UBUNTU.total_ms` IS read
+  every census run (`fetch_billable_field`) but only for the audit trail.
+
+## note 2026-08-28
+
+## Round 2 adjudications (2026-08-28)
+
+Round 2 returned 2 outside-diff Minors against the item-3 rewrite (they live only in the review
+summary — no inline threads to reply to; the adjudication is recorded in the PR body). Both
+acted on in commit 33d8be8:
+
+- Taken: a non-`pull_request` event is an explicit class, not an unknown diff. The guard
+  paragraph now separates the two, in the order `scope_decision` branches: unknown or empty
+  pull-request diffs run the whole suite, and so does every non-`pull_request` event, because
+  scope filtering applies only to pull requests.
+- Taken in part: the scope paragraph states current behaviour directly (scope step runs
+  `python3 eval/tools/ci_minutes.py --scope` before the slow suites; merge commit vs first
+  parent; `relevant=true` on a filter match over `eval/`, `.agents/`, `.claude/`,
+  `controls.yml`; `relevant=false` only when no changed path matches) and the cross-reference
+  to the previous paragraph is gone. Declined removing the house attribution (decided
+  2026-08-24, task 131) — every paragraph in the section carries one and it points at the
+  decision's evidence.
+
+## note 2026-08-28
+
+**2026-08-28, review round 3 — clean, loop stopped.** `pr_review_state.py` verdict LANDED_COMMENT at head 33d8be8: the one comment was CodeRabbit's acceptance of both round-1 adjudications ("The revised paragraph addresses the structure concern. Keeping the 607 s / 588 s and 0 for 58 of 58 measurements is appropriate... The requested eval/findings/ relocation does not apply to branch work"), and its sibling thread accepted the lint-census fix the same way. No new actionable finding; both prior threads closed by the reviewer. Verified the state directly rather than from the relay: mergeable.py 70 reports controls and gates SUCCESS (required) at 33d8be8, branch behind by 0, no unresolved review thread, GitHub agrees. Two self-checks before closing: the only finding citation near the edited region (#105, DECISIONS.md line 1691) is pre-existing text outside the branch diff, and the document's citation convention is bare #nn throughout, so the reference-link learning CodeRabbit carried was not a finding against this PR; and the removed "Measured at PR #14's head: two gates, zero controls" line was the item-3 edit working as specified — history replaced by current behaviour, the measurement surviving in the PR diff and git history. Rounds used: 3 of 5.

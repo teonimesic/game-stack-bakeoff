@@ -893,3 +893,64 @@ findings — and it is `#203`'s lesson from six hours ago, applied.
 `eval/suites/wholegame_prompts.py` and the game prompts (editing one is a regime boundary, so a pass
 there files tickets and changes nothing), and `research/`, whose last pass was 2026-08-24 and which
 `.github/workflows/README.md` records as having 85 unvalidated external URLs.
+
+## 2026-08-28 (second pass) — `eval/suites/wholegame_prompts.py`, the file the previous pass pointed at
+
+The 2026-08-28 scene-layer pass ended with "Not opened, and the next pass should take one:
+`eval/suites/wholegame_prompts.py` and the game prompts". This pass read that file whole — all 698
+lines — plus its seven importers, and the queue was checked for duplicates first (135, 136, 141 all
+touch this area; all closed).
+
+### Cleared — the structures most likely to rot are the ones that were checked, and they are sound
+
+- **One `_preamble(stack)`.** The #41 shared-preamble defect — four stacks carrying near-copies that
+  drifted — was repaired by making the preamble a single function. Verified across all four
+  `g1_pong`/`g2_tetris3d`/`g3_arena`/`g4_platformer` builders: none carries its own preamble text.
+- **`EVENTS` is parsed from the prompt blocks at import, fail-closed.** No fence, unreadable line,
+  no names, or duplicate raises at import; `set(EVENTS) != set(TASKS)` also raises. This is the
+  single-address discipline tasks/151 bought after audio.py's transcription drift — the event-name
+  address is the block itself, and the parser is the only thing that re-derives it.
+- **The INPUT_TYPE/STATE_HOME deletion (task 141) is documented in place** with its reasoning and
+  names its producer, `prompt_guard.py --identity`.
+- **`rendered/` snapshots have a live reader** (`prompt_guard.py --snapshot/--diff`) and recent
+  maintenance (tasks 166, 143).
+- **The probe contract is not duplicated into the scene layer.** `scene_prompts.py` imports the
+  vocabulary dicts from `wholegame_prompts` and re-exports them ("one concept, said in four [stack
+  wordings], copied zero times", its own docstring), rather than holding a second copy.
+- **The G1 state-field wording survived the rally.counts repair.** The prompt defines `rally` as
+  "the number of consecutive paddle hits since the last point" — a scoring hit IS the point, so the
+  field's definition and the criterion's non-scoring domain agree without edit. Checked because
+  tasks/188 rewrote the criterion's prose in two documents; neither needed a third repair here.
+
+### Found — one defect, filed as task 194
+
+`prompt_guard.py:44` defines its own `STACKS = ("rust", "ts", "unity", "godot")` two lines below
+`import wholegame_prompts as W`, and never reads `W.STACKS`. Every other consumer takes the tuple
+from `wholegame_prompts` (`wholegame.py` via `P.STACKS`; `scene_prompts.py` by import and
+re-export). prompt_guard is the tool that asserts prompt identity across stacks, and the population
+count it prints is derived from its own copy — so a fifth stack added in `wholegame_prompts` leaves
+it silently checking the old four and printing a clean-sounding wrong number. Rule 12's
+assert-them-equal discipline, applied to a value instead of a path. **Not fixed here: this pass's
+brief is a regime-boundary-adjacent area, and the repair belongs behind a ticket where its selftest
+can be written.**
+
+### Examined and judged too thin to file
+
+- `wholegame_prompts.py`'s docstring says "Companion to `prompts.py`" and does not mention
+  `scene_prompts.py`. The relationship is documented from the other side (scene_prompts' docstring
+  has a "WHY THIS IS A SEPARATE MODULE" section), and `prompt_guard.py --identity` counts both
+  families. A third sentence in a third docstring would restate what the module graph already says.
+- `SPRITE_NOTE`/`THREE_D_NOTE`/`RENDER_NOTE`/`AUDIO_NOTE` consumers: each used by exactly the games
+  its comment names; each defined for all four stacks.
+
+### Disk answer carried over from the pass's start
+
+The repository's 5.0G is `eval/runs/` at 4.5G — stored trial evidence, protected. Git's own
+size-pack is 4.84 MiB; agent worktrees 15M; `~/game-research-work` 175M. Nothing prunable.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/aspects.py` (749 lines) — the aspect/weighting layer, which consumes the prompt
+vocabulary (`import wholegame_prompts` at :654) and has never been a pass's area; this log names it
+only in passing. Same regime caution as this pass: it is the instrument, so a pass there reads and
+files tickets and changes nothing.
