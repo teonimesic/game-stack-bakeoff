@@ -1832,17 +1832,18 @@ CI's own documentation, so the case for narrowing weakens as the denominator cli
 suites have anything to read — decided 2026-08-24, task 131.** The trigger cannot carry the
 filter: a workflow whose `paths:` do not match produces **no check at all**, not a passing
 one, and `controls` is a required check, so a pull request touching only `tasks/` or a root
-document would wait on a check that never arrives. So the filter lives in the job. The scope
-step, `ci_minutes.py --scope`, diffs the checked-out merge commit against its first parent —
-the pull request's accumulated diff against its base, the population the previous paragraph
-argues for — and writes `relevant=true|false` for the steps below: `true` when any changed
-path is one the suites read, which is `eval/`, `.agents/`, `.claude/`, and `controls.yml`
-itself.
+document would wait on a check that never arrives. So the filter lives in the job: the scope
+step runs `python3 eval/tools/ci_minutes.py --scope` before the slow suites. The tool compares
+the checked-out merge commit with its first parent — the pull request's accumulated diff
+against its base — and writes `relevant=true` when a changed path matches the filter, which is
+`eval/`, `.agents/`, `.claude/`, and `controls.yml` itself. It writes `relevant=false` only
+when it determines that no changed path matches.
 
 **The guard is `!= 'false'`, never `== 'true'`.** An output the scope step never wrote reads
 as the empty string; `== 'true'` skips on it, `!= 'false'` runs. The only way to skip is for
-the scope step to have run and said so, and every unknown — an undeterminable diff, an empty
-diff, a non-`pull_request` event — runs the whole suite.
+the scope step to have run and said so. An unknown or empty pull-request diff runs the whole
+suite, and so does every non-`pull_request` event, because scope filtering applies only to
+pull requests.
 
 **`push` to `main`, `schedule` and `workflow_dispatch` are never filtered.** Nothing waits on
 those, so latency is not a cost there, and running unconditionally is what checks the filter's
