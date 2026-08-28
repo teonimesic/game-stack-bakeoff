@@ -3801,6 +3801,46 @@ real and comparable-in-principle (they would still be two vendors' prices for tw
 tokens); or a prime-agent release exposing a project-scoped context flag, which would replace
 `preflight()`'s assertion with the isolation the claude arm has.
 
+## The capture-geometry path measures, annotates and never refuses; the function that claimed to gate it is deleted — decided 2026-08-28
+
+`build_pack` measures each submission's capture geometry from its first frame, records it per
+blind label in the pack's `capture_geometry` mapping, and annotates `BRIEF.md` when the sizes
+differ; nothing on the path refuses a mixed-geometry field.
+
+`JUDGING.md` and `frame_parity.py`'s header said from 2026-08-21 that a frames-reading aspect on
+a field with mixed capture geometry was **refused** beside the completeness gate, and named
+`field.pack_parity` as that gate running inside `build_pack`. None of that was code:
+`pack_parity` has no caller at any committed revision (`git log -S "pack_parity("` over
+`field.py` returns only the initial squash, which added the `def` and nothing else), and
+`build_pack` measures each submission's geometry from its FIRST frame, records it per blind
+label, and annotates `BRIEF.md` when the sizes differ. A reader following the document would
+re-film a real design difference and call the erasure normalisation — the move the code comment
+warns against in terms.
+
+**Refusing stays rejected, and annotation stays right, on the #62 contrast.** Only godot's film
+recipe passes `--resolution`, so capture geometry is a design choice the task left open, and
+`g2_tetris3d__unity__t1`'s 420x640 is a portrait well for a falling-block game — a perfectly
+sensible thing to build. Refusing the field treated variation as corruption; re-filming at
+640x400 would have erased a real difference between submissions and called the erasure
+normalisation, which is the harness overwriting the thing it exists to measure. The annotation
+is not a #62 because of what is on the other end: #62's caveat was a JSON field no code read
+and no human opened, while this note is rendered into `BRIEF.md`, which the judge's whole task
+is to read.
+
+**`pack_parity` is deleted rather than kept as a hand-inspection wrapper.** Dead code in a
+judge module is a conclusion waiting to rest on it (#136), and one conclusion already had: the
+document paragraph this entry replaces. The hand-inspection need is `frame_parity.py` itself —
+its `--run` mode predates the function — and it now also carries `--runs-root`, the producer
+for the property the first-frame read cannot see. Adding a caller would have made the old
+docstring true; deleting the function removes the claim that kept being read as code.
+
+**The first-frame read is a known blind spot with a producer, not a repaired defect.** It reads
+one frame per submission, so a mid-film size change inside one submission has no reader on the
+path. `python3 eval/tools/frame_parity.py --runs-root <main checkout>/eval/runs` measures that
+property over the whole stored tree — 0 of 67 submissions mixed-size as of 2026-08-28, recorded
+with its population in `eval/RUNS.md` — and is the thing to run before spending on a field
+whose filming this harness did not just do.
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than

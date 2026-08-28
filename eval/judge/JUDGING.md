@@ -907,15 +907,27 @@ aspect's absolute ranking of that submission.
 reading any frame-derived number." The completeness gate was run explicitly on instruction; this
 one was not, and the fact that it turned out not to carry the result is luck rather than method.
 
-**Now wired into the path (2026-08-21).** `field.py::pack_parity` runs inside `build_pack`, and
-a frames-reading aspect on a field with mixed capture geometry is **refused**, beside the
-completeness gate. It refuses rather than annotating because an annotation is #62 — a manifest
-field nothing reads. Pinned both ways and for scope: divergent refuses, uniform builds, a `code`
-aspect never consults it.
+**What the path does:** `build_pack` measures each submission's geometry from its first frame,
+records it per blind label in the pack's `capture_geometry` mapping, and when the sizes differ
+`_brief` renders a note into `BRIEF.md` naming each label's size and stating that the variation
+is a presentation choice the task left open. It never refuses. Refusing was rejected on
+purpose, in the code comment beside the measurement: only godot's film recipe passes
+`--resolution`, so the other three capture at whatever their render target defaults to, and the
+geometry is a design choice the task left open. `g2_tetris3d__unity__t1`'s 420x640 is a
+portrait well for a falling-block game — a perfectly sensible thing to build — and re-filming
+the field at 640x400 would erase a real difference between submissions and call the erasure
+normalisation: the harness overwriting the thing it exists to measure. **Annotation here is
+right where #62's was wrong because of what is on the other end**: #62's caveat was
+`files_dropped_for_length`, a JSON field no code read and no human opened; this note goes into
+`BRIEF.md`, read by an agent whose whole task is to read it.
 
-**Consequently this very round would now be refused.** That is correct. The remedy is to re-film
-`g2_tetris3d__unity__t1` at 640x400 and re-judge, and until then the two taus above stand with
-the confound declared. `g4_platformer`, `g1_pong` and `g3_arena` are uniform and unaffected.
+**What no code on the path sees:** the inline read is the first frame of each submission, so a
+submission whose frame size changes mid-film has no reader in `build_pack`. The producer for
+that property is `python3 eval/tools/frame_parity.py --runs-root <main checkout>/eval/runs`,
+which reads every stored frame; over the corpus as of 2026-08-28 it finds 0 of 67 submissions
+holding frames of more than one size, and the figure lives with its population in
+`eval/RUNS.md`. `field.pack_parity`, whose docstring claimed to be a refusing gate on this
+path, had no caller at any committed revision and was deleted 2026-08-28 (task 202).
 
 ## PRE-REGISTERED, 2026-08-22, before the capped/uncapped packs were judged
 

@@ -425,6 +425,13 @@ jobs:
       - name: judge/prompt_capture_census --selftest (the latent-null producer's pins)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/prompt_capture_census.py --selftest
+      # Task 202's corpus producer: the capture-geometry property the pack path's
+      # first-frame read cannot see. Same shape - a fixture tree whose every census
+      # answer is stated beside it, with the first-frame read itself pinned as the
+      # mutant; the corpus half needs --runs-root and is NOT RUN here.
+      - name: tools/frame_parity --selftest (the geometry census's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/frame_parity.py --selftest
       # `eval/instrfollow/pool.py` is the instruction-count experiment's apparatus: 16
       # deterministic checkers, and its selftest is the gold artifact obeying all 16, a
       # mutant sweep requiring each mutant to flip exactly one checker, the variant
