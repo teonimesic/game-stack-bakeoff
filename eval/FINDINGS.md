@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#207 from building and running this evaluator. **Check whether a
+Findings #19-#208 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -283,6 +283,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **205** | a criterion located the end of a game with one signal and scored it with another | [fail-open](findings/fail-open.md) |
 | **206** | the hourly heartbeat counted through a main checkout `git status` refused to look at, and the first guard for it read the marker of the one known cause | [certifies-nothing](findings/certifies-nothing.md) |
 | **207** | a gate ran on every commit for 4 days, reported itself clean, and could not see the figure it exists to protect, because its trigger was an enumeration of one wording | [certifies-nothing](findings/certifies-nothing.md) |
+| **208** | a census scoped to inline backticks could not see fenced command blocks — the text a reader copies — so the ten bare `judge/` commands in `README.md` were never in the population it counted | [documentation](findings/documentation.md) |
 
 ---
 

@@ -1478,3 +1478,32 @@ first** (3 red rows with the 4 counts already correct), with a 7-mutant red half
 back SURVIVED.
 
 ---
+
+## #208 — the path census read prose, and the fenced commands a reader copies were outside it
+
+### What happened
+
+Task 193's filing census counted bare `judge/`- and `tools/`-prefixed references in the live
+documents by matching them as inline backtick spans, and the ticket was dispatched on that
+population. When the task's agent re-derived the census before repairing — this time reading
+fenced command blocks too — the population moved. `README.md`, a root-frame document, carries
+**10 fenced lines with bare `judge/` paths** (verified by the orchestrator on the branch: 10 in
+fences, 0 inline), none of them in the filing census, and `eval/RUNS.md`'s line-matches moved
+53→68 the same way. `README.md` was not in the ticket's document set at all, because a census
+that cannot see fences found nothing there to put it in scope for. The ten commands remain
+unrepaired on `main` at the time of writing; the repair is tasked separately.
+
+### Why this matters
+
+Fenced commands are not a corner of a document — they are the part a reader copies and runs,
+which makes them the highest-risk instance of the defect this class of census exists to find
+(a document naming a path that is not there is confidently wrong). The census did not
+miscount: it counted a population defined by a document *feature* it never stated, and
+everything outside that feature read as clean. Clean is what a reader cannot distinguish from
+empty.
+
+### The rule
+
+Before trusting any census over documents, state the document FEATURE the population lives in
+— prose span, fence, table row, frontmatter — and defend why the defect cannot live in the
+others. A census keyed to one surface reports the others as clean.

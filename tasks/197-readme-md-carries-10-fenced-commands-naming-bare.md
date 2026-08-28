@@ -1,0 +1,10 @@
+---
+id: 197
+title: README.md carries 10 fenced commands naming bare judge/ paths that the path censuses never scanned
+status: todo
+priority: 3
+refs: README.md,eval/FINDINGS.md,tasks/193
+done_when: 'Every command line in the README fences both declares its frame and resolves from it: pick the frame (repo root is what README is for - it is the front door), make each path resolve from it consistently INCLUDING the runs/<name> arguments, and verify by actually running the two cheapest named commands from the declared frame (the selftests with no --run argument; tokval-cheap offline tools only, nothing that spends account capacity). The update-readme skill governs any README edit. docstat.py --sweep and linkcheck.py exit 0 unpiped after.'
+---
+
+Root README.md carries 10 fenced lines with bare judge/ paths (python3 judge/field_sweep.py, judge/bot_mutants.py, judge/audio_selftest.py and 7 more; verified 10 in fences, 0 inline, by the orchestrator during task 193 verification). They were invisible to the task-193 filing census, which read inline backticks only - the method lesson recorded as finding #208 - and README was therefore never in that ticket document set, so the repairs stopped at the four root-frame files. judge/ does not exist at the repository root, so IF the fence frame is the repo root these are the confidently-wrong class: a reader copies and runs them and gets no such file. But the frame is the first thing to adjudicate, not assume: if the surrounding section declares a working directory (a cd eval line in the fence, or prose saying run from eval/), the bare forms may be correct-in-frame and the defect is instead the undeclared or contradictory frame. eval/AGENTS.md files judge/AGENTS.md was left bare for exactly this reason by task 193. Note the sibling args: the same fences say --run runs/<name>, which is only correct from eval/ (the stored runs are at eval/runs/) - so the fence as written is most likely INTERNALLY inconsistent: paths for one frame, arguments for another. Read the surrounding section before touching anything.
