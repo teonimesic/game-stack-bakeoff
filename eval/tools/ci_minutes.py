@@ -1109,23 +1109,27 @@ def register_hook_table(text: str) -> tuple[dict[str, list[str]], list[str]]:
 
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _FENCE_CLOSE = re.compile(r"^ {0,3}(`{3,}|~{3,})\s*$")
+_INDENT_CODE = re.compile(r"^(?: {4}|\t)")
 
 
-def _unfenced(lines: list[str]) -> list[int]:
-    """The indexes of the lines OUTSIDE a fenced code block, in document order.
+def _document_lines(lines: list[str]) -> list[int]:
+    """The indexes of the lines that are the DOCUMENT, not a code block.
 
-    A fence opens on a line whose first non-space text is three or more backticks or
-    tildes -- an info string may follow (` ```bash `) -- and closes on a line carrying a
-    run of the SAME character at least as long and nothing else. The close is deliberately
-    strict, because the dangerous direction is the one that UNFENCES early: a line read as
-    a closer revives everything under it, and an example table the fence should have
-    hidden becomes selectable as the register's. A fence that never closes hides the rest
-    of the document, and a real table it swallows reads as "no opening table" -- refused,
-    never misread.
+    Two kinds of line are not the document here. A FENCED block opens on a line whose
+    first non-space text is three or more backticks or tildes -- an info string may
+    follow (` ```bash `) -- and closes on a line carrying a run of the SAME character at
+    least as long and nothing else; the close is deliberately strict, because the
+    dangerous direction is the one that UNFENCES early: a line read as a closer revives
+    everything under it, and an example table the fence should have hidden becomes
+    selectable as the register's. An INDENTED code block is a line indented four spaces
+    or a tab (CommonMark), and `_md_cells` strips leading spaces, so without this an
+    example table indented into a code block was selected as the register's and read
+    green on its example numbers with the real table gone -- measured before the repair
+    (CodeRabbit, PR #68).
 
-    Fenced lines are not the document. An example table inside a fence is prose ABOUT a
-    table, and a reader that could select one would stay green on its example numbers
-    when the real table is gone (CodeRabbit, PR #68).
+    Both refusals this causes are the fail-closed direction: a fence that never closes,
+    or a real table indented into a code block, hides content from this reader, which
+    then reports "no opening table" -- never a misread.
     """
     live: list[int] = []
     opener: tuple[str, int] | None = None
@@ -1134,7 +1138,7 @@ def _unfenced(lines: list[str]) -> list[int]:
         if opener is None:
             if m:
                 opener = (m.group(1)[0], len(m.group(1)))
-            else:
+            elif not _INDENT_CODE.match(ln):
                 live.append(i)
         elif m and m.group(1)[0] == opener[0] and len(m.group(1)) >= opener[1] \
                 and _FENCE_CLOSE.match(ln):
@@ -1160,13 +1164,13 @@ def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
     exists to catch -- the row said 56 while the sentence and the pin said 58 (PR #63)
     -- is exactly the caller's comparison going red.
 
-    Lines inside a fenced code block are not the document (`_unfenced`): a fenced
-    EXAMPLE table is not the register's, and a fence sitting between the header and its
-    rows means there is no table to read.
+    Lines inside a code block -- fenced or indented -- are not the document
+    (`_document_lines`): an EXAMPLE table is not the register's, and a code block sitting
+    between the header and its rows means there is no table to read.
     """
     problems: list[str] = []
     lines = text.splitlines()
-    live = _unfenced(lines)
+    live = _document_lines(lines)
     heads = [k for k, i in enumerate(live) if _md_cells(lines[i]) == CHECKS_TABLE_HEADER]
     if not heads:
         problems.append(
@@ -2110,6 +2114,17 @@ def _selftest() -> int:
             "11 mutant and control suites |\n"
             "| takes | **127s** | **706s** |\n"
             "```\n",
+        # Indented four spaces this is a code block in markdown, not a table -- and the
+        # numbers AGREE with the pin, which is the point: it stayed green on the
+        # example's values while the real table was gone (CodeRabbit, PR #68).
+        "a complete table indented into a code block, with no real table":
+            "# CI fixture\n"
+            "\n"
+            "    | | `gates.yml` | `controls.yml` |\n"
+            "    |---|---|---|\n"
+            "    | checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            "    | takes | **127s** | **706s** |\n",
         "two opening tables": _opening() + "\n" + _opening(),
         "the header with no delimiter row under it": _opening(delim=False),
         # `|---|---|` matches the delimiter pattern cell by cell, so without the cell
