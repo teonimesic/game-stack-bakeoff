@@ -2692,9 +2692,10 @@ still store the one-character record on the same harness.
 
 ---
 
-## A finding cited in a live document is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
+## A finding cited in README.md is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23, scoped to the front door 2026-08-28
 
-A bare `(#68)` is honest and useless: a reader who cannot click it has been told nothing. Making
+A bare `(#68)` is honest and useless **to a reader who could have clicked it**: on the rendered
+front door, a reader who cannot click a citation has been told nothing. Making
 it a link is not free, because **`docstat.py --sweep` does not check file paths** — a phantom
 `eval/RUBRIC.md` passed a green sweep — so a link is a stronger claim than a number with no gate
 behind it. **A link that resolves to the wrong place is worse than a bare number, because it looks
@@ -2708,9 +2709,31 @@ Three shapes were available and the choice was made on what each fails at, not o
 | inline `[#68](eval/findings/...#68-the-subjective-layers-first-...)` | a ~150-character URL inside every sentence, in a file whose stated defect was that it was hard to read |
 | link to `eval/FINDINGS.md` with no fragment | always resolves and never lands on the finding. The index is a **table**, and GitHub generates no anchors for table rows, so there is nothing to aim at |
 
-**Shipped: reference-style.** `[#68]` in the prose, and one definition block at the foot of the
-file carrying the group file and the GitHub heading anchor. Prose stays as short as the bare form
-and the machinery is in one place a checker can read.
+**Shipped: reference-style, in `README.md`.** `[#68]` in the prose, and one definition block at
+the foot of the file carrying the group file and the GitHub heading anchor. Prose stays as short
+as the bare form and the machinery is in one place a checker can read.
+
+**The scope is the reader, not a list of files: where the reader can click, cite linked; where
+the reader reads raw text, the number is the citation.** The first wording said *live document*
+and was shipped in `README.md` alone; the 2026-08-28 census (fenced lines and inline code masked,
+the same masking the checker applies) reads **0** reference links outside `README.md` against
+bare citations in every working document it measured — 26 in `AGENTS.md`, 39 in this file, 6 in
+`eval/FINDINGS.md`, 19 in `eval/RUNS.md`, 8 in `eval/judge/RUBRIC.md`, 19 in
+`eval/judge/JUDGING.md`, 13 in `eval/PROTOCOL.md` — so the wording, not the corpus, was wrong.
+`README.md` is written for a human on the rendered front door, and its citations are that
+reader's path into the evidence. The working documents are written for an agent in a terminal —
+`AGENTS.md` is loaded raw into every session in this project, this file is on its always-read
+list — so no citation form is clickable there, the number plus `eval/findings/` is the
+actionable token, and the linked form would still collect its machinery: a ~150-character
+definition line per distinct finding, 18 in `AGENTS.md` and 28 in this file, appended to the two
+most-loaded and most-edited documents in the repository. Nothing could hold such a migration
+either: the gate reads links that exist and cannot see a bare citation, so every new bare
+citation written into a converted file would be silently off-convention with nothing going red.
+That failure is not hypothetical. The one `[#NN]` shortcut outside `README.md` in the live
+corpus (`eval/RUNS.md:271`) had already rotted to a label nothing defines, rendering as literal
+text, and the gate never saw it because `eval/RUNS.md` was missing from `LIVE_DOCS` although
+`README.md` links into it five times; the citation is repaired to the bare form and the file
+joins the checker's set in the same commit.
 
 **The fragment is the risk and `eval/tools/linkcheck.py` is the answer to it.** A reworded heading
 kills an anchor silently. The tool derives the anchors from the target file's own headings rather
@@ -2721,8 +2744,10 @@ each of the three shapes — rule 12's corollary, prove the extraction on a case
 can state in advance. Both directions were exercised on `README.md` itself before the count over it
 was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#999]` each went red.
 
-**To re-open:** GitHub changing its heading-anchor rule, or a second consumer of these documents
-that does not render Markdown links.
+**To re-open:** the scope, if a working document's primary reader becomes a human on the
+rendered page rather than an agent in a terminal, or a gate that can see a bare citation exists
+and the maintenance objection falls with it. GitHub changing its heading-anchor rule, or a
+second consumer of these documents that does not render Markdown links.
 
 ## No run is bounded by a money figure; token counts and time are measured, not capped — decided 2026-08-23
 
