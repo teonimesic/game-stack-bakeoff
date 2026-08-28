@@ -1109,7 +1109,11 @@ def register_hook_table(text: str) -> tuple[dict[str, list[str]], list[str]]:
 
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _FENCE_CLOSE = re.compile(r"^ {0,3}(`{3,}|~{3,})\s*$")
-_INDENT_CODE = re.compile(r"^(?: {4}|\t)")
+#: Indentation to a code block is measured in COLUMNS and a tab advances to the next
+#: multiple of 4, so " \t" -- one space, one tab -- is already 4 columns. `(?: {4}|\t)`
+#: missed every space-then-tab prefix and read such a block as document (CodeRabbit,
+#: PR #68).
+_INDENT_CODE = re.compile(r"^(?: {4}| {0,3}\t)")
 
 
 def _document_lines(lines: list[str]) -> list[int]:
@@ -2125,6 +2129,18 @@ def _selftest() -> int:
             "    | checks | 60 documentation, queue and selftest gates | "
             "11 mutant and control suites |\n"
             "    | takes | **127s** | **706s** |\n",
+        # Indentation is measured in columns and a tab advances to the next multiple of
+        # 4, so " \t" is already 4 columns -- and `(?: {4}|\t)` matched neither prefix,
+        # so this shape read as document and the table below it as the register's
+        # (CodeRabbit, PR #68).
+        "a space-and-tab indented table, with no real table":
+            "# CI fixture\n"
+            "\n"
+            " \t| | `gates.yml` | `controls.yml` |\n"
+            " \t|---|---|---|\n"
+            " \t| checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            " \t| takes | **127s** | **706s** |\n",
         "two opening tables": _opening() + "\n" + _opening(),
         "the header with no delimiter row under it": _opening(delim=False),
         # `|---|---|` matches the delimiter pattern cell by cell, so without the cell
