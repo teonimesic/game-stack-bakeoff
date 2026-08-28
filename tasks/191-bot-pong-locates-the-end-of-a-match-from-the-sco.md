@@ -1,7 +1,7 @@
 ---
 id: 191
 title: bot_pong locates the end of a match from the SCORE, and end_condition_holds scores the flag
-status: todo
+status: in_progress
 priority: 3
 refs: eval/judge/bot_pong.py, eval/judge/probe.py, eval/judge/bot_mutants.py, tasks/166
 done_when: 'bot_pong._match_ends either locates the end of a match from `state.game_over` or states in a HAZARDS entry why the score is the right locator for this game and the flag is not. Whichever way it goes: a VARIANT on ref_pong where the flag lands some ticks after the eleventh point must PASS, a MUTANT where the match reaches 11 and the flag never rises must FAIL, and the widening the ticket describes - a game that reaches 11, plays on, and sets the flag later - must be stated with a measured bound on how long it can play. `bot_mutants.py` exits 0 and the summary line is quoted with all its populations.'
