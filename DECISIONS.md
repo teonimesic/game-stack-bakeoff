@@ -2736,10 +2736,13 @@ each of the three shapes — rule 12's corollary, prove the extraction on a case
 can state in advance. Both directions were exercised on `README.md` itself before the count over it
 was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#999]` each went red.
 
-**To re-open:** the scope, if the primary reader of a working document becomes a human on the
-rendered page, or of `README.md` a terminal that cannot click, or if a gate that can see a bare
-citation exists and the maintenance objection falls with it. GitHub changing its heading-anchor
-rule.
+**To re-open:**
+
+- **the scope** — the primary reader of a working document becomes a human on the rendered
+  page, or the primary reader of `README.md` becomes a terminal that cannot click;
+- **the enforcement objection** — a gate that can see a bare citation exists, and the
+  maintenance objection falls with it;
+- **the gate's external fact** — GitHub changes its heading-anchor rule.
 
 ## No run is bounded by a money figure; token counts and time are measured, not capped — decided 2026-08-23
 
