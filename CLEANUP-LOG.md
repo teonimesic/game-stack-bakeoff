@@ -1019,3 +1019,92 @@ Unchanged from the second pass's answer earlier today: repo 5.0G, `eval/runs/` 4
 harness, `applicability` caller at :1465 and :2058). It has never been a pass's area
 either, and it sits directly upstream of everything this pass read. Same regime caution:
 the instrument, so read and file, change nothing.
+
+## 2026-08-28 (fourth pass) — `eval/judge/field.py` (2157 lines, read in full)
+
+The pass the third pass's pointer asked for. The packer, run harness and gates module for
+the subjective layer — the file the #83/#131/#137 leak lineage lives in, and `build_pack`
+(cx 241 in the 2026-08-23 instrument pass) — read in full, plus greps for every
+caller claim the file or its neighbours make. Regime caution held: read, file, change
+nothing.
+
+**Looked for:** one question, from this log's own framing of the file: **does the packer's
+record of what it does match what it does?** Every docstring and comment that claims a
+mechanism — wired into the path, refused, pinned, recorded — was checked against the code
+and the callers, not against the neighbouring prose.
+
+**Read:** all 2157 lines; `blurb_selftest.py`'s pin sites for `judge_prompt`;
+`field_sweep.py`'s call sites; `eval/tools/frame_parity.py` (header and `geometry()`);
+`JUDGING.md:895-924`; `DECISIONS.md`'s money-figure section; `git log -S "pack_parity("`
+over `field.py`; a walk over every stored usable `fun_frames`/`audio` judge round with a
+`files_opened` capture.
+
+### Found — filed as tasks 201, 202, 203
+
+- **201 (p3): `JUDGE_PROMPT` tells every judge to "read the code in A/ through H/",
+  whatever the pack carries.** `_brief` was repaired for exactly this — its `looked_at`
+  map keys the closing instruction on the pack's `sees`, and its own comment names the
+  failure ("I could not find the source" read as a finding about the submission) — but the
+  `claude -p` prompt, the FIRST text the judge reads, kept the hardcoded wording, and
+  `blurb_selftest.py` pins it only for state-dependence, never for evidence agreement.
+  Measured latent null recorded in the ticket: **0 of the 14 captured rounds** contain a
+  read of evidence the pack does not carry.
+- **202 (p3): the live documents describe a geometry gate the code deliberately
+  replaced.** `JUDGING.md:910-918` says `pack_parity` runs inside `build_pack`, that mixed
+  geometry is **refused**, and that the remedy for the 420x640 trial is to re-film and
+  re-judge; `frame_parity.py:6` carries the refuse claim. The code measures geometry per
+  label from the FIRST frame and annotates the brief — refusing recorded as wrong in
+  `build_pack`'s own comment. `pack_parity` has no caller at any committed revision. Two
+  real losses ride with the stale prose: an uncalled function whose docstring claims path
+  membership, and `uniform_within_submission` — which `frame_parity.geometry()` computes
+  and nothing on the current path can see.
+- **203 (p5): the module docstring's `pack` usage omits required `--aspect`** — the
+  documented invocation exits 2; the task 200 class.
+
+### Cleared — examined and judged sound, so the next pass does not redo it
+
+- **The judge spend ceiling is DECIDED, not overlooked.** `run_field` passes
+  `--max-budget-usd 12.0` on every judge call and `field_sweep.py` exposes
+  `--per-call-budget` with the same default. The money-figure decision in `DECISIONS.md`
+  holds it explicitly: retained at its stored value for comparability with the rounds on
+  disk, since changing what the judge is told needs a pre-registration of its own. Not
+  re-opened.
+- **`ceiling()` superseded by `separation()` by design**, kept for the stored rounds and
+  marked superseded in its own docstring; the #74/#58 reasoning is in place.
+- **`separation()`'s free parameters are stated and measured** — the SD convention with
+  its three-convention comparison, `marginal_pairs` exposing boundary pairs, the low-n
+  gate. The #92/#123 discipline, applied before this pass reached the file.
+- **`CHANGED.txt`'s header is concatenated outside `_text`** — the one exception to "one
+  function for every piece of text this pack writes"; the headers are harness constants
+  with no submission content. Harmless as written.
+- **`files_opened` counts Read/NotebookRead only; `tool_calls` keeps every targeted
+  tool_use**, Bash commands and Glob patterns included, so the raw audit store is complete
+  and only the convenience count is narrower.
+- **Two loud-not-stored failures, noted and not filed:** a missing/unreadable MAPPING file
+  or a mapping without `game` raises before any spend rather than returning a stored
+  refusal; and `packcheck`'s per-game line omits `frames_mismatched`, so a frames-only
+  defect prints `clean=False` with no cause named. Both fail closed and cost a traceback,
+  not a result.
+- **The blinding machinery itself** — `blind_extensions`' closed-class membership rules,
+  the manifest-mapped `CHANGED.txt`, the mapping-outside-pack refusal, the zero-mapped-row
+  fail-closed guard, the empty-evidence per-label refusal — read whole and judged sound;
+  each carries its measurement and its failure mode at the site. The leak lineage does not
+  continue in this file.
+
+### Method note
+
+The first scan of the stored rounds classified reads with `startswith('frames/')` and came
+back reporting non-frame reads in EVERY round — the stored targets are absolute
+`/var/folders/...` paths, so the filter was wrong everywhere at once, which is rule 9's
+tell aimed at my own instrument, the fourth census in this log to fail that way. Re-pointed
+at the two forms the corpus actually stores (absolute and `./`-prefixed), the same walk
+reported zero. And `git log -S` over `pack_parity(` returning only the initial squash is
+what dated the JUDGING.md claim: no committed revision ever called it, so the "wired into
+the path (2026-08-21)" paragraph describes working-tree state that no commit carries.
+
+### Not opened, and the next pass should take one
+
+The stored-round analysis half of the subjective layer — `eval/judge/field_ranks.py` and
+`field_sweep.py`, the consumers of what this pass's file produces — and `eval/suites/`
+(the game prompts), which the 2026-08-28 second pass's pointer still names; regime-boundary
+rules as before.

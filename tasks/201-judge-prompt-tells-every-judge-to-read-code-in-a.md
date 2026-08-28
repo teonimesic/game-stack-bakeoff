@@ -1,0 +1,14 @@
+---
+id: 201
+title: JUDGE_PROMPT tells every judge to read code in A/ through H/, whatever evidence the pack carries
+status: todo
+priority: 3
+refs: eval/judge/field.py, eval/judge/blurb_selftest.py, eval/RUNS.md, DECISIONS.md
+done_when: the prompt run_field passes to claude -p names only evidence the pack being judged carries, keyed on the pack sees value the way _brief keys its closing line; blurb_selftest.py asserts that agreement in both directions (a prompt naming evidence the pack lacks goes red; each real sees value yields a prompt naming only carried evidence); the wording change is pre-registered in eval/RUNS.md beside the rounds it draws a comparability boundary around, per the standing constraint in DECISIONS.md that changing what the judge is told needs a pre-registration of its own. docstat.py --sweep exit 0 unpiped after.
+---
+
+field.py:1197-1209 hardcodes the wording read-the-code-in-A-through-H and run_field (field.py:1544) launches it for every aspect. For a frames-only pack (fun_frames) the directories hold only frames/; for audio, only audio.json. The pack-side brief was repaired for exactly this - the looked_at map at field.py:1261-1268, whose own comment names the failure: a stale instruction to open files that are not there burns turns and produces I-could-not-find-the-source as if it were a finding about the submission. The CLI prompt, which the judge reads FIRST, kept the hardcoded wording, so a frames judge is told to read code by the first text it sees and to look at every frame by the second. blurb_selftest.py pins judge_prompt only for state-dependence (kt True/False, its check 3b), never for agreement with the pack sees. Measured latent null, 2026-08-28: across every stored usable fun_frames or audio round with a files_opened capture (14 - 7 audio in wg-aspect-reliability and wg-funframes-crossgame, 7 fun_frames in wg-tetris-judge-2026-08-17/repeats7; a further 4 rounds carry the key with a null value and predate the capture), 0 contain a read of evidence the pack does not carry - audio judges read audio.json, frames judges read PNGs. The defect is in the text, not yet in any recorded round. Census method: a one-off walk over eval/runs/*/** matching fun_frames and audio round files, classifying each files_opened entry as frame PNG (a /frames/ path ending .png), BRIEF.md, or other; the first cut misclassified every absolute-path entry and was rejected on rule 9 uniformity before being believed.
+
+## note 2026-08-28 (filing pass) — not-met branch
+
+If a sees value cannot be exercised in a fixture, the honest close is the red-direction pin over the real ASPECTS registry instead: every aspect whose sees lacks code asserted to yield a prompt with no read-the-code wording, and the count recorded. What does NOT close this: fixing the wording for one aspect and leaving the pin keyed to the fixed value.
