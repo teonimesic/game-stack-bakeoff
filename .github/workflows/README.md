@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 59 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 60 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -52,6 +52,14 @@ needs neither `ffmpeg` nor `just`.
 `skill_layout_selftest` is there rather than beside `skill_layout_control` because it needs
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
+`heartbeat_control` runs in about 1s — `time python3 eval/tools/heartbeat_control.py` is
+the reading — and asks whether the hourly heartbeat still refuses to report a
+count when the **main checkout is not a work tree**. Its red cases are `core.bare=true` read
+from the main checkout, the same read from a linked worktree, a `core.worktree` pointing at a
+directory that does not exist, and a root that is no repository at all. Its green cases are
+`core.bare=false`, `core.bare` absent, and a healthy checkout read from a linked worktree. It
+works on throwaway repositories under `$TMPDIR`, restores the configuration in a `finally`, and
+carries 1 mutant: the guard removed.
 `fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
@@ -185,7 +193,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **59** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **60** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -217,6 +225,13 @@ CI, which makes a push the last moment it can act:
       'eval/**/*_control.py' 'eval/**/*_mutants.py' 'eval/**/*_selftest.py'; } | sort -u | wc -l
 git log --format=%H main | wc -l
 ```
+
+**The work-tree guard is in the heartbeat and in NO hook tier, and that is reachability
+rather than duty cycle.** When the main checkout is not a work tree, `git commit` there exits
+128 **before any hook runs**, so no hook can reach the check. The one place a hook does still
+run is a linked worktree, and that is where the state is invisible: `status`, `commit` and
+`ls-files` all succeed there. The heartbeat fires hourly whether or not anyone is committing.
+`eval/tools/heartbeat_control.py` gates it.
 
 Two things about that population. Editing a gate script is **not** in it — the census reads the
 *set* of them, so only an add, a delete or a rename moves the verdict, which is why the second
