@@ -628,6 +628,78 @@ is suffix-free (`field.PACK_PATH_EXAMPLE`).
 in both completeness states and both blinding modes and asserts that every claim the judge-facing
 text makes about the packer is true of the pack it accompanies.
 
+## THE `claude -p` PROMPT TOLD EVERY NON-CODE JUDGE TO READ CODE — PRE-REGISTERED 2026-08-28
+
+A grader-side boundary beside the 2026-08-23 one above, and deliberately **not given an
+ordinal**, for the same reason recorded there. It sits in **the first text the judge reads**:
+`claude -p` receives its prompt before the judge opens any pack file, and unlike `BRIEF.md` the
+prompt is stored nowhere in the pack — it is the process argument, and no gate that walks a pack
+directory can see it.
+
+The pack-side half of this defect was repaired on 2026-08-23 with the `looked_at` map in
+`field._brief`. The CLI prompt kept the hardcoded wording in both completeness states:
+*"Read BRIEF.md, then read the code in A/ through H/"* — for every aspect, including the 6 whose
+packs carry no code. A frames judge was told to read code by the first text it saw and to look at
+every frame by the second.
+
+**What changed.** `field.judge_prompt` is now keyed on the pack's `sees` through
+`field.JUDGE_PROMPT_SEES` — `read the code`, `look at the frames`, `read the telemetry`,
+`read the audio measurements` — joined with "and", the same keying `_brief`'s closing line uses.
+For the 3 code-seeing aspects the rendered prompt is **byte-identical** to the pre-change text in
+both completeness states (asserted against the old literals, 2026-08-28), so the boundary runs
+through the non-code rounds only.
+
+**Which stored rounds sit on the moved side.** The producer, and do not quote these from memory:
+
+```
+python3 eval/judge/prompt_capture_census.py --runs-root <main checkout>/eval/runs
+```
+
+| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence | malformed records | truncated targets |
+|---|---|---|---|---|---|---|
+| `audio` | 11 | 7 | 4 | **0** | 0 | 0 |
+| `fun` | 11 | 7 | 4 | **0** | 0 | 0 |
+| `fun_frames` | 22 | 16 | 6 | **0** | 0 | 0 |
+| `ux` | 13 | 9 | 4 | **0** | 0 | 0 |
+| total | 57 | 39 | 18 | **0** | 0 | 0 |
+
+The classifier and every column of it are pinned on a fixture tree whose answers are written out
+beside it (`prompt_capture_census.py --selftest`). Two rows discriminate the un-carried column: a
+`.src` read inside a frames pack is counted un-carried, and a `.png` outside `frames/` lands in
+`other` rather than being counted as a frames read. Two more pin the malformed column: a dict
+where the list belongs, and a list holding a non-string. Each malformed shape is refused whole —
+named `malformed`, never counted as null, never partially classified — and neither stops the
+walk; the unit is the record. A target of exactly 200 characters is refused from classification
+as well: the capture in `field.py` stores `str(target)[:200]`, so a stored target at that length
+may have lost its tail — the filename — and classifying it would be a guess. Those count under
+`truncated`, one per target, itemised in full, never as carried and never as a leak, while the
+record's good targets still classify — a different unit from `malformed`, and the fixture holds
+two truncated targets in one list to pin it.
+
+**The defect is latent: 0 of the 39 captured non-code rounds read any evidence its pack did not
+carry.** The captured rounds' reads name only their own bucket's files and `BRIEF.md` — the audio
+rounds read their 8 `audio.json` files plus the brief, read directly off two of them as the
+known-good rows. What the prompt told these judges to do and what they did diverged; nothing was
+scored on the difference. The 18 others predate the `files_opened` capture (task 09,
+2026-08-22) and are **permanently unassessable, not clean** — the #83 third value again.
+
+**Why this is a pre-registration rather than a stored hash.** `provenance` hashes `BRIEF.md`
+(`brief_sha256`) and the scene statement; it does not hash the prompt, because the prompt is the
+process argument and lands on no disk the round stores. Which side of this boundary a stored
+non-code round sits on is therefore carried by this dated section and by nothing in the round
+itself — the same property that made the 2026-08-23 repair provable (a stored hash) is absent
+here, and this entry is what stands in for it.
+
+**What it costs.** The judge tier weighs 0.00, so no `overall` moves and nothing is re-scored.
+The brief is untouched: the per-aspect same/moved table above still reproduces after this change,
+and the non-code rows read `moved` for exactly the reasons already recorded there — not for this
+one.
+
+**The gate**: `python3 eval/judge/blurb_selftest.py`, check 3c — the prompt names exactly the
+buckets the pack carries, per pack shape in both completeness states, over the whole aspect
+registry, and on the argv `run_field` actually builds; with the pre-change hardcoded prompt, a
+prompt naming no bucket, and a `run_field` that passes the pack to nothing, each pinned red.
+
 ## "completed" does not mean finished
 
 The calibration trial for the no-cap regime came back at **$72.83 / 369 turns / 118 min**, and

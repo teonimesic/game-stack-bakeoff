@@ -1182,6 +1182,25 @@ PACK_SKILL_HISTORY = {
 }
 
 
+#: WHAT THE PROMPT TELLS THE JUDGE TO OPEN, per evidence bucket, keyed the way `_brief`'s
+#: closing line is keyed. The opening clause is joined over the buckets the PACK BEING
+#: JUDGED actually carries, so a frames-only pack is never told to read code by the first
+#: text it reads. Until 2026-08-28 both completeness states hardcoded "read the code in
+#: A/ through H/", so the CLI prompt contradicted the brief on exactly the aspects whose
+#: pack holds no code - the pack-side half of this was repaired as the `looked_at` map in
+#: `_brief`, whose comment names the failure; the prompt is what the judge reads FIRST.
+#:
+#: Measured over the stored corpus before the change (task 201): 0 of 39 captured
+#: non-code rounds opened evidence their pack does not carry, so the defect was latent -
+#: in the text, not yet in any recorded round. Pre-registered in `eval/RUNS.md`, beside
+#: the rounds it draws a comparability boundary around.
+JUDGE_PROMPT_SEES = {
+    "code": "read the code",
+    "frames": "look at the frames",
+    "telemetry": "read the telemetry",
+    "audio": "read the audio measurements",
+}
+
 #: THE THIRD JUDGE-FACING TEXT, and the one nothing was looking at. It is not in the pack
 #: at all - it is `claude -p`'s argument - so a check that walks the pack directory cannot
 #: see it, and it asserted "The submissions are complete" unconditionally, exactly as the
@@ -1189,18 +1208,22 @@ PACK_SKILL_HISTORY = {
 #: text that claims something about the packer) rather than against the two constants that
 #: were known to be wrong.
 #:
+#: The `{evidence}` slot is the `JUDGE_PROMPT_SEES` clause, so the completeness wording is
+#: the only thing keyed on `knowingly_truncated` and the evidence wording on `sees` - two
+#: functions of two different facts about the pack, never collapsed into one another.
+#:
 #: The subagent sentence is here on purpose and is not decoration: subagents are OFFERED,
 #: not assumed, and were verified empirically under this exact flag set
 #: (`--setting-sources project --strict-mcp-config`) by asking a probe run to spawn one
 #: and reading the tool-use stream - `Agent` was really invoked. An instruction for a
 #: capability that is not present is the `-disable-audio` failure in a new costume.
 JUDGE_PROMPT = {
-    False: ("Read BRIEF.md, then read the code in A/ through H/ and produce the "
+    False: ("Read BRIEF.md, then {evidence} in A/ through H/ and produce the "
             "comparative judgement it asks for. Read real files before scoring. "
             "The submissions are complete, so some are large: you may launch subagents "
             "with the Task tool to read parts of them in parallel and report back. "
             "Sample deliberately and say what you sampled."),
-    True: ("Read BRIEF.md, then read the code in A/ through H/ and produce the "
+    True: ("Read BRIEF.md, then {evidence} in A/ through H/ and produce the "
            "comparative judgement it asks for. Read real files before scoring. "
            "BRIEF.md says how much of each submission you are being shown; believe it "
            "over any assumption that a pack is whole. Some submissions are large: you "
@@ -1209,9 +1232,18 @@ JUDGE_PROMPT = {
 }
 
 
-def judge_prompt(knowingly_truncated: bool = False) -> str:
-    """What the judge is asked to do, for the pack it is actually holding."""
-    return JUDGE_PROMPT[bool(knowingly_truncated)]
+def judge_prompt(knowingly_truncated: bool = False, sees: str = "code") -> str:
+    """What the judge is asked to do, for the pack it is actually holding.
+
+    Keyed on the pack's `sees` exactly as `_brief` keys its closing line: the opening
+    clause names only the evidence the pack carries, and names all of it. A bucket with
+    no wording here is silently omitted from the clause - which is the defect this
+    repaired in its first costume - so `blurb_selftest.py` pins the rendered prompt,
+    per aspect over the whole registry, against the buckets `sees` names.
+    """
+    evidence = " and ".join(JUDGE_PROMPT_SEES[k] for k in sees.split("+")
+                            if k in JUDGE_PROMPT_SEES)
+    return JUDGE_PROMPT[bool(knowingly_truncated)].format(evidence=evidence)
 
 
 def pack_skill(knowingly_truncated: bool = False) -> str:
@@ -1539,9 +1571,14 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
                         knowingly_truncated=bool(mapping["knowingly_truncated"]))
     (pack / "BRIEF.md").write_text(brief_text)
 
+    # THE PROMPT IS KEYED ON WHAT THIS PACK CARRIES, not on the aspect alone: `built_for`
+    # was asserted equal to `aspect.sees` two guards up, and it is the pack's own record,
+    # which is the thing the first sentence the judge reads must describe. Passing the
+    # aspect here instead would survive a future drift between mapping and registry and
+    # hand the judge a prompt about evidence the pack was not built with.
     argv = [
         "claude", "-p",
-        judge_prompt(bool(mapping["knowingly_truncated"])),
+        judge_prompt(bool(mapping["knowingly_truncated"]), sees=built_for),
         "--model", model,
         "--output-format", "stream-json", "--verbose",
         "--json-schema", json.dumps(SCHEMA, separators=(",", ":")),

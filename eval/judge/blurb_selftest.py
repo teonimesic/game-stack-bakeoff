@@ -31,6 +31,12 @@ What is checked, and why each direction is needed:
      pack built for an aspect that sees that bucket.
   3. THE COMPLETENESS CLAIM TRACKS THE PACKER, measured from the fixture rather than read
      back out of what `build_pack` recorded about itself, and asserted in BOTH states.
+  3c. THE PROMPT NAMES ONLY THE EVIDENCE THE PACK CARRIES, keyed on `sees` the way the
+     brief's closing line is keyed. The `claude -p` prompt is the FIRST text the judge
+     reads, and until 2026-08-28 it told every judge to read code in A/ through H/
+     whatever the pack held. Asserted per pack shape over both completeness states, over
+     every aspect in the registry, and on the argv `run_field` actually passes to
+     `claude -p` - with the truncated-state pass-through pinned on the same path.
   4. NO CAUTION VOCABULARY IN THE COMPLETE-STATE NOTE. The one check that would have
      fired on the original defect on its first day.
   5. PACK-PATH EXAMPLES. A `bucket/NN.ext` example in the brief has to be a label the
@@ -38,8 +44,11 @@ What is checked, and why each direction is needed:
      all, because in a four-arm field a real suffix names an arm.
   6. MUTANTS. The historical sentence restored; a blurb naming an artifact no pack holds;
      a real suffix in the non-blind pack-path example; the two notes collapsed into one;
-     a constant `claude -p` prompt. Checks 2 and 5 own two of those, so no check above
-     this line is asserted against a pack without something that proves it can go red.
+     a constant `claude -p` prompt; the pre-2026-08-28 hardcoded prompt (red on every
+     aspect whose pack carries no code, still green on the code-seeing ones); a prompt
+     naming no bucket; `run_field` not passing the pack to the prompt. Checks 2 and 5 own
+     two of those, so no check above this line is asserted against a pack without
+     something that proves it can go red.
   7. VARIANT (rule 15). A field that really is knowingly truncated, built by the real
      `build_pack(allow_truncated=True)` over a fixture whose stored drop count is
      non-zero. A mutant removes a mechanism; only a variant can manufacture the input
@@ -249,8 +258,10 @@ def judge_facing_texts(aspect: aspects.Aspect, mapping: dict, pack: Path) -> dic
         # NOT IN THE PACK AT ALL - it is `claude -p`'s argument. A checker that walked
         # the pack directory would never see it, and it was asserting "The submissions
         # are complete" unconditionally when this file was written. That is why the
-        # subject here is the resource and not a directory.
-        "claude -p prompt": field.judge_prompt(kt),
+        # subject here is the resource and not a directory. Keyed on the aspect's
+        # `sees` as well as the completeness state since 2026-08-28 (check 3c): the
+        # first sentence the judge reads must describe the evidence it is holding.
+        "claude -p prompt": field.judge_prompt(kt, sees=aspect.sees),
     }
     # READ OFF DISK, not rebuilt from the constant. The question this file asks is what
     # the judge is HANDED; rebuilding it would agree with the packer by construction and
@@ -331,6 +342,80 @@ FRAMES_AUDIENCE_SCENE = "Everything the scene shows"
 
 CODE_ASPECTS = [a for a in aspects.ASPECTS.values() if "code" in a.sees.split("+")]
 LABELS = list(field.LABELS)
+
+#: WHAT THE PROMPT SAYS FOR EACH BUCKET, spelled out HERE rather than imported from
+#: `field.JUDGE_PROMPT_SEES`, for the same reason the frames audience above is spelled
+#: out: a control that imports its expectation from its subject cannot disagree with it.
+#: `prompt-wordings-still-agree` is the row that keeps the two in step, which is what the
+#: rule asks for instead of a shared object.
+PROMPT_EVIDENCE_WORDING = {
+    "code": "read the code",
+    "frames": "look at the frames",
+    "telemetry": "read the telemetry",
+    "audio": "read the audio measurements",
+}
+
+#: WHICH NOUN NAMES WHICH BUCKET, for reading a rendered prompt back. The check reads the
+#: PROMPT rather than trusting the constant that produced it, so a clause naming evidence
+#: added outside the keyed slot - or a rewording that drops it - is still seen. Closed
+#: class: the four nouns are the vocabulary the prompt wordings are built from.
+PROMPT_BUCKET_NOUNS = {
+    "code": re.compile(r"\bcode\b"),
+    "frames": re.compile(r"\bframes?\b"),
+    "telemetry": re.compile(r"\btelemetry\b"),
+    "audio": re.compile(r"\baudio\b"),
+}
+
+
+def prompt_evidence_named(text: str) -> set[str]:
+    """The evidence buckets a rendered prompt names, read off the wording itself."""
+    return {b for b, rx in PROMPT_BUCKET_NOUNS.items() if rx.search(text)}
+
+
+#: What a stubbed judge "returns" - schema-valid, so the whole record-assembling tail of
+#: `run_field` executes past the argv build without spending anything.
+VERDICT = {"submissions": [{"label": lab, "score": 2, "rank": 1,
+                            "evidence": "e" * 60} for lab in LABELS],
+           "best": "A", "worst": "B", "field_note": "stubbed"}
+
+
+class _StubJudge:
+    """`field.subprocess`, for a round that must not spend anything.
+
+    Module level because two checks drive rounds through `run_field` with the judge
+    stubbed: the argv prompt rows (check 3c) and the provenance rows (check 11).
+    """
+
+    TimeoutExpired = subprocess.TimeoutExpired
+
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    def run(self, argv, **kw):
+        self.calls.append(argv)
+        line = json.dumps({"type": "result", "structured_output": VERDICT,
+                           "total_cost_usd": 0.0})
+        return subprocess.CompletedProcess(argv, 0, line + "\n", "")
+
+
+def stubbed_round(run_root: Path, dest: Path, aspect: aspects.Aspect
+                  ) -> tuple[dict, _StubJudge]:
+    """Copy a built pack and drive ONE round of it through `run_field`, judge stubbed.
+
+    The guards, the brief write and the argv build all execute; the model call does not.
+    Returns the round and the stub that captured the `claude -p` argv.
+    """
+    copy = run_root / f"round-{dest.name}"
+    if copy.exists():
+        shutil.rmtree(copy)
+    shutil.copytree(dest, copy)
+    shutil.copy(field.mapping_path(dest), field.mapping_path(copy))
+    stub = _StubJudge()
+    real, field.subprocess = field.subprocess, stub
+    try:
+        return field.run_field(copy, aspect.id), stub
+    finally:
+        field.subprocess = real
 
 
 def build(run: Path, aspect: aspects.Aspect, dest: Path, game: str = "g9_probe",
@@ -532,6 +617,95 @@ def main() -> int:
                        f"the evidence is true of at most one of them")
 
         # -------------------------------------------------------------------
+        # 3c. THE PROMPT NAMES ONLY THE EVIDENCE THE PACK CARRIES, keyed on `sees` the
+        #     way `_brief` keys its closing line. Until 2026-08-28 both completeness
+        #     states hardcoded "read the code in A/ through H/", so the FIRST text a
+        #     judge read told a frames-only judge to read code - the CLI half of the
+        #     defect whose pack-side half is the `looked_at` map in `_brief`. Both
+        #     halves of "only": it must name every bucket the pack carries (a prompt
+        #     naming nothing is the vacuous way to pass), and name no bucket it does
+        #     not (a judge sent hunting for files that are not there reports their
+        #     absence as if it were a finding about the submission).
+        # -------------------------------------------------------------------
+        expect("prompt-wordings-still-agree",
+               field.JUDGE_PROMPT_SEES == PROMPT_EVIDENCE_WORDING,
+               f"field.JUDGE_PROMPT_SEES is {field.JUDGE_PROMPT_SEES} and this file "
+               f"expects {PROMPT_EVIDENCE_WORDING}. The 2 are deliberately separate "
+               f"statements; reconcile them here rather than importing one from the "
+               f"other")
+        for a, _dest, m in [packs[k] for k in sorted(packs)]:
+            buckets = set(a.sees.split("+"))
+            for kt in (False, True):
+                named = prompt_evidence_named(field.judge_prompt(kt, sees=a.sees))
+                expect(f"prompt-names-exactly-the-carried-buckets[{a.id}:kt={kt}]",
+                       named == buckets,
+                       f"the kt={kt} prompt for a sees={a.sees!r} pack names "
+                       f"{sorted(named)}, not exactly {sorted(buckets)}; the first "
+                       f"sentence the judge reads must describe the evidence it is "
+                       f"holding, all of it and nothing else")
+        # OVER THE WHOLE REGISTRY, not only the shapes this fixture builds: the pin is
+        # over every aspect defined, so a future aspect with a novel `sees` value must
+        # arrive with prompt wording for that bucket or the pin goes red. The registry
+        # also carries the red-direction row the ticket asks for by name: every aspect
+        # whose pack carries no code is asserted to yield a prompt naming no code.
+        registry = list(aspects.ASPECTS.values())
+        no_code = [a for a in registry if "code" not in a.sees.split("+")]
+        expect("registry-prompt-pin-has-a-population",
+               bool(registry) and bool(no_code),
+               f"the registry pin iterated {len(registry)} aspect(s), "
+               f"{len(no_code)} of them carrying no code in `sees`; a pin over an "
+               f"empty registry is a pin over nothing")
+        for a in registry:
+            buckets = set(a.sees.split("+"))
+            named = prompt_evidence_named(field.judge_prompt(False, sees=a.sees))
+            expect(f"registry-prompt-names-only-carried-buckets[{a.id}]",
+                   named == buckets,
+                   f"the prompt for aspect {a.id!r} (sees={a.sees!r}) names "
+                   f"{sorted(named)}, not exactly {sorted(buckets)}")
+
+        # THE PROMPT run_field ACTUALLY PASSES, read off the argv the spender builds -
+        # not off the function's return value. Every row above calls `judge_prompt`
+        # directly; only this one reads what `run_field` hands `claude -p`, which is
+        # the address the defect lived at. Driven with the judge stubbed, so the
+        # guards and the argv build run and nothing is spent.
+        for (sees, blind), (a, dest, m) in sorted(packs.items()):
+            rec, stub = stubbed_round(root, dest, a)
+            expect(f"prompt-round-is-usable[{sees}]",
+                   rec.get("usable") is True and len(stub.calls) == 1,
+                   f"the stubbed round for sees={sees!r} returned "
+                   f"usable={rec.get('usable')!r} after {len(stub.calls)} judge "
+                   f"invocation(s): {str(rec.get('error'))[:200]!r} - the row below "
+                   f"would be reading a refusal rather than an argv")
+            if rec.get("usable") is not True or not stub.calls:
+                continue
+            named = prompt_evidence_named(stub.calls[0][2])
+            expect(f"run-field-argv-names-carried-buckets[{sees}]",
+                   named == set(sees.split("+")),
+                   f"run_field passed claude -p a prompt naming {sorted(named)} for "
+                   f"a pack built with sees={sees!r}; it must name exactly "
+                   f"{sorted(sees.split('+'))}")
+
+        # MUTANT for the argv row: a `run_field` that builds the prompt WITHOUT the
+        # pack - the defect in its first costume one level down. The function existed
+        # and was correct; the spender called it with nothing that described the pack,
+        # so every pack got the code wording and every check reading the function
+        # directly stayed green. Only an argv read can see this one.
+        keep_jp = field.judge_prompt
+        field.judge_prompt = lambda kt, sees="code": keep_jp(kt)
+        try:
+            a_f, dest_f, _m = packs[("frames", False)]
+            rec, stub = stubbed_round(root, dest_f, a_f)
+            mutant_named = (prompt_evidence_named(stub.calls[0][2])
+                            if rec.get("usable") is True and stub.calls else set())
+        finally:
+            field.judge_prompt = keep_jp
+        expect("mutant-argv-ignoring-the-pack-goes-red",
+               mutant_named != set(a_f.sees.split("+")),
+               f"dropping the pack from run_field's judge_prompt call left the argv "
+               f"row green (named {sorted(mutant_named)} for a sees="
+               f"{a_f.sees!r} pack), so it is not reading the argv run_field builds")
+
+        # -------------------------------------------------------------------
         # 5. PACK-PATH EXAMPLES are labels the packer would really write, and under
         #    a non-blind aspect they carry no suffix, because a real suffix names an
         #    arm in a four-arm field.
@@ -660,6 +834,54 @@ def main() -> int:
                "judge_prompt(True) onto judge_prompt(False), so check 3b is not reading "
                "the constant it claims to read")
 
+        # MUTANTS for check 3c. (a) The CLI prompt as it stood before 2026-08-28: keyed
+        # on nothing, it named code for every pack. Red on every aspect whose pack
+        # carries no code, and still GREEN on the code-seeing ones - a pin that went red
+        # on those too would not be distinguishing a wrong prompt from a right one.
+        keep_prompt = dict(field.JUDGE_PROMPT)
+        field.JUDGE_PROMPT[False] = (keep_prompt[False]
+                                     .format(evidence="read the code"))
+        try:
+            red = [a.id for a in aspects.ASPECTS.values()
+                   if "code" not in a.sees.split("+")
+                   and prompt_evidence_named(
+                       field.judge_prompt(False, sees=a.sees))
+                   != set(a.sees.split("+"))]
+            green = [a.id for a in aspects.ASPECTS.values()
+                     if "code" in a.sees.split("+")
+                     and prompt_evidence_named(
+                         field.judge_prompt(False, sees=a.sees))
+                     == set(a.sees.split("+"))]
+        finally:
+            field.JUDGE_PROMPT.clear()
+            field.JUDGE_PROMPT.update(keep_prompt)
+        expect("mutant-hardcoded-prompt-red-on-non-code-aspects",
+               len(red) == len(no_code) and len(green) == len(CODE_ASPECTS),
+               f"restoring the pre-2026-08-28 hardcoded prompt turned check 3c red on "
+               f"{len(red)} of {len(no_code)} non-code aspects ({red}) and left "
+               f"{len(green)} of {len(CODE_ASPECTS)} code-seeing aspects green "
+               f"({[a.id for a in CODE_ASPECTS]}); the pin must distinguish a prompt "
+               f"naming un-carried evidence from one naming exactly what the pack holds")
+
+        # (b) The vacuity direction: a prompt whose opening names NO bucket at all. The
+        # "names every carried bucket" half is what stops the pin passing on a prompt
+        # that says nothing about the evidence.
+        field.JUDGE_PROMPT[False] = (keep_prompt[False]
+                                     .format(evidence="sample deliberately"))
+        try:
+            red_empty = [a.id for a in aspects.ASPECTS.values()
+                         if prompt_evidence_named(
+                             field.judge_prompt(False, sees=a.sees))
+                         != set(a.sees.split("+"))]
+        finally:
+            field.JUDGE_PROMPT.clear()
+            field.JUDGE_PROMPT.update(keep_prompt)
+        expect("mutant-prompt-naming-nothing-is-red",
+               len(red_empty) == len(aspects.ASPECTS),
+               f"a prompt naming no bucket left check 3c green for "
+               f"{sorted(set(aspects.ASPECTS) - set(red_empty))}; naming nothing is "
+               f"not naming the carried evidence")
+
         # -------------------------------------------------------------------
         # 7. VARIANT (rule 15). A field that really is truncated, through the real
         #    packer. `dropped=4` is a STORED number: no mutant can manufacture it,
@@ -696,6 +918,26 @@ def main() -> int:
             expect(f"variant-drops-the-complete-claim[{where}]",
                    field.COMPLETENESS_NOTE[False] not in text,
                    f"{where} asserts the pack is complete AND that it is truncated")
+
+        # THE PROMPT'S kt PASS-THROUGH, on the path that holds it. Check 3b pins the
+        # two states' texts; only this row reads what `run_field` hands `claude -p`
+        # for a pack whose MAPPING records True - the wiring, not the constant. The
+        # distinguishing sentence is spelled out here, not imported from the template.
+        rec_t, stub_t = stubbed_round(root, root / "pack-trunc", a0)
+        expect("truncated-prompt-round-is-usable",
+               rec_t.get("usable") is True and len(stub_t.calls) == 1,
+               f"the stubbed truncated round returned usable={rec_t.get('usable')!r} "
+               f"after {len(stub_t.calls)} judge invocation(s): "
+               f"{str(rec_t.get('error'))[:200]!r}")
+        argv_t = stub_t.calls[0][2] if stub_t.calls else ""
+        expect("run-field-passes-the-truncated-state-prompt",
+               "believe it over any assumption that a pack is whole" in argv_t
+               and "The submissions are complete" not in argv_t
+               and prompt_evidence_named(argv_t) == set(a0.sees.split("+")),
+               f"run_field handed claude -p a prompt that does not carry the "
+               f"truncated-state wording for aspect {a0.id!r}: "
+               f"{argv_t[:200]!r}. The mapping records knowingly_truncated=true and "
+               f"the CLI prompt must say so")
 
         # -------------------------------------------------------------------
         # 8. FAIL-CLOSED. Deleting the completeness statement must be red.
@@ -1045,23 +1287,6 @@ def main() -> int:
         # object exposing the two names `run_field` uses - so the guards, the brief write
         # and the whole record-assembling tail all execute, and the round costs nothing.
         # `JUDGING.md` has the precedent: the model call is stubbed so both arms run.
-        VERDICT = {"submissions": [{"label": lab, "score": 2, "rank": 1,
-                                    "evidence": "e" * 60} for lab in LABELS],
-                   "best": "A", "worst": "B", "field_note": "stubbed"}
-
-        class _StubJudge:
-            """`field.subprocess`, for a round that must not spend anything."""
-            TimeoutExpired = subprocess.TimeoutExpired
-
-            def __init__(self) -> None:
-                self.calls: list[list[str]] = []
-
-            def run(self, argv, **kw):
-                self.calls.append(argv)
-                line = json.dumps({"type": "result", "structured_output": VERDICT,
-                                   "total_cost_usd": 0.0})
-                return subprocess.CompletedProcess(argv, 0, line + "\n", "")
-
         for game, aid in (("s1_parallax", "fidelity"), ("g9_probe", "ux")):
             a = aspects.ASPECTS[aid]
             scene = aspects.task_class(game) == "scene"

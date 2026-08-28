@@ -2625,6 +2625,16 @@ falsy would state completeness about a pack nothing on disk describes, which is 
 brief hash demonstrably read the stale sentence and cannot be re-run for it; `eval/RUNS.md`
 records that, and the other 26 code rounds stored no hash and are unassessable.
 
+**Extended 2026-08-28 (task 201) to the third judge-facing text.** The `claude -p` prompt is a
+function of the pack twice over: its completeness clause is keyed on `knowingly_truncated`, and
+its evidence clause is keyed on the pack's `sees` through `field.JUDGE_PROMPT_SEES`, joined the
+way `_brief` keys its closing line. For the code-seeing aspects the rendered prompt is
+byte-identical to the wording it replaced. `eval/RUNS.md` (2026-08-28) is the stored-round
+comparability boundary, because the prompt — unlike `BRIEF.md` — is not hashed into
+`provenance`: the dated entry is what marks which side of the boundary a stored round sits on.
+The pin is `blurb_selftest.py` check 3c in both directions; the latent-null figures beside it
+are produced by `eval/judge/prompt_capture_census.py`.
+
 ---
 
 ## A ticket's body is appended to by `tasks.py note`, and a control never imports its expectation — decided 2026-08-23
