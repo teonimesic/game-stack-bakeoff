@@ -53,7 +53,7 @@ import scene_probe  # noqa: E402
 import static  # noqa: E402
 import wholegame as wg  # noqa: E402
 
-#: The scene every driving row runs against: `judge/fixtures/ref_parallax`, the reference
+#: The scene every driving row runs against: `eval/judge/fixtures/ref_parallax`, the reference
 #: `scene_mutants.py` validates the probe with. A row red here is about the RUNNER, not
 #: about the criteria, which have their own suite.
 FIXTURE = EVAL / "judge" / "fixtures" / "ref_parallax"
@@ -449,7 +449,7 @@ def check_capture_is_timeless(rows: Rows) -> None:
 
 
 def check_end_to_end(rows: Rows) -> tuple[float, dict[str, Any]] | None:
-    print("\nThe runner path end to end, against judge/fixtures/ref_parallax")
+    print("\nThe runner path end to end, against eval/judge/fixtures/ref_parallax")
 
     work = Path(tempfile.mkdtemp(prefix="scene-e2e-"))
     sub = work / "submission"
