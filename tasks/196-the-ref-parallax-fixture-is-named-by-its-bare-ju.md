@@ -1,0 +1,22 @@
+---
+id: 196
+title: The ref_parallax fixture is named by its bare judge/ path in three places while the code that loads it builds the eval/-prefixed path
+status: in_testing
+priority: 4
+refs: eval/tools/scene_runner_control.py,.github/workflows/controls.yml,tasks/193
+done_when: All three sites name the path that exists (eval/judge/fixtures/ref_parallax), the tool still runs green (its harness/controls invocation unpiped, exit 0), and the controls workflow still parses (actionlint or python yaml load, unpiped). docstat.py --sweep exit 0 unpiped after.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/74
+established_by: Tool exit 0 before and after, full-output diff exactly one line (the printed summary now names eval/judge/fixtures/ref_parallax); controls.yml parses exit 0 (pyyaml); docstat.py --sweep exit 0 over 261 docs; tasks.py check exit 0; PR 74 review clean with no actionable comments.
+---
+
+The reference scene fixture lives at eval/judge/fixtures/ref_parallax and the code that loads it builds exactly that (eval/tools/scene_runner_control.py:59, FIXTURE = EVAL / "judge" / "fixtures" / "ref_parallax"). But the fixture is NAMED as bare judge/fixtures/ref_parallax in three places: the controls.yml comment at line 159 describing the step, the scene_runner_control.py docstring at line 56, and - the one that matters most - the summary line the tool itself prints at line 452 ("The runner path end to end, against judge/fixtures/ref_parallax"), which is text an operator reads while deciding what to type. judge/ does not exist at the repository root, so each is the confidently-wrong class AGENTS.md names: a reader following the printed line looks in a directory that is not there. Found by the task-193 agent at handback (routed in its ticket notes) and verified against the tree by the orchestrator: bare dir does not exist, eval/judge/fixtures/ref_parallax does. The task-193 repair covered live markdown documents; .github workflow YAML and python docstrings/prints were outside its enumerated document set, which is why these three survived a ticket whose whole subject was this defect class.
+
+## note 2026-08-28
+
+## note 2026-08-28 (task agent) — three sites repaired, PR #74
+
+**All three named sites now carry eval/judge/fixtures/ref_parallax** (controls.yml:159, scene_runner_control.py:56 and :452), commit 2368f47 on task-196-fixture-path-named-as-loaded. Established in both directions: the tool ran exit 0 BEFORE the edit with its output kept, ran exit 0 after, and a diff of the full output against the pre-fix baseline shows exactly one changed line — the printed summary itself — so the edit is text-only, proven mechanically. Bare-judge count in both edited files is 0 post-repair; fixture existence verified both ways (bare judge/ absent at root, eval/judge/fixtures/ref_parallax present). Gates unpiped: pyyaml parse of controls.yml exit 0 (actionlint is not installed on this machine; the ticket allows either), docstat.py --sweep exit 0 over 261 docs, tasks.py check exit 0.
+
+**Same-class sites found and deliberately left, each with its frame:** the repo-wide grep for bare judge/fixtures (not eval/-prefixed) also hits eval/RUNS.md:332,2563, eval/SCENES.md:143, eval/G4-PLATFORMER.md:18 and the docstrings of eval/judge/scene_mutants.py:813,938 — all eval-frame, correct per task 193's recorded adjudication, untouched. eval/findings/fail-open.md:595 and the tasks/ mentions are archive. **The one needing an orchestrator eye:** scene_mutants.py:813,938 are python docstrings, not markdown, so they sat outside task 193's set exactly as the three here did — but a reader of a file under eval/judge/ is in the eval frame, so I read them correct-in-frame and left them. If that reading is wrong, the repair is two one-line prefix edits; no new task filed. Also: .github/workflows/README.md:101 still carries a bare mention in main because task 193's PR #72 (6 refs repaired there) is unmerged — not missed by this PR, and the two PRs touch disjoint files.
+
+**CodeRabbit round came back clean** (LANDED_COMMENT, no actionable comments, both touched lines LGTM, merge risk Minimal). Its generic docstring-coverage warning fires on check_end_to_end and was declined: 5 of the 7 sibling check_* functions in the same file have no docstring either — the convention for row functions is the section banner and the module #-comments, and the function's one changed line is a string literal. No finding number allocated from this branch.
