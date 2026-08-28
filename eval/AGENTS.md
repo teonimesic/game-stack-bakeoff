@@ -40,8 +40,9 @@ directions.
 
 **`wholegame.py` launches a scene behind `--scenes`, which defaults to NONE**, so the standing
 matrix command builds none. `wholegame.select_tasks()` holds that decision and `DECISIONS.md` the
-reason; `tools/scene_runner_control.py --paths` prints the 6 routes by which the runner reaches a
-grading instrument or a judge pack, each guarded by `judge/aspects.applicability`.
+reason; `tools/scene_runner_control.py --paths` prints the 6 routes by which an operator's command
+reaches a grading instrument or a judge pack -- P2-P4 guarded by `judge/aspects.applicability`,
+P1 by `wholegame.select_tasks`, P5 and P6 by argparse `choices`.
 
 **1 scene has been built and graded** (`RUNS.md`), and every threshold in `judge/scene_probe.py`
 was still chosen against fixtures its own author wrote. Read the honest expectation in that

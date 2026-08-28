@@ -715,7 +715,10 @@ def applicability(instrument_id: str, task_id: str,
     `field.py pack`, `field.run_field`, `field_sweep.main`, and the 3 by which the RUNNER
     reaches a grading instrument or a judge pack -- `evaluate.evaluate`'s up-front class
     resolution, its tier-2 dispatch and its legacy tier-3 call.
-    `eval/tools/scene_runner_control.py --paths` prints the runner's 3 with their guards.
+    `eval/tools/scene_runner_control.py --paths` prints 6 routes, not just these 3:
+    P2-P4 are the runner paths above, each reaching this function; P1 is guarded by
+    `wholegame.select_tasks` and P5/P6 by argparse `choices` at the CLI surface --
+    guards on those routes that never call this function.
 
     `instrument_id` is an aspect id or an `INSTRUMENTS` id. Both declare a task class
     and the question asked of them is identical, so there is one guard rather than two
