@@ -655,7 +655,7 @@ through the non-code rounds only.
 python3 eval/judge/prompt_capture_census.py --runs-root <main checkout>/eval/runs
 ```
 
-| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence | malformed — refused whole |
+| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence | malformed — never classified |
 |---|---|---|---|---|---|
 | `audio` | 11 | 7 | 4 | **0** | 0 |
 | `fun` | 11 | 7 | 4 | **0** | 0 |
@@ -669,7 +669,10 @@ beside it (`prompt_capture_census.py --selftest`). Two rows discriminate the un-
 `other` rather than being counted as a frames read. Two more pin the malformed column: a dict
 where the list belongs, and a list holding a non-string. Each malformed shape is refused whole —
 named `malformed`, never counted as null, never partially classified — and neither stops the
-walk.
+walk. A target of exactly 200 characters is refused from classification for the same reason: the
+capture in `field.py` stores `str(target)[:200]`, so a stored target at that length may have lost
+its tail — the filename — and classifying it would be a guess; it is counted under `malformed`,
+never as carried and never as a leak.
 
 **The defect is latent: 0 of the 39 captured non-code rounds read any evidence its pack did not
 carry.** The captured rounds' reads name only their own bucket's files and `BRIEF.md` — the audio
