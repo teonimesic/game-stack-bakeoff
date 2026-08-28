@@ -17,8 +17,7 @@ Each has cost trials at least once. Run from `eval/`.
 
 ```
 python3 tools/runstat.py                     # nothing unexpected already running
-blind=$(mktemp -d) && cp -R starters "$blind"/s && \
-  python3 judge/verify_blind.py "$blind"/s/*/; ec=$?; rm -rf "$blind"; (exit $ec)   # UNPIPED, read its own exit code
+( blind=$(mktemp -d); trap 'rm -rf "$blind"' EXIT; cp -R starters "$blind"/s && python3 judge/verify_blind.py "$blind"/s/*/ )   # UNPIPED, read its own exit code
 python3 judge/bot_mutants.py                 # UNPIPED
 python3 judge/audio_selftest.py              # UNPIPED
 find starters -type f -mmin -1440 | wc -l    # starters untouched since last blind check
@@ -27,7 +26,8 @@ find starters -type f -mmin -1440 | wc -l    # starters untouched since last bli
 The blind check scans **copies** of the starters made outside the repository; the measured
 reason is in `eval/judge/AGENTS.md` (Blinding), and `tools/precampaign_smoke.py` runs the
 same scan. The command's exit code is `verify_blind.py`'s own — or that of the stage that
-failed before it — and the copies are removed either way.
+failed before it — and the subshell's EXIT trap removes the copies on every exit, abort
+included.
 
 Then a real capacity probe — a session limit mid-run kills trials that were fine:
 
