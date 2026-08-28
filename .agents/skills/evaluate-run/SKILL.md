@@ -17,8 +17,15 @@ disagrees with them, they win and this file is the bug.**
 cd eval
 python3 judge/bot_mutants.py       # UNPIPED, read its own exit code
 python3 judge/audio_selftest.py    # UNPIPED
-python3 judge/verify_blind.py      # UNPIPED
+( blind=$(mktemp -d); trap 'rm -rf "$blind"' EXIT; cp -R starters "$blind"/s && python3 judge/verify_blind.py "$blind"/s/*/ )   # UNPIPED
 ```
+
+The blind check scans **copies** of the starters made outside the repository; the measured
+reason is in `eval/judge/AGENTS.md` (Blinding), and `tools/precampaign_smoke.py` runs the
+same scan. The command's exit code is `verify_blind.py`'s own — or that of the stage that
+failed before it — and the subshell's EXIT trap removes the copies on every exit, abort
+included. The trial trees themselves were checked against the work root `wholegame.py
+build` printed, before any trial ran.
 
 A criterion that cannot fail is worse than absent, because it looks like success. Do not
 grade with a red or unrun self-test.
