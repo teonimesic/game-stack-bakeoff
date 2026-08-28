@@ -70,12 +70,14 @@ BODY_REGEX = 'r"^def ([gs]\\d+_\\w+)\\(", src, re.M'
 RUBRIC_LIST_HEAD = '    "criterion", "criteria", "rubric", "threshold", "tolerance", "graded", "grading",'
 
 # The stack tuple's one owner is `wholegame_prompts.STACKS`. The guard must hold a
-# REFERENCE to it, and the identity assert below is what a restated literal trips:
+# REFERENCE to it, and the identity guard below is what a restated literal trips:
 # equal is not the same object, which is the only property that separates a reference
-# from a copy that is equal on the day it was written (task 194).
+# from a copy that is equal on the day it was written (task 194). The guard is an
+# `if`/`raise` and not an `assert` -- asserts are stripped under `python -O`, which
+# measured exit 0 on a planted literal in review round 1.
 STACKS_REF = "STACKS = W.STACKS"
 STACKS_LITERAL = 'STACKS = ("rust", "ts", "unity", "godot")'
-IDENTITY_ASSERT = "assert STACKS is W.STACKS, ("
+IDENTITY_GUARD = "if STACKS is not W.STACKS:"
 
 SCENES = "suites/scene_prompts.py"
 GAMES = "suites/wholegame_prompts.py"
@@ -139,14 +141,14 @@ ROWS: list[tuple] = [
     # population at exit 0 after the owner changes -- and the population it prints is
     # derived from the copy, so nothing in its own output would show the drift (task
     # 194). The restated literal below is EQUAL to the owner's tuple, which is exactly
-    # why only the identity assert can catch it.
+    # why only the identity guard can catch it.
     ("stack-literal-restated", "MUTANT",
      [(GUARD, STACKS_REF, STACKS_LITERAL)],
      1, ("AssertionError", "STACKS is not W.STACKS")),
-    # DISARMED removes the identity assert and keeps the plant: the guard must go green
-    # again, which is what proves the red row above was the assert and not the literal.
+    # DISARMED removes the identity guard and keeps the plant: the guard must go green
+    # again, which is what proves the red row above was the guard and not the literal.
     ("disarmed-stack-identity", "DISARMED",
-     [(GUARD, IDENTITY_ASSERT, "assert True, ("),
+     [(GUARD, IDENTITY_GUARD, "if False:"),
       (GUARD, STACKS_REF, STACKS_LITERAL)],
      0, ("ok:",)),
 

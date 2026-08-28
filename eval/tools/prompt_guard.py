@@ -47,12 +47,16 @@ import wholegame_prompts as W  # noqa: E402
 # to drift after, the drift invisible in this tool's own output because the population
 # it prints is derived from the copy (task 194). So this is a REFERENCE, pinned by
 # IDENTITY rather than equality: a restated tuple is equal and still a different
-# object, and the assert below is what turns that into an import failure instead of a
+# object, and the guard below is what turns that into an import failure instead of a
 # clean-looking wrong population.
 STACKS = W.STACKS
-assert STACKS is W.STACKS, (
-    "prompt_guard STACKS is not W.STACKS: the stack tuple is owned by "
-    "eval/suites/wholegame_prompts.py, so assign W.STACKS here and restate nothing")
+# An `if`/`raise` and not an `assert`: asserts are stripped under `python -O` and
+# `PYTHONOPTIMIZE`, and this file MEASURED disarmed that way -- planted literal,
+# `python3` exits 1, `python3 -O` exits 0 with "ok" (task 194, review round 1).
+if STACKS is not W.STACKS:
+    raise AssertionError(
+        "prompt_guard STACKS is not W.STACKS: the stack tuple is owned by "
+        "eval/suites/wholegame_prompts.py, so assign W.STACKS here and restate nothing")
 SCENES_MD = os.path.join(EVAL, "SCENES.md")
 
 # Engine and library names that belong in a vocabulary dict, never in a task body.
