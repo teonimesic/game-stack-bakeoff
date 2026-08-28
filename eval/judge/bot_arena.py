@@ -1290,7 +1290,14 @@ class ArenaBot(Bot):
                 for _ in range(9000):
                     t = s.step_raw({})
                     hits += t.events.count("player_hit")
-                    if t.state.get("game_over") is True or "game_over" in t.events:
+                    # THE STATE FLAG, NOT THE `game_over` EVENT. This read
+                    # `flag is True or "game_over" in t.events` until `tasks/166`,
+                    # and then handed the session to `end_condition_holds`, which
+                    # scores the flag - so a game that announces the end a few ticks
+                    # before entering it was located on the event and immediately
+                    # scored `game_over went False`. `probe.py`'s WHICH SIGNAL SAYS
+                    # THE GAME IS OVER holds the reason for all four bots.
+                    if t.state.get("game_over") is True:
                         over_at = t.tick
                         break
                 hp1 = _f(_player(s.last), "hp", 0.0) or 0.0

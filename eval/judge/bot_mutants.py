@@ -515,6 +515,30 @@ TETRIS_KEEPS_STEPPING = ("""        if self.game_over:
         if self._edge("rotate_x")""")
 
 
+#: A THIRD WAY AN END CONDITION IS WRONG, and it is about WHICH SIGNAL carries it.
+#: Every game here publishes the end twice - the `game_over` state flag and a
+#: `game_over` event - and `tasks/166` made the flag authoritative everywhere. These
+#: two mutants are the negative control for that choice: the event still fires, on the
+#: same tick it always did, and the flag is never raised. If the criterion could be
+#: satisfied by the announcement alone they would pass, and the losing signal would be
+#: carrying a verdict the winning one was supposed to.
+#:
+#: Each is a BROKEN game and must stay broken after the repair: without the flag the
+#: contract's "true once the player ran out of health" / "a new piece could not be
+#: placed" is never met, and neither simulation stops.
+ARENA_ANNOUNCED_ONLY = ("""                    self.game_over = True
+                    events.append("game_over")
+""", """                    # MUTANT: the end is announced and never entered in the state
+                    events.append("game_over")
+""")
+
+TETRIS_ANNOUNCED_ONLY = ("""            self.game_over = True
+            return ["game_over"]
+""", """            # MUTANT: the end is announced and never entered in the state
+            return ["game_over"]
+""")
+
+
 
 # -- ref_platformer (g4, 2026-08-15) ----------------------------------------- #
 #
@@ -775,6 +799,75 @@ SPREAD_WEAPON = ("""        self.fire_cooldown = FIRE_INTERVAL
 """)
 
 
+#: THE OTHER READING OF THE SAME TWO SIGNALS, and the one that is CORRECT. The event
+#: announces the end on the tick it happens and the state enters it six ticks later -
+#: a closing flourish, not a second end - which nothing in any task prompt forbids and
+#: which `probe.end_condition_holds` already contemplates for the reset it reads
+#: through. Both fixtures FAILED this before `tasks/166`, located on the event and then
+#: scored `BROKE at tick N: game_over went False with nothing pressed` about a flag
+#: that had not yet been raised. `ref_pong` and `ref_platformer` never read the event
+#: and always passed it, which is half of why the flag won.
+#:
+#: SIX TICKS, and the length is doing work: at one tick the bots pass either way,
+#: because `end_condition_holds` reads its first idle tick after the one it was handed.
+#:
+#: THE SIX TICKS GATE THE SIMULATION, and that is what makes this a correct game rather
+#: than a sloppy one (raised by CodeRabbit on PR #66, which read the earlier prompt
+#: wording as forbidding it). It is the same shape as the four opening-card variants
+#: this file already declares correct - presentation that stops the sim from stepping is
+#: a design choice the prompt leaves open, and a closing flourish is an opening card at
+#: the other end of the run. What the game must not do is claim to be over while it is
+#: still playing, and it does not: `game_over` is false throughout the flourish and true
+#: from the tick the run is finished. The prompt paragraph this pair is read against says
+#: only that the field is the condition and the event is an announcement, so nothing here
+#: turns on when input stopped being answered.
+ARENA_ANNOUNCE_THEN_ENTER = (
+    ARENA_ANNOUNCED_ONLY[0],
+    """                    # VARIANT: the end is announced here and entered in the
+                    # state six ticks later.
+                    self._ending = 6
+                    events.append("game_over")
+""")
+
+ARENA_SETTLES_INTO_THE_END = ("""        events: list = []
+        self.tick += 1
+        if self.game_over:
+            return events
+""", """        events: list = []
+        self.tick += 1
+        if getattr(self, "_ending", 0) > 0:
+            self._ending -= 1                      # VARIANT: the closing flourish
+            if self._ending == 0:
+                self.game_over = True
+            return events
+        if self.game_over:
+            return events
+""")
+
+TETRIS_ANNOUNCE_THEN_ENTER = (
+    TETRIS_ANNOUNCED_ONLY[0],
+    """            # VARIANT: the end is announced here and entered in the state six
+            # ticks later.
+            self._ending = 6
+            return ["game_over"]
+""")
+
+TETRIS_SETTLES_INTO_THE_END = ("""        for f in INPUT_FIELDS:
+            self.held[f] = self.held[f] + 1 if inputs.get(f) else 0
+        if self.game_over:
+            return events
+""", """        for f in INPUT_FIELDS:
+            self.held[f] = self.held[f] + 1 if inputs.get(f) else 0
+        if getattr(self, "_ending", 0) > 0:
+            self._ending -= 1                      # VARIANT: the closing flourish
+            if self._ending == 0:
+                self.game_over = True
+            return events
+        if self.game_over:
+            return events
+""")
+
+
 @dataclass(frozen=True)
 class Variant:
     fixture: str
@@ -902,6 +995,23 @@ VARIANTS: list[Variant] = [
                   "ticks. Those 9 are every criterion a card at or under the 512-tick "
                   "budget used to break, and they are the 9 listed here; the sweep is "
                   "in `tasks/173`"),
+    Variant("ref_arena", "the end is announced six ticks before the state enters it",
+            (ARENA_ANNOUNCE_THEN_ENTER, ARENA_SETTLES_INTO_THE_END),
+            ("gameover.triggers",),
+            notes="`_death` located the end on `flag is True or 'game_over' in "
+                  "t.events` and `probe.end_condition_holds` scores the flag, so this "
+                  "correct game was found on the event and immediately read `BROKE at "
+                  "tick 537: game_over went False with nothing pressed`. Measured "
+                  "before and after `tasks/166`: FAIL then PASS, with the same six-tick "
+                  "flourish"),
+    Variant("ref_tetris3d",
+            "the stack-out is announced six ticks before the state enters it",
+            (TETRIS_ANNOUNCE_THEN_ENTER, TETRIS_SETTLES_INTO_THE_END),
+            ("gameover.triggers",),
+            notes="the same defect in `_gameover_check`, which read the event in TWO "
+                  "places - the post-drop scan and the no-falling-piece branch. "
+                  "Measured `BROKE at tick 54: game_over went False with nothing "
+                  "pressed` before `tasks/166` and a clean pass after"),
     Variant("ref_tetris3d", "a 96-tick card over an empty well",
             TETRIS_CARD_OVER_AN_EMPTY_WELL,
             ("gameover.triggers", "piece.falls", "piece.spawns", "piece.stacks"),
@@ -1176,6 +1286,25 @@ MUTANTS: list[Mutant] = [
            (PF_KEEPS_STEPPING,),
            notes="the one fixture where the score alone says it: `0 -> 200` over the "
                  "pressed window, because the corpse can still swing at an enemy"),
+    Mutant("gameover.triggers", "ref_arena",
+           "the end is announced and never entered in the state",
+           (ARENA_ANNOUNCED_ONLY,),
+           notes="the negative control for making the state flag authoritative "
+                 "(`tasks/166`). The `game_over` EVENT still fires on the same tick; "
+                 "nothing else changes. Before the repair the bot found the end on "
+                 "that event and reported `BROKE at tick 537: game_over went False` - "
+                 "the right verdict about the wrong defect. It now reads `the player "
+                 "never died in 9001 idle ticks (hp 0.0)`, which is what happened. "
+                 "NO COLLATERAL, measured: the mutant only bites at the end of a "
+                 "game, so everything the bot reads before that is untouched"),
+    Mutant("gameover.triggers", "ref_tetris3d",
+           "the end is announced and never entered in the state",
+           (TETRIS_ANNOUNCED_ONLY,),
+           notes="the same control on the other fixture. The well stacks out, the "
+                 "event fires, `piece` stays null and the flag never rises, so the "
+                 "criterion reads `stacked into one corner for 169 ticks without the "
+                 "game ending; game_over=False`. No collateral either, for the same "
+                 "reason: the well only stacks out after the play criteria have run"),
     Mutant("gameover.triggers", "ref_tetris3d",
            "the well stacked out and the game keeps stepping",
            (TETRIS_KEEPS_STEPPING,),
@@ -1236,8 +1365,12 @@ class Hazard:
     hazard: str
     #: how that hazard is answered today
     answer: str
-    #: a `Variant.label` or a `Pending.label` on this fixture, or "" for neither
-    covered_by: str = ""
+    #: `Variant.label`s and `Pending.label`s on this fixture, or () for neither.
+    #: A TUPLE because one criterion can have more than one constructed answer while
+    #: the registry keeps one entry per criterion: `gameover.triggers` is mis-scored
+    #: by a closing card AND by a game that announces the end before entering it, and
+    #: a single-label field made the second subject unclaimable (`tasks/166`).
+    covered_by: tuple[str, ...] = ()
 
 
 _V_CARD = "a 104-tick opening title card holds the ball"
@@ -1252,6 +1385,9 @@ _V_FROZEN = "a 96-tick card over a frozen well"
 _V_EMPTY = "a 96-tick card over an empty well"
 _V_SPREAD = "a faster three-round spread weapon"
 _V_DEFERRED_DROP = "the multiplier collapse lands the tick after the damage"
+_V_ARENA_ANNOUNCE = "the end is announced six ticks before the state enters it"
+_V_TETRIS_ANNOUNCE = ("the stack-out is announced six ticks before the state "
+                      "enters it")
 
 _SESSION = ("the three session-lock controls, which also pin that a permanently locked "
             "project comes back NOT MEASURED rather than FALSE")
@@ -1268,7 +1404,7 @@ HAZARDS: list[Hazard] = [
            "the variant, plus a 512-tick budget that watches POSITION rather than "
            "velocity - the first repair used velocity as a proxy and still failed a "
            "Unity submission that sets the serve velocity at tick 1 and holds the ball",
-           _V_CARD),
+           (_V_CARD,)),
     Hazard("ref_pong", "ball.wall_bounce", "tuning",
            "a paddle that imparts angle only near its tips, so a small strike offset "
            "returns the ball flat and it never reaches a wall",
@@ -1327,7 +1463,7 @@ HAZARDS: list[Hazard] = [
            "the variant, which is the shape `g1_pong__rust` shipped. The criterion "
            "idles 600 ticks after the win and only then presses, reading the pressed "
            "phase THROUGH the reset via `probe.end_condition_holds`",
-           _V_PONG_RESTART),
+           (_V_PONG_RESTART,)),
     Hazard("ref_pong", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_pong", "determinism.seed", "engine-session",
@@ -1347,13 +1483,13 @@ HAZARDS: list[Hazard] = [
            "the variant, plus `bot_tetris3d.OPENING_BUDGET`: the await was 20 ticks and "
            "the boundary was exact, an 18-tick card passing and a 21-tick one failing, "
            "so a beat between LATER pieces passed on 60 while the OPENING failed. Now "
-           "512 at tick 0 and `MIDGAME_AWAIT` after (`tasks/158`)", _V_EMPTY),
+           "512 at tick 0 and `MIDGAME_AWAIT` after (`tasks/158`)", (_V_EMPTY,)),
     Hazard("ref_tetris3d", "piece.falls", "opening-card",
            "a title card that holds the well before the first piece descends",
            "the variant, plus `bot_tetris3d.OPENING_BUDGET`: 120 ticks against a fall "
            "interval of 48 was a quarter of the 512 the same shape bought pong and the "
            "platformer, and it read `lowest cell height went from 11 to 11 without "
-           "input` on a correct game (`tasks/158`)", _V_FROZEN),
+           "input` on a correct game (`tasks/158`)", (_V_FROZEN,)),
     Hazard("ref_tetris3d", "piece.locks", "tuning",
            "a game with a lock delay, so the `lock` event lands well after the piece "
            "reaches the bottom",
@@ -1396,14 +1532,17 @@ HAZARDS: list[Hazard] = [
            "the same: the reward cannot be seen without a clear",
            "DIAGNOSTIC ONLY, with `layer.clears`"),
     Hazard("ref_tetris3d", "gameover.triggers", "closing-card",
-           "a game-over card that a control clears into a new run",
-           "the variant, and its card is 190 ticks for a reason. At 96 this fixture "
+           "a game-over card that a control clears into a new run, and a game that "
+           "announces the stack-out before entering it in the state",
+           "two variants. The card is 190 ticks for a reason: at 96 this fixture "
            "PASSED the unrepaired bot - the run restarted and stacked out AGAIN inside "
            "the 200-tick input window, and the restart's own score reset satisfied the "
            "frozen test - so the verdict was a function of the card length rather than "
            "of the game, and only the longer card can tell a repair from the luck. "
-           "`_gameover_check` now goes through `probe.end_condition_holds`",
-           _V_TETRIS_RESTART),
+           "`_gameover_check` now goes through `probe.end_condition_holds`, and it "
+           "LOCATES the end on the state flag alone: it read the `game_over` event too "
+           "until `tasks/166`, which failed the second variant",
+           (_V_TETRIS_RESTART, _V_TETRIS_ANNOUNCE)),
     Hazard("ref_tetris3d", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_tetris3d", "determinism.seed", "engine-session",
@@ -1423,7 +1562,7 @@ HAZARDS: list[Hazard] = [
            "player answers a movement input (`tasks/173`). The other reading of the "
            "criterion is unchanged: the reference travels ~130 units in its 30 ticks, "
            "so the 2-unit floor is two orders of magnitude below it and only a "
-           "near-immobile player fails it on speed", _V_ARENA_CARD),
+           "near-immobile player fails it on speed", (_V_ARENA_CARD,)),
     Hazard("ref_arena", "move.analog", "design-branch",
            "a deadzone above half the stick range, which rounds a half push to nothing "
            "and lands outside the 0.25-0.75 band",
@@ -1448,7 +1587,7 @@ HAZARDS: list[Hazard] = [
            "card is no longer spent out of them. Measured before that: the wait ran out "
            "at a 390-tick card, which is 6.1 seconds against the 96 the platformer "
            "reference holds and the 104 that bought pong its budget (`tasks/173`)",
-           _V_ARENA_CARD),
+           (_V_ARENA_CARD,)),
     Hazard("ref_arena", "enemy.kinds", "late-unlock",
            "four kinds gated behind wave >= 2, wave >= 3 and wave >= 4, which is what "
            "all six adjudicated submissions shipped (#46)",
@@ -1465,7 +1604,7 @@ HAZARDS: list[Hazard] = [
            "enemies faster than the player, so the tracked one reaches it mid-leg - the "
            "branch that raised KeyError and fail-closed a whole submission to 0.000",
            "the variant, plus one constructor for every leg exit so no exit can carry a "
-           "different shape", _V_FAST),
+           "different shape", (_V_FAST,)),
     Hazard("ref_arena", "fire.spawns_bullets", "edge-vs-level",
            "a game that fires on the rising edge, so 120 ticks of held fire produce one "
            "bullet",
@@ -1477,7 +1616,7 @@ HAZARDS: list[Hazard] = [
            "tick is one shot; the variant measures it. What this does NOT answer is a "
            "game that emits `fire` on every held tick regardless of its own cooldown - "
            "that reads as 120 shots and goes red - and such a game contradicts the "
-           "event's stated meaning, `the player fired a shot this tick`", _V_SPREAD),
+           "event's stated meaning, `the player fired a shot this tick`", (_V_SPREAD,)),
     Hazard("ref_arena", "aim.independent", "no-construction",
            "a game that ties the firing direction to the movement direction",
            "no correct game constructed: the prompt specifies separate move and aim "
@@ -1522,7 +1661,7 @@ HAZARDS: list[Hazard] = [
            "closed: the span it could land in was 459 ticks wide and is 9, and a "
            "timer that lapses before the hit is now caught outright. Closing it needs a "
            "second hit to compare against, and the multiplier is at 1 by then",
-           _V_DEFERRED_DROP),
+           (_V_DEFERRED_DROP,)),
     Hazard("ref_arena", "wave.advances", "design-branch",
            "a wave that ends on a timer rather than on the last kill",
            "the criterion asks only that the wave number rose, by any mechanism"),
@@ -1533,12 +1672,15 @@ HAZARDS: list[Hazard] = [
            "'the player was never reached' is legible; a game that never damages an "
            "idle player in 9000 ticks has not met the prompt's patrol behaviour"),
     Hazard("ref_arena", "gameover.triggers", "closing-card",
-           "a game-over card that a control clears into a new run",
-           "the variant. `_death` used to press fire, aim and move straight after "
+           "a game-over card that a control clears into a new run, and a game that "
+           "announces the end before entering it in the state",
+           "two variants. `_death` used to press fire, aim and move straight after "
            "the player died, which pressed this game's own reset and then read "
-           "the fresh run as a failure to end. It now goes through "
+           "the fresh run as a failure to end; it now goes through "
            "`probe.end_condition_holds`, which idles first and reads the pressed "
-           "phase THROUGH the reset", _V_RESTART),
+           "phase THROUGH the reset. It also LOCATES the end on the state flag alone: "
+           "it read the `game_over` event too until `tasks/166`, which failed the "
+           "second variant", (_V_RESTART, _V_ARENA_ANNOUNCE)),
     Hazard("ref_arena", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_arena", "determinism.seed", "engine-session",
@@ -1562,12 +1704,12 @@ HAZARDS: list[Hazard] = [
            "an opening ledge over a pit, which is what an opening ledge is for and what "
            "five of six wg-g4c submissions shipped",
            "the variant, plus a repaired criterion that jumps and lands on the platform "
-           "underfoot rather than walking off and hoping", _V_PIT),
+           "underfoot rather than walking off and hoping", (_V_PIT,)),
     Hazard("ref_platformer", "platform.lands", "world-geometry",
            "the same pit: nothing under the start ledge to land on",
            "the variant. The repair is why `platform.lands` is now collateral of the "
            "`jump.leaves_ground` mutant BY CONSTRUCTION, which is declared rather than "
-           "left as a surprise", _V_PIT),
+           "left as a surprise", (_V_PIT,)),
     Hazard("ref_platformer", "jump.leaves_ground", "tuning",
            "a jump with a windup, so the character is still grounded for several ticks "
            "after the press",
@@ -1584,31 +1726,31 @@ HAZARDS: list[Hazard] = [
            "`active` meaning a swing is in progress while the hitbox is live only in "
            "the middle - the reading `g4_platformer__unity__t0` took, and a legal one",
            "the variant. The reference sets the two to the same tick set, so no fixture "
-           "without this variant can tell them apart", _V_SWING),
+           "without this variant can tell them apart", (_V_SWING,)),
     Hazard("ref_platformer", "attack.faces", "contract-reading",
            "the same reading: sampling the hitbox on every active tick reads the empty "
            "rectangle's centre (0, 0) as a position and scores -61.7",
-           "the variant", _V_SWING),
+           "the variant", (_V_SWING,)),
     Hazard("ref_platformer", "attack.damages", "world-geometry",
            "a pit between the character and the nearest enemy",
            "the variant, plus one shared `_walk_toward` that jumps a gap seen through "
-           "`_edge_distance` before entering it", _V_PIT),
+           "`_edge_distance` before entering it", (_V_PIT,)),
     Hazard("ref_platformer", "enemy.damages_player", "world-geometry",
            "the same pit, in the loop whose whole experiment is making contact",
            "the variant. This is the criterion that read '0 player_hit events over 4097 "
            "ticks' while `attack.damages` passed, because only two of three copies of "
-           "'walk toward the target' had learned to jump (task 76)", _V_PIT),
+           "'walk toward the target' had learned to jump (task 76)", (_V_PIT,)),
     Hazard("ref_platformer", "invuln.window", "world-geometry",
            "the same pit: no enemy contact means no two hits to measure a gap between",
            "the variant, and the criterion says 'the window could not be measured' "
-           "rather than 'there is no window'", _V_PIT),
+           "rather than 'there is no window'", (_V_PIT,)),
     Hazard("ref_platformer", "knockback.applied", "design-branch",
            "a pit that puts the character back on the last wide platform instead of "
            "applying an impulse, which is what `g4_platformer__unity__t0` does (#82)",
            "the criterion samples only hits with an enemy within 40 units and no "
            "position jump, and reports NOT MEASURED when no enemy hit landed - the one "
            "criterion here that is unscored rather than false on a real submission",
-           _V_PIT),
+           (_V_PIT,)),
     Hazard("ref_platformer", "anim.states", "contract-reading",
            "a game whose animation labels are stack-native strings this criterion does "
            "not know",
@@ -1622,12 +1764,12 @@ HAZARDS: list[Hazard] = [
     Hazard("ref_platformer", "score.on_kill", "world-geometry",
            "the same pit: no kill means no score tick to read",
            "the variant, and the criterion distinguishes 'no kill was observed' from "
-           "'the score did not rise'", _V_PIT),
+           "'the score did not rise'", (_V_PIT,)),
     Hazard("ref_platformer", "gameover.triggers", "closing-card",
            "a game-over card that a control clears into a new run",
            "the variant. `_hurt` used to press move_right, jump and attack "
            "straight after the player died; it now goes through "
-           "`probe.end_condition_holds`", _V_RESTART),
+           "`probe.end_condition_holds`", (_V_RESTART,)),
     Hazard("ref_platformer", "stage.completes", "late-unlock",
            "any correct stage the bot cannot cross end to end",
            "DIAGNOSTIC ONLY, and the reason a variant must read `Bot.diagnostic_only` "
@@ -1725,12 +1867,16 @@ def hazard_gate() -> list[str]:
         if h.shape not in SHAPES:
             problems.append(f"hazards: {h.fixture}/{h.criterion} names shape "
                             f"{h.shape!r}, which SHAPES does not define")
-        if h.covered_by and (h.fixture, h.covered_by) not in labels:
-            problems.append(
-                f"hazards: {h.fixture}/{h.criterion} is covered_by "
-                f"{h.covered_by!r}, and no variant or pending entry on that fixture "
-                f"carries that label")
-    claimed = {(h.fixture, h.covered_by) for h in HAZARDS if h.covered_by}
+        if len(set(h.covered_by)) != len(h.covered_by):
+            problems.append(f"hazards: {h.fixture}/{h.criterion} names the same "
+                            f"subject twice in covered_by")
+        for label in h.covered_by:
+            if (h.fixture, label) not in labels:
+                problems.append(
+                    f"hazards: {h.fixture}/{h.criterion} is covered_by "
+                    f"{label!r}, and no variant or pending entry on that fixture "
+                    f"carries that label")
+    claimed = {(h.fixture, label) for h in HAZARDS for label in h.covered_by}
     for fixture, label in sorted(labels - claimed):
         problems.append(
             f"hazards: the {fixture} subject {label!r} is claimed by no criterion. A "
@@ -1767,7 +1913,7 @@ def hazard_census() -> None:
         covered = sum(1 for h in rows if h.covered_by)
         print(f"\n\n== {shape}  ({covered} of {len(rows)} with a subject)\n   {meaning}")
         for h in rows:
-            mark = f"   <- {h.covered_by}" if h.covered_by else ""
+            mark = f"   <- {'; '.join(h.covered_by)}" if h.covered_by else ""
             print(f"\n   {h.fixture}/{h.criterion}{mark}")
             wrap(h.hazard, "hazard:")
             wrap(h.answer, "answer:")
@@ -2032,6 +2178,62 @@ def read_tape(tape: list[TapeTick]) -> str:
     return f"{'PASS' if rally_ok else 'FAIL'} {detail}"
 
 
+# --------------------------------------------------------------------------- #
+# `end_condition_holds` refuses a session the caller located by the wrong signal
+# --------------------------------------------------------------------------- #
+#
+# THE GUARD IS ON THE CALLER, so no game can reach it and no fixture can pin it. The
+# four bots now locate the end on `state.game_over` alone (`tasks/166`), which is
+# exactly what makes the branch unreachable from a mutant - and an unreachable guard is
+# the shape this file exists to find. It is a written session instead: three ticks with
+# the flag set to each of the values a trace line can carry there.
+
+
+class EndTapeSession:
+    """The 4 members of `ProbeSession` that `end_condition_holds` touches.
+
+    Tick 0 is the game's opening state and tick 1 is what the caller hands over, with
+    `state.game_over` set to `flag`. Everything after tick 1 repeats it, so a session
+    that is genuinely over stays over and one that never entered the end never does.
+    """
+
+    def __init__(self, flag: Any, score: int = 7) -> None:
+        self.history: list[probe.Tick] = [
+            probe.Tick(0, "", {"score": 0, "game_over": False}, []),
+            probe.Tick(1, "", {"score": score, "game_over": flag}, ["game_over"]),
+        ]
+
+    @property
+    def last(self) -> probe.Tick:
+        return self.history[-1]
+
+    def step_raw(self, inputs: dict) -> probe.Tick:
+        t = probe.Tick(len(self.history), "", dict(self.last.state), [])
+        self.history.append(t)
+        return t
+
+    def idle(self, ticks: int) -> list[probe.Tick]:
+        return [self.step_raw({}) for _ in range(ticks)]
+
+
+def read_end_signal(flag: Any) -> str:
+    """`end_condition_holds`'s verdict, TICKS DRIVEN and evidence for one flag.
+
+    THE TICK COUNT IS THE HALF THAT PINS THE GUARD. Deleting the early return leaves
+    the verdict FAIL and the evidence byte-identical - `EndCondition.detail` reads
+    `flag_at_entry`, which is recorded on both paths - so a row carrying only those two
+    is green against a guard that is gone. It was, when this control was first written.
+    What no other path can fake is that NOTHING WAS STEPPED: the refusal drives 0 ticks
+    and the idle-then-press windows drive 8.
+    """
+    s = EndTapeSession(flag)
+    before = len(s.history)
+    end = probe.end_condition_holds(s, idle_ticks=3, press_ticks=3, inputs={},
+                                    sample=lambda t: t.state["score"])
+    return (f"{'PASS' if end.passed else 'FAIL'} drove {len(s.history) - before} "
+            f"ticks; {end.detail('score')}")
+
+
 def selftest() -> int:
     """Offline: the registry gate, the pending adjudication, and `rally.counts`.
 
@@ -2072,14 +2274,25 @@ def selftest() -> int:
     expect("a duplicated (fixture, criterion)", "1",
            str(n_problems(HAZARDS=HAZARDS + [h])))
     expect("covered_by naming nothing", "1",
-           str(n_problems(HAZARDS=[replace(x, covered_by="no such subject")
+           str(n_problems(HAZARDS=[replace(x, covered_by=("no such subject",))
                                    if x is h else x for x in HAZARDS])))
     # The label really exists - on ANOTHER fixture. A registry keyed on the label alone
     # would call this covered, and a variant only ever runs on its own fixture.
     other = next(v.label for v in VARIANTS if v.fixture != h.fixture)
     expect("covered_by naming a subject on another fixture", "1",
-           str(n_problems(HAZARDS=[replace(x, covered_by=other) if x is h else x
+           str(n_problems(HAZARDS=[replace(x, covered_by=(other,)) if x is h else x
                                    for x in HAZARDS])))
+    # `covered_by` HOLDS MORE THAN ONE SUBJECT, so both ways a second entry can be
+    # wrong need a row of their own: a real label beside a bogus one must still be
+    # caught, and the same label twice is a count with nothing behind it.
+    one_subject = next(x for x in HAZARDS if len(x.covered_by) == 1)
+    expect("covered_by naming one real subject and one bogus", "1",
+           str(n_problems(HAZARDS=[
+               replace(x, covered_by=x.covered_by + ("no such subject",))
+               if x is one_subject else x for x in HAZARDS])))
+    expect("covered_by naming the same subject twice", "1",
+           str(n_problems(HAZARDS=[replace(x, covered_by=x.covered_by * 2)
+                                   if x is one_subject else x for x in HAZARDS])))
     expect("a shape SHAPES does not define", "1",
            str(n_problems(HAZARDS=[replace(x, shape="invented") if x is h else x
                                    for x in HAZARDS])))
@@ -2153,6 +2366,22 @@ def selftest() -> int:
     for name, tape in tapes:
         if name in tape_wants:
             expect(f"tape: {name}", tape_wants[name], read_tape(tape))
+
+    # `end_condition_holds` REFUSES a session located by anything but the state flag.
+    # The first row is the direction that must still work - the guard has to let a
+    # genuinely ended game through - and the other two are the values a trace line can
+    # carry instead of `True`. `None` is not `False`: a game that drops the field
+    # entirely reaches the same refusal by a different route.
+    expect("end signal: game_over True at the hand-over", "PASS drove 6 ticks; "
+           "over 3 ticks with NO input: the end state held every tick, score 7 -> 7, "
+           "alive=None; then under 3 ticks of input: still over every tick, score "
+           "7 -> 7, alive=None", read_end_signal(True))
+    for flag in (False, None):
+        expect(f"end signal: game_over {flag} at the hand-over", "FAIL drove 0 ticks; "
+               f"the end was located at tick 1 with game_over={flag!r}, so there was "
+               f"no end state to read: neither phase was driven. The authoritative end "
+               f"signal is the state flag; a `game_over` event does not end a game",
+               read_end_signal(flag))
 
     w = max(len(r[0]) for r in rows)
     print(f"{'check':<{w}}  expected")
