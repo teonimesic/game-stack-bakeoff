@@ -2699,9 +2699,9 @@ output recorded on 2026-08-27 holds 2 ceiling firings, and neither meets that te
 ## `rally.counts` BECAME ALL-OR-NOTHING ON 2026-08-27 — a TWENTY-SIXTH comparability break, and no stored verdict can be re-read against it
 
 `bot_pong._rally` returned `rose_on_hit > 0` — the rally counter had to rise on **one** paddle hit
-of the drive. It now requires a rise on **every** hit the drive can read, which is the standard
-`paddle.deflects` beside it already held. The criterion's question did not change; the reading of
-it did. `tasks/171`.
+of the drive. It now requires a rise on **every** non-scoring hit the drive can read, which is the
+standard already used by `paddle.deflects`. The criterion's question did not change; the reading
+of it did. `tasks/171`.
 
 **A verdict written before 2026-08-27 is not comparable with one written on or after it**, and
 unlike the twenty-fifth this break **cannot be checked against the stored corpus**. `python3
