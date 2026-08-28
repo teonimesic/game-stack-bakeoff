@@ -384,6 +384,16 @@ def check_stack(stack: str) -> list[str]:
         return [f"{stack:6s} FAILED  no verify-gate.sh at {hook} - the audit "
                 f"population is wholegame_prompts.STACKS, so a stack named there "
                 f"without eval/starters/{stack}/ is this row and not a clean audit"]
+    if stack not in WARM_GUARD_DIR:
+        # A stack the owner names AND with a starter hook still needs a warm-guard
+        # entry here: the cold arm is defined by what that starter's warm guard tests
+        # for, and only this file knows what it is. Measured without this row: the
+        # first arm KeyError'd out of _project and discarded every row computed
+        # before it (review round 1, probeA).
+        return [f"{stack:6s} FAILED  {stack} has a starter hook but no WARM_GUARD_DIR "
+                f"entry in hook_audit_control.py - add the directory its starter's "
+                f"warm guard tests for (None, godot-style, if the guard is `just` "
+                f"on PATH)"]
     out: list[str] = []
     logs: dict[str, str] = {}
     for name, fn in (("green", _check_green), ("blocked", _check_blocked),
@@ -479,11 +489,17 @@ def check_grader_view(stack: str) -> list[str]:
     wg = _wholegame()
     hook = STARTERS / stack / ".claude" / "hooks" / "verify-gate.sh"
     if not hook.exists():
-        # Same disagreement as check_stack's first row, and HERE rather than a KeyError
-        # out of _project's WARM_GUARD_DIR one line below: main() runs this row for
-        # every stack unconditionally, and an unguarded crash discards every row
-        # computed before it instead of printing the disagreement (task 195).
-        return [f"{stack:6s} grader   FAILED  no verify-gate.sh at {hook}"]
+        # Same disagreement as check_stack's first row, and a readable row here
+        # rather than a crash: main() runs this row for every stack unconditionally,
+        # and an unguarded failure discards every row computed before it instead of
+        # printing the disagreement (task 195).
+        return [f"{stack:6s} grader   FAILED  no verify-gate.sh at {hook} - the "
+                f"audit population is wholegame_prompts.STACKS, so a stack named "
+                f"there without eval/starters/{stack}/ is this row"]
+    if stack not in WARM_GUARD_DIR:
+        # Same guard as check_stack's second row, for the same KeyError this row
+        # would hit one line later in _project (review round 1, probeA).
+        return [f"{stack:6s} grader   FAILED  no WARM_GUARD_DIR entry for {stack}"]
     root = Path(tempfile.mkdtemp(prefix=f"hookaudit-grader-{stack}-"))
     try:
         proj = _project(root, stack, warm=True)
@@ -542,16 +558,31 @@ def check_build_trial() -> list[str]:
 
         seen: dict[str, str] = {}
 
-        # The fixture stack is DERIVED from the population, not restated. A hardcoded
-        # name here is a second copy of the owner's tuple one import away: measured on
-        # the pre-fix file, a renamed owner entry KeyError'd on this line BEFORE any
-        # row printed, so even the failure said nothing about the population (task
-        # 195). Any one member is enough -- the substitution below replaces its starter
-        # with a fake either way.
-        fixture = next((s for s in STACKS if s in wg.STARTERS), None)
-        if fixture is None:
-            raise Failure("check_build_trial: no stack in STACKS is a key of "
-                          "wholegame.STARTERS - the two populations disagree")
+        # The harness's own starter mapping must agree with the owner on EVERY stack,
+        # both directions, before anything here substitutes one: wholegame derives
+        # STARTERS from P.STACKS keyed by the owner, so any mismatch is real drift.
+        # Measured with only a no-overlap check in between: a derivation planted to
+        # drop one stack left this row GREEN at 39 ok / 0 FAILED, the fixture
+        # silently picking a retained member (review round 1, probeB). The fixture
+        # itself stays DERIVED, never restated -- a hardcoded name here was a second
+        # copy of the owner's tuple one import away, and on the pre-fix file a
+        # renamed owner entry KeyError'd on it BEFORE any row printed (task 195).
+        missing = [s for s in STACKS if s not in wg.STARTERS]
+        extra = [s for s in wg.STARTERS if s not in STACKS]
+        if missing or extra:
+            # A returned row, not a raised Failure: main() catches nothing, and a
+            # raise here discards every row computed before it in favour of a
+            # traceback - the same unreadable shape the guards above exist to
+            # prevent. This function's other failures are returned rows too.
+            detail = []
+            if missing:
+                detail.append(f"STARTERS lacks {missing}")
+            if extra:
+                detail.append(f"STARTERS holds {extra} not in STACKS")
+            return [f"harness trial   FAILED  wholegame.STARTERS disagrees with "
+                    f"wholegame_prompts.STACKS ({'; '.join(detail)}) - the "
+                    f"populations must agree before this row substitutes anything"]
+        fixture = STACKS[0]
 
         # `**kw` because `build_trial` now passes the resolved harness object
         # through. A stand-in with a fixed signature would raise a TypeError the
