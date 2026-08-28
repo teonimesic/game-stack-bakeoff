@@ -92,7 +92,7 @@ python3 tools/integrity_census.py --windows   # hits AND distinct phrases, per w
 fires on a passage correct documents quote grows its own count by being written about, and
 reading that as an open class would argue for widening a window that has not moved.
 
-`tools/fragment_control.py` prints the corpus count at the **shipped** window only — 0 — which is
+`eval/tools/fragment_control.py` prints the corpus count at the **shipped** window only — 0 — which is
 not the number that decides a retune. Its 8 mutants each flip a row that names them.
 
 **`--sweep` deliberately does not check file paths, and `linkcheck.py` is what covers the gap
@@ -116,8 +116,8 @@ the citation is what is wrong.
 **The undecidable half is a standing list, so read only what it prints as `UNTRIAGED`.** The
 verdicts already reached are in `eval/renumber_triage.json`, keyed by the citing text — task 102
 read all 51 rows, repaired 15 and recorded 36. When you adjudicate a fresh row, add the entry;
-`--sweep` gates on an entry whose sentence no longer exists, and `tools/triage_control.py` is
-its 14 controls. **Every one of the 15 that were wrong was a task citing the number it had
+`--sweep` gates on an entry whose sentence no longer exists, and
+`eval/tools/triage_control.py` is its 14 controls. **Every one of the 15 that were wrong was a task citing the number it had
 allocated itself** — the author's own worktree numbering was never committed, so history has no
 answer, and the row you should suspect first is a `tasks/` file talking about its own finding.
 
@@ -310,7 +310,7 @@ Do not "fix" these by adding them back. Each was measured and removed:
 - **Criterion ids.** Never implemented, though `AGENTS.md` and this file both claimed it
   until 2026-08-23 (task 77) and a `_criterion_ids()` helper sat unused in `docstat.py`
   making the claim look backed. Two phantom ids planted in prose read exit 0. The helper is
-  deleted; **if you build this, the id set cannot come from string literals in `judge/*.py`
+  deleted; **if you build this, the id set cannot come from string literals in `eval/judge/*.py`
   — that pattern harvests `re.search` and `aspects.py` as criterion ids**, and a check whose
   corpus is junk goes quiet rather than wrong, which is the harder failure to see.
 - **Foreign flags.** `--max-turns`, `--permission-mode` belong to the claude CLI.

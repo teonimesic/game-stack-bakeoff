@@ -40,7 +40,7 @@ run is what the runner's noise moves.
 `linkcheck`, the queue lint, syntax-only lint, the prompt guard with its snapshot diff and its
 control, and every other `*_control.py`, `*_selftest.py` and mutant sweep that runs on Python
 alone — `cost_census_mutants`, `pr_review_state_mutants` and `mergeable_mutants` are all offline
-and about 1 second each. `judge/stored_rounds_mutants` is offline at about 4.3s — it drives a 0.6s selftest 8 times
+and about 1 second each. `eval/judge/stored_rounds_mutants.py` is offline at about 4.3s — it drives a 0.6s selftest 8 times
 over a symlinked mirror of `eval/`, once as the control and once per mutant — and its
 `--variant-control` is a further 1.7s over 3 more runs.
 `docstat --money` runs inside `--sweep`; `tokenvalue --selftest` and
@@ -78,11 +78,11 @@ the mutants are the reason this one exists, because a clean checkout cannot tell
 from the index and the glob it replaced passes every live row. It builds throwaway git
 repositories under `$TMPDIR` holding markdown that is not in them, so it needs `git` and no
 history.
-`runner_capture_selftest` is `judge/capture_selftest` pointed at the agent harness: 2.26s
+`runner_capture_selftest` is `eval/judge/capture_selftest.py` pointed at the agent harness: 2.26s
 locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rather than CPU and
 does not move with the runner.
-`judge/ink_window_control` is there rather than in `controls.yml` despite being about frames:
-it writes its own PNGs through `judge/png.py` and stubs every subprocess `static.collect`
+`eval/judge/ink_window_control.py` is there rather than in `controls.yml` despite being about frames:
+it writes its own PNGs through `eval/judge/png.py` and stubs every subprocess `static.collect`
 makes, so it needs neither `just` nor a stack toolchain — 0.6s. It carries `render.nonempty`'s
 floor in both directions and the measured derivation for having no ceiling. Its corpus arm reads
 `eval/runs`, which is gitignored, and prints `NOT ASKED` in CI rather than a count.
@@ -98,7 +98,7 @@ gate that asks whether a `dest` and the code reading it are still the same name.
 `rusage_selftest`, `skill_layout_control`.
 `scene_runner_control` is the runner's half of the scene question. It names 6 routes from an
 operator's command to a grading instrument or a judge pack and drives each one. Every group of
-rows carries a mutant or a variant. It grades `judge/fixtures/ref_parallax` through `just`, which
+rows carries a mutant or a variant. It grades `eval/judge/fixtures/ref_parallax` through `just`, which
 is why it is here rather than in `gates.yml`, and takes about 10s. `aim_contract_control` is there
 for the toolchain reason rather than the wall-clock one — 11s, and it drives the arena
 fixture through `just probe`.
@@ -359,7 +359,7 @@ every control in the repository is ungated.
 | `starter_parity`, `parity_selftest`, `starter_gate_control` | need the four real toolchains. `starter_gate_control` is 325s; `parity_selftest` exits 1 without `eval/starters/ts/node_modules`, which is untracked |
 | `evidence_set_control`, `disclosure_mutants` | both exit 2 `UNMEASURABLE` without `eval/runs/`, which is gitignored and never in a checkout |
 | `wallclock.py` without `--selftest` | it reconciles the two stored clocks over `eval/runs/`, and exits 2 there rather than reporting `0 paired observations`. **Both offline halves ARE gated**: `--selftest` and `wallclock_mutants.py` build their own trees under `tempfile` |
-| `judge/audit_criteria.py` | without a corpus it exits 0 printing `0 / 0 / 0` for every verdict line — a green run that means nothing |
+| `eval/judge/audit_criteria.py` | without a corpus it exits 0 printing `0 / 0 / 0` for every verdict line — a green run that means nothing |
 | `docstat --renumbered` | never gates by design; its second half is undecidable. The half that does gate runs inside `--sweep` |
 | `coderabbit_config.py --schema` | needs the network — it reads the published CodeRabbit schema. **Its offline half, `--constraints`, IS gated**: it walks scalar limits against a cached copy, which is what catches an over-long field voiding the file. Run `--schema` by hand when the schema may have moved; it refreshes that cache. Run it by hand when `reviews.tools` changes; it is the only thing that catches a misspelled tool key, because the schema does not close that object and the key is accepted silently |
 | an external-link check | `linkcheck.py` skips `http(s)` schemes: this repository is offline-gradeable and a network check is a different tool with a different failure mode. So a rotted source in `research/` still *looks* sourced. That is acceptable only while `research/` is a prior rather than evidence — **run an external link checker before any measurement rests on an external source** |
