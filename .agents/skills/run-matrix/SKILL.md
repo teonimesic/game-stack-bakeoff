@@ -18,17 +18,16 @@ Each has cost trials at least once. Run from `eval/`.
 ```
 python3 tools/runstat.py                     # nothing unexpected already running
 blind=$(mktemp -d) && cp -R starters "$blind"/s && \
-  python3 judge/verify_blind.py "$blind"/s/*/ && rm -rf "$blind"   # UNPIPED, read its own exit code
+  python3 judge/verify_blind.py "$blind"/s/*/; ec=$?; rm -rf "$blind"; (exit $ec)   # UNPIPED, read its own exit code
 python3 judge/bot_mutants.py                 # UNPIPED
 python3 judge/audio_selftest.py              # UNPIPED
 find starters -type f -mmin -1440 | wc -l    # starters untouched since last blind check
 ```
 
-The blind check scans **copies** of the starters made outside the repository: pointed at
-`starters/` in place, its ancestor check reads RUBRIC REACHABLE — true about that path, and
-not the question (`eval/judge/AGENTS.md`, Blinding). It is the same scan
-`tools/precampaign_smoke.py` runs. The chain's exit code is `verify_blind.py`'s own unless an
-earlier stage fails, and then that failure is what you see.
+The blind check scans **copies** of the starters made outside the repository; the measured
+reason is in `eval/judge/AGENTS.md` (Blinding), and `tools/precampaign_smoke.py` runs the
+same scan. The command's exit code is `verify_blind.py`'s own — or that of the stage that
+failed before it — and the copies are removed either way.
 
 Then a real capacity probe — a session limit mid-run kills trials that were fine:
 

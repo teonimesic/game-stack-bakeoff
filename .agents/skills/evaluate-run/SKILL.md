@@ -18,14 +18,13 @@ cd eval
 python3 judge/bot_mutants.py       # UNPIPED, read its own exit code
 python3 judge/audio_selftest.py    # UNPIPED
 blind=$(mktemp -d) && cp -R starters "$blind"/s && \
-  python3 judge/verify_blind.py "$blind"/s/*/ && rm -rf "$blind"   # UNPIPED
+  python3 judge/verify_blind.py "$blind"/s/*/; ec=$?; rm -rf "$blind"; (exit $ec)   # UNPIPED
 ```
 
-The blind check scans **copies** of the starters made outside the repository: pointed at
-`starters/` in place, its ancestor check reads RUBRIC REACHABLE — true about that path, and
-not the question (`eval/judge/AGENTS.md`, Blinding). It is the same scan
-`tools/precampaign_smoke.py` runs; the chain's exit code is `verify_blind.py`'s own unless an
-earlier stage fails, and then that failure is what you see. The trial trees themselves were
+The blind check scans **copies** of the starters made outside the repository; the measured
+reason is in `eval/judge/AGENTS.md` (Blinding), and `tools/precampaign_smoke.py` runs the
+same scan. The command's exit code is `verify_blind.py`'s own — or that of the stage that
+failed before it — and the copies are removed either way. The trial trees themselves were
 checked against the work root `wholegame.py build` printed, before any trial ran.
 
 A criterion that cannot fail is worse than absent, because it looks like success. Do not
