@@ -17,11 +17,18 @@ Each has cost trials at least once. Run from `eval/`.
 
 ```
 python3 tools/runstat.py                     # nothing unexpected already running
-python3 judge/verify_blind.py                # UNPIPED, read its own exit code
+blind=$(mktemp -d) && cp -R starters "$blind"/s && \
+  python3 judge/verify_blind.py "$blind"/s/*/ && rm -rf "$blind"   # UNPIPED, read its own exit code
 python3 judge/bot_mutants.py                 # UNPIPED
 python3 judge/audio_selftest.py              # UNPIPED
 find starters -type f -mmin -1440 | wc -l    # starters untouched since last blind check
 ```
+
+The blind check scans **copies** of the starters made outside the repository: pointed at
+`starters/` in place, its ancestor check reads RUBRIC REACHABLE — true about that path, and
+not the question (`eval/judge/AGENTS.md`, Blinding). It is the same scan
+`tools/precampaign_smoke.py` runs. The chain's exit code is `verify_blind.py`'s own unless an
+earlier stage fails, and then that failure is what you see.
 
 Then a real capacity probe — a session limit mid-run kills trials that were fine:
 
@@ -65,6 +72,10 @@ python3 wholegame.py build --run-dir runs/<name> --games <g> --trials N --parall
   records and `prepare()` starts with `rmtree`, so a broad re-run destroys completed work.
 - **A running driver holds the prompts it imported**, not the ones on disk. Verify from a
   live trial's `artifacts/<tid>/prompt.txt`, not the source that renders it.
+- **`build` ends by printing the blinding check — run it unpiped:**
+  `python3 judge/verify_blind.py <work-root>/*/` on the work root it printed. That root is
+  outside the repository by design; a stored run directory or `starters/` in place reads
+  RUBRIC REACHABLE — true about the path, not the question.
 - Verify the flags in the **live process list**, not the config file.
 
 ## 4. Watch
