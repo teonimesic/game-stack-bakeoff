@@ -655,18 +655,20 @@ through the non-code rounds only.
 python3 eval/judge/prompt_capture_census.py --runs-root <main checkout>/eval/runs
 ```
 
-| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence |
-|---|---|---|---|---|
-| `audio` | 11 | 7 | 4 | **0** |
-| `fun` | 11 | 7 | 4 | **0** |
-| `fun_frames` | 22 | 16 | 6 | **0** |
-| `ux` | 13 | 9 | 4 | **0** |
-| total | 57 | 39 | 18 | **0** |
+| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence | malformed — refused whole |
+|---|---|---|---|---|---|
+| `audio` | 11 | 7 | 4 | **0** | 0 |
+| `fun` | 11 | 7 | 4 | **0** | 0 |
+| `fun_frames` | 22 | 16 | 6 | **0** | 0 |
+| `ux` | 13 | 9 | 4 | **0** | 0 |
+| total | 57 | 39 | 18 | **0** | 0 |
 
 The classifier and every column of it are pinned on a fixture tree whose answers are written out
 beside it (`prompt_capture_census.py --selftest`), including the two rows that discriminate: a
 `.src` read inside a frames pack, and a `.png` outside `frames/`, which must not be counted as a
-frames read.
+frames read. It also pins the two shapes no capture ever takes — a dict where the list belongs,
+and a list holding a non-string — which are named `malformed` and refused whole: not counted as
+null, not partially classified, and never a reason the walk stops.
 
 **The defect is latent: 0 of the 39 captured non-code rounds read any evidence its pack did not
 carry.** The captured rounds' reads name only their own bucket's files and `BRIEF.md` — the audio
