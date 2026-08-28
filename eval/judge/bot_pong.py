@@ -55,6 +55,20 @@ def _f(d: dict[str, Any], k: str) -> float | None:
 #: and a game that has not served by then is not withholding the ball for presentation.
 LIVE_BUDGET = 512
 
+#: How long after the eleventh point the match may still be running before
+#: `match.ends` calls it a failure to stop. Same length as `LIVE_BUDGET` and written
+#: out rather than aliased to it, so raising the opening budget cannot silently widen
+#: the one window in this criterion where a failure is allowed not to count.
+#:
+#: THE LENGTH IS THE OPENING BUDGET'S ARGUMENT RUN BACKWARDS. A closing card is an
+#: opening card at the other end of the run - `bot_mutants.ARENA_ANNOUNCE_THEN_ENTER`
+#: is a six-tick closing flourish adjudicated CORRECT, on the reasoning that
+#: presentation which gates the simulation is a design choice the prompt leaves open.
+#: 8 seconds at 64 Hz is what this suite already allows before the first serve, so it
+#: is what it allows after the winning point. `_match_ends` holds what the window
+#: costs and what narrows it.
+GRACE_BUDGET = 512
+
 
 class PongBot(Bot):
     #: A representative rally, long enough that pacing is a property of the game and
@@ -585,22 +599,105 @@ class PongBot(Bot):
             f"rally zeroed on the point: {reset_ok}")
 
     def _match_ends(self, s: ProbeSession) -> Criterion:
-        """Let one side run away with it and check the score stops at eleven."""
+        """Let one side run away with it, then check the match stops at eleven.
+
+        TWO SIGNALS, AND THE CRITERION IS THE RELATION BETWEEN THEM. Pong is the one
+        game in the suite whose end has a cause the bot can see: the eleventh point.
+        The other three end when the player dies or the well stacks out, so their
+        criterion waits for `state.game_over` and has nothing to wait for it with.
+        Here the score says the end was DUE and the flag says it HAPPENED, and the
+        prompt's "stop at eleven points instead of scoring forever" is a claim about
+        both.
+
+        SO THE SCORE LOCATES AND THE FLAG SCORES, WITH A BOUNDED WINDOW BETWEEN THEM.
+        `probe.py`'s WHICH SIGNAL SAYS THE GAME IS OVER makes the flag authoritative
+        for what is SCORED and says nothing about what locates the experiment. Locating
+        on the flag alone is the excusing direction: it accepts a game that reaches
+        eleven and plays on for as long as it likes, provided nothing scores again and
+        the flag eventually arrives. The eleventh point is when the match was due to
+        stop, so it is what the window is measured from.
+
+        WHAT THE WINDOW COSTS, because a bounded excuse is still an excuse (`AGENTS.md`
+        rule 7). A game that reaches eleven, keeps running for up to `GRACE_BUDGET`
+        ticks without conceding another point, and only then raises the flag now
+        PASSES; before 2026-08-27 it failed, along with every correct game whose flag
+        lands even one tick late. Two things narrow that:
+
+        - the drive does not stop during the window, so a game that is really still
+          playing has to survive it without scoring. Measured on `ref_pong` over 8
+          seeds, 77 of 80 inter-point intervals in this drive are shorter than
+          `GRACE_BUDGET` (min 99, median ~100, max 1097), so the score guard catches a
+          still-playing game on most of them and the window's own expiry catches the
+          rest;
+        - past the window the criterion fails on the flag's absence, with the gap in
+          the evidence.
+
+        The pins are in `judge/bot_mutants.py`: a six-tick closing flourish and a
+        512-tick play-on with its score held must PASS (the second sitting exactly on
+        the bound), a match that reaches eleven and never raises the flag must FAIL,
+        and the written-tape rows in `--selftest` hold the boundary itself - 512
+        passes, 513 fails.
+        """
+        cid = "match.ends"
         prev = s.last
-        capped_at = None
+        won_at: int | None = None
+        over_at: int | None = None
+        # BOTH SIGNALS ARE READ ON THE SAME TICK BEFORE EITHER BREAKS THE LOOP. The
+        # reference raises the flag on the tick the eleventh point lands, so an
+        # `elif` here would record the flag and report that the match ended "before
+        # either side reached eleven" about a perfect game.
         for _ in range(12_000):
             inputs: dict[str, Any] = {"right_up": True}
             inputs.update(self._track(prev, "left"))
             t = s.step_raw(inputs)
             prev = t
             if max(_score(t, "left"), _score(t, "right")) >= 11:
-                capped_at = len(s.history)
+                won_at = t.tick
+            if t.state.get("game_over") is True:
+                over_at = t.tick
+            if won_at is not None or over_at is not None:
                 break
-        if capped_at is None:
-            return Criterion("match.ends", self._q("match.ends"), False,
-                             f"nobody reached 11 within the budget; final score "
+        if won_at is None and over_at is None:
+            return Criterion(cid, self._q(cid), False,
+                             f"nobody reached 11 and the match never reported "
+                             f"game_over within the budget; final score "
                              f"{_score(s.last, 'left')}-{_score(s.last, 'right')}")
+
+        if won_at is not None and over_at is None:
+            held = (_score(prev, "left"), _score(prev, "right"))
+            for _ in range(GRACE_BUDGET):
+                inputs = {"right_up": True}
+                inputs.update(self._track(prev, "left"))
+                t = s.step_raw(inputs)
+                prev = t
+                # THE SCORE IS TESTED FIRST, so a game that raises the flag on the
+                # tick a twelfth point lands fails rather than passes.
+                if (_score(t, "left"), _score(t, "right")) != held:
+                    return Criterion(
+                        cid, self._q(cid), False,
+                        f"reached {held[0]}-{held[1]} at tick {won_at} and scored "
+                        f"again at tick {t.tick} "
+                        f"({_score(t, 'left')}-{_score(t, 'right')}) with game_over "
+                        f"{t.state.get('game_over')!r}: the match did not stop at "
+                        f"eleven")
+                if t.state.get("game_over") is True:
+                    over_at = t.tick
+                    break
+            if over_at is None:
+                return Criterion(
+                    cid, self._q(cid), False,
+                    f"reached {held[0]}-{held[1]} at tick {won_at} and game_over was "
+                    f"still {prev.state.get('game_over')!r} {GRACE_BUDGET} ticks "
+                    f"later, at tick {prev.tick}, with the game still stepping: the "
+                    f"match did not stop at eleven")
+
         peak_l, peak_r = _score(s.last, "left"), _score(s.last, "right")
+        located = (
+            f"reached {peak_l}-{peak_r} at tick {won_at}; game_over at tick {over_at}, "
+            f"{over_at - won_at} tick(s) later"
+            if won_at is not None else
+            f"game_over at tick {over_at} with the score {peak_l}-{peak_r}, before "
+            f"either side reached eleven")
         # IDLE FIRST, THEN PRESS AND READ THROUGH THE RESET -
         # `probe.end_condition_holds` holds the reason, and holds it once for all four
         # bots. Pong is where the idle half was first paid for, by a Rust submission
@@ -613,9 +710,8 @@ class PongBot(Bot):
             sample=lambda t: (_score(t, "left"), _score(t, "right")))
         end_l, end_r = end.after_idle
         stayed = end.passed and max(end_l, end_r) == 11
-        return Criterion("match.ends", self._q("match.ends"), stayed,
-                         f"reached {peak_l}-{peak_r} at tick {capped_at}; "
-                         f"{end.detail('(left, right) score')}")
+        return Criterion(cid, self._q(cid), stayed,
+                         f"{located}; {end.detail('(left, right) score')}")
 
 
 BOT = PongBot()
