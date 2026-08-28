@@ -1011,12 +1011,14 @@ CHECKS_TABLE_HEADER = ["", "`gates.yml`", "`controls.yml`"]
 #: naming the required form rather than going stale unseen.
 CHECKS_ROW_LABEL = "checks"
 
-#: A count cell OPENS with the digits it publishes -- `60 documentation, queue and
-#: selftest gates`, the same cells the register has always carried and the same leading
-#: digits the document-wide regex read. Anything else is refused rather than searched
-#: for: a count that is not at the front of its cell is a reworded row, and a reworded
-#: row would go stale with the gate green (`COVERAGE_RE`'s reason, one cell down).
-_COUNT_LEAD = re.compile(r"(\d+)\b")
+#: A count cell OPENS with a WHOLE integer followed by whitespace or the end of the cell
+#: -- `60 documentation, queue and selftest gates`, the cells the register has always
+#: carried. `(\d+)\b` also read `60.5` and `60-11` as 60, because a word boundary falls
+#: before `.` and `-`: a malformed cell truncated to a plausible leading integer, which
+#: is the fail-open direction on the number this row publishes. The lookahead requires
+#: the digits to be the entire leading token, so a decimal, a range or a thousands
+#: separator is refused and the refusal names the required form (CodeRabbit, PR #68).
+_COUNT_LEAD = re.compile(r"(\d+)(?=\s|$)")
 
 
 def _md_cells(line: str) -> list[str] | None:
@@ -1105,6 +1107,41 @@ def register_hook_table(text: str) -> tuple[dict[str, list[str]], list[str]]:
     return declared, problems
 
 
+_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_FENCE_CLOSE = re.compile(r"^ {0,3}(`{3,}|~{3,})\s*$")
+
+
+def _unfenced(lines: list[str]) -> list[int]:
+    """The indexes of the lines OUTSIDE a fenced code block, in document order.
+
+    A fence opens on a line whose first non-space text is three or more backticks or
+    tildes -- an info string may follow (` ```bash `) -- and closes on a line carrying a
+    run of the SAME character at least as long and nothing else. The close is deliberately
+    strict, because the dangerous direction is the one that UNFENCES early: a line read as
+    a closer revives everything under it, and an example table the fence should have
+    hidden becomes selectable as the register's. A fence that never closes hides the rest
+    of the document, and a real table it swallows reads as "no opening table" -- refused,
+    never misread.
+
+    Fenced lines are not the document. An example table inside a fence is prose ABOUT a
+    table, and a reader that could select one would stay green on its example numbers
+    when the real table is gone (CodeRabbit, PR #68).
+    """
+    live: list[int] = []
+    opener: tuple[str, int] | None = None
+    for i, ln in enumerate(lines):
+        m = _FENCE_OPEN.match(ln)
+        if opener is None:
+            if m:
+                opener = (m.group(1)[0], len(m.group(1)))
+            else:
+                live.append(i)
+        elif m and m.group(1)[0] == opener[0] and len(m.group(1)) >= opener[1] \
+                and _FENCE_CLOSE.match(ln):
+            opener = None
+    return live
+
+
 def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
     """The `checks` row of the register's OPENING table, read from that table.
 
@@ -1122,25 +1159,34 @@ def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
     disagreeing number would be grading its own answer sheet, and the drift this row
     exists to catch -- the row said 56 while the sentence and the pin said 58 (PR #63)
     -- is exactly the caller's comparison going red.
+
+    Lines inside a fenced code block are not the document (`_unfenced`): a fenced
+    EXAMPLE table is not the register's, and a fence sitting between the header and its
+    rows means there is no table to read.
     """
     problems: list[str] = []
     lines = text.splitlines()
-    heads = [i for i, ln in enumerate(lines) if _md_cells(ln) == CHECKS_TABLE_HEADER]
+    live = _unfenced(lines)
+    heads = [k for k, i in enumerate(live) if _md_cells(lines[i]) == CHECKS_TABLE_HEADER]
     if not heads:
         problems.append(
             f"{REGISTER.relative_to(ROOT)} carries no opening table. It must hold one "
             f"whose header row is `| {' | '.join(CHECKS_TABLE_HEADER)} |` -- the "
             f"`{CHECKS_ROW_LABEL}` row is read from that table, and a matching line "
-            f"anywhere else in the document answers for nothing")
+            f"anywhere else in the document, including inside a fenced code block, "
+            f"answers for nothing")
         return None, problems
     if len(heads) > 1:
         problems.append(
             f"{REGISTER.relative_to(ROOT)} carries {len(heads)} opening tables (lines "
-            f"{', '.join(str(h + 1) for h in heads)}). The `{CHECKS_ROW_LABEL}` row "
-            f"would have two answers and a reader could not tell which is the register's")
+            f"{', '.join(str(live[k] + 1) for k in heads)}). The `{CHECKS_ROW_LABEL}` "
+            f"row would have two answers and a reader could not tell which is the "
+            f"register's")
         return None, problems
-    i = heads[0] + 1
-    delim = _md_cells(lines[i]) if i < len(lines) else None
+    k = heads[0]
+    i = live[k]
+    delim = (_md_cells(lines[live[k + 1]])
+             if k + 1 < len(live) and live[k + 1] == i + 1 else None)
     if not delim or not all(_MD_DELIM.match(c) for c in delim):
         problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the opening table's "
                         f"header has no `|---|---|---|` row under it, so it is not a table")
@@ -1148,7 +1194,12 @@ def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
     rows: list[tuple[int, int]] = []
     where: list[int] = []
     unreadable = False
-    for j in range(i + 1, len(lines)):
+    prev = live[k + 1]
+    for kk in range(k + 2, len(live)):
+        j = live[kk]
+        if j != prev + 1:
+            break  # the table ended: a fence, prose or a list line sits inside it
+        prev = j
         cells = _md_cells(lines[j])
         if cells is None:
             break
@@ -1167,9 +1218,10 @@ def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
             else:
                 problems.append(
                     f"{REGISTER.relative_to(ROOT)} line {j + 1}: the `{CHECKS_ROW_LABEL}` "
-                    f"row's cell {cell!r} does not open with the count it publishes. The "
-                    f"row is read as leading digits, and a count that is not at the front "
-                    f"of its cell would go stale with the gate green")
+                    f"row's cell {cell!r} does not open with a whole-integer count. The "
+                    f"row is read as a leading integer followed by whitespace, and "
+                    f"anything else -- `60.5`, `60-11` -- truncates to its leading digits "
+                    f"and reads as a count the cell does not state")
                 unreadable = True
         if len(parsed) == len(CHECKS_TABLE_HEADER) - 1:
             rows.append((parsed[0], parsed[1]))
@@ -2027,8 +2079,9 @@ def _selftest() -> int:
           _row != (60, 11), True)
     counts["mutants"] += 1
     # Every remaining way the row can fail to be THE TABLE's row. Fail-closed in each:
-    # no table, two tables, a header that is not a table, a table without the row, a row
-    # with the wrong shape, a cell that does not open with its count, and two rows
+    # no table, a fenced example standing where the table should be, two tables, a header
+    # that is not a table, a table without the row, a row with the wrong shape, a cell
+    # that does not open with its count, a cell whose count is malformed, and two rows
     # answering for one fact.
     _checks_mutants = {
         "no opening table, so a matching line answers for nothing":
@@ -2038,6 +2091,19 @@ def _selftest() -> int:
             "11 mutant and control suites |\n"
             "\n"
             "No table anywhere in this document.\n",
+        # A fenced EXAMPLE table is prose about a table, and these numbers AGREE with the
+        # pin -- which is the point: with the real table gone this stayed green on the
+        # example's values until the reader learned to skip fences (CodeRabbit, PR #68).
+        "a complete table inside a fence, with no real table":
+            "# CI fixture\n"
+            "\n"
+            "```markdown\n"
+            "| | `gates.yml` | `controls.yml` |\n"
+            "|---|---|---|\n"
+            "| checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            "| takes | **127s** | **706s** |\n"
+            "```\n",
         "two opening tables": _opening() + "\n" + _opening(),
         "the header with no delimiter row under it": _opening(delim=False),
         "the table carries no checks row": _opening(skip_checks=True),
@@ -2045,6 +2111,14 @@ def _selftest() -> int:
             _opening(checks="| checks | 60 documentation, queue and selftest gates |"),
         "a checks cell that does not open with a count":
             _opening(checks="| checks | sixty documentation, queue and selftest gates | "
+                            "11 mutant and control suites |"),
+        # `(\d+)\b` read both of these as 60 -- a word boundary falls before `.` and `-` --
+        # so a malformed cell truncated to a plausible count and stayed green.
+        "a checks cell with a decimal count":
+            _opening(checks="| checks | 60.5 documentation, queue and selftest gates | "
+                            "11 mutant and control suites |"),
+        "a checks cell with a range-like count":
+            _opening(checks="| checks | 60-11 documentation, queue and selftest gates | "
                             "11 mutant and control suites |"),
         "two checks rows in one table":
             _opening(extra="| checks | 60 documentation, queue and selftest gates | "
