@@ -64,6 +64,13 @@ carries 1 mutant: the guard removed.
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
 `fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
+`python3 eval/tools/findings_control.py` prints its own row count and takes about 2.3s locally.
+It needs `git` and no history: the count corpus is read from the index rather than from the disk
+(#198), so its fixture trees are repositories. One is deliberately left un-`init`ed and must exit
+**2** rather than 1, because a tree git cannot list has to stop the producer rather than shrink
+its corpus to `RANGE_DOCS` and read clean. Its last row is about the control itself — an
+inherited `GIT_DIR` outranks `cwd` silently — so it reproduces that against a decoy repository
+before asserting the fixture builder is immune.
 `corpus_control` asks which files the sweep reads at all, and its default runs the clean
 pass **and all 7 mutants** — 3.9s locally, most of it the 8 fixture repositories. `docstat
 --selftest` makes the same clean call, so a gate that only repeated it would duplicate a gate;
@@ -356,6 +363,7 @@ every control in the repository is ungated.
 | `docstat --renumbered` | never gates by design; its second half is undecidable. The half that does gate runs inside `--sweep` |
 | `coderabbit_config.py --schema` | needs the network — it reads the published CodeRabbit schema. **Its offline half, `--constraints`, IS gated**: it walks scalar limits against a cached copy, which is what catches an over-long field voiding the file. Run `--schema` by hand when the schema may have moved; it refreshes that cache. Run it by hand when `reviews.tools` changes; it is the only thing that catches a misspelled tool key, because the schema does not close that object and the key is accepted silently |
 | an external-link check | `linkcheck.py` skips `http(s)` schemes: this repository is offline-gradeable and a network check is a different tool with a different failure mode. So a rotted source in `research/` still *looks* sourced. That is acceptable only while `research/` is a prior rather than evidence — **run an external link checker before any measurement rests on an external source** |
+| `docstat --count-triggers` | a census, not a gate: it publishes what each REJECTED candidate findings-count trigger would cost, and those rows are meant to be non-zero. Its shipped row is the fact `--findings` already gates on, and `_count_trigger_pins` — run inside `--sweep` — pins every row against a known answer, and compares the SHIPPED row alone against `_stated_counts` |
 | `integrity_census.py` | a census, not a gate: it exits 0 on a historical hit by construction. Its control calls the two integrity pins `--sweep` already runs |
 | `ci_minutes.py` without `--selftest` | it reads the Actions API once per run, and the run count grows with every push — gating it would make CI cost grow quadratically in its own history. The offline `--selftest` half IS gated |
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
