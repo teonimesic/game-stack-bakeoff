@@ -36,6 +36,16 @@ Two more, about the second task class:
      before its first round. `field_ranks.report` prints the reason beside every figure
      it produces for a barred aspect.
 
+One more, about the pack the brief is read against:
+
+  7. A BRIEF NAMES NO EVIDENCE ITS `sees` EXCLUDES. `replace()` copies everything
+     not named, and that is how `fun_frames` was once briefed with `fun`'s notes --
+     which describe `telemetry.json` at length -- while its `sees` stayed frames-only.
+     The pack is BUILT from `sees` (`field.build_pack` switches on the same names), so
+     a brief naming an excluded channel hands the judge evidence it was not given and
+     invites reasoning about an absence. What counts as naming a channel is
+     `CHANNEL_TOKENS` below, stated here rather than enumerated per aspect.
+
 Each check is run against the live aspects (must pass) AND against a mutant built to
 break exactly that check (must fail). A check that cannot fail is worse than absent.
 
@@ -85,6 +95,32 @@ COUNT_LEAKS = re.compile(
     re.IGNORECASE,
 )
 
+#: THE CHANNEL VOCABULARY a `sees` field can name, and WHAT COUNTS AS NAMING one --
+#: both stated HERE rather than derived from the briefs they judge (rule 12's
+#: corollary, task 113). `field.build_pack` switches on these same four names, and
+#: each channel owns exactly one artifact the pack either carries or does not:
+#: `frames/` with its PNGs, `telemetry.json`, `audio.json`, and the code pack whose
+#: harness-written file is `CHANGED.txt` (`EVIDENCE_BLURB["code"]` opens with it).
+#:
+#: The tokens are ARTIFACT NAMES on purpose, and that was measured rather than
+#: guessed: every generic English word that can also name code evidence fires on a
+#: live brief that reads another channel -- "the source that triggers them" in
+#: `audio`'s notes, "per-frame position assignment" in `framework_fluency`'s, "file"
+#: in both code aspects' evidence_rules and in `audio`'s -- so a vocabulary built on
+#: them is red on the live registry before it has caught anything. A brief that trips
+#: one of these tokens goes red, and the reader decides whether the brief promised
+#: absent evidence or the token is the wrong one.
+#:
+#: A channel missing from this dict is a channel no brief may name, so a NEW channel
+#: in a `sees` field goes red until it is stated here -- the same intended failure as
+#: SCENE_ONLY above, and the same one `field.build_pack` reaches by its own route.
+CHANNEL_TOKENS = {
+    "code": ("changed.txt",),
+    "frames": ("frames/", "png"),
+    "telemetry": ("telemetry",),
+    "audio": ("audio",),
+}
+
 
 def frames_aspects(aspects: dict[str, Aspect]) -> dict[str, Aspect]:
     return {i: a for i, a in aspects.items() if "frames" in a.sees}
@@ -119,6 +155,52 @@ def check_control_briefing_is_identical(aspects: dict[str, Aspect]) -> list[str]
             f"distinguishable from its treatment ({len(a)} vs {len(b)} chars)"
         ]
     return []
+
+
+def check_brief_names_no_evidence_sees_excludes(aspects: dict[str, Aspect]) -> list[str]:
+    """No aspect's brief names evidence its `sees` does not include.
+
+    `replace()` copies everything not named, and that is how `fun_frames` was once
+    briefed with `fun`'s notes: they describe `telemetry.json` at length while its
+    `sees` stayed frames-only (aspects.py, the block above `FUN_FRAMES`' notes). The
+    pack is BUILT from `sees` and carries only what it names, so such a brief hands
+    the judge evidence the pack does not hold -- and every other check here passes
+    that state, measured 2026-08-28 before this check existed: the blind-spot
+    paragraphs stay byte-identical by construction, no stack is named and the control
+    declaration is intact.
+
+    What counts as naming a channel is `CHANNEL_TOKENS` above, stated there rather
+    than per aspect. The scan covers `evidence_rule` and `notes` -- the two fields
+    that promise evidence. `question` is deliberately out of scope: a control
+    inherits its treatment's question on purpose (`fun_frames` asks `fun`'s
+    identical question), and a question names no artifact.
+    """
+    problems: list[str] = []
+    for identifier, aspect in sorted(aspects.items()):
+        channels = {c.strip() for c in aspect.sees.split("+") if c.strip()}
+        if not channels:
+            problems.append(f"{identifier}: sees={aspect.sees!r} names no channel, so "
+                            "nothing can say what evidence its pack carries")
+            continue
+        unknown = sorted(channels - set(CHANNEL_TOKENS))
+        if unknown:
+            problems.append(f"{identifier}: sees={aspect.sees!r} names {unknown}, "
+                            f"which is not a channel this check knows (it knows "
+                            f"{sorted(CHANNEL_TOKENS)}). State it in CHANNEL_TOKENS, "
+                            f"or fix the spelling - field.build_pack would refuse "
+                            f"this pack too")
+            continue
+        text = f"{aspect.evidence_rule}\n{aspect.notes}".lower()
+        for channel, tokens in sorted(CHANNEL_TOKENS.items()):
+            if channel in channels:
+                continue
+            named = sorted(t for t in tokens if t in text)
+            if named:
+                problems.append(
+                    f"{identifier}: sees={aspect.sees!r} but its brief names "
+                    f"{channel} evidence ({', '.join(named)}) - the pack built for "
+                    f"this aspect does not carry it")
+    return problems
 
 
 def check_control_declaration(aspects: dict[str, Aspect]) -> list[str]:
@@ -249,6 +331,8 @@ def id_shape_agrees(classes: dict[str, str]) -> list[str]:
 CHECKS = (
     ("every frames aspect states its blind spot", check_every_frames_aspect_carries_it),
     ("fun and fun_frames are briefed identically", check_control_briefing_is_identical),
+    ("a brief names no evidence its sees excludes",
+     check_brief_names_no_evidence_sees_excludes),
     ("no stack name and no arm count", check_no_stack_or_count_leak),
     ("a control is declared to code, and names a real treatment",
      check_control_declaration),
@@ -279,6 +363,36 @@ def mutants() -> list[tuple[str, str, dict[str, Aspect]]]:
     named["ux"] = replace(live["ux"], notes=live["ux"].notes
                           + " In the Godot arm this is worse.")
     out.append(("no stack name and no arm count", "ux names Godot", named))
+
+    # THE NOTES-INHERITANCE DEFECT, reconstructed the way it happened: `replace()`
+    # copies what is not named, so a `fun_frames` that keeps its id, control, title,
+    # sees and evidence_rule but takes `fun`'s notes is briefed on `telemetry.json`
+    # at length while its pack carries frames only. Measured 2026-08-28 before the
+    # channel check existed: every other check here is green on exactly this input.
+    inherited = dict(live)
+    inherited["fun_frames"] = replace(live["fun_frames"], notes=live["fun"].notes)
+    out.append(("a brief names no evidence its sees excludes",
+                "fun_frames briefed with fun's notes, telemetry.json included "
+                "(the notes-inheritance defect)", inherited))
+
+    # A VARIANT for the same check: not a brief that names an excluded channel, but
+    # a `sees` naming a channel the vocabulary does not know. Skipped silently, the
+    # check would measure nothing about it -- the fail-open direction. It must be
+    # refused until the channel is stated in CHANNEL_TOKENS.
+    novel = dict(live)
+    novel["ux"] = replace(live["ux"], sees="frames+video")
+    out.append(("a brief names no evidence its sees excludes",
+                "VARIANT: ux sees a channel the vocabulary does not know", novel))
+
+    # The empty-sees refusal, pinned on an aspect whose brief names NO channel
+    # artifact, so the refusal is the only thing that can fire the row. Measured
+    # (PR #79 review round): on `ux` the row stays red with the refusal deleted --
+    # its brief names png, which the token loop catches -- so there it pins the
+    # loop and not the refusal; on `architecture` the row dies with the guard.
+    empty = dict(live)
+    empty["architecture"] = replace(live["architecture"], sees="")
+    out.append(("a brief names no evidence its sees excludes",
+                "VARIANT: architecture declares no evidence channel", empty))
 
     # THE VARIANT. Not a removal of the mechanism the check names: an input the
     # check was not obviously built for. The blind spot is honestly described, no
@@ -395,6 +509,25 @@ def main() -> int:
         if not caught:
             print(f"          '{target}' passed a mutant - the check measures nothing")
         failures += not caught
+
+    # THE VARIANT DIRECTION the channel check must stay open to, which no mutant can
+    # reach: a brief naming a channel the aspect DOES carry must never go red. The
+    # live registry already exercises it (`fun` names both of its channels), so this
+    # row drives it to the limit: one brief that names all four channels, over a
+    # `sees` that carries all four. Red here would mean the check fires on the
+    # naming rather than on the exclusion.
+    print("\nthe channel check stays green when the brief names what it carries")
+    saturated = dict(ASPECTS)
+    saturated["ux"] = replace(
+        ASPECTS["ux"], sees="code+frames+telemetry+audio",
+        notes=ASPECTS["ux"].notes + " Cross-read CHANGED.txt, telemetry.json and "
+               "audio.json against the strip.")
+    sat_problems = check_brief_names_no_evidence_sees_excludes(saturated)
+    print(f"  {'ok  ' if not sat_problems else 'FAIL'}  "
+          f"a brief naming every channel it sees passes")
+    for problem in sat_problems:
+        print(f"          {problem}")
+    failures += bool(sat_problems)
 
     # THE ID-SHAPE FALLBACK, corroborated rather than trusted, in both directions. It is
     # driven from here rather than from CHECKS because its subject is the task map, not

@@ -388,7 +388,9 @@ FUN_FRAMES = replace(
     # tells the judge something was taken away, and a judge that knows it is being
     # controlled is not a control. It is also the pack-integrity rule one level up: an
     # aspect must not PROMISE evidence its pack does not carry, exactly as it must not
-    # silently score a field that lacks it.
+    # silently score a field that lacks it. Pinned 2026-08-28: `aspects_selftest.py`
+    # refuses any brief that names evidence its `sees` excludes, and carries this
+    # defect as its mutant.
     notes=(
         "You have one kind of evidence: `frames/`, a strip sampled evenly across one "
         "real run of this submission. Read it for rhythm and readability - can you tell "
