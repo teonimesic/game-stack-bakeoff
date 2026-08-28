@@ -1682,12 +1682,11 @@ need not edit the tool. **CI now calls it, for one rule only** — see the CI de
 **What the baseline means, and what it does not.** `PLW1510` and `BLE001` were triaged to **0**
 on 2026-08-23: every `subprocess.run` under the lint root stated its `check=`, and every blind
 `except Exception` that remained carried a `# noqa: BLE001` naming why the exception set is open
-there. A new hit from either rule is therefore a site nobody has considered — and **re-measured
-later the same day there are 11 of them**: 10 `PLW1510` (`eval/judge/blind_dir_selftest.py`,
-`eval/judge/blind_ext_selftest.py`, `eval/judge/starter_parity.py` x2, `eval/tools/disclosure_mutants.py`,
-`eval/tools/findings_control.py`, `eval/tools/tasks_control.py` x3, `eval/tools/tasks_mutants.py`) and 1
-`BLE001` (`eval/tools/tasks_control.py:497`). Re-derive with `python3 eval/tools/lint.py --counts`
-rather than quoting this paragraph. The other findings — `B905`, `F401`, `F541`, `B007`, `B023`,
+there. A new hit from either rule is therefore a site nobody has considered — and the zero did
+not hold: re-measured later that same day there were 11 new sites. **Neither rule is a clean
+baseline to gate on**, and the count is whatever `python3 eval/tools/lint.py --counts` prints
+when you read this — never the 11, which was one day's census; its per-site list is in the
+task-190 ticket. The other findings — `B905`, `F401`, `F541`, `B007`, `B023`,
 `F841` — were **not** triaged and are a standing backlog, not a clean baseline. The reasoning is
 in #105 and in `eval/tools/lint.py`.
 
@@ -1803,11 +1802,11 @@ than a bill: `ubuntu-latest`, push narrowed to `main`, `cancel-in-progress`, and
 behind a path filter plus a nightly cron.
 
 **What CI has consumed has a producer: `python3 eval/tools/ci_minutes.py`.** The tool reads the
-run list from the Actions API and each run's jobs from `/actions/runs/{id}/jobs`, and bills
-each job the way GitHub does: wall clock rounded up to the next whole minute. It sums the
-completed jobs, keeps the in-flight ones in their own bucket, and prints the window it counted
-over, so the total cannot be quoted without its population. Two fields that look like the
-answer are read and then refused, because both return plausible numbers. `run_duration_ms` —
+run list from the Actions API and each run's jobs from `/actions/runs/{id}/jobs`. It bills each
+job the way GitHub does: wall clock rounded up to the next whole minute. It sums the completed
+jobs and keeps the in-flight ones in their own bucket. It prints the window it counted over, so
+the total cannot be quoted without its population. Two fields that look like the answer are
+refused as the total, because both return plausible numbers. `run_duration_ms` —
 from `/actions/runs/{id}/timing` — times the run rather than the job, queue wait included: on
 one measured run it read 607 s where the job itself ran 588 s, so summing it over-reports. And
 `billable.UBUNTU.total_ms`, the field named for exactly this quantity, read **0 for 58 of 58
