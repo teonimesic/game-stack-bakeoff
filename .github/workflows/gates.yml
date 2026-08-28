@@ -418,6 +418,13 @@ jobs:
       - name: judge/tier2_census --selftest (the play-quality producer's pins)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/tier2_census.py --selftest
+      # The 2026-08-28 pre-registration's producer (task 201): what the stored non-code
+      # judge rounds read against what their packs carried. Same shape as the three
+      # above - a fixture tree whose every census answer is stated beside it, 0.1s
+      # locally; the corpus half needs --runs-root and is NOT RUN here.
+      - name: judge/prompt_capture_census --selftest (the latent-null producer's pins)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/prompt_capture_census.py --selftest
       # `eval/instrfollow/pool.py` is the instruction-count experiment's apparatus: 16
       # deterministic checkers, and its selftest is the gold artifact obeying all 16, a
       # mutant sweep requiring each mutant to flip exactly one checker, the variant

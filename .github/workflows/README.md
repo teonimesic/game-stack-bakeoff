@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 68 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 69 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -100,7 +100,9 @@ instruction-density counters — all offline, all under 0.06s locally. `disclosu
 `--skip-corpus` because its corpus arm reads `eval/runs/` and refuses rather than score an
 absent corpus as clean.
 `judge_ledger --selftest`, `tier1_census --selftest` and `tier2_census --selftest` are the same
-shape for the judge-spend and per-tier producers (under 0.06s each, local), and
+shape for the judge-spend and per-tier producers (under 0.06s each, local), as is
+`prompt_capture_census --selftest` for the 2026-08-28 latent-null producer — what the stored
+non-code judge rounds read against what their packs carried (task 201) — and
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and
@@ -218,7 +220,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **68** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **69** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -340,7 +342,7 @@ which of them no workflow step and no git hook **names**, and requires each of t
 in the `left out` column below. Exit 1 names any that does not, and `ci_minutes --selftest`
 runs the live census, so the gate is CI's rather than a command someone has to remember.
 
-**The same command censuses a second population one flag deeper.** 26 git-tracked scripts under
+**The same command censuses a second population one flag deeper.** 27 git-tracked scripts under
 `eval/` declare a `--selftest` mode (a count `python3 eval/tools/ci_minutes.py --controls`
 re-derives on every run, decided on each script's syntax tree — an `add_argument` or an argv
 test — never on the word, which appears in prose and in other tools' command lists). A script
@@ -348,7 +350,7 @@ whose whole purpose is to be a gate is the stem class above; these are tools who
 something else and which grew a mode pinning their own arithmetic. **For this population, gated
 means the MODE is named**: a tier running a script bare runs its default mode, not this one —
 `linkcheck` bare was gated while `linkcheck --selftest` was not, which is the shape that cost
-this table its census (`tasks/180`). Today 25 of the 26 have the mode named by a tier and 1 is
+this table its census (`tasks/180`). Today 26 of the 27 have the mode named by a tier and 1 is
 recorded below. A row of the form `` `script --selftest` `` — two tokens, no more — is what
 records one; a row like `wallclock.py without --selftest` or `host_perf_probe.py --caps`
 describes a mode and excuses nothing, and a two-token row answering to two scripts (one stem,
