@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#207 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#208 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -250,7 +250,7 @@ Documentation defects found by the mechanical sweep, not by reading:
   coverage; this file does not.** The sentence that stood here until 2026-08-23 enumerated 4
   categories, 2 of which — file paths and criterion ids — `--sweep` does not implement, so an
   always-loaded document promised a gate nothing ran (task 77: a phantom path and 2 phantom
-  criterion ids planted in `judge/JUDGING.md` both read `python3 eval/tools/docstat.py
+  criterion ids planted in `eval/judge/JUDGING.md` both read `python3 eval/tools/docstat.py
   --sweep` exit 0, while a phantom aspect and a phantom `--flag` planted in the same place
   read exit 1). Run `--sweep` for what it covers; `.agents/skills/audit-docs/SKILL.md` lists
   what it deliberately does not, and why each was removed rather than tuned until quiet.
@@ -652,7 +652,7 @@ Two refinements that pattern does not cover:
     A mutant removes the mechanism a check names; it cannot manufacture an input the check
     mishandles. Every false negative adjudicated in this project has been of the second kind —
     sixteen in one sweep, then three more under a harder task, then two more (#46). Both halves
-    now run in `judge/bot_mutants.py`, because a discipline you have to remember is one that
+    now run in `eval/judge/bot_mutants.py`, because a discipline you have to remember is one that
     will fail.
 
 16. **A weighted result must state what reweighting would change it — and a weight that cannot
@@ -667,7 +667,7 @@ Two refinements that pattern does not cover:
     thing at 8 of 11.
 
     The check is free, it is offline, and it comes out either way — which is what makes it worth
-    running before publishing any aggregate. `judge/weight_sensitivity.py` is the instance; the
+    running before publishing any aggregate. `eval/judge/weight_sensitivity.py` is the instance; the
     rule is about **any parameter chosen by judgement that a published number depends on.**
 
     **The follow-on, and it is the part that generalises: an inert parameter is a question about
