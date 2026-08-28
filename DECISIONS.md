@@ -3409,10 +3409,10 @@ re-mean 25 stored `g1_pong` gradings
 (`python3 eval/judge/tier2_census.py --runs-root <checkout>/eval/runs`) to buy a pass this
 criterion has never once withheld.
 
-**Every hit the play-bot can read must be counted, and the same three facts decide that
-(`tasks/171`).** A count of the hits the lines carry is contradicted by a line whose counter skips
-one, exactly as it is by a line whose counter arrives late. So `rally.counts` reads all-or-nothing,
-which is the standard `paddle.deflects` holds in the same loop.
+**Every non-scoring hit the play-bot can read must be counted, and the same three facts decide
+that (`tasks/171`).** A count of the hits the lines carry is contradicted by a line whose counter
+skips one, exactly as it is by a line whose counter arrives late. So `rally.counts` reads
+all-or-nothing, which is the standard `paddle.deflects` holds in the same loop.
 
 **The floor is ONE countable hit.** A higher floor fails a correct game for producing a short
 rally, which is #46's shape; the contract is per hit, so one hit measures it. **A hit tick that
@@ -3420,7 +3420,7 @@ also carries the point is counted in neither half** — the point zeroes `rally`
 and the verdict requires a non-empty denominator, so the exclusion cannot swallow the criterion
 (rule 7).
 
-**To re-open the all-or-nothing reading:** a correct submission whose rally counter rises on some
+**To re-open the all-or-nothing reading:** a real submission whose rally counter rises on some
 but not all of its non-scoring `paddle_hit` ticks. The comparability statement, and why no stored
 grading can be re-read against this, are in `eval/RUNS.md`.
 
@@ -3471,8 +3471,8 @@ found.
 **To re-open the one-tick reading of `rally.counts`:** a real submission whose counter settles
 a tick late. It would be a submission that violates the state contract, so the question it
 raises is whether tier 2 should fail it or whether the g1 prompt should say the ordering out
-loud — and only a submission can raise it, because the decline rests on reading the contract
-rather than on a measurement that could move.
+loud. Only a submission can raise it, because the decline rests on reading the contract rather
+than on a measurement that could move.
 
 ## A scene layer's `offset` may accumulate or wrap, and the probe reads both — decided 2026-08-25
 
@@ -3501,8 +3501,8 @@ reported ticks, a layer that stops reporting and never resumes, and a row declar
 `eval/SCENES.md` states this where a prompt author will look, and `scene_mutants.py` holds both
 directions: **1 variant** reporting `offset` inside its own span, and **3 mutants, one per
 failure above** - the sky stops being reported for ticks 101-119, the same layer is gone for
-good from tick 501, and a row declares no usable `span`. Read the count from
-`python3 eval/judge/scene_mutants.py`, not from this sentence.
+good from tick 501, and a row declares no usable `span`. Run
+`python3 eval/judge/scene_mutants.py` to refresh these counts.
 
 **To re-open:** a scene whose layers can move more than half a span in 1 tick, which is where
 a per-tick unwrap stops being decidable and the contract would have to name an encoding after
