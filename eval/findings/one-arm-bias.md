@@ -2927,3 +2927,47 @@ make a criterion easier to pass, so a criterion that has quietly become incapabl
 as a clean run.
 
 ---
+## 209. The defect lived in the FIRST text the judge reads — a process argument, not a pack file — so every gate that inspects the pack was blind to it, and only the file-open log could ask whether it had ever acted
+
+Task 201, filed by the 2026-08-28 cleanup pass on `field.py` and closed by PR #81. `JUDGE_PROMPT`
+hard-coded *"read the code in A/ through H/"*, and `run_field` passed it to `claude -p` for every
+judge — including the **6 of 9** aspects whose packs carry no code at all (audio judges receive
+`audio.json`; `fun_frames` judges receive PNGs). The pack-side brief had been repaired for exactly
+this failure on 2026-08-23 — its `looked_at` map keys the closing instruction on what the pack
+carries, and its own comment names the reason: an instruction to open files that are not there
+burns turns and produces *"I could not find the source"* as if it were a finding about the
+submission. The CLI prompt, which the judge reads **first**, kept the hardcoded wording in both
+completeness states. `blurb_selftest.py` pinned `judge_prompt` for state-dependence and never for
+agreement with the pack — the one property the repair is about.
+
+What made it invisible was where the text lived. **The prompt is not part of the pack.** It is the
+process argument: stored nowhere in the pack directory, not hashed into provenance
+(`brief_sha256` covers `BRIEF.md` only), reachable by no gate that walks a pack — and every
+doc-reading gate in this project walks files. A defect in the first text a grader reads had no
+gate, because the defect was not in any file the gates read.
+
+Whether it had ever mattered was a measurement, not an assumption. `prompt_capture_census.py`
+(new with the repair; `python3 eval/judge/prompt_capture_census.py --runs-root <main
+checkout>/eval/runs`) walked every stored usable non-code judge round: **57 rounds, 39 carrying a
+`files_opened` capture, 18 predating it and permanently unassessable. All 39 captured rounds
+contain 0 reads of evidence the pack does not carry** — audio judges read their `audio.json`
+files, frames judges read PNGs. The defect was in the text; no recorded round contains its
+consequence. Latent null, with the 0 bounded by the capture rather than assumed — the same
+revision of #32 recorded in `AGENTS.md`: where the log exists, the question "what did the judge
+actually consume" is answerable, and here the answer is *only what it was given*.
+
+The repair keys `judge_prompt` on the pack's `sees` value the way `_brief` already did
+(byte-identical output for the 3 code-seeing aspects, so the comparability boundary runs through
+the non-code rounds only), pinned in both directions in `blurb_selftest.py` check 3c — including
+on the argv `run_field` actually builds, the address the defect lived at. Because it changed what
+the judge is told, it needed its own pre-registration (`eval/RUNS.md`, 2026-08-28) — and unlike
+the brief repair, **nothing inside a stored round carries which side of that boundary the round
+sits on**. The dated entry is the only carrier of that fact.
+
+> **A defect's invisibility is a property of its address.** The prompt was an argument, so the
+> pack — the artifact every gate inspects — could carry neither the defect nor its absence. The
+> audit trail that answered the question lived somewhere else entirely, had been added for an
+> unrelated question, and 18 of 57 rounds predate it and can never be assessed. **What a grader
+> was told is not what it did**: the divergence had to be measured against the capture, and the
+> measurement came back 0 — which licenses the repair as hardening rather than as a correction to
+> any result.
