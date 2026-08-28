@@ -727,7 +727,8 @@ each is already recorded: 420x640 `g2_tetris3d__unity__t1` (`wg-matrix-2026-08-1
 (`wg-audio-2026-08-14`).
 
 **The extraction was proved before the census was believed**, on rows whose answer was known in
-advance: the two documented divergences come back divergent; the 804 frames match an
+advance: all 3 documented divergences come back divergent, each at its documented size; the
+804 frames match an
 independent count of PNGs under `artifacts/*/eval/frames`; and the population agrees with task
 182's record-based census — 69 records, 3 varied, 2 with no geometry because their own film
 failed, which is 67 with frames — an instrument sharing no code with this one. The first

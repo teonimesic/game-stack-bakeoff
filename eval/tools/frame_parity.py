@@ -221,6 +221,12 @@ def census(runs_root: Path) -> tuple[int, dict]:
     all_sizes: Counter = Counter()
     for v in subs.values():
         all_sizes.update(v["sizes"])
+    if not all_sizes:
+        # Submissions exist and not one frame was readable: the property is
+        # unknown, and rc 0 would read the corpus as measured clean.
+        print(f"no readable frame under {runs_root} - UNMEASURED, not clean",
+              file=sys.stderr)
+        return 2, c
 
     print(f"frames under {runs_root}: {len(subs)} submissions with frames "
           f"in {len(runs)} run dirs")
@@ -271,6 +277,11 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--selftest", action="store_true",
                     help="run the fixture pins instead of any corpus")
     a = ap.parse_args(argv)
+    # First, before any mode branch: --json serialises the --run table alone,
+    # so anywhere else it would be an accepted-but-ignored flag (rule 13).
+    if a.json and not a.run:
+        ap.error("--json serialises the --run hand inspection; --runs-root and "
+                 "--selftest print their own reports and accept no --json")
     if a.selftest:
         if a.run or a.runs_root:
             ap.error("--selftest takes no target: pass one of --run, "
@@ -278,9 +289,6 @@ def main(argv: list[str]) -> int:
         return selftest()
     if a.run and a.runs_root:
         ap.error("--run and --runs-root are different questions; pass one")
-    if a.json and not a.run:
-        ap.error("--json serialises the --run hand inspection; --runs-root and "
-                 "--selftest print their own reports and accept no --json")
     if a.runs_root:
         rc, _ = census(a.runs_root)
         return rc
@@ -302,21 +310,33 @@ def main(argv: list[str]) -> int:
         print(f"no readable frame under {a.run}/artifacts/*/eval/frames - "
               f"UNMEASURED, not clean", file=sys.stderr)
         return 2
-    modal = all_sizes.most_common(1)[0][0]
-    odd = {k: v for k, v in g.items()
-           if list(v["sizes"]) != [modal] or not v["uniform_within_submission"]}
+    modal, tied = _modal(all_sizes)
+    if tied:
+        # Same rule as run_divergent: with the top sizes tied there is no
+        # modal geometry to conform to, so every submission diverges.
+        odd = dict(g)
+    else:
+        odd = {k: v for k, v in g.items()
+               if list(v["sizes"]) != [modal] or not v["uniform_within_submission"]}
 
     if a.json:
-        print(json.dumps({"per_submission": g, "modal_size": modal,
+        print(json.dumps({"per_submission": g,
+                          "modal_size": None if tied else modal,
+                          "tied": tied,
                           "divergent": sorted(odd)}, indent=2))
         return 1 if odd else 0
 
     w = max(len(k) for k in g)
     print(f"{'submission':<{w}}  frames  capture geometry")
     for k, v in g.items():
-        flag = "" if list(v["sizes"]) == [modal] and v["uniform_within_submission"] else "   <-- DIVERGES"
+        diverges = tied or list(v["sizes"]) != [modal] or not v["uniform_within_submission"]
+        flag = "" if not diverges else "   <-- DIVERGES"
         print(f"{k:<{w}}  {v['n_frames']:>6}  {v['sizes']}{flag}")
-    print(f"\nmodal capture geometry: {modal}")
+    if tied:
+        print(f"\nNO MODAL CAPTURE GEOMETRY - the field's top sizes are tied, so "
+              f"no submission's size is the norm and every one diverges.")
+    else:
+        print(f"\nmodal capture geometry: {modal}")
     if not odd:
         print("PARITY: every submission filmed at the same size; frame-derived measures are "
               "comparable across this field.")
@@ -547,6 +567,30 @@ def selftest() -> int:
         else:
             expect("json-off-run-refused", False,
                    "--json with --runs-root must be refused, not ignored")
+        # ...including beside --selftest, which the first placement of the
+        # check let through.
+        try:
+            main(["--selftest", "--json"])
+        except SystemExit as e:
+            expect("json-off-selftest-refused", e.code != 0,
+                   f"the refusal exited {e.code}, expected non-zero")
+        else:
+            expect("json-off-selftest-refused", False,
+                   "--json with --selftest must be refused, not ignored")
+        # A corpus whose every frame is unreadable is UNMEASURED at the whole-
+        # corpus level too: subs nonempty with an empty size map returned 0,
+        # a clean read of a measurement that never happened.
+        rc_u, _ = census(root / "run-u")
+        expect("census-all-unreadable", rc_u == 2,
+               f"census on an all-unreadable tree returned {rc_u}, expected 2")
+        # --run modes: a uniform field reads PARITY (run-a is deliberately
+        # not uniform, so it must not); a TIED field marks every submission
+        # divergent, never just the half the counter saw first.
+        expect("run-mode-parity",
+               main(["--run", str(root / "run-n/capped")]) == 0,
+               "--run on the uniform field must read PARITY at exit 0")
+        expect("run-mode-tied", main(["--run", str(root / "run-t")]) == 1,
+               "--run on the tied field must flag every submission at exit 1")
 
     if failures:
         print(f"FRAME PARITY SELFTEST: {len(failures)} unmet\n")
