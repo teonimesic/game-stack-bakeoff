@@ -161,13 +161,25 @@ filed.
 |---|---|
 | `todo` | not dispatched. Step 1 |
 | `in_progress` | the agent is working. Nothing to do |
-| `in_review` | its pull request is open and the review loop is running. Nothing to do — the `pr` field in the ticket is the link, and `check` fails a ticket in this state that has none |
+| `in_review` | its pull request is open and the review loop is running — **if something is alive to run it.** See the dead-loop check below |
 | `in_testing` | **yours.** The agent has finished. Its evidence says whether a review arrived and what it did with it — an `UNRESOLVED` wait ends here too |
 | `done` | merged. You set this |
 
 ```bash
 python3 eval/tools/tasks.py list --status in_testing
 ```
+
+> **`in_review` reads as "nothing to do" only while a live process is driving the loop, and
+> nothing in the queue vocabulary tells you one is.** Three times on 2026-08-28 (tasks 188,
+> 190, 195) an agent ended its turn saying a background poll would wake it, the poll did not
+> survive the turn, and the ticket sat `in_review` looking exactly like a healthy wait while
+> CodeRabbit's round landed at the head with unresolved threads — threads that
+> `required_conversation_resolution` makes blocking. The check is one command and decides it:
+> `python3 eval/tools/mergeable.py <n>`. A review at the current head with unresolved threads,
+> or a round the ticket's notes do not mention, is a dead loop: **SendMessage the agent** — a
+> stopped agent resumes from its transcript with your message — and it continues from the
+> review that is already there. The cost of resuming a live loop is one wasted turn; the cost
+> of the same state left dead is the round, and the merge behind it.
 
 That is the whole reason the vocabulary grew from 3 values to 5 on 2026-08-23: `in_flight` said
 an agent had picked the task up and nothing else, so the only way to find out whether it was
