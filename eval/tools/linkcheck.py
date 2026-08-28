@@ -48,9 +48,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 # The front door and the documents it links into. Not the archive sweep - this is about links
 # a reader is invited to click, and the address is an input to the check (#60). `eval/RUNS.md`
-# joined the set with the citation-scope decision in `DECISIONS.md` (2026-08-28): the front door
-# links into it five times, which is the set's own definition, and its one `[#46]` shortcut had
-# already rotted unseen.
+# is in the set because `README.md` links into it five times, which is this list's own
+# definition; the citation-scope decision in `DECISIONS.md` holds the reasoning.
 LIVE_DOCS = [
     "README.md",
     "AGENTS.md",
