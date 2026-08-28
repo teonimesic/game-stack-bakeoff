@@ -997,8 +997,28 @@ COVERAGE_RE = re.compile(
 #: two were asserted equal. The row read 56 while both of the others read 58, which is
 #: `AGENTS.md` rule 12 inside a single document: a comment promising two copies match is
 #: not a defence, so the third copy is now asserted too.
-CHECKS_ROW_RE = re.compile(
-    r"^\|\s*checks\s*\|\s*(\d+)\b[^|]*\|\s*(\d+)\b[^|]*\|", re.M)
+#:
+#: The row used to be found by a regex over the WHOLE document, so the first
+#: `| checks | N | M |` line anywhere answered for the table. Measured on the live
+#: register before the repair: with a decoy row carrying the right numbers prepended and
+#: the opening table's row corrupted to 99, the check read the decoy and stayed green --
+#: the failure the row was added to prevent, one level up (task 192). The row is now read
+#: from the table these cells find; `register_checks_row` pins the address both ways.
+CHECKS_TABLE_HEADER = ["", "`gates.yml`", "`controls.yml`"]
+
+#: The row is named by its first cell, exactly as the table is named by its cells. A
+#: renamed row reads as no row at all, which is the fail-closed direction: it goes red
+#: naming the required form rather than going stale unseen.
+CHECKS_ROW_LABEL = "checks"
+
+#: A count cell OPENS with a WHOLE integer followed by whitespace or the end of the cell
+#: -- `60 documentation, queue and selftest gates`, the cells the register has always
+#: carried. `(\d+)\b` also read `60.5` and `60-11` as 60, because a word boundary falls
+#: before `.` and `-`: a malformed cell truncated to a plausible leading integer, which
+#: is the fail-open direction on the number this row publishes. The lookahead requires
+#: the digits to be the entire leading token, so a decimal, a range or a thousands
+#: separator is refused and the refusal names the required form (CodeRabbit, PR #68).
+_COUNT_LEAD = re.compile(r"(\d+)(?=\s|$)")
 
 
 def _md_cells(line: str) -> list[str] | None:
@@ -1085,6 +1105,154 @@ def register_hook_table(text: str) -> tuple[dict[str, list[str]], list[str]]:
     if not seen:
         problems.append(f"{REGISTER.relative_to(ROOT)}: the hook table has no rows")
     return declared, problems
+
+
+_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_FENCE_CLOSE = re.compile(r"^ {0,3}(`{3,}|~{3,})\s*$")
+#: Indentation to a code block is measured in COLUMNS and a tab advances to the next
+#: multiple of 4, so " \t" -- one space, one tab -- is already 4 columns. `(?: {4}|\t)`
+#: missed every space-then-tab prefix and read such a block as document (CodeRabbit,
+#: PR #68).
+_INDENT_CODE = re.compile(r"^(?: {4}| {0,3}\t)")
+
+
+def _document_lines(lines: list[str]) -> list[int]:
+    """The indexes of the lines that are the DOCUMENT, not a code block.
+
+    Two kinds of line are not the document here. A FENCED block opens on a line whose
+    first non-space text is three or more backticks or tildes -- an info string may
+    follow (` ```bash `) -- and closes on a line carrying a run of the SAME character at
+    least as long and nothing else; the close is deliberately strict, because the
+    dangerous direction is the one that UNFENCES early: a line read as a closer revives
+    everything under it, and an example table the fence should have hidden becomes
+    selectable as the register's. An INDENTED code block is a line indented four spaces
+    or a tab (CommonMark), and `_md_cells` strips leading spaces, so without this an
+    example table indented into a code block was selected as the register's and read
+    green on its example numbers with the real table gone -- measured before the repair
+    (CodeRabbit, PR #68).
+
+    Both refusals this causes are the fail-closed direction: a fence that never closes,
+    or a real table indented into a code block, hides content from this reader, which
+    then reports "no opening table" -- never a misread.
+    """
+    live: list[int] = []
+    opener: tuple[str, int] | None = None
+    for i, ln in enumerate(lines):
+        m = _FENCE_OPEN.match(ln)
+        if opener is None:
+            if m:
+                opener = (m.group(1)[0], len(m.group(1)))
+            elif not _INDENT_CODE.match(ln):
+                live.append(i)
+        elif m and m.group(1)[0] == opener[0] and len(m.group(1)) >= opener[1] \
+                and _FENCE_CLOSE.match(ln):
+            opener = None
+    return live
+
+
+def register_checks_row(text: str) -> tuple[tuple[int, int] | None, list[str]]:
+    """The `checks` row of the register's OPENING table, read from that table.
+
+    Returns ((`gates.yml`'s count, `controls.yml`'s), problems). The table is found the
+    way `register_exclusions` finds the exclusion table and `register_hook_table` finds
+    the hook table -- by its own header cells, never by position -- and the row is read
+    from inside it, so a matching `| checks |` line ANYWHERE ELSE in the document
+    answers for nothing. That is the whole repair: the row used to be the first match of
+    a regex over the document, and a decoy carrying the right numbers answered for an
+    opening table corrupted to 99 with the gate green (task 192, reproduced on the live
+    register before the repair).
+
+    THE NUMBERS ARE RETURNED AS THE ROW STATES THEM, corrupt and all. The comparison
+    against the measured census is the caller's (`_selftest`): a reader that refused a
+    disagreeing number would be grading its own answer sheet, and the drift this row
+    exists to catch -- the row said 56 while the sentence and the pin said 58 (PR #63)
+    -- is exactly the caller's comparison going red.
+
+    Lines inside a code block -- fenced or indented -- are not the document
+    (`_document_lines`): an EXAMPLE table is not the register's, and a code block sitting
+    between the header and its rows means there is no table to read.
+    """
+    problems: list[str] = []
+    lines = text.splitlines()
+    live = _document_lines(lines)
+    heads = [k for k, i in enumerate(live) if _md_cells(lines[i]) == CHECKS_TABLE_HEADER]
+    if not heads:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries no opening table. It must hold one "
+            f"whose header row is `| {' | '.join(CHECKS_TABLE_HEADER)} |` -- the "
+            f"`{CHECKS_ROW_LABEL}` row is read from that table, and a matching line "
+            f"anywhere else in the document, including inside a fenced code block, "
+            f"answers for nothing")
+        return None, problems
+    if len(heads) > 1:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries {len(heads)} opening tables (lines "
+            f"{', '.join(str(live[k] + 1) for k in heads)}). The `{CHECKS_ROW_LABEL}` "
+            f"row would have two answers and a reader could not tell which is the "
+            f"register's")
+        return None, problems
+    k = heads[0]
+    i = live[k]
+    delim = (_md_cells(lines[live[k + 1]])
+             if k + 1 < len(live) and live[k + 1] == i + 1 else None)
+    # The delimiter must have AS MANY CELLS AS THE HEADER: `|---|---|` under a 3-cell
+    # header matches every cell against `_MD_DELIM` and would otherwise be accepted, and
+    # the reader would publish counts from a table whose own shape disagrees with
+    # itself. The same leniency was never offered to the rows -- each is held to the
+    # header's cell count below (CodeRabbit, PR #68).
+    if not delim or len(delim) != len(CHECKS_TABLE_HEADER) \
+            or not all(_MD_DELIM.match(c) for c in delim):
+        problems.append(f"{REGISTER.relative_to(ROOT)} line {i + 1}: the opening table's "
+                        f"header has no `|---|---|---|` row under it, so it is not a table")
+        return None, problems
+    rows: list[tuple[int, int]] = []
+    where: list[int] = []
+    unreadable = False
+    prev = live[k + 1]
+    for kk in range(k + 2, len(live)):
+        j = live[kk]
+        if j != prev + 1:
+            break  # the table ended: a fence, prose or a list line sits inside it
+        prev = j
+        cells = _md_cells(lines[j])
+        if cells is None:
+            break
+        if len(cells) != len(CHECKS_TABLE_HEADER):
+            problems.append(f"{REGISTER.relative_to(ROOT)} line {j + 1}: the opening "
+                            f"table row has {len(cells)} cells, want "
+                            f"{len(CHECKS_TABLE_HEADER)}")
+            continue
+        if cells[0] != CHECKS_ROW_LABEL:
+            continue
+        parsed: list[int] = []
+        for cell in cells[1:]:
+            m = _COUNT_LEAD.match(cell)
+            if m:
+                parsed.append(int(m.group(1)))
+            else:
+                problems.append(
+                    f"{REGISTER.relative_to(ROOT)} line {j + 1}: the `{CHECKS_ROW_LABEL}` "
+                    f"row's cell {cell!r} does not open with a whole-integer count. The "
+                    f"row is read as a leading integer followed by whitespace, and "
+                    f"anything else -- `60.5`, `60-11` -- truncates to its leading digits "
+                    f"and reads as a count the cell does not state")
+                unreadable = True
+        if len(parsed) == len(CHECKS_TABLE_HEADER) - 1:
+            rows.append((parsed[0], parsed[1]))
+            where.append(j + 1)
+    if len(rows) > 1:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)} carries {len(rows)} `{CHECKS_ROW_LABEL}` rows "
+            f"in its opening table (lines {', '.join(str(w) for w in where)}). It is one "
+            f"fact; two rows would disagree eventually and a reader could not tell which "
+            f"is the register's")
+        return None, problems
+    if not rows and not unreadable:
+        problems.append(
+            f"{REGISTER.relative_to(ROOT)}: the opening table carries no "
+            f"`{CHECKS_ROW_LABEL}` row, and it is the row the workflow gate counts are "
+            f"pinned against -- without it there is nothing to compare")
+    return (rows[0] if rows else None), problems
 
 
 def hook_census(list_hook=_list_hook, register_text: str | None = None,
@@ -1877,14 +2045,159 @@ def _selftest() -> int:
           (len(_live_hooks["tiers"]["pre-push"]), _cen["gates"]["gates"],
            len(_live_hooks["tiers"]["pre-commit"])))
     # THE SUMMARY TABLE'S OWN COUNTS, which the sentence above does not cover. See
-    # CHECKS_ROW_RE: the row is a third copy of a number the other two agree on, and it
-    # was the one that drifted.
-    _row = CHECKS_ROW_RE.search(read_register())
-    check("the register's opening table states a checks row", bool(_row), True)
+    # `register_checks_row`: the row is a third copy of a number the other two agree on,
+    # and it was the one that drifted. It is read FROM the table its header cells find --
+    # a matching line anywhere in the document used to answer for it, and a decoy row
+    # carrying the right numbers kept a corrupted table green that way (task 192). The
+    # address itself is pinned below, in both directions.
+    _row, _row_problems = register_checks_row(read_register())
+    check("the register's opening table is readable as a table", _row_problems, [])
+    check("the register's opening table states a checks row", _row is not None, True)
     if _row:
-        check("the opening table's gate counts are the measured ones",
-              (int(_row.group(1)), int(_row.group(2))),
+        check("the opening table's gate counts are the measured ones", _row,
               (_cen["gates"]["gates"], _cen["controls"]["gates"]))
+    # -- the checks row, and the table it answers for ------------------------------------
+    # The address, in both directions. The first pin is the measured defect: with the
+    # document-wide regex, a decoy row carrying the right numbers ABOVE a table corrupted
+    # to 99 read the decoy's (60, 11) and the gate stayed green -- reproduced on the live
+    # register before the repair (task 192). The reader returns the TABLE's row, corrupt
+    # and all -- reading it faithfully is what lets the caller's comparison against the
+    # measured counts redden -- so the pin asserts the corrupted pair and the disagreement.
+    def _opening(checks="| checks | 60 documentation, queue and selftest gates | "
+                        "11 mutant and control suites |",
+                 delim=True, skip_checks=False, extra=None):
+        lines = ["| | `gates.yml` | `controls.yml` |"]
+        if delim:
+            lines.append("|---|---|---|")
+        lines.append("| runs on | every push and every pull request | every pull request |")
+        if not skip_checks:
+            lines.append(checks)
+        lines.append("| takes | **127-208s** | **706-970s** |")
+        if extra is not None:
+            lines.append(extra)
+        return "\n".join(lines) + "\n"
+
+    _row, _probs = register_checks_row(
+        "# CI fixture\n"
+        "\n"
+        "| checks | 60 documentation, queue and selftest gates | "
+        "11 mutant and control suites |\n"
+        "\n"
+        "Prose between the decoy and the table.\n"
+        "\n"
+        + _opening(checks="| checks | 99 documentation, queue and selftest gates | "
+                          "11 mutant and control suites |"))
+    check("a decoy row above a corrupted table: the TABLE's row is read, corrupt and all",
+          (_row, _probs), ((99, 11), []))
+    check("and the decoy did not answer for it, so the measured comparison reddens",
+          _row != (60, 11), True)
+    counts["mutants"] += 1
+    # Every remaining way the row can fail to be THE TABLE's row. Fail-closed in each:
+    # no table, a fenced example standing where the table should be, two tables, a header
+    # that is not a table, a table without the row, a row with the wrong shape, a cell
+    # that does not open with its count, a cell whose count is malformed, and two rows
+    # answering for one fact.
+    _checks_mutants = {
+        "no opening table, so a matching line answers for nothing":
+            "# CI fixture\n"
+            "\n"
+            "| checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            "\n"
+            "No table anywhere in this document.\n",
+        # A fenced EXAMPLE table is prose about a table, and these numbers AGREE with the
+        # pin -- which is the point: with the real table gone this stayed green on the
+        # example's values until the reader learned to skip fences (CodeRabbit, PR #68).
+        "a complete table inside a fence, with no real table":
+            "# CI fixture\n"
+            "\n"
+            "```markdown\n"
+            "| | `gates.yml` | `controls.yml` |\n"
+            "|---|---|---|\n"
+            "| checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            "| takes | **127s** | **706s** |\n"
+            "```\n",
+        # Indented four spaces this is a code block in markdown, not a table -- and the
+        # numbers AGREE with the pin, which is the point: it stayed green on the
+        # example's values while the real table was gone (CodeRabbit, PR #68).
+        "a complete table indented into a code block, with no real table":
+            "# CI fixture\n"
+            "\n"
+            "    | | `gates.yml` | `controls.yml` |\n"
+            "    |---|---|---|\n"
+            "    | checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            "    | takes | **127s** | **706s** |\n",
+        # Indentation is measured in columns and a tab advances to the next multiple of
+        # 4, so " \t" is already 4 columns -- and `(?: {4}|\t)` matched neither prefix,
+        # so this shape read as document and the table below it as the register's
+        # (CodeRabbit, PR #68).
+        "a space-and-tab indented table, with no real table":
+            "# CI fixture\n"
+            "\n"
+            " \t| | `gates.yml` | `controls.yml` |\n"
+            " \t|---|---|---|\n"
+            " \t| checks | 60 documentation, queue and selftest gates | "
+            "11 mutant and control suites |\n"
+            " \t| takes | **127s** | **706s** |\n",
+        "two opening tables": _opening() + "\n" + _opening(),
+        "the header with no delimiter row under it": _opening(delim=False),
+        # `|---|---|` matches the delimiter pattern cell by cell, so without the cell
+        # count the reader accepted a table whose shape disagrees with its own header and
+        # published counts from it (CodeRabbit, PR #68).
+        "the delimiter row with the wrong cell count":
+            _opening().replace("|---|---|---|", "|---|---|", 1),
+        "the table carries no checks row": _opening(skip_checks=True),
+        "the checks row with the wrong cell count":
+            _opening(checks="| checks | 60 documentation, queue and selftest gates |"),
+        "a checks cell that does not open with a count":
+            _opening(checks="| checks | sixty documentation, queue and selftest gates | "
+                            "11 mutant and control suites |"),
+        # `(\d+)\b` read both of these as 60 -- a word boundary falls before `.` and `-` --
+        # so a malformed cell truncated to a plausible count and stayed green.
+        "a checks cell with a decimal count":
+            _opening(checks="| checks | 60.5 documentation, queue and selftest gates | "
+                            "11 mutant and control suites |"),
+        "a checks cell with a range-like count":
+            _opening(checks="| checks | 60-11 documentation, queue and selftest gates | "
+                            "11 mutant and control suites |"),
+        "two checks rows in one table":
+            _opening(extra="| checks | 60 documentation, queue and selftest gates | "
+                           "11 mutant and control suites |"),
+    }
+    # The shapes that must NOT redden: the row re-spaced inside its pipes, the table
+    # found wherever the document puts it, and a `| checks |` line inside a fenced code
+    # block -- which carries WRONG numbers here, so staying green proves it was not read.
+    _checks_variants = {
+        "the checks row re-spaced":
+            _opening(checks="|   checks   |   60 documentation, queue and selftest "
+                            "gates   |   11 mutant and control suites   |"),
+        "the opening table moved under prose and a fenced block":
+            "# CI fixture\n"
+            "\n"
+            "Prose above the table.\n"
+            "\n"
+            "```bash\n"
+            "python3 eval/tools/ci_minutes.py --gates\n"
+            "```\n"
+            "\n" + _opening(),
+        "a `| checks |` line inside a fenced code block":
+            "# CI fixture\n"
+            "\n"
+            "```bash\n"
+            "| checks | 999 gates | 999 suites |\n"
+            "```\n"
+            "\n" + _opening(),
+    }
+    for _name, _text in {**_checks_mutants, **_checks_variants}.items():
+        _want_red = _name in _checks_mutants
+        _got_row, _got_problems = register_checks_row(_text)
+        if (_got_row is None or bool(_got_problems)) != _want_red:
+            failures.append(
+                f"register_checks_row {'SURVIVED' if _want_red else 'reddened on'} "
+                f"{_name}: row={_got_row!r} problems={_got_problems!r}")
+        counts["mutants" if _want_red else "variants"] += 1
     # THIS TOOL IS ITSELF A PRE-PUSH GATE, and every row above would stay green if it were
     # dropped from the hook and the table together -- they check each other, so agreeing on
     # an absence is agreement. Nothing else would notice: `--controls` censuses stems ending
