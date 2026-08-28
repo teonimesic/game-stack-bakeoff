@@ -1,7 +1,7 @@
 ---
 id: 192
 title: ci_minutes' register checks row is matched anywhere in the document, not in its table
-status: todo
+status: in_progress
 priority: 3
 refs: eval/tools/ci_minutes.py,.github/workflows/README.md
 done_when: 'The checks row is located by its TABLE - found by the opening table''s header cells the way the exclusion table already is, then its checks row read - so a matching row elsewhere in the document cannot answer for it. Pinned in both directions in ci_minutes --selftest: a decoy row carrying the right numbers above a corrupted opening table must go RED, and the live register must stay green. Add the variants that must NOT redden: the row re-spaced, the table moved, and a ''| checks |'' line inside a fenced code block.'
