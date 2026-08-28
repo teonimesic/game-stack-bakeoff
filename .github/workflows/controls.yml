@@ -164,9 +164,13 @@ jobs:
       # NOT a count. This said "the five mutants" while there were 21, and task 122 made it
       # 25 -- a cardinal in a step name has no producer and cannot be checked, which is the
       # failure AGENTS.md's counts rule is about. `tasks_mutants.py --list` is the producer.
-      - name: tasks_mutants (every mutant tasks_control's rows must catch)
+      # `--selftest` because the mode is coverage the suite does not carry: it grades the
+      # unmutated baseline through the same path and refuses on a drifted anchor, and its
+      # INERT mutation must SURVIVE. Marginal cost is one grade plus two controls, ~30s of
+      # this suite's local run.
+      - name: tasks_mutants --selftest (the suite, plus its own baseline and inert controls)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
-        run: python3 eval/tools/tasks_mutants.py
+        run: python3 eval/tools/tasks_mutants.py --selftest
       - name: judge/audio_selftest
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/audio_selftest.py

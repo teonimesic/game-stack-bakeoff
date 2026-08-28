@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 60 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 68 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -90,11 +90,29 @@ floor in both directions and the measured derivation for having no ceiling. Its 
 harness alone — its parser as a value and its command functions as an AST, no run directory and
 no toolchain. They are here rather than in `controls.yml` for that reason, and they are the only
 gate that asks whether a `dest` and the code reading it are still the same name.
+`linkcheck --selftest` runs the mode beside the bare form above it: the mode pins the link
+grammar and the anchor rule the bare run leans on, which is the split `ci_minutes --controls`
+reads as two invocations of one script (0.04s).
+`census --selftest`, `disclosure --selftest --skip-corpus` and `instruction_census --selftest`
+pin three census producers on fixtures whose answers are stated before the tool runs — the
+stored-tree count, the disclosure locator the whole-game report reads through, and the
+instruction-density counters — all offline, all under 0.06s. `disclosure` carries
+`--skip-corpus` because its corpus arm reads `eval/runs/` and refuses rather than score an
+absent corpus as clean.
+`judge_ledger --selftest`, `tier1_census --selftest` and `tier2_census --selftest` are the same
+shape for the judge-spend and per-tier producers (under 0.06s each), and
+`eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
+obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
+the fail-closed refusals, over checked-in fixtures at 1.7s. It lives outside `eval/tools/` and
+`eval/judge/`, which is why the hand census that found the others missed it.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
 `aim_contract_control`, `scene_mutants` with its `--census-selftest`, its
 `--reliability-selftest` and its `--attribution-selftest`,
-`scene_runner_control`, `tasks_mutants`, `audio_selftest`,
+`scene_runner_control`, `tasks_mutants` with its `--selftest` (the suite, plus the unmutated
+baseline graded through the same path and the INERT mutation that must survive — one grade and
+two controls over the bare invocation),
+`audio_selftest`,
 `rusage_selftest`, `skill_layout_control`.
 `scene_runner_control` is the runner's half of the scene question. It names 6 routes from an
 operator's command to a grading instrument or a judge pack and drives each one. Every group of
@@ -200,7 +218,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **60** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **68** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -322,6 +340,20 @@ which of them no workflow step and no git hook **names**, and requires each of t
 in the `left out` column below. Exit 1 names any that does not, and `ci_minutes --selftest`
 runs the live census, so the gate is CI's rather than a command someone has to remember.
 
+**The same command censuses a second population one flag deeper.** 26 git-tracked scripts under
+`eval/` declare a `--selftest` mode (a count `python3 eval/tools/ci_minutes.py --controls`
+re-derives on every run, decided on each script's syntax tree — an `add_argument` or an argv
+test — never on the word, which appears in prose and in other tools' command lists). A script
+whose whole purpose is to be a gate is the stem class above; these are tools whose main job is
+something else and which grew a mode pinning their own arithmetic. **For this population, gated
+means the MODE is named**: a tier running a script bare runs its default mode, not this one —
+`linkcheck` bare was gated while `linkcheck --selftest` was not, which is the shape that cost
+this table its census (`tasks/180`). Today 25 of the 26 have the mode named by a tier and 1 is
+recorded below. A row of the form `` `script --selftest` `` — two tokens, no more — is what
+records one; a row like `wallclock.py without --selftest` or `host_perf_probe.py --caps`
+describes a mode and excuses nothing, and a two-token row answering to two scripts (one stem,
+two directories) goes red naming both rather than excuse both.
+
 **An exclusion is a name AND a reason**, so a row whose `why` cell is blank records that
 somebody noticed and goes red — that half is the whole promise this table makes.
 
@@ -369,6 +401,7 @@ every control in the repository is ungated.
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
 | the full `lint.py` rule set | 100 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 | `host_perf_probe.py --caps`, `--gpu`, `--spread`, `--drift` | they measure the darwin host they run on: `--caps` needs `taskpolicy`, the other three need a Metal device, and all 4 need the machine to themselves — on a shared runner they would report the runner's neighbours. Each refuses off darwin **by name** rather than passing vacantly. **Its offline half, `--selftest`, IS gated**: it pins the percentile, spread and drift arithmetic every arm reports through, with a mutant per row |
+| `skill_layout_control --selftest` | the mode **is** `skill_layout_selftest.py`, which `gates.yml` runs — `skill_layout_control.py` dispatches `--selftest` to it and adds nothing, so a tier for the alias would run the same pins a second time. The script's own five plants stay in `controls.yml` and its bare form is gated there |
 
 ### Which gates read THIS file
 

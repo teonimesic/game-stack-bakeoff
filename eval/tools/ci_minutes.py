@@ -113,6 +113,7 @@ name a report this tool would not have produced. Read it unpiped.
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import datetime as dt
 import inspect
@@ -1405,6 +1406,12 @@ CONTROL_SUFFIXES = ("_control", "_mutants", "_selftest")
 # (`AGENTS.md` rule 12: the address is an input to the check).
 EXCLUSION_TABLE_HEADER = ["left out", "why"]
 
+# The mode the second census asks about: a script that REGISTERS this flag has a selftest,
+# and the register can excuse that mode by name -- `skill_layout_control --selftest`. A
+# constant rather than a literal so the mode matcher, the excusal reader and the register
+# text cannot drift apart (AGENTS.md rule 12: the address is an input to the check).
+SELFTEST_TOKEN = "--selftest"
+
 _BACKTICKED = re.compile(r"`([^`]+)`")
 
 
@@ -1533,8 +1540,25 @@ def _program_run(argv: list[str]) -> str | None:
     return next((t for t in argv[1:] if not t.startswith("-")), None)
 
 
-def command_paths(commands: list[str]) -> tuple[list[str], list[str]]:
-    """The address each gate command RUNS, and any command that will not tokenise.
+def _command_scripts(commands: list[str]) -> tuple[list[tuple[str, list[str]]], list[str]]:
+    """The address each gate command RUNS, that script's arguments, and refusals.
+
+    ONE READING FOR BOTH CENSUSES. The stem census needs only the address, and its
+    `command_paths` is this list projected onto it; the mode census also needs the
+    arguments, because `x.py --selftest` and `x.py` are different invocations of one
+    script. Two tokenisers answering one question is how a mode could read as ungated
+    while its script reads as gated, so there is one reading, and `_selftest` pins the
+    projection equal (`AGENTS.md` rule 12: where a fact is read twice, assert the
+    copies equal in code).
+
+    THE ARGUMENTS ARE THE TOKENS AFTER THE PROGRAM TOKEN, UNSTRIPPED. The interpreter-flag
+    case never reaches here: `_program_run` locates the program as the FIRST NON-FLAG
+    token behind the interpreter, so in `python3 --selftest x.py` the flag is before the
+    program and `tokens.index(program) + 1` drops it -- which is the right answer, because
+    that flag is the interpreter's and python3 rejects it, running no mode of x.py. But
+    `x.py --selftest` has the flag AFTER the program, it is the SCRIPT's argument, and it
+    is exactly the coverage the mode census asks about -- a first pass stripped leading
+    flags from the argument list and read every `--selftest` invocation as bare.
 
     THE PROGRAM, NOT EVERY TOKEN. Recording every resolved token made
     `run: echo eval/tools/fragment_control.py` count as coverage of a control it never
@@ -1566,7 +1590,7 @@ def command_paths(commands: list[str]) -> tuple[list[str], list[str]]:
     to be wrong; the census cannot say what such a command runs, and a control it silently
     calls ungated is a red row with the wrong cause on it.
     """
-    paths: list[str] = []
+    pairs: list[tuple[str, list[str]]] = []
     problems: list[str] = []
     for cmd in commands:
         try:
@@ -1580,8 +1604,20 @@ def command_paths(commands: list[str]) -> tuple[list[str], list[str]]:
         program = _program_run(tokens)
         address = None if program is None else _abs_path(program)
         if address is not None:
-            paths.append(address)
-    return paths, problems
+            start = tokens.index(program) + 1 if program in tokens else len(tokens)
+            pairs.append((address, tokens[start:]))
+    return pairs, problems
+
+
+def command_paths(commands: list[str]) -> tuple[list[str], list[str]]:
+    """The address each gate command RUNS, and any command that will not tokenise.
+
+    The projection of `_command_scripts` onto addresses, which is all the stem census
+    reads. It is a separate named function rather than an inline slice so the two
+    censuses keep one reading between them and neither grows its own.
+    """
+    pairs, problems = _command_scripts(commands)
+    return [address for address, _ in pairs], problems
 
 
 def _named_by(script: str, paths: list[str]) -> bool:
@@ -1666,10 +1702,191 @@ def excused_scripts(spans: list[str],
     return excused, problems
 
 
+def _declares_selftest_tree(tree: ast.AST) -> bool:
+    """Does this script REGISTER a `--selftest` mode, decided on its syntax tree?
+
+    THE PROPERTY, NOT THE WORD. The string `--selftest` appears in prose, in docstrings,
+    and in command lists other scripts run -- `precampaign_smoke.py` drives
+    `disclosure --selftest` without carrying a mode of its own. A substring test over
+    the source makes every one of those a member, and the register would grow rows for
+    tools with no such mode. What makes a mode real is the script reaching for it: an
+    `add_argument("--selftest", ...)` call, or a comparison against it in
+    hand-dispatched argv. Both shapes exist in this repository -- `docstat.py` registers
+    with argparse while `lint_coverage.py` and `discrimination.py` test argv -- and the
+    tree question covers both without letting a docstring manufacture a member.
+
+    A MODE REGISTERED SOME OTHER WAY -- a flag assembled at runtime, a dispatch table,
+    a differently spelled flag -- is outside this census, in the same direction and for
+    the same reason a control at `nested/eval/tools/x.py` is outside the stem census: a
+    boundary has to be drawn, and the register states this one beside the census.
+    """
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = getattr(func, "attr", None) or getattr(func, "id", None)
+            if (name == "add_argument" and node.args
+                    and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value == SELFTEST_TOKEN):
+                return True
+        elif isinstance(node, ast.Compare):
+            sides = [node.left, *node.comparators]
+            if (any(isinstance(s, ast.Constant) and s.value == SELFTEST_TOKEN
+                    for s in sides)
+                    and any(isinstance(s, (ast.Name, ast.Subscript)) for s in sides)):
+                return True
+    return False
+
+
+def excused_modes(spans: list[str],
+                  scripts: list[str]) -> tuple[set[str], list[str]]:
+    """Which scripts a `<script> --selftest` exclusion row excuses, and ambiguous rows.
+
+    THE SPELLING THE REGISTER AGREES TO is a two-token span, script then mode:
+    `` `skill_layout_control --selftest` ``. The script half resolves the way
+    `excused_scripts` resolves a bare name -- an address, or a stem that answers to
+    exactly one script, because two controls can come to share a stem and one row must
+    not excuse both. Any OTHER shape holding these two words -- `wallclock.py without
+    --selftest`, which describes an exclusion rather than records one, or any span of
+    three tokens or more -- excuses nothing: the register writes ABOUT modes it runs,
+    and containment cannot tell a record from a description.
+    """
+    by_stem: dict[str, list[str]] = {}
+    for s in scripts:
+        by_stem.setdefault(pathlib.PurePosixPath(s).stem, []).append(s)
+    by_address = {a: s for s in scripts for a in (_abs_path(s),) if a is not None}
+
+    excused: set[str] = set()
+    problems: list[str] = []
+    for span in spans:
+        tokens = span.split()
+        if len(tokens) != 2 or tokens[1] != SELFTEST_TOKEN:
+            continue
+        address = _abs_path(tokens[0])
+        if address is not None and address in by_address:
+            excused.add(by_address[address])
+            continue
+        hits = by_stem.get(pathlib.PurePosixPath(tokens[0]).stem, [])
+        if len(hits) == 1:
+            excused.add(hits[0])
+        elif len(hits) > 1:
+            problems.append(
+                f"{REGISTER.relative_to(ROOT)} leaves out `{span}`, and "
+                f"{len(hits)} scripts answer to that name: {', '.join(hits)}. The row "
+                f"would excuse every one of their modes, so an ungated newcomer would "
+                f"read as recorded -- name the repository-relative path instead")
+    return excused, problems
+
+
+def mode_census(scripts: list[str] | None = None,
+                sources: dict[str, str] | None = None,
+                commands: list[str] | None = None,
+                register_text: str | None = None,
+                pairs: list[tuple[str, list[str]]] | None = None) -> dict:
+    """Which declared `--selftest` modes does no gate run, and which does the register excuse?
+
+    WHY THIS EXISTS. `tasks/180`: a script whose whole purpose is to be a gate is the
+    closed class of stems the first census covers; a SECOND population carries the same
+    defect one flag deep -- a tool whose main job is something else and which grew a
+    `--selftest` mode pinning its own arithmetic, that no tier runs. `linkcheck.py` was
+    the sharp case: its bare form was gated while the half that pins its anchor rule and
+    its refdef reading was not, and nothing could see the difference.
+
+    THE TICKET'S HAND COUNT WAS 7, taken over `eval/tools/*.py` and `eval/judge/*.py`
+    with a string grep. The census finds 26, and the hand method missed members in both
+    directions a hand list always can: `eval/instrfollow/pool.py` (a third directory the
+    glob did not reach), `tasks_mutants --selftest` and `skill_layout_control --selftest`
+    (scripts gated BARE, whose mode is a different invocation), and the two argv-test
+    spellings a grep for an argparse line would miss. A count with a producer goes stale
+    for an hour; a count with none goes stale forever.
+
+    GATED MEANS THE MODE IS NAMED. A gate running a script bare runs its default mode,
+    not this one, so a script can need a register row although a tier runs it -- the
+    mirror image of the stem census's rule that a qualified span excuses a mode and
+    never a script, and the same call that puts `tasks_control --live-squash-refs` on
+    the exclusion table there.
+
+    THE POPULATION IS A DECLARATION, decided on the syntax tree
+    (`_declares_selftest_tree`), never on the word.
+    """
+    # The candidates are every tracked .py under eval/ -- not the stem class: pool.py
+    # lives in eval/instrfollow/, and a selftest mode is a property of a script's source,
+    # not of its name.
+    scripts = sorted(p for p in (_git_ls_files() if scripts is None else scripts)
+                     if p.endswith(".py"))
+    commands = gate_command_lines() if commands is None else list(commands)
+    if register_text is None:
+        register_text = read_register()
+
+    problems: list[str] = []
+    declaring: list[str] = []
+    for rel in scripts:
+        if sources is not None:
+            if rel not in sources:
+                problems.append(
+                    f"{rel} has no source in the fixture set, so whether it declares a "
+                    f"`{SELFTEST_TOKEN}` mode cannot be read")
+                continue
+            src = sources[rel]
+        else:
+            try:
+                src = (ROOT / rel).read_text()
+            except OSError as exc:
+                problems.append(
+                    f"{rel} could not be read ({exc.__class__.__name__}), so whether it "
+                    f"declares a `{SELFTEST_TOKEN}` mode cannot be read")
+                continue
+        try:
+            tree = ast.parse(src)
+        except SyntaxError as exc:
+            problems.append(
+                f"{rel} does not parse ({exc.__class__.__name__} at line {exc.lineno}), "
+                f"so whether it declares a `{SELFTEST_TOKEN}` mode cannot be read -- a "
+                f"script that does not parse cannot be asked, and silence would read as "
+                f"a clean sheet")
+            continue
+        if _declares_selftest_tree(tree):
+            declaring.append(rel)
+
+    if pairs is None:
+        pairs, read_problems = _command_scripts(commands)
+        problems += read_problems
+    mode_gated = {address for address, args in pairs if SELFTEST_TOKEN in args}
+
+    spans, span_problems = register_exclusions(register_text)
+    problems += span_problems
+    excused, excuse_problems = excused_modes(spans, scripts)
+    problems += excuse_problems
+
+    gated = [s for s in declaring if _abs_path(s) in mode_gated]
+    ungated = [s for s in declaring if s not in gated]
+    recorded = [s for s in ungated if s in excused]
+    unrecorded = [s for s in ungated if s not in recorded]
+
+    for s in unrecorded:
+        problems.append(
+            f"{s} declares a `{SELFTEST_TOKEN}` mode that no workflow step and no git "
+            f"hook runs, and {REGISTER.relative_to(ROOT)} does not record it as "
+            f"deliberately left out. The mode is the half that pins the tool's own "
+            f"arithmetic -- a gate excluded and recorded is fine; one silently absent "
+            f"is not. Put it in a tier, or add a row to the exclusion table with the "
+            f"reason")
+
+    return {"population": declaring, "gated": gated, "ungated": ungated,
+            "recorded": recorded, "unrecorded": unrecorded,
+            "exclusions": spans, "problems": problems}
+
+
 def controls_census(scripts: list[str] | None = None,
                     commands: list[str] | None = None,
-                    register_text: str | None = None) -> dict:
+                    register_text: str | None = None,
+                    mode_scripts: list[str] | None = None,
+                    mode_sources: dict[str, str] | None = None) -> dict:
     """Which controls does no gate run, and which of those does the register excuse?
+
+    Returns the stem census under its own keys and the `--selftest` MODE census
+    (`mode_census`) under `modes`, with ONE problems list covering both: the exit
+    status is one decision, and a mode silently absent beside a clean stem sheet is
+    exactly the failure this exists to prevent.
 
     WHY THIS EXISTS. `.github/workflows/README.md` promises that every gate left out of CI
     is left out WITH THE REASON, and `AGENTS.md` sends a session to read it before adding a
@@ -1684,6 +1901,16 @@ def controls_census(scripts: list[str] | None = None,
     `eval/tools/` alone; the population is 40 scripts over the whole of `eval/`, 6 of them
     ungated, and the register already excused 4 of the 6. A count with a producer goes stale
     for an hour; a count with none goes stale forever.
+
+    THE SECOND POPULATION, `tasks/180`: a script whose whole purpose is to be a gate is
+    the stem class above; a DIFFERENT defect hides one flag deeper -- a tool whose main
+    job is something else, which grew a `--selftest` mode pinning its own arithmetic, and
+    which every tier runs BARE. `linkcheck.py` was the sharp case: its bare form was
+    gated while the half that pins its anchor rule was not, and no gate could see the
+    difference. `mode_census` documents that census; this function owns the shared
+    reading -- one command list and one register, each read ONCE for both populations
+    (`AGENTS.md` rule 12: where a fact is read twice, assert the copies equal, or make
+    them one object).
 
     GATED MEANS NAMED, and the transitive reading was measured and rejected. Following
     string literals from script to script makes `starter_gate_control` and
@@ -1709,8 +1936,11 @@ def controls_census(scripts: list[str] | None = None,
             "population is reporting the instrument, not the population -- this repository "
             f"has never had zero scripts whose stem ends in one of {CONTROL_SUFFIXES}")
 
-    paths, path_problems = command_paths(commands)
+    # ONE TOKENISATION FOR BOTH CENSUSES. `command_paths` is this projection, kept as a
+    # named function so the stem census alone can call it; `modes` below takes the pairs.
+    pairs, path_problems = _command_scripts(commands)
     problems += path_problems
+    paths = [address for address, _ in pairs]
 
     spans, span_problems = register_exclusions(register_text)
     problems += span_problems
@@ -1735,9 +1965,13 @@ def controls_census(scripts: list[str] | None = None,
             f"deliberately left out of CI, and a gate runs {s}. The row outlived its "
             f"exclusion, and a reader trusting it would conclude the check is not running")
 
+    modes = mode_census(scripts=mode_scripts, sources=mode_sources,
+                        commands=commands, register_text=register_text,
+                        pairs=pairs)
+    problems += modes["problems"]
     return {"population": scripts, "gated": gated, "ungated": ungated,
             "recorded": recorded, "unrecorded": unrecorded, "stale": stale,
-            "exclusions": spans, "problems": problems}
+            "exclusions": spans, "modes": modes, "problems": problems}
 
 
 def controls_report(cen: dict, as_json: bool = False) -> int:
@@ -1751,14 +1985,21 @@ def controls_report(cen: dict, as_json: bool = False) -> int:
         print(f"  {len(cen['ungated'])} named by neither:")
         for s in cen["ungated"]:
             print(f"    {'RECORDED  ' if s in cen['recorded'] else 'UNRECORDED'}  {s}")
+        m = cen["modes"]
+        print(f"\n{len(m['population'])} scripts declare a `{SELFTEST_TOKEN}` mode "
+              f"(git-tracked .py under eval/, decided on the syntax tree)")
+        print(f"  {len(m['gated'])} have the mode named by a workflow step or a git hook")
+        print(f"  {len(m['ungated'])} run bare wherever they are run:")
+        for s in m["ungated"]:
+            print(f"    {'RECORDED  ' if s in m['recorded'] else 'UNRECORDED'}  {s}")
         print("\n  producer: python3 eval/tools/ci_minutes.py --controls")
         print(f"  RECORDED means: named in {REGISTER.relative_to(ROOT)}'s "
               f"`{' | '.join(EXCLUSION_TABLE_HEADER)}` table")
     for p in cen["problems"]:
         print(f"  UNGUARDED: {p}", file=sys.stderr)
     if cen["problems"]:
-        print("ci_minutes: a control runs in no tier and the register does not say why.",
-              file=sys.stderr)
+        print("ci_minutes: a control or a `--selftest` mode runs in no tier and the "
+              "register does not say why.", file=sys.stderr)
         return 1
     return 0
 
@@ -2017,7 +2258,7 @@ def _selftest() -> int:
     # The count `.github/workflows/README.md` publishes. Pinned so the register cannot
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
-    check("gates.yml gate count", _cen["gates"]["gates"], 60)
+    check("gates.yml gate count", _cen["gates"]["gates"], 68)
     check("controls.yml gate count", _cen["controls"]["gates"], 11)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
@@ -2656,6 +2897,31 @@ def _selftest() -> int:
     check("a control only a gated sibling's DOCSTRING mentions is not",
           ("eval/tools/evidence_set_control.py" in _live_controls["ungated"],
            "eval/tools/evidence_set_control.py" in _live_controls["recorded"]), (True, True))
+    # THE MODE CENSUS, LIVE (`tasks/180`). 26 scripts declare a `--selftest` mode -- a
+    # count with a producer, the one the register publishes beside `--controls` -- of
+    # which 25 have the mode NAMED by a tier and 1 is recorded. The merged problems list
+    # is already pinned empty above; these rows pin the counts and the three known-good
+    # members, one per way the hand census that opened the ticket was wrong:
+    #
+    #   linkcheck.py            gated BARE, its mode a different invocation -- the row
+    #                           the ticket called sharpest;
+    #   skill_layout_control.py recorded, not gated -- its `--selftest` IS
+    #                           skill_layout_selftest.py, which gates.yml runs;
+    #   instrfollow/pool.py     outside both census directories the ticket's glob
+    #                           reached, found anyway because the population is the
+    #                           tracked tree, not a list of directories.
+    _m = _live_controls["modes"]
+    check("scripts declaring a --selftest mode", len(_m["population"]), 26)
+    check("of which a tier names the mode", len(_m["gated"]), 25)
+    check("and none runs bare unrecorded", _m["unrecorded"], [])
+    check("linkcheck's mode is named, not just its bare form",
+          "eval/tools/linkcheck.py" in _m["gated"], True)
+    check("the alias mode is recorded, not gated",
+          ("eval/tools/skill_layout_control.py" in _m["recorded"],
+           "eval/tools/skill_layout_control.py" in _m["gated"]), (True, False))
+    check("the pool outside the census directories is found and gated",
+          "eval/instrfollow/pool.py" in _m["gated"], True)
+    counts["variants"] += 6
     # A population of zero is the shape `AGENTS.md` names: a census returning one value
     # across the population it exists to discriminate is reporting the instrument. It must
     # be a REFUSAL, never a clean sheet.
@@ -2676,8 +2942,15 @@ def _selftest() -> int:
                # second shape can excuse a whole script by accident -- and it is the one
                # `host_perf_probe.py --caps` is written in.
                "| `fragment_control.py --slow` | a mode, not the script |\n"
-               "| `host_perf_probe.py --caps`, `--gpu` | they measure the darwin host |\n")
-    _empty = controls_census(scripts=[], commands=[], register_text=_cx_reg)
+               "| `host_perf_probe.py --caps`, `--gpu` | they measure the darwin host |\n"
+               # THE MODE-CENSUS ROW the mode fixtures below edit: a two-token
+               # `<script> --selftest` span, the one spelling that records a declared
+               # mode. The stem census reads this row and excuses nothing with it --
+               # beta.py is not a control -- which is the point: the two censuses share
+               # one table and read it under different rules.
+               "| `eval/tools/beta.py --selftest` | its corpus is not in CI |\n")
+    _empty = controls_census(scripts=[], commands=[], mode_scripts=[],
+                             register_text=_cx_reg)
     check("the register in that row is readable, so it cannot be the cause",
           register_exclusions(_cx_reg)[1], [])
     check("an empty population is refused, not reported clean",
@@ -2692,17 +2965,47 @@ def _selftest() -> int:
     # not the text.
     _cx_scripts = ["eval/tools/evidence_set_control.py", "eval/tools/fragment_control.py",
                    "eval/tools/disclosure_mutants.py", "eval/tools/tasks_control.py"]
+    # The MODE fixtures (`tasks/180`), one script per shape the declaration detector has
+    # to tell apart: alpha declares through argparse's add_argument; beta declares
+    # through an argv test, the spelling `lint_coverage.py` and
+    # `skill_layout_control.py` really use; delta MENTIONS the flag in a docstring and
+    # in a command list of another tool's -- `precampaign_smoke.py` is a live script
+    # with exactly that shape -- and must NOT join the population, or prose
+    # manufactures members. The commands name alpha's mode beside another flag and run
+    # beta bare, so the baseline has one gated mode, one recorded one.
+    _cx_modes = ["eval/tools/alpha.py", "eval/tools/beta.py", "eval/tools/delta.py"]
+    _cx_sources = {
+        "eval/tools/alpha.py":
+            "import argparse\n"
+            "ap = argparse.ArgumentParser()\n"
+            'ap.add_argument("--selftest", action="store_true")\n',
+        "eval/tools/beta.py":
+            "import sys\n"
+            "argv = sys.argv[1:]\n"
+            'if "--selftest" in argv:\n'
+            "    run_selftests()\n",
+        "eval/tools/delta.py":
+            '"""--selftest is documented in DESIGN.md."""\n'
+            'RUN = ["python3", "elsewhere.py", "--selftest"]\n',
+    }
     _cx_cmds = ["python3 eval/tools/fragment_control.py",
-                "python3 eval/tools/tasks_control.py"]
+                "python3 eval/tools/tasks_control.py",
+                "python3 eval/tools/alpha.py --selftest --strict",
+                "python3 eval/tools/beta.py --skip-corpus"]
 
-    def _cx(scripts=None, commands=None, register_text=None):
+    def _cx(scripts=None, commands=None, register_text=None,
+            mode_scripts=None, mode_sources=None):
         return controls_census(_cx_scripts if scripts is None else scripts,
                                _cx_cmds if commands is None else commands,
-                               _cx_reg if register_text is None else register_text)
+                               _cx_reg if register_text is None else register_text,
+                               _cx_modes if mode_scripts is None else mode_scripts,
+                               _cx_sources if mode_sources is None else mode_sources)
 
     # VARIANT: the baseline is clean. Two gated, two ungated and both excused -- and one of
     # the excuses is a MODE of a script whose bare form is gated, which must not read as a
-    # stale row. Without this the mutants below would all be red for free.
+    # stale row. The problems list now covers BOTH censuses -- this one row is the
+    # all-green variant for the mode census too. Without these the mutants below would
+    # all be red for free.
     check("the fixture pair is clean", _cx()["problems"], [])
     check("...and it classified all four", (_cx()["gated"], _cx()["recorded"]),
           (["eval/tools/fragment_control.py", "eval/tools/tasks_control.py"],
@@ -2769,6 +3072,107 @@ def _selftest() -> int:
            if "does not tokenise" in p],
           ["a gate command does not tokenise as a shell command"])
     counts["mutants"] += 1
+
+    # -- the mode census (`tasks/180`) ---------------------------------------------------
+    # The all-green variant already ran above: `_cx()["problems"]` now covers both
+    # censuses. What follows pins the mode half in each direction. THE POPULATION first --
+    # prose must not join it, or a docstring manufactures a member and the register grows
+    # rows for tools with no mode.
+    check("the mode population is the two declarers, prose does not join",
+          _cx()["modes"]["population"],
+          ["eval/tools/alpha.py", "eval/tools/beta.py"])
+    check("alpha's mode is named beside another flag, beta's recorded, none unrecorded",
+          (_cx()["modes"]["gated"], _cx()["modes"]["recorded"],
+           _cx()["modes"]["unrecorded"]),
+          (["eval/tools/alpha.py"], ["eval/tools/beta.py"], []))
+    counts["variants"] += 2
+    # MUTANT (the ticket's direction): the gate command loses the flag. A mode nothing
+    # names must go UNRECORDED -- never read as covered by the bare form of its own
+    # script, which is exactly what a tier running `x.py` used to say about `x.py
+    # --selftest`.
+    check("a mode no command names is unrecorded, not covered by the bare form",
+          _cx(commands=[c for c in _cx_cmds if "alpha" not in c])["modes"]["unrecorded"],
+          ["eval/tools/alpha.py"])
+    counts["mutants"] += 1
+    # MUTANT: the register row loses the mode. Same refusal, the other cause -- and the
+    # two must be distinguishable, which they are: one red names no gate command, the
+    # other survives one.
+    _no_row = "\n".join(ln for ln in _cx_reg.splitlines()
+                        if "beta.py --selftest" not in ln) + "\n"
+    check("a declared mode with no register row is unrecorded",
+          _cx(register_text=_no_row)["modes"]["unrecorded"], ["eval/tools/beta.py"])
+    counts["mutants"] += 1
+    # VARIANT: the bare-stem spelling of the same row records the same script -- the
+    # register writes a name the way a person does, and the stem resolves while it is
+    # unambiguous.
+    check("the bare-stem spelling records the same mode",
+          _cx(register_text=_cx_reg.replace("`eval/tools/beta.py --selftest`",
+                                            "`beta --selftest`"))["modes"]["recorded"],
+          ["eval/tools/beta.py"])
+    counts["variants"] += 1
+    # MUTANT: two scripts answer to the bare stem -- the row goes RED naming both, and
+    # excuses neither. An ambiguous row that excused both is the fail-open direction: an
+    # ungated newcomer reading as recorded.
+    _amb = _cx(mode_scripts=_cx_modes + ["eval/judge/beta.py"],
+               mode_sources={**_cx_sources,
+                             "eval/judge/beta.py": _cx_sources["eval/tools/beta.py"]},
+               register_text=_cx_reg.replace("`eval/tools/beta.py --selftest`",
+                                             "`beta --selftest`"))
+    check("a bare-stem row answering to two scripts is refused, not excused twice",
+          [p.split(",")[0] for p in _amb["problems"] if "answer to that name" in p],
+          [".github/workflows/README.md leaves out `beta --selftest`"])
+    check("...and neither beta is excused by it", _amb["modes"]["unrecorded"],
+          ["eval/judge/beta.py", "eval/tools/beta.py"])
+    counts["mutants"] += 2
+    # MUTANT: a row that DESCRIBES a mode records nothing. Both live rows of this shape
+    # are on the exclusion table -- `wallclock.py without --selftest` (three tokens) and
+    # `host_perf_probe.py --caps` (a different flag) -- and containment cannot tell a
+    # record from a description, so anything that is not exactly `<script> --selftest`
+    # excuses nothing.
+    check("a description of a mode is not a record of one",
+          _cx(register_text=_cx_reg.replace("`eval/tools/beta.py --selftest`",
+                                            "`beta.py without --selftest`"
+                                            ))["modes"]["unrecorded"],
+          ["eval/tools/beta.py"])
+    check("a different flag in the row is not this mode",
+          _cx(register_text=_cx_reg.replace("`eval/tools/beta.py --selftest`",
+                                            "`beta.py --skip-corpus`"
+                                            ))["modes"]["unrecorded"],
+          ["eval/tools/beta.py"])
+    counts["mutants"] += 2
+    # MUTANT: the flag in front of the program is the interpreter's, not the script's.
+    # `python3 --selftest x.py` runs no mode of x.py -- python3 rejects the option -- and
+    # reading it as coverage would be a gate that protects nothing while reporting that
+    # it does.
+    check("a flag before the program is the interpreter's, and gates nothing",
+          _cx(commands=[c for c in _cx_cmds if "alpha" not in c]
+              + ["python3 --selftest eval/tools/alpha.py"])["modes"]["unrecorded"],
+          ["eval/tools/alpha.py"])
+    counts["mutants"] += 1
+    # VARIANT: the mode token anywhere after the program is the script's, whatever else
+    # travels with it.
+    check("the mode named after other script arguments is coverage",
+          _cx(commands=[c for c in _cx_cmds if "alpha" not in c]
+              + ["python3 eval/tools/alpha.py --json --selftest"])["modes"]["gated"],
+          ["eval/tools/alpha.py"])
+    counts["variants"] += 1
+    # MUTANT: a script missing from `sources` is refused, not read as a non-declarer --
+    # a fixture that forgets a file must go RED, because a silenced question reads the
+    # same as a clean answer.
+    check("a script with no source in the fixture set is refused",
+          bool([p for p in _cx(mode_sources={k: v for k, v in _cx_sources.items()
+                                             if k != "eval/tools/delta.py"})["problems"]
+                if "no source in the fixture set" in p]), True)
+    counts["mutants"] += 1
+    # THE ONE-READING ROW (rule 12): `command_paths` is what the stem census reads, and
+    # it is `_command_scripts` projected onto addresses -- asserted here rather than
+    # promised by a docstring, because two tokenisers answering one question is how a
+    # mode could read as ungated while its script reads as gated.
+    _cmds = _cx_cmds + ['python3 "eval/tools/x.py']
+    _pairs, _pair_problems = _command_scripts(_cmds)
+    check("command_paths is _command_scripts projected onto addresses",
+          command_paths(_cmds), ([address for address, _ in _pairs], _pair_problems))
+    counts["variants"] += 1
     # MUTANT: the PRODUCERS fail soft, and reading them for `commands` alone turns an
     # unreadable workflow into "every control in the repository is ungated" -- 36 rows,
     # exit status right, every word of the diagnosis wrong. Measured at 36 before the
@@ -2872,10 +3276,19 @@ def _selftest() -> int:
     # `tasks_control` in the answer is the second half: its register row excuses one MODE,
     # `--live-squash-refs`, so with nothing running the script at all the row does not
     # excuse it. A reader taking any mention as an excuse reports one row here, not two.
+    # The filter is now EXPLICIT because the problems list carries two populations: with
+    # every command gone the mode census reports alpha and beta beside the two controls,
+    # one exit for both -- and a reader splitting on the control wording to find control
+    # rows must say so, not inherit it.
     check("an ungated control with no register row is caught, and a MODE row is not one",
-          [p.split(" is a control")[0] for p in _cx(commands=[])["problems"]],
+          [p.split(" is a control")[0] for p in _cx(commands=[])["problems"]
+           if " is a control that no" in p],
           ["eval/tools/fragment_control.py", "eval/tools/tasks_control.py"])
+    check("...and the gated mode is unrecorded in the same census, one exit",
+          _cx(commands=[])["modes"]["unrecorded"],
+          ["eval/tools/alpha.py"])
     counts["mutants"] += 1
+    counts["variants"] += 1
     # MUTANT: the name is in the register, in the WHY column instead of the left-out one.
     # A reader taking backticks from the whole row calls this excused; it excuses nothing,
     # because the row is about something else entirely.
@@ -2993,7 +3406,7 @@ def _selftest() -> int:
             _code = controls_report(_cx(commands=[]), as_json=_as_json)
         if _code != 1:
             failures.append(f"controls_report(as_json={_as_json}) exited {_code} on a "
-                            f"census carrying 2 unrecorded controls, want 1")
+                            f"census carrying unrecorded controls and modes, want 1")
     counts["mutants"] += 2
 
     check("22s bills a whole minute", billable_minutes(22), 1)
