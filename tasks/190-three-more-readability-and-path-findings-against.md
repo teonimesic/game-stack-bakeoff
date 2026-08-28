@@ -56,3 +56,33 @@ commit.
 > comments are worth having; what is missing is a route for them that does not attach them to an
 > unrelated ticket.** Worth deciding whether that route is a standing ticket, a `.coderabbit.yaml`
 > path or base setting, or simply this filing convention written down.
+
+## note 2026-08-28
+
+## note 2026-08-28 (orchestrator) — current at dispatch
+
+**Line addresses have drifted since `7804aee`; locate by content.** Item 1's bare-name
+sentences now sit at DECISIONS.md 1472, 1530, 1534, 1536; item 2's paragraph opens at
+**~1805** ("What CI has consumed has a producer"); item 3 is the filter/gate narrative in the
+`run-gates.sh` / "named subset" row neighborhood.
+
+**Item 1 is measured, not just plausible** (read 2026-08-28): `judge/capability.py` and
+`judge/capability_selftest.py` do not exist at the repository root; `eval/judge/capability.py`
+and `eval/judge/capability_selftest.py` both do. Adjudicate whether the bare names are paths
+(the reviewer's reading) or module names that happen to read as paths — either way the ticket's
+bar holds: make the command and the sentences agree.
+
+**What has landed under you since filing:**
+
+- `tasks/192` merged as `e573323`: `eval/tools/ci_minutes.py` gained the register reader that
+  locates the checks row inside its table (+321/−8). For item 3, read `--scope` behaviour and
+  `.github/workflows/controls.yml` at the CURRENT head — never the filed version.
+- `tasks/188` is landing now (PR #69, squash-armed): its DECISIONS.md hunks sit at ~3400+;
+  no overlap with any of your three items. Once it lands nothing else holds DECISIONS.md.
+
+**Out of scope for you:** the tail blockquote (a route for outside-diff findings that does not
+attach them to an unrelated ticket) is an open process question for the operator; 188's round
+confirmed the pattern a third time. Do not decide it inside this ticket.
+
+**Baselines at the head you branch from:** `docstat.py --sweep` clean over 258 docs;
+`linkcheck.py` exit 0. Run both unpiped after staging, as your done_when says.

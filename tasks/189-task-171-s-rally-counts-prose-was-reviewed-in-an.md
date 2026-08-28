@@ -1,10 +1,11 @@
 ---
 id: 189
 title: Task 171's rally.counts prose was reviewed in another branch's merge and both findings are unaddressed
-status: todo
+status: done
 priority: 4
 refs: eval/RUNS.md, DECISIONS.md, eval/judge/bot_pong.py, tasks/171, pull request 62
 done_when: Both passages reworded, with the DECISIONS.md input domain confirmed against eval/judge/bot_pong.py rather than against the review's wording. bot_pong._rally and the criterion itself unchanged. docstat.py --sweep and linkcheck.py exit 0, both unpiped.
+established_by: 'Closed as the duplicate its own note declares: items 1 and 4 landed in tasks/188 (PR 69), including the code confirmation of the non-scoring domain this done_when required; nothing dispatched'
 ---
 
 CodeRabbit raised two readability findings against the rally.counts prose while it sat inside pull request 62's merge commit; being outside-diff, they were never posted against task 171's own pull request. One is a hard-to-parse comparison clause; the other is a DECISIONS.md rule whose stated input domain disagrees with its own exception.
