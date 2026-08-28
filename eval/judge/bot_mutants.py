@@ -42,8 +42,8 @@ THREE KINDS OF SUBJECT, AND THEY ASK THREE DIFFERENT QUESTIONS.
 `--hazards` prints `HAZARDS`, one recorded answer per criterion to *what
 correct-but-unusual game would mis-score this?*, grouped by the failure shapes #34, #29
 and #46 adjudicated. `--selftest` proves the registry gate and the pending adjudication
-can go red, and reads `rally.counts` over written tapes; all three are offline and start
-no subprocess.
+can go red, and reads `rally.counts` and `bot_pong._match_ends` over written tapes; all
+three are offline and start no subprocess.
 
 A VARIANT RUNS THE WHOLE BOT ON ONE FIXTURE, so its coverage is per fixture, never per
 suite - and the population is every criterion instance the four bots report, not the
@@ -63,6 +63,7 @@ import textwrap
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -177,6 +178,112 @@ MATCH_PLAYS_ON = ("""        if self.over:
             self.speed = BALL_SPEED_START""",
        """            self.over = True
             self._serve(serve_dir)  # MUTANT: the winning point serves another ball""")
+
+#: THE THIRD SIGNAL, AND THE ONE `tasks/166` LEFT STANDING. `match.ends` used to break
+#: its drive on the SCORE (`max(score) >= 11`) and hand the session straight to
+#: `probe.end_condition_holds`, which scores the FLAG - the same defect #205 named, one
+#: signal further out, and a latent false negative for any game whose flag lands even
+#: one tick after the eleventh point. The reference raises the flag on the winning tick,
+#: which is why nothing in the suite could see it. These patches are the pair of
+#: subjects the repaired criterion is pinned with; the mutant that must FAIL is
+#: `PONG_NEVER_FLAGS`, below.
+#:
+#: SIX TICKS, and the same reasoning `ARENA_ANNOUNCE_THEN_ENTER` was adjudicated under:
+#: a closing flourish gates the simulation, which is presentation the prompt leaves
+#: open, and the game does not claim to be over while it is still playing - `over` is
+#: false throughout the flourish and true from the tick the run is finished.
+PONG_ANNOUNCE_THEN_ENTER = (
+    """            if not self.over:
+                events.append("game_over")
+            self.over = True
+""",
+    """            # VARIANT: the win is announced here and entered in the state six
+            # ticks later.
+            self._ending = 6
+            events.append("game_over")
+""")
+
+PONG_SETTLES_INTO_THE_END = ("""        events: list = []
+        self.tick += 1
+        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""", """        events: list = []
+        self.tick += 1
+        if getattr(self, "_ending", 0) > 0:
+            self._ending -= 1                      # VARIANT: the closing flourish
+            if self._ending == 0:
+                self.over = True
+            return events
+        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""")
+
+#: THE WIDENING THE TICKET NAMES, AT ITS DELIVERED BOUND. A game that reaches eleven,
+#: KEEPS PLAYING, and only then raises the flag is the fail-open direction a repair had
+#: to price (`AGENTS.md` rule 7): the repaired `_match_ends` lets it play on for
+#: `bot_pong.GRACE_BUDGET` ticks - 512, the same 8 seconds at 64 Hz the suite allows
+#: before the first serve - before it calls the match not stopped. This subject sits ON
+#: the bound: the ball is served straight up so it can never leave the arena and the
+#: score cannot move again, the simulation keeps stepping (ball bouncing, paddles
+#: answering) for all 512 of them, and the flag arrives on the last one. It must PASS,
+#: and `read_grace` over the written tapes pins the boundary itself: 512 passes and 513
+#: fails, so the delivered excuse is exactly 512 ticks of live play and one tick more
+#: is a defect.
+PONG_WIN_PLAYS_ON_HELD = (
+    """            if not self.over:
+                events.append("game_over")
+            self.over = True
+            self.ball_x = 0.0
+            self.ball_y = 0.0
+            self.ball_vx = 0.0
+            self.ball_vy = 0.0
+            self.speed = BALL_SPEED_START
+""",
+    """            # VARIANT: the match plays on for 512 ticks after the winning point.
+            # The ball is served straight up so it can never leave the arena and the
+            # score cannot move again; the flag arrives when the window closes.
+            self._ending = 512
+            events.append("game_over")
+            self._serve(serve_dir)
+            self.ball_vx = 0.0
+"""), ("""        events: list = []
+        self.tick += 1
+        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""", """        events: list = []
+        self.tick += 1
+        if getattr(self, "_ending", 0) > 0:
+            self._ending -= 1                      # VARIANT: still playing
+            if self._ending == 0:
+                self.over = True
+                self.ball_vx = self.ball_vy = 0.0
+        if self.over:
+            # First to WIN_SCORE has won: no more play until reset().
+            return events
+""")
+
+#: THE MUTANT: the match reaches eleven, the flag NEVER rises, and play carries on -
+#: served ball, moving paddles, and a twelfth point inside 100 ticks. This is the
+#: defect `MATCH_PLAYS_ON` cannot express, because it keeps `self.over = True` and so
+#: reaches the old criterion through the end-condition windows; here the flag is absent
+#: and the score guard is what has to catch the game. The repaired criterion FAILS it
+#: on the score, with the tick the twelfth point landed on in the evidence.
+PONG_NEVER_FLAGS = (
+    """            if not self.over:
+                events.append("game_over")
+            self.over = True
+            self.ball_x = 0.0
+            self.ball_y = 0.0
+            self.ball_vx = 0.0
+            self.ball_vy = 0.0
+            self.speed = BALL_SPEED_START
+""",
+    """            # MUTANT: eleven points and the flag is never raised; play carries on.
+            self._serve(serve_dir)
+""")
 
 # NOT a mutant - a VARIANT that must still PASS. An opening title card holding the ball
 # for 104 ticks, copied from what an agent-built Godot submission actually shipped
@@ -900,6 +1007,26 @@ VARIANTS: list[Variant] = [
     Variant("ref_pong", "a 104-tick opening title card holds the ball",
             (OPENING_TITLE_CARD,), ("ball.moves",),
             notes="copied from an agent-built Godot submission's OPENING_DELAY = 104"),
+    Variant("ref_pong", "the win is announced six ticks before the state enters it",
+            (PONG_ANNOUNCE_THEN_ENTER, PONG_SETTLES_INTO_THE_END),
+            ("match.ends",),
+            notes="the same six-tick flourish the arena and tetris variants carry, on "
+                  "the fixture that could never exercise it: `_match_ends` located the "
+                  "end on the SCORE and handed the session to a grader that scores the "
+                  "flag, so a flag landing any ticks after the eleventh point read "
+                  "`the end was located at tick N with game_over=False`. Measured on "
+                  "this fixture before and after the repair: FAIL then PASS, same "
+                  "flourish (the false negative the ticket priced; the reference sets "
+                  "its flag on the winning tick, which is why nothing saw it)"),
+    Variant("ref_pong", "the match plays on 512 ticks after the win, its score held",
+            PONG_WIN_PLAYS_ON_HELD, ("match.ends",),
+            notes="the widening the repair admits, priced and pinned ON its bound: 512 "
+                  "ticks of live play after the winning point - ball bouncing, paddles "
+                  "answering - with the score held and the flag last to arrive. The "
+                  "same 8 seconds at 64 Hz the suite allows before the first serve. "
+                  "The written-tape pins in --selftest hold the boundary itself: 512 "
+                  "passes, 513 fails, so a bound that moves without re-deriving this "
+                  "row goes red"),
     Variant("ref_arena", "enemies faster than the player, so one reaches it mid-leg",
             (FAST_ENEMIES,), ("enemies.chase",),
             notes="exercises the contact branch of enemies.chase, which the reference "
@@ -1275,6 +1402,16 @@ MUTANTS: list[Mutant] = [
            MATCH_PLAYS_ON,
            notes="the first mutant `match.ends` has ever had of its own; it appeared "
                  "only as collateral until 2026-08-25"),
+    Mutant("match.ends", "ref_pong",
+           "eleven points and the flag is never raised", (PONG_NEVER_FLAGS,),
+           notes="the negative control for the score locating the end (tasks/191). "
+                 "`MATCH_PLAYS_ON` keeps `self.over = True`, so a criterion that "
+                 "waited for the flag would still meet it; this one never raises it, "
+                 "which is the shape a flag-locating loop would excuse whenever no "
+                 "further point happened to land. The repaired criterion FAILS it on "
+                 "the score guard inside the grace window - measured `scored again at "
+                 "tick 3213 (12-0)` - and no verdict of this mutant turns on the "
+                 "flag"),
     Mutant("gameover.triggers", "ref_arena",
            "game over is reported and the simulation keeps stepping",
            (ARENA_KEEPS_STEPPING,),
@@ -1378,6 +1515,8 @@ _V_FAST = "enemies faster than the player, so one reaches it mid-leg"
 _V_SWING = "`active` spans the whole swing, hitbox only the middle"
 _V_PIT = "the opening ledge overlooks a bottomless pit"
 _V_PONG_RESTART = "a game-over card, then a control starts a new match"
+_V_PONG_ANNOUNCE = "the win is announced six ticks before the state enters it"
+_V_PONG_HELD = "the match plays on 512 ticks after the win, its score held"
 _V_RESTART = "a game-over card, then a control starts a new run"
 _V_TETRIS_RESTART = "a 190-tick game-over card, then a control restarts"
 _V_ARENA_CARD = "a 96-tick opening title card holds the whole arena"
@@ -1459,11 +1598,29 @@ HAZARDS: list[Hazard] = [
            "fail a game that parks the ball off-centre during the beat, which is a "
            "shape no submission has shipped"),
     Hazard("ref_pong", "match.ends", "closing-card",
-           "a game-over card that a control clears into a new match",
-           "the variant, which is the shape `g1_pong__rust` shipped. The criterion "
-           "idles 600 ticks after the win and only then presses, reading the pressed "
-           "phase THROUGH the reset via `probe.end_condition_holds`",
-           (_V_PONG_RESTART,)),
+           "a game-over card that a control clears into a new match; a win announced "
+           "before it is entered in the state; a match that plays on after eleven "
+           "points with its score held",
+           "three variants. The card is the shape `g1_pong__rust` shipped: the "
+           "criterion idles 600 ticks after the win and only then presses, reading "
+           "the pressed phase THROUGH the reset via `probe.end_condition_holds`. The "
+           "flourish is what the score-locator failed a correct game on (`tasks/191`): "
+           "the score now LOCATES and the flag SCORES, with a window between them "
+           "`bot_pong.GRACE_BUDGET` ticks long - 512, the opening budget's argument "
+           "run backwards - and the play-on variant sits on that bound. WHY THE SCORE "
+           "AND NOT THE FLAG: the eleventh point is the one cause of pong's end the "
+           "bot can see, and it is what the criterion's question is about - stop AT "
+           "ELEVEN - so the cause is what locates the experiment and the flag is what "
+           "scores it. A flag-only locator never asks when the match was due to stop, "
+           "so a game that reaches eleven and plays on for any length of time before "
+           "raising the flag passes unasked - the unbounded fail-open direction "
+           "`tasks/166` declined to license here - and a correct game whose flag "
+           "lands one tick late fails a guard that has never fired on stored "
+           "material. Locating on the score converts both into one bounded, stated "
+           "excuse: a game may keep playing for 512 ticks after eleven provided it "
+           "concedes nothing, and the window's own expiry or a twelfth point is what "
+           "catches it beyond that",
+           (_V_PONG_RESTART, _V_PONG_ANNOUNCE, _V_PONG_HELD)),
     Hazard("ref_pong", "determinism.replay", "engine-session",
            "an engine that refuses a second probe session", _SESSION),
     Hazard("ref_pong", "determinism.seed", "engine-session",
@@ -2182,11 +2339,13 @@ def read_tape(tape: list[TapeTick]) -> str:
 # `end_condition_holds` refuses a session the caller located by the wrong signal
 # --------------------------------------------------------------------------- #
 #
-# THE GUARD IS ON THE CALLER, so no game can reach it and no fixture can pin it. The
-# four bots now locate the end on `state.game_over` alone (`tasks/166`), which is
-# exactly what makes the branch unreachable from a mutant - and an unreachable guard is
-# the shape this file exists to find. It is a written session instead: three ticks with
-# the flag set to each of the values a trace line can carry there.
+# THE GUARD IS ON THE CALLER, so no game can reach it and no fixture can pin it. Three
+# bots locate the end on `state.game_over` alone (`tasks/166`), and pong's `_match_ends`
+# hands the session over with the flag True at whatever tick its score-then-flag loop
+# stopped (`tasks/191`) - which is exactly what makes the branch unreachable from a
+# mutant - and an unreachable guard is the shape this file exists to find. It is a
+# written session instead: three ticks with the flag set to each of the values a trace
+# line can carry there.
 
 
 class EndTapeSession:
@@ -2234,6 +2393,98 @@ def read_end_signal(flag: Any) -> str:
             f"ticks; {end.detail('score')}")
 
 
+# --------------------------------------------------------------------------- #
+# `match.ends` locates the end on the score and scores it on the flag, through a
+# window of an exactly stated length
+# --------------------------------------------------------------------------- #
+#
+# THE BOUND IS THE DELIVERABLE, and a bound that lives only in a docstring is a number
+# nothing can disagree with. The live variant runs ON `bot_pong.GRACE_BUDGET` and the
+# mutant below never reaches the window, so neither alone tells a reader where the
+# boundary is. These tapes do: the same written-session shape as `EndTapeSession`, one
+# tick per entry of (left, right, game_over), driven by `bot_pong._match_ends` itself.
+#
+# THE LENGTHS ARE HARDCODED ON PURPOSE. 512 and 513 are the delivered bound, so a
+# change to `GRACE_BUDGET` turns these rows red and forces the bound to be re-derived
+# and re-recorded rather than silently moving - the same reason the tetris card is 190
+# ticks. A row built from the live constant would stay green through exactly the edit
+# it exists to catch.
+
+GraceTick = tuple[int, int, Any]
+
+
+class GraceTapeSession:
+    """The members of `ProbeSession` that `bot_pong._match_ends` touches.
+
+    Tick 0 is the opening state. Each `step_raw` returns the next entry of `script` -
+    (left, right, game_over) - and repeats the last one once the script runs out, so a
+    session whose flag came down stays over and one that never ends never does. No
+    ball, no paddles, no player: `_track` answers with an empty input and `_alive`
+    reads `None`, which is the game-less end state the end-condition phases read.
+    """
+
+    def __init__(self, script: list[GraceTick]) -> None:
+        self._script = list(script)
+        self._i = 0
+        self._held: dict[str, Any] = {
+            "score": {"left": 0, "right": 0}, "game_over": False}
+        self.history: list[probe.Tick] = [
+            probe.Tick(0, "", dict(self._held), [])]
+
+    @property
+    def last(self) -> probe.Tick:
+        return self.history[-1]
+
+    def step_raw(self, inputs: dict) -> probe.Tick:
+        if self._i < len(self._script):
+            left, right, over = self._script[self._i]
+            self._i += 1
+            self._held = {"score": {"left": left, "right": right},
+                          "game_over": over}
+        t = probe.Tick(len(self.history), "", dict(self._held), [])
+        self.history.append(t)
+        return t
+
+    def idle(self, ticks: int) -> list[probe.Tick]:
+        return [self.step_raw({}) for _ in range(ticks)]
+
+
+def grace_tapes() -> list[tuple[str, list[GraceTick]]]:
+    """The shapes that decide `match.ends`, each named by what game it is.
+
+    Every tape opens on the winning tick - `(11, 0, False)` first - because the
+    criterion's question starts there. The no-win rows are the two ways the drive can
+    end without either signal: a game that never concedes, and a flag with no
+    eleventh point behind it.
+    """
+    return [
+        ("the flag lands on the winning tick",
+         [(11, 0, True)]),
+        ("the win is announced six ticks before the state enters it",
+         [(11, 0, False)] * 6 + [(11, 0, True)]),
+        ("a flag 512 ticks late, the score held throughout",
+         [(11, 0, False)] * 512 + [(11, 0, True)]),
+        ("a flag 513 ticks late, the score held throughout",
+         [(11, 0, False)] * 513),
+        ("a twelfth point with the flag still down",
+         [(11, 0, False), (12, 0, False)]),
+        ("a twelfth point and the flag land on the same tick",
+         [(11, 0, False), (12, 0, True)]),
+        ("the flag rises before anyone reaches eleven",
+         [(0, 0, True)]),
+        ("nobody concedes another point and the flag never rises",
+         [(5, 3, False)]),
+    ]
+
+
+def read_grace(script: list[GraceTick]) -> str:
+    """`_match_ends`' verdict and evidence for one tape, as one comparable line."""
+    import bot_pong
+
+    c = bot_pong.BOT._match_ends(GraceTapeSession(script))
+    return f"{'PASS' if c.passed else 'FAIL'} {c.evidence}"
+
+
 def selftest() -> int:
     """Offline: the registry gate, the pending adjudication, and `rally.counts`.
 
@@ -2248,6 +2499,12 @@ def selftest() -> int:
     also carries the point. Each row pins the EVIDENCE as well as the verdict, because
     the two failures this criterion separates - never moved, and a tick behind - are the
     same boolean and different sentences.
+
+    The fourth arm drives `bot_pong._match_ends` over the tapes of `grace_tapes()`:
+    which signal located the end, where the flag was when it did, and the exact tick
+    the score-locator's window closes. The boundary rows - 512 passes, 513 fails - are
+    the delivered bound in runnable form, and the `a twelfth point and the flag land on
+    the same tick` row pins the test ORDER, which no boolean row can see.
     """
     rows: list[tuple[str, str, str]] = []
     problems: list[str] = []
@@ -2382,6 +2639,59 @@ def selftest() -> int:
                f"no end state to read: neither phase was driven. The authoritative end "
                f"signal is the state flag; a `game_over` event does not end a game",
                read_end_signal(flag))
+
+    # `bot_pong._match_ends` locates the end on the score and scores it on the flag,
+    # through a window of delivered length 512. The lengths here are the bound itself:
+    # 512 passes and 513 fails, so a `GRACE_BUDGET` that moves without this file
+    # moving turns these rows red. See `grace_tapes` for the shapes, and the variant
+    # `the match plays on 512 ticks after the win` for the same boundary on a real
+    # fixture.
+    grace_wants = {
+        "the flag lands on the winning tick":
+            "PASS reached 11-0 at tick 1; game_over at tick 1, 0 tick(s) later; "
+            "over 600 ticks with NO input: the end state held every tick, "
+            "(left, right) score (11, 0) -> (11, 0), alive=None; then under 600 ticks "
+            "of input: still over every tick, (left, right) score (11, 0) -> (11, 0), "
+            "alive=None",
+        "the win is announced six ticks before the state enters it":
+            "PASS reached 11-0 at tick 1; game_over at tick 7, 6 tick(s) later; "
+            "over 600 ticks with NO input: the end state held every tick, "
+            "(left, right) score (11, 0) -> (11, 0), alive=None; then under 600 ticks "
+            "of input: still over every tick, (left, right) score (11, 0) -> (11, 0), "
+            "alive=None",
+        "a flag 512 ticks late, the score held throughout":
+            "PASS reached 11-0 at tick 1; game_over at tick 513, 512 tick(s) later; "
+            "over 600 ticks with NO input: the end state held every tick, "
+            "(left, right) score (11, 0) -> (11, 0), alive=None; then under 600 ticks "
+            "of input: still over every tick, (left, right) score (11, 0) -> (11, 0), "
+            "alive=None",
+        "a flag 513 ticks late, the score held throughout":
+            "FAIL reached 11-0 at tick 1 and game_over was still False 512 ticks "
+            "later, at tick 513, with the game still stepping: the match did not stop "
+            "at eleven",
+        "a twelfth point with the flag still down":
+            "FAIL reached 11-0 at tick 1 and scored again at tick 2 (12-0) with "
+            "game_over False: the match did not stop at eleven",
+        "a twelfth point and the flag land on the same tick":
+            "FAIL reached 11-0 at tick 1 and scored again at tick 2 (12-0) with "
+            "game_over True: the match did not stop at eleven",
+        "the flag rises before anyone reaches eleven":
+            "FAIL game_over at tick 1 with the score 0-0, before either side reached "
+            "eleven; over 600 ticks with NO input: the end state held every tick, "
+            "(left, right) score (0, 0) -> (0, 0), alive=None; then under 600 ticks of "
+            "input: still over every tick, (left, right) score (0, 0) -> (0, 0), "
+            "alive=None",
+        "nobody concedes another point and the flag never rises":
+            "FAIL nobody reached 11 and the match never reported game_over within the "
+            "budget; final score 5-3",
+    }
+    tapes = grace_tapes()
+    if sorted(name for name, _ in tapes) != sorted(grace_wants):
+        problems.append("selftest grace tapes: grace_tapes() and the expected lines "
+                        "name different tapes")
+    for name, tape in tapes:
+        if name in grace_wants:
+            expect(f"grace: {name}", grace_wants[name], read_grace(tape))
 
     w = max(len(r[0]) for r in rows)
     print(f"{'check':<{w}}  expected")
