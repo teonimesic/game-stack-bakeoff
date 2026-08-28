@@ -42,3 +42,35 @@ not be edited to say different things.
 Task 138's agent declined it in #62's thread rather than editing task 171's landed prose inside
 task 138's squash commit, and filed it as `tasks/189` before this ticket was visible on `main`.
 **`tasks/189` is a duplicate of item 1 plus this one; close it in favour of this ticket.**
+
+## note 2026-08-28 (orchestrator) — current at dispatch
+
+**Your line addresses have drifted; DECISIONS.md moved under them.** Find the three items by
+content, not by number:
+
+- Item 1 (the claimed all-or-nothing contradiction) now sits around **DECISIONS.md ~3411-3420**
+  ("Every hit the play-bot can read must be counted…" beside "A hit tick that also carries the
+  point is counted in neither half…"). **The current prose already carries a reconciliation
+  sentence** — the exclusion is justified by the point zeroing `rally` on that same line and the
+  verdict requiring a non-empty denominator, "so the exclusion cannot swallow the criterion". So
+  item 1 may already be RESOLVED on main, or the reconciliation may itself be the defect. Settle
+  it by reading `judge/bot_pong.py`'s `_rally` beside the paragraph and either declining with the
+  quoted sentence that resolves the conflict, or applying a fix. `tasks/159` is named at ~3390
+  as where that decision lives — read it too.
+- Item 2 (the two re-open notes) around **~3471** and its partner — grep "To re-open".
+- Item 3 (the self-referential producer sentence) now at **~3505**.
+
+**Task 191 has MERGED** (`fdfa375`): `judge/bot_pong.py` changed (`_match_ends`, a new
+`GRACE_BUDGET`; `_rally` itself untouched — the word rally appears in its diff only inside
+evidence strings) and `judge/bot_mutants.py` grew ~334 lines of pong end-window pins. Baseline
+on main: `bot_mutants.py` exit 0 at **53 mutants / 45 criteria / 17 variants / 0 pending / 3
+session-lock controls / 70 hazards / 0 unmet**; `--selftest` 36/36. **If item 1's honest
+resolution is a criterion change rather than a sentence change, file that as a task — this
+ticket is a prose adjudication and does not carry a criterion repair.**
+
+**Overlap with `tasks/189`:** it was filed from the same review thread against the same
+rally.counts prose family. If your item 1 or 2 settles 189's finding, say so in your handback;
+189 gets currented against your result rather than dispatched blind.
+
+PR 68 (task 192) is in review touching `ci_minutes.py` + `.github/workflows/README.md` only —
+no conflict with yours. Nothing else holds DECISIONS.md.
