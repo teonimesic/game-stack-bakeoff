@@ -726,15 +726,18 @@ each is already recorded: 420x640 `g2_tetris3d__unity__t1` (`wg-matrix-2026-08-1
 `g2_tetris3d__rust__t0` (`wg-audio48-2026-08-14`), 720x540 `g2_tetris3d__ts__t1`
 (`wg-audio-2026-08-14`).
 
-**The extraction was proved before the census was believed**, on rows whose answer was known in
-advance: all 3 documented divergences come back divergent, each at its documented size; the
-804 frames match an
-independent count of PNGs under `artifacts/*/eval/frames`; and the population agrees with task
-182's record-based census — 69 records, 3 varied, 2 with no geometry because their own film
-failed, which is 67 with frames — an instrument sharing no code with this one. The first
-version of the walker keyed its population on directories NAMED `artifacts` and read 3147 of
-Unity's `Library/artifacts` build-cache subdirectories as trial dirs; the population is now
-keyed on the `eval/frames` layout, and the fixture carries both poison rows.
+**The extraction was cross-checked before the census was believed**, on rows whose answer was
+known in advance: all 3 documented divergences come back divergent, each at its documented size;
+and the population agrees with task 182's record-based census — 69 records, 3 varied, 2 with no
+geometry because their own film failed, which is 67 with frames — an instrument sharing no code
+with this one. The 804 frames ALSO match an independent count of PNGs under
+`artifacts/*/eval/frames`, but that is a stored-tree cross-check, not proof of extraction: it
+covers the standard layout only, while the walker keys on `eval/frames` at any depth and also
+accepts non-`artifacts` intermediates the stored tree does not contain. Those layouts are the
+fixture's rows instead — `frame_parity.py --selftest` holds a non-`artifacts` intermediate
+(`run-a/submissions/t_clone`) and a nested wrapper run (`run-n/capped`) — and it carries the
+history too: the first walker keyed its population on directories NAMED `artifacts` and read
+3147 of Unity's `Library/artifacts` build-cache subdirectories as trial dirs.
 
 **What this does not establish.** The stored corpus is clean; no claim covers a future
 submission, and the first-frame read stays a blind spot on the path — the tool is the way to
