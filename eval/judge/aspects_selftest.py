@@ -384,6 +384,16 @@ def mutants() -> list[tuple[str, str, dict[str, Aspect]]]:
     out.append(("a brief names no evidence its sees excludes",
                 "VARIANT: ux sees a channel the vocabulary does not know", novel))
 
+    # The empty-sees refusal, pinned on an aspect whose brief names NO channel
+    # artifact, so the refusal is the only thing that can fire the row. Measured
+    # (PR #79 review round): on `ux` the row stays red with the refusal deleted --
+    # its brief names png, which the token loop catches -- so there it pins the
+    # loop and not the refusal; on `architecture` the row dies with the guard.
+    empty = dict(live)
+    empty["architecture"] = replace(live["architecture"], sees="")
+    out.append(("a brief names no evidence its sees excludes",
+                "VARIANT: architecture declares no evidence channel", empty))
+
     # THE VARIANT. Not a removal of the mechanism the check names: an input the
     # check was not obviously built for. The blind spot is honestly described, no
     # stack is named -- and the phrasing still tells the judge how big the split is.
