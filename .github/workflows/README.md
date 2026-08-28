@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 59 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 60 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -52,10 +52,25 @@ needs neither `ffmpeg` nor `just`.
 `skill_layout_selftest` is there rather than beside `skill_layout_control` because it needs
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
+`heartbeat_control` runs in about 1s — `time python3 eval/tools/heartbeat_control.py` is
+the reading — and asks whether the hourly heartbeat still refuses to report a
+count when the **main checkout is not a work tree**. Its red cases are `core.bare=true` read
+from the main checkout, the same read from a linked worktree, a `core.worktree` pointing at a
+directory that does not exist, and a root that is no repository at all. Its green cases are
+`core.bare=false`, `core.bare` absent, and a healthy checkout read from a linked worktree. It
+works on throwaway repositories under `$TMPDIR`, restores the configuration in a `finally`, and
+carries 1 mutant: the guard removed.
 `fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the
 `fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
+`python3 eval/tools/findings_control.py` prints its own row count and takes about 2.3s locally.
+It needs `git` and no history: the count corpus is read from the index rather than from the disk
+(#198), so its fixture trees are repositories. One is deliberately left un-`init`ed and must exit
+**2** rather than 1, because a tree git cannot list has to stop the producer rather than shrink
+its corpus to `RANGE_DOCS` and read clean. Its last row is about the control itself — an
+inherited `GIT_DIR` outranks `cwd` silently — so it reproduces that against a decoy repository
+before asserting the fixture builder is immune.
 `corpus_control` asks which files the sweep reads at all, and its default runs the clean
 pass **and all 7 mutants** — 3.9s locally, most of it the 8 fixture repositories. `docstat
 --selftest` makes the same clean call, so a gate that only repeated it would duplicate a gate;
@@ -185,7 +200,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **59** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **60** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks
@@ -217,6 +232,13 @@ CI, which makes a push the last moment it can act:
       'eval/**/*_control.py' 'eval/**/*_mutants.py' 'eval/**/*_selftest.py'; } | sort -u | wc -l
 git log --format=%H main | wc -l
 ```
+
+**The work-tree guard is in the heartbeat and in NO hook tier, and that is reachability
+rather than duty cycle.** When the main checkout is not a work tree, `git commit` there exits
+128 **before any hook runs**, so no hook can reach the check. The one place a hook does still
+run is a linked worktree, and that is where the state is invisible: `status`, `commit` and
+`ls-files` all succeed there. The heartbeat fires hourly whether or not anyone is committing.
+`eval/tools/heartbeat_control.py` gates it.
 
 Two things about that population. Editing a gate script is **not** in it — the census reads the
 *set* of them, so only an add, a delete or a rename moves the verdict, which is why the second
@@ -341,6 +363,7 @@ every control in the repository is ungated.
 | `docstat --renumbered` | never gates by design; its second half is undecidable. The half that does gate runs inside `--sweep` |
 | `coderabbit_config.py --schema` | needs the network — it reads the published CodeRabbit schema. **Its offline half, `--constraints`, IS gated**: it walks scalar limits against a cached copy, which is what catches an over-long field voiding the file. Run `--schema` by hand when the schema may have moved; it refreshes that cache. Run it by hand when `reviews.tools` changes; it is the only thing that catches a misspelled tool key, because the schema does not close that object and the key is accepted silently |
 | an external-link check | `linkcheck.py` skips `http(s)` schemes: this repository is offline-gradeable and a network check is a different tool with a different failure mode. So a rotted source in `research/` still *looks* sourced. That is acceptable only while `research/` is a prior rather than evidence — **run an external link checker before any measurement rests on an external source** |
+| `docstat --count-triggers` | a census, not a gate: it publishes what each REJECTED candidate findings-count trigger would cost, and those rows are meant to be non-zero. Its shipped row is the fact `--findings` already gates on, and `_count_trigger_pins` — run inside `--sweep` — pins every row against a known answer, and compares the SHIPPED row alone against `_stated_counts` |
 | `integrity_census.py` | a census, not a gate: it exits 0 on a historical hit by construction. Its control calls the two integrity pins `--sweep` already runs |
 | `ci_minutes.py` without `--selftest` | it reads the Actions API once per run, and the run count grows with every push — gating it would make CI cost grow quadratically in its own history. The offline `--selftest` half IS gated |
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |

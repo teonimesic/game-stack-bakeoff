@@ -124,6 +124,12 @@ separate occasions. `project_lines` is defined over **git-tracked files**, so ag
 which are full checkouts and once made it read a fivefold jump in one hour — are excluded by
 construction rather than by a list.
 
+**It refuses rather than counts when the MAIN CHECKOUT is not a work tree.** Every git command
+there fails while every working file stays normal, so nothing but git reports the state — the
+counts are byte-identical to a healthy run. The refusal names the path, both settings that
+reach that state, and the one-line repair. **No git hook can carry this check**: `git commit`
+exits 128 before any hook runs.
+
 > **"Nothing moved" is a claim about the snapshot, not about the world.** Three times the
 > counters sat still through real work: once the file list went by extension, once by
 > directory, once it counted source when the work produced JSON. Check the artifacts before
@@ -353,6 +359,15 @@ working session as the change**, not later:
 > records. The cost figure in the same sentence had the same shape and was 34% low
 > (`WR-readme-opening-counts`). Retiring a stale count is easy; *noticing* one is what needs the
 > command, so write the command down next to the number.
+
+> **Writing the command down is not running it, and the citation is what makes the stale figure
+> dangerous.** `README.md` line 187 carried a findings count **28 short** with `docstat.py
+> --findings` named in the same sentence — a reader had every reason to treat it as derived, and
+> it was typed. **The producer has to be RUN by something that is not a person.** The check that
+> should have caught it was bound to one wording and read a second wording of the same fact, in
+> the same file, as clean; it now reads any cardinal on a line naming the log's range, path or
+> producer, over every live document rather than 3 (`DECISIONS.md`, *the findings count is read
+> from the log's ADDRESS*).
 
 `README.md` and `DECISIONS.md` state what is true now — **replace superseded content rather than
 annotating it.** `eval/FINDINGS.md` is the exception: it is a findings log, and a number that was
