@@ -1,10 +1,11 @@
 ---
 id: 188
 title: Three readability findings against DECISIONS.md prose from tasks 171 and 167, one of them a claimed contradiction in rally.counts
-status: todo
+status: in_review
 priority: 3
 refs: DECISIONS.md,eval/judge/bot_pong.py,eval/judge/scene_mutants.py
 done_when: each of the 3 is read against its source and either applied or declined in writing, with the reason. Item 1 is settled by reading judge/bot_pong.py's rally.counts beside DECISIONS.md 3219-3227 and saying which of the two is wrong; a decline needs the sentence that resolves the apparent conflict quoted. docstat.py --sweep and linkcheck.py exit 0 after.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/69
 ---
 
 Three CodeRabbit readability findings against DECISIONS.md prose that landed on main from tasks 171 and 167. They surfaced on PR #61 (task 185) only because merging main put those lines in that review's file set; task 185's diff touches DECISIONS.md at one hunk, @@ -1443,13 +1443,30 @@, and none of these lines. `git log -1 -L 3219,3232:DECISIONS.md` names e03be27 (task 171) and `-L 3309,3312` names 2b9a82a (task 167), so neither belongs to the branch that was asked about them.
