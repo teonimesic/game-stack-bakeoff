@@ -579,6 +579,33 @@ def unusable_criteria(pairs: list[tuple[str, str]], err: BaseException, what: st
 # because the restarted run lost again inside the same window (`tasks/157`). A per-bot
 # copy of a policy is a policy that gets repaired once; every bot reaches this through
 # its `Bot.end_condition` criterion, so the next repair cannot reach only one of them.
+#
+# WHICH SIGNAL SAYS THE GAME IS OVER: THE STATE FLAG, AND ONLY THE STATE FLAG.
+# Every game in the suite publishes the end twice - `state.game_over`, which the task
+# prompt defines as the CONDITION ("true once ... the match has stopped accepting
+# play"), and a `game_over` EVENT, which announces the tick the condition was entered
+# on. They are a state and its edge, and a criterion may read only one of them.
+#
+# It reads the flag, because the flag is the half the prompt's sentence is about and
+# the half everything below already scores from. Two bots used to LOCATE the end with
+# `flag is True or "game_over" in events` and then SCORE it from the flag, and the two
+# readings disagree on any game that does not enter the state on the announcing tick:
+#
+#   ANNOUNCED, NEVER ENTERED - a broken game. Located on the event, then scored
+#   `BROKE at tick N: game_over went False with nothing pressed` about a flag that
+#   had never been True. The verdict was right and its evidence described a
+#   different defect (`tasks/166`).
+#
+#   ANNOUNCED, THEN ENTERED SIX TICKS LATER - a CORRECT game, and a false negative.
+#   Measured on both fixtures: `ref_arena` and `ref_tetris3d` patched to emit the
+#   event on the death tick and set the flag six ticks on both FAILED, with that
+#   same sentence. Under the flag alone both PASS. `ref_pong` and `ref_platformer`
+#   never had the event branch and always passed it.
+#
+# So the event is dropped everywhere it was read, and `end_condition_holds` REFUSES a
+# session whose flag is not True at the tick the caller handed it - the one place the
+# two readings can still be made to disagree is a future caller, and a comment asking
+# it not to is not a defence.
 
 
 @dataclass(frozen=True)
@@ -589,6 +616,12 @@ class EndCondition:
     does not - a third value, not `False`, and every test here reads it that way.
     """
 
+    #: `state.game_over` AT THE TICK THE CALLER LOCATED THE END, before either phase
+    #: runs, and the tick it was read on. Anything but `True` means the caller found
+    #: the end by some other signal, and there is no end state to hold: no window is
+    #: driven and `passed` is False.
+    flag_at_entry: Any
+    at_entry_tick: int
     #: phase 1
     idle_ticks: int
     at_end: Any
@@ -622,7 +655,7 @@ class EndCondition:
     @property
     def held_while_idle(self) -> bool:
         """The end state survived every tick of the window with nothing pressed."""
-        return self.idle_broke_at is None
+        return self.flag_at_entry is True and self.idle_broke_at is None
 
     @property
     def answered_the_press(self) -> bool:
@@ -652,6 +685,11 @@ class EndCondition:
         An audit trail that mislabels what the instrument read is worse than one that
         says nothing (raised by CodeRabbit on PR #40).
         """
+        if self.flag_at_entry is not True:
+            return (f"the end was located at tick {self.at_entry_tick} with "
+                    f"game_over={self.flag_at_entry!r}, so there was no end state to "
+                    f"read: neither phase was driven. The authoritative end signal is "
+                    f"the state flag; a `game_over` event does not end a game")
         idled = (f"the end state held every tick, {label} {self.at_end} -> "
                  f"{self.after_idle}, alive={self.alive_after_idle}"
                  if self.idle_broke_at is None else
@@ -689,9 +727,16 @@ def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
                         sample: Callable[[Tick], Any]) -> EndCondition:
     """Drive both phases of the end condition. See the block comment above.
 
-    Call it once the end condition has fired. `sample` reads the value that must not
-    move while play is stopped, and choosing it is the caller's job: it has to be
-    something this game's simulation ADVANCES, which the score is not in half of them.
+    CALL IT ONCE `state.game_over` IS TRUE, and never on a `game_over` event alone.
+    That precondition is enforced rather than documented: `s.last` is read first, and
+    a flag that is not `True` there returns a failed `EndCondition` naming the value it
+    found, without driving either phase. See `WHICH SIGNAL SAYS THE GAME IS OVER`
+    above - the caller is the one place the two signals can be made to disagree, and
+    the disagreement used to surface as a sentence about a flag that "went False".
+
+    `sample` reads the value that must not move while play is stopped, and choosing it
+    is the caller's job: it has to be something this game's simulation ADVANCES, which
+    the score is not in half of them.
 
     `inputs` is the bot's own busy set, the controls a player would be holding. Pass a
     CALLABLE of the press-phase tick index where the game reads an input as a rising
@@ -702,6 +747,22 @@ def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
     press = inputs if callable(inputs) else (lambda _i: inputs)
     at_start = sample(s.history[0])
     at_end = sample(s.last)
+    flag_at_entry = s.last.state.get("game_over")
+    at_entry_tick = s.last.tick
+    if flag_at_entry is not True:
+        # FAIL-CLOSED, and the failure is the CALLER's. Driving the windows anyway is
+        # what produced `BROKE at tick N: game_over went False` about a flag that had
+        # never been True, so nothing is driven and the value found is what gets
+        # reported. `idle_broke_at` stays None BECAUSE NOTHING BROKE: no tick was
+        # stepped, and `held_while_idle` is False on `flag_at_entry` alone.
+        return EndCondition(
+            flag_at_entry=flag_at_entry, at_entry_tick=at_entry_tick,
+            idle_ticks=0, at_end=at_end, after_idle=at_end,
+            alive_after_idle=_alive(s.last), idle_broke_at=None, idle_broke_why="",
+            press_ticks=0, reset_at=None, press_broke_at=None, press_broke_why="",
+            settle_ticks=0, reset_reverted=False, at_start=at_start,
+            alive_at_start=_alive(s.history[0]), after_press=at_end,
+            alive_after_press=_alive(s.last))
     #: The liveness AT THE END, not "not alive". `_alive` has three values, so a game
     #: that drops its `player` field mid-window goes False -> None, which "is not True"
     #: accepts and an equality test does not (raised by CodeRabbit on PR #40).
@@ -747,6 +808,7 @@ def end_condition_holds(s: ProbeSession, *, idle_ticks: int, press_ticks: int,
             if why:
                 press_broke_at, press_broke_why = t.tick, why
     return EndCondition(
+        flag_at_entry=flag_at_entry, at_entry_tick=at_entry_tick,
         idle_ticks=idle_ticks, at_end=at_end, after_idle=after_idle,
         alive_after_idle=alive_after_idle,
         idle_broke_at=idle_broke_at, idle_broke_why=idle_broke_why,
