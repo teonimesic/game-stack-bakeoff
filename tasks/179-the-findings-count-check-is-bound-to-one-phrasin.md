@@ -1,7 +1,7 @@
 ---
 id: 179
 title: The findings-count check is bound to one phrasing, and a count 28 short survived beside its own producer
-status: in_testing
+status: done
 priority: 2
 refs: eval/tools/docstat.py,README.md,AGENTS.md,tasks/177
 done_when: 'Every place a live document states how many findings there are is reconciled against `docstat.py --findings`, not only those phrased ''N numbered findings''. The trigger is chosen the way the census-trigger section of DECISIONS.md requires: candidates measured against the live corpus and selected on false positives, with the count of red lines and the number of shipped pins each candidate gets wrong both recorded - the quantifier-based trigger that section rejected is the obvious wrong answer here too. Pinned red and green, with the ''entries'' phrasing among the pins. A null result is acceptable and closes this: if no closed-class trigger beats the current enumeration on the live corpus, extend the enumeration to cover ''entries'', say so with the numbers, and note that the next unlisted wording will fail the same way.'
@@ -185,3 +185,11 @@ review.** The last head CodeRabbit actually read is still `bee8160`, and `3ab6ab
 past it — the round-3 repairs, the CI-register row, and the `main` merge. Anyone reading the
 checks table alone would take that row for a clean review, which is the reason it is written down
 here.
+
+## note 2026-08-28 (orchestrator) — CLOSED at the merge
+
+Merged as squash `eacc3ae` (PR #58) after the branch went stale behind #64 and CI re-ran at the
+updated head. The unnumbered finding the PR message requested is allocated against `main` as
+**#207**, in `eval/findings/certifies-nothing.md`, from the ticket's drafted text. `docstat.py
+--findings` green at **189 findings, #19-#207**, count and range agreeing across the three
+stating documents.

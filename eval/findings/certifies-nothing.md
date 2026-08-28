@@ -6381,3 +6381,109 @@ reach the head, so the count would have been a plausible in-range number rather 
 shape rule 3 names, arriving through pagination instead of through a pipe.
 
 ---
+
+## #206 - the hourly heartbeat counted through a main checkout `git status` refused to look at, and the first guard for it read the marker of the one known cause
+
+`core.bare` flipped to `true` on the main checkout mid-session, cause never established. The
+established part is what every instrument reported while it stood:
+
+| command | result |
+|---|---|
+| `git status` | exit **128**, `fatal: this operation must be run in a work tree` |
+| `git ls-files` | exit **0** — it reads the index and needs no work tree |
+| `heartbeat.py` | exit **0**, output **byte-identical** to the healthy run |
+
+The heartbeat's counts come from `git ls-files` and from opening paths on the filesystem, and
+neither touches the broken property, so the hourly report could not distinguish the two states —
+a mechanism that ran, reported success, and measured nothing, for as long as it stood. *"Nothing
+moved" is a claim about the snapshot* was already the rule; this is the case where the snapshot
+itself was unreadable and the claim still printed.
+
+**The first guard read the marker, not the property.** It asked `git worktree list --porcelain`
+for the `bare` word. A second cause was found in review and reproduced independently before acting
+on it: `core.worktree` pointing at a directory that does not exist gives `git status` the same exit
+128 with the same message, `git ls-files` the same exit 0 — and `worktree list --porcelain` an
+ordinary **non-bare** record, so the first guard printed counts there too. That is the rule audit's
+*trigger written in the vocabulary of the incident that produced it*, firing in code: the guard
+was correct about the one cause anyone had seen and silent on the next one, and **only review
+caught it — no rule and no control did.**
+
+The shipped probe is the property: `git rev-parse --is-inside-work-tree`, asked **at the main
+checkout** (in a linked worktree it says `true` while the main checkout is unusable, so the address
+is an input — rule 12). The refusal prints `directory exists`, `core.bare` and `core.worktree` as a
+census and selects the matching repair, so a third cause with the same effect is reported rather
+than misattributed.
+
+**Two beliefs the incident had produced did not survive measurement.** The hook tier cannot carry
+this check: in the broken state `git commit` exits 128 and the `pre-commit` hook prints nothing —
+no hook runs in a main checkout that is not a work tree, so the heartbeat's hourly duty cycle is
+not a convenience here, it is the only instrument that fires at all. And the earlier claim that
+the flip "blocks every agent at once" was wrong: linked agent worktrees stayed fully usable; what
+breaks is the main checkout, where merges and the shared queue live.
+
+Pinned both ways in `eval/tools/heartbeat_control.py` (10 rows, offline): the red rows run against
+a fixture — never the live checkout — and `mutant_bare_silent` reproduces the pre-fix heartbeat
+against the broken fixture (exit 0, output identical to the healthy run), so the control can fail
+on the exact defect that was shipped. `core_worktree_missing_red` states its condition
+independently of the guard, so restoring the marker-based design turns it red.
+
+**What is NOT established:** the cause of the flip. Unreproduced and unattributed; `tasks/176`'s
+`GIT_DIR`-steered `git init` was tested and ruled out. This is a guard, not an attribution.
+
+---
+
+## #207 - a gate ran on every commit for 4 days, reported itself clean, and could not see the figure it exists to protect, because its trigger was an enumeration of one wording
+
+`README.md` line 187 stated a findings count **28 short of the log**, with `python3
+eval/tools/docstat.py --findings` named in the same sentence. A second statement of the same fact
+128 lines lower, phrased `N numbered findings`, was gated and correct. The gate whose job was that
+count matched only the one wording it had been written against, so its own output said nothing was
+wrong — and the producer citation in the stale sentence made the wrong figure read as *derived*.
+
+This is `AGENTS.md`'s rule-audit conclusion firing against a regex for the second time — the first
+was #92, the aspect census, where the enumerated wordings were replaced by an open-class property
+and the property was strictly worse. The generalisation that is new here:
+
+> **"A count with a producer goes stale for an hour" does not cover a producer that is NAMED
+> beside a count and never run. The producer has to be run by something that is not a person.**
+> A citation without a runner is worse than no citation, because it buys the figure trust it has
+> not earned. `AGENTS.md` now carries that as a blockquote under the existing count rule.
+
+The repair reads the count from 2 triggers — the `N numbered findings` word form, and any cardinal
+governing a plural noun on an unfenced line naming the log by its range sentence, its path or its
+producer — over a corpus spelled once (`_count_corpus()`, 58 documents on 2026-08-27, against 3
+before). `python3 eval/tools/docstat.py --count-triggers` is the producer for the candidate table
+and refuses an incomplete corpus at exit 2; `_count_trigger_pins` runs inside `--sweep` on every
+invocation.
+
+**What the next reading of this finding must not re-derive, measured on the live corpus:**
+
+- Holding the word-form trigger constant: the shipped enumeration alone 0 red / 2 of 19 pins
+  wrong; adding `entries` 6 red / 1 wrong; a quantifier governing `findings|entries` 13 red / 0
+  wrong; the shipped conjunction 0 red / 0 wrong. **Every red line in the rejected rows is a
+  false positive** — the same ordering #92 found, twice now. Re-run `--count-triggers` rather
+  than quoting these: the quantifier row was 12 when drafted and 13 when finished, and the 13th
+  is a sentence in `AGENTS.md` written to document this decision.
+- The free parameter — the word gap between cardinal and plural noun — is 2: gaps 0-3 all measure
+  0 red, and 2 catches 4 of 5 planted phrasings where 1 catches 3 and 3 catches no more.
+- Two recorded gaps, deliberate: a count spelled in **words** is caught only in the `numbered
+  findings` wording (address-scoping it costs 2 false positives on the live corpus), and a count
+  governing **no plural noun** — `Findings #19-#198 — 143 of them` — is invisible to every
+  candidate at 0 cost. Both in `DECISIONS.md`, which is the authority for this decision.
+- The trigger's fence-or-reword cost lands on the documents that explain it: it fired 4 times on
+  this branch's own prose, which is the honest bound on how often it fires at all.
+
+Two defects review found that the work had not, both real: `findings_control.py`'s fixture
+builder ran `git init`/`git add -A` with `cwd=` alone, so an inherited `GIT_DIR` outranks it
+silently at exit 0 — **#198, committed inside the file whose job is to be the independent
+reader** (fixed with a `GIT_*` scrub written out rather than imported, plus a hostile-`GIT_DIR`
+control carrying its own red half). And `--count-triggers`' shipped row measured only the
+address-scoped half of a rule that is a union of 2 triggers, so it reported `red 0` on an input
+`--findings` gates on — fixed, and pinned by a row that **compares** the producer's row against
+`_stated_counts` rather than by making them the same object (rule 12's corollary).
+
+`--count-triggers` itself is registered as a deliberate exclusion from CI: its rows publish what
+each *rejected* candidate would cost, so they are meant to be non-zero and gating on them would
+gate the wrong sign.
+
+---
