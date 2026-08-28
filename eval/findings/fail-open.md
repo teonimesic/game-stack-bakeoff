@@ -968,3 +968,45 @@ under *both* verdicts, because `_rally` shares its session with the wall-bounce 
 evidence string revealed that the mutant was not testing what its name claimed.
 
 ---
+## #205 - a criterion located the end of a game with one signal and scored it with another
+
+Two bots found the end of a game with `state.game_over is True OR "game_over" in events`, and then
+computed every verdict that followed from the **flag alone**. A submission that raises the event and
+enters the state a few ticks later was therefore *located* as ended and *scored* as not ended.
+
+Measured on two fixtures, the before-column read before any edit:
+
+| fixture | before | after |
+|---|---|---|
+| a **correct** game: end announced, entered 6 ticks later | **FAIL** — `BROKE at tick 537: game_over went False with nothing pressed` | **PASS** |
+| a **broken** game: announced, never entered | FAIL | FAIL — `the player never died in 9001 idle ticks (hp 0.0)` |
+
+> **The verdict on the broken game never moved. What moved was the sentence.** Before the repair it
+> failed a genuinely broken submission while describing a defect that was not present. #200 recorded
+> that a stored evidence string is not a check on the verdict beside it; **this is the converse — a
+> verdict is not a check on the evidence either.** Both can be individually right about different
+> things, and a corpus of correct verdicts is not evidence that the criterion measures what it says.
+
+**The decision came from #190 applied where it was not written.** That rule is about counting: a
+criterion failing on a HIGH count must take the maximum of its candidate signals, one failing on a
+LOW count the minimum, because picking the "better" signal is picking the one that excuses. Here the
+criterion fails on the **absence** of an end, and `flag OR event` is the **union** — the widest
+possible reading, and therefore the excusing one. The flag wins and the event branches are deleted.
+
+The event branch was itself paid for: `bot_tetris3d` carried a comment saying its no-falling-piece
+path failed two correct submissions until it started reading the event. **That was a real defect with
+the wrong repair** — the fix was to read the flag correctly, not to add a second way of being
+satisfied. It also turned out to be in **two** places rather than the one the ticket counted.
+
+**The new guard's first control could not fail.** `end_condition_holds` now refuses a session whose
+flag is not `True` at hand-over; the offline row written for it was green against a **deleted** guard,
+because the verdict and the evidence are byte-identical either way — `detail()` reads the same field
+on both paths. Found by asking what the row would look like with the mechanism gone. It carries
+*ticks driven* now (0 refused, 8 driven), and three mutants of the guard each turn the selftest red.
+
+**What could not be established, and is recorded as such:** whether any stored submission has this
+shape. No probe trace is kept under `eval/runs/**`, so what a submission published on its end tick
+cannot be read back. The two fixtures are the whole evidence, and `eval/RUNS.md` says so rather than
+implying a corpus measurement.
+
+---
