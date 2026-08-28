@@ -256,42 +256,46 @@ placeholders, tautological tests, and pixel-identical frames that no determinist
 ```bash
 cd eval/starters/rust && just verify   # the one gate (any starter)
 
-cd eval
 # whole-game matrix
-python3 wholegame.py plan     --stacks rust ts unity godot --games g1_pong --trials 1
-python3 wholegame.py build    --stacks rust ts unity godot --games g1_pong --trials 1 \
-                              --run-dir runs/<name>
-python3 wholegame.py evaluate --run-dir runs/<name> --eval-parallel 1
-python3 wholegame.py report   --run-dir runs/<name>
+python3 eval/wholegame.py plan     --stacks rust ts unity godot --games g1_pong --trials 1
+python3 eval/wholegame.py build    --stacks rust ts unity godot --games g1_pong --trials 1 \
+                                   --run-dir eval/runs/<name>
+python3 eval/wholegame.py evaluate --run-dir eval/runs/<name> --eval-parallel 1
+python3 eval/wholegame.py report   --run-dir eval/runs/<name>
 
-# a SCENE - a timed sequence with no player, graded by judge/scene_probe.py instead of a
-# play-bot. `--scenes` defaults to NONE, so the command above launches none of them.
-python3 wholegame.py build    --scenes s1_parallax --stacks ts --trials 1 \
-                              --run-dir runs/<name>
+# a SCENE - a timed sequence with no player, graded by eval/judge/scene_probe.py instead
+# of a play-bot. `--scenes` defaults to NONE, so the command above launches none of them.
+python3 eval/wholegame.py build    --scenes s1_parallax --stacks ts --trials 1 \
+                                   --run-dir eval/runs/<name>
 
 # spec-change bake-off - RETIRED 2026-08-23, launch path deleted with the templates.
 # Its stored trials are still readable, and so is what they were asked to do.
-python3 runner.py report --run-dir runs/<name>
-python3 regrade.py --run-dir runs/<name> --suite suites/bakeoff-ts.toml
+python3 eval/runner.py report --run-dir eval/runs/<name>
+python3 eval/regrade.py --run-dir eval/runs/<name> --suite eval/suites/bakeoff-ts.toml
 
 # the subjective layer runs SEPARATELY, after the deterministic tiers
-python3 judge/field_sweep.py --run runs/<name> --games g1_pong \
-    --aspects idiomatic fun --orders 2 --max-wall-min 90 --out runs/<name>/judge-sweep
+python3 eval/judge/field_sweep.py --run eval/runs/<name> --games g1_pong \
+    --aspects idiomatic fun --orders 2 --max-wall-min 90 --out eval/runs/<name>/judge-sweep
 
 # controls - run these before believing any score
-python3 judge/audio_selftest.py       # 6 audio criteria vs 9 mutants
-python3 judge/bot_mutants.py          # every play-bot criterion pinned in both directions
-python3 judge/capability_selftest.py  # the no-stack-gap gate, its mutant and its variant
-python3 judge/rusage_selftest.py      # peak RSS / CPU against a child of known size
-python3 judge/capture_selftest.py     # a flood on either stream keeps the other (#100, #103)
-python3 runner_capture_selftest.py    # the same, through runner.py, and that it is ONE policy (#114)
+python3 eval/judge/audio_selftest.py       # 6 audio criteria vs 9 mutants
+python3 eval/judge/bot_mutants.py          # every play-bot criterion pinned in both directions
+python3 eval/judge/capability_selftest.py  # the no-stack-gap gate, its mutant and its variant
+python3 eval/judge/rusage_selftest.py      # peak RSS / CPU against a child of known size
+python3 eval/judge/capture_selftest.py     # a flood on either stream keeps the other (#100, #103)
+python3 eval/runner_capture_selftest.py    # the same, through runner.py, and that it is ONE policy (#114)
 
 # what the pipeline can see about capture cost - reported, scored by nothing
-python3 judge/capability.py --runs runs
+python3 eval/judge/capability.py --runs eval/runs
 
 # re-grade stored results offline, without re-running agents
-python3 judge/regrade_wholegame.py --run-dir runs/<name>
-python3 judge/verify_blind.py      --run-dir runs/<name>
+python3 eval/judge/regrade_wholegame.py eval/runs/<name>
+
+# prove blinding after a build. The trial trees live OUTSIDE this repository - a tree
+# inside it could reach the rubric by walking up - and `wholegame.py build` prints this
+# line with the work root it used. regrade_wholegame reads a run under eval/runs/;
+# verify_blind reads the WORK ROOT, never a stored run directory.
+python3 eval/judge/verify_blind.py <work-root>/<name>/*/
 ```
 
 Beyond those, `eval/judge/starter_parity.py` reports whether the four starters have drifted apart
