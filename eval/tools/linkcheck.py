@@ -47,12 +47,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 # The front door and the documents it links into. Not the archive sweep - this is about links
-# a reader is invited to click, and the address is an input to the check (#60).
+# a reader is invited to click, and the address is an input to the check (#60). `eval/RUNS.md`
+# is in the set because `README.md` links into it five times, which is this list's own
+# definition; the citation-scope decision in `DECISIONS.md` holds the reasoning.
 LIVE_DOCS = [
     "README.md",
     "AGENTS.md",
     "DECISIONS.md",
     "eval/FINDINGS.md",
+    "eval/RUNS.md",
 ]
 
 _FENCE_RX = re.compile(r"^\s*(```|~~~)")

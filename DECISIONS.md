@@ -2692,9 +2692,10 @@ still store the one-character record on the same harness.
 
 ---
 
-## A finding cited in a live document is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
+## A finding cited in README.md is a reference-style link, gated by `linkcheck.py` — decided 2026-08-23
 
-A bare `(#68)` is honest and useless: a reader who cannot click it has been told nothing. Making
+A bare `(#68)` is honest and useless **to a reader who could have clicked it**: on the rendered
+front door, a reader who cannot click a citation has been told nothing. Making
 it a link is not free, because **`docstat.py --sweep` does not check file paths** — a phantom
 `eval/RUBRIC.md` passed a green sweep — so a link is a stronger claim than a number with no gate
 behind it. **A link that resolves to the wrong place is worse than a bare number, because it looks
@@ -2708,9 +2709,23 @@ Three shapes were available and the choice was made on what each fails at, not o
 | inline `[#68](eval/findings/...#68-the-subjective-layers-first-...)` | a ~150-character URL inside every sentence, in a file whose stated defect was that it was hard to read |
 | link to `eval/FINDINGS.md` with no fragment | always resolves and never lands on the finding. The index is a **table**, and GitHub generates no anchors for table rows, so there is nothing to aim at |
 
-**Shipped: reference-style.** `[#68]` in the prose, and one definition block at the foot of the
-file carrying the group file and the GitHub heading anchor. Prose stays as short as the bare form
-and the machinery is in one place a checker can read.
+**`README.md` cites findings reference-style — `[#68]` in the prose, and one definition block
+at the foot of the file carrying the group file and the GitHub heading anchor.** Prose stays as
+short as the bare form and the machinery is in one place a checker can read.
+
+**Every other document that cites findings cites bare `(#NN)`, and the scope is the reader, not
+a list of files: where the reader can click, cite linked; where the reader reads raw text, the
+number is the citation.** The working documents (`AGENTS.md`, this file, `eval/FINDINGS.md`,
+`eval/RUNS.md`, the judge documents, `eval/PROTOCOL.md`) are written for an agent in a terminal
+— `AGENTS.md` is loaded raw into every session in this project, this file is on its always-read
+list — so no citation form is clickable there, and the number plus `eval/findings/` is the
+actionable token. The linked form would still collect its machinery in those files: a
+~150-character definition line per distinct finding (18 cited by `AGENTS.md`, 28 by this file),
+appended to the two most-loaded and most-edited documents in the repository. And nothing holds
+a converted file to the convention: the gate reads links that exist and cannot see a bare
+citation, so an off-convention bare citation in a converted file is invisible to every check.
+**The exemption is from the convention, not from the check** — a `[#NN]` shortcut in a working
+document still goes red unless a definition in that file defines it.
 
 **The fragment is the risk and `eval/tools/linkcheck.py` is the answer to it.** A reworded heading
 kills an anchor silently. The tool derives the anchors from the target file's own headings rather
@@ -2721,8 +2736,13 @@ each of the three shapes — rule 12's corollary, prove the extraction on a case
 can state in advance. Both directions were exercised on `README.md` itself before the count over it
 was believed: a phantom `eval/RUBRIC.md`, a truncated anchor and a dangling `[#999]` each went red.
 
-**To re-open:** GitHub changing its heading-anchor rule, or a second consumer of these documents
-that does not render Markdown links.
+**To re-open:**
+
+- **the scope** — the primary reader of a working document becomes a human on the rendered
+  page, or the primary reader of `README.md` becomes a terminal that cannot click;
+- **the enforcement objection** — a gate that can see a bare citation exists, and the
+  maintenance objection falls with it;
+- **the gate's external fact** — GitHub changes its heading-anchor rule.
 
 ## No run is bounded by a money figure; token counts and time are measured, not capped — decided 2026-08-23
 
