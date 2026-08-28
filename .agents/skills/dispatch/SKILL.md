@@ -34,6 +34,13 @@ it was filed, and **write the answers into the file**.
 | Did an earlier agent hand back knowledge? | Append it under a dated heading |
 | Do its **`refs`** still resolve? | Fix them — a renumbered finding still resolves and now means something else |
 
+> **Every append to a ticket is a tool call, not a path you construct:
+> `python3 eval/tools/tasks.py note <id> -`, with the note on stdin.** The tool derives the
+> filename from the id, and `-` reads stdin because backticks and newlines do not survive a
+> shell argument (#80). Building the path by hand from a queue-listing title created a second,
+> malformed ticket twice on 2026-08-28 — the rule-12 row in `AGENTS.md` recorded the failure
+> class and named no address, which is why it fired again after it was written down.
+
 Then hold the ticket to the standard in the `tasks` skill: **a stranger in a fresh session, with
 no memory of why this exists, must be able to start it and know when to stop.** Concretely, before
 you launch, the ticket must answer:

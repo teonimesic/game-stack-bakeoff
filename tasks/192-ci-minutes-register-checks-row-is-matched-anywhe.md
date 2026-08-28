@@ -1,11 +1,12 @@
 ---
 id: 192
 title: ci_minutes' register checks row is matched anywhere in the document, not in its table
-status: in_review
+status: done
 priority: 3
 refs: eval/tools/ci_minutes.py,.github/workflows/README.md
 done_when: 'The checks row is located by its TABLE - found by the opening table''s header cells the way the exclusion table already is, then its checks row read - so a matching row elsewhere in the document cannot answer for it. Pinned in both directions in ci_minutes --selftest: a decoy row carrying the right numbers above a corrupted opening table must go RED, and the live register must stay green. Add the variants that must NOT redden: the row re-spaced, the table moved, and a ''| checks |'' line inside a fenced code block.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/68
+established_by: 'Verified against artifacts, not the handback: selftest in the worktree at b23c286 exit 0 with 115 mutants died / 66 variants passed, byte-identical to the quoted line; the defect-direction control reproduced myself - decoy row prepended plus table row 60->99 on the live register exited 1 with got (99, 11), want (60, 11), the exact input that read exit 0 before the repair; live register on main carries one clean checks row, no decoy; mergeable exit 0 at the head, review NOTICE Reviews-paused reported and not gated; diff scoped to ci_minutes.py +321/-8; PR body round-count corrected and is the squash message'
 ---
 
 CHECKS_ROW_RE in eval/tools/ci_minutes.py is applied with re.search over the whole register, so it reads the FIRST '| checks | N ... | M ... |' row anywhere in the document rather than the row of the opening table it exists to pin. Measured 2026-08-27 on the live register: with a decoy row '| checks | 59 gates | 11 suites |' prepended and the real opening-table row corrupted to 99, the check still reads (59, 11) and stays green. That is the failure this row was added to prevent, one level up - PR #63 added it because the opening table said 56 while the coverage sentence and the pin both said 58, and a matcher that accepts any row can go stale the same way with nothing disagreeing. Found by CodeRabbit on PR #64 (task 184), which only re-pinned the number and did not write this matcher, so it is filed rather than fixed there.
@@ -111,3 +112,37 @@ header's cell count while the delimiter was not. Fixed: `len(delim) ==
 len(CHECKS_TABLE_HEADER)` joins the refusal, and the shape is pinned as a mutant ("the
 delimiter row with the wrong cell count"). Closing line: **113 mutants died, 66 variants
 passed** (round 2: 112/66). Live register still reads ((60, 11), []).
+
+## note 2026-08-28
+
+## note 2026-08-28 (agent) — review round 4 pushed (3a7cbef): an indented code block is not the register either
+
+Round 3's Major, verified before the repair: a complete table indented four spaces or a tab —
+header, delimiter, checks row carrying numbers that AGREE with the pin — was selected as the
+register's table with the real table gone, reading `((60, 11), [])` green; `_md_cells` strips
+leading spaces, so indent never stopped the read. `_unfenced` is now `_document_lines` and
+excludes lines indented 4 spaces or a tab as well as fenced lines. A table indented into a
+code block IS a code block in markdown, so refusing it is correct, and an indented row inside
+a real table ends the table (reads as "no checks row") — both the fail-closed direction.
+Pinned as the mutant "a complete table indented into a code block, with no real table".
+Closing line: **114 mutants died, 66 variants passed** (round 3: 113/66).
+
+Round 3's Trivial (add a caller-level corrupted-register assertion) was declined with
+evidence: the caller-level comparison is already pinned one line under the fixture —
+`check("and the decoy did not answer for it, so the measured comparison reddens",
+_row != (60, 11), True)` — and the production end-to-end (exit 1, `got (99, 11), want
+(60, 11)`) was demonstrated on the live register. Reply posted as a PR comment
+(id 5448301883), read back against the sent text.
+
+## note 2026-08-28
+
+## note 2026-08-28 (agent) — review round 5 pushed (680975b): indentation is measured in columns
+
+Round 4's Major, verified before the repair: `" \t| checks | ..."` — one space, one tab — is
+4 columns of indentation (a tab advances to the next multiple of 4), so the line is an
+indented code block in markdown, but `_INDENT_CODE` `^(?: {4}|\t)` matched neither prefix and
+the block was read as document: a complete space-tab-indented table with agreeing numbers was
+selected as the register's with the real table gone. Now column-correct: `^(?: {4}| {0,3}\t)`;
+space+tab, 2sp+tab, 3sp+tab, tab and 5-space prefixes all probed and refuse. Pinned as the
+mutant "a space-and-tab indented table, with no real table". Closing line: **115 mutants
+died, 66 variants passed** (round 4: 114/66).
