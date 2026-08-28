@@ -919,9 +919,7 @@ the field at 640x400 would erase a real difference between submissions and call 
 normalisation: the harness overwriting the thing it exists to measure. **Annotation here is
 right where #62's was wrong because of what is on the other end**: #62's caveat was
 `files_dropped_for_length`, a JSON field no code read and no human opened; this note goes into
-`BRIEF.md`, read by an agent whose whole task is to read it. (A paragraph that stood here from
-2026-08-21 to 2026-08-28 described a refusing gate on this path; it was never code, and the
-correction is recorded in `DECISIONS.md`.)
+`BRIEF.md`, read by an agent whose whole task is to read it.
 
 **What no code on the path sees:** the inline read is the first frame of each submission, so a
 submission whose frame size changes mid-film has no reader in `build_pack`. The producer for

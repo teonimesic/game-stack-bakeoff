@@ -740,8 +740,9 @@ submission, and the first-frame read stays a blind spot on the path — the tool
 see past it, run before spending on a field whose filming this harness did not just do. The
 fixture pins (`frame_parity.py --selftest`, in `gates.yml`) hold both directions: a mixed-size
 submission is caught, an unreadable frame is a flag and never a clean bill, a wrapper run two
-directories deep is found, and the first-frame read itself is pinned as the defect the census
-exists to catch.
+directories deep is found, a trial name shared by two intermediates of one run stays two rows
+(the corpus key is the trial's full path relative to the root), and the first-frame read itself
+is pinned as the defect the census exists to catch.
 
 ## "completed" does not mean finished
 

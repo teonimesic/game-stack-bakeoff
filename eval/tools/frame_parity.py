@@ -142,6 +142,9 @@ def corpus(runs_root: Path) -> dict:
     trial count is `census.py`'s producer, not this one. Depth-independence is
     the point - the tree holds wrapper run directories
     (`wg-g4c-capgate/capped/...`) at depths a `runs/*/artifacts` glob misses.
+    The key is the trial's path relative to the root, so two layouts under one
+    run (`artifacts/t` and `submissions/t`) are two rows and neither key claims
+    an address that was not the one read.
     """
     by_trial: dict[Path, list[Path]] = {}
     for f in runs_root.rglob("*.png"):
@@ -152,7 +155,7 @@ def corpus(runs_root: Path) -> dict:
         frames = sorted(by_trial[trial])
         run_label = str(trial.parent.parent.relative_to(runs_root))
         sizes, unreadable = frame_sizes(frames)
-        subs[f"{run_label}/artifacts/{trial.name}"] = {
+        subs[str(trial.relative_to(runs_root))] = {
             "run": run_label,
             "n_frames": len(frames),
             "sizes": dict(sizes),
@@ -308,6 +311,12 @@ def _fixture(root: Path) -> dict[str, dict]:
     frames("run-a/artifacts/t_uni/eval/frames", [(4, 2)] * 3)          # uniform
     frames("run-a/artifacts/t_mixed/eval/frames",
            [(4, 2), (2, 4), (4, 2)])                                   # NON-UNIFORM
+    # The same trial name under two intermediates of one run: with a key of
+    # run/artifacts/<name> these two collide and one measurement silently
+    # replaces the other, so the population pin is what holds the key to the
+    # full path.
+    frames("run-a/artifacts/t_clone/eval/frames", [(4, 2)] * 2)
+    frames("run-a/submissions/t_clone/eval/frames", [(4, 2)] * 2)
     frames("run-a/artifacts/t_odd/eval/frames", [(6, 6)])              # diverges across run-a
     frames("run-b/artifacts/t_unread/eval/frames", [(4, 2)])
     (root / "run-b/artifacts/t_unread/eval/frames/bad.png").write_bytes(b"\x89PNG\r\n\x1a\nxx")
@@ -337,6 +346,10 @@ def _fixture(root: Path) -> dict[str, dict]:
                                     "nonuniform": True, "uniform": False},
         "run-a/artifacts/t_odd": {"n_frames": 1, "sizes": {"6x6": 1},
                                   "nonuniform": False, "uniform": True},
+        "run-a/artifacts/t_clone": {"n_frames": 2, "sizes": {"4x2": 2},
+                                    "nonuniform": False, "uniform": True},
+        "run-a/submissions/t_clone": {"n_frames": 2, "sizes": {"4x2": 2},
+                                      "nonuniform": False, "uniform": True},
         # n_frames counts frames PRESENT - 3 files, of which 1 readable and 2
         # of unknown size - so the reader cannot lose an unreadable frame by
         # dropping it from the denominator.
@@ -416,9 +429,9 @@ def selftest() -> int:
                f"exactly t_mixed is non-uniform, got "
                f"{sum(1 for r in got.values() if r['nonuniform'])}")
         expect("uniform-total",
-               sum(1 for r in got.values() if r["uniform"]) == 3,
-               f"t_uni, t_odd and t_deep are uniform WITHIN themselves "
-               f"(t_odd holds one frame, one size), got "
+               sum(1 for r in got.values() if r["uniform"]) == 5,
+               f"t_uni, t_odd, t_deep and both t_clone rows are uniform WITHIN "
+               f"themselves (t_odd holds one frame, one size), got "
                f"{sum(1 for r in got.values() if r['uniform'])}")
         # ...while t_odd still diverges from run-a's modal: within-submission
         # uniformity and cross-submission parity are different properties, and
