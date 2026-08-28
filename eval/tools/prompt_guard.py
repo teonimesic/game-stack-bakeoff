@@ -41,7 +41,18 @@ sys.path.insert(0, os.path.join(EVAL, "suites"))
 import scene_prompts as SC  # noqa: E402
 import wholegame_prompts as W  # noqa: E402
 
-STACKS = ("rust", "ts", "unity", "godot")
+# The stack tuple has ONE owner: `wholegame_prompts.STACKS`. `scene_prompts` imports
+# and re-exports that same object, and every other consumer reads it from one of the
+# two. This used to be a restated literal -- equal on the day it was written and free
+# to drift after, the drift invisible in this tool's own output because the population
+# it prints is derived from the copy (task 194). So this is a REFERENCE, pinned by
+# IDENTITY rather than equality: a restated tuple is equal and still a different
+# object, and the assert below is what turns that into an import failure instead of a
+# clean-looking wrong population.
+STACKS = W.STACKS
+assert STACKS is W.STACKS, (
+    "prompt_guard STACKS is not W.STACKS: the stack tuple is owned by "
+    "eval/suites/wholegame_prompts.py, so assign W.STACKS here and restate nothing")
 SCENES_MD = os.path.join(EVAL, "SCENES.md")
 
 # Engine and library names that belong in a vocabulary dict, never in a task body.
