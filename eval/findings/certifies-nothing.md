@@ -6381,3 +6381,53 @@ reach the head, so the count would have been a plausible in-range number rather 
 shape rule 3 names, arriving through pagination instead of through a pipe.
 
 ---
+
+## #206 - the hourly heartbeat counted through a main checkout `git status` refused to look at, and the first guard for it read the marker of the one known cause
+
+`core.bare` flipped to `true` on the main checkout mid-session, cause never established. The
+established part is what every instrument reported while it stood:
+
+| command | result |
+|---|---|
+| `git status` | exit **128**, `fatal: this operation must be run in a work tree` |
+| `git ls-files` | exit **0** — it reads the index and needs no work tree |
+| `heartbeat.py` | exit **0**, output **byte-identical** to the healthy run |
+
+The heartbeat's counts come from `git ls-files` and from opening paths on the filesystem, and
+neither touches the broken property, so the hourly report could not distinguish the two states —
+a mechanism that ran, reported success, and measured nothing, for as long as it stood. *"Nothing
+moved" is a claim about the snapshot* was already the rule; this is the case where the snapshot
+itself was unreadable and the claim still printed.
+
+**The first guard read the marker, not the property.** It asked `git worktree list --porcelain`
+for the `bare` word. A second cause was found in review and reproduced independently before acting
+on it: `core.worktree` pointing at a directory that does not exist gives `git status` the same exit
+128 with the same message, `git ls-files` the same exit 0 — and `worktree list --porcelain` an
+ordinary **non-bare** record, so the first guard printed counts there too. That is the rule audit's
+*trigger written in the vocabulary of the incident that produced it*, firing in code: the guard
+was correct about the one cause anyone had seen and silent on the next one, and **only review
+caught it — no rule and no control did.**
+
+The shipped probe is the property: `git rev-parse --is-inside-work-tree`, asked **at the main
+checkout** (in a linked worktree it says `true` while the main checkout is unusable, so the address
+is an input — rule 12). The refusal prints `directory exists`, `core.bare` and `core.worktree` as a
+census and selects the matching repair, so a third cause with the same effect is reported rather
+than misattributed.
+
+**Two beliefs the incident had produced did not survive measurement.** The hook tier cannot carry
+this check: in the broken state `git commit` exits 128 and the `pre-commit` hook prints nothing —
+no hook runs in a main checkout that is not a work tree, so the heartbeat's hourly duty cycle is
+not a convenience here, it is the only instrument that fires at all. And the earlier claim that
+the flip "blocks every agent at once" was wrong: linked agent worktrees stayed fully usable; what
+breaks is the main checkout, where merges and the shared queue live.
+
+Pinned both ways in `eval/tools/heartbeat_control.py` (10 rows, offline): the red rows run against
+a fixture — never the live checkout — and `mutant_bare_silent` reproduces the pre-fix heartbeat
+against the broken fixture (exit 0, output identical to the healthy run), so the control can fail
+on the exact defect that was shipped. `core_worktree_missing_red` states its condition
+independently of the guard, so restoring the marker-based design turns it red.
+
+**What is NOT established:** the cause of the flip. Unreproduced and unattributed; `tasks/176`'s
+`GIT_DIR`-steered `git init` was tested and ruled out. This is a guard, not an attribution.
+
+---

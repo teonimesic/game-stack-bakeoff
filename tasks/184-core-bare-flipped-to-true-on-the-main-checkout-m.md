@@ -1,7 +1,7 @@
 ---
 id: 184
 title: core.bare flipped to true on the main checkout mid-session, and nothing would have caught it but a git command failing
-status: in_testing
+status: done
 priority: 2
 refs: .githooks/run-gates.sh,eval/tools/heartbeat.py,AGENTS.md
 done_when: 'A cheap assertion fails loudly and by name when the main checkout is not a work tree - the natural homes are `.githooks/run-gates.sh` (which already runs on every commit and push) and `eval/tools/heartbeat.py` (which already reports what moved each hour, and would catch it even when nobody is committing). Whichever is chosen, it names `core.bare` and states the one-line repair in its own output, so the next session reads the fix rather than deriving it. Pinned in both directions: with `core.bare` set true the check goes red naming it, and with it false the check is green - and the red-direction control must restore the flag in a `finally`, because a control that leaves the repository bare is worse than the defect. If the guard is put in the hook rather than the heartbeat, say why the hook''s duty cycle is enough given that this appeared while no commit was running.'
@@ -164,3 +164,12 @@ The head is now `4d1d572`, not `752c538`. Two things happened after the note abo
 
 Everything from `752c538` onward — that merge resolution and the count repair — is
 unreviewed, for the reason the note above gives.
+
+## note 2026-08-28 (orchestrator) — CLOSED at the merge
+
+Merged as squash `5c3871b` (PR #64). Verified against the artifacts on the merged head, unpiped,
+not against the handback: `heartbeat_control.py` **10/10 rows** exit 0; `ci_minutes --selftest`
+ok (101 mutants died, 63 variants passed); `ci_minutes --gates` reads **60** with
+`.github/workflows/README.md` and the selftest pin agreeing — the three-way repair the head
+correction below describes held through the final merge. Finding allocated as requested:
+**#206**, in `eval/findings/certifies-nothing.md`.
