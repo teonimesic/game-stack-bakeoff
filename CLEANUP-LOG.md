@@ -845,3 +845,51 @@ no gate covers.
 `eval/suites/` (the task prompts — note that editing one is a regime boundary, so a pass there files
 tickets and changes nothing), and the scene layer, which has now absorbed five repairs in three days
 (`tasks/162`, `163`, `164`, `174`, `178`) and has never been read as a whole.
+
+## 2026-08-28 — the scene layer, read whole after five repairs; nothing found, and the reason is the finding
+
+4,168 lines across `eval/SCENES.md`, `suites/scene_prompts.py`, `judge/scene_probe.py` and
+`judge/scene_mutants.py`. It had absorbed `tasks/162`, `163`, `164`, `174` and `178` in three days and
+no pass had read it as a whole. Read for one question: **does the documentation still agree with the
+code after five repairs?**
+
+### Cleared — no defect found, and the checks that could have found one were run
+
+- **`prompt_guard.py` exits 0.** That is the shipped gate relating `SCENES.md` to the rendered
+  prompts, and it is what a coherence question about this layer should be asked through.
+- **Every `UPPER_SNAKE` constant `SCENES.md` names exists.** `MIN_LAYERS`, `MIN_PAIRS_PER_LAYER`,
+  `RUBRIC_TERMS` (`tools/prompt_guard.py:77`), `WEIGHTS` (`judge/evaluate.py:84`); `RLIMIT_CPU` is
+  Python's own and legitimately foreign, like git's flags in `FOREIGN_FLAGS_EXACT`.
+- **`SCENES.md` does not restate the 660-tick count** that `scene_prompts.py` owns — correct, and the
+  opposite of the defect this log usually finds.
+
+### Method note — BOTH novel checks reproduced a documented-bad method, and one was documented in advance
+
+This is the pass's actual result, and it is about the passes rather than about the scene layer.
+
+1. **Constants.** The first census searched `eval/*.py eval/**/*.py` and reported `RUBRIC_TERMS` and
+   `WEIGHTS` defined nowhere. Git's pathspec is fnmatch: `*` does not cross `/` without `:(glob)`
+   magic, so `eval/**/*.py` never matched `eval/tools/prompt_guard.py`. **Third cleanup census in a
+   row wrong on its population** — after `--sweep`'s flag census, the `runner.py` field census, and
+   now this.
+2. **Criterion ids.** The second census harvested `word.word` in backticks and reported 7 missing —
+   of which `static.collect`, `field.run_field` and `anonymise.find_stack_names` are
+   **module.function references**, not criteria. `.agents/skills/audit-docs/SKILL.md` already says,
+   in the entry recording why criterion-id checking was never implemented: *"the id set cannot come
+   from string literals in `judge/*.py` — that pattern harvests `re.search` and `aspects.py` as
+   criterion ids"*. **The documentation predicted this pass's error before the pass made it.**
+
+> **A cleanup pass invents a check per area, so it is the place where a known-bad method gets
+> re-invented.** The gap it looked at is a recorded deliberate exclusion; the method it reached for
+> is the one the exclusion warns against. **Read `audit-docs`'s exclusion list before building a
+> novel doc check** — it is a list of methods already tried and rejected, not only of gaps.
+
+Neither wrong census was filed, because each was validated against a case whose answer was known
+first. That is the only reason this entry says "nothing found" rather than carrying two false
+findings — and it is `#203`'s lesson from six hours ago, applied.
+
+### Not opened, and the next pass should take one
+
+`eval/suites/wholegame_prompts.py` and the game prompts (editing one is a regime boundary, so a pass
+there files tickets and changes nothing), and `research/`, whose last pass was 2026-08-24 and which
+`.github/workflows/README.md` records as having 85 unvalidated external URLs.
