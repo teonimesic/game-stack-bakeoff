@@ -85,7 +85,28 @@ from pathlib import Path
 
 EVAL = Path(__file__).resolve().parent.parent
 STARTERS = EVAL / "starters"
-STACKS = ("rust", "ts", "unity", "godot")
+
+sys.path.insert(0, str(EVAL / "suites"))
+import wholegame_prompts as W  # noqa: E402
+
+# The stack tuple has ONE owner: `wholegame_prompts.STACKS` (task 195; same class as
+# task 194 in prompt_guard.py). This file used to restate the literal, and it iterates
+# the names over eval/starters/ to audit the per-stack hooks -- so a stack added or
+# renamed at the owner left the audit checking the old four with clean verdicts,
+# because the population it reported was derived from its own copy. Measured on the
+# pre-fix file: owner gaining a fifth stack, exit 0 and 39 ok / 0 FAILED, the new
+# stack in no line. So this is a REFERENCE, pinned by IDENTITY and not equality: a
+# restated tuple is == the owner's forever and `is` it only on the day it is written,
+# so only identity turns a reintroduced literal into an import failure instead of a
+# clean-looking wrong population.
+STACKS = W.STACKS
+# `if`/`raise`, not `assert`: asserts are stripped under `python -O` and
+# `PYTHONOPTIMIZE`, and prompt_guard.py MEASURED disarmed exactly that way
+# (planted literal: `python3` exit 1, `python3 -O` exit 0 "ok" -- task 194).
+if STACKS is not W.STACKS:
+    raise AssertionError(
+        "hook_audit_control STACKS is not W.STACKS: the stack tuple is owned by "
+        "eval/suites/wholegame_prompts.py, so assign W.STACKS here and restate nothing")
 
 #: stack -> directory the hook's warm guard tests for. `godot` guards on `just` being on
 #: PATH instead, which is why its cold arm is a PATH change rather than a missing dir.
@@ -356,7 +377,13 @@ def _check_mutant(stack: str, hook: Path) -> None:
 def check_stack(stack: str) -> list[str]:
     hook = STARTERS / stack / ".claude" / "hooks" / "verify-gate.sh"
     if not hook.exists():
-        return [f"{stack:6s} FAILED  no verify-gate.sh at {hook}"]
+        # This row IS the disagreement the identity pin exists to surface: the
+        # population comes from the owner, so a stack named there without a starter
+        # directory must read as a FAILED row naming the relationship, never as a
+        # clean audit of the previous set (task 195).
+        return [f"{stack:6s} FAILED  no verify-gate.sh at {hook} - the audit "
+                f"population is wholegame_prompts.STACKS, so a stack named there "
+                f"without eval/starters/{stack}/ is this row and not a clean audit"]
     out: list[str] = []
     logs: dict[str, str] = {}
     for name, fn in (("green", _check_green), ("blocked", _check_blocked),
@@ -451,6 +478,12 @@ def check_grader_view(stack: str) -> list[str]:
     """
     wg = _wholegame()
     hook = STARTERS / stack / ".claude" / "hooks" / "verify-gate.sh"
+    if not hook.exists():
+        # Same disagreement as check_stack's first row, and HERE rather than a KeyError
+        # out of _project's WARM_GUARD_DIR one line below: main() runs this row for
+        # every stack unconditionally, and an unguarded crash discards every row
+        # computed before it instead of printing the disagreement (task 195).
+        return [f"{stack:6s} grader   FAILED  no verify-gate.sh at {hook}"]
     root = Path(tempfile.mkdtemp(prefix=f"hookaudit-grader-{stack}-"))
     try:
         proj = _project(root, stack, warm=True)
@@ -509,6 +542,17 @@ def check_build_trial() -> list[str]:
 
         seen: dict[str, str] = {}
 
+        # The fixture stack is DERIVED from the population, not restated. A hardcoded
+        # name here is a second copy of the owner's tuple one import away: measured on
+        # the pre-fix file, a renamed owner entry KeyError'd on this line BEFORE any
+        # row printed, so even the failure said nothing about the population (task
+        # 195). Any one member is enough -- the substitution below replaces its starter
+        # with a fake either way.
+        fixture = next((s for s in STACKS if s in wg.STARTERS), None)
+        if fixture is None:
+            raise Failure("check_build_trial: no stack in STACKS is a key of "
+                          "wholegame.STARTERS - the two populations disagree")
+
         # `**kw` because `build_trial` now passes the resolved harness object
         # through. A stand-in with a fixed signature would raise a TypeError the
         # moment the real call gains an argument, and this file is the only reader
@@ -518,22 +562,22 @@ def check_build_trial() -> list[str]:
             seen["marker"] = str((work / "MARKER.txt").exists())
             if seen["log"]:
                 with open(seen["log"], "a") as fh:
-                    fh.write("T\trust\tinvoked\t%s\n" % work)
-                    fh.write("T\trust\tskip\tcold_build_no_target_dir\n")
-                    fh.write("T\trust\tinvoked\t%s\n" % work)
-                    fh.write("T\trust\tpass\t-\n")
+                    fh.write("T\t%s\tinvoked\t%s\n" % (fixture, work))
+                    fh.write("T\t%s\tskip\tcold_build_no_target_dir\n" % fixture)
+                    fh.write("T\t%s\tinvoked\t%s\n" % (fixture, work))
+                    fh.write("T\t%s\tpass\t-\n" % fixture)
             (work / "authored.txt").write_text("the agent's work\n")
             return {"type": "result", "result": "done", "num_turns": 1,
                     "terminal_reason": "completed", "modelUsage": {}}, ""
 
-        real_run_agent, real_starter = wg.run_agent, wg.STARTERS["rust"]
-        wg.run_agent, wg.STARTERS["rust"] = fake_run_agent, starter
+        real_run_agent, real_starter = wg.run_agent, wg.STARTERS[fixture]
+        wg.run_agent, wg.STARTERS[fixture] = fake_run_agent, starter
         try:
-            rec = wg.build_trial(run_dir, work_root, "rust", "g1_pong", 0,
-                                 wg.Caps({"rust": 1}, 1), None,
+            rec = wg.build_trial(run_dir, work_root, fixture, "g1_pong", 0,
+                                 wg.Caps({fixture: 1}, 1), None,
                                  prompt_override="unused", turn_limit=1)
         finally:
-            wg.run_agent, wg.STARTERS["rust"] = real_run_agent, real_starter
+            wg.run_agent, wg.STARTERS[fixture] = real_run_agent, real_starter
 
         if seen.get("marker") != "True":
             return ["harness trial   FAILED  the starter substitution did not take effect "
