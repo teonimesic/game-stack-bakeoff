@@ -240,6 +240,13 @@ and `events` is a list of strings drawn from:
 Field names and event names are a contract — spell them exactly as written. Everything
 else about the game is yours to design.
 
+A **state field** and an **event** are different kinds of thing, and every ending
+described above has one of each. **The field is the condition** — it is true for as long
+as the condition holds, and it is the only thing that establishes it. The event
+announces the condition arriving, and a game may raise it on a different tick from the
+one the field turns true, because an announcement is not a state. A `game_over` event
+with the `game_over` field still false has not ended the game.
+
 `just film SEED TICKS SCRIPT OUTDIR` must keep producing frames of the running game.
 **Everything the player sees on screen must appear in those frames**, including the
 score, any HUD, menus and end-of-game screens. If your platform draws some of that

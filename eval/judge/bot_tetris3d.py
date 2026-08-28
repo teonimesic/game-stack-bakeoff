@@ -653,10 +653,12 @@ class Tetris3DBot(Bot):
                         # looking at `game_over` is why this criterion failed two correct
                         # submissions while its own evidence string read
                         # "without the game ending; game_over=True". The verdict
-                        # contradicted the evidence printed beside it.
-                        if (s.last.state.get("game_over") is True
-                                or any("game_over" in h.events
-                                       for h in s.history)):
+                        # contradicted the evidence printed beside it - and that
+                        # evidence is the STATE FLAG, which is the signal this reads.
+                        # It also scanned every tick's events for `game_over` until
+                        # `tasks/166`; see `probe.py`, WHICH SIGNAL SAYS THE GAME IS
+                        # OVER.
+                        if s.last.state.get("game_over") is True:
                             over_at = s.last.tick
                         break
                     cells = _cells(t)
@@ -672,7 +674,8 @@ class Tetris3DBot(Bot):
                     self._drop(s)
                     s.step_raw({})
                     for t in s.history[mark:]:
-                        if t.state.get("game_over") is True or "game_over" in t.events:
+                        # The state flag alone, for the reason above.
+                        if t.state.get("game_over") is True:
                             over_at = t.tick
                             break
                     if over_at is not None:
