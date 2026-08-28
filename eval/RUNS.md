@@ -268,7 +268,7 @@ all along — `layerFactor(depth) = 1/(1+depth)`, larger depth scrolling slower 
 sign-convention reading never rescued the result either.
 
 **A mutant could not have found this.** Only a submission that wraps could, which is rule 15 and
-the shape of [#46], and it took the first real one. `tasks/162` carries the repair: `_walk`
+the shape of (#46), and it took the first real one. `tasks/162` carries the repair: `_walk`
 unwraps the per-tick series, and `scene_mutants.py` gained the variant that was missing — the
 reference scene reporting the other encoding, drawing the identical picture.
 

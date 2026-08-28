@@ -156,7 +156,7 @@ jobs:
       # criterion can fail; this asks whether the harness can reach the right instrument
       # at all and still refuse the wrong one -- 6 named routes from an operator's
       # command to a grading instrument or a judge pack, each with a mutant. It drives
-      # judge/fixtures/ref_parallax through `just`, which is why it is here rather than
+      # eval/judge/fixtures/ref_parallax through `just`, which is why it is here rather than
       # in gates.yml.
       - name: scene_runner_control (the runner's routes to a scene, both directions)
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
