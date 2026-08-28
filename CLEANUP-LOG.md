@@ -954,3 +954,68 @@ size-pack is 4.84 MiB; agent worktrees 15M; `~/game-research-work` 175M. Nothing
 vocabulary (`import wholegame_prompts` at :654) and has never been a pass's area; this log names it
 only in passing. Same regime caution as this pass: it is the instrument, so a pass there reads and
 files tickets and changes nothing.
+
+## 2026-08-28 (third pass) — `eval/judge/aspects.py` (749 lines, read in full)
+
+The pass the second pass's pointer asked for. The aspect/weighting layer had never been an
+area. Read in full, plus its selftest (aspects_selftest.py, ~420 lines) and the guard-side
+of evaluate.py. Regime caution held: this is the instrument — read, file, change nothing.
+
+### Found — filed as tasks 198 and 199
+
+- **198 (p3): no check catches an aspect brief that promises evidence its pack does not
+  carry.** The original FUN_FRAMES defect (notes inherited from FUN describing
+  `telemetry.json` while `sees="frames"`, aspects.py:380-391) was caught by hand and
+  pinned by nothing: `check_control_briefing_is_identical` compares only the blind-spot
+  paragraph TAIL, byte-identical by construction. Measured in-pass: the reconstructed
+  mutant `replace(ASPECTS['fun_frames'], notes=ASPECTS['fun'].notes)` passes all six
+  checks with 0 problems while the mutant brief contains `telemetry.json`, and the
+  10-entry `mutants()` list has no member of this class. The ticket carries the red state
+  as a measurement, the property to state (brief names no evidence its `sees` excludes),
+  and the rule-12-corollary constraint on the check's expectation.
+- **199 (p5): `aspects.py:719` says `scene_runner_control.py --paths` "prints the
+  runner's 3"; the tool prints 6 guarded routes** (P1-P6, measured in-pass). The
+  docstring's own "6 paths applicability is called from" enumeration was separately
+  verified TRUE (evaluate.py:345 documents the tier-2 dispatch's transitive coverage;
+  5 grep-level call sites cover the 6 routes) — recorded in the ticket so nobody
+  re-derives it. Only the pointer's count is stale.
+
+Also filed in-pass, from task 197's handback rather than this area: **200 (p4)** —
+run-matrix and evaluate-run skills invoke `verify_blind.py` bare, which has exited 2 since
+the tool's first commit; the two skills and README's fence also disagree about frame.
+
+### Examined and judged sound — recorded so the next pass does not redo it
+
+- **The "6 paths" claim in the applicability docstring** — true; see 199.
+- **`INSTRUMENTS` vs `INSTRUMENT_CLASS` in the selftest** — a deliberate mirror that
+  forces a selftest edit when an instrument is added (its own comment names the policy,
+  aspects_selftest.py:337-339). Not a second source of truth drift risk; it is the
+  tripwire.
+- **All five derived sets** (`SCORED_ASPECTS`, `CONTROL_ASPECTS`, `GAME_ASPECTS`,
+  `SCENE_ASPECTS`, `CROSS_STACK_BARRED`) are comprehensions over the one registry —
+  #38's shape held everywhere it applies here.
+- **`task_class()` three-valued + `_ID_SHAPE` fallback** — the fallback is corroborated
+  against the suites on all real ids by the selftest, and the synthetic-`g9_probe`
+  fixture case is named as why it exists.
+- **`FRAMEWORK_FLUENCY` on `SCALE` rather than `SCENE_SCALE`** — deliberate: it sees
+  code and asks a code question (which engine APIs appear); its two scene peers ask
+  about the rendering and use the scene scale.
+- **`AUDIO` defaulting to game class** — the SCENES block states scenes have no sound,
+  and `applicability()` refuses audio on a scene task.
+- **`sys.path.insert` in `_task_classes()`** — lazy, cached, and the same house pattern
+  as `wholegame.py:57-60` (which inserts four paths) and `runner.py:76`. Not filed.
+- **The selftest's 10 mutants and 4 variants** — every one is a removal or a
+  third-value variant in the rule-15 sense; none is a mere restatement. The gap is 198's,
+  and it is an ABSENT check, not a weak one.
+
+### Disk
+
+Unchanged from the second pass's answer earlier today: repo 5.0G, `eval/runs/` 4.5G of it
+(stored trial evidence, protected), git size-pack 4.84 MiB. Nothing prunable.
+
+### Not opened — the next pass should take one
+
+`eval/judge/field.py` — **2157 lines**, the largest file in the judge tree (packer, run
+harness, `applicability` caller at :1465 and :2058). It has never been a pass's area
+either, and it sits directly upstream of everything this pass read. Same regime caution:
+the instrument, so read and file, change nothing.

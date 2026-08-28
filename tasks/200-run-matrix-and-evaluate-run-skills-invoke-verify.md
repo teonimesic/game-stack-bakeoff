@@ -1,0 +1,10 @@
+---
+id: 200
+title: run-matrix and evaluate-run skills invoke verify_blind.py bare, which has exited 2 since the tool's first commit
+status: todo
+priority: 4
+refs: .agents/skills/run-matrix/SKILL.md,.agents/skills/evaluate-run/SKILL.md,eval/judge/verify_blind.py,README.md
+done_when: every verify_blind invocation in .agents/skills/run-matrix/SKILL.md and .agents/skills/evaluate-run/SKILL.md is a form that exits 0-running or refuses-with-its-own-message when followed as written from the document's stated working directory, each repaired form run for real (exit 0, or the tool's own refusal printed) before committing, and the invocation form agrees with README.md's fence about frame (repo root, eval/-prefixed) unless the skill states its own frame and the stated frame is the one the command is run from. docstat.py --sweep exit 0 unpiped after. Note skill edits are safe here - these are orchestrator-facing skills, not eval/starters/**.
+---
+
+Found by task 197's agent while verifying the README fence (recorded in its handback; do not re-derive): .agents/skills/run-matrix/SKILL.md and .agents/skills/evaluate-run/SKILL.md both spell python3 judge/verify_blind.py with no positional argument, and the tool's argparse requires trial directories, --packs, or both - argparse exits 2 'the following arguments are required' on the bare form, and has since the tool's initial commit. verify_blind.py:225 defines paths nargs=* and :229 --packs nargs=*. The skills' address is also eval-frame (judge/verify_blind.py) while README.md's fence is now repo-root-frame after task 197, so the two documents spell the same invocation differently AND at most one of them works. Why it matters: these are the procedures a session follows to verify blinding before believing judge data - a command in the procedure that cannot run is the confidently-wrong-document class, and the run that skipped blinding verification would not notice. MEASURED by the task-197 agent; my check of the argparse confirms the required-group shape (verify before repairing - the skill files may have moved since).
