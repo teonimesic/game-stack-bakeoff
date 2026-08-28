@@ -96,14 +96,14 @@ reads as two invocations of one script (0.04s).
 `census --selftest`, `disclosure --selftest --skip-corpus` and `instruction_census --selftest`
 pin three census producers on fixtures whose answers are stated before the tool runs — the
 stored-tree count, the disclosure locator the whole-game report reads through, and the
-instruction-density counters — all offline, all under 0.06s. `disclosure` carries
+instruction-density counters — all offline, all under 0.06s locally. `disclosure` carries
 `--skip-corpus` because its corpus arm reads `eval/runs/` and refuses rather than score an
 absent corpus as clean.
 `judge_ledger --selftest`, `tier1_census --selftest` and `tier2_census --selftest` are the same
-shape for the judge-spend and per-tier producers (under 0.06s each), and
+shape for the judge-spend and per-tier producers (under 0.06s each, local), and
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
-the fail-closed refusals, over checked-in fixtures at 1.7s. It lives outside `eval/tools/` and
+the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and
 `eval/judge/`, which is why the hand census that found the others missed it.
 
 **`controls.yml`** covers the suites that need a toolchain or take minutes: `bot_mutants`,
