@@ -99,10 +99,11 @@ stored-tree count, the disclosure locator the whole-game report reads through, a
 instruction-density counters — all offline, all under 0.06s locally. `disclosure` carries
 `--skip-corpus` because its corpus arm reads `eval/runs/` and refuses rather than score an
 absent corpus as clean.
-`judge_ledger --selftest`, `tier1_census --selftest` and `tier2_census --selftest` are the same
-shape for the judge-spend and per-tier producers (under 0.06s each, local), as is
-`prompt_capture_census --selftest` for the 2026-08-28 latent-null producer — what the stored
-non-code judge rounds read against what their packs carried (task 201) — and
+`judge_ledger --selftest`, `tier1_census --selftest`, `tier2_census --selftest` and
+`prompt_capture_census --selftest` are the same shape for the judge-spend, per-tier and
+latent-null producers (task 201's: what the stored non-code judge rounds read against what their
+packs carried), each pinning its extraction on fixtures whose answers are stated beside them —
+all four under 0.06s locally — and
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and
@@ -348,9 +349,9 @@ re-derives on every run, decided on each script's syntax tree — an `add_argume
 test — never on the word, which appears in prose and in other tools' command lists). A script
 whose whole purpose is to be a gate is the stem class above; these are tools whose main job is
 something else and which grew a mode pinning their own arithmetic. **For this population, gated
-means the MODE is named**: a tier running a script bare runs its default mode, not this one —
-`linkcheck` bare was gated while `linkcheck --selftest` was not, which is the shape that cost
-this table its census (`tasks/180`). Today 26 of the 27 have the mode named by a tier and 1 is
+means the MODE is named**: a tier running a script bare runs its default mode, not this one.
+`linkcheck` bare was gated while `linkcheck --selftest` was not. Today 26 of the 27 have the
+mode named by a tier and 1 is
 recorded below. A row of the form `` `script --selftest` `` — two tokens, no more — is what
 records one; a row like `wallclock.py without --selftest` or `host_perf_probe.py --caps`
 describes a mode and excuses nothing, and a two-token row answering to two scripts (one stem,

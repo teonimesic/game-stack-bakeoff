@@ -65,15 +65,34 @@ _SEES_BY_ASPECT = {"idiomatic": "code", "architecture": "code",
 
 
 def named_bucket(target: str) -> str:
-    """Which evidence bucket a read target names, or `housekeeping`/`other`."""
+    """Which evidence bucket a read target names, or `housekeeping`/`other`.
+
+    The bucket is named by the FILENAME for audio and telemetry and by the
+    DIRECTORY for frames, and the housekeeping files by their names — so a
+    RELATIVE target (`BRIEF.md`, `frames/f0.png`, `A/audio.json`) classifies
+    exactly as an absolute one. Under the earlier `/frames/`-and-slash rules a
+    relative read fell into `other` and was counted un-carried: a false
+    positive shaped like a finding, which is the direction a latent-null
+    census must not fail in.
+
+    THE LIMIT, stated because it cannot be engineered away here: the stored
+    record carries no pack root — the pack tmpdir is deleted after the round —
+    so a target OUTSIDE the pack that mimics the layout classifies by its
+    shape, not by where it really was. The compensating controls are that
+    every un-carried read is itemised with its full target path, and any
+    target naming no known bucket is itemised by filename rather than folded
+    into a bucket.
+    """
     t = target.replace("\\", "/")
-    if "/frames/" in t and t.endswith(".png"):
+    name = t.rsplit("/", 1)[-1]
+    if name.endswith(".png") and ("/frames/" in t or t.startswith("frames/")):
         return "frames"
-    if t.endswith("/audio.json"):
+    if name == "audio.json":
         return "audio"
-    if t.endswith("/telemetry.json"):
+    if name == "telemetry.json":
         return "telemetry"
-    if t.endswith("/BRIEF.md") or t.endswith("/SCENE.md") or "/.claude/" in t:
+    if (name in ("BRIEF.md", "SCENE.md") or "/.claude/" in t
+            or t.startswith(".claude/")):
         return "housekeeping"
     return "other"
 
@@ -172,6 +191,10 @@ def _fixture(root: Path) -> Path:
     # audio: reads its own bucket plus the housekeeping every judge is handed.
     write("run-a/a.json", rnd("audio", [f"{P}/A/audio.json", f"{P}/A/BRIEF.md",
                                         f"{P}/.claude/skills/sampling-code/SKILL.md"]))
+    # audio again, ALL RELATIVE TARGETS - the shape that classified as `other`
+    # and read as a false leak under slash-anchored rules.
+    write("run-a/a2.json", rnd("audio", ["A/audio.json", "BRIEF.md",
+                                         ".claude/skills/sampling-code/SKILL.md"]))
     # fun_frames: the discriminating row - one code read inside a frames pack.
     write("run-f/f1.json", rnd("fun_frames", [f"{P}/B/frames/f0.png",
                                               f"{P}/B/frames/f1.png",
@@ -212,6 +235,16 @@ def selftest() -> int:
         ("/tmp/p/.claude/skills/sampling-code/SKILL.md", "housekeeping"),
         ("/tmp/p/A/code/sim/01.src", "other"),
         ("/tmp/p/A/stills/x.png", "other"),  # png outside frames/: NOT frames
+        # Relative targets classify as their absolute shapes.
+        ("BRIEF.md", "housekeeping"),
+        ("frames/frame_00.png", "frames"),
+        ("A/audio.json", "audio"),
+        (".claude/skills/sampling-code/SKILL.md", "housekeeping"),
+        # THE DOCUMENTED LIMIT: a target outside the pack that mimics the
+        # layout classifies by its shape, because the record carries no pack
+        # root. Pinned here as stated, so the limit is a decision rather than
+        # an accident.
+        ("/elsewhere/pack/B/frames/x.png", "frames"),
     ]
     for target, want in cases:
         expect(f"named-bucket[{Path(target).name}]", named_bucket(target) == want,
@@ -226,13 +259,14 @@ def selftest() -> int:
             rc = census(root)
         out = buf.getvalue()
         expect("selftest-census-runs", rc == 0, f"census returned {rc}: {out}")
-        # Stated in advance: 7 population rounds. audio: 2 rounds, both capture,
+        # Stated in advance: 8 population rounds. audio: 3 rounds, all capture,
         # 1 un-carried (the png outside frames/ - an audio pack carries no
-        # such file, wherever it was read from). fun: 1 capture (telemetry is
-        # carried) + 1 key-absent. fun_frames: 2 captures, 2 un-carried (the
-        # .src read and the telemetry read - frames-only carries neither).
-        # ux: 1 key-stored-null. Everything else is housekeeping.
-        want_rows = {"audio": (2, 2, 0, 0, 1), "fun": (2, 1, 0, 1, 0),
+        # such file, wherever it was read from); the relative-target round is
+        # carried throughout. fun: 1 capture (telemetry is carried) + 1
+        # key-absent. fun_frames: 2 captures, 2 un-carried (the .src read and
+        # the telemetry read - frames-only carries neither). ux: 1
+        # key-stored-null. Everything else is housekeeping.
+        want_rows = {"audio": (3, 3, 0, 0, 1), "fun": (2, 1, 0, 1, 0),
                      "fun_frames": (2, 2, 0, 0, 2), "ux": (1, 0, 1, 0, 0)}
         for aid, (n, cap, null, absent, unc) in want_rows.items():
             hit = next((ln for ln in out.splitlines() if ln.split()[:1] == [aid]),

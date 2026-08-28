@@ -2626,17 +2626,14 @@ brief hash demonstrably read the stale sentence and cannot be re-run for it; `ev
 records that, and the other 26 code rounds stored no hash and are unassessable.
 
 **Extended 2026-08-28 (task 201) to the third judge-facing text.** The `claude -p` prompt is a
-function of the pack twice over: its completeness sentence was keyed on `knowingly_truncated`
-when this was decided, but its opening clause still told every judge to *read the code in A/
-through H/* whatever the pack carried — the pack-side brief had been repaired and the process
-argument had not. It is now keyed on the pack's `sees` (`field.JUDGE_PROMPT_SEES`), joined the
-way `_brief` keys its closing line; for code-seeing aspects the rendered prompt is byte-identical
-to the old text. The standing constraint below held: the wording change has its own
-pre-registration in `eval/RUNS.md` (2026-08-28), whose latent-null figures are produced by
-`eval/judge/prompt_capture_census.py`, and the pin is `blurb_selftest.py` check 3c in both
-directions. The prompt is not hashed into `provenance`, so the dated entry is what marks which
-side of the boundary a stored round sits on — the one property the brief repair had and this one
-could not.
+function of the pack twice over: its completeness clause is keyed on `knowingly_truncated`, and
+its evidence clause is keyed on the pack's `sees` through `field.JUDGE_PROMPT_SEES`, joined the
+way `_brief` keys its closing line. For the code-seeing aspects the rendered prompt is
+byte-identical to the wording it replaced. `eval/RUNS.md` (2026-08-28) is the stored-round
+comparability boundary, because the prompt — unlike `BRIEF.md` — is not hashed into
+`provenance`: the dated entry is what marks which side of the boundary a stored round sits on.
+The pin is `blurb_selftest.py` check 3c in both directions; the latent-null figures beside it
+are produced by `eval/judge/prompt_capture_census.py`.
 
 ---
 

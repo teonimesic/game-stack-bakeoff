@@ -420,7 +420,7 @@ jobs:
         run: python3 eval/judge/tier2_census.py --selftest
       # The 2026-08-28 pre-registration's producer (task 201): what the stored non-code
       # judge rounds read against what their packs carried. Same shape as the three
-      # above - a fixture tree whose every census answer is stated beside it, 0.1s
+      # above - a fixture tree whose every census answer is stated beside it, 0.048s
       # locally; the corpus half needs --runs-root and is NOT RUN here.
       - name: judge/prompt_capture_census --selftest (the latent-null producer's pins)
         if: ${{ !cancelled() }}

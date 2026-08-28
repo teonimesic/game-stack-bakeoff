@@ -630,10 +630,11 @@ text makes about the packer is true of the pack it accompanies.
 
 ## THE `claude -p` PROMPT TOLD EVERY NON-CODE JUDGE TO READ CODE — PRE-REGISTERED 2026-08-28
 
-A grader-side boundary beside the 2026-08-23 one above, and also deliberately **not given an
-ordinal**, for the same reason. It is not in the builds and not in the scores; it is in **the
-first text the judge read** — the argument to `claude -p`, which is the one judge-facing text that
-is not on disk in the pack.
+A grader-side boundary beside the 2026-08-23 one above, and deliberately **not given an
+ordinal**, for the same reason recorded there. It sits in **the first text the judge reads**:
+`claude -p` receives its prompt before the judge opens any pack file, and unlike `BRIEF.md` the
+prompt is stored nowhere in the pack — it is the process argument, and no gate that walks a pack
+directory can see it.
 
 The pack-side half of this defect was repaired on 2026-08-23 with the `looked_at` map in
 `field._brief`. The CLI prompt kept the hardcoded wording in both completeness states:
