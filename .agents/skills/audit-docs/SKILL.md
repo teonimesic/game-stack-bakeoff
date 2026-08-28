@@ -117,9 +117,10 @@ the citation is what is wrong.
 verdicts already reached are in `eval/renumber_triage.json`, keyed by the citing text — task 102
 read all 51 rows, repaired 15 and recorded 36. When you adjudicate a fresh row, add the entry;
 `--sweep` gates on an entry whose sentence no longer exists, and
-`eval/tools/triage_control.py` is its 14 controls. **Every one of the 15 that were wrong was a task citing the number it had
-allocated itself** — the author's own worktree numbering was never committed, so history has no
-answer, and the row you should suspect first is a `tasks/` file talking about its own finding.
+`eval/tools/triage_control.py` is its 14 controls. **Every one of the 15 that were wrong
+was a task citing the number it had allocated itself** — the author's own worktree numbering was
+never committed, so history has no answer, and the row you should suspect first is a `tasks/`
+file talking about its own finding.
 
 **`--withdrawn` asks the fourth kind: is a figure that was RETIRED still stated as current?**
 No consistency check can ask this. When a stale figure propagates, the copies **agree** — with
