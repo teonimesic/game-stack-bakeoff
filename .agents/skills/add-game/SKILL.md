@@ -80,7 +80,7 @@ clean.
 > **a deliberate prompt edit must re-record it in the same commit**:
 > `python3 eval/tools/prompt_guard.py --snapshot eval/suites/rendered`.
 
-All 3 are pinned in both directions by `tools/prompt_guard_control.py`, which applies one
+All 3 are pinned in both directions by `eval/tools/prompt_guard_control.py`, which applies one
 edit per row to a temp copy of the guard and its inputs and compares against what the row
 declared in advance. Run it after any change to the guard; a red row there is the guard
 losing an ability, not a prompt problem.
@@ -115,7 +115,7 @@ The reference, 19 fixture tests and a 19/19 run were all green with that in plac
 
 ## Every criterion needs a mutant
 
-**Non-negotiable.** Add it to `judge/bot_mutants.py`: remove the behaviour the criterion
+**Non-negotiable.** Add it to `eval/judge/bot_mutants.py`: remove the behaviour the criterion
 names, and confirm that specific criterion goes red.
 
 - Rewriting an observation into an experiment makes it **easier to pass by construction**.
@@ -124,7 +124,7 @@ names, and confirm that specific criterion goes red.
 - A mutant proves a criterion *can* fail. It cannot prove the criterion passes for the
   right reason — for that, read the evidence string of a **passing** run.
 
-Run `python3 judge/bot_mutants.py` unpiped and read its own exit code.
+Run `python3 eval/judge/bot_mutants.py` unpiped and read its own exit code.
 
 ## A criterion the bot cannot pass on correct work
 
@@ -135,14 +135,14 @@ from a real failure.
 
 To promote it back, strengthen the bot until it passes against the reference. Never
 promote on reasoning alone — and check what promoting it would DO before doing the work:
-`judge/tier2_census.py --runs-root <main checkout>/eval/runs` prints each diagnostic's
+`eval/judge/tier2_census.py --runs-root <main checkout>/eval/runs` prints each diagnostic's
 stored values per group, and one that is single-valued moves every score in its group by
 the same amount and separates nothing. All three current diagnostics are in that state
 (#128).
 
 ## Ask what the criterion could ever separate, before writing it
 
-`python3 judge/tier2_census.py --runs-root <main checkout>/eval/runs` is also the check on a NEW
+`python3 eval/judge/tier2_census.py --runs-root <main checkout>/eval/runs` is also the check on a NEW
 scored criterion, and it is free.
 Tier 2 currently returns one value across every measurable trial in 5 of 11 (run, game) groups -
 run it rather than quoting that, since the corpus moves - and four criteria built from real
@@ -154,8 +154,8 @@ denominator.
 
 ## Before it ships
 
-- `python3 judge/bot_mutants.py` — exit 0
-- `python3 judge/verify_blind.py` — exit 0, unpiped; criterion ids must not leak into any
+- `python3 eval/judge/bot_mutants.py` — exit 0
+- `python3 eval/judge/verify_blind.py` — exit 0, unpiped; criterion ids must not leak into any
   prompt
 - The reference fixture's own `just verify` — exit 0
 - Register in `evaluate.py` and `RUBRIC.md`
