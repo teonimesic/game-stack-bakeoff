@@ -3414,11 +3414,11 @@ that (`tasks/171`).** A count of the hits the lines carry is contradicted by a l
 skips one, exactly as it is by a line whose counter arrives late. So `rally.counts` reads
 all-or-nothing, which is the standard `paddle.deflects` holds in the same loop.
 
-**The floor is ONE countable hit.** A higher floor fails a correct game for producing a short
-rally, which is #46's shape; the contract is per hit, so one hit measures it. **A hit tick that
-also carries the point is counted in neither half** — the point zeroes `rally` on that same line —
-and the verdict requires a non-empty denominator, so the exclusion cannot swallow the criterion
-(rule 7).
+**The floor is 1 countable hit.** A higher floor fails a correct game for producing a short
+rally, which is #46's shape. The contract is per hit, so one hit measures it. **A hit tick that
+also carries the point is counted in neither half**, because the point zeroes `rally` on that
+same line. The verdict still requires a non-empty denominator, so the exclusion cannot swallow
+the criterion (rule 7).
 
 **To re-open the all-or-nothing reading:** a real submission whose rally counter rises on some
 but not all of its non-scoring `paddle_hit` ticks. The comparability statement, and why no stored
