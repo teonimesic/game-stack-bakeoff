@@ -14,8 +14,8 @@ Population: every JSON record under the root carrying `aspect` and `order_seed`
 carries no code — `provenance.sees` lacking `code`, or for a round stored
 before `provenance` existed, the aspect's `sees`.
 
-Per aspect it reports five counts; the first four are round states and sum to
-the aspect's n:
+Per aspect it reports six counts; the first four are round states and sum to
+the aspect's n, the fifth counts targets, the last counts reads:
 
 * **capture** — a `files_opened` list of strings is stored. The key did not
   exist before task 09 (2026-08-22), so absence is a THIRD value and not a
@@ -23,11 +23,15 @@ the aspect's n:
 * **null** — the key is present but null. Only null counts as null.
 * **absent** — the key is not in the record.
 * **malformed** — the key is present but its value is neither null nor a list
-  of strings: a shape the capture code never writes, refused whole. The same
-  column takes a target of exactly 200 characters — the length the capture in
-  `field.py` truncates to — which is refused from classification: the stored
-  tail cannot be vouched for, so the target counts as neither carried nor
-  un-carried, and is itemised in full. The walk never aborts on any of this.
+  of strings: a shape the capture code never writes, refused whole. The unit
+  is the RECORD — a bad shape poisons the capture, so nothing in it is
+  classified.
+* **truncated** — a read target of exactly 200 characters inside an
+  otherwise-usable list: the length the capture in `field.py` truncates to,
+  so the stored tail — where the filename lives — cannot be vouched for.
+  The unit is the TARGET: refused from classification, counted per target,
+  itemised in full, and never counted as carried or as un-carried, while the
+  list's good targets still classify. The walk never aborts on any of this.
 * **un-carried reads** — reads naming anything the pack does not carry. This is
   the column the pre-registration is about; its content would make the wording
   change a re-scoring event rather than a wording change. The pack holds four
@@ -137,7 +141,7 @@ def census(runs_root: Path) -> int:
     for r in rs:
         row = per.setdefault(r["aspect"], {"n": 0, "capture": 0, "null": 0,
                                            "absent": 0, "uncarried": 0,
-                                           "malformed": 0})
+                                           "malformed": 0, "truncated": 0})
         row["n"] += 1
         rec = r["record"]
         # MEMBERSHIP, not `.get`: a key that is absent and a key stored null are
@@ -170,9 +174,13 @@ def census(runs_root: Path) -> int:
             # longer than the cap is stored at exactly this length with its
             # tail - the filename - gone, and anything shorter was never cut.
             # Classifying it would be a guess; refused and itemised, never a
-            # carried read and never a leak.
+            # carried read and never a leak. Counted per TARGET under
+            # `truncated` - a different unit from `malformed` above, which is
+            # per record: two truncated targets in one list are two, and the
+            # list's good targets still classify. (Round 4: both used to add
+            # to the same column, which made a count that named no unit.)
             if len(t) == 200:
-                row["malformed"] += 1
+                row["truncated"] += 1
                 truncs.append(f"{r['path'].name}: {t}")
                 continue
             b = named_bucket(t)
@@ -184,16 +192,18 @@ def census(runs_root: Path) -> int:
 
     print(f"non-code judge rounds under {runs_root}: {len(rs)}")
     print(f"  {'aspect':12s} {'n':>3s} {'capture':>8s} {'null':>5s} {'absent':>7s} "
-          f"{'un-carried reads':>17s} {'malformed':>10s}")
+          f"{'un-carried reads':>17s} {'malformed':>10s} {'truncated':>10s}")
     for aid, row in sorted(per.items()):
         print(f"  {aid:12s} {row['n']:3d} {row['capture']:8d} {row['null']:5d} "
-              f"{row['absent']:7d} {row['uncarried']:17d} {row['malformed']:10d}")
+              f"{row['absent']:7d} {row['uncarried']:17d} {row['malformed']:10d} "
+              f"{row['truncated']:10d}")
     n_cap = sum(r["capture"] for r in per.values())
     n_unc = sum(r["uncarried"] for r in per.values())
     n_mal = sum(r["malformed"] for r in per.values())
+    n_trc = sum(r["truncated"] for r in per.values())
     print(f"  totals: {len(rs)} rounds, {n_cap} carrying a usable files_opened "
-          f"capture, {len(rs) - n_cap} unassessable, {n_mal} of malformed shape, "
-          f"{n_unc} reads of un-carried evidence")
+          f"capture, {len(rs) - n_cap} unassessable, {n_mal} malformed records, "
+          f"{n_trc} truncated targets, {n_unc} reads of un-carried evidence")
     if others:
         print("  un-carried reads by filename (what they named, not folded away):")
         for name, n in sorted(others.items()):
@@ -254,14 +264,20 @@ def _fixture(root: Path) -> Path:
     # shape may abort the walk.
     write("run-m/m1.json", rnd("ux", {}))
     write("run-m/m2.json", rnd("fun", [f"{P}/C/telemetry.json", None]))
-    # A TARGET AT THE CAP LENGTH. field.py's capture stores str(target)[:200],
-    # so a stored target of exactly 200 characters may be a truncation whose
-    # tail - the filename - is gone. Stated in advance: it is refused from
-    # classification, never counted as a frames read and never as a leak.
-    # Without the rule this target classifies as `other` and reads as a false
-    # un-carried leak - the direction a latent-null census must not fail in.
+    # TARGETS AT THE CAP LENGTH, TWO IN ONE LIST. field.py's capture stores
+    # str(target)[:200], so a stored target of exactly 200 characters may be a
+    # truncation whose tail - the filename - is gone. Stated in advance: each
+    # is refused from classification and counted per TARGET under `truncated`,
+    # never as a frames read and never as a leak, while the record's good
+    # targets still classify - the unit differs from `malformed`, which is per
+    # RECORD. Without the rule these targets classify as `other` and read as
+    # false un-carried leaks - the direction a latent-null census must not
+    # fail in.
     t200 = "/tmp/pack/B/frames/" + "z" * (200 - len("/tmp/pack/B/frames/"))
-    write("run-l/l1.json", rnd("fun_frames", [t200, f"{P}/B/frames/f0.png"]))
+    t200b = ("/tmp/pack/B/frames/deep/"
+             + "y" * (200 - len("/tmp/pack/B/frames/deep/")))
+    write("run-l/l1.json", rnd("fun_frames", [t200, t200b,
+                                              f"{P}/B/frames/f0.png"]))
     # Round shapes that must stay out of the population.
     write("run-c/c.json", rnd("architecture", [f"{P}/G/code/sim/01.src"]))  # code
     write("run-x/x.json", {"aspect": "fun"})                                # no seed
@@ -316,27 +332,34 @@ def selftest() -> int:
         # 1 un-carried (the png outside frames/ - an audio pack carries no
         # such file, wherever it was read from); the relative-target round is
         # carried throughout. fun: 1 capture (telemetry is carried) + 1
-        # key-absent + 1 malformed (a list holding a non-string). fun_frames:
-        # 3 captures, 2 un-carried (the .src read and the telemetry read -
-        # frames-only carries neither) and 1 refused target (exactly 200
-        # chars - the capture's truncation length - so never classified).
-        # ux: 1 key-stored-null + 1 malformed (a dict where the list belongs).
-        # Everything else is housekeeping.
-        want_rows = {"audio": (3, 3, 0, 0, 1, 0), "fun": (3, 1, 0, 1, 0, 1),
-                     "fun_frames": (3, 3, 0, 0, 2, 1), "ux": (2, 0, 1, 0, 0, 1)}
-        for aid, (n, cap, null, absent, unc, mal) in want_rows.items():
+        # key-absent + 1 malformed RECORD (a list holding a non-string).
+        # fun_frames: 3 captures, 2 un-carried (the .src read and the
+        # telemetry read - frames-only carries neither) and 2 truncated
+        # TARGETS (exactly 200 chars - the capture's truncation length - so
+        # never classified; the count is per target, and the good frames read
+        # in the same list still classifies). ux: 1 key-stored-null + 1
+        # malformed RECORD (a dict where the list belongs). Everything else
+        # is housekeeping.
+        want_rows = {"audio": (3, 3, 0, 0, 1, 0, 0),
+                     "fun": (3, 1, 0, 1, 0, 1, 0),
+                     "fun_frames": (3, 3, 0, 0, 2, 0, 2),
+                     "ux": (2, 0, 1, 0, 0, 1, 0)}
+        for aid, (n, cap, null, absent, unc, mal, trc) in want_rows.items():
             hit = next((ln for ln in out.splitlines() if ln.split()[:1] == [aid]),
                        "")
-            got = tuple(int(v) for v in hit.split()[1:7]) if hit else ()
+            got = tuple(int(v) for v in hit.split()[1:8]) if hit else ()
             expect(f"fixture-row[{aid}]",
-                   got == (n, cap, null, absent, unc, mal),
+                   got == (n, cap, null, absent, unc, mal, trc),
                    f"the {aid} row reads {got}, expected "
-                   f"{(n, cap, null, absent, unc, mal)}\n{out}")
+                   f"{(n, cap, null, absent, unc, mal, trc)}\n{out}")
         expect("fixture-malformed-total",
-               "3 of malformed shape" in out,
+               "2 malformed records" in out,
                f"the totals line must name the malformed captures it refused "
-               f"rather than classifying around them - 2 bad record shapes "
-               f"plus the 200-char target:\n{out}")
+               f"whole - the unit is the record:\n{out}")
+        expect("fixture-truncated-total",
+               "2 truncated targets" in out,
+               f"the totals line must count truncated targets per target, not "
+               f"per record - two in one list are two:\n{out}")
         expect("fixture-truncated-reported",
                "l1.json: /tmp/pack/B/frames/" in out,
                f"the 200-char target must be itemised in full under the round "

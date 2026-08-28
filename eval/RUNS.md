@@ -655,13 +655,13 @@ through the non-code rounds only.
 python3 eval/judge/prompt_capture_census.py --runs-root <main checkout>/eval/runs
 ```
 
-| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence | malformed — never classified |
-|---|---|---|---|---|---|
-| `audio` | 11 | 7 | 4 | **0** | 0 |
-| `fun` | 11 | 7 | 4 | **0** | 0 |
-| `fun_frames` | 22 | 16 | 6 | **0** | 0 |
-| `ux` | 13 | 9 | 4 | **0** | 0 |
-| total | 57 | 39 | 18 | **0** | 0 |
+| aspect | n | with a `files_opened` capture | key absent — unassessable | reads of un-carried evidence | malformed records | truncated targets |
+|---|---|---|---|---|---|---|
+| `audio` | 11 | 7 | 4 | **0** | 0 | 0 |
+| `fun` | 11 | 7 | 4 | **0** | 0 | 0 |
+| `fun_frames` | 22 | 16 | 6 | **0** | 0 | 0 |
+| `ux` | 13 | 9 | 4 | **0** | 0 | 0 |
+| total | 57 | 39 | 18 | **0** | 0 | 0 |
 
 The classifier and every column of it are pinned on a fixture tree whose answers are written out
 beside it (`prompt_capture_census.py --selftest`). Two rows discriminate the un-carried column: a
@@ -669,10 +669,12 @@ beside it (`prompt_capture_census.py --selftest`). Two rows discriminate the un-
 `other` rather than being counted as a frames read. Two more pin the malformed column: a dict
 where the list belongs, and a list holding a non-string. Each malformed shape is refused whole —
 named `malformed`, never counted as null, never partially classified — and neither stops the
-walk. A target of exactly 200 characters is refused from classification for the same reason: the
-capture in `field.py` stores `str(target)[:200]`, so a stored target at that length may have lost
-its tail — the filename — and classifying it would be a guess; it is counted under `malformed`,
-never as carried and never as a leak.
+walk; the unit is the record. A target of exactly 200 characters is refused from classification
+as well: the capture in `field.py` stores `str(target)[:200]`, so a stored target at that length
+may have lost its tail — the filename — and classifying it would be a guess. Those count under
+`truncated`, one per target, itemised in full, never as carried and never as a leak, while the
+record's good targets still classify — a different unit from `malformed`, and the fixture holds
+two truncated targets in one list to pin it.
 
 **The defect is latent: 0 of the 39 captured non-code rounds read any evidence its pack did not
 carry.** The captured rounds' reads name only their own bucket's files and `BRIEF.md` — the audio
