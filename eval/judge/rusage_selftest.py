@@ -23,15 +23,32 @@ Two specific ways they could be silently wrong:
 Every control is paired with its discriminating opposite: a big allocation is only
 evidence if a small one reads small.
 
+The third failure mode is the EXIT STATUS ITSELF. `static.run` waits with
+`os.wait4` in a waiter thread, and its failure branch used to answer a reap it
+could not observe with `reaped.put((0, None))` - exit 0 from a command nobody saw
+end, the `|| echo 0` shape, at the one function every tier-1 command goes through.
+The forced-reap fixture below patches `os.wait4` in-process so it raises
+ChildProcessError over a child whose true exit is 3, and holds that the answer is
+127 with a note naming the HARNESS, never 0. A mutant that reinstates the
+fabricated 0 is loaded from source and must reproduce exactly that.
+
+Every control is paired with its discriminating opposite: a big allocation is only
+evidence if a small one reads small, and the forced reap is only evidence if the
+same command unforced still reads its true exit.
+
 Exit code is 0 only if every expectation holds.
 """
 
 from __future__ import annotations
 
+import contextlib
+import errno
+import inspect
 import os
 import sys
 import textwrap
 import time
+import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -58,6 +75,30 @@ def run(code: str, timeout_s: int = 120) -> static.Cmd:
     return static.run(HERE, "control", py(code), timeout_s=timeout_s)
 
 
+@contextlib.contextmanager
+def forced_wait4_failure():
+    """Make `os.wait4` raise ChildProcessError inside `static.run`, in-process.
+
+    `static.run` does `import os` locally, which binds the same module object, so
+    the module attribute is the only seam - patching `static`'s namespace would
+    reach nothing. Only `wait4` is patched: `waitstatus_to_exitcode`, Popen's own
+    bookkeeping and the drain readers are untouched, so the forced run differs
+    from a real one by exactly the mechanism under test. The restore is in
+    `finally`, so a failing expectation cannot leave the process patching itself.
+    """
+    real = os.wait4
+
+    def broken(pid, options):
+        raise ChildProcessError(errno.ECHILD,
+                                "No child processes (forced by rusage_selftest)")
+
+    os.wait4 = broken
+    try:
+        yield
+    finally:
+        os.wait4 = real
+
+
 # --------------------------------------------------------------------------- #
 
 def test_exit_and_output_unchanged() -> None:
@@ -79,6 +120,85 @@ def test_exit_and_output_unchanged() -> None:
     check("...and its resource fields are null rather than zero",
           missing.peak_rss_mb is None and missing.cpu_seconds is None,
           f"{missing.peak_rss_mb} {missing.cpu_seconds}")
+
+
+def test_reap_failure_is_not_exit_zero() -> None:
+    print("\n[a reap the harness could not observe reads 127-with-note, never exit 0]")
+    child = """
+        import sys
+        sys.stdout.write('on stdout\\n')
+        sys.stderr.write('on stderr\\n')
+        sys.exit(3)
+    """
+    # The control first, and it is the same command: the forced result is only
+    # evidence if the unforced one still reads the exit the child actually has.
+    control = run(child)
+    check("CONTROL: the same command, unforced, reads its true exit",
+          control.code == 3, str(control.code))
+
+    with forced_wait4_failure():
+        c = run(child)
+
+    check("a reap failure is NOT reported as exit 0", c.code != 0, str(c.code))
+    check("...it takes the module's unobservable-command convention, 127",
+          c.code == 127, str(c.code))
+    check("...and the note names the HARNESS as the party that failed to observe",
+          c.note.startswith("could not reap:"), repr(c.note))
+    check("...the child's own words are preserved in the streams",
+          "on stdout" in c.out and "on stderr" in c.err,
+          f"{len(c.out)} chars out, {len(c.err)} chars err")
+    check("...resource fields are None - the honest third value, not 0.0",
+          c.peak_rss_mb is None and c.cpu_seconds is None,
+          f"{c.peak_rss_mb} {c.cpu_seconds}")
+    d = c.to_dict()
+    check("...the stored record carries the same two facts",
+          d.get("exit") == 127 and str(d.get("note") or "").startswith("could not reap:"),
+          f"exit={d.get('exit')} note={d.get('note')!r}")
+
+    # The two neighbouring branches, in the same check: the change to the reap
+    # branch must not move either of them.
+    missing = static.run(HERE, "control", ["/nonexistent/binary-xyz"])
+    check("spawn-failure path unchanged: still 127", missing.code == 127,
+          str(missing.code))
+    check("...still its own 'could not run' note, still null resources",
+          missing.note.startswith("could not run:")
+          and missing.peak_rss_mb is None and missing.cpu_seconds is None,
+          repr(missing.note))
+    t = run("import time; time.sleep(60)", timeout_s=2)
+    check("timeout path unchanged: still 124", t.code == 124, str(t.code))
+    check("...still the TIMEOUT note", t.note.startswith("TIMEOUT after 2s"),
+          repr(t.note))
+
+
+def test_reap_mutant_is_caught() -> None:
+    print("\n[mutant: reinstating 'reaped.put((0, None))' must be caught]")
+    src = inspect.getsource(static)
+    anchor = "reaped.put((ex, None))"
+    if anchor not in src:
+        raise AssertionError(
+            "rusage_selftest: static.py's reap-failure branch no longer puts the "
+            f"exception ({anchor!r} absent). Either the fix was reverted - which the "
+            "forced-reap fixture above should also catch - or the branch was "
+            "rewritten; re-point this mutant at what the code does now.")
+    mutant_src = src.replace(anchor, "reaped.put((0, None))")
+    # Load the mutant as a separate module from source: the real `static` stays
+    # whole, so the mutant's red comes from the fixture catching the defect and
+    # not from corrupting the module every other check reads. Registered in
+    # sys.modules BEFORE exec for the reason static.py's own loader comments:
+    # @dataclass resolves string annotations via sys.modules, and an unregistered
+    # module mid-exec fails there.
+    mod = types.ModuleType("static_reap_mutant")
+    mod.__file__ = static.__file__
+    sys.modules["static_reap_mutant"] = mod
+    try:
+        exec(compile(mutant_src, static.__file__, "exec"), mod.__dict__)
+    finally:
+        del sys.modules["static_reap_mutant"]
+    with forced_wait4_failure():
+        c = mod.run(HERE, "control", py("import sys; sys.exit(3)"))
+    check("mutant 'reaped.put((0, None))' is caught: it fabricates exactly the "
+          "exit 0 the fixture refuses", c.code == 0,
+          f"mutant returned exit {c.code}, note {c.note!r}")
 
 
 def test_peak_rss_units() -> None:
@@ -186,6 +306,8 @@ def test_static_record_carries_the_fields() -> None:
 
 def main() -> int:
     test_exit_and_output_unchanged()
+    test_reap_failure_is_not_exit_zero()
+    test_reap_mutant_is_caught()
     test_peak_rss_units()
     test_peak_rss_covers_descendants()
     test_cpu_is_not_wall()
