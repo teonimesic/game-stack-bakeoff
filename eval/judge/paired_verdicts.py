@@ -189,9 +189,9 @@ def load(runs_root: Path, only_run: str | None = None
         crits = {}
         skipped_crits: set[tuple[str, str]] = set()
         for tier in ALL_TIERS:
-            block = rec.get(tier)
-            if block is None:
+            if tier not in rec:
                 continue
+            block = rec[tier]
             if not isinstance(block, dict):
                 skips.append((run, f"{tid} {tier}: tier block is a "
                               f"`{type(block).__name__}`, not a mapping with "
@@ -493,6 +493,10 @@ def _synthetic(root: Path) -> None:
     _write_raw(root, "r12", "g4__s1__t0",
                {"playbot": {"criteria": [{"id": ["a"], "passed": True},
                                          {"id": 1, "passed": True}]}}, "completed")
+    # r13: an explicitly null tier block is a record the grader wrote, not an
+    # absent tier - named, once; the absent judge and programmatic tiers beside
+    # it stay silent (skips == 1, not 3).
+    _write_raw(root, "r13", "g1__s1__t0", {"playbot": None}, "completed")
 
 
 def _synthetic_checks(root: Path) -> None:
@@ -629,12 +633,21 @@ def _synthetic_checks(root: Path) -> None:
            and any("`int`" in d and "not a string" in d for _, d in skips12),
            f"{skips12}")
 
+    # An explicit null tier block is named; a genuinely absent tier is not a
+    # record and produces no skip - both pinned by this one cell.
+    rows13, skips13 = load(root, "r13")
+    expect("MUTANT: an explicit null tier block is named, the absent ones are not",
+           rows13 != [] and rows13[0]["crits"] == {}
+           and len(skips13) == 1 and "g1__s1__t0" in skips13[0][1]
+           and "NoneType" in skips13[0][1] and "playbot" in skips13[0][1]
+           and "judge" not in skips13[0][1], f"{rows13} {skips13}")
+
     rows_all, skips_all = load(root)
     found = {r["run"] for r in rows_all}
     expect("a run nested one level deeper is found, not skipped",
            "r6/armA" in found, f"{sorted(found)}")
-    expect("the walk's own accounting states every skip it made: 14 over this tree",
-           len(skips_all) == 14, f"{sorted(skips_all)}")
+    expect("the walk's own accounting states every skip it made: 15 over this tree",
+           len(skips_all) == 15, f"{sorted(skips_all)}")
     txt_all = render(rows_all, skips_all)
     expect("a run holding ONLY a skipped report still gets its section",
            "=== r7 ===" in txt_all and "weird-tid" in txt_all, "")
