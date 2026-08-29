@@ -1,11 +1,12 @@
 ---
 id: 210
 title: capability.py's gate docstring names stack_cannot as failure mode 3, but no check fails on a stack_cannot every arm marks
-status: todo
+status: in_review
 priority: 5
 refs: eval/judge/capability.py
 done_when: code and docstring agree about stack_cannot, one way or the other - EITHER no_stack_correlated_gap reports any `stack_cannot` reason it sees anywhere (one added check; the constant's own comment already says "GATE FAILURE"), OR the docstring's way 3 is narrowed to say a stack_cannot is caught only through the per-field asymmetry path and a uniform one is out of its sight; capability_selftest.py gains a fixture that marks stack_cannot on ALL arms of one (run, class) cell with the expected verdict stated in the expectation, and exits 0 unpiped after, with python3 eval/judge/capability.py --runs <main checkout>/eval/runs still exit 0.
 established_by: 'Cleanup pass 2026-08-29 (seventh), CLEANUP-LOG.md. LATENT: 0 stack_cannot reasons anywhere in the 69 stored records (measured 2026-08-29 by sweeping the corpus with the module itself). The gap: no_stack_correlated_gap''s docstring enumerates "Four ways to fail" and numbers "a null marked stack_cannot" third - "this reason should be unreachable. If it appears, the contract is wrong and this is how you find out" - and STACK_CANNOT''s own definition comment says "GATE FAILURE". But the implementation has no check that fires on the reason as such: it is caught only inside the per-field asymmetry loop, which requires some other arm to POPULATE the same field in the same (run, class) cell. A stack_cannot marked by all arms of a cell - the uniform case, and the case where the contract is broken on every arm at once - walks out of the gate at exit 0.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/89
 ---
 
 `eval/judge/capability.py`'s gate says one thing about `stack_cannot` and does another.
