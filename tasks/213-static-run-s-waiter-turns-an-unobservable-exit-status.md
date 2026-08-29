@@ -1,12 +1,12 @@
 ---
 id: 213
 title: static.run's waiter turns an unobservable exit status into exit 0 - the one fail-open fallback in the tier-1 measurement path
-status: todo
+status: in_testing
 priority: 5
 refs: eval/judge/static.py, eval/judge/rusage_selftest.py
 done_when: 'a fixture that forces os.wait4 to raise (ChildProcessError, in-process, the way this ticket''s probe did) takes static.run over a command whose true exit is nonzero and gets back NOT exit 0 - the module''s existing convention for an unspawnable binary (code 127) with a note in `note` that names the HARNESS as the cause ("could not reap: ..."), streams preserved, peak_rss_mb and cpu_seconds None (the honest third value, not 0.0) - pinned red-first in eval/judge/rusage_selftest.py (whose subject is already what static.run observes) with the unforced control still reading the true exit; the spawn-failure path keeps its 127 and the timeout path keeps its 124-with-note, both asserted unchanged in the same check; python3 eval/judge/rusage_selftest.py exits 0 unpiped after, and python3 eval/judge/capture_selftest.py is unaffected (it drives static.run over real children on every check).'
-established_by: 'Measured 2026-08-29 by the ninth cleanup pass, before filing: an in-process probe (/tmp/pa92-wait4probe.py, since deleted with the session) patched os.wait4 to raise ChildProcessError and ran static.run over `sh -c "exit 3"`; it reported exit code 0, note empty, both streams empty, peak/cpu None - while the unforced control over the same command read the true 3. static.py line ~168 is the only `put` of a fabricated status in the module: `except (ChildProcessError, OSError): reaped.put((0, None))`, which the main flow reads as `os.waitstatus_to_exitcode(0)` = 0.'
-pr: (none yet)
+established_by: 'Forced os.wait4 ChildProcessError over a true-exit-3 child: 127 with "could not reap:" note, streams preserved, resource fields None (red-first: exit 0 / empty note against the unfixed module); unforced control reads 3; spawn 127 and timeout 124-with-note asserted unchanged in the same check; mutant reinstating the fabricated 0 red on the fixture with every pre-existing check green; rusage_selftest exit 0 unpiped, capture_selftest 39/39, runner_capture_selftest 50/50; PR #92 one clean review round.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/92
 ---
 
 `eval/judge/static.py`'s `run()` waits on the child with a waiter thread calling
@@ -54,3 +54,19 @@ and assert what comes back is 127-plus-note, not 0. The control is the same comm
 unpatched reading 3. A mutant that restores `reaped.put((0, None))` must go red on the
 fixture and leave every existing check green - it is a variant question too: the
 timeout and spawn paths must still read 124 and 127 after the change.
+
+## note 2026-08-29
+
+Done on branch task-213-static-reap-fail-closed, PR #92, one clean CodeRabbit round (LANDED_COMMENT, no actionable comments), head f8dc5d9e65d50617a864f9202ad2f94622037d7c.
+
+**The fix.** The waiter's except branch now puts the exception object as the sentinel status (never 0); `run()` detects a non-int status and decodes it as 127 with `note="could not reap: <exception>"` - the HARNESS named as the party that failed to observe (rule 6, internal party). `ru` stays None so peak_rss_mb/cpu_seconds are None. When a reap failure follows a timeout (post-kill `get` delivers the sentinel), code stays 124 and the note reads "TIMEOUT after Ns; could not reap: ...". The pure-timeout note is byte-identical to before.
+
+**Pinned in eval/judge/rusage_selftest.py** (`test_reap_failure_is_not_exit_zero`, `test_reap_mutant_is_caught`): fixture patches `os.wait4` in-process - `run()` does `import os` locally, so the module attribute is the only seam - to raise ChildProcessError over a child whose true exit is 3. Red-first established against the unfixed module: forced run read exit=0 with note='' (4 FAILs), control and both neighbours green in the same run. After the fix: 127, could-not-reap note, both stream lines preserved, resource fields None, stored record saying the same; unforced control reads 3; spawn path 127/could-not-run and timeout 124/TIMEOUT asserted unchanged in the same check.
+
+**The mutant is automated.** `test_reap_mutant_is_caught` reads static.py's source, replaces the anchor `reaped.put((ex, None))` with `reaped.put((0, None))`, and exec's it into a separate module - registered in sys.modules BEFORE exec, because @dataclass resolves string annotations via sys.modules (the exact failure static.py's own loader comments about at its lines 38-42). The mutant must reproduce exactly the exit 0 the fixture refuses; a missing anchor raises loudly, so a manual revert of the fix goes red twice. Demonstrated the whole-suite shape too: with static.py reverted on disk, the suite showed the 4 fixture FAILs and every pre-existing check green.
+
+**Gates:** rusage_selftest exit 0 unpiped; capture_selftest 39/39 exit 0; runner_capture_selftest 50/50; docstat --sweep clean; lint.py --gate --rule invalid-syntax clean; ruff adds no finding (the B905 at analyse_frames pre-exists on HEAD, baselined); tasks.py check clean; branch even with origin/main d3b97bf.
+
+**For whoever audits for other fabricated statuses:** the post-kill `reaped.get(timeout=60)` Empty fallback also assigns `status, ru = 0, None`, but there `timed_out` is already True, so `code` reads 124 with the TIMEOUT note - that site cannot produce a green gate and was deliberately left alone. Also note `Cmd.tail` returns the note alone when a note is set, so a reap failure's tail is the note, same convention as a timeout.
+
+**Not a finding from me:** nothing stored was produced by the channel - every stored grading came from a wait4 that returned (the same channel-not-wrong-number split as tasks/211). Whether it merits a finding number is the orchestrator's allocation at merge.
