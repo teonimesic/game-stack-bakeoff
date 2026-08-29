@@ -3864,28 +3864,25 @@ Eight were found by reading while `--renumbered` ran exit 0 in the same window (
 206, 6 in task 207). A gate's corpus is an input to the gate, so task 208 widened it rather than
 leaving code citations to passes that remember to read.
 
-**The corpus is a closed class, not an extension list.** Every tracked path at the authoring
-revision minus two recorded exclusions — `eval/runs/` (data, not guidance) and the vendored
-analyser trees — with binaries excluded by the NUL-byte property git's own binary heuristic uses;
-every skip — NUL, a tracked symlink, a path git cannot produce, a tracked path missing from the
-worktree — is named in the summary, whose totals count only what was actually read. An allowlist
-of "text extensions" is the enumeration shape that failed everywhere else here: it fails on the
-first extension it did not have when it was written, and the failure is a silent narrowing of a
-gate back to its old blind spot.
+**The corpus is a closed class, not an extension list.** The rule, stated directly: do not use a
+file-extension allowlist; scan every tracked path at the authoring revision minus 2 recorded
+exclusions (`eval/runs/` — data, not guidance — and the vendored analyser trees); name every path
+that cannot be scanned in the summary, whose totals count only what was read. Binaries are
+excluded by the NUL-byte property of git's own binary heuristic. An allowlist is the enumeration
+shape that failed everywhere else here: it fails on the first extension it did not have when it
+was written, and the failure is a silent narrowing of a gate back to its old blind spot.
 
-**The widened report was measured before it shipped, on both costs.** Its first run
-(`python3 eval/tools/docstat.py --renumbered`, live tree, 2026-08-29) reported 8 DECIDED STALE
-rows — exactly the 8 hand-found by tasks 206 and 207, all 8 true, **0 false positives** in the
-decided list: the widened instrument reproduces the hand work and adds none. The 7 UNDECIDED rows
-the same run reported were read and adjudicated into `eval/renumber_triage.json`, 36 → 43 entries
-(6 correct, 1 range; `python3 eval/tools/triage_control.py` pairs the register against the check,
-and `--sweep` re-runs that pairing). The code half reproduces on its own from history:
-`--renumbered --at bc605f0~1` reports task 207's six rows. Runtime
-(`time python3 eval/tools/docstat.py --renumbered`) went from ~21 s md-only to ~23 s widened,
-because blame is only asked of files whose text cites a number that has been reused — the corpus
-widening costs one filtered read per file, not one blame per file. **Standing state, 2026-08-29:**
-the same producer now reports 0 stale and 0 untriaged of 37 — the 8 are fixed and the register
-holds the verdicts, so the live figure to quote is the one the command prints today.
+**What the producer reports, and what it costs.** `python3 eval/tools/docstat.py --renumbered`
+over the live tree (2026-08-29) reports 0 stale and 0 untriaged of 37, reads 276 document(s) +
+444 code/data path(s), and names all 15 skips; `time` on that command puts it at ~22 s. Blame is
+asked only of files whose text cites a number that has been reused, so the wide corpus costs
+1 filtered read per file, not 1 blame per file. `python3 eval/tools/triage_control.py` pairs the
+register against the check — 36 → 43 entries under this task (6 correct, 1 range) — and
+`--sweep` re-runs that pairing. The historical control `python3 eval/tools/docstat.py
+--renumbered --at bc605f0~1` reports the 6 citations task 207 repaired by hand, plus any repair
+committed after that tree that is not yet merged; at HEAD 0 appear. The corpus's first widened
+run — 8 stale rows, 8/8 true on inspection, 0 false — and the adjudication of its undecided rows
+are recorded in `eval/findings/documentation.md` (#211), which is where run history lives.
 
 **It stays a report, never a gate, for the reasons recorded 2026-08-23** — about a third of what
 it reports is decidable, blame launders any content edit that keeps the number, and the
@@ -3896,12 +3893,12 @@ it does not change that arithmetic.
 never consults git's listing must intersect the tracked set exactly inside the corpus; a fixture
 repo pins a stale code citation at a historical commit as REPORTED and its two correct twins as
 not; and reverting the corpus to md-only is a red mutant (4 pins fail, the oracle names the
-unread code files). The tracked symlink `.claude/skills` is a variant, not a mutant — a correct
-input the first widened run crashed on, now skipped and named like a NUL binary. A review round
-on PR 88 found the corpus and the oracle spelling the exclusions differently — relative path
-versus absolute — so a top-level `runs/` or `target/` sat in a gap the pin could not see; both
-now ask one shared predicate (`_outside_corpus`), and the fixture holds probes at the top level
-so the gap stays closed.
+unread code files). The tracked symlink `.claude/skills` is in the tree, not in the report: a
+skipped, named symlink, like the NUL binaries beside it. The corpus selector and the walking
+oracle ask 1 shared predicate, `_outside_corpus(path, root)` — root-relative with a leading
+separator, so a top-level `runs/` or `target/` is excluded at every depth while the checkout's
+own path is not part of the test — and the fixture holds exclusion probes at the top level and
+under a hostile `runs/` ancestor, 1 pin for each half of that sentence.
 
 ## Keeping this current
 

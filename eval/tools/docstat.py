@@ -116,21 +116,31 @@ def is_vendored(p: str) -> bool:
     return any(v in p for v in VENDORED)
 
 
-def _outside_corpus(path: str) -> bool:
+def _outside_corpus(path: str, root: str) -> bool:
     """The renumbered-citation corpus's two recorded exclusions, on ONE spelling.
 
     `eval/runs/` is stored data, and the vendored analyser trees are not ours to read
-    (the corpus decision under #211). The test is on the ABSOLUTE path: the corpus joins
-    the root before asking, and the walking oracle prunes directories by their absolute
-    name - and while the two spelled the test differently, a TOP-LEVEL `runs/x` fell
-    between them. `git ls-files` emits no leading separator, so the relative test kept
-    what the absolute walk pruned, and the oracle pin - which only sees files the walk
-    REACHED - had no way to catch the disagreement (review round 1, PR 88; the fixture
-    pins `runs/secret.py` and `target/gen.py` to hold the alignment). `project_docs()`
-    tests the absolute path for the same reason. A DIRECTORY path ends in a separator,
-    as the walk's prune passes it.
+    (the corpus decision under #211). `path` is ABSOLUTE but the test is RELATIVE TO
+    `root`, with a leading separator kept so a TOP-LEVEL `runs/x` matches. Both halves
+    of that sentence were learned by a pin going red:
+
+    - Round 1: the corpus tested the bare relative path `git ls-files` emits, which has
+      no leading separator, while the walking oracle pruned absolute directory names -
+      a top-level `runs/` sat in the gap, and the oracle pin (which only sees files the
+      walk REACHED) could not catch it. The fixture's `runs/secret.py` and
+      `target/gen.py` hold that alignment.
+    - Round 2: the test then read the WHOLE absolute path, so the checkout's own
+      directory names were part of it - a tree checked out under `.../runs/` or
+      `.../target/` excluded every tracked file, and `0 read, 0 skipped` printed as
+      clean. The hostile-root pin builds the fixture inside `runs/` to hold this.
+
+    `root` is required, not defaulted: both callers have it to hand (`hist.root`,
+    the walk's `base`), and a defaulted root is an address bound at import - rule 12.
+    The prefix is sliced rather than `os.path.relpath`'d because relpath strips a
+    directory path's trailing separator, and `runs` without its slash is not `/runs/`.
     """
-    return "/runs/" in path or is_vendored(path)
+    rel = path[len(root):]                # join-built callers: path starts with root
+    return "/runs/" in f"/{rel}" or is_vendored(f"/{rel}")
 
 
 def _tracked_paths(root: str | None = None, rev: str | None = None) -> list[str]:
@@ -2974,7 +2984,7 @@ def _renumbered_corpus(hist: _History) -> list[str]:
     """
     return [f for f in _tracked_paths(root=hist.root,
                                       rev=None if hist.worktree else hist.rev)
-            if not _outside_corpus(os.path.join(hist.root, *f.split("/")))]
+            if not _outside_corpus(os.path.join(hist.root, *f.split("/")), hist.root)]
 
 
 def _check_renumbered_citations(rev: str = "HEAD",
@@ -5152,12 +5162,12 @@ def _citation_files_by_walk(root: str | None = None) -> list[str]:
     for d, subs, files in os.walk(base):
         subs[:] = [s for s in subs
                    if s not in ("worktrees", ".git")
-                   and not _outside_corpus(os.path.join(d, s) + os.sep)]
-        if _outside_corpus(d + os.sep):
+                   and not _outside_corpus(os.path.join(d, s) + os.sep, base)]
+        if _outside_corpus(d + os.sep, base):
             continue
         for f in files:
             p = os.path.join(d, f)
-            if _outside_corpus(p):
+            if _outside_corpus(p, base):
                 continue
             try:
                 data = open(p, "rb").read()
@@ -5360,6 +5370,32 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
          ("tool.py (missing on disk)" in sum3, "doc.md" in str(stale3),
           "code/data path(s)" in sum3),
          (True, True, True))
+
+    # Review round 2 (PR 88): the exclusions must not read the CHECKOUT PATH. A tree
+    # checked out under `.../runs/` or `.../target/` had every tracked file excluded by
+    # its own root prefix, and `0 read, 0 skipped` prints as clean - the empty-corpus
+    # shape `_tracked_paths` raises to prevent, reached by a filter instead. The fixture
+    # is built inside a directory named `runs/` so the root prefix itself is hostile.
+    stale4: list[str] = []
+    sum4 = ""
+    corpus4: list[str] = []
+    walked4: list[str] = []
+    try:
+        with tempfile.TemporaryDirectory() as tmp4:
+            host = os.path.join(tmp4, "runs", "repo")
+            os.makedirs(host)
+            _renumber_history_fixture(host)
+            stale4, _und4, sum4 = _check_renumbered_citations(rev="HEAD", root=host)
+            corpus4 = _renumbered_corpus(_History("HEAD", root=host))
+            walked4 = [os.path.relpath(p, host).replace(os.sep, "/")
+                       for p in _citation_files_by_walk(root=host)]
+    except Exception as exc:                       # noqa: BLE001 - reported, never raised
+        sum4 = f"the hostile-root pin RAISED: {type(exc).__name__}: {exc}"
+    case("hostile root: a tree checked out UNDER runs/ still reads its corpus, reports "
+         "its stale row, and is walked - while the repo's own runs/ stays excluded",
+         ("tool.py" in str(stale4), len(corpus4) > 0, "tool.py" in walked4,
+          "runs/secret.py" not in walked4, "code/data path(s)" in sum4),
+         (True, True, True, True, True))
 
     # The oracle half: live tree, walking against the git listing.
     try:
