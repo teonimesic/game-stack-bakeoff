@@ -1586,5 +1586,20 @@ one #118's original 33 came from before the tool existed.
 > produces a confident answer, and a clean report over an unread corpus is that answer.
 > Same-day citations are the danger case for renumber drift — the author's tree still held
 > the old number when they were written — and they are exactly the case a same-day sweep
-> of the renumber's own day would have caught in ANY corpus. Whether code files join the
-> citation check's corpus is task 208, filed with this finding.
+> of the renumber's own day would have caught in ANY corpus.
+
+**Outcome, task 208, 2026-08-29.** Code joined the corpus. `_check_renumbered_citations` now
+reads every tracked path at the authoring revision except two recorded exclusions — `eval/runs/`
+(data, not guidance) and the vendored analyser trees — with binaries excluded by the NUL-byte
+property of git's own binary heuristic and every non-text skip named in the summary. The dry-run
+of the check's own logic that decided the question reported 8 DECIDED STALE rows: **exactly the 8
+above, all 8 true, 0 false positives** — the widened instrument reproduces the hand work and adds
+none. The 7 UNDECIDED rows it also reported (a code corpus cites from docstrings and comments,
+where blame's same-commit case is common) were read and adjudicated into
+`eval/renumber_triage.json`, 36 → 43 entries. Cost measured before shipping: ~23 s against 21 s
+md-only, because blame is only asked of files whose text cites a reused number. The corpus is
+asserted against a walking oracle that never consults git's listing, and pinned in both
+directions in `--selftest`: the md-only revert is a red mutant (4 pins, oracle naming the unread
+code files), a stale code citation at a historical commit is REPORTED while its correct twins
+are not, and the tracked `.claude/skills` symlink — a correct input the first widened run
+crashed on — is skipped by name. It remains a report, never a gate, on the 2026-08-23 grounds.

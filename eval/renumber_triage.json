@@ -286,5 +286,61 @@
   "verdict": "correct",
   "note": "a statement ABOUT the renumber that produced today's #137/#138; correct as written",
   "triaged": "2026-08-23, task 102"
+ },
+ {
+  "path": "eval/judge/blind_ext_selftest.py",
+  "cites": 137,
+  "anchor": "the ones it READS (#137)",
+  "verdict": "correct",
+  "note": "the blinding story verbatim: #137's heading is the judge OPENS / ones it READS pair this sentence paraphrases; #137 today",
+  "triaged": "2026-08-29, task 208"
+ },
+ {
+  "path": "eval/judge/field.py",
+  "cites": 137,
+  "anchor": "that file MENTIONED (#137)",
+  "verdict": "correct",
+  "note": "the blinding-as-suffix finding, in its neutralise/measurement paragraph; #137 today",
+  "triaged": "2026-08-29, task 208"
+ },
+ {
+  "path": "eval/judge/field.py",
+  "cites": 137,
+  "anchor": "DENSEST LEAK OF ALL (#137)",
+  "verdict": "correct",
+  "note": "#137's own heading ends 'the densest leak was written by the packer'; this line is that story in the packer's source; #137 today",
+  "triaged": "2026-08-29, task 208"
+ },
+ {
+  "path": "eval/tools/docstat.py",
+  "cites": 99,
+  "anchor": "#95 and #99 were each allocated twice",
+  "verdict": "correct",
+  "note": "a statement ABOUT the 2026-08-23 allocation collisions, not a story citation - the number is the datum; true of the event regardless of who holds #99 today",
+  "triaged": "2026-08-29, task 208"
+ },
+ {
+  "path": "eval/tools/docstat.py",
+  "cites": 99,
+  "anchor": "duplicate of the skills for a Codex CLI (#99)",
+  "verdict": "correct",
+  "note": "the .agents/skills mirror; #99 today, same story the CLEANUP-LOG row records",
+  "triaged": "2026-08-29, task 208"
+ },
+ {
+  "path": "eval/tools/findings_control.py",
+  "cites": 132,
+  "anchor": "who writes finding #132",
+  "verdict": "correct",
+  "note": "a rhetorical forward reference - 'the first person who writes finding #132' - written at a commit where #132 held NOTHING, so it cites no story and cannot mean today's #132 (the field-name collision). The antecedent is false anyway: the VARIANT control still agrees, so no gate was switched off",
+  "triaged": "2026-08-29, task 208"
+ },
+ {
+  "path": "eval/tools/heartbeat.py",
+  "cites": 89,
+  "anchor": "highest #89, matching the documented #19-#89 range",
+  "verdict": "range",
+  "note": "the upper bound of a historical range statement - 71 findings, highest #89, as the log stood at that commit - not a citation of #89's story; verified true of that tree",
+  "triaged": "2026-08-29, task 208"
  }
 ]

@@ -154,7 +154,14 @@ def matching_controls() -> None:
     t = Tree()
     try:
         idx = docstat._triage_index([entry()])
-        hist = docstat._History("HEAD")
+        # THE ADDRESS IS AN ARGUMENT AT THE MOMENT OF USE (AGENTS.md rule 12). The
+        # monkeypatch below steers `docstat.ROOT` for callers that read the global at
+        # call time, but `_History` takes its root as a parameter with the real root as
+        # the default - bound at import, deaf to the patch. Passing it explicitly is what
+        # makes `doc.md` below resolve to the temp tree's row; measured 2026-08-29 (task
+        # 208) when threading `root` through `_History` turned these three controls red
+        # while each still read the real repository and called it the fixture.
+        hist = docstat._History("HEAD", root=str(t.dir))
         hist.worktree = True
         line = "prose prose the measurement is #99 more prose"
         t.write("doc.md", "\n".join(["header", line]))

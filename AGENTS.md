@@ -397,9 +397,10 @@ vocabulary is an enumeration, and one already failed here on a single inflection
 
 Four identifier namespaces here are allocated by hand — task ids, finding numbers, regime ordinals,
 pack labels — and every one has collided. Three are gated. The gates catch the collision;
-`--renumbered` is the only thing that asks what the collision broke — over the DOCUMENT corpus it
-reads; a citation inside a code file is outside every gate here and has twice been found by reading
-instead (#118, #211) — and it decides about a third of what it reports and hands you the rest to read. **Never renumber a finding to satisfy a
+`--renumbered` is the only thing that asks what the collision broke — over every tracked file,
+documents and code alike, since its corpus was widened after 8 stale code-file citations had been
+found only by reading while it ran green (#118, #211) — and it decides about a third of what it
+reports and hands you the rest to read. **Never renumber a finding to satisfy a
 citation** — the number in `eval/findings/` is published, and the citation is what is wrong.
 
 ## Decide it yourself unless it is genuinely the operator's call

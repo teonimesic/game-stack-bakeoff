@@ -6,7 +6,7 @@ WHY THIS EXISTS
 Three live documents published "between-stack range of mean ranks 1.70, mean gap 2.05"
 as the tier-3 separation result. Nothing in this repository could produce that pair, and
 nothing ever had: the quantity was computed by hand, quoted forward, and then withdrawn in
-one document while three others kept stating it. See FINDINGS #112.
+one document while three others kept stating it. See FINDINGS #113.
 
 A number with no producer cannot be re-derived, so it cannot be checked, so it survives.
 This module is the producer. It is offline, free, and reads only stored judge rounds.

@@ -116,8 +116,8 @@ def is_vendored(p: str) -> bool:
     return any(v in p for v in VENDORED)
 
 
-def _tracked_md(root: str | None = None, rev: str | None = None) -> list[str]:
-    """Every markdown path IN THE TREE, relative to `root`, `/`-separated.
+def _tracked_paths(root: str | None = None, rev: str | None = None) -> list[str]:
+    """Every tracked path IN THE TREE, relative to `root`, `/`-separated.
 
     ONE spelling of "which files are in this repository". Three checks used to ask that
     question three ways - a filesystem `glob`, `git ls-files`, and `git ls-tree` - and a
@@ -128,12 +128,12 @@ def _tracked_md(root: str | None = None, rev: str | None = None) -> list[str]:
     RAISES rather than returning empty when git itself fails. An empty corpus is the one
     result indistinguishable from a clean one; every caller here reports "clean over N
     documents", and N=0 would print as a pass. `_git_at` is what makes the two
-    distinguishable - a tree that genuinely holds no markdown returns `[]` at exit 0 and
+    distinguishable - a tree that genuinely holds nothing returns `[]` at exit 0 and
     is the caller's business, while a failed listing stops here.
 
     `-z`, AND IT IS LOAD-BEARING. `core.quotePath` defaults to true, so a path holding any
     byte outside ASCII comes back C-quoted and wrapped in double quotes -
-    `"caf\\303\\251.md"` for `café.md` - and `endswith(".md")` is then False. The document
+    `"caf\\303\\251.md"` for `café.md` - and an `endswith` filter is then False. The file
     would leave the corpus silently, which is the same fail-open shape as the untracked
     file entering it, one filter later. `-z` turns quoting off and separates on NUL, so a
     name holding a newline survives too. `corpus_control.py --mutate no_nul` is the pin.
@@ -146,7 +146,21 @@ def _tracked_md(root: str | None = None, rev: str | None = None) -> list[str]:
             f"git {'ls-tree ' + rev if rev else 'ls-files'} failed in {base}: {out.strip()[:200]}. "
             f"The corpus is an input to every check in this file, and an empty one reads "
             f"as clean.")
-    return sorted(r for r in out.split("\0") if r.endswith(".md"))
+    return sorted(r for r in out.split("\0") if r)
+
+
+def _tracked_md(root: str | None = None, rev: str | None = None) -> list[str]:
+    """`_tracked_paths`, filtered to markdown - the document corpus.
+
+    THE FILTER IS A CORPUS DECISION, not a property of the listing, and it was read as the
+    listing once: until 2026-08-29 (`#211`) this function's `.md` filter was the
+    renumbered-citation check's whole corpus, so 8 stale citations in `.py` files were
+    invisible to it. The check now reads `_renumbered_corpus` - tracked files of every
+    kind - and `_tracked_md` is left for the callers whose question really is about
+    documents. If a new corpus selects from here, ask first whether its question is about
+    markdown or about the repository.
+    """
+    return [p for p in _tracked_paths(root, rev) if p.endswith(".md")]
 
 
 def project_docs(root: str | None = None) -> list[str]:
@@ -631,7 +645,7 @@ FOREIGN_FLAG_PREFIXES = (
     # the shape of the mention rather than by anything being right.
     "--output-format",
     # rsync's. `backup_evidence.py` documents that it runs WITHOUT --delete, which is
-    # why the copy is a superset (#115); the flag it names is rsync's, not ours.
+    # why the copy is a superset (#116); the flag it names is rsync's, not ours.
     "--delete",
     # bsdtar's, and it does not exist there — which is the point of the sentence naming
     # it (root `AGENTS.md` rule 12, "bsdtar rejecting `--wildcards`"). This one is worth
@@ -2495,7 +2509,7 @@ def _regime_ordinal_pins(verbose: bool = False) -> list[str]:
 #: X.`, `There are five aspects: X.` and `The full list of aspects is X.` all passed.
 #: That is AGENTS.md's most-repeated defect, a trigger written as an enumeration of the
 #: instances someone had seen, and it fails on the first instance they had not. Published
-#: as FINDINGS #137, where the old trigger is re-measured against the 15 red pins below:
+#: as FINDINGS #140, where the old trigger is re-measured against the 15 red pins below:
 #: it reds 4, and all 4 are the wordings quoted from the two documents it was built from.
 #:
 #: The obvious repair is the one that does not work, and it was measured before this one
@@ -2714,6 +2728,23 @@ def _git_at(root: str, *args: str,
     return True, r.stdout
 
 
+def _git_bytes(root: str, *args: str) -> tuple[bool, bytes]:
+    """`_git_at` without the text decode, for blobs that may not be text.
+
+    `text=True` decodes with the locale encoding and dies on the first invalid byte, so
+    `git show rev:file.png` would crash the caller that merely wanted to ask whether the
+    blob is scannable. This returns the bytes and the status and lets the caller apply the
+    NUL test itself. Same `GIT_*` scrub as `_git_at`, for the same reason.
+    """
+    child = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    try:
+        r = subprocess.run(["git", "-C", root, *args], capture_output=True,
+                           check=False, env=child)
+    except (OSError, ValueError) as exc:
+        return False, str(exc).encode("utf-8", errors="replace")
+    return r.returncode == 0, r.stdout
+
+
 def _git(*args: str) -> str:
     """git in the repository this file lives in. Empty string on failure, never a raise.
 
@@ -2732,13 +2763,17 @@ class _History:
 
     THE ADDRESS IS AN INPUT TO THE CHECK (#60). `ROOT` is a filesystem path and
     `eval/findings/` is a path inside a git tree; nothing makes those agree by
-    construction, so `ok()` asserts it rather than trusting it.
+    construction, so `rooted()` asserts it rather than trusting it. `root` is a parameter
+    and not a constant read so the selftest can drive a fixture repository through the
+    same code the live tree runs (task 208); every caller that means this repository
+    takes the default.
     """
 
     UNCOMMITTED = "0" * 40
 
-    def __init__(self, rev: str = "HEAD") -> None:
+    def __init__(self, rev: str = "HEAD", root: str = ROOT) -> None:
         self.rev = rev
+        self.root = root
         # READ THE WORKING TREE, NOT THE LAST COMMIT, unless a revision was asked for.
         # Every other check in this file reads files off disk. If this one read
         # `HEAD:path` instead, a citation repaired but not yet committed would still be
@@ -2752,12 +2787,17 @@ class _History:
         self._parents: dict[str, list[str]] = {}
         self._blame: dict[tuple[str, str], list[tuple[str, str]]] = {}
         self._ctime: dict[str, int] = {}
-        top = _git("rev-parse", "--show-toplevel").strip()
-        self.rooted = bool(top) and os.path.realpath(top) == os.path.realpath(ROOT)
+        top = self.git("rev-parse", "--show-toplevel").strip()
+        self.rooted = bool(top) and os.path.realpath(top) == os.path.realpath(root)
+
+    def git(self, *args: str) -> str:
+        """`_git`, aimed at this history's repository. Empty string on failure."""
+        ok, out = _git_at(self.root, *args)
+        return out if ok else ""
 
     def headings(self, blob_sha: str) -> list[tuple[int, str]]:
         if blob_sha not in self._blob:
-            lines = _git("cat-file", "blob", blob_sha).split("\n")
+            lines = self.git("cat-file", "blob", blob_sha).split("\n")
             fenced = _fence_mask(lines)
             out = []
             for i, ln in enumerate(lines):
@@ -2773,7 +2813,7 @@ class _History:
         """{finding number: heading text} in eval/findings/ as of `commit`."""
         if commit not in self._tree:
             m: dict[int, str] = {}
-            for ln in _git("ls-tree", "-r", commit, "eval/findings/").split("\n"):
+            for ln in self.git("ls-tree", "-r", commit, "eval/findings/").split("\n"):
                 p = ln.split()
                 if len(p) >= 4 and p[1] == "blob" and p[3].endswith(".md"):
                     for num, h in self.headings(p[2]):
@@ -2783,13 +2823,13 @@ class _History:
 
     def parents(self, commit: str) -> list[str]:
         if commit not in self._parents:
-            out = _git("rev-list", "--parents", "-n", "1", commit).split()
+            out = self.git("rev-list", "--parents", "-n", "1", commit).split()
             self._parents[commit] = out[1:]
         return self._parents[commit]
 
     def ctime(self, commit: str) -> int:
         if commit not in self._ctime:
-            s = _git("show", "-s", "--format=%ct", commit).strip()
+            s = self.git("show", "-s", "--format=%ct", commit).strip()
             self._ctime[commit] = int(s) if s.isdigit() else 0
         return self._ctime[commit]
 
@@ -2810,7 +2850,7 @@ class _History:
             argv = ["blame", "-w", "-M", "--line-porcelain"]
             if not (self.worktree and rev == self.rev):
                 argv.append(rev)
-            for ln in _git(*argv, "--", path).split("\n"):
+            for ln in self.git(*argv, "--", path).split("\n"):
                 m = re.match(r"^([0-9a-f]{40}) ", ln)
                 if m:
                     cur = m.group(1)
@@ -2846,7 +2886,7 @@ class _History:
                 return commit, text
             holders = []
             for p in ps:
-                if _git("cat-file", "-t", f"{p}:{path}").strip() != "blob":
+                if self.git("cat-file", "-t", f"{p}:{path}").strip() != "blob":
                     continue
                 pb = self.blame(p, path)
                 hit = [i for i, (_, t) in enumerate(pb) if t == text]
@@ -2878,8 +2918,8 @@ def _renumber_events(hist: _History) -> list[tuple[int, int, int, str]]:
     the way the citations it describes went stale.
     """
     seq: dict[str, list[tuple[int, str, int]]] = {}
-    commits = _git("rev-list", "--reverse", "--date-order", hist.rev, "--",
-                   "eval/findings/").split()
+    commits = hist.git("rev-list", "--reverse", "--date-order", hist.rev, "--",
+                       "eval/findings/").split()
     for c in commits:
         for num, h in sorted(hist.numbering(c).items()):
             k = _norm_heading(h)
@@ -2895,7 +2935,28 @@ def _renumber_events(hist: _History) -> list[tuple[int, int, int, str]]:
     return sorted(events)
 
 
-def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str], str]:
+def _renumbered_corpus(hist: _History) -> list[str]:
+    """The renumbered-citation corpus: every TRACKED, non-vendored, non-`runs/` path.
+
+    Markdown AND code AND data, because a finding-number citation is prose wherever it
+    sits. The corpus was markdown-only until 2026-08-29, and the 8 stale `#N` citations
+    standing in `.py` and `.json` files while the check ran exit 0 are what that cost
+    (#211, task 208). The selection is the whole tree minus two recorded exclusions
+    rather than an allowlist of extensions: an allowlist is an enumeration, and the next
+    citation lands in a language that is not on it. Non-text files are dropped at read
+    time, by the NUL-byte property git itself uses for binary, and the summary names the
+    count so a skipped file is never silent.
+
+    `_renumbered_corpus_pins` holds this corpus against a walking oracle, so a filter
+    that learns to drop a citing file reddens the selftest rather than the corpus.
+    """
+    return [f for f in _tracked_paths(root=hist.root,
+                                      rev=None if hist.worktree else hist.rev)
+            if "/runs/" not in f and not is_vendored(f)]
+
+
+def _check_renumbered_citations(rev: str = "HEAD",
+                                root: str = ROOT) -> tuple[list[str], list[str], str]:
     """(decided stale, undecided, summary). Returns, never raises, never gates.
 
     WHAT IS DECIDABLE AND WHAT IS NOT
@@ -2926,6 +2987,16 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
     the last time that number changed hands. B and C both live there, and so do plenty of
     perfectly correct citations - which is why it prints and does not fail.
 
+    THE CORPUS. Every tracked, non-vendored, non-`runs/` path - markdown, code and data
+    (`_renumbered_corpus`). It was markdown-only until 2026-08-29, and the cost was
+    measured before the widening shipped (#211): 8 stale citations stood in `.py` and
+    `.json` files while this check ran exit 0 in the same window, found only by reading
+    whole files. The first widened run over the live tree returned 8 decided rows, all 8
+    true positives on inspection and 0 false, plus 7 undecided rows which are triaged in
+    `renumber_triage.json` like the document rows before them. Blame is asked only of
+    files whose text cites a reused number, so the wider corpus costs a text scan, not a
+    blame, on files that cannot produce a row.
+
     THE CONTROL. Run `--renumbered --at 1120695^`, the commit before the five known
     citations were repaired by hand: the decided list contains `eval/PROTOCOL.md:541`
     (`#103`, now `#104`) and the undecided list contains the other four. Run it at HEAD
@@ -2954,10 +3025,10 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
     that produced these in the first place. Done for task 72 off `e86e09d0` (where #119
     was the retired suite): decided went 0 -> 1, naming the plant and #122.
     """
-    hist = _History(rev)
+    hist = _History(rev, root=root)
     if not hist.rooted:
         return ([], [], "renumbered-citation check did NOT run: git is unavailable, or "
-                        f"its toplevel is not {ROOT}. This check reads history and has no "
+                        f"its toplevel is not {root}. This check reads history and has no "
                         f"answer without it - it is not clean, it is blind.")
     current = hist.numbering(rev)
     if not current:
@@ -2974,19 +3045,35 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
         return ([], [], f"no finding has ever been renumbered under {rev}; "
                         f"{len(current)} findings, nothing to check")
 
-    files = [f for f in _tracked_md(rev=None if hist.worktree else rev)
-             if "/runs/" not in f and not is_vendored(f)]
+    files = _renumbered_corpus(hist)
 
     stale: list[str] = []
     undecided: list[str] = []
+    skipped: list[str] = []
     for path in files:
         if hist.worktree:
-            disk = os.path.join(ROOT, path)
+            disk = os.path.join(hist.root, path)
             if not os.path.exists(disk):
                 continue                       # deleted in the working tree
-            lines = open(disk, encoding="utf-8", errors="replace").read().split("\n")
+            if os.path.islink(disk):
+                # `.claude/skills` is a tracked symlink to `.agents/skills`; the old .md
+                # filter never reached it, and the first widened run crashed on it. A
+                # symlink's tracked content is its TARGET PATH, not text to scan, so it
+                # leaves the corpus here, named. At a historical revision `git show`
+                # returns that target string, which is scanned and can hold no citation
+                # worth blame - the degenerate case is left visible rather than special-
+                # cased by mode.
+                skipped.append(f"{path} (symlink)")
+                continue
+            data = open(disk, "rb").read()
         else:
-            lines = _git("show", f"{rev}:{path}").split("\n")
+            ok, data = _git_bytes(hist.root, "show", f"{hist.rev}:{path}")
+            if not ok:
+                continue                       # absent at this revision; nothing to read
+        if b"\0" in data:
+            skipped.append(f"{path} (NUL)")
+            continue          # not scannable text; named in the summary for being so
+        lines = data.decode("utf-8", errors="replace").split("\n")
         # Blame is the expensive call. Only a file citing a number that has actually
         # been reused can produce a hit, so ask that question from the text first.
         if not any(int(m.group(1)) in reused
@@ -3020,8 +3107,12 @@ def _check_renumbered_citations(rev: str = "HEAD") -> tuple[list[str], list[str]
                         f"changing hands; the committed trees of that moment say it meant "
                         f"{held}. Read it. | {excerpt}")
 
+    n_docs = sum(1 for f in files if f.endswith(".md"))
     summary = (f"{len(events)} renumber event(s) in eval/findings/ history; "
-               f"{len(reused)} number(s) have named more than one finding")
+               f"{len(reused)} number(s) have named more than one finding; corpus "
+               f"{n_docs} document(s) + {len(files) - n_docs} code/data path(s) read, "
+               f"{len(skipped)} non-text skipped"
+               + (": " + ", ".join(sorted(skipped)) if skipped else ""))
     return stale, undecided, summary
 
 
@@ -3088,12 +3179,12 @@ def _row_line(hist: _History, where: str) -> str:
     if not lineno.isdigit():
         return ""
     if hist.worktree:
-        disk = os.path.join(ROOT, path)
+        disk = os.path.join(hist.root, path)
         if not os.path.exists(disk):
             return ""
         lines = open(disk, encoding="utf-8", errors="replace").read().split("\n")
     else:
-        lines = _git("show", f"{hist.rev}:{path}").split("\n")
+        lines = hist.git("show", f"{hist.rev}:{path}").split("\n")
     i = int(lineno) - 1
     return lines[i] if 0 <= i < len(lines) else ""
 
@@ -5003,6 +5094,221 @@ def _corpus_pins(verbose: bool = False) -> list[str]:
     return failed
 
 
+def _citation_files_by_walk(root: str | None = None) -> list[str]:
+    """Every file WALKING finds whose text cites a finding number, as absolute paths.
+
+    The oracle for the renumbered-citation corpus (#211): that corpus selects by a git
+    listing plus path filters, and both halves have already dropped a citing corpus once -
+    the `.md` filter is what kept every code-file citation invisible while 8 of them went
+    stale. This reaches the files by a different mechanism, the same one
+    `_github_docs_by_walk` uses for the document corpus, and asks the completeness question
+    directly: any tracked file whose text carries a `#NN` shape must be inside the corpus
+    the check reads, whatever its extension or directory.
+
+    Non-text by the property the corpus itself uses - a NUL byte anywhere in the file - so
+    the two agree about what is scannable rather than the oracle asking for more than the
+    subject can read.
+    """
+    base = ROOT if root is None else root
+    out = []
+    for d, subs, files in os.walk(base):
+        subs[:] = [s for s in subs
+                   if s not in ("runs", "worktrees", ".git")
+                   and not is_vendored(os.path.join(d, s) + os.sep)]
+        if is_vendored(d + os.sep):
+            continue
+        for f in files:
+            p = os.path.join(d, f)
+            if is_vendored(p):
+                continue
+            try:
+                data = open(p, "rb").read()
+            except OSError:
+                continue
+            if b"\0" in data:
+                continue
+            if any(_CITE_RX.search(ln) for ln in data.decode("utf-8", errors="replace").split("\n")):
+                out.append(p)
+    return sorted(out)
+
+
+def _renumber_history_fixture(tmp: str) -> None:
+    """A three-commit repository in which a code citation goes stale and a twin does not.
+
+    THE INPUT `--renumbered` EXISTS FOR, at fixture scale. `eval/findings/` holds `## 99.
+    the mirror finding`, which commit 2 renumbers to `## 105.`; `tool.py` cites `#99` at
+    commit 1, so the check must resolve the citation against the author's tree and report
+    it - the case A verdict, on a CODE file, which is the corpus this fixture exists to
+    pin (task 208). `stable.py` cites `#40`, a number that has never changed hands, and
+    `fresh.py` cites the dead `#99` only AFTER the renumber: the two correct shapes the
+    check must not accuse. `doc.md` carries the same stale plant as prose, because the
+    widened corpus must not have displaced the document half. `blob.bin` cites `#99` past
+    a NUL byte: outside the scannable corpus, and named in the summary for being so.
+
+    Commit times are forced and increasing, because the undecided branch reads `ctime` and
+    three commits inside one wall-clock second would make `fresh.py`'s authoring time
+    EQUAL the renumber's - the same-commit case B, which is genuinely undecidable and
+    would put a row in the undecided list for a reason the fixture did not plant.
+    """
+    def write(relpath: str, data: str | bytes) -> None:
+        p = os.path.join(tmp, *relpath.split("/"))
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as fh:
+            fh.write(data if isinstance(data, bytes) else data.encode("utf-8"))
+
+    write("eval/findings/a.md", "## 99. the mirror finding\n")
+    write("eval/findings/b.md", "## 40. the stable finding\n")
+    write("tool.py", "value = 1  # the mirror finding is finding #99\n")
+    write("stable.py", "value = 2  # the stable finding is finding #40\n")
+    write("doc.md", "The mirror finding is finding #99.\n")
+    write("blob.bin", b"\x00\x01 cites finding #99 past a NUL byte\x00")
+    # A VARIANT, not a mutant (rule 15): `.claude/skills` in the real tree is a tracked
+    # symlink, the old .md filter never reached it, and the first widened run crashed
+    # opening it. Correct input the reader could mishandle.
+    os.symlink("eval/findings/a.md", os.path.join(tmp, "linked.md"))
+
+    cfg = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+    ok, out = _git_at(tmp, "-c", "init.defaultBranch=main", "init", "-q", extra_env=cfg)
+    if not ok:
+        raise RuntimeError(f"the renumber fixture could not be built: git init failed in "
+                           f"{tmp}: {out.strip()[:200]}")
+    _assert_own_repo(tmp, cfg)
+
+    def commit(msg: str, when: str, paths: list[str]) -> None:
+        ok, out = _git_at(tmp, "add", "--", *paths, extra_env=cfg)
+        if not ok:
+            raise RuntimeError(f"the renumber fixture could not be built: git add failed: "
+                               f"{out.strip()[:200]}")
+        ok, out = _git_at(tmp, "-c", "user.name=docstat", "-c",
+                          "user.email=docstat@example.invalid",
+                          "commit", "-q", "-m", msg,
+                          extra_env={**cfg, "GIT_AUTHOR_DATE": when,
+                                     "GIT_COMMITTER_DATE": when})
+        if not ok:
+            raise RuntimeError(f"the renumber fixture could not be built: git commit "
+                               f"failed: {out.strip()[:200]}")
+
+    commit("the mirror finding is #99", "2000-01-01T00:00:01 +0000",
+           ["eval/findings/a.md", "eval/findings/b.md", "tool.py", "stable.py",
+            "doc.md", "blob.bin", "linked.md"])
+    write("eval/findings/a.md", "## 105. the mirror finding\n")
+    commit("renumber 99 to 105", "2000-01-01T00:00:02 +0000", ["eval/findings/a.md"])
+    write("fresh.py", "value = 3  # the collisions that moved #99 are history here\n")
+    commit("cite after the renumber", "2000-01-01T00:00:03 +0000", ["fresh.py"])
+
+
+def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
+    """The renumbered-citation corpus reaches every tracked file that cites a finding.
+
+    Added 2026-08-29 under task 208, for finding #211: the corpus was `_tracked_md`, so a
+    stale `#N` in a `.py` file was invisible while 8 of them stood in this tree, found only
+    by reading. Three properties are pinned, each against an input built to violate it:
+
+      FIXTURE  a three-commit repository (above) drives the check through its `root`, so
+               the stale-at-a-historical-commit verdict is exercised on a CODE file, the
+               correct twins are not accused, and the binary skip is visible in the
+               summary rather than silent.
+      ORACLE   `_citation_files_by_walk` finds citing files by reading the tree, sharing
+               no mechanism with the corpus's git listing and path filters. A filter that
+               drops a citing tracked file - an extension list, a new directory rule -
+               reddens `unswept` on the live tree without any fixture at all.
+      KNOWN    one row whose answer is stateable in advance (rule 12): this module cites
+               findings in its own comments and is tracked, so it must be inside both the
+               oracle and the corpus.
+    """
+    failed: list[str] = []
+
+    def case(name: str, got, want) -> None:
+        ok = got == want
+        if verbose:
+            print(f"{'PASS' if ok else 'FAIL'}  {name}: {got}, expected {want}")
+        if not ok:
+            failed.append(f"renumbered corpus pin: {name}: got {got}, want {want}")
+
+    # The fixture half. Wrapped, because a pin that cannot run must REDDEN, not remove
+    # itself from the selftest: a TypeError from a signature this pin predates is exactly
+    # the defect the pin exists to catch.
+    stale: list[str] = []
+    undecided: list[str] = []
+    summary = ""
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            _renumber_history_fixture(tmp)
+            stale, undecided, summary = _check_renumbered_citations(rev="HEAD", root=tmp)
+    except Exception as exc:                       # noqa: BLE001 - reported, never raised
+        summary = f"the fixture check RAISED: {type(exc).__name__}: {exc}"
+    case("fixture: the stale code citation planted at a historical commit is reported, "
+         "and with it the same plant in a document",
+         sorted(r.split(":", 1)[0] for r in stale), ["doc.md", "tool.py"])
+    case("fixture: neither the never-moved number, the post-renumber citation, nor "
+         "anything else lands in either list",
+         [r.split(":", 1)[0] for r in stale + undecided if
+          r.split(":", 1)[0] not in ("doc.md", "tool.py")], [])
+    case("fixture: the binary blob and the tracked symlink are named in the summary "
+         "and reported in no row",
+         ("blob.bin" in summary, "linked.md (symlink)" in summary,
+          "blob.bin" in str(stale + undecided),
+          "linked.md" in str(stale + undecided)),
+         (True, True, False, False))
+    case("fixture: the summary states the widened corpus, so a clean report cannot be "
+         "read over an unseen one",
+         "code/data path(s)" in summary, True)
+
+    # The oracle half: live tree, walking against the git listing.
+    try:
+        hist = _History("HEAD")
+        corpus = {os.path.relpath(os.path.join(hist.root, f), hist.root).replace(os.sep, "/")
+                  for f in _renumbered_corpus(hist)}
+        walked = {os.path.relpath(p, hist.root).replace(os.sep, "/")
+                  for p in _citation_files_by_walk()}
+        tracked = set(_tracked_paths(root=hist.root))
+        unswept = sorted((walked & tracked) - corpus)
+        known = "eval/tools/docstat.py"
+        case("oracle: every tracked citing file the walk finds is inside the corpus",
+             unswept, [])
+        case("oracle: the walk and the corpus are not the empty set agreeing",
+             (known in walked, known in corpus, len(walked & tracked) > 0),
+             (True, True, True))
+    except Exception as exc:                       # noqa: BLE001 - reported, never raised
+        case("oracle: the walk ran", f"RAISED {type(exc).__name__}: {exc}", "no raise")
+
+    # The fixture that discriminates the WALK itself: nested found; runs/, vendored,
+    # binary and untracked each answered for, by name rather than by a count.
+    try:
+        with tempfile.TemporaryDirectory() as wtmp:
+            cfg = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+            ok, out = _git_at(wtmp, "-c", "init.defaultBranch=main", "init", "-q",
+                              extra_env=cfg)
+            if not ok:
+                raise RuntimeError(f"the walk fixture could not be built: {out.strip()[:200]}")
+            _assert_own_repo(wtmp, cfg)
+            for rel, data in [("deep/pkg/a.py", "# cites finding #99\n"),
+                              ("runs/stored.py", "# cites finding #99\n"),
+                              ("target/gen.py", "# cites finding #99\n"),
+                              ("blob.bin", b"\x00 #99 \x00"),
+                              ("loose.py", "# cites finding #99\n")]:
+                p = os.path.join(wtmp, *rel.split("/"))
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p, "wb") as fh:
+                    fh.write(data if isinstance(data, bytes) else data.encode("utf-8"))
+            ok, out = _git_at(wtmp, "add", "--", "deep/pkg/a.py", "runs/stored.py",
+                              "target/gen.py", "blob.bin", extra_env=cfg)
+            if not ok:
+                raise RuntimeError(f"the walk fixture could not be built: {out.strip()[:200]}")
+            walked_rel = sorted(os.path.relpath(p, wtmp).replace(os.sep, "/")
+                                for p in _citation_files_by_walk(root=wtmp))
+            tracked_rel = set(_tracked_paths(root=wtmp))
+            case("walk: the nested tracked citing file is found; runs/, the vendored "
+                 "tree and the NUL binary are not walked at all",
+                 walked_rel, ["deep/pkg/a.py", "loose.py"])
+            case("walk: the pin's tracked intersection drops the on-disk untracked file",
+                 sorted(r for r in walked_rel if r in tracked_rel), ["deep/pkg/a.py"])
+    except Exception as exc:                       # noqa: BLE001 - reported, never raised
+        case("walk: the fixture ran", f"RAISED {type(exc).__name__}: {exc}", "no raise")
+
+    return failed
+
+
 def cmd_selftest() -> int:
     """`--selftest`: the pins with their cases printed, plus proof the archive was untouched.
 
@@ -5033,6 +5339,8 @@ def cmd_selftest() -> int:
     failed += _regime_ordinal_pins(verbose=True)
     print()
     failed += _corpus_pins(verbose=True)
+    print()
+    failed += _renumbered_corpus_pins(verbose=True)
     print()
     failed += _skill_flag_pins(verbose=True)
     after = _size_mtime(index_path)

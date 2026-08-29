@@ -3856,6 +3856,41 @@ property over the whole stored tree — 0 of 67 submissions mixed-size as of 202
 with its population in `eval/RUNS.md` — and is the thing to run before spending on a field
 whose filming this harness did not just do.
 
+## The renumbered-citation check reads every tracked file, not only markdown — decided 2026-08-29
+
+The 2026-08-23 decision above kept the citation check's scope right and its corpus wrong: the
+corpus was `_tracked_md`, so a stale `#N` inside a `.py` docstring was outside every gate here.
+Eight were found by reading while `--renumbered` ran exit 0 in the same window (#211 — 2 in task
+206, 6 in task 207). A gate's corpus is an input to the gate, so task 208 widened it rather than
+leaving code citations to passes that remember to read.
+
+**The corpus is a closed class, not an extension list.** Every tracked path at the authoring
+revision minus two recorded exclusions — `eval/runs/` (data, not guidance) and the vendored
+analyser trees — with binaries excluded by the NUL-byte property git's own binary heuristic uses,
+and non-text skips named in the summary. An allowlist of "text extensions" is the enumeration
+shape that failed everywhere else here: it fails on the first extension it did not have when it
+was written, and the failure is a silent narrowing of a gate back to its old blind spot.
+
+**The widened report was measured before it shipped, on both costs.** Its first run reported 8
+DECIDED STALE rows — exactly the 8 hand-found by tasks 206 and 207, all 8 true, **0 false
+positives** in the decided list: the widened instrument reproduces the hand work and adds none.
+The 7 UNDECIDED rows were all adjudicated into `eval/renumber_triage.json` (36 → 43 entries;
+6 correct, 1 range). Runtime went from ~21 s to ~23 s, because blame is only asked of files whose
+text cites a number that has been reused — the corpus widening costs one filtered read per file,
+not one blame per file.
+
+**It stays a report, never a gate, for the reasons recorded 2026-08-23** — about a third of what
+it reports is decidable, blame launders any content edit that keeps the number, and the
+undecidable list contains correct rows by construction. Widening the corpus widens the report;
+it does not change that arithmetic.
+
+**The corpus is asserted, not promised.** `--selftest` pins it three ways: a walking oracle that
+never consults git's listing must intersect the tracked set exactly inside the corpus; a fixture
+repo pins a stale code citation at a historical commit as REPORTED and its two correct twins as
+not; and reverting the corpus to md-only is a red mutant (4 pins fail, the oracle names the
+unread code files). The tracked symlink `.claude/skills` is a variant, not a mutant — a correct
+input the first widened run crashed on, now skipped and named like a NUL binary.
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
