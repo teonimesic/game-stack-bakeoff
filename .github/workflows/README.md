@@ -352,14 +352,14 @@ which of them no workflow step and no git hook **names**, and requires each of t
 in the `left out` column below. Exit 1 names any that does not, and `ci_minutes --selftest`
 runs the live census, so the gate is CI's rather than a command someone has to remember.
 
-**The same command censuses a second population one flag deeper.** 28 git-tracked scripts under
+**The same command also counts scripts that declare a `--selftest` mode.** 29 git-tracked scripts under
 `eval/` declare a `--selftest` mode (a count `python3 eval/tools/ci_minutes.py --controls`
 re-derives on every run, decided on each script's syntax tree — an `add_argument` or an argv
 test — never on the word, which appears in prose and in other tools' command lists). A script
 whose whole purpose is to be a gate is the stem class above; these are tools whose main job is
 something else and which grew a mode pinning their own arithmetic. **For this population, gated
 means the MODE is named**: a tier running a script bare runs its default mode, not this one.
-`linkcheck` bare was gated while `linkcheck --selftest` was not. Today 27 of the 28 have the
+`linkcheck` bare was gated while `linkcheck --selftest` was not. Today 28 of the 29 have the
 mode named by a tier and 1 is
 recorded below. A row of the form `` `script --selftest` `` — two tokens, no more — is what
 records one; a row like `wallclock.py without --selftest` or `host_perf_probe.py --caps`

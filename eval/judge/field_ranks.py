@@ -207,7 +207,7 @@ def assert_one_run(rounds: list[dict]) -> list[dict]:
     fix at the source); this is the analysis-side consumer of it, and it refuses the mix
     rather than trusting the operator to have noticed.
 
-    A round carrying NO `run` is a THIRD value, not a disagreement: 0 of 10 rounds in
+    A round carrying NO `run` is a THIRD value, not a disagreement: 10 of 10 rounds in
     `wg-tetris-judge-2026-08-17/pre` predate the field, and refusing them would make
     this tool unable to read the very corpus the withdrawn register points operators at
     (WR-tier3-pair's `replaced_by` names it). They are returned for the caller to list.
@@ -815,7 +815,7 @@ def selftest(runs_root: Path | None = None) -> int:
     # been in every round since 2026-08-22; this is the consumer that reads it.
     #
     # THREE values, not two: carried-and-agreeing is measurable, carried-and-disagreeing
-    # is refused, carrying nothing is a WARNING - 0 of 10 rounds in
+    # is refused, carrying nothing is a WARNING - 10 of 10 rounds in
     # `wg-tetris-judge-2026-08-17/pre` predate the field, and refusing them would make
     # this tool unable to read the very corpus the withdrawn register points operators
     # at (WR-tier3-pair's `replaced_by` names it).
