@@ -166,7 +166,11 @@ class ProbeSession:
                 self._note(f"[probe-lock] start attempt {attempt}/{attempts} refused "
                            f"by what reads as a project lock; retrying")
                 self.close()
-                time.sleep(min(20.0, 4.0 * attempt))
+                if attempt < attempts:
+                    # Between attempts only: sleeping after the last refusal would be
+                    # dead wall clock on every exhausted lock read (raised by
+                    # CodeRabbit for `audio.read_manifest`, the same loop's sibling).
+                    time.sleep(min(20.0, 4.0 * attempt))
         assert last is not None
         # Every attempt was refused with a project-lock signature. The submission has
         # not been measured, so callers must not score this as a failure - see
@@ -890,6 +894,13 @@ def drive(bot: Bot, repo: Path, seed: int = 7,
     """
     t0 = time.monotonic()
     fired: list[str] = []
+    # Whether the probe session ever RAN is a fact only this caller knows, and it is
+    # the one fact `audio.triggered`'s fail-closed empty-fired branch cannot see: a
+    # lock-conflicted session emits no events, so the branch would score that criterion
+    # failed -- "no events at all" -- on exactly the arm the #25 exclusion exists for,
+    # while `unusable_criteria` excluded every bot criterion in the same result. The
+    # error's own words travel with the criterion; see `triggered_criterion`.
+    lock_note: str | None = None
     tele: dict[str, Any] = {"usable": False, "reason": "the probe never ran"}
     try:
         with ProbeSession(repo=repo, seed=seed, env=env,
@@ -907,6 +918,8 @@ def drive(bot: Bot, repo: Path, seed: int = 7,
             tele["representative"] = False
             tele["source"] = "the criteria session"
     except ProbeError as e:
+        if getattr(e, "lock_conflict", False):
+            lock_note = str(e)
         crits = bot.unusable(e)
         stderr, ticks = str(e), 0
     # noqa BLE001, deliberately blind and FAIL-CLOSED: a bot is arbitrary per-game
@@ -959,7 +972,8 @@ def drive(bot: Bot, repo: Path, seed: int = 7,
 
     if audio_game is not None:
         import audio as audio_mod
-        crits = [*crits, audio_mod.triggered_criterion(repo, audio_game, fired, env)]
+        crits = [*crits, audio_mod.triggered_criterion(
+            repo, audio_game, fired, env, lock_note=lock_note)]
     for c in crits:
         if c.id in bot.diagnostic_only:
             c.scored = False

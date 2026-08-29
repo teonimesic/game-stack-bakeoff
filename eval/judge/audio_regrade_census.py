@@ -15,10 +15,28 @@ no audio - it reconstructs the declared-event grouping from the stored `clips` a
     ./audio_regrade_census.py --selftest
     ./audio_regrade_census.py --runs-root <main checkout>/eval/runs
     ./audio_regrade_census.py --runs-root ... --json
+    ./audio_regrade_census.py --runs-root ... --triggered
 
 `--runs-root` is required and is never guessed. `eval/runs/` is gitignored, so an agent
 worktree's copy of that path is empty and the census would report "0 verdicts move" -
 confident, uniform, and about nothing (`AGENTS.md` rule 12).
+
+## --triggered: audio.triggered, the tier-2 criterion the census above cannot see
+
+`audio.triggered` is composed in `probe.drive`, not by `collect`, so it is stored in
+`playbot.json` and the programmatic census above never reads it. The tasks/214 repair
+changed its rule as well: a lock-conflicted session, which the old code scored
+TRUE/failed ("no events at all"), now comes back scored=False. Whether a stored verdict
+moves is decidable from the record alone, because the lock exclusion writes its own
+signature into the same record: `total=0` with `usable=False`, drive having excluded
+EVERYTHING. `scored=False` on SOME criteria is the `diagnostic_only` design and moves
+nothing - 19 of the stored rows carry it.
+
+What the record cannot show is the manifest-lock path (a read whose retries exhausted on
+lock signatures): the old evidence is the note's own words, and matching those words is
+the open-class matching this project was burned by once already (#30). So the census
+claims only what it can decide exactly, and prints every FAILED stored verdict's
+evidence verbatim, so the null it reports can be audited by eye.
 
 ## Which criteria can move, stated rather than assumed
 
@@ -272,6 +290,135 @@ def render(out: dict, reports: int, skipped: int) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# --triggered: the playbot-record rule (audio.triggered), under tasks/214
+# --------------------------------------------------------------------------- #
+
+
+def triggered_row(run: str, trial: str, text: str) -> dict:
+    """One playbot record's text -> one census row, or a row carrying a refusal.
+
+    A record that exists is IN the population whatever it holds, so an unreadable
+    or ambiguous one is refused explicitly rather than crashed on or silently
+    skipped: a silent skip would shrink the null's own denominator, and a crash
+    would trade one bad record for no census at all. Classification requires
+    exactly 1 `audio.triggered` criterion - `next()` over 2 would classify an
+    arbitrary entry.
+    """
+    base = {"run": run, "trial": trial}
+    try:
+        rec = json.loads(text)
+    except ValueError as exc:
+        return {**base, "refusal": f"unreadable playbot.json: {exc}"}
+    if not isinstance(rec, dict):
+        return {**base, "refusal": "not a JSON object"}
+    crits = rec.get("criteria")
+    if not isinstance(crits, list):
+        return {**base, "refusal": "no criteria list"}
+    matches = [c for c in crits
+               if isinstance(c, dict) and c.get("id") == "audio.triggered"]
+    if len(matches) != 1:
+        return {**base, "refusal": f"{len(matches)} audio.triggered criteria, "
+                                   f"exactly 1 required"}
+    return {**base, "trig": matches[0],
+            "total": rec.get("total"), "usable": rec.get("usable")}
+
+
+def triggered_rows(runs_root: Path) -> tuple[list[dict], int, int]:
+    """(playbot records carrying audio.triggered, reports read, skipped).
+
+    The same counted frame as `load` - `report_paths` - so the two censuses
+    describe one population of gradings. A report without a sibling playbot.json
+    is out of this population, the same way a report without an audio block is
+    out of the census above; a playbot.json that exists but cannot be classified
+    comes back as a refusal row, never a skip.
+    """
+    counted, skipped = report_paths(runs_root)
+    rows = []
+    for rep in counted:
+        pb = rep.parent / "playbot.json"
+        if not pb.is_file():
+            continue
+        try:
+            text = pb.read_text()
+        except OSError as exc:
+            rows.append({"run": str(pb.parents[3].relative_to(runs_root)),
+                         "trial": pb.parents[1].name,
+                         "refusal": f"unreadable playbot.json: {exc}"})
+            continue
+        rows.append(triggered_row(str(pb.parents[3].relative_to(runs_root)),
+                                  pb.parents[1].name, text))
+    return rows, len(counted), len(skipped)
+
+
+def triggered_verdict(row: dict) -> dict:
+    """What the tasks/214 repair does to one stored audio.triggered verdict.
+
+    The lock exclusion writes its own signature into the same record: `probe.drive`
+    excluded EVERYTHING, so `total` is 0 and `usable` is False. That shape next to a
+    `scored=True` verdict is exactly the criterion the repair re-scores to
+    `scored=False` - every other field combination is unchanged by it. `total=0`
+    with `usable=True` is a run that happened and emitted nothing: the fail-closed
+    default, deliberately intact. And `scored=False` on SOME criteria is the
+    `diagnostic_only` design, not the lock path.
+    """
+    passed = row["trig"].get("passed")
+    scored = row["trig"].get("scored")
+    if not isinstance(passed, bool) or not isinstance(scored, bool):
+        return {"outcome": "INCOMPLETE_STORED_VERDICTS"}
+    total, usable = row["total"], row["usable"]
+    if not isinstance(total, int) or isinstance(total, bool) or total < 0 \
+            or not isinstance(usable, bool):
+        return {"outcome": "INCOMPLETE_DRIVE_TOTALS"}
+    moves = total == 0 and usable is False and scored
+    return {"outcome": "MOVED" if moves else "UNCHANGED"}
+
+
+def triggered_census(rows: list[dict]) -> dict:
+    moved, refused, failed = [], [], []
+    unchanged = 0
+    for r in rows:
+        if r.get("refusal"):
+            r["result"] = {"outcome": r["refusal"]}
+            refused.append(r)
+            continue
+        res = triggered_verdict(r)
+        r["result"] = res
+        if res["outcome"].startswith("INCOMPLETE"):
+            refused.append(r)
+        elif res["outcome"] == "MOVED":
+            moved.append(r)
+        else:
+            unchanged += 1
+        # Every genuinely failed verdict's evidence is kept for the render to print
+        # verbatim: the manifest-lock path leaves no signature in the record, so the
+        # null is audited by eye rather than by matching the note's words (#30).
+        if r["trig"].get("passed") is False:
+            failed.append(r)
+    return {"rows": len(rows), "carrying": sum(1 for r in rows if "trig" in r),
+            "moved": moved, "refused": refused,
+            "unchanged": unchanged, "failed": failed}
+
+
+def render_triggered(out: dict, reports: int, skipped: int) -> None:
+    print(f"stored reports read {reports}, skipped as not-a-run {skipped}")
+    print(f"playbot.json records read: {out['rows']}")
+    print(f"carrying audio.triggered: {out['carrying']}  unchanged "
+          f"{out['unchanged']}  moved {len(out['moved'])}  "
+          f"refused {len(out['refused'])}")
+    for r in out["moved"]:
+        print(f"\n  MOVED {r['run']}/{r['trial']}: scored True -> False "
+              f"(total={r['total']}, usable={r['usable']})")
+    if out["failed"]:
+        print("\n  every FAILED stored verdict, its evidence verbatim, so the null "
+              "is audited by eye rather than by matching the lock note's words:")
+        for r in out["failed"]:
+            print(f"    {r['run']}/{r['trial']}  {r['result']['outcome']}")
+            print(f"      {r['trig'].get('evidence')!r}")
+    for r in out["refused"]:
+        print(f"\n  REFUSED {r['run']}/{r['trial']}  {r['result']['outcome']}")
+
+
+# --------------------------------------------------------------------------- #
 # selftest
 # --------------------------------------------------------------------------- #
 
@@ -507,6 +654,125 @@ def selftest() -> int:
                      f"{out['unchanged']}, refused {len(out['refused'])}; "
                      f"expected 1, 1, 0")
 
+    # -- tasks/214: the playbot-record rule (audio.triggered, tier 2) ------
+    # The repair's trigger is stored twice over: the lock exclusion makes drive
+    # return total=0 with usable=False, and the old code then scored the criterion
+    # anyway. That shape, next to a scored=True verdict, is what moves.
+    def trig_row(label: str, crit: dict, total: object, usable: object,
+                 want_outcome: str) -> None:
+        nonlocal checks
+        checks += 1
+        got = triggered_verdict({"run": "r", "trial": label, "trig": crit,
+                                 "total": total, "usable": usable})
+        if got["outcome"] != want_outcome:
+            fails.append(f"{label}: {got['outcome']}, expected {want_outcome}")
+
+    scored_trig = {"id": "audio.triggered", "passed": False, "scored": True,
+                   "evidence": "no events at all"}
+    # THE DEFECT SHAPE: everything excluded, the criterion scored regardless.
+    trig_row("lock-shaped, old verdict scored", dict(scored_trig), 0, False, "MOVED")
+    # A healthy drive, and the diagnostic_only design: criteria unscored while OTHERS
+    # scored, usable=True. 19 stored rows carry that; none of them is the lock path.
+    trig_row("healthy drive", {**scored_trig, "passed": True}, 5, True, "UNCHANGED")
+    trig_row("diagnostic_only only", dict(scored_trig), 4, True, "UNCHANGED")
+    # A run that happened and emitted nothing: total=0 with usable=True is the
+    # fail-closed default, NOT the lock path. The stored rust-compile failures have
+    # exactly this shape, and the repair must not touch them.
+    trig_row("ran and emitted nothing", dict(scored_trig), 0, True, "UNCHANGED")
+    # Already excluded - a record written after the repair: moves nothing.
+    trig_row("already unscored", {**scored_trig, "scored": False}, 0, False,
+             "UNCHANGED")
+    # A verdict or a drive total that is not what the rule reads: refused, never
+    # read through a fallback. A bool total is not an int count.
+    trig_row("scored as a string", {**scored_trig, "scored": "true"}, 0, False,
+             "INCOMPLETE_STORED_VERDICTS")
+    trig_row("scored missing", {"id": "audio.triggered", "passed": False}, 0, False,
+             "INCOMPLETE_STORED_VERDICTS")
+    trig_row("total as a string", dict(scored_trig), "0", False,
+             "INCOMPLETE_DRIVE_TOTALS")
+    trig_row("total as a bool", dict(scored_trig), False, False,
+             "INCOMPLETE_DRIVE_TOTALS")
+    # A negative total is not a count either: an int that no drive could have
+    # written is a malformed record, not a shape the movement rule can read.
+    trig_row("total negative", dict(scored_trig), -1, False,
+             "INCOMPLETE_DRIVE_TOTALS")
+    trig_row("usable missing", dict(scored_trig), 0, None,
+             "INCOMPLETE_DRIVE_TOTALS")
+
+    # ...and the aggregate over 2 rows, one moving, one not, both failed-and-thus
+    # printed as evidence for the eye.
+    agg = triggered_census([
+        {"run": "r", "trial": "moves", "trig": dict(scored_trig),
+         "total": 0, "usable": False},
+        {"run": "r", "trial": "steady", "trig": dict(scored_trig),
+         "total": 4, "usable": True},
+    ])
+    checks += 1
+    if (len(agg["moved"]), agg["unchanged"], len(agg["failed"]),
+            len(agg["refused"]), agg["carrying"]) != (1, 1, 2, 0, 2):
+        fails.append(f"triggered census over 2 rows: moved {len(agg['moved'])}, "
+                     f"unchanged {agg['unchanged']}, failed {len(agg['failed'])}, "
+                     f"refused {len(agg['refused'])}, carrying {agg['carrying']}; "
+                     f"expected 1, 1, 2, 0, 2")
+
+    # -- tasks/214, review round 3: an unreadable or ambiguous record is an
+    # explicit refusal, never a crash and never a silent skip. The record EXISTS,
+    # so it is in the population; a reason not to classify it is a reason to
+    # REPORT, not to drop.
+    def trig_text(label: str, text: str, want_refusal: str | None) -> None:
+        nonlocal checks
+        checks += 1
+        row = triggered_row("r", label, text)
+        got = row.get("refusal")
+        if want_refusal is None:
+            if got is not None:
+                fails.append(f"{label}: refused ({got}), expected a classifiable row")
+        elif got is None or want_refusal not in got:
+            fails.append(f"{label}: refusal {got!r}, expected it to name "
+                         f"{want_refusal!r}")
+
+    good = json.dumps({"total": 4, "usable": True, "criteria": [
+        {"id": "state", "passed": True, "scored": True},
+        dict(scored_trig),
+    ]})
+    trig_text("healthy record", good, None)
+    # A record that classifies must carry exactly one audio.triggered...
+    checks += 1
+    row = triggered_row("r", "healthy", good)
+    if row.get("total") != 4 or row.get("trig", {}).get("id") != "audio.triggered":
+        fails.append(f"healthy record row: total={row.get('total')}, "
+                     f"trig id={row.get('trig', {}).get('id')}")
+    trig_text("invalid JSON", "{not json", "unreadable")
+    trig_text("not an object", json.dumps([1, 2]), "not a JSON object")
+    trig_text("no criteria list", json.dumps({"total": 0, "usable": False}),
+              "no criteria list")
+    trig_text("zero triggers", json.dumps({"total": 0, "usable": False,
+                                           "criteria": []}),
+              "0 audio.triggered criteria, exactly 1 required")
+    trig_text("duplicate triggers", json.dumps({"total": 0, "usable": False,
+                                                "criteria": [dict(scored_trig),
+                                                             dict(scored_trig)]}),
+              "2 audio.triggered criteria, exactly 1 required")
+    # ...and a refusal row reaches the census's refused bin, with its outcome.
+    agg2 = triggered_census([
+        triggered_row("r", "broken", "{not json"),
+        {"run": "r", "trial": "steady", "trig": dict(scored_trig),
+         "total": 4, "usable": True},
+    ])
+    checks += 1
+    if (len(agg2["refused"]), agg2["unchanged"], len(agg2["moved"]),
+            agg2["carrying"]) != (1, 1, 0, 1):
+        fails.append(f"triggered census with a refusal row: refused "
+                     f"{len(agg2['refused'])}, unchanged {agg2['unchanged']}, "
+                     f"moved {len(agg2['moved'])}, carrying {agg2['carrying']}; "
+                     f"expected 1, 1, 0, 1")
+    checks += 1
+    if not agg2["refused"] or not agg2["refused"][0]["result"]["outcome"].startswith(
+            "unreadable"):
+        fails.append(f"refusal row outcome: "
+                     f"{agg2['refused'][0]['result']['outcome'] if agg2['refused'] else 'none'}; "
+                     f"expected it to name the record's own defect")
+
     print(f"{checks} expectations checked, {len(fails)} unmet")
     for f in fails:
         print(f"  FAIL {f}")
@@ -520,6 +786,9 @@ def main() -> int:
                     help="the MAIN CHECKOUT's eval/runs (gitignored; never guessed)")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--triggered", action="store_true",
+                    help="census audio.triggered in the stored playbot.json records "
+                         "instead of the programmatic audio block (tasks/214)")
     ap.add_argument("--report", type=Path,
                     help="one stored report.json: print its stored verdicts beside the "
                          "recomputed ones. Prove the extraction on a row whose answer "
@@ -558,6 +827,22 @@ def main() -> int:
                  "against an empty tree reports that nothing moved")
     if not a.runs_root.is_dir():
         ap.error(f"{a.runs_root} is not a directory")
+    if a.triggered:
+        rows, reports, skipped = triggered_rows(a.runs_root)
+        out = triggered_census(rows)
+        if a.json:
+            print(json.dumps({
+                "reports": reports, "skipped": skipped, "rows": out["rows"],
+                "carrying": out["carrying"], "unchanged": out["unchanged"],
+                "moved": [{"run": r["run"], "trial": r["trial"]}
+                          for r in out["moved"]],
+                "refused": [{"run": r["run"], "trial": r["trial"],
+                             "outcome": r["result"]["outcome"]}
+                            for r in out["refused"]],
+            }, indent=2))
+        else:
+            render_triggered(out, reports, skipped)
+        return 0
     rows, reports, skipped = load(a.runs_root)
     out = census(rows)
     if a.json:
