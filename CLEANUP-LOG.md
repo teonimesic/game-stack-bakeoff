@@ -1252,3 +1252,83 @@ withdrawn register's "instead" commands point operators at (`WR-paired-verdict-t
 `WR-paired-evidence-diff`, `WR-capture-default-62-of-68`). A stale citation is a
 wrong door; a wrong producer behind a corrected citation is the room behind it.
 Neither appears in this log.
+
+## 2026-08-29 (seventh pass) — the rooms behind the register's corrected citations
+
+**Area:** `eval/judge/paired_verdicts.py` (463 lines) and `eval/judge/capability.py`
+(766 lines), both read whole — the sixth pass's named pointer, and the producers three
+withdrawal-register entries point operators at (`WR-paired-verdict-tie`,
+`WR-paired-evidence-diff`, `WR-capture-default-62-of-68`). The sixth pass's framing held:
+a stale citation is a wrong door; this pass opened the rooms.
+
+### Found
+
+- **Two latent fail-open channels in `paired_verdicts.load()`, filed as task 209.** A
+  report whose trial id does not split into `game__stack__slot` is `continue`d away at
+  the walk, and a criterion carrying `id` without `passed` is dropped from BOTH sides of
+  a cell — the second vanishing from paired AND unpaired. Neither is counted or named
+  anywhere, in a module whose docstring spends three refusals on refusing to smooth
+  things over. The sibling module solved the first shape (capability's gate counts a
+  record whose class it cannot name, "counted rather than quietly skipped").
+- **capability's gate docstring overclaims `stack_cannot`, filed as task 210.** The
+  docstring's "Four ways to fail" lists a `stack_cannot` null third, and the constant's
+  own comment says "GATE FAILURE" — but no predicate fires on the reason as such. It is
+  caught only through the per-field asymmetry path, which needs a populated arm beside
+  it; a `stack_cannot` every arm of a cell marks exits 0.
+- **Both measured LATENT on the stored corpus** (2026-08-29, by script over the tree):
+  85 report.json walked, 0 malformed tids, 0 passed-less criteria, 0 `stack_cannot`
+  reasons, 0 unknown-class records. Nothing live is miscounted; both tickets are about
+  the channel, not a wrong number, which is why each is p5.
+
+### Cleared — examined and judged sound
+
+- **The 85-vs-69 walk-count difference between the two producers is designed behaviour,
+  verified rather than assumed.** The 16 extra report.json are exactly
+  `wg-g4c-capgate/capped` and `/uncapped`'s arms — no trial JSONs, no programmatic.json —
+  and paired_verdicts walks them, reads terminal reason `unknown`, and excludes them BY
+  NAME in its EXCLUDED CELLS. That is the docstring's refusal 3 demonstrated by the
+  corpus it was written from. A reader comparing the two modules' corpus counts now has
+  the reconciliation in writing.
+- **Every figure the withdrawal register quotes from these modules reproduces today,
+  unpiped:** paired's corpus pins 436/5/332 (matrix ALL_TIERS), 232/0/120, 280/4/176, and
+  the discriminating delta-156 pin; capability's resolution census "64 of the 69 records
+  swept captured at exactly the starter default 640x400; 3 varied (420x640, 720x540,
+  768x576); 2 have no geometry" — the exact sentence `WR-capture-default-62-of-68`
+  quotes. The register's corrected citations point at rooms that hold.
+- **Both selftests are gated, and the one deliberate exclusion is stated where a reader
+  meets it:** `gates.yml:321` runs capability_selftest; `gates.yml:412` runs
+  paired_verdicts' SYNTHETIC half, with "(corpus pins need eval/runs)" in the step name —
+  the reason the corpus half is CI-absent is the name of the step, not a silent gap.
+  Both exited 0 unpiped this pass.
+- **capability's structural defences held under reading:** `STARTER_DEFAULT_GEOMETRY`
+  is double-stated (constant here, sources in the starters) and capability_selftest
+  asserts the two agree per arm — rule 12 in code, run green; `observe_doc` lets frames
+  on disk beat the summary and records the disagreement (#60's shape, guarded);
+  the null-reason catch-all keeps `fields` and `reason` in step; `distribution` prints
+  `n` and `populated` separately rather than aggregating over a mixed group (rule 4);
+  every table is per task class and `_by_run_class_stack` keys class into the group key,
+  so a game field cannot cover a scene gap. Task 185's TRIAL_RE fix is in the shipped
+  code (the `[gs]` class letter).
+- **paired's refusals are pinned, not narrated:** the tier-set refusal has the delta-156
+  corpus pin as its discriminating test ("were these equal the first refusal would be
+  decoration", in the code); suite changes are reported as `unpaired-criteria` rather
+  than dropped; pooled rows are labelled COUNT-not-rate in the output itself; and the
+  docstring carries its own corrected arithmetic ("said six times until re-derived" —
+  12 against 2, the real comparison), which is the self-correction living beside the
+  claim it fixed.
+
+### Method note
+
+The pointer came from the withdrawal register: three `instead:` commands name producers,
+and the pass ran each one rather than reading code cold. That ordering found the
+85-vs-69 question (two producers, one corpus, two counts) before any code reading —
+and the answer was designed behaviour, which would have been easy to "fix" into a defect
+from the code alone. The two filed channels were found the other way round: reading the
+drop sites against the sibling module's handling of the identical shape.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/ink_window_control.py` — the last withdrawal-register `instead:` producer
+this log has not opened (`WR-ink-arrangement-0-91667` points at it). Taking it completes
+the register-coverage thread this pass and the sixth pass followed: every corrected
+citation in `eval/withdrawn.json` has then had its room opened and read.
