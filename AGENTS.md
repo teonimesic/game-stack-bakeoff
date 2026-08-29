@@ -399,9 +399,9 @@ Four identifier namespaces here are allocated by hand — task ids, finding numb
 pack labels — and every one has collided. Three are gated. The gates catch the collision;
 `--renumbered` is the only thing that asks what the collision broke — over every tracked file,
 documents and code alike, since its corpus was widened after 8 stale code-file citations had been
-found only by reading while it ran green (#118, #211; the widening's rows and today's standing
-report both re-derive from `python3 eval/tools/docstat.py --renumbered`) — and it decides about a
-third of what it reports and hands you the rest to read. **Never renumber a finding to satisfy a
+found only by reading while it ran green (#118, #211). Of the first widened run's 15 rows it
+decided 8 and handed 7 to a person; at HEAD the same producer reports 0 stale, 0 untriaged of 37
+(`python3 eval/tools/docstat.py --renumbered`). **Never renumber a finding to satisfy a
 citation** — the number in `eval/findings/` is published, and the citation is what is wrong.
 
 ## Decide it yourself unless it is genuinely the operator's call

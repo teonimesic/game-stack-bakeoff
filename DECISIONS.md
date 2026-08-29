@@ -3890,17 +3890,23 @@ undecidable list contains correct rows by construction. Widening the corpus wide
 it does not change that arithmetic.
 
 **The corpus is asserted, not promised.** `--selftest` pins it three ways: a walking oracle that
-never consults git's listing must intersect the tracked set exactly inside the corpus; a fixture
+never consults git's listing requires every tracked citing file it finds to be inside the corpus,
+with `eval/tools/docstat.py` present in both sets as the row whose answer is stateable in
+advance — the pin is one-directional and says so; a fixture
 repo pins a stale code citation at a historical commit as REPORTED and its two correct twins as
-not; and reverting the corpus to md-only is a red mutant (8 pins fail, the oracle names the
-unread code files). Re-measured at handback 2026-08-29, by reverting the selector to
+not; and reverting the corpus to md-only is a red mutant (9 pins fail, the oracle names the
+unread code files). Re-measured 2026-08-29 after the round-3 pins, by reverting the selector to
 `.endswith('.md')` and re-running `_renumbered_corpus_pins`: 4 was the count when first
-written, before the review rounds added pins, and was not re-read when they were. The tracked symlink `.claude/skills` is in the tree, not in the report: a
+written and 8 at the round-2 handback, before the review rounds added pins, and neither was
+re-read when they were. The tracked symlink `.claude/skills` is in the tree, not in the report: a
 skipped, named symlink, like the NUL binaries beside it. The corpus selector and the walking
 oracle ask 1 shared predicate, `_outside_corpus(path, root)` — root-relative with a leading
 separator, so a top-level `runs/` or `target/` is excluded at every depth while the checkout's
 own path is not part of the test — and the fixture holds exclusion probes at the top level and
-under a hostile `runs/` ancestor, 1 pin for each half of that sentence.
+under a hostile `runs/` ancestor, 1 pin for each half of that sentence. Vendored names are path
+components, not substrings: `node_modules_notes.py` and `PackageCache-report.py` sit in the
+fixture corpus and in the walked set, because a name merely containing a vendored name is not a
+vendored tree.
 
 ## Keeping this current
 

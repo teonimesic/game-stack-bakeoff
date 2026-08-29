@@ -109,11 +109,24 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../eval
 ROOT = os.path.dirname(REPO)
-VENDORED = ("PackageCache", "node_modules", "/target/", "/.godot/", "/Library/")
+VENDORED = ("/PackageCache/", "/node_modules/", "/target/", "/.godot/", "/Library/")
 
 
 def is_vendored(p: str) -> bool:
-    return any(v in p for v in VENDORED)
+    """`p` sits in (or under) a vendored analyser tree, so no corpus reads it.
+
+    Every entry is a COMPLETE PATH COMPONENT, delimiters on both sides, and a leading
+    separator is supplied here so a path relative to its root matches too. They were 2
+    bare names + 3 slash-delimited fragments until the round-3 review of PR 88: as raw
+    substrings, a tracked `src/node_modules_notes.py` left the corpus for containing
+    the name - and the walking oracle, which shares this predicate through
+    `_outside_corpus`, could never catch a class of exclusion it performs itself. A
+    control sharing the assumption of the thing it controls is the #37 shape. The pins
+    hold files `node_modules_notes.py` and `PackageCache-report.py` in both the fixture
+    corpus and the walk. A DIRECTORY argument carries its trailing separator, as the
+    walks' prunes pass it.
+    """
+    return any(v in f"/{p}" for v in VENDORED)
 
 
 def _outside_corpus(path: str, root: str) -> bool:
@@ -244,9 +257,13 @@ def _all_skill_files() -> list[str]:
     """
     out = []
     for d, subs, files in os.walk(ROOT):
+        # `s + os.sep`, not bare `s`: a vendored name is a COMPONENT, so a bare name is
+        # not a match - the directory must carry its trailing separator (see
+        # `_github_docs_by_walk`).
         subs[:] = [s for s in subs
-                   if s not in ("runs", "worktrees", ".git") and not is_vendored(s)]
-        if is_vendored(d):
+                   if s not in ("runs", "worktrees", ".git")
+                   and not is_vendored(s + os.sep)]
+        if is_vendored(d + os.sep):
             continue
         if "SKILL.md" in files:
             out.append(os.path.join(d, "SKILL.md"))
@@ -315,11 +332,12 @@ def _github_docs_by_walk(root: str | None = None) -> list[str]:
     base = ROOT if root is None else root
     out = []
     for d, subs, files in os.walk(os.path.join(base, ".github")):
-        # FULL PATHS, because that is what `is_vendored` tests. 3 of the 5 VENDORED
-        # entries are path fragments carrying separators - `/target/`, `/.godot/`,
-        # `/Library/` - so `is_vendored("target")` on a bare directory NAME is False
-        # while `is_vendored(".../target/x.md")` is True. An oracle filtering names
-        # would keep a file the subject drops and redden `--selftest` against a correct
+        # FULL PATHS, because that is what `is_vendored` tests: every entry is a
+        # component delimitied on both sides (all 5 since the round-3 review of PR 88;
+        # before, 2 were bare names and matched a filename MERELY CONTAINING them), so
+        # `is_vendored("target")` on a bare directory NAME is False while
+        # `is_vendored(".../target/x.md")` is True. An oracle filtering names would
+        # keep a file the subject drops and redden `--selftest` against a correct
         # `reference_docs()`: a check that fails on correct input is one that gets
         # disabled. Raised by CodeRabbit on PR #25.
         subs[:] = [s for s in subs if not is_vendored(os.path.join(d, s) + os.sep)]
@@ -5223,6 +5241,15 @@ def _renumber_history_fixture(tmp: str) -> None:
     # membership pin can see it.
     write("runs/secret.py", "value = 4  # the mirror finding is finding #99\n")
     write("target/gen.py", "value = 5  # the stable finding is finding #40\n")
+    # THE VENDORED NAMES ARE COMPONENTS, NOT SUBSTRINGS (review round 3, PR 88): as raw
+    # substrings, a tracked file whose NAME merely contained `node_modules` or
+    # `PackageCache` left the corpus, and the walking oracle - sharing the predicate
+    # through `_outside_corpus` - could never catch a class of exclusion it performs
+    # itself. `src/node_modules_notes.py` cites the stale #99, so a corpus that drops it
+    # also fails to report it; `PackageCache-report.py` cites the never-moved #40, so
+    # only the membership pin sees it.
+    write("src/node_modules_notes.py", "value = 6  # the mirror finding is finding #99\n")
+    write("PackageCache-report.py", "value = 7  # the stable finding is finding #40\n")
     # A VARIANT, not a mutant (rule 15): `.claude/skills` in the real tree is a tracked
     # symlink, the old .md filter never reached it, and the first widened run crashed
     # opening it. Correct input the reader could mishandle.
@@ -5251,7 +5278,8 @@ def _renumber_history_fixture(tmp: str) -> None:
 
     commit("the mirror finding is #99", "2000-01-01T00:00:01 +0000",
            ["eval/findings/a.md", "eval/findings/b.md", "tool.py", "stable.py",
-            "doc.md", "blob.bin", "linked.md", "runs/secret.py", "target/gen.py"])
+            "doc.md", "blob.bin", "linked.md", "runs/secret.py", "target/gen.py",
+            "src/node_modules_notes.py", "PackageCache-report.py"])
     write("eval/findings/a.md", "## 105. the mirror finding\n")
     commit("renumber 99 to 105", "2000-01-01T00:00:02 +0000", ["eval/findings/a.md"])
     write("fresh.py", "value = 3  # the collisions that moved #99 are history here\n")
@@ -5301,12 +5329,14 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
     except Exception as exc:                       # noqa: BLE001 - reported, never raised
         summary = f"the fixture check RAISED: {type(exc).__name__}: {exc}"
     case("fixture: the stale code citation planted at a historical commit is reported, "
-         "and with it the same plant in a document",
-         sorted(r.split(":", 1)[0] for r in stale), ["doc.md", "tool.py"])
+         "and with it the same plant in a document and in a file named after a vendored "
+         "directory",
+         sorted(r.split(":", 1)[0] for r in stale),
+         ["doc.md", "src/node_modules_notes.py", "tool.py"])
     case("fixture: neither the never-moved number, the post-renumber citation, nor "
          "anything else lands in either list",
          [r.split(":", 1)[0] for r in stale + undecided if
-          r.split(":", 1)[0] not in ("doc.md", "tool.py")], [])
+          r.split(":", 1)[0] not in ("doc.md", "tool.py", "src/node_modules_notes.py")], [])
     case("fixture: the binary blob and the tracked symlink are named in the summary "
          "and reported in no row",
          ("blob.bin" in summary, "linked.md (symlink)" in summary,
@@ -5323,6 +5353,12 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
           "target/gen.py" in str(stale + undecided),
           "code/data path(s)" in summary),
          (False, False, False, False, True))
+    case("fixture: vendored names are PATH COMPONENTS - a file whose name merely "
+         "contains one stays in the corpus and is read (review round 3)",
+         ("src/node_modules_notes.py" in corpus, "PackageCache-report.py" in corpus,
+          "node_modules_notes.py" in str(stale),
+          "src/node_modules_notes.py" not in summary),
+         (True, True, True, True))
 
     # Review round 1, on the read loop: a path the listing holds that `git show` cannot
     # produce was `continue`d SILENTLY, and was still counted as read in the summary.
@@ -5394,8 +5430,9 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
     case("hostile root: a tree checked out UNDER runs/ still reads its corpus, reports "
          "its stale row, and is walked - while the repo's own runs/ stays excluded",
          ("tool.py" in str(stale4), len(corpus4) > 0, "tool.py" in walked4,
-          "runs/secret.py" not in walked4, "code/data path(s)" in sum4),
-         (True, True, True, True, True))
+          "runs/secret.py" not in walked4, "code/data path(s)" in sum4,
+          "src/node_modules_notes.py" in corpus4),
+         (True, True, True, True, True, True))
 
     # The oracle half: live tree, walking against the git listing.
     try:
@@ -5428,6 +5465,8 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
             for rel, data in [("deep/pkg/a.py", "# cites finding #99\n"),
                               ("runs/stored.py", "# cites finding #99\n"),
                               ("target/gen.py", "# cites finding #99\n"),
+                              ("src/node_modules_notes.py", "# cites finding #99\n"),
+                              ("PackageCache-notes.py", "# cites finding #99\n"),
                               ("blob.bin", b"\x00 #99 \x00"),
                               ("loose.py", "# cites finding #99\n")]:
                 p = os.path.join(wtmp, *rel.split("/"))
@@ -5435,7 +5474,8 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
                 with open(p, "wb") as fh:
                     fh.write(data if isinstance(data, bytes) else data.encode("utf-8"))
             ok, out = _git_at(wtmp, "add", "--", "deep/pkg/a.py", "runs/stored.py",
-                              "target/gen.py", "blob.bin", extra_env=cfg)
+                              "target/gen.py", "src/node_modules_notes.py",
+                              "PackageCache-notes.py", "blob.bin", extra_env=cfg)
             if not ok:
                 raise RuntimeError(f"the walk fixture could not be built: {out.strip()[:200]}")
             walked_rel = sorted(os.path.relpath(p, wtmp).replace(os.sep, "/")
@@ -5446,15 +5486,20 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
                                           wtmp).replace(os.sep, "/")
                           for f in _renumbered_corpus(hist_w)}
             case("walk: the nested tracked citing file is found; runs/, the vendored "
-                 "tree and the NUL binary are not walked at all",
-                 walked_rel, ["deep/pkg/a.py", "loose.py"])
+                 "tree and the NUL binary are not walked at all; files merely NAMED "
+                 "after vendored names are walked (review round 3)",
+                 walked_rel,
+                 ["PackageCache-notes.py", "deep/pkg/a.py", "loose.py",
+                  "src/node_modules_notes.py"])
             case("walk: the pin's tracked intersection drops the on-disk untracked file",
-                 sorted(r for r in walked_rel if r in tracked_rel), ["deep/pkg/a.py"])
+                 sorted(r for r in walked_rel if r in tracked_rel),
+                 ["PackageCache-notes.py", "deep/pkg/a.py", "src/node_modules_notes.py"])
             case("walk: the corpus keeps the same tracked set the walk walks - the "
                  "top-level runs/ and target/ the walk prunes are outside it too "
                  "(review round 1)",
                  sorted(r for r in corpus_rel if r in tracked_rel),
-                 ["blob.bin", "deep/pkg/a.py"])
+                 ["PackageCache-notes.py", "blob.bin", "deep/pkg/a.py",
+                  "src/node_modules_notes.py"])
     except Exception as exc:                       # noqa: BLE001 - reported, never raised
         case("walk: the fixture ran", f"RAISED {type(exc).__name__}: {exc}", "no raise")
 
