@@ -65,20 +65,12 @@ is the cost this layout exists to remove.
 unquoted that contains `: ` or ` #`.** `tasks.py check` fails on both shapes instead of
 tolerating them: unquoted `: ` makes the file unparseable, and unquoted ` #` starts a YAML
 comment that silently truncates the parsed value while the file keeps the full text — `check`
-exits 1 naming the field, and the repair is quoting the value. tasks/214's title lived
-truncated this way for the file's whole life while `check` read the queue clean.
+exits 1 naming the field, and the repair is quoting the value.
 
 What `check` accepts here is defined by `lossy_scalar_fields` in `eval/tools/tasks.py`, not by
 this paragraph — if the two ever disagree, it wins and this paragraph is the bug. Both
 directions are pinned by `eval/tools/tasks_control.py` direction 12, with the mutants in
 `eval/tools/tasks_mutants.py`.
-
-The history is worth knowing because both failures were silent. Until 2026-08-23 the
-reader split each line on its first colon, so 44 of 58 files raised `ScannerError` — and, worse,
-9 more parsed *without error* and came back truncated: `refs: eval/FINDINGS.md #53, blocked by
-task 01` loaded as `eval/FINDINGS.md`, because ` #` starts a YAML comment. An external reader
-got a plausible wrong answer rather than a failure. That truncation shape is exactly what the
-scalar check above now fails on.
 
 The id is deliberately left as bare digits (`id: 07`, not `id: '07'`), so a worktree still
 running an older `tasks.py` can find tasks by id. Everything else the serialiser quotes as

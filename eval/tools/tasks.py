@@ -968,6 +968,14 @@ def lossy_scalar_fields(text: str, parsed: dict) -> list[str]:
     # note` would otherwise compare the STRING "['one']" against a carrier that begins
     with it and fire on a value that lost nothing (found in review on task 216; pinned
     in `tasks_control.py` direction 12).
+
+    The block is parsed here a SECOND time, so a ticket rewritten between the queue's
+    load and this read can fail HERE and not at the load. The contract is PROPAGATE:
+    a block that does not parse raises `yaml.YAMLError` or `ValueError` (the latter via
+    the constructor, `!!int '08'` -- the shape `_read_fm` already guards), and the
+    caller `cmd_check` turns that into a named failure with exit 1. Never swallow a
+    parse failure to `[]`: that would read as "nothing lost" over a file whose contents
+    are in doubt. Both halves are pinned in `tasks_control.py` direction 12.
     """
     m = _FM_RE.match(text)
     if m is None:
@@ -1435,6 +1443,22 @@ def cmd_check() -> int:
             lost = lossy_scalar_fields(t["path"].read_text(encoding="utf-8"), t)
         except (OSError, UnicodeDecodeError) as exc:
             bad.append(f"{t.get('id')}: unreadable while checking scalar loss: {exc}")
+            lost = []
+        except (yaml.YAMLError, ValueError) as exc:
+            # A peer can rewrite a shared ticket between `_load`'s parse and THIS re-read,
+            # and the re-read's frontmatter then fails the SECOND `yaml.safe_load` inside
+            # `lossy_scalar_fields` -- a path the malformed-file report above cannot
+            # reach, because the file parsed when the queue was loaded. Fail the file BY
+            # NAME. A traceback here also exits 1 and reads as "the check failed the
+            # queue" when it is the check that died; swallowing the error to [] would
+            # read as clean over a file whose contents are in doubt. ValueError as well
+            # as YAMLError, and it is the same decision `_read_fm` documents: `!!int '08'`
+            # scans and parses cleanly, then fails in the constructor, escaping a
+            # YAMLError-only handler. One mid-check rewrite costs one named failure
+            # (review round 2 on tasks/216; pinned in `tasks_control.py` direction 12).
+            bad.append(f"{t.get('id')}: frontmatter did not parse while checking scalar "
+                       f"loss: {exc} - the ticket changed between the queue's load and "
+                       f"this read; re-run")
             lost = []
         for key in lost:
             bad.append(f"{t.get('id')}: `{key}` parses shorter than its line wrote it - "

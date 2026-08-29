@@ -1791,6 +1791,38 @@ def lossy_check_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
         green[f"{tid}-c.md"] = blob
     run("`check` on the four hash-following-non-whitespace lines and the repaired 214 "
         "title (the greens, together)", green, 0, "well-formed")
+
+    # THE TORN-WRITE RACE, WITH THE FAULT INJECTED AT ITS LINE (review round 2, task 216).
+    # A peer can rewrite a shared ticket between `_load`'s parse and `check`'s re-read, and
+    # the re-read's frontmatter then fails `yaml.safe_load` INSIDE `lossy_scalar_fields` --
+    # a path the malformed-file report cannot reach, because the file parsed when the queue
+    # was loaded. Timing cannot be staged deterministically, so the raise is injected at
+    # the exact line in a scratch copy of the subject. The requirement is the REPORTING:
+    # exit 1 with the ticket NAMED and no traceback. A traceback also exits 1 -- it would be
+    # read as "the check failed the queue" when it is the check itself that died -- and a
+    # swallowed error would read as clean. Neither is a result.
+    torn_main, _ = _scratch_pair(tmp / "lossy-torn-write")
+    torn_subject = torn_main / "eval/tools/tasks.py"
+    base = TASKS_PY.read_text(encoding="utf-8")
+    needle = "    raw_map = yaml.safe_load(m.group(1))"
+    n_needle = base.count(needle)
+    if n_needle != 1:
+        rows.append(("torn-write fault injection applied to the subject copy",
+                     0, False,
+                     f"expected exactly 1 occurrence of the raw-map read, found "
+                     f"{n_needle} - the injection would not land where it names"))
+    else:
+        torn_subject.write_text(base.replace(
+            needle, '    raise yaml.YAMLError("torn mid-write")\n' + needle))
+        (torn_main / "tasks" / "70-a.md").write_text(
+            _task_file("70", done_when="something observable"))
+        rc, out = _run_tool(torn_subject, "check")
+        rows.append(("`check` on a frontmatter that fails its second parse (injected "
+                     "raise) exits 1 NAMING the ticket, not a traceback",
+                     rc, rc == 1 and "frontmatter did not parse" in out
+                     and "70" in out and "Traceback" not in out,
+                     f"got exit {rc}; "
+                     f"{'clean named report' if 'Traceback' not in out else 'TRACEBACK'}"))
     return rows, unchecked
 
 
@@ -1912,6 +1944,32 @@ def lossy_predicate_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
         rows.append((f"predicate {name}", 0, fired == want,
                      f"fired on {fired}, want {want}"))
 
+    # A FRONTMATTER BLOCK THAT DOES NOT PARSE. The predicate reads the block with its own
+    # `yaml.safe_load` - a SECOND parse of bytes the queue already parsed once - so a peer
+    # rewriting a shared ticket between `_load` and this read can fail HERE and not at the
+    # load. The contract is PROPAGATE, and it fails closed in the caller (`check` names the
+    # ticket and exits 1; review round 2 on task 216): swallowing a parse failure to `[]`
+    # would read as "nothing lost" over a file whose contents are in doubt. The ValueError
+    # fixture is not padding: `!!int '08'` scans and parses cleanly and fails in the
+    # CONSTRUCTOR, escaping a YAMLError-only handler - the same shape `_read_fm` already
+    # guards (its comment records the takedown of `list` and `next`).
+    for what, broken in (
+            ("an unterminated flow sequence (`title: [`, a yaml.YAMLError)",
+             "---\nid: 70\ntitle: [\nstatus: todo\npriority: 3\nrefs: ''\n"
+             "done_when: something observable\n---\n\nbody\n"),
+            ("a constructor failure (`title: !!int '08'`, a ValueError)",
+             "---\nid: 70\ntitle: !!int '08'\nstatus: todo\npriority: 3\nrefs: ''\n"
+             "done_when: something observable\n---\n\nbody\n")):
+        _, torn_meta = _scratch_task(broken, scratch / "torn")
+        raised: BaseException | None = None
+        try:
+            pred(broken, torn_meta)
+        except (yaml.YAMLError, ValueError) as exc:
+            raised = exc
+        rows.append((f"predicate PROPAGATES a block that does not parse: {what}",
+                     0, isinstance(raised, (yaml.YAMLError, ValueError)),
+                     f"raised {type(raised).__name__ if raised else 'nothing'}"))
+
     # THE CENSUS, RE-RUN EVERY TIME INSTEAD OF QUOTED. 0 lossy scalars over 1593 scalar
     # lines, measured 2026-08-29 (tasks/216); the row below re-derives the 0 against
     # whatever the shared queue holds now, so a peer introducing the shape turns this red
@@ -1935,8 +1993,21 @@ def lossy_predicate_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
                                  f"{t.get('id')} ({t['path'].name}): {exc}. Not a pass: "
                                  f"the 0 is only over tickets it could read")
                 continue
+            try:
+                lost_keys = pred(text, t)
+            except (yaml.YAMLError, ValueError) as exc:
+                # The predicate parses the block a SECOND time (`lossy_scalar_fields`'s own
+                # `yaml.safe_load`), so a ticket rewritten between `_load` and here can
+                # fail HERE and not at the load. Same rule as the read above: the census
+                # shrinks loudly rather than crashing on one member (review round 2,
+                # task 216).
+                unchecked.append(f"live-queue scalar census skipped ticket "
+                                 f"{t.get('id')} ({t['path'].name}): its frontmatter did "
+                                 f"not parse on the second read ({exc}). Not a pass: "
+                                 f"the 0 is only over tickets it could read")
+                continue
             n += 1
-            lost += [f"{t.get('id')}.{k}" for k in pred(text, t)]
+            lost += [f"{t.get('id')}.{k}" for k in lost_keys]
         rows.append((f"live queue: no frontmatter scalar parses shorter than its line "
                      f"wrote (0 of {n} tickets)", len(lost), not lost,
                      "clean" if not lost else f"LOSSY: {', '.join(sorted(lost)[:6])}"))

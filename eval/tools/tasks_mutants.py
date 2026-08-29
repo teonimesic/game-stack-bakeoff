@@ -177,6 +177,17 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         '        if " #" in line:  # MUTANT: the character vocabulary the ticket ruled out',
         ("the four hash-following-non-whitespace lines and the repaired 214 title",
          "quiet on a quoted value whose ` #` the quotes protect")),
+    # THE TORN-WRITE ARM, REMOVED. A peer rewriting a shared ticket between `_load` and
+    # `check`'s re-read makes the SECOND `yaml.safe_load` inside `lossy_scalar_fields`
+    # fail; the handler turns that into a NAMED failure with exit 1. Delete the handler
+    # and the raise escapes as a traceback -- which ALSO exits 1, so only the row that
+    # reads the report (named entry present, traceback absent) can tell the check died
+    # from the check failing (review round 2, task 216).
+    "lossy_swallows_parse_error": (
+        "        except (yaml.YAMLError, ValueError) as exc:",
+        "        except () as exc:  # MUTANT: the torn-write raise escapes as a traceback",
+        ("`check` on a frontmatter that fails its second parse (injected raise) exits 1 "
+         "NAMING the ticket, not a traceback",)),
     # THE STATUS VOCABULARY. Dropping a value is the shape a half-landed rename takes, and it
     # is invisible to every row that only asks whether a WRONG status fails: `wip` is still
     # rejected with 4 values, or with 1. Two rows must notice -- the one that puts a file in
