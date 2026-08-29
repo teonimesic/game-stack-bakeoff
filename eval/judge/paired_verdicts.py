@@ -65,11 +65,12 @@ level deeper - `wg-g4c-capgate/capped` and `/uncapped` are two such - and a walk
 silently skips runs reports a floor over a population it did not describe.
 
 A record the walk REACHES but cannot classify is not dropped silently either: a report
-whose trial id is not `game__stack__slot`, and a criterion carrying `id` without
-`passed`, are counted as skips and named beside the excluded cells - the rule
-`capability.no_stack_correlated_gap` enforces elsewhere, that a record the module
-cannot name is a counted problem with its name attached. Neither reaches a
-denominator, a cell or the unpaired count. Both channels were empty over the stored
+whose trial id is not a usable `game__stack__slot` (wrong number of parts, or a part
+empty), and a criterion carrying `id` without `passed`, are counted as skips and named
+beside the excluded cells - the rule `capability.no_stack_correlated_gap` enforces
+elsewhere, that a record the module cannot name is a counted problem with its name
+attached. Neither reaches `paired`, a cell, or a verdict or evidence difference; the
+unpaired count stays about the suites. Both channels were empty over the stored
 tree when measured (2026-08-29, 85 reports walked); this is the channel closed before
 a future run directory - judge packs land inside run directories (#83) - puts a
 differently-shaped directory under `artifacts/` and narrows the floor in silence.
@@ -138,15 +139,20 @@ def load(runs_root: Path, only_run: str | None = None
     `capability.no_stack_correlated_gap` enforces elsewhere: a record the module
     cannot name is a counted problem with its name attached. Two classes:
 
-      - a report whose trial id is not `game__stack__slot`, which no cell can
-        hold because nothing can say which game and stack it belongs to;
+      - a report whose trial id is not a usable `game__stack__slot` - the wrong
+        number of parts, or a part empty, so no cell can hold it: nothing can
+        say which game and stack it belongs to;
       - a criterion carrying `id` without `passed` (or the reverse), which has
         no verdict to pair. A named one joins the row's `skipped_crits`, so
         `count_cell` can tell a malformed record from a suite change; one with
         no `id` has no key and lives only on this list.
 
-    Neither class reaches a denominator, a cell or the unpaired count;
-    `render()` prints every skip beside the excluded cells.
+    Neither class reaches `paired`, a cell, or a verdict or evidence
+    difference. The unpaired count is about the SUITES, not the records: a
+    criterion one trial recorded and the other never did stays a suite
+    difference whatever became of the record, and the skip line classifies
+    the record without editing that count. `render()` prints every skip
+    beside the excluded cells.
     """
     rows: list[dict] = []
     skips: list[tuple[str, str]] = []
@@ -157,9 +163,9 @@ def load(runs_root: Path, only_run: str | None = None
             continue
         tid = rep.parent.parent.name
         parts = tid.split("__")
-        if len(parts) != 3:
-            skips.append((run, f"{tid}: trial id is not 3 `__`-separated parts "
-                          f"(game__stack__slot) - walked, reaches no cell"))
+        if len(parts) != 3 or not all(parts):
+            skips.append((run, f"{tid}: trial id is not 3 non-empty `__`-separated "
+                          f"parts (game__stack__slot) - walked, reaches no cell"))
             continue
         game, stack, slot = parts
         rec = json.loads(rep.read_text())
@@ -173,8 +179,8 @@ def load(runs_root: Path, only_run: str | None = None
                     missing = [k for k in ("id", "passed") if k not in c]
                     label = c["id"] if "id" in c else "<no id>"
                     skips.append((run, f"{tid} {tier}:{label}: criterion carries no "
-                                  f"`{'` and no `'.join(missing)}` - not paired, "
-                                  f"not unpaired"))
+                                  f"`{'` and no `'.join(missing)}` - no verdict "
+                                  f"to pair"))
                     if "id" in c:
                         skipped_crits.add((tier, c["id"]))
         rows.append({"run": run, "tid": tid, "game": game, "stack": stack, "slot": slot,
@@ -210,10 +216,12 @@ def count_cell(cell: list[dict], tiers: tuple[str, ...]) -> Counts:
     a, b = (r["crits"] for r in cell)
     ka = {k for k in a if k[0] in tiers}
     kb = {k for k in b if k[0] in tiers}
-    # `unpaired` means the two gradings recorded different suites. A record one
-    # trial made but could not score - `id` without `passed` - is still a record:
-    # it joins the key set for this comparison (named on the skip list at load),
-    # so a malformed record never reads as a suite change.
+    # `unpaired` means the two gradings recorded different suites - RECORDED,
+    # not scoreable. A record one trial made but could not score - `id` without
+    # `passed` - is still a record: it joins the key set for this comparison
+    # (named on the skip list at load), so a criterion both trials recorded
+    # never reads as a suite change just because one record is malformed. A
+    # criterion the other trial never recorded at all stays a suite difference.
     ka_all = ka | {k for k in cell[0]["skipped_crits"] if k[0] in tiers}
     kb_all = kb | {k for k in cell[1]["skipped_crits"] if k[0] in tiers}
     c = Counts(unpaired_criteria=len(ka_all ^ kb_all))
@@ -381,9 +389,14 @@ def _synthetic(root: Path) -> None:
            "completed")
     _write(root, "r6/armA", "g1", "s1", "t1", {"playbot": [("a", False, "E")]},
            "completed")
-    # r7: a report the walk REACHES whose trial id is not game__stack__slot. No
-    # trial JSON: load() must classify the tid before it ever reads a reason.
+    # r7: reports the walk REACHES whose trial id is not a usable
+    # game__stack__slot - a 1-part tid, and a 3-part tid whose game field is
+    # empty. No trial JSON: load() must classify the tid before it ever reads a
+    # reason.
     _write_raw(root, "r7", "weird-tid",
+               {"playbot": {"criteria": [{"id": "a", "passed": True, "evidence": "E"}]}},
+               None)
+    _write_raw(root, "r7", "__s1__t0",
                {"playbot": {"criteria": [{"id": "a", "passed": True, "evidence": "E"}]}},
                None)
     # r8: one cell; `bad` carries `id` without `passed` on BOTH sides - named
@@ -403,6 +416,16 @@ def _synthetic(root: Path) -> None:
                "completed")
     _write_raw(root, "r9", "g1__s1__t1",
                {"playbot": {"criteria": [{"id": "half", "evidence": "E"}]}}, "completed")
+    # r10: t0 recorded `solo` and a malformed `broken`; t1's grading recorded
+    # neither. Both criteria sit in exactly one grading's suite - a suite
+    # difference each - whatever became of the records; `broken`'s own
+    # classification is the skip line, not an edit to this count.
+    _write_raw(root, "r10", "g1__s1__t0",
+               {"playbot": {"criteria": [
+                   {"id": "solo", "passed": True, "evidence": "E"},
+                   {"id": "broken", "evidence": "E"}]}}, "completed")
+    _write_raw(root, "r10", "g1__s1__t1",
+               {"playbot": {"criteria": []}}, "completed")
 
 
 def _synthetic_checks(root: Path) -> None:
@@ -454,11 +477,13 @@ def _synthetic_checks(root: Path) -> None:
     # tid is red because it is COUNTED: were `rows == []` the only expectation, a
     # walker that stopped globbing would pass this fixture too.
     rows7, skips7 = load(root, "r7")
-    expect("MUTANT: a 2-part trial id reaches no cell - its verdicts pool with nothing",
+    expect("MUTANT: a trial id without a usable game__stack__slot reaches no cell",
            rows7 == [], f"{rows7}")
-    expect("...and the walk names it: one skip, carrying the tid as its name",
-           len(skips7) == 1 and skips7[0][0] == "r7"
-           and "weird-tid" in skips7[0][1] and "game__stack__slot" in skips7[0][1],
+    expect("...and the walk names both: a 1-part tid and an empty game field",
+           len(skips7) == 2 and all(s == "r7" for s, _ in skips7)
+           and all("game__stack__slot" in d for _, d in skips7)
+           and any("weird-tid" in d for _, d in skips7)
+           and any("__s1__t0" in d for _, d in skips7),
            f"{skips7}")
 
     # A criterion carrying `id` without `passed` has no verdict to pair. On BOTH
@@ -492,12 +517,26 @@ def _synthetic_checks(root: Path) -> None:
            len(skips9) == 1 and "g1__s1__t1" in skips9[0][1]
            and "playbot:half" in skips9[0][1], f"{skips9}")
 
+    # A criterion one grading recorded and the other never did is a suite
+    # difference - RECORDED is the column's definition, and the malformed record
+    # was still a record. Removing only the opposite-side skips from valid keys
+    # here would return 1 and hide `broken` entirely; the stated answer is 2.
+    rows10, skips10 = load(root, "r10")
+    c10 = census(rows10, DETERMINISTIC)[0][("r10", "g1")]
+    expect("POSITIVE: a suite difference stays counted when the one side that "
+           "recorded it recorded it malformed",
+           c10.unpaired_criteria == 2 and c10.paired == 0,
+           f"paired={c10.paired} unpaired={c10.unpaired_criteria}")
+    expect("...and the malformed record is named while the count stands",
+           len(skips10) == 1 and "g1__s1__t0" in skips10[0][1]
+           and "playbot:broken" in skips10[0][1], f"{skips10}")
+
     rows_all, skips_all = load(root)
     found = {r["run"] for r in rows_all}
     expect("a run nested one level deeper is found, not skipped",
            "r6/armA" in found, f"{sorted(found)}")
-    expect("the walk's own accounting states every skip it made: 4 over this tree",
-           len(skips_all) == 4, f"{sorted(skips_all)}")
+    expect("the walk's own accounting states every skip it made: 6 over this tree",
+           len(skips_all) == 6, f"{sorted(skips_all)}")
     txt_all = render(rows_all, skips_all)
     expect("a run holding ONLY a skipped report still gets its section",
            "=== r7 ===" in txt_all and "weird-tid" in txt_all, "")
