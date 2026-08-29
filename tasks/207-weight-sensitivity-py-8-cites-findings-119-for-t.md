@@ -8,3 +8,7 @@ done_when: 'The citation names the finding that holds the story it is cited for,
 ---
 
 Found 2026-08-29 while working task 206 (grep for surviving #119 citations in live code, after fixing the two in the judge_ledger/field_sweep pair). eval/judge/weight_sensitivity.py line 8 reads: 'On 2026-08-23 tier 1 became a GATE and overall = tier2 (#119, ...'. The tier-1-gate story ('Tier 1 is now a gate: overall = tier2') is the body of finding 123 (eval/findings/certifies-nothing.md, heading at line 3189, the sentence at line 3233). #119 is the withdrawal-register finding (eval/findings/documentation.md line 955). Same shape as the #119-meant-#121 drift the sixth cleanup pass fixed in judge_ledger.py's docstring - a citation that resolves and means something else. The module was not read whole here, so there may be more where that came from; the fix is citation-only, never renumber the finding.
+
+## pre-dispatch note 2026-08-29
+
+Task 206 has merged (squash f69902e; main at 60d5a2c), so the judge_ledger/field_sweep `#119`->`#121` fixes named above are ON MAIN - do not touch those two sites. The remaining known rows are exactly this ticket's five spot-checks; the module-read-anyway instruction stands, because a citation grep alone is the enumeration shape that missed the pair in the first place.
