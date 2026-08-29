@@ -366,7 +366,7 @@ def triggered_verdict(row: dict) -> dict:
     if not isinstance(passed, bool) or not isinstance(scored, bool):
         return {"outcome": "INCOMPLETE_STORED_VERDICTS"}
     total, usable = row["total"], row["usable"]
-    if not isinstance(total, int) or isinstance(total, bool) \
+    if not isinstance(total, int) or isinstance(total, bool) or total < 0 \
             or not isinstance(usable, bool):
         return {"outcome": "INCOMPLETE_DRIVE_TOTALS"}
     moves = total == 0 and usable is False and scored
@@ -691,6 +691,10 @@ def selftest() -> int:
     trig_row("total as a string", dict(scored_trig), "0", False,
              "INCOMPLETE_DRIVE_TOTALS")
     trig_row("total as a bool", dict(scored_trig), False, False,
+             "INCOMPLETE_DRIVE_TOTALS")
+    # A negative total is not a count either: an int that no drive could have
+    # written is a malformed record, not a shape the movement rule can read.
+    trig_row("total negative", dict(scored_trig), -1, False,
              "INCOMPLETE_DRIVE_TOTALS")
     trig_row("usable missing", dict(scored_trig), 0, None,
              "INCOMPLETE_DRIVE_TOTALS")
