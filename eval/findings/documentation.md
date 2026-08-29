@@ -1507,3 +1507,50 @@ empty.
 Before trusting any census over documents, state the document FEATURE the population lives in
 — prose span, fence, table row, frontmatter — and defend why the defect cannot live in the
 others. A census keyed to one surface reports the others as clean.
+
+## 210. The lie was in the MECHANISM, not the name: a document described a refusal gate that never existed, every name in the claim resolved, the sweep stayed green all seven days — and an operator following it would have erased real data
+
+Task 202, filed by the 2026-08-28 cleanup pass on `field.py`. From 2026-08-21 to 2026-08-28,
+`eval/judge/JUDGING.md` and the header of `eval/tools/frame_parity.py` stated that
+`pack_parity` ran inside `build_pack` and **refused** packs of mixed capture geometry, naming
+re-filming at 640x400 as the remedy for the 420x640 unity trial. `git log -S` over `field.py`
+shows `pack_parity(` entered in the initial squash and **never called at any committed
+revision** — the paragraph described working-tree state no commit ever carried. What the path
+actually does, and had done all along: measure each blind label's geometry from its first
+frame, record `capture_geometry`, and annotate `BRIEF.md` when sizes vary. Refusing was
+rejected on purpose, in the code comment beside the measurement — geometry is a design choice
+the task leaves open, and a refusal path would have forced re-filming `g2_tetris3d__unity__t1`
+(`wg-matrix-2026-08-13`) at 640x400: **the erasure-as-normalisation move the comment warns
+against, prescribed by the document an operator reads first.**
+
+Two structural facts made this invisible to every gate that existed:
+
+- **Every name in the false claim resolved.** `pack_parity` was a real function at a real
+  address; `JUDGING.md` and `frame_parity.py` were real files; `#38`'s sweep — built to catch
+  phantom names — was green throughout. The defect was in what the text claimed the names DO,
+  and no name-level check can read a mechanism claim. It was found by a cleanup pass reading
+  the file whole and checking each claim against callers, the method this log's pass entries
+  repeat and no gate automates.
+- **The described gate would not merely have wasted attention — it pointed at destruction.**
+  The phantom-check findings here (#38 and kin) cost confidence; a phantom REFUSAL with a
+  remedy costs evidence: re-filming is overwriting the thing the instrument exists to measure.
+  The direction of a doc-vs-code lie matters, and the harmful direction reads exactly as
+  authoritative as the harmless one.
+
+The closing measurement is a corpus property and lives where comparability questions are
+asked, in `eval/RUNS.md` (2026-08-28): **67 stored submissions with frames across 7 run dirs,
+804 frames, 0 holding frames of more than one size, 0 unreadable** — the property the
+first-frame read cannot see has never fired in the stored corpus. Producer:
+`python3 eval/tools/frame_parity.py --runs-root <main checkout>/eval/runs`, fixture-pinned in
+both directions and gated; the population agrees with task 182's record-based census, sharing
+no code with this instrument. `pack_parity` is deleted, the decision is in `DECISIONS.md`
+(2026-08-28), and the first-frame read remains a live blind spot for **future** submissions —
+the corpus answer pins nothing going forward, which is why the census's header says to run it
+before trusting any frame-derived number.
+
+> **A false claim whose every proper noun resolves is not a reference defect and no reference
+> check can see it.** The unit of doc truth here is the mechanism claim — who calls this, when,
+> and what happens — and it is verifiable only against the code or a mutant. **And when the
+> phantom is a gate rather than a check, the doc is not describing missing scrutiny; it is
+> prescribing destruction of the measurement.** Both facts generalize: sweep the names, but
+> budget reading time for the verbs.

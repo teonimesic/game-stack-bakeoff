@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#209 from building and running this evaluator. **Check whether a
+Findings #19-#210 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -285,6 +285,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **207** | a gate ran on every commit for 4 days, reported itself clean, and could not see the figure it exists to protect, because its trigger was an enumeration of one wording | [certifies-nothing](findings/certifies-nothing.md) |
 | **208** | a census scoped to inline backticks could not see fenced command blocks — the text a reader copies — so the ten bare `judge/` commands in `README.md` were never in the population it counted | [documentation](findings/documentation.md) |
 | **209** | the defect was in the FIRST text the judge reads — a process argument, not a pack file — so every gate that inspects the pack was blind to it, and the file-open log bounded it as latent: 39 captured non-code rounds, 0 reads of un-carried evidence | [one-arm-bias](findings/one-arm-bias.md) |
+| **210** | the lie was in the mechanism, not the name: a document described a refusal gate that never existed, every name in the claim resolved, the sweep stayed green all seven days — and the remedy it named would have erased a real design difference | [documentation](findings/documentation.md) |
 
 ---
 
