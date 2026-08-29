@@ -1601,7 +1601,16 @@ def run_field(pack: Path, aspect_id: str, model: str = DEFAULT_MODEL,
                 inp = b.get("input") or {}
                 target = (inp.get("file_path") or inp.get("path") or inp.get("pattern")
                           or inp.get("command") or "")
-                reads.append({"tool": b.get("name"), "target": str(target)[:200]})
+                # THE FULL TARGET, truncated at no length. It carried [:200] until
+                # 2026-08-28 (task 204): a longer target was stored with its tail -
+                # the filename - gone, and a target with no tail cannot be classified
+                # against what the pack carried, which is why the consumer
+                # (prompt_capture_census.py) must refuse exactly-200-character stored
+                # targets instead of reading them. Rounds stored before that date
+                # remain 200-capped and stay refused; nothing recorded is re-read
+                # under the new shape. files_opened is an audit field scored by
+                # nothing, so no scored round is affected either way.
+                reads.append({"tool": b.get("name"), "target": str(target)})
 
     results = [d for d in events if isinstance(d, dict) and d.get("type") == "result"]
     data = results[-1] if results else {}
