@@ -85,7 +85,10 @@ locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rat
 does not move with the runner.
 `eval/judge/ink_window_control.py` is there rather than in `controls.yml` despite being about frames:
 it writes its own PNGs through `eval/judge/png.py` and stubs every subprocess `static.collect`
-makes, so it needs neither `just` nor a stack toolchain — 0.6s. It carries `render.nonempty`'s
+makes, so it needs neither `just` nor a stack toolchain — about 30s locally (2026-08-29,
+`time python3 eval/judge/ink_window_control.py`; the 0.6s this line carried until then was
+measured against a smaller form of the file), nearly all of it the blank-arrangement and
+two-halves fixture phases reading full frames per pixel. It carries `render.nonempty`'s
 floor in both directions and the measured derivation for having no ceiling. Its corpus arm reads
 `eval/runs`, which is gitignored, and prints `NOT ASKED` in CI rather than a count.
 `flag_binding` and `flag_binding_control` are 0.10s and 0.27s locally and read the whole-game
