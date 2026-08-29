@@ -1,10 +1,24 @@
 ---
 id: 217
 title: 'tasks_control byte round trip red on main: _render rewrites a hand-quoted scalar unquoted and the red lands on every open pull request through the merge checkout'
-status: in_progress
+status: in_testing
 priority: 1
 refs: eval/tools/tasks.py, eval/tools/tasks_control.py, tasks/216-tasks-py-check-passes-a-frontmatter-scalar-whos.md
 done_when: Either the writer preserves the quoting style of the line it read (a scalar the file holds quoted is re-emitted quoted, byte for byte, with the four census rows from task 216 as greens and the repaired tasks/214 title - which must stay quoted because it holds a space-hash - staying byte-identical), or tasks.py check refuses a frontmatter line whose quoting differs from what the writer would emit, so the committed queue can never hold a file the writer would rewrite. In both cases tasks_control round trip is green on the committed queue, and a mutant that re-quotes one canonical scalar in a fixture queue is caught by whichever gate owns the change.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/97
+established_by: tasks_control 140/0/0 with direction 13 green on the cd4994d blob, repaired 214 and census greens (byte-for-byte, only-status-line-differs); mutants 41/0 survived with render_discards_raw, render_ignores_value_changes and id_requoted each CAUGHT on named rows; sweep/check/lint clean unpiped at da68bed; CI gates+controls pass; review 2 rounds, round 2 no actionable comments.
 ---
 
 The required gates check is red on every pull request whose merge ref includes cd4994d, including PR 93 which touches no queue file and was green on its own first run. Main is red on its own runs at 14:01Z (1703566) and 15:03Z (cd4994d). Reproduced locally with no pyyaml-version dependence: read the committed tasks/216 file with _read_fm, re-render with _render, and the title line changes from single-quoted to unquoted - the writer cannot reproduce a scalar a hand repair quoted. The round-trip row measured 214 of 215 files in CI with CHANGED: 216-... . The immediate red clears when the 216 agent commits its own status write, which already rewrote the file in the writer's canonical form in the main checkout working tree; but the property is durable: any future hand repair that quotes a scalar the writer would emit unquoted re-reddens every open pull request at once, through a file none of them touched.
+
+## note 2026-08-29
+
+Landed as option (a) of the done_when: the writer preserves. `_read_fm` returns a third value (each single-line frontmatter line, verbatim, keyed by key); `_render` restores a line byte for byte through `_restore_lines` only when it standalone-parses to the value now being written, so a changed value is always serialised and an unparseable line falls back to canonical output - worst case is the pre-217 writer, never corruption. Option (b) (check refuses quoting the writer would not emit) was rejected because the four task-216 census greens hold quoting PyYAML would NOT emit; decision recorded in DECISIONS.md.
+
+Pinned as direction 13 in tasks_control.py on real blobs (cd4994d 216; repaired 214; census greens 174/181/187), 8 rows including two variants (the status line DID change; a changed value serialises canonically). Mutants: render_discards_raw (pre-217 writer), render_ignores_value_changes (guard deleted - the fail-open twin), id_requoted (one canonical scalar re-quoted; the done_when's second clause, caught by direction 1 at 6 red).
+
+Review round 1 found a real control defect this task introduced and the fix is the transferable lesson: the `_set` row compared zip(old_lines, new_lines), which truncates, so a writer that rewrote the status line AND appended junk left the "ONLY the status line" row green - measured (old condition passes 2 appended junk lines) before the repair. The row now builds the whole expected file (blob with exactly the status line replaced) and demands byte equality, plus a substitution-fired guard. For any future control row that claims "only X changed": compare whole expected bytes, never a zipped diff.
+
+The DECISIONS.md strip-to-rule comment was declined on the thread: entries in that file carry their evidence by convention (the entry above cites #211, its counts, its pins), AGENTS.md defines the file as "What is decided and why", and the suggested destinations (RUNS.md = trial runs, eval/findings/ = archive, no finding numbers from a dispatched agent) do not hold this content.
+
+Round 2 clean (LANDED_COMMENT, no actionable comments); CI gates + controls pass at da68bed. No finding number allocated - the defect and fix are the writer's; the red it produced was cleared on main before this branch.
