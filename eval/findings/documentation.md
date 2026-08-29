@@ -1599,8 +1599,8 @@ where blame's same-commit case is common) were read and adjudicated into
 `eval/renumber_triage.json`, 36 → 43 entries. Cost measured before shipping: ~23 s against 21 s
 md-only, because blame is only asked of files whose text cites a reused number. The corpus is
 asserted against a walking oracle that never consults git's listing, and pinned in both
-directions in `--selftest`: the md-only revert is a red mutant (8 pins — corrected 2026-08-29
-at handback, the count having been read before review rounds grew the pin set; oracle naming
-the unread code files), a stale code citation at a historical commit is REPORTED while its correct twins
+directions in `--selftest`: the md-only revert is a red mutant (9 pins — re-measured 2026-08-29 after the
+round-3 pins; it read 4 when first written and 8 at the round-2 handback, neither re-read when
+the pins grew; oracle naming the unread code files), a stale code citation at a historical commit is REPORTED while its correct twins
 are not, and the tracked `.claude/skills` symlink — a correct input the first widened run
 crashed on — is skipped by name. It remains a report, never a gate, on the 2026-08-23 grounds.
