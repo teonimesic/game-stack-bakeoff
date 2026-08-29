@@ -1,0 +1,10 @@
+---
+id: 206
+title: 'judge_ledger: a round with no cost_usd counts as 0.00 silently, and the subset-sum gap search is 2^n'
+status: todo
+priority: 3
+refs: 'eval/judge/judge_ledger.py, FINDINGS #121 #159, CLEANUP-LOG.md 2026-08-29 sixth pass'
+done_when: audit/report print a named count of rounds whose cost_usd is absent or null - warned, never refused, never silently zeroed (the corpus stays readable; the total is labelled as excluding them, a stated non-measurement, not a zero); the subset search is bounded with the bound visible as its own verdict (a directory too large to search reports that, not a hang), the mtime split still preferred where it separates; both directions pinned in --selftest (a no-cost round appears in the count and the total; an over-bound directory returns the new verdict, not a hang); and --tree runs/ still reproduces today read - 12 director(ies), 97 stored rounds, field 334.41 tokval, 5 under-report by 69.93.
+---
+
+Two latent defects in the tokval producer every money-figure citation names, found by the 2026-08-29 cleanup pass reading eval/judge/judge_ledger.py whole (the fifth pass own pointer). (1) load_rounds line ~132: _cost = float(j.get("cost_usd") or 0.0) turns an absent or null cost_usd into a silent 0.00 inside field_cost_usd - exactly the fallback shape this module own read_counter docstring refuses one function up ("Returns None rather than 0.0 ... 0.0 would read as agreement"), applied to the other number; an under-reporting ledger is worse than none (FINDINGS #121). Measured 2026-08-29: 0 of 97 stored rounds affected, so latent, not live. (2) explain_gap fallback is an exhaustive subset sum (itertools.combinations over every k) - 2^n; --tree runs/ walks every round-holding directory, so one future directory with ~30 rounds, a positive gap and no clean mtime split (the cp case MIN_SPLIT_S documents on wg-tetris-judge-2026-08-17/pre) hangs the cited producer for hours. Today: 12 directories, 2.3 s, exit 0; the 30-round wg-aspect-reliability never reaches the search because its counter agrees.

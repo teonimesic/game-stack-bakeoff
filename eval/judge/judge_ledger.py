@@ -10,10 +10,11 @@ earlier invocation and deliberately contributes 0 so it cannot be counted twice
 against today's `--max-cost`. The behaviour is correct. The name is not, and three live
 documents read it as spend.
 
-Measured over the 11 stored sweep directories: 5 under-report, by 69.94 tokval in
-total. The
+Measured 2026-08-29 by `python3 judge/judge_ledger.py --tree runs/` from `eval/`: 12
+sweep directories, 5 of whose summary counters under-report, by 69.93 tokval in total.
+The
 `wg-tetris-judge-2026-08-17` field is the worst case and the one that reached print - see
-FINDINGS #119.
+FINDINGS #121.
 
 So this module reports **two numbers that are not the same question**, and never one:
 

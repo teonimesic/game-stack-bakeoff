@@ -1188,3 +1188,67 @@ measurement (30/30 vs 0/10) was run before filing, because a guard that refuses 
 `field_sweep` imports and this log has never opened (`judge_ledger` decides what a
 summary IS and is the tokval producer every money-figure citation names; `sequential`
 holds the sampling protocol the sweep executes). Neither appears anywhere in this log.
+
+## 2026-08-29 (sixth pass) — the ledger and the sampling protocol
+
+**Area:** `eval/judge/judge_ledger.py` and `eval/judge/sequential.py`, the fifth pass's
+named pointer — the two modules `field_sweep` imports that this log had never opened.
+Both read whole (469 + 235 lines).
+
+### Found
+
+- **A citation that resolves and means something else** (`#118`'s own shape):
+  `judge_ledger.py`'s docstring cited "FINDINGS #119" for the
+  ceiling-counter-read-as-spend story; #119 has been the withdrawal-register finding
+  since the 2026-08-23 renumbers, and the story lives in **#121** (`limits-and-cost.md`,
+  same numbers: 25.55/21.05, 5 directories, $69.93). **Fixed in place** (one line,
+  citation only — never renumber the finding), sweep and selftest re-run green.
+- **The same docstring carried a stale count with its producer one command away**:
+  "Measured over the 11 stored sweep directories ... 69.94 tokval" against a 2026-08-29
+  read of 12 directories / 69.93. Rewritten with the read date and the producer command
+  rather than bare digits.
+- Both latent defects in the ledger itself filed as **task 206**: a round with no
+  `cost_usd` counts as 0.00 silently (`_cost = float(j.get("cost_usd") or 0.0)` — the
+  fallback shape the module's own `read_counter` refuses one function up), and
+  `explain_gap`'s subset-sum fallback is 2^n, reachable from `--tree` on a future
+  ~30-round directory with a positive gap and no clean mtime split.
+
+### Cleared — examined and judged sound
+
+- **`sequential.py` is not unpinned.** The pointer's suspicion ("a protocol with nothing
+  calling it") is answered by `sequential_selftest.py`: 6 simulation checks — clear
+  ordering, true tie, saturated→`TIED_EXACT`, near-tie not called TIED, budget-cut
+  reports NOT RESOLVED never a tie, failed runs never count as observations — gated at
+  `gates.yml:342`. What it does not pin directly (Wilson's half-widths at the four n the
+  comment cites; the hardcoded `n_for_statistical_tie: 96` going stale if TIE_MARGIN
+  moves) is noted and deliberately NOT filed: the simulations constrain the interval
+  end-to-end and the 96 is derived in the adjacent comment; a pin would be nice-to-have.
+- **The corpus the ledger walks is clean on the latent path**: 97 stored rounds, 0 with
+  a missing or null `cost_usd` (measured, not assumed).
+- **`--tree runs/` today**: 12 director(ies), 97 stored rounds, field 334.41 tokval,
+  5 counters under-report by 69.93, exit 0, 2.3 s. The pre-directory reading AMBIGUOUS
+  with one carried round is the designed `cp` case — the mtime split correctly refuses
+  to be evidence, and selftest case 8 pins exactly that shape.
+- **`is_summary`'s prefix rule, the canonical-only counter read, MIN_SPLIT_S's
+  copy-proofing, and the two-numbers-never-one split**: each carries its reasoning in
+  place and a pin; `field_sweep`'s import-time `SUMMARIES` assert holds the stem set
+  equal across the two modules (rule 12 in code). `Pair.check`'s ORDERED-before-TIED
+  precedence is correct by inspection and exercised by simulations; `winner`'s
+  `rate or 0` dead branch (ORDERED implies n ≥ 4 implies rate not None) is harmless.
+
+### Method note
+
+The pointer came from the import graph: what does the instrument I just read actually
+pull in? The citation check that found the #119→#121 drift was the same question the
+fourth and fifth passes applied to code — every name in a claim, resolved against what
+it names today rather than when it was written. `docstat --renumbered` did not flag
+this one; the citation was written fresh, and only reading the finding beside the claim
+separates those.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/paired_verdicts.py` and `eval/judge/capability.py` — the producers the
+withdrawn register's "instead" commands point operators at (`WR-paired-verdict-tie`,
+`WR-paired-evidence-diff`, `WR-capture-default-62-of-68`). A stale citation is a
+wrong door; a wrong producer behind a corrected citation is the room behind it.
+Neither appears in this log.
