@@ -1,10 +1,35 @@
 ---
 id: 206
 title: 'judge_ledger: a round with no cost_usd counts as 0.00 silently, and the subset-sum gap search is 2^n'
-status: todo
+status: in_testing
 priority: 3
 refs: 'eval/judge/judge_ledger.py, FINDINGS #121 #159, CLEANUP-LOG.md 2026-08-29 sixth pass'
 done_when: audit/report print a named count of rounds whose cost_usd is absent or null - warned, never refused, never silently zeroed (the corpus stays readable; the total is labelled as excluding them, a stated non-measurement, not a zero); the subset search is bounded with the bound visible as its own verdict (a directory too large to search reports that, not a hang), the mtime split still preferred where it separates; both directions pinned in --selftest (a no-cost round appears in the count and the total; an over-bound directory returns the new verdict, not a hang); and --tree runs/ still reproduces today read - 12 director(ies), 97 stored rounds, field 334.41 tokval, 5 under-report by 69.93.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/86
+established_by: 'PR #86 open at head e1aeb23 (2 commits); selftest 51 expectations 0 unmet with 4 mutants killed and restored; --tree runs/ byte-identical to the unmodified module (12 director(ies), 97 stored rounds, field 334.41 tokval, 5 under-report by 69.93, exit 0); docstat --sweep, tasks.py check, manifest_selftest and tokenvalue --selftest all green; review round 2 clean (LANDED_COMMENT, no threads)'
 ---
 
 Two latent defects in the tokval producer every money-figure citation names, found by the 2026-08-29 cleanup pass reading eval/judge/judge_ledger.py whole (the fifth pass own pointer). (1) load_rounds line ~132: _cost = float(j.get("cost_usd") or 0.0) turns an absent or null cost_usd into a silent 0.00 inside field_cost_usd - exactly the fallback shape this module own read_counter docstring refuses one function up ("Returns None rather than 0.0 ... 0.0 would read as agreement"), applied to the other number; an under-reporting ledger is worse than none (FINDINGS #121). Measured 2026-08-29: 0 of 97 stored rounds affected, so latent, not live. (2) explain_gap fallback is an exhaustive subset sum (itertools.combinations over every k) - 2^n; --tree runs/ walks every round-holding directory, so one future directory with ~30 rounds, a positive gap and no clean mtime split (the cp case MIN_SPLIT_S documents on wg-tetris-judge-2026-08-17/pre) hangs the cited producer for hours. Today: 12 directories, 2.3 s, exit 0; the 30-round wg-aspect-reliability never reaches the search because its counter agrees.
+
+## note 2026-08-29
+
+Done on PR #86 (branch task-206-ledger-nocost-named-and-subset-bounded, heads 2c48a5b + e1aeb23). Two rounds of review; round 2 clean.
+
+**What changed.**
+
+- `load_rounds` no longer coerces an absent or null `cost_usd` to 0.0. The absence is carried as `None` on `_cost`; a recorded `0.0` is a stated zero and is kept distinct from both absence shapes. `0 of 97` stored rounds affected - latent, as filed.
+- New `_split_costs(rounds) -> (total, no_cost_names)` is the ONE copy of the sum-over-stated-costs; `field_cost_usd(d)` keeps its `(n, total)` shape on top of it (field_sweep's `[1]` call site untouched), and new `field_cost(d)` returns `(n, total, names)`.
+- `audit()` records `n_no_cost`/`no_cost` on EVERY verdict, `NO SUMMARY` included. `report()` prints the round names per directory plus a tree-total line stating the exclusion ("a stated non-measurement, not a zero"). Warned, never refused: no exit code turns on the absence alone.
+- `explain_gap` runs both attribution methods over rounds that state a cost only - a None round cannot claim the gap (selftest case 14 pins the carried list; under the old coercion the silent round JOINED the subset via its 0.0 and was carried as if it accounted for the gap).
+- The subset search is refused past `SUBSET_SEARCH_MAX = 24` with a new verdict **UNSEARCHED** (in `BAD`, so exit 1 and --json carry it). Measured worst case at the bound: 6.87 s, byte-for-byte the old cost - the search itself is unchanged; over the bound, 0.02-0.04 ms at any size. Measured pre-fix curve for the record: 0.09 s @ 18 rounds, 0.39 @ 20, 1.64 @ 22, 6.82 @ 24 - doubling per +2 rounds, ~0.41 us/subset; minutes at 30, hours past 32.
+- The mtime split still runs first and is still preferred: the 30-round `wg-aspect-reliability` directory is OVER the bound and resolves RESUMED by its split without reaching the search.
+
+**The review-round change, and the reasoning the next agent should not re-derive.** CodeRabbit's round-1 Major: a negative gap where `no_cost` is non-empty must not be `MISSING ARTIFACT`, because that verdict asserts "the file is gone" and the file is ON DISK. Agreed after initially designing for fail-closed-red: the fail-closed instinct was protecting the exit code, not the truth of the verdict string, and "a number that is wrong is worse than no number" applies to verdicts too. The deficit branch now answers **INDETERMINATE** when `no_cost` is non-empty (not in `BAD` - nothing excused; the same deficit with every round stating a cost is still red, cases 3 vs 15 pin the contrast). Asymmetry kept on purpose: positive gaps are unaffected - the counter under-reports the KNOWN costs there, the absence can only strengthen that direction, so RESUMED/AMBIGUOUS/UNEXPLAINED stay derivable.
+
+**Selftest is 51 expectations, 0 unmet** (was 30-ish before this task; cases 11-15 added). Four mutants watched failing and restored: the old `or 0.0` (7 fails incl. the gap-claim shape), bound removed (fails FAST through the verdict - the case-13 fixture's equal costs mean the mutant's k=1 pass finds two singleton hits in microseconds instead of grinding 2^26), exclusion label suppressed (2 fails), indeterminate branch removed (3 fails).
+
+**Reproduction:** `--tree runs/` against the stored tree is byte-identical to the unmodified module's output - 12 director(ies), 97 stored rounds, field 334.41 tokval, 5 under-report by 69.93, exit 0, 2.9 s. That is the change-one-thing evidence: nothing moves where every round states a cost and the split resolves.
+
+**Also in the diff:** the two copies of the #119-meant-#121 citation drift the sixth cleanup pass missed - `field_sweep._record_cost`'s docstring and `judge_ledger`'s selftest case-7 comment - fixed citation-only; field_sweep's "eleven stored sweep directories" in the same sentence is twelve as of the 2026-08-29 read with the producer named beside it.
+
+**Filed:** tasks/207 - weight_sensitivity.py:8 cites #119 for the tier-1-gate story, which lives in #123 (certifies-nothing.md:3233, heading at 3189). Module unread here; runner.py:20 and docstat.py:596/2954/5100 also carry surviving #119 citations that need the same read-beside-the-claim check.
