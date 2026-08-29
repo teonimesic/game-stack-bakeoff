@@ -27,6 +27,14 @@ read out of `eval/suites/wholegame_prompts.py`, which is the right address for t
 (task 113). `EVENTS_AS_WRITTEN` is transcribed from the prompt text by hand, so it is a
 second, independent statement of the same thing, and the row that compares them is what
 would have caught the 2-game drift that `tasks/151` reports.
+
+THE LOCK PATH IS PINNED HERE TOO (tasks/214). FINDINGS #25's exclusion lived only in
+`probe.unusable_criteria`, and `probe.drive` appended `audio.triggered` after it: on a
+lock-conflicted session every bot criterion came back `scored=False` while
+`audio.triggered` alone was counted a scored failure - "the driven run emitted no events
+at all" - on exactly the arm the exclusion exists to protect. Two mutants here restore
+that composition and the un-flagged `read_manifest` tuple; the fail-closed default (a
+run that HAPPENED and emitted nothing) has its own rows and is not loosened.
 """
 
 from __future__ import annotations
@@ -44,6 +52,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import audio  # noqa: E402
+import probe  # noqa: E402
 
 RATE = 22050
 
@@ -522,6 +531,205 @@ def main() -> int:
         c = audio.triggered_criterion(good, "g1_pong", [])  # nothing fired
         check(not c.passed,
               "triggered/no_events: expected FAIL (fail-closed), got PASS")
+
+        # -- the lock path: a driven run that never happened ---------------- #
+        #
+        # FINDINGS #25's exclusion is computed by `unusable_criteria` INSIDE
+        # `probe.drive`, and `audio.triggered` used to be appended AFTER it, composed
+        # from `fired=[]` with no way to know the run had not happened. On a
+        # lock-conflicted session every bot criterion came back `scored=False` while
+        # `audio.triggered` alone was counted a scored failure -- "no events at all"
+        # -- on the one stack whose lock signature the exclusion exists for. The
+        # empty-fired branch above stays fail-closed BY CONTRACT: a run that HAPPENED
+        # and emitted nothing is a real failure. The distinguishing fact is whether
+        # the run happened, which only the caller knows, so it now travels with the
+        # criterion as `lock_note`.
+        #
+        # The stub replaces `probe.ProbeSession` wholesale (`drive()` names the class
+        # directly), so no engine, no child process and no `just` is needed here.
+        def drive_with(session_cls: type) -> dict:
+            class LockBot(probe.Bot):
+                game = "g1_pong"
+                criteria = [("stub.ok", "the stub criterion the bot reports")]
+
+                def run(self, session) -> list[probe.Criterion]:
+                    return [probe.Criterion("stub.ok", "the stub criterion the bot "
+                                            "reports", True, "the stub ran")]
+
+            real = probe.ProbeSession
+            probe.ProbeSession = session_cls
+            try:
+                return probe.drive(LockBot(), good, audio_game="g1_pong")
+            finally:
+                probe.ProbeSession = real
+
+        class LockRefused:
+            """`__enter__` raises the one ProbeError that says nothing about the game."""
+
+            def __init__(self, *a, **k) -> None:
+                pass
+
+            def __enter__(self):
+                raise probe.ProbeError(
+                    "It looks like another Unity instance is running with this "
+                    "project open.", lock_conflict=True)
+
+            def __exit__(self, *a) -> bool:
+                return False
+
+        class EngineDied(LockRefused):
+            """A probe failure that is NOT a lock: the same shape, no `lock_conflict`."""
+
+            def __enter__(self):
+                raise probe.ProbeError("engine died before the tick-0 header")
+
+        class RanButSilent:
+            """A session that opened, drove and emitted nothing: the genuine empty."""
+
+            def __init__(self, *a, **k) -> None:
+                self.history = []
+                self.ticks_sent = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a) -> bool:
+                return False
+
+            def report_stderr(self) -> str:
+                return ""
+
+        def criterion_of(out: dict, cid: str) -> dict:
+            return next(c for c in out["criteria"] if c["id"] == cid)
+
+        out = drive_with(LockRefused)
+        a = criterion_of(out, "audio.triggered")
+        check(a["scored"] is False and a["passed"] is False,
+              f"lock_refused: audio.triggered must be excluded, not failed -- "
+              f"scored={a['scored']} passed={a['passed']} ev={a['evidence'][:160]}")
+        check("NOT MEASURED" in a["evidence"] and "project-lock" in a["evidence"],
+              f"lock_refused: the reason must name the project lock, "
+              f"got {a['evidence'][:200]!r}")
+        check(criterion_of(out, "stub.ok")["scored"] is False,
+              "lock_refused: the #25 exclusion must still hold for the bot's own "
+              "criteria")
+        check(out["total"] == 0 and out["usable"] is False
+              and "audio.triggered" in out["unscored"],
+              f"lock_refused: the exclusion must actually exclude -- "
+              f"total={out['total']} usable={out['usable']} "
+              f"unscored={sorted(out['unscored'])}")
+
+        out = drive_with(EngineDied)
+        a = criterion_of(out, "audio.triggered")
+        check(a["scored"] is True and a["passed"] is False
+              and "no events at all" in a["evidence"],
+              f"non_lock_probe_error: a probe failure that is NOT a lock stays "
+              f"scored=True failed -- scored={a['scored']} ev={a['evidence'][:160]}")
+        check(criterion_of(out, "stub.ok")["scored"] is True,
+              "non_lock_probe_error: the bot's own criterion stays a real failure too")
+
+        out = drive_with(RanButSilent)
+        a = criterion_of(out, "audio.triggered")
+        check(a["scored"] is True and a["passed"] is False
+              and "no events at all" in a["evidence"],
+              f"ran_and_emitted_nothing: the fail-closed default must NOT be loosened "
+              f"-- scored={a['scored']} ev={a['evidence'][:160]}")
+
+        # MUTANT 11: the append as it stood -- composed after `unusable_criteria`
+        # from `fired=[]` with no lock bit, which is the defect this section exists to
+        # prevent, reproduced on demand. It must scorch the lock fixture and stay green
+        # on BOTH controls: a scorch that also failed the controls would be a different
+        # (and fail-closed) defect, not this one.
+        real_tc = audio.triggered_criterion
+
+        def blind_append(repo, game, fired, env=None, *, lock_note=None):
+            return real_tc(repo, game, fired, env)
+
+        audio.triggered_criterion = blind_append
+        try:
+            scored = {label: criterion_of(drive_with(cls), "audio.triggered")["scored"]
+                      for label, cls in (("lock", LockRefused),
+                                         ("nonlock", EngineDied),
+                                         ("quiet", RanButSilent))}
+        finally:
+            audio.triggered_criterion = real_tc
+        check(scored["lock"] is True,
+              f"mutant 'append without the lock bit' did not scorch the lock fixture "
+              f"-- audio.triggered scored={scored['lock']}")
+        check(scored["nonlock"] is True and scored["quiet"] is True,
+              f"mutant 'append without the lock bit' must leave both controls green -- "
+              f"got {scored}")
+
+        # -- the same hole inside audio.py: a manifest read the lock ate ------ #
+        #
+        # `read_manifest` retries while the failure matches LOCK_HINTS, and the block
+        # above it calls that case "bias, not noise (FINDINGS #25)" -- but it returned
+        # (manifest, note, exit) with no lock flag, so `triggered_criterion`'s manifest
+        # branch scored it True/failed like any broken manifest. The retry implemented
+        # the waiting; the verdict after the waiting did not implement the exclusion.
+        # `audio.time.sleep` is stubbed so the real retry loop runs without its wall
+        # clock (4s + 8s per exhausted read).
+        _counter = iter(range(100))
+
+        def manifest_repo(note: str) -> Path:
+            d = case(tmp, f"manifest_lock_{next(_counter)}")
+            (d / "justfile").write_text(
+                f"audio-manifest:\n    @echo \"{note}\" >&2; exit 1\n")
+            return d
+
+        LOCK_NOTE = ("It looks like another Unity instance is running with this "
+                     "project open.")
+
+        real_sleep = audio.time.sleep
+        audio.time.sleep = lambda _s: None
+        try:
+            c = audio.triggered_criterion(manifest_repo(LOCK_NOTE), "g1_pong",
+                                          ["paddle_hit"])
+            check(c.scored is False and c.passed is False,
+                  f"manifest_lock_exhausted: a lock-eaten manifest read must be "
+                  f"excluded, not failed -- scored={c.scored} ev={c.evidence[:200]}")
+            check("NOT MEASURED" in c.evidence and "project-lock" in c.evidence,
+                  f"manifest_lock_exhausted: the reason must name the project lock, "
+                  f"got {c.evidence[:200]!r}")
+
+            broken = audio.triggered_criterion(
+                manifest_repo("audio-manifest exit 1: json: cannot unmarshal string "
+                              "into Go value of type main.Manifest"),
+                "g1_pong", ["paddle_hit"])
+            check(broken.scored is True and broken.passed is False,
+                  f"manifest_broken: a manifest that is genuinely broken stays "
+                  f"scored=True failed -- scored={broken.scored} "
+                  f"ev={broken.evidence[:200]}")
+        finally:
+            audio.time.sleep = real_sleep
+
+        # MUTANT 12: `read_manifest` without the lock bit -- the caller cannot tell a
+        # lock refusal from a broken manifest, which is exactly what the 3-tuple was.
+        # It must scorch the lock-exhausted fixture and leave the broken one alone;
+        # only the lock fixture is asserted under it because that is the only input
+        # the removed bit discriminates.
+        real_rm = audio.read_manifest
+
+        def lock_blind_manifest(repo, env=None, timeout_s=900, attempts=3):
+            m, note, code, _lock = real_rm(repo, env, timeout_s, attempts)
+            return audio.ManifestRead(m, note, code, False)
+
+        audio.read_manifest = lock_blind_manifest
+        audio.time.sleep = lambda _s: None
+        try:
+            try:
+                c = audio.triggered_criterion(manifest_repo(LOCK_NOTE), "g1_pong",
+                                              ["paddle_hit"])
+                scorch, ev = c.scored, c.evidence
+            except Exception as ex:  # noqa: BLE001 -- cannot fire against the fixed
+                scorch = None        # API; recording it is the point (capture_selftest
+                ev = f"{type(ex).__name__}: {ex}"  # runs the file against the unfixed one)
+        finally:
+            audio.time.sleep = real_sleep
+            audio.read_manifest = real_rm
+        check(scorch is True,
+              f"mutant 'read_manifest without the lock bit' did not scorch the "
+              f"lock-exhausted manifest fixture -- scored={scorch} ev={ev[:160]}")
 
     return report()
 

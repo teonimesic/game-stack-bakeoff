@@ -50,7 +50,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from probe import Criterion
 
@@ -293,23 +293,43 @@ LOCK_HINTS = ("another unity instance", "cannot open the same project", "lock",
               "already running", "resource busy")
 
 
+class ManifestRead(NamedTuple):
+    """What one `read_manifest` returned, and HOW it failed when it did.
+
+    `lock` is the FINDINGS #25 bit: every attempt was refused with a project-lock
+    signature, so the failure is a fact about the engine and this harness rather than
+    about the submission. The retry loop below always knew this - the lock signature
+    was the whole reason it retried - but the tuple it returned did not carry it, so
+    a caller that consumed a failed read could not tell a lock-eaten read from a
+    broken manifest and scored both as failures (tasks/214). A consumer that must
+    exclude rather than score reads this bit; `unusable_criteria` is the same policy
+    for the probe session.
+    """
+
+    manifest: dict[str, Any] | None
+    note: str
+    code: int
+    lock: bool = False
+
+
 def read_manifest(repo: Path, env: dict[str, str] | None = None,
-                  timeout_s: int = 900, attempts: int = 3
-                  ) -> tuple[dict[str, Any] | None, str, int]:
-    """Run `just audio-manifest` and parse its stdout. Returns (manifest, note, exit).
+                  timeout_s: int = 900, attempts: int = 3) -> ManifestRead:
+    """Run `just audio-manifest` and parse its stdout.
 
     Retries while the failure looks like an engine project lock rather than a problem
-    with the manifest.
+    with the manifest. `.lock` on the return says the retries exhausted on lock
+    signatures: the manifest was never read, and that is not the submission's fault
+    (see `ManifestRead`).
     """
     note, code = "", 1
     for attempt in range(1, attempts + 1):
         data, note, code = _read_manifest_once(repo, env, timeout_s)
         if data is not None:
-            return data, "", code
+            return ManifestRead(data, "", code)
         if not any(h in note.lower() for h in LOCK_HINTS):
-            return None, note, code
+            return ManifestRead(None, note, code)
         time.sleep(min(20.0, 4.0 * attempt))
-    return None, f"after {attempts} attempts: {note}", code
+    return ManifestRead(None, f"after {attempts} attempts: {note}", code, lock=True)
 
 
 def _read_manifest_once(repo: Path, env: dict[str, str] | None, timeout_s: int
@@ -476,7 +496,13 @@ def collect(repo: Path, game: str, env: dict[str, str] | None = None
             f"is no audio contract to grade it against (fail-closed, not skipped). "
             f"Games with a declared event set: {sorted(GAME_EVENTS)}")
 
-    manifest, note, code = read_manifest(repo, env)
+    read = read_manifest(repo, env)
+    manifest, note, code = read.manifest, read.note, read.code
+    # `read.lock` is deliberately NOT acted on here. Tier 1 gates: a lock-eaten
+    # manifest would have to exclude all five criteria, which changes what the tier
+    # is allowed to refuse - a rubric decision, not a repair this file makes on its
+    # own (tasks/214 records it as the open half). `triggered_criterion`, which does
+    # not gate, implements the exclusion.
     info: dict[str, Any] = {"game": game, "expected_events": list(expected),
                             "manifest_exit": code, "manifest": manifest}
     if manifest is None:
@@ -594,7 +620,8 @@ TRIGGERED = ("audio.triggered",
 
 
 def triggered_criterion(repo: Path, game: str, fired: list[str],
-                        env: dict[str, str] | None = None) -> Criterion:
+                        env: dict[str, str] | None = None,
+                        *, lock_note: str | None = None) -> Criterion:
     """An EXPERIMENT, not an observation: the play-bot has already driven the game and
     made events fire, and this asks whether each one that fired has a cue.
 
@@ -604,16 +631,45 @@ def triggered_criterion(repo: Path, game: str, fired: list[str],
     because it uses the events the game emitted rather than the ones it declared.
     That limit is stated here rather than implied, so nobody reads it as proof that a
     sound was heard.
+
+    `lock_note` is the one fact the `fired` list cannot carry: whether the driven run
+    ever happened. A lock-conflicted session emits no events, so the empty-fired branch
+    below would score this criterion failed -- "no events at all" -- on exactly the arm
+    the FINDINGS #25 exclusion exists for. `probe.drive` passes the ProbeError's own
+    words when the session ended in a lock conflict, and the criterion comes back
+    `scored=False`: measured, reported, excluded from the score, like every bot
+    criterion in the same result. The empty-fired branch keeps its fail-closed default;
+    only the caller knows the difference, which is why the fact travels as an argument
+    rather than being re-derived here.
     """
     cid, question = TRIGGERED
+    if lock_note:
+        return Criterion(
+            cid, question, False,
+            f"NOT MEASURED during the driven run: every attempt to open a probe "
+            f"session was refused with a project-lock signature, which is a fact "
+            f"about the engine and this harness rather than about the submission "
+            f"(FINDINGS #25). Excluded from the score rather than counted as a "
+            f"failure. {lock_note}",
+            scored=False)
     fired_set = sorted({e for e in fired if isinstance(e, str)})
     if not fired_set:
         return Criterion(cid, question, False,
                          "the driven run emitted no events at all, so no cue could be "
                          "checked (fail-closed)")
-    manifest, note, _code = read_manifest(repo, env)
-    if manifest is None:
-        return Criterion(cid, question, False, note)
+    read = read_manifest(repo, env)
+    if read.lock:
+        return Criterion(
+            cid, question, False,
+            f"NOT MEASURED during the driven run: every attempt to read the audio "
+            f"manifest was refused with a project-lock signature, which is a fact "
+            f"about the engine and this harness rather than about the submission "
+            f"(FINDINGS #25). Excluded from the score rather than counted as a "
+            f"failure. {read.note}",
+            scored=False)
+    if read.manifest is None:
+        return Criterion(cid, question, False, read.note)
+    manifest = read.manifest
     sfx = manifest.get("sfx") if isinstance(manifest.get("sfx"), dict) else {}
 
     problems: list[str] = []
