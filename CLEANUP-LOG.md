@@ -1410,3 +1410,83 @@ null `programmatic` never reaches either arm; `frames`-inside-a-dict is the one 
 the ink control exercise from outside. No pass has opened it, and it now carries three
 backward references to the module this pass read. Its companion reader `eval/judge/png.py`
 (208 lines) can ride along.
+
+## 2026-08-29 (ninth pass) — `static.py`, the tier-1 implementation, and the one `echo 0` in it
+
+Subject: `eval/judge/static.py` (767 lines), read whole. `eval/judge/png.py` was the
+pointer's ride-along and is **deferred**: tasks/212 is in flight in that file this
+pass, and reading a file an agent is reshaping produces findings about a moving
+target.
+
+### Found
+
+**tasks/213 — `static.run`'s waiter turns an unobservable exit status into exit 0.**
+The waiter thread catches `(ChildProcessError, OSError)` and `reaped.put((0, None))`;
+the main flow decodes status 0 as `waitstatus_to_exitcode(0)` = 0, so `build.compiles`,
+`verify.green`, `lint.clean` and `tests.green` — the tier that GATES — would each
+record `exit 0` from a command whose status was never observed, with empty streams and
+no note. AGENTS.md rule 3's sibling verbatim, and the only `put` of a fabricated status
+in the module. **Measured before filing**: an in-process probe forced `os.wait4` to
+raise, ran `sh -c "exit 3"` through `static.run`, and read back exit 0 / note empty /
+streams empty, while the unforced control read the true 3. Latent today (the module
+suppresses Popen's own waitpid, so nothing double-reaps; that is why p5), but the
+authors defended the Popen side of this exact race and left the wait4 side fail-open.
+The fix model is the module's own spawn-failure branch three lines up: 127, harness-
+named note, peak/cpu staying None as the third value.
+
+### Examined and judged sound
+
+- **`nonempty_verdict`'s `float(frame_info.get("mean_ink", 0.0))`** — the same
+  `.get(key, default)` shape tasks/211 fixed in `ink_window_control.py`, but here the
+  null crash is guarded at the one call site that can reach it with a stored record
+  (`ink_window_control.py:932`: `ink is None` → NOT REGRADABLE, with a comment naming
+  the exact raise it prevents). Every other caller passes a computed float. Absent
+  reads 0.0 and fails the floor — fail-closed. A defensive move inside the function
+  would be tidier; it is not a channel.
+- **`assert_frame_criteria_geometry_safe`'s source-scanning discovery** — reads the
+  module's own source for `add(...)` calls touching `frame_info`/`frames`, and checks
+  BOTH directions: an undeclared frame-derived criterion fails, and a registered id
+  that no longer appears fails too (#38's shape). The known scope limit — a frame
+  criterion added via `crit.append` rather than `add()` would be invisible to
+  discovery — is documented in the docstring, and `collect`'s audio block is the only
+  append site (not frame-derived).
+- **`TIER1_BOUND_POPULATION`** — complete at 14 (9 + 5 audio), closed vocabulary of 5
+  populations, `task_class` deliberately empty, and `assert_tier1_bounds_declared`
+  enforces the registry against both `CRITERIA` lists mechanically, including the
+  audio-import-failure case, which lands as a problem row (fail-closed) rather than a
+  quiet skip.
+- **The capture policy** — `STREAM_*`/`_sample_stream`/`capture_fields` are ALIASES of
+  `runner.py`'s functions, asserted same-object by `runner_capture_selftest.py`; the
+  `Cmd.tail` parser view is preserved byte-for-byte and documented as the pre-#100
+  view, with the separated streams what gets STORED.
+- **`_MAXRSS_TO_MIB`** — the macOS/Linux ru_maxrss unit split is measured, not
+  trusted: `rusage_selftest.py` asserts it against a child allocating a known 400 MiB.
+- **The INK_FLOOR comment block's figures** — reproduce against its named producer as
+  of this same day: 66 game frame sets with frames on disk, 67 total readable, 10
+  movers under the reference change, lowest 0.00811 (8x the floor), the retired 0.85
+  refusing exactly 1 set (the scene at 0.85042). Verified by the eighth pass's
+  producer runs hours earlier; not re-run here, quoted from that run.
+- **`assert_task_class`** — refuses an unplaceable class BEFORE spending a toolchain,
+  and `ink_window_control.py` mutants the fallback (`lambda k: "game"`) to prove the
+  refusal is load-bearing.
+- **`analyse_frames`' unreadable-set branch** — a whole-corrupt set reads mean_ink 0.0
+  (fails the floor), records per-frame decode errors, and `render.frames` reads
+  `errors` separately, so a corrupt PNG is a finding about the submission, never a
+  grader crash.
+
+### Method note
+
+The probe-first ordering from the seventh and eighth passes held again: the channel
+was found by reading the module against the rules it itself cites (the `Cmd` docstring
+names the "never 0.0" rule the waiter breaks one field over), and the probe that
+established it ran a command with a KNOWN exit before anything was filed. The
+`.get(key, default)` non-obviousness (found in `nonempty_verdict`) was chased to
+reachability BEFORE judging it a defect, and the chase cleared it — the second pass in
+a row where the obvious first finding was the false one.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/png.py` (208 lines) — deferred this pass because tasks/212 may reshape it;
+take it once 212 has landed, reading the landed form. Alternate if it is still in
+flight: `eval/judge/probe.py`, the ProbeSession behind `probe_throughput`, which no
+pass has opened and which `static.py` and the render harnesses all lean on.
