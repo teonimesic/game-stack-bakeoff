@@ -1554,3 +1554,37 @@ before trusting any frame-derived number.
 > phantom is a gate rather than a check, the doc is not describing missing scrutiny; it is
 > prescribing destruction of the measurement.** Both facts generalize: sweep the names, but
 > budget reading time for the verbs.
+
+## 211. The renumbered-citation check reads tracked markdown and only that: every stale citation living in a code file was invisible to it, and 8 were found by reading while the gate stayed green
+
+`_check_renumbered_citations` selects its corpus with `_tracked_md` (`eval/tools/docstat.py`,
+line ~2969). A `#N` inside a `.py` docstring or `#` comment never enters the check, whatever
+its history — and no other check here reads code files for finding-number citations either:
+`--sweep`'s reference checks (paths, flags, censuses) are all over the document corpus too.
+So the sentence in `AGENTS.md` that said "`--renumbered` is the only thing that asks what
+the collision broke" was true of documents and silent about code, and the silence was read
+as coverage.
+
+**The measurement, 2026-08-29, two sessions.** The sixth cleanup pass read `judge_ledger.py`
+whole and found 2 stale `#119` citations (fixed in task 206, merged as `f69902e`); task 207
+grepped live code for survivors and found 6 more — `weight_sensitivity.py:8`, `runner.py:20`,
+`runner.py:1077`, `runner.py:1105`, `docstat.py:596`, `docstat.py:5100` (PR #87). All 8 were
+**correct when written**: `#119` changed hands four times on 2026-08-23 (its stories now live
+at #120, #122, #123 and the withdrawal register), and each citation was written against a
+tree whose `## 119.` still held the story it names — verified against the authoring commits
+(`69de88c8`, `e86e09d0`, `31d66bb5`), not assumed. Because each resolves today, no
+resolve-check can see it; the authoring-commit method of `--renumbered` is the right
+instrument and it was pointed at the wrong corpus — rule 12's shape once more, with the
+confident answer being a clean report: `--renumbered` ran exit 0 in the same window, twice,
+36 triaged rows, 0 fresh rows naming a code file.
+
+The finder that worked was the crudest one: `grep -rn '#119' --include='*.py' eval/`, read
+beside the finding each hit names. That is the same method the sixth pass used, and the same
+one #118's original 33 came from before the tool existed.
+
+> **A gate's corpus is an input to the gate.** A correct method at the wrong address
+> produces a confident answer, and a clean report over an unread corpus is that answer.
+> Same-day citations are the danger case for renumber drift — the author's tree still held
+> the old number when they were written — and they are exactly the case a same-day sweep
+> of the renumber's own day would have caught in ANY corpus. Whether code files join the
+> citation check's corpus is task 208, filed with this finding.

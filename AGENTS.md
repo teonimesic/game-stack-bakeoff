@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#210 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#211 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -397,8 +397,9 @@ vocabulary is an enumeration, and one already failed here on a single inflection
 
 Four identifier namespaces here are allocated by hand — task ids, finding numbers, regime ordinals,
 pack labels — and every one has collided. Three are gated. The gates catch the collision;
-`--renumbered` is the only thing that asks what the collision broke, and it decides about a third
-of what it reports and hands you the rest to read (#118). **Never renumber a finding to satisfy a
+`--renumbered` is the only thing that asks what the collision broke — over the DOCUMENT corpus it
+reads; a citation inside a code file is outside every gate here and has twice been found by reading
+instead (#118, #211) — and it decides about a third of what it reports and hands you the rest to read. **Never renumber a finding to satisfy a
 citation** — the number in `eval/findings/` is published, and the citation is what is wrong.
 
 ## Decide it yourself unless it is genuinely the operator's call
