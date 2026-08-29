@@ -62,6 +62,7 @@ from __future__ import annotations
 import argparse
 import collections
 import contextlib
+import io
 import json
 import shutil
 import sys
@@ -817,6 +818,29 @@ def mutants(inks: dict[str, dict[str, Any]], mutant_tmp: Path) -> None:
 # the corpus arm - the producer for every ink figure the documents quote
 # --------------------------------------------------------------------------- #
 
+def _frames(programmatic: Any) -> dict[str, Any]:
+    """A stored record's frames block, tolerating every absent shape.
+
+    `programmatic` itself and `frames` within it can each be missing OR `null`, and
+    `.get(key, {})` returns None for the null case because the key EXISTS - the
+    default never applies, and the next `.get` raises (`tasks/211`). One helper, not
+    three inline `or {}`: the tolerance is one policy with three readers in this
+    file, and a second copy of a policy is how #100 recurred.
+    `test_the_corpus_arm_tolerates_a_null_frames_block` drives all three readers over
+    a fixture tree, and its mutant restores the pre-fix chain at this one address.
+    """
+    return ((programmatic or {}).get("frames")) or {}
+
+
+def _no_ink_why(programmatic: dict[str, Any]) -> str:
+    """Why one stored record carries no `frames.mean_ink`, for the named partition."""
+    if "frames" not in programmatic:
+        return "no frames block"
+    if programmatic["frames"] is None:
+        return "frames null"
+    return "no frames.mean_ink"
+
+
 def corpus(runs_root: Path) -> None:
     """One row per submission, most recent grading - `tier1_census`'s population.
 
@@ -875,25 +899,31 @@ def corpus(runs_root: Path) -> None:
         print(f"    skipped {name}: {why}")
     # A record with no `frames.mean_ink` is PARTITIONED OUT and counted, never sorted
     # among the floats: `sorted()` over a mix of None and numbers raises, so the arm that
-    # produces every published ink figure would die rather than report.
+    # produces every published ink figure would die rather than report. Each partitioned
+    # record is also NAMED with the shape it hit, because a count without names cannot
+    # be checked against the records it claims to describe - and `frames: null` is the
+    # shape that bypassed this line entirely until tasks/211: the key EXISTS, so
+    # `.get("frames", {})` returned None and the next `.get` raised on it.
     for klass in sorted({r[0] for r in rows}):
         have = [r for r in rows if r[0] == klass]
         inks = sorted(v for r in have
-                      if (v := r[2].get("frames", {}).get("mean_ink")) is not None)
-        missing = len(have) - len(inks)
+                      if (v := _frames(r[2]).get("mean_ink")) is not None)
+        parted = [r for r in have if _frames(r[2]).get("mean_ink") is None]
         if not inks:
             print(f"  {klass}: 0 of {len(have)} record(s) carry frames.mean_ink - "
                   f"NO RANGE, which is not a range of 0")
-            continue
-        print(f"  {klass}: n={len(inks)}  mean_ink min={inks[0]} max={inks[-1]}"
-              + (f"  ({missing} carry no mean_ink)" if missing else ""))
+        else:
+            print(f"  {klass}: n={len(inks)}  mean_ink min={inks[0]} max={inks[-1]}"
+                  + (f"  ({len(parted)} carry no mean_ink)" if parted else ""))
+        for r in parted:
+            print(f"    partitioned out ({_no_ink_why(r[2])}): {r[1]['trial']}")
 
     print("\n  every render.nonempty FAILURE on record, and what it hit:")
     fired = [r for r in rows if not r[3]["passed"]]
     if not fired:
         print("    none")
     for klass, r, tier1, _crit in fired:
-        f = tier1.get("frames", {})
+        f = _frames(tier1)
         ink, n = f.get("mean_ink"), f.get("count")
         # NOT REGRADABLE is a third value, and it is not a FAIL. `nonempty_verdict`
         # would raise on `float(None)` and take the whole report with it; inventing a
@@ -963,8 +993,8 @@ def reference_shift(runs_root: Path) -> int:
         f0 = round(sum(im.ink_coverage(bg0) for im in imgs) / len(imgs), 5)
         pf = round(sum(im.ink_coverage(im.dominant_background())
                        for im in imgs) / len(imgs), 5)
-        stored = (json.loads(rep.read_text(encoding="utf-8"))
-                  .get("programmatic", {}).get("frames", {}).get("mean_ink"))
+        stored = _frames(json.loads(rep.read_text(encoding="utf-8"))
+                         .get("programmatic")).get("mean_ink")
         # ABSENT IS NOT AGREEMENT. A record with no `mean_ink` cannot prove the
         # extraction on itself, so it counts as an unproved row rather than being
         # skipped past the check and into the shift table - the fail-open shape rule 7
@@ -1031,6 +1061,141 @@ def _gate(g: dict[str, Any]) -> str:
     return f"FAIL {g['n_failed']}/{g['n_scored']} {shown}"
 
 
+def _corpus_trial(root: Path, trial: str, *, programmatic: dict[str, Any],
+                  frames_pixels: bytes | None) -> float:
+    """One stored grading at `<root>/runA/artifacts/<trial>/eval/` - the layout
+    `tier1_census.load_gradings` reads.
+
+    `frames_pixels` writes 2 identical frames, and the frame-0 `mean_ink` computed
+    exactly as `reference_shift` recomputes it is stored AS THE RECORD'S frames block
+    when the record does not name one itself - so the healthy record can prove the
+    extraction on itself, while a record handed `"frames": null` keeps the null with
+    the PNGs on disk beside it: the disk state and the field are independent, which
+    is the whole point of the second fixture tree.
+    """
+    d = root / "runA" / "artifacts" / trial / "eval"
+    d.mkdir(parents=True)
+    f0 = 0.0
+    prog = dict(programmatic)
+    if frames_pixels is not None:
+        fd = d / "frames"
+        fd.mkdir()
+        for i in range(2):
+            png.write_rgb(fd / f"frame_{i:04d}.png", W, H, frames_pixels)
+        imgs = [png.read(p) for p in sorted(fd.glob("*.png"))]
+        bg0 = imgs[0].dominant_background()
+        f0 = round(sum(im.ink_coverage(bg0) for im in imgs) / len(imgs), 5)
+        prog.setdefault("frames", {"count": len(imgs), "errors": [], "mean_ink": f0,
+                                   "flat_frames": 0, "per_frame_ink": [f0, f0]})
+    (d / "report.json").write_text(json.dumps({
+        "game": "g1", "task_class": "game",
+        "starter": "/somewhere/starters/godot",
+        "submission": f"/work/runA/{trial}",
+        "started_at": "2026-08-01T00:00:00+00:00",
+        "tier_scores": {"programmatic": 1.0, "playbot": 0.5},
+        "playbot_usable": True,
+        "programmatic": prog,
+    }), encoding="utf-8")
+    return f0
+
+
+def test_the_corpus_arm_tolerates_a_null_frames_block(tmp: Path) -> None:
+    """The one input shape that bypasses every NAME-AND-COUNT guard at once.
+
+    A stored record whose `programmatic` holds `"frames": null` made every reader of
+    the frames block raise: the key EXISTS, so `.get("frames", {})` returns None and
+    the next `.get` is on None (`tasks/211`). This arm produces every published ink
+    figure, and one such record died the run with every healthy record's figures
+    lost behind it - which is why the fixture below holds exactly one healthy record
+    and one null one, and each site must state its answer in a check: partitioned
+    out AND NAMED in the range loop, NOT REGRADABLE in the failure listing, and an
+    unproved row in the shift arm's extraction chain. The null record runs in both
+    disk states it can be in - no stored frames, and frames on disk the shift arm
+    will decode.
+    """
+    print("\n[the corpus arm survives a stored record carrying frames: null]")
+    healthy = {"criteria": [{"id": "render.nonempty", "passed": True,
+                             "scored": True, "evidence": "sparse subject on background"}]}
+    nulled = {"frames": None,
+              "criteria": [{"id": "render.nonempty", "passed": False,
+                            "scored": True,
+                            "evidence": "a firing whose frames block is null"}]}
+
+    root_a = tmp / "corpus-null-noframes"
+    ink = _corpus_trial(root_a, "g1_healthy__t0", programmatic=healthy,
+                        frames_pixels=sparse())
+    _corpus_trial(root_a, "g1_nullframes__t0", programmatic=nulled, frames_pixels=None)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        corpus(root_a)
+    out = buf.getvalue()
+    expect("the range loop partitions the null record out, named with its shape",
+           "partitioned out (frames null): g1_nullframes__t0" in out, out[:60])
+    expect("and counts it beside the healthy record's range, never among the floats",
+           f"game: n=1  mean_ink min={ink} max={ink}" in out
+           and "(1 carry no mean_ink)" in out,
+           f"healthy mean_ink={ink}")
+    expect("the failure listing reads it as NOT REGRADABLE, named, and does not "
+           "re-grade it",
+           "runA/g1_nullframes__t0  class=game  mean_ink=absent" in out
+           and "NOT REGRADABLE" in out and "gate:" not in out, out[:60])
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        moved = reference_shift(root_a)
+    out = buf.getvalue()
+    expect("with no frames on disk the null record is a no-frame count and the "
+           "healthy record's shift is still reported",
+           moved == 0
+           and "1 frame sets read, 1 submission(s) with no readable frame on disk" in out
+           and "reproduces all 1 stored mean_ink values" in out, out[:60])
+
+    root_b = tmp / "corpus-null-withframes"
+    _corpus_trial(root_b, "g1_healthy__t0", programmatic=healthy, frames_pixels=sparse())
+    _corpus_trial(root_b, "g1_nullframes__t0", programmatic=nulled,
+                  frames_pixels=sparse())
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        corpus(root_b)
+    out = buf.getvalue()
+    expect("the corpus arm reads the RECORD, not the disk: PNGs on disk do not "
+           "un-null a null frames block",
+           "partitioned out (frames null): g1_nullframes__t0" in out, out[:60])
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        moved = reference_shift(root_b)
+    out = buf.getvalue()
+    expect("with frames on disk the null record is an UNPROVED row, named, and no "
+           "shift is reported",
+           moved == -1
+           and "g1_nullframes__t0: stored absent, recomputed" in out
+           and "No shift is reported." in out, out[:60])
+
+    print("\n[mutant: the pre-fix chain is restored at the one helper]")
+    pre_fix = lambda prog: (prog or {}).get("frames", {})
+    raised = None
+    with patched(sys.modules[__name__], "_frames", pre_fix):
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                corpus(root_a)
+        except AttributeError as e:
+            raised = e
+    expect("mutant 'frames null reaches .get again' dies in the range loop, and is "
+           "caught", raised is not None, str(raised)[:120])
+
+    raised = None
+    with patched(sys.modules[__name__], "_frames", pre_fix):
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                reference_shift(root_b)
+        except AttributeError as e:
+            raised = e
+    expect("mutant 'frames null reaches .get again' dies in the extraction chain on "
+           "a record it holds PNGs for, instead of reporting it unproved - and is "
+           "caught", raised is not None, str(raised)[:120])
+
+
 # --------------------------------------------------------------------------- #
 
 def phases(inks: dict[str, dict[str, Any]],
@@ -1056,6 +1221,8 @@ def phases(inks: dict[str, dict[str, Any]],
         ("collect wiring", test_collect_reaches_the_criterion, 6),
         ("bound census", test_bound_census, 6),
         ("mutants", lambda: mutants(inks, tmp), 12),
+        ("corpus null frames",
+         lambda: test_the_corpus_arm_tolerates_a_null_frames_block(tmp), 8),
     ]
 
 
