@@ -1,11 +1,12 @@
 ---
 id: 211
 title: 'ink_window_control''s corpus arm dies on one stored record carrying "frames": null instead of naming it'
-status: todo
+status: in_testing
 priority: 5
 refs: eval/judge/ink_window_control.py
 done_when: a fixture runs tree holding one healthy record and one whose `programmatic.frames` is null takes `python3 eval/judge/ink_window_control.py --runs-root <fixture> --reference-shift` unpiped to exit 0, with the null-frames record NAMED and COUNTED in the corpus report — partitioned out beside the existing "carry no mean_ink" line, never sorted among the floats — and the healthy record's figures intact; the same tolerance holds at the failure-listing block (`tier1.get("frames", {})`, reading as NOT REGRADABLE) and in reference_shift's extraction chain (counting as an unproved row, the `stored is None` branch that already exists); every site states its answer in a check rather than in a comment; the stored corpus still reproduces the figures read 2026-08-29 (85 gradings, 69 submissions, 0 skipped, the 4 firings with their bounds, 10 of 67 sets moving, extraction proved on all 67); `python3 eval/judge/ink_window_control.py --runs-root <main checkout>/eval/runs --reference-shift` exits 0 unpiped after.
-established_by: 'eighth cleanup pass (CLEANUP-LOG.md), 2026-08-29; reproduced on a fixture tree BEFORE filing — corpus arm AttributeError at ink_window_control.py:881 on `"frames": null`, exit 1, the healthy record''s figures lost with it; reference_shift (line 966) and the failure listing (line 896) carry the same `.get` chain but are masked by the corpus crash, and a null `programmatic` never reaches either arm because tier1_census.load_gradings skips it — frames-inside-a-dict is the one reachable shape; 0 of 69 stored records carry it today, so latent'
+established_by: 'Pre-fix, the done_when command on the two-record fixture tree exited 1 with AttributeError ''NoneType'' object has no attribute ''get'' at the range loop (56/56 pre-existing expectations green above it); post-fix it exits 0 with the null record named ("partitioned out (frames null): g1_nullframes__t0") and counted ("(1 carry no mean_ink)") beside the healthy record''s intact range, the firing NOT REGRADABLE in the failure listing, and the null record an unproved/no-frame row in reference_shift; both corpus arms byte-identical to a pre-change capture (85 gradings, 69 submissions, 0 skipped, 4 firings with bounds, 10 of 67 sets moving, extraction proved on all 67); the module now holds 64/64 expectations including 2 mutants that restore the pre-fix chain and must go red; PR #91 review LANDED_COMMENT clean at head cdc76dad93071719445833016786676316850380; gates workflow pass; controls still running at hand-back.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/91
 ---
 
 `eval/judge/ink_window_control.py`'s corpus arm — the producer for every ink figure the
@@ -44,3 +45,69 @@ REGRADABLE in the failure listing, and counts as an unproved row in reference_sh
 the `stored is None` branch is already built for exactly that. `or {}` after each
 `.get(..., {})` is the minimal shape; the fixture in `done_when` is the check, and the
 corpus pins prove the tolerance changed nothing on the real tree.
+
+## note 2026-08-29
+
+## Done — PR #91, head cdc76da, review round clean
+
+Branch `task-211-null-frames-named-and-counted`, single commit, PR
+https://github.com/teonimesic/game-stack-bakeoff/pull/91. CodeRabbit landed
+`LANDED_COMMENT` at that head with **no actionable comments** (merge risk Minimal);
+`gates` workflow passed with the change in it; `controls` was still running at
+hand-back.
+
+**What landed.** One module-level helper `_frames(programmatic)` now mediates all
+three readers of the stored frames block (per-class range loop, failure listing,
+reference_shift's stored-mean_ink extraction), tolerating missing AND null at both
+the `programmatic` and `frames` links. The range loop additionally NAMES each
+partitioned record with the shape it hit, via `_no_ink_why` (no frames block /
+frames null / no frames.mean_ink) — the existing `(N carry no mean_ink)` count
+line is unchanged, so on the real corpus (0 such records) the report is
+byte-identical. reference_shift flows null into the existing `stored is None`
+unproved branch; no new branch there.
+
+**Design deviation from the ticket's minimal shape, declared:** the ticket
+suggested inline `or {}` at each site; this ships one helper with three readers
+instead. Reason: the module's own doctrine (the stream-capture policy, #100) is
+one copy of a tolerance policy, and a single address is what makes the mutant
+patchable in-process — the new phase's two mutants restore the pre-fix chain at
+`_frames` and must go red (range loop dies on the fixture; extraction chain dies
+decoding a record it holds PNGs for, instead of reporting it unproved). If the
+orchestrator prefers the literal inline shape, the helper inlines mechanically.
+
+**Checks, both directions.** New phase `test_the_corpus_arm_tolerates_a_null_frames_block`
+(8 expectations, declared in `phases()`; file goes 56 -> 64): drives the null
+record in BOTH disk states — no stored frames, and PNGs on disk — asserting
+partition-and-name, NOT REGRADABLE with no gate re-grade, and unproved-row with
+no shift reported. Red was established BEFORE the fix: the done_when command on
+the fixture tree exited 1 with AttributeError at the range loop, 56/56 fixture
+expectations green above it. After: same command exits 0 with
+
+    game: n=1  mean_ink min=0.02 max=0.02  (1 carry no mean_ink)
+      partitioned out (frames null): g1_nullframes__t0
+
+One fixture-builder bug was caught by the new checks themselves and fixed before
+landing: passing frames pixels used to overwrite the record's frames block, so
+the null-with-PNGs record was never null; `setdefault` now keeps the disk state
+and the field independent.
+
+**Corpus pins.** Both arms diffed against a pre-change capture: byte-identical
+except the new phase's rows and the 56->64 total. 85 gradings, 69 submissions,
+16 superseded, 0 skipped; 4 firings with their bounds; 67 frame sets read,
+extraction proved on all 67, 10 of 67 moving. `--runs-root <main>/eval/runs
+--reference-shift` exits 0 unpiped. Nothing written into eval/runs; no published
+table touched; no finding number needed (nothing measured beyond what this
+ticket already recorded).
+
+**Outside the module, measured and repaired:** the bare gate costs about 30 s
+wall locally (29.6 s at that day's HEAD, 30.3 s after this change; two samples
+each), not the 0.6 s carried by the gates.yml comment and the workflows README
+— nearly all of it the pre-existing fixture phases' per-pixel ink reads
+(cProfile: png.ink_coverage / png.Image.differs_from). Both documents now carry
+the measured figure, and the cost itself is filed as tasks/212 (this task's
+phase is ~0.6 s of the 30 and is not the target).
+
+**Declined in the review, for the record:** an ast-grep info note suggesting
+`jsonify` over `json.dumps` in the fixture builder — a Flask-ism; this is a CLI
+module writing a fixture file, and `json.dumps` is correct there. No reply
+thread was opened (the note is informational, not a conversation).
