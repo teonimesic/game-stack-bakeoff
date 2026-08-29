@@ -52,7 +52,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from probe import Criterion
+from probe import Criterion, LOCK_HINTS
 
 # --------------------------------------------------------------------------- #
 # What each game declares. These are the event names in the task prompt, which is
@@ -282,15 +282,11 @@ def distinct_groups(clips: list[Clip]) -> list[list[Clip]]:
 # --------------------------------------------------------------------------- #
 # The manifest
 # --------------------------------------------------------------------------- #
-
-
-#: An engine that takes a project-wide lock refuses a second session while the previous
-#: one is still shutting down. That says nothing about the submission's audio, and it
-#: can only happen on the stacks that take such a lock - so treating it as a failure
-#: deducts from one arm of a four-way comparison and from no other. Bias, not noise
-#: (FINDINGS #25). The probe reader retries for exactly this reason; so does this.
-LOCK_HINTS = ("another unity instance", "cannot open the same project", "lock",
-              "already running", "resource busy")
+#
+# `LOCK_HINTS`, imported from probe above, is the ONE lock-refusal vocabulary
+# (tasks/215): this module used to hold a second hand copy of the tuple, never
+# compared against probe's, and the reasoning for why a lock refusal must not be
+# scored lives with the definition.
 
 
 class ManifestRead(NamedTuple):
