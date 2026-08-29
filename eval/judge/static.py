@@ -128,7 +128,9 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
     Everything the previous implementation guaranteed is preserved: the child's exit
     code, `Cmd.tail` reading stdout followed by stderr, 124 on timeout, 127 when the
     binary is not there. What changed with #100 is that the two streams are kept APART
-    in the record instead of being concatenated and truncated as one buffer.
+    in the record instead of being concatenated and truncated as one buffer. And a
+    reap the harness could not observe reads 127 with a `could not reap` note rather
+    than 0 - see the waiter's except branch.
     """
     import os
     import queue as _queue
@@ -159,14 +161,24 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
     for r in readers:
         r.start()
 
-    reaped: "_queue.Queue[tuple[int, Any]]" = _queue.Queue()
+    reaped: "_queue.Queue[tuple[Any, Any]]" = _queue.Queue()
 
     def waiter() -> None:
         try:
             _pid, status, ru = os.wait4(p.pid, 0)
             reaped.put((status, ru))
-        except (ChildProcessError, OSError):
-            reaped.put((0, None))
+        except (ChildProcessError, OSError) as ex:
+            # NOT 0. This branch is the HARNESS failing to observe the child, so the
+            # child's true status is unknown - and 0 here would reach every gate
+            # criterion as `exit 0` from a command nobody saw end: a green gate with
+            # no evidence, which is AGENTS.md rule 3's `cmd || echo 0` shape. The
+            # exception object is the sentinel; the tail of `run` decodes it as 127
+            # with a note naming the party that failed to observe, the module's own
+            # convention for a command whose outcome it could not measure. `ru` is
+            # None, so peak_rss_mb and cpu_seconds stay None: an unobserved process's
+            # usage is the third value, not 0.0 - the same rule the `Cmd` docstring
+            # states for the spawn case.
+            reaped.put((ex, None))
 
     _th.Thread(target=waiter, daemon=True).start()
 
@@ -186,10 +198,19 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
 
     # Tell Popen the child is already reaped, so its own waitpid never runs and cannot
     # raise or hang in __del__.
-    try:
-        p.returncode = os.waitstatus_to_exitcode(status)
-    except ValueError:
-        p.returncode = -1
+    reap_ex = status if isinstance(status, Exception) else None
+    if reap_ex is not None:
+        # The waiter could not observe the child - see its except branch. 127, the
+        # module's convention for a command whose outcome it could not measure,
+        # never 0: the gate criteria read `code`, and a fabricated 0 is a green
+        # gate with no evidence. `ru` is None here, so the resource fields stay
+        # None without further handling.
+        p.returncode = 127
+    else:
+        try:
+            p.returncode = os.waitstatus_to_exitcode(status)
+        except ValueError:
+            p.returncode = -1
     for r in readers:
         r.join(timeout=30)
     for s in (p.stdout, p.stderr):
@@ -205,6 +226,10 @@ def run(repo: Path, name: str, argv: list[str], timeout_s: int = 1800,
     # parsers are unaffected - `Cmd.tail` still returns the note alone in this case.
     code = 124 if timed_out else p.returncode
     note = f"TIMEOUT after {timeout_s}s" if timed_out else ""
+    # A failed reap is the harness speaking too, and it names ITSELF as the party that
+    # failed - rule 6: the note says which party was waiting, and here it is internal.
+    if reap_ex is not None:
+        note = f"{note}; could not reap: {reap_ex}" if note else f"could not reap: {reap_ex}"
 
     peak = cpu = None
     if ru is not None:
