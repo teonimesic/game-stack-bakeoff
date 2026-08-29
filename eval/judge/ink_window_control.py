@@ -56,6 +56,16 @@ producer for the table in `eval/RUNS.md`. It is separate because it decodes ~800
 in pure Python and takes about 80 s, and because it proves its extraction first: the
 frame-0 arm must reproduce each stored record's own `mean_ink` to the digit before any
 per-frame figure it prints means anything (rule 12).
+
+A fourth arm pins the READER itself. Since `tasks/212` `png.ink_coverage` and
+`png.Image.differs_from` are vectorised - byte translate + integer OR, not a Python
+loop per pixel - and speed is not a reading. `_reference_ink` and
+`_reference_differs` below are those two functions as they shipped, loop per pixel,
+and the reader-pin phase re-derives every fixture and blank-arrangement reading
+through them and requires exact agreement. `--pin-dump` prints every reading
+canonically and exits: the before/after pin for any future change to either function.
+Run it on the current code, make the change, run it again, and diff - a reading that
+moved is a changed measure, whatever the expectations say.
 """
 from __future__ import annotations
 
@@ -436,6 +446,180 @@ def test_fixtures_measure_what_they_claim(inks: dict[str, dict[str, Any]]) -> No
 
 
 # --------------------------------------------------------------------------- #
+# the reader pin - the vectorised png functions against the loops they shipped with
+# --------------------------------------------------------------------------- #
+
+def _reference_ink(im: png.Image, background: tuple[int, int, int],
+                   tolerance: int = 8) -> float:
+    """`png.Image.ink_coverage` as it shipped before `tasks/212` - a loop per pixel.
+
+    The reference the vectorised reader is pinned against: identical semantics, no
+    cleverness, too slow to ship and too simple to be wrong the same way. Kept HERE
+    rather than trusted to a paragraph in `png.py`, because the pin has to be a row
+    that runs, not a promise.
+    """
+    n = im.width * im.height
+    if n == 0:
+        return 0.0
+    br, bg, bb = background
+    c, d, hit = im.channels, im.data, 0
+    for i in range(0, n * c, c):
+        if (abs(d[i] - br) > tolerance or abs(d[i + 1 if c > 1 else i] - bg) > tolerance
+                or abs(d[i + 2 if c > 2 else i] - bb) > tolerance):
+            hit += 1
+    return hit / n
+
+
+def _reference_differs(a: png.Image, b: png.Image, tolerance: int = 8) -> float:
+    """`png.Image.differs_from` as it shipped before `tasks/212`. See `_reference_ink`."""
+    if (a.width, a.height) != (b.width, b.height):
+        return 1.0
+    n = a.width * a.height
+    da, db = a.data, b.data
+    ca, cb = a.channels, b.channels
+    diff = 0
+    for p in range(n):
+        ia, ib = p * ca, p * cb
+        if any(abs(da[ia + k] - db[ib + k]) > tolerance
+               for k in range(min(3, ca, cb))):
+            diff += 1
+    return diff / n if n else 0.0
+
+
+def _pattern_frame(width: int, height: int, channels: int) -> png.Image:
+    """A deterministic small frame over many byte values, at any channel count.
+
+    Fixed arithmetic, not randomness: a pin that could change under the reader is
+    not a pin.
+    """
+    return png.Image(width, height, channels,
+                     bytes((i * 31 + (i % (channels * 5)) * 7) % 256
+                           for i in range(width * height * channels)))
+
+
+def _boundary_frame(background: tuple[int, int, int]) -> png.Image:
+    """One 5x1 RGB frame whose channels sit at background-9/-8/+8/+9/+0.
+
+    Every fixture's marks sit hundreds of counts from the background, so the
+    tolerance edge - where `tolerance` and `tolerance - 1` disagree - is exercised
+    by no fixture. This frame is where the reader-pin mutants live.
+    """
+    vals = bytearray()
+    for delta in (-9, -8, 8, 9, 0):
+        for channel in background:
+            vals.append(min(255, max(0, channel + delta)))
+    return png.Image(5, 1, 3, bytes(vals))
+
+
+def _distinct(images: list[png.Image]) -> list[png.Image]:
+    """Frames with distinct bytes, first occurrence, order kept.
+
+    Identical bytes give identical readings under every per-pixel function, so
+    comparing one of each is exact, and not a sampling policy.
+    """
+    seen: set[bytes] = set()
+    out = []
+    for im in images:
+        if im.data not in seen:
+            seen.add(im.data)
+            out.append(im)
+    return out
+
+
+def _check_set(label: str, imgs: list[png.Image]) -> None:
+    """Every shipped reading of one frame set, against the per-pixel reference."""
+    problems: list[str] = []
+    bg0 = imgs[0].dominant_background()
+    for im in _distinct(imgs):
+        own = im.dominant_background()
+        ref_own = _reference_ink(im, own)
+        if im.ink_coverage(own) != ref_own:
+            problems.append(f"ink(own) {im.ink_coverage(own)} vs {ref_own}")
+        if im.ink_coverage(bg0) != _reference_ink(im, bg0):
+            problems.append(f"ink(bg0) {im.ink_coverage(bg0)}")
+        if im.is_flat() != (ref_own == 0.0):
+            problems.append(f"is_flat {im.is_flat()}")
+    pairs: dict[tuple[bytes, bytes], tuple[png.Image, png.Image]] = {}
+    for a, b in zip(imgs, imgs[1:]):
+        pairs.setdefault((a.data, b.data), (a, b))
+    for (a, b) in pairs.values():
+        if a.differs_from(b) != _reference_differs(a, b):
+            problems.append(f"differs {a.differs_from(b)} vs {_reference_differs(a, b)}")
+    expect(f"{label}: vectorised reader agrees with the per-pixel reference "
+           f"({len(_distinct(imgs))} distinct frame(s), {len(pairs)} distinct pair(s))",
+           problems == [], "; ".join(problems)[:150])
+
+
+def test_vectorised_reader_matches_the_per_pixel_reference(tmp: Path) -> None:
+    """`png.ink_coverage` and `png.Image.differs_from` are vectorised; this is the pin.
+
+    Since `tasks/212` both compute at byte-translate + integer-OR speed instead of a
+    loop per pixel. Speed is not a reading: every fixture and every blank
+    arrangement is re-measured here through the loops those functions shipped with
+    (`_reference_ink` / `_reference_differs`), and every reading must agree exactly.
+    The full-size arm is the material the criterion decides on; the small frames are
+    the directions no render harness reaches - channel counts 1/2/4, mixed-channel
+    compares, the tolerance edge, and references outside byte range.
+    """
+    print("\n[the vectorised reader against the per-pixel reference]")
+    d = tmp / "pin"
+
+    def measured(make_per_frame: Any, n: int = 2) -> list[png.Image]:
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True, exist_ok=True)
+        for i in range(n):
+            png.write_rgb(d / f"frame_{i:04d}.png", W, H, make_per_frame(i))
+        return [png.read(p) for p in sorted(d.glob("*.png"))]
+
+    for name, make, _lo, _hi in FIXTURES:
+        _check_set(f"fixture {name}", measured(lambda _i: make()))
+    for name, per_frame, _ink, _then in BLANK_RENDERS:
+        _check_set(f"arrangement {name}", measured(per_frame, 12))
+    _check_set("colour drift", measured(colour_drift, 12))
+
+    # THE DIRECTIONS THE FIXTURES CANNOT REACH.
+    for c in (1, 2, 4):
+        im = _pattern_frame(24, 18, c)
+        bad = [f"bg={bg} tol={tol}" for bg in ((0, 0, 0), (255, 255, 255), (100, 100, 100))
+               for tol in (0, 1, 8, 255)
+               if im.ink_coverage(bg, tol) != _reference_ink(im, bg, tol)]
+        if im.is_flat() != (_reference_ink(im, im.dominant_background()) == 0.0):
+            bad.append("is_flat")
+        expect(f"channel count {c}: ink_coverage and is_flat agree over 3 backgrounds "
+               "x tolerances 0/1/8/255", bad == [], "; ".join(bad))
+
+    bad = [f"{ca}v{cb} tol={tol}" for ca, cb in ((3, 1), (1, 2), (2, 4), (4, 3), (1, 3))
+           for tol in (0, 8)
+           if _pattern_frame(24, 18, ca).differs_from(_pattern_frame(24, 18, cb), tol)
+           != _reference_differs(_pattern_frame(24, 18, ca), _pattern_frame(24, 18, cb), tol)]
+    expect("mixed channel counts: differs_from agrees", bad == [], "; ".join(bad))
+
+    edge, base = _boundary_frame((100, 100, 100)), png.Image(5, 1, 3, bytes((100, 100, 100)) * 5)
+    bad = [f"{kind} tol={tol}" for tol in (0, 1, 7, 8, 9, 255)
+           for kind, got, want in (
+               ("ink", edge.ink_coverage((100, 100, 100), tol),
+                _reference_ink(edge, (100, 100, 100), tol)),
+               ("differs", edge.differs_from(base, tol),
+                _reference_differs(edge, base, tol)))
+           if got != want]
+    expect("tolerance edge (channels at background-9/-8/+8/+9): both functions agree",
+           bad == [], "; ".join(bad))
+
+    im = _pattern_frame(24, 18, 3)
+    bad = [f"bg={bg}" for bg in ((300, -5, 128), (256, 256, 256))
+           if im.ink_coverage(bg) != _reference_ink(im, bg)]
+    expect("a background outside byte range: ink_coverage agrees", bad == [], "; ".join(bad))
+
+    empty = png.Image(0, 0, 3, b"")
+    mismatched = png.Image(4, 5, 3, bytes(60))
+    expect("zero-size reads 0.0 both ways and a size-mismatched differs_from reads 1.0",
+           empty.ink_coverage((0, 0, 0)) == _reference_ink(empty, (0, 0, 0)) == 0.0
+           and empty.differs_from(empty) == _reference_differs(empty, empty) == 0.0
+           and _pattern_frame(4, 4, 3).differs_from(mismatched)
+           == _reference_differs(_pattern_frame(4, 4, 3), mismatched) == 1.0)
+
+
+# --------------------------------------------------------------------------- #
 # the criterion itself, both directions
 # --------------------------------------------------------------------------- #
 
@@ -765,6 +949,28 @@ def mutants(inks: dict[str, dict[str, Any]], mutant_tmp: Path) -> None:
         caught = drive_collect("game", 0.5)["passed"] is False
     expect("mutant 'collect stops using nonempty_verdict' is caught by the collect "
            "drive", caught)
+
+    # THE READER PIN, BOTH DIRECTIONS. Each mutant moves the shipped reader by one
+    # step of tolerance; the fixtures cannot see that (every mark sits hundreds of
+    # counts from the background), so these run on the pin phase's boundary frame,
+    # whose channels sit at background-9/-8/+8/+9. If the reader ever stops agreeing
+    # with the loops it replaced, the phase above goes red - these two rows are what
+    # says it still CAN.
+    edge, base = _boundary_frame((100, 100, 100)), png.Image(5, 1, 3, bytes((100, 100, 100)) * 5)
+    with patched(png.Image, "ink_coverage",
+                 lambda self, background, tolerance=8:
+                 _reference_ink(self, background, tolerance - 1)):
+        caught = (edge.ink_coverage((100, 100, 100))
+                  != _reference_ink(edge, (100, 100, 100)))
+    expect("mutant 'ink_coverage is one tolerance step narrow' is caught by the pin",
+           caught)
+
+    with patched(png.Image, "differs_from",
+                 lambda self, other, tolerance=8:
+                 _reference_differs(self, other, tolerance + 1)):
+        caught = edge.differs_from(base) != _reference_differs(edge, base)
+    expect("mutant 'differs_from is one tolerance step loose' is caught by the pin",
+           caught)
 
     print("\n[mutants: can the bound census fail?]")
     without = {k: v for k, v in static.TIER1_BOUND_POPULATION.items()
@@ -1198,6 +1404,91 @@ def test_the_corpus_arm_tolerates_a_null_frames_block(tmp: Path) -> None:
 
 # --------------------------------------------------------------------------- #
 
+def pin_dump() -> int:
+    """Every per-pixel reading the fixtures and arrangements produce, canonical.
+
+    THE BEFORE/AFTER PIN for any change to `png.ink_coverage` or
+    `png.Image.differs_from` (tasks/212 made both vectorised; the next change to
+    either owes the same proof). Run this on the current code, make the change,
+    run it again, and diff: every line is a reading of the shipped functions over
+    the material this gate owns - full 640x400 frames, every fixture and blank
+    arrangement, tolerances 0/1/8/255 against each frame's own mode and frame 0's,
+    every consecutive pair - plus the synthetic frames for the channel counts,
+    mixed-channel compares, tolerance edge and out-of-range references no render
+    harness emits. Lines are sorted, values printed with `repr` (exact round-trip):
+    a diff is a changed measure, and there is nothing to adjudicate past it.
+    """
+    lines: list[str] = []
+
+    def emit(key: str, value: Any) -> None:
+        lines.append(f"{key} = {value!r}")
+
+    tmp = Path(tempfile.mkdtemp(prefix="inkpin-"))
+    try:
+        d = tmp / "frames"
+
+        def read_set(make_per_frame: Any, n: int) -> list[png.Image]:
+            shutil.rmtree(d, ignore_errors=True)
+            d.mkdir(parents=True, exist_ok=True)
+            for i in range(n):
+                png.write_rgb(d / f"frame_{i:04d}.png", W, H, make_per_frame(i))
+            return [png.read(p) for p in sorted(d.glob("*.png"))]
+
+        def dump_set(label: str, imgs: list[png.Image]) -> None:
+            bg0 = imgs[0].dominant_background()
+            for i, im in enumerate(imgs):
+                own = im.dominant_background()
+                emit(f"{label} frame{i} geometry",
+                     (im.width, im.height, im.channels, len(im.data)))
+                emit(f"{label} frame{i} own_bg", own)
+                emit(f"{label} frame{i} is_flat", im.is_flat())
+                for tol in (0, 1, 8, 255):
+                    emit(f"{label} frame{i} ink_own_tol{tol}", im.ink_coverage(own, tol))
+                    emit(f"{label} frame{i} ink_bg0_tol{tol}", im.ink_coverage(bg0, tol))
+            for i, (a, b) in enumerate(zip(imgs, imgs[1:])):
+                for tol in (0, 1, 8):
+                    emit(f"{label} delta{i} tol{tol}", a.differs_from(b, tol))
+            emit(f"{label} analyse_frames",
+                 sorted(static.analyse_frames(sorted(d.glob("*.png"))).items()))
+
+        for name, make, _lo, _hi in FIXTURES:
+            dump_set(f"fixture-{name}", read_set(lambda _i: make(), 2))
+        for name, per_frame, _ink, _then in BLANK_RENDERS:
+            dump_set(f"arrangement-{name}", read_set(per_frame, 12))
+        dump_set("colour-drift", read_set(colour_drift, 12))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # Channel counts, mixed-channel compares, the tolerance edge and out-of-range
+    # references: directions no render harness reaches, so no fixture covers them.
+    for c in (1, 2, 3, 4):
+        im = _pattern_frame(24, 18, c)
+        emit(f"synthetic-c{c} own_bg", im.dominant_background())
+        emit(f"synthetic-c{c} is_flat", im.is_flat())
+        for bg in ((0, 0, 0), (100, 100, 100), (255, 255, 255), (300, -5, 128)):
+            for tol in (0, 1, 8, 255):
+                emit(f"synthetic-c{c} bg{bg} tol{tol}", im.ink_coverage(bg, tol))
+    a3 = _pattern_frame(24, 18, 3)
+    for ca, cb in ((3, 1), (1, 2), (2, 4), (4, 3), (1, 3)):
+        for tol in (0, 8):
+            emit(f"synthetic-differs {ca}v{cb} tol{tol}",
+                 a3.differs_from(_pattern_frame(24, 18, cb), tol))
+    edge = _boundary_frame((100, 100, 100))
+    base = png.Image(5, 1, 3, bytes((100, 100, 100)) * 5)
+    for tol in (0, 1, 7, 8, 9, 255):
+        emit(f"synthetic-edge ink tol{tol}", edge.ink_coverage((100, 100, 100), tol))
+        emit(f"synthetic-edge differs tol{tol}", edge.differs_from(base, tol))
+    empty = png.Image(0, 0, 3, b"")
+    emit("synthetic-empty ink", empty.ink_coverage((0, 0, 0)))
+    emit("synthetic-empty differs", empty.differs_from(empty))
+    emit("synthetic-mismatch differs",
+         _pattern_frame(4, 4, 3).differs_from(png.Image(4, 5, 3, bytes(60))))
+
+    for line in sorted(lines):
+        print(line)
+    return 0
+
+
 def phases(inks: dict[str, dict[str, Any]],
            tmp: Path) -> list[tuple[str, Any, int]]:
     """Every mandatory phase and **how many expectations it must contribute**.
@@ -1217,10 +1508,12 @@ def phases(inks: dict[str, dict[str, Any]],
          2 * len(BLANK_RENDERS) + 1),
         ("colour drift", lambda: test_a_colour_drift_that_drew_nothing_fails(tmp), 1),
         ("the two halves", lambda: test_the_two_halves(inks, tmp), 3),
+        ("reader pin", lambda: test_vectorised_reader_matches_the_per_pixel_reference(tmp),
+         11 + 7),
         ("class refusal", test_an_unplaceable_class_is_refused, 3),
         ("collect wiring", test_collect_reaches_the_criterion, 6),
         ("bound census", test_bound_census, 6),
-        ("mutants", lambda: mutants(inks, tmp), 12),
+        ("mutants", lambda: mutants(inks, tmp), 14),
         ("corpus null frames",
          lambda: test_the_corpus_arm_tolerates_a_null_frames_block(tmp), 8),
     ]
@@ -1237,7 +1530,13 @@ def main() -> int:
     ap.add_argument("--reference-shift", action="store_true",
                     help="with --runs-root: re-read every stored PNG and report which "
                          "sets move between the two references (~80 s)")
+    ap.add_argument("--pin-dump", action="store_true",
+                    help="print the canonical per-pixel readings of every fixture and "
+                         "blank arrangement, then exit - the before/after pin for any "
+                         "change to png.ink_coverage or png.Image.differs_from")
     args = ap.parse_args()
+    if args.pin_dump:
+        return pin_dump()
     if args.reference_shift and not args.runs_root:
         ap.error("--reference-shift needs --runs-root: it reads stored PNGs, and a "
                  "worktree's eval/runs is empty")

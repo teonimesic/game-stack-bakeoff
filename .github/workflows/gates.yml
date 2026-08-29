@@ -329,9 +329,12 @@ jobs:
       # is calibrated on anything. `render.nonempty`'s ink ceiling had 0 true positives and
       # 2 false negatives in 85 stored gradings and is gone (tasks/163, tasks/168); this
       # also carries the derivation for its removal as measured rows on real pixels, and
-      # the restored 0.85 as a mutant. About 30 s locally (2026-08-29; the 0.6 s this
-      # comment carried was measured against a smaller form of the file), dominated by
-      # the fixture phases' per-pixel ink reads. It writes its own PNGs through
+      # the restored 0.85 as a mutant. About 4.6 s locally (2026-08-29,
+      # `time python3 eval/judge/ink_window_control.py`; the ~30 s this comment carried
+      # until tasks/212 was the fixture phases' per-pixel ink reads, now vectorised in
+      # judge/png.py and pinned against the shipped per-pixel loops by the file's
+      # reader-pin phase -- what dominates now is those pin loops plus zlib). It writes
+      # its own PNGs through
       # judge/png.py and stubs every
       # subprocess `static.collect` makes, so it needs neither `just` nor a toolchain.
       # The corpus arm reads eval/runs, which is gitignored, and prints NOT ASKED here.
