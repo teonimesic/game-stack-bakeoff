@@ -35,6 +35,12 @@ THE GAP IS THE INTERESTING PART, AND IT HAS A SIGN
             accounting quirk, it is a MISSING ARTIFACT: a round was paid for and its file
             is gone. It has happened - 13.16 tokval of `g1_pong` round-1 calls are recorded in
             `eval/RUNS.md` and exist nowhere on disk (task 04, closed by re-running them).
+            ONLY where every round states a cost. If a round with no recorded cost_usd is
+            named in the directory, its unrecorded cost may be the whole deficit, the
+            artifacts cannot decide between "file gone" and "cost never written", and the
+            verdict is INDETERMINATE - not published as a cause nobody on disk can
+            support, and not red: nothing here is excused, and the same deficit with
+            every cost stated is still MISSING ARTIFACT.
 
 A ROUND WITH NO COST IS NOT A ZERO
 ----------------------------------
@@ -319,7 +325,17 @@ def audit(d: str) -> dict:
     gap = cost - counter
     rec["gap_usd"] = round(gap, 4)
     if gap < -EPS:
-        rec["verdict"] = "MISSING ARTIFACT"
+        # A deficit is MISSING ARTIFACT only where every round states a cost - the
+        # verdict asserts "a round was paid for and its file is gone", and where a
+        # no-cost round is named, that file is ON DISK and its unrecorded cost may be
+        # the whole deficit. The verdict the artifacts cannot determine is not
+        # published: INDETERMINATE, on NO SUMMARY's precedent (unjudged is not free;
+        # undetermined is not missing). Not in BAD - nothing here is excused, and the
+        # same deficit with no no-cost round is still red (selftest cases 3 and 15).
+        if no_cost:
+            rec["verdict"] = "INDETERMINATE"
+        else:
+            rec["verdict"] = "MISSING ARTIFACT"
         rec["carried"] = []
     elif abs(gap) <= EPS:
         rec["verdict"] = "AGREES"
@@ -354,8 +370,12 @@ def report(recs: list[dict], root: str | None = None) -> int:
         if r.get("carried"):
             print(f"{'':46} carried over: {', '.join(r['carried'])}")
         if r.get("no_cost"):
+            clause = (" - excluded from the field column"
+                      if r["verdict"] != "INDETERMINATE" else
+                      " - excluded from the field column; the deficit may be theirs, "
+                      "so the deficit is INDETERMINATE, not MISSING ARTIFACT")
             print(f"{'':46} no cost_usd on {len(r['no_cost'])} round(s): "
-                  f"{', '.join(r['no_cost'])} - excluded from the field column")
+                  f"{', '.join(r['no_cost'])}{clause}")
         total += r["field_cost_usd"]
     print(f"\n{len(recs)} sweep director(ies), {sum(r['n_rounds'] for r in recs)} stored "
           f"rounds, field {tokenvalue.tag(total)}")
@@ -594,6 +614,30 @@ def selftest() -> int:
         check("gapnocost.verdict", r["verdict"], "RESUMED")
         check("gapnocost.carried", r["carried"], ["paid_old.json"])
 
+        # 15. A DEFICIT A ROUND WITH NO COST COULD ACCOUNT FOR IS INDETERMINATE, NOT
+        #     MISSING ARTIFACT. MISSING ARTIFACT asserts "a round was paid for and its
+        #     file is gone"; here the file is ON DISK, named in no_cost, and its
+        #     unrecorded cost may be the whole deficit - so the verdict the artifacts
+        #     cannot determine is not published, on NO SUMMARY's precedent (unjudged is
+        #     not free; undetermined is not missing). Not in BAD: the corpus stays
+        #     readable, and everything known still prints. The same deficit with every
+        #     round stating a cost is still red - case 3, unchanged.
+        q = os.path.join(td, "indeterminate"); os.makedirs(q)
+        _write(q, "r_paid.json", _round(3.00), 1000)
+        _write(q, "r_absent.json",
+               {k: v for k, v in _round(0.0).items() if k != "cost_usd"}, 1001)
+        _write(q, "GATES.json", {"measured_cost_usd": 7.00})
+        r = audit(q)
+        check("indeterminate.verdict", r["verdict"], "INDETERMINATE")
+        check("indeterminate.gap", round(r["gap_usd"], 2), -4.00)
+        check("indeterminate.n_no_cost", r["n_no_cost"], 1)
+        check("indeterminate.exit", report([r]), 0)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report([r])
+        check("indeterminate.report.clause",
+              "the deficit may be theirs" in buf.getvalue(), True)
+
         # 10. A CLEAN TREE WALK finds every directory holding rounds and no others - the
         #    parent `td` holds only subdirectories and must not appear. Kept after the
         #    cases above: it walks the tree they have just finished building.
@@ -601,7 +645,7 @@ def selftest() -> int:
         check("walk.dirs", found,
               {"agrees", "resumed", "missing", "unexplained", "nosummary", "shape",
                "post", "copied", "superseded", "nocost", "overbound", "overbound_split",
-               "gapnocost"})
+               "gapnocost", "indeterminate"})
 
     for f in fails:
         print(f"  FAIL {f}")
