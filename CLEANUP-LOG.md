@@ -1332,3 +1332,81 @@ drop sites against the sibling module's handling of the identical shape.
 this log has not opened (`WR-ink-arrangement-0-91667` points at it). Taking it completes
 the register-coverage thread this pass and the sixth pass followed: every corrected
 citation in `eval/withdrawn.json` has then had its room opened and read.
+
+## 2026-08-29 (eighth pass) — the last register room: `ink_window_control.py`, and the register-coverage thread closes
+
+**Area:** `eval/judge/ink_window_control.py` (1118 lines, read whole) — the seventh
+pass's named pointer, and the producer `WR-ink-arrangement-0-91667` points operators
+at. With this pass every corrected citation in `eval/withdrawn.json` has had its room
+opened and read; the thread the sixth and seventh passes followed is done.
+
+### Found
+
+- **One latent crash channel, filed as task 211.** The corpus arm — the producer for
+  every ink figure the documents quote — reads the frames block with
+  `.get("frames", {})` and then calls `.get` on the result. A stored record whose
+  `programmatic` holds `"frames": null` returns None from the first `.get` (the key
+  exists, so the default never applies) and raises at line 881: exit 1, every healthy
+  record's figures lost with the malformed one. The same chain sits at the failure
+  listing (line 896) and in `reference_shift` (line 966), masked by the corpus crash.
+  It is the #176 shape — one unreadable record turning a producer off — in a module
+  whose standard everywhere else is name-and-count. Reproduced on a fixture tree
+  BEFORE filing; 0 of 69 stored records carry it, so latent, hence p5.
+
+### Cleared — examined and judged sound
+
+- **The register entry's figures reproduce unpiped, all three arms, exit 0.** The bare
+  run: 56/56 expectations held. The phase the entry names read all 4 arrangements at
+  **0.0, every one FAILING**, with the retired frame-0 readings 0.0 / 0.91667 / 0.5 /
+  0.5 — the two 0.5s printed ADMITTED by the retired window, which is the entry's
+  whole point — and `the arrangement no longer moves the number at all`. COLOUR_DRIFT
+  read 0.00001, flat 1 of 12, 0.91665 under the retired reference, exactly as
+  `COLOUR_DRIFT_INK` and `COLOUR_DRIFT_UNDER_FRAME0` state.
+- **The corpus arm over the stored tree: 85 gradings over 69 submissions, 16
+  superseded, 0 skipped, 0 paths not a run.** `task_class` read from the record on 1
+  and inferred from the id shape on 68 — counted out loud, not silently read as games.
+  All 4 historical `render.nonempty` firings named with the bound each hit and the
+  re-grade verdict: the two `wg-arena3d` rust rows at 0 frames on the floor, the
+  `wg-g4c` platformer and the scene on the retired 0.85 ceiling, both PASSing under
+  the floor — the scene keeping its other 3 gate failures, so the re-grade moves no
+  story.
+- **`eval/RUNS.md`'s break-25 section reproduces row-for-row against the producer** —
+  the 10-mover table value by value, 67 readable frame sets and 2 without (the same
+  rust cells), lowest value under either reference 0.00811 (the "8x the floor"
+  sentence), and the retired ceiling refusing 1 of 67 under the new reference, the
+  scene at 0.85042. A live document's figures re-derived rather than trusted, and
+  none had drifted.
+- **The module's defences held under reading, and each is a rule in code:** the
+  phase-count guard (every phase declares its count; a dropped phase exits 1 —
+  #212's lesson, which landed the same day, already applied here); `_frame0_inks`
+  RE-MEASURES the retired reference instead of trusting the table column it
+  adjudicates; `reference_shift` refuses to report a shift (-1) unless its frame-0 arm
+  first reproduces all 67 stored values to the digit, and proved them today; NOT ASKED
+  vs `0 firings` kept distinct; the restored-0.85 mutant is the real pre-change body,
+  not a stub returning a number; and the bound census pins the WHOLE tally including
+  an explicit `task_class: 0`, so a reclassification that keeps the total (measured
+  live: `no_bound=9, starter=1`) still goes red.
+- **It is wired, and the wiring resolves:** `gates.yml:338` runs it bare on every push
+  and PR — the control's duty cycle is CI, not memory — with the corpus arm CI-absent
+  by design (`eval/runs` gitignored) and the reason stated in the docstring and the
+  output. DECISIONS.md and RUBRIC.md name it as what re-opens the ceiling decision and
+  as the derivation's producer; `png.py`, `static.py` and `SCENES.md` point back at it
+  for the same numbers.
+
+### Method note
+
+The seventh pass's ordering held: run the register's producer before reading code
+cold, and the entry's answers were verified before anything was judged. The channel
+was found the other way round — reading the drop sites against the module's own
+name-and-count standard — and the reproduction CORRECTED the ticket's scope once: the
+`reference_shift` chain looked like a second channel until `tier1_census.load_gradings`'
+skip of a null `programmatic` showed it unreachable except behind the corpus crash. A
+null `programmatic` never reaches either arm; `frames`-inside-a-dict is the one shape.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/static.py` (767 lines) — the tier-1 implementation itself: `collect`,
+`analyse_frames`, `nonempty_verdict`, `INK_FLOOR` and the bound registry this pass and
+the ink control exercise from outside. No pass has opened it, and it now carries three
+backward references to the module this pass read. Its companion reader `eval/judge/png.py`
+(208 lines) can ride along.
