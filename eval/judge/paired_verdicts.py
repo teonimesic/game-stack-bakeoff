@@ -588,7 +588,9 @@ def _synthetic_checks(root: Path) -> None:
     # stands); only paired, verdict and evidence are closed to it. "not
     # counted anywhere below" is the label for EXCLUDED CELLS, where it is
     # true, and was wrong here.
-    skip_line8 = next(l for l in txt8.splitlines() if "SKIPPED AT LOAD" in l)
+    skip_line8 = next((l for l in txt8.splitlines() if "SKIPPED AT LOAD" in l),
+                      "")  # no default would crash the suite mid-run and hide
+                           # every later failure - a check must FAIL, not die
     expect("...and the skip label states what the classes cannot reach "
            "(paired/verdict/evidence) and what a named one still is (recorded, "
            "so `unpaired` can move)",
