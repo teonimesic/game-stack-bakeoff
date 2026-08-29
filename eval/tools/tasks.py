@@ -110,6 +110,28 @@ Two properties the serialiser buys that hand-quoting does not: it is resolver-aw
 `grep -h "^title:" tasks/*.md` working. The format is still grep-first. It is now also parseable
 by anything that is not this file.
 
+THE SERIALISER CHOOSES QUOTING ONLY FOR WHAT A WRITE CHANGES (tasks/217)
+-----------------------------------------------------------------------
+`yaml.safe_dump` out is not the whole story, and cd4994d is the measurement: it
+hand-authored tasks/216 with a single-quoted title and done_when -- legal YAML, `check`-
+clean -- and the writer re-emitted the title unquoted, because the serialiser emits plain
+whenever plain parses. The bytes of a file nobody's command had touched stopped
+reproducing, and the byte round trip in CI went red on every open pull request whose
+merge ref carried the queue, through a file none of them touched. The immediate red
+cleared when the next status write canonicalised the file; the property stayed broken,
+and the next hand repair that quotes a scalar would have re-reddened every open pull
+request at once.
+
+So `_read_fm` reads each single-line `key: ...` line verbatim alongside its parsed value,
+and `_render` puts a line back BYTE FOR BYTE whenever the value behind it is unchanged --
+`_restore_lines`, which restores only after re-parsing the line against the value now
+being written, so a changed value is always serialised and nothing a caller asked for is
+reverted. The serialiser's own output -- resolver-aware, grep-flat -- is what a write
+touches; the file's own bytes are what it leaves alone. Pinned in `tasks_control.py`
+direction 13 on the cd4994d blob itself, with the restored pre-217 writer as a mutant
+(`render_discards_raw`) and the guard deleted as the fail-open twin
+(`render_ignores_value_changes`).
+
 `check` ALSO FAILS A FILE WHOSE FRONTMATTER PARSES SHORTER THAN IT WAS WRITTEN
 -----------------------------------------------------------------------------
 Parsing cleanly is not the same as parsing WHOLLY, and the difference cost tasks/214 its
@@ -622,12 +644,20 @@ class _Malformed(Exception):
     """A task file `check` should name, rather than one `_load` should crash on."""
 
 
-def _read_fm(p: Path) -> tuple[dict, str]:
-    """(frontmatter mapping, body) -- the mapping as YAML sees it, the body byte-for-byte.
+def _read_fm(p: Path) -> tuple[dict, str, dict[str, str]]:
+    """(frontmatter mapping, body, raw lines) -- as YAML sees it, byte-for-byte, verbatim.
 
     The RAW mapping, with YAML's own types, because it is what `_set` writes back: preserving
     `priority: 3` as an integer rather than restringing it to `'3'` on every status change.
     `_parse` is the one that normalises for readers.
+
+    The third value is the reader's other half (tasks/217): each single-line `key: ...`
+    frontmatter line, verbatim, keyed by key -- what lets `_render` put back, byte for
+    byte, every line whose value a write does not change. The queue is shared and
+    hand-editable, so a hand repair may quote a scalar the serialiser would emit plain
+    (cd4994d did exactly that, and the byte round trip went red on every open pull request
+    at once). Without the raw lines the writer cannot reproduce what it read, and every
+    such repair re-reddens the gate through a file the next pull request never touched.
     """
     text = p.read_text(encoding="utf-8")
     m = _FM_RE.match(text)
@@ -644,7 +674,29 @@ def _read_fm(p: Path) -> tuple[dict, str]:
         raise _Malformed(f"frontmatter is not valid YAML: {detail}") from exc
     if not isinstance(fm, dict):
         raise _Malformed(f"frontmatter is {type(fm).__name__}, not a mapping")
-    return fm, m.group(2)
+    return fm, m.group(2), _raw_lines(m.group(1))
+
+
+_FM_KEY_LINE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):(.*)$")
+
+
+def _raw_lines(block: str) -> dict[str, str]:
+    """Every single-line `key: value` line of a frontmatter block, VERBATIM, keyed by key.
+
+    The writer's half of the read (tasks/217): `_render` restores these lines for any key
+    whose value a write did not change, so a quoting style a hand edit chose survives every
+    later status write. Continuation lines of a multi-line scalar never match (they are
+    indented, and the key-line regex demands the key at column 0); a duplicate key keeps
+    its LAST line, which is what `yaml.safe_load` keeps too. `_render` never trusts a line
+    from here blindly -- `_restore_lines` re-parses it against the value being written
+    before putting it back.
+    """
+    out: dict[str, str] = {}
+    for line in block.splitlines():
+        lm = _FM_KEY_LINE.match(line)
+        if lm is not None:
+            out[lm.group(1)] = line
+    return out
 
 
 class _PlainDigits(str):
@@ -708,12 +760,58 @@ def _id_text(raw) -> str:
     return str(raw).strip()
 
 
-def _render(fm: dict, body: str) -> str:
+def _restore_lines(text: str, raw: dict[str, str], fm: dict) -> str:
+    """Put each UNCHANGED value's original line back, byte for byte (tasks/217).
+
+    The serialiser chooses quoting for the values a write touches; every other line is the
+    file's own bytes, so a quoting style a hand edit chose survives every status write and
+    the byte round trip stays green on a queue that holds one. THE GUARD IS THE MECHANISM:
+    a line from `raw` is restored only if it parses, standalone, to a mapping equal to
+    `{key: fm[key]}` -- the value now being written. A changed value fails that test (its
+    old line holds the old value), so the new value is serialised and nothing a caller
+    asked for is reverted; a line that does not parse standalone at all (a block scalar's
+    `>-` header, an unterminated multi-line quote) fails it too, and the serialiser's own
+    output stands. Worst case is the pre-217 behaviour, never corruption: the writer can
+    only ever emit a line it read from this same file in this same call, or one its own
+    serialiser produced.
+
+    The id never restores (`id: 01` parses to the int 1, `fm["id"]` holds the string
+    `"01"`), which is correct twice over: the canonical emission of a plain id is the same
+    bytes, and `_PlainDigits`' plain-digits contract stays in one place.
+    """
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        lm = _FM_KEY_LINE.match(line)
+        if lm is None:
+            continue
+        key = lm.group(1)
+        original = raw.get(key)
+        if original is None or original == line:
+            continue
+        try:
+            if yaml.safe_load(original) != {key: fm.get(key)}:
+                continue
+        except (yaml.YAMLError, ValueError):
+            continue
+        lines[i] = original
+    return "\n".join(lines)
+
+
+def _render(fm: dict, body: str, raw: dict[str, str] | None = None) -> str:
+    """The writer: canonical YAML for what a write changes, the file's own bytes for the rest.
+
+    `raw` is what `_read_fm` read from the file being rewritten -- the lines whose quoting
+    a hand edit may have chosen (tasks/217). None for a fresh file (`add`), which has no
+    bytes to preserve.
+    """
     out = dict(fm)
     tid = _id_text(out.get("id"))
     if tid.isdigit():
         out["id"] = _PlainDigits(tid)
-    return "---\n" + yaml.dump(out, Dumper=yaml.SafeDumper, **_DUMP) + "---\n" + body
+    text = "---\n" + yaml.dump(out, Dumper=yaml.SafeDumper, **_DUMP) + "---\n" + body
+    if raw:
+        text = _restore_lines(text, raw, out)
+    return text
 
 
 #: An ADDRESS is not a claim, and the heuristic below reads English.
@@ -1002,7 +1100,7 @@ def lossy_scalar_fields(text: str, parsed: dict) -> list[str]:
 
 def _parse(p: Path) -> dict:
     try:
-        fm, body = _read_fm(p)
+        fm, body, _raw = _read_fm(p)
     except (_Malformed, OSError, UnicodeDecodeError) as exc:
         return {"id": p.stem.split("-")[0], "path": p, "malformed": str(exc)}
     meta: dict = {"path": p, "body": body.strip()}
@@ -1144,12 +1242,12 @@ def _set(tid: str, **kw) -> int:
             continue
         p: Path = t["path"]
         try:
-            fm, body = _read_fm(p)
+            fm, body, raw = _read_fm(p)
         except _Malformed as exc:
             print(f"{tid}: {p.name} is malformed ({exc}); refusing to write", file=sys.stderr)
             return 1
         fm.update(kw)
-        p.write_text(_render(fm, body), encoding="utf-8")
+        p.write_text(_render(fm, body, raw), encoding="utf-8")
         print(f"{tid}: " + ", ".join(f"{k}={v}" for k, v in kw.items()))
         return 0
     print(f"no task {tid}", file=sys.stderr)
