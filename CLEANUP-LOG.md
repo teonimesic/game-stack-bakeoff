@@ -1582,3 +1582,79 @@ with `tasks.py check` green throughout and the full bytes on disk. Filed as task
 (property check: parsed value shorter than the raw line), with the four census rows
 where a hash follows a non-whitespace character (174, 181 x2, 187) as the green
 controls; the repaired 214 title is the only lossy scalar in the queue.
+
+## 2026-08-29 (eleventh pass) — `eval/judge/png.py`, the dependency-free PNG reader
+
+258 lines read whole (the tenth pass's recorded pointer, taken now that tasks/212 has
+landed — this is the post-212 vectorised form), plus a caller census over every
+`png.`-touching file outside `eval/runs/` (11 consumer files, from
+`ink_window_control.py`'s 106 references down to `capability.py`'s deliberate
+header-only read).
+
+### Found
+
+Nothing. No ticket filed — the first pass since the log began that returns one. The
+three suspicions the read raised were each resolved by measurement rather than
+argument:
+
+- **Are filter types 1-4 in `read()` dead code?** No. `write_rgb` emits filter 0 only,
+  but `read()`'s non-fixture callers read frames produced by SUBMISSIONS
+  (`static.py analyse_frames`, `hud_check.py corner_ink`, `field.py`'s geometry
+  label, `frame_parity.py`), and the four render harnesses are four independent PNG
+  producers. A decoder that handled only filter 0 would turn one submission's
+  filtered output into a false "unreadable frames" finding. The five-way decode is
+  tolerance of real producer variety, not untested surface — and the bit-exact
+  fixture/corpus reproduction through `--pin-dump` (tasks/212) exercises the reader
+  end to end.
+- **Does `body = raw[pos+8:pos+8+length]` silently truncate on a malformed chunk
+  length?** It truncates, but never silently in effect: a truncated IHDR fails
+  `struct.unpack` (needs exactly 13 bytes); a truncated IDAT fails
+  `zlib.decompress`; a truncated PLTE yields a short palette and therefore an Image
+  whose data length disagrees with its geometry — which fails CLOSED through the
+  length guards tasks/212 added to `ink_coverage` and `differs_from` (PngError naming
+  the lengths), or raises IndexError in the two per-pixel `rgb()` loops
+  (`scene_probe.py:171`, `hud_check.py:39`). Every path terminates in a raised
+  exception; no silent wrong number is reachable. The 212 guards closed this channel
+  as a side effect of fixing a different one — worth recording so the next reader
+  does not re-derive it.
+- **Who consumes `rgb()` per pixel, and is the cost bounded?** Two callers, both
+  bounded: `hud_check.py` iterates a fixed 230x64 corner box; `scene_probe.py` samples
+  probe points. Neither walks a full frame.
+
+### Examined and judged sound
+
+- **`is_flat` / `analyse_frames` redundancy** — the docstring's THE-ONE-ADDRESS claim
+  and `static.py`'s fail-closed-redundancy comment agree, and
+  `ink_window_control.py` asserts the implication in code rather than a sentence
+  promising it (rule 12's own medicine, applied).
+- **`differs_from`'s k==3 / k<3 split** — the `zip`-truncation worry is closed by the
+  length guard above it: exact `len == n*channels` is what makes every channel slice
+  exactly `n` long, so both branches pair `n` elements.
+- **`dominant_background` determinism** — `max` over a dict iterates insertion order,
+  so a tie resolves identically for identical input; the `>>3<<3` quantisation and
+  the ~4000-sample step are the documented cheapness, and the c==1 channel-reuse
+  quirk matches `ink_coverage`'s deliberate style.
+- **`write_rgb` atomicity** — tmp sibling + `os.replace`, cleanup that suppresses its
+  own OSError so the original error survives; the one writer for the fixtures, and
+  the ref_arena fallback copy follows the same shape.
+- **The consumer error policies** — `analyse_frames` records each unreadable frame
+  per-frame with the reason (a corrupt PNG is a finding about the submission, never a
+  grader crash); `field.py` narrows to `(PngError, OSError)` because geometry is a
+  label; `capability.py` reads the header without `png.read` deliberately, and says
+  so. `skill_layout_control.py`'s `_differs_from_index` is an unrelated name-collision.
+
+### Method note
+
+The census-first discipline is what turned three would-be tickets into zero: each
+suspicion named a mechanism, and the caller census said whether the mechanism is
+reachable and what it terminates in. The pass's one general observation: tasks/212's
+length guards were added for byte-translate alignment, and they are ALSO what makes a
+truncated-PLTE Image fail closed — a repair's blast radius includes channels nobody
+aimed it at, and the place to record that is the log, not a comment in png.py claiming
+credit.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/scene_probe.py` (1,600+ lines — the largest unexamined file in
+`eval/judge/`; two passes in a row have deferred it). Its `rgb()` call, `differs_from`
+use and `frames_a` accumulation were touched only at the census level here.
