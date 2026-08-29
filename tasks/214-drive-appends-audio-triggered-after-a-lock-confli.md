@@ -1,11 +1,12 @@
 ---
 id: 214
 title: 'drive() appends audio.triggered after a lock-conflict unusable, so the #25 exclusion does not reach the one criterion added outside unusable_criteria'
-status: in_review
+status: done
 priority: 5
 refs: eval/judge/probe.py, eval/judge/audio.py, eval/findings/one-arm-bias.md
 done_when: a fixture drives probe.drive with a stub ProbeSession whose start raises ProbeError(lock_conflict=True) and a bot declaring audio_game, and the returned audio.triggered criterion comes back scored=False with the NOT MEASURED project-lock reason instead of the current scored=True failure - while a stub that raises a NON-lock ProbeError, and a session that runs and genuinely emits no events, both leave audio.triggered scored=True failed (the fail-closed default is NOT loosened) - pinned in a selftest that runs unpiped exit 0, with a mutant restoring the current append-scorch behaviour going red on the lock fixture and green on the two controls.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/94
+established_by: 'PR #94 squash 7518e6d, branch head 1e80e6b6e32da9a52f362f568353704ffeb4242e; verified at that head in own detached checkout unpiped: audio_selftest 110/0 with the lock fixture scored=False NOT MEASURED and both controls scored=True failed, mutants 11/12 scorching lock fixtures and green on controls, triggered census 69 records/43 carrying/0 moved/26 refused, bot_mutants 53 mutants 0 unmet; review round 5 LANDED_COMMENT with all 9 threads resolved; merged main gates green unpiped (audio_selftest 110/0, sweep, renumbered, tasks check); no finding allocated (0 of 43 stored verdicts move; the channels were latent, 0 stored records through either).'
 ---
 
 `probe.drive()` handles a probe that cannot be opened or kept alive by calling
@@ -77,3 +78,51 @@ stays scored=True failed; and a stub session that RUNS and emits nothing stays s
 failed. A mutant restoring today's composition (append without the lock bit) must go red
 on the lock fixture and green on both controls — it is a variant question too: the
 genuine-empty and bot-bug paths must be unchanged after the fix.
+
+## note 2026-08-29
+
+## what working this task established
+
+**The repair.** `probe.drive` carried the session's lock signature to `triggered_criterion`, and
+`read_manifest` returns a `ManifestRead` lock bit; both paths now return `audio.triggered`
+`scored=False` with the NOT MEASURED wording instead of scoring a lock-eaten probe as a failed
+criterion. The fail-closed default is untouched: a non-lock probe failure and a run that
+happened and emitted nothing stay scored failures, pinned by mutants that must go red on the
+lock fixtures and green on the controls (audio_selftest mutants 11-12, bot_mutants).
+
+**The open half, deliberately open.** Tier 1's `collect()` deliberately does NOT act on
+`read_manifest`'s lock bit - tier 1 gates, and that is a rubric decision, not an oversight; the
+comment in `audio.py` records it. A trial where the manifest read exhausts on lock signatures
+still fails tier 1 today. Anyone extending the exclusion to tier 1 should read that comment and
+`eval/findings/one-arm-bias.md` first.
+
+**The census.** `audio_regrade_census.py --triggered` reads every stored playbot.json record
+alongside a counted report; classification requires exactly 1 `audio.triggered` criterion
+(zero, duplicate, unreadable or malformed => refusal row, named in output, never a skip, never
+a crash); `total` must be a non-negative non-bool int and `usable` a bool; the movement rule is
+`total==0 and usable==False` beside a `scored=True` verdict - `scored=False` on some criteria
+is `diagnostic_only`, not the lock path, and `total==0 and usable==True` is the non-lock
+empty-run shape. Stored tree, read 2026-08-29: 69 records, 43 carrying, 0 moved, 26 refused
+(all zero-carry, pre-audio/scene runs). Recorded in eval/RUNS.md as the twenty-eighth
+comparability break. The selftest count (71) is read from the producer's closing line, never
+computed.
+
+**CI on this branch was red the whole time, and none of it was the diff.** The failing
+`tasks_control` step failed on the queue round trip: `tasks/214`'s own title carried an
+unquoted space-hash (` #25`), so YAML parsed it short and read-then-write rewrote the byte
+content. Inherited from main's 1703566; main's cd4994d fixed the title and filed `tasks/216`
+for the `tasks.py check` gap. 216 AS COMMITTED still fails the round trip; the repair sits
+UNCOMMITTED in the shared checkout (edited 16:12Z by the session that filed it) - this branch
+deliberately does not touch it, and the merge-ref gates go green when that lands on main.
+Mergeable.py's red `gates` at 1e80e6b is that, not this diff.
+
+**Reading CI logs.** `pr_review_state_mutants.py` prints `MUTANT x: caught, n red row(s) -
+FAILED (n failures, 100 checks, 21 of them variants)` per mutant as its NORMAL output; the
+green signature is the closing line `all 51 mutants caught`, exit 0. Same for the docstat
+selftest's red pins under mutants. A step's true failure is the `##[error]Process completed`
+line - find the `##[group]Run` above it; everything else is other tools' output.
+
+**Review loop.** 5 rounds, CodeRabbit: rounds 1-4 carried findings (all addressed except one
+declined with evidence - the AGENTS.md tasks/<id> citation, which is that file's own
+nine-place convention); round 5 came back LANDED_COMMENT, clean. Threads resolve themselves on
+reply; do not hand-resolve.
