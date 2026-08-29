@@ -1,11 +1,12 @@
 ---
 id: 209
 title: paired_verdicts.load() drops unparseable trial ids and passed-less criteria from every denominator, printing nothing
-status: in_progress
+status: in_review
 priority: 5
 refs: eval/judge/paired_verdicts.py,eval/judge/capability.py
 done_when: load() no longer loses either class silently - a report.json whose trial id is not 3 parts, and a criterion carrying `id` without `passed`, are each counted and NAMED where the module reports (the excluded/skipped list render() already prints, or a summary line beside it), with fixtures in the selftest whose answers are stated in the expectation (a 2-part tid is red because it is counted, not because the walk broke); a criterion without `passed` present on BOTH sides of a cell must land somewhere stated - today it vanishes from paired AND unpaired - and the fix says where; python3 eval/judge/paired_verdicts.py --selftest --runs-root <main checkout>/eval/runs exits 0 unpiped after.
 established_by: 'Cleanup pass 2026-08-29 (seventh), CLEANUP-LOG.md. Both channels measured LATENT on the stored corpus: 85 report.json walked under eval/runs, 0 with a tid not of 3 `__`-parts, 0 criteria with `id` but no `passed` (measured by script over the tree, not read from code). The paths: paired_verdicts.py load() line ~130 `if len(parts) != 3: continue`, and line ~137 `if "id" in c and "passed" in c`. The sibling module solved the first shape - capability.py no_stack_correlated_gap check 2 counts a record whose class it cannot name, "counted rather than quietly skipped" - so this is the one module of the pair still carrying the gap. Rule 7: every reason not to count a failure is a channel a bug can widen; the module exists because hand recounting smoothed over exactly this class.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/90
 ---
 
 `eval/judge/paired_verdicts.py` `load()` has two silent-drop channels in the counting path,
