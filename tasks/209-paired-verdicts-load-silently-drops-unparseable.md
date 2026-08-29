@@ -1,11 +1,12 @@
 ---
 id: 209
 title: paired_verdicts.load() drops unparseable trial ids and passed-less criteria from every denominator, printing nothing
-status: todo
+status: in_testing
 priority: 5
 refs: eval/judge/paired_verdicts.py,eval/judge/capability.py
 done_when: load() no longer loses either class silently - a report.json whose trial id is not 3 parts, and a criterion carrying `id` without `passed`, are each counted and NAMED where the module reports (the excluded/skipped list render() already prints, or a summary line beside it), with fixtures in the selftest whose answers are stated in the expectation (a 2-part tid is red because it is counted, not because the walk broke); a criterion without `passed` present on BOTH sides of a cell must land somewhere stated - today it vanishes from paired AND unpaired - and the fix says where; python3 eval/judge/paired_verdicts.py --selftest --runs-root <main checkout>/eval/runs exits 0 unpiped after.
-established_by: 'Cleanup pass 2026-08-29 (seventh), CLEANUP-LOG.md. Both channels measured LATENT on the stored corpus: 85 report.json walked under eval/runs, 0 with a tid not of 3 `__`-parts, 0 criteria with `id` but no `passed` (measured by script over the tree, not read from code). The paths: paired_verdicts.py load() line ~130 `if len(parts) != 3: continue`, and line ~137 `if "id" in c and "passed" in c`. The sibling module solved the first shape - capability.py no_stack_correlated_gap check 2 counts a record whose class it cannot name, "counted rather than quietly skipped" - so this is the one module of the pair still carrying the gap. Rule 7: every reason not to count a failure is a channel a bug can widen; the module exists because hand recounting smoothed over exactly this class.'
+established_by: 'PR https://github.com/teonimesic/game-stack-bakeoff/pull/90 - 5 review rounds worked, all findings fixed in-round, ceiling reached with no open findings. python3 eval/judge/paired_verdicts.py --selftest --runs-root <main checkout>/eval/runs exits 0 unpiped: 38/38 checks, 5 corpus pins, all published figures reproduce, stored corpus 0 skips over 85 reports. Mutant verified 10/38 red after fixing a suite-crash in my own check that had undercounted it as 3.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/90
 ---
 
 `eval/judge/paired_verdicts.py` `load()` has two silent-drop channels in the counting path,
@@ -37,3 +38,17 @@ cannot classify is a counted problem with its name attached, never a quiet skip.
 cheapest shape here: `load()` returns the skips it made alongside rows, `render()` prints
 them beside `EXCLUDED CELLS`, and the selftest fixture plants one 2-part tid and one
 `passed`-less criterion on both sides of a cell with the expected counts stated.
+
+## note 2026-08-29
+
+## Handback, 2026-08-29
+
+Both ticket channels were real, demonstrated on a fixture tree before any fix: a report whose tid is not `game__stack__slot` was continued away at the walk with no render line; a criterion carrying `id` without `passed` read as unpaired=1 on one side and vanished from every denominator on both sides.
+
+The fix, after 5 CodeRabbit rounds (all findings fixed in-round): `load()` returns `(rows, skips)` and render() prints a SKIPPED AT LOAD block naming five skip classes - unusable tid; undecodable/non-mapping report; tier block not a mapping with a criteria list (explicit null named, absent stays silent); criteria absent/null/not a list; criterion not a mapping, id not a string (hash(True)==hash(1)), or id without passed. A named no-passed criterion joins its row's `skipped_crits`, so count_cell distinguishes a malformed record from a suite change: one malformed side reads unpaired=0, a criterion only the other side recorded stays a difference, and the skip label states that scope.
+
+Verified: selftest --runs-root <main>/eval/runs exit 0 unpiped, 38/38 checks (33 synthetic, answers stated in expectations; 5 corpus pins). Published figures reproduce (436/5/332, 232/0/120, 280/4/176, delta 156); stored corpus measures 0 skips over 85 reports (85 re-counted with find, not quoted from the ticket). eval/runs untouched; no finding number allocated.
+
+Controls both directions: red-first every round (each new fixture failed against the unfixed code before its fix); mutant (both original drops re-introduced behind the new API) turns 10 of 38 checks red with corpus pins unaffected - NOT the 3 first measured, because the label check's next() had no default and the suite crashed mid-run, hiding the six expectations after it. Fixed to fail gracefully and re-measured; the lesson - a check that dies is not a check that reports - may warrant a finding number, orchestrator's call. Variants pin one-side and both-side malformed input counted correctly and named.
+
+Declined once, with evidence: the reviewer's round-1 counting rewrite (valid keys minus opposite-side skips) would make a criterion recorded only as malformed invisible to unpaired (r10: theirs 1, stated answer 2); the reviewer withdrew it.
