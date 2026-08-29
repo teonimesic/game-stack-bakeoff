@@ -27,11 +27,13 @@ the aspect's n, the fifth counts targets, the last counts reads:
   is the RECORD — a bad shape poisons the capture, so nothing in it is
   classified.
 * **truncated** — a read target of exactly 200 characters inside an
-  otherwise-usable list: the length the capture in `field.py` truncates to,
-  so the stored tail — where the filename lives — cannot be vouched for.
-  The unit is the TARGET: refused from classification, counted per target,
-  itemised in full, and never counted as carried or as un-carried, while the
-  list's good targets still classify. The walk never aborts on any of this.
+  otherwise-usable list: the length the capture in `field.py` stored at until
+  2026-08-28 (task 204, since when it stores the full target), so in every
+  round captured before then the stored tail — where the filename lives —
+  cannot be vouched for. The unit is the TARGET: refused from classification,
+  counted per target, itemised in full, and never counted as carried or as
+  un-carried, while the list's good targets still classify. The walk never
+  aborts on any of this.
 * **un-carried reads** — reads naming anything the pack does not carry. This is
   the column the pre-registration is about; its content would make the wording
   change a re-scoring event rather than a wording change. The pack holds four
@@ -170,9 +172,12 @@ def census(runs_root: Path) -> int:
         carried = set(r["sees"].split("+"))
         for t in opened:
             # A stored target of EXACTLY 200 characters may be a truncation:
-            # the capture in field.py stores str(target)[:200], so anything
-            # longer than the cap is stored at exactly this length with its
-            # tail - the filename - gone, and anything shorter was never cut.
+            # until 2026-08-28 the capture in field.py stored
+            # str(target)[:200], so anything longer than the cap was stored
+            # at exactly this length with its tail - the filename - gone, and
+            # anything shorter was never cut. The capture now stores the full
+            # target (task 204), but every round captured before that date
+            # remains 200-capped, so the arm stays for the stored corpus.
             # Classifying it would be a guess; refused and itemised, never a
             # carried read and never a leak. Counted per TARGET under
             # `truncated` - a different unit from `malformed` above, which is
@@ -214,7 +219,8 @@ def census(runs_root: Path) -> int:
             print(f"    {ln}")
     if truncs:
         print("  REFUSED-TARGET reads (exactly 200 chars - the length the capture "
-              "in field.py truncates to; the tail cannot be vouched for, so the "
+              "in field.py stored at until 2026-08-28, so rounds captured before "
+              "then may be cut; the tail cannot be vouched for, so the "
               "target is classified as neither carried nor un-carried):")
         for ln in truncs:
             print(f"    {ln}")
@@ -264,8 +270,9 @@ def _fixture(root: Path) -> Path:
     # shape may abort the walk.
     write("run-m/m1.json", rnd("ux", {}))
     write("run-m/m2.json", rnd("fun", [f"{P}/C/telemetry.json", None]))
-    # TARGETS AT THE CAP LENGTH, TWO IN ONE LIST. field.py's capture stores
-    # str(target)[:200], so a stored target of exactly 200 characters may be a
+    # TARGETS AT THE CAP LENGTH, TWO IN ONE LIST. field.py's capture stored
+    # str(target)[:200] until 2026-08-28 (task 204; it stores the full target
+    # since), so a stored target of exactly 200 characters may be a
     # truncation whose tail - the filename - is gone. Stated in advance: each
     # is refused from classification and counted per TARGET under `truncated`,
     # never as a frames read and never as a leak, while the record's good
@@ -335,8 +342,9 @@ def selftest() -> int:
         # key-absent + 1 malformed RECORD (a list holding a non-string).
         # fun_frames: 3 captures, 2 un-carried (the .src read and the
         # telemetry read - frames-only carries neither) and 2 truncated
-        # TARGETS (exactly 200 chars - the capture's truncation length - so
-        # never classified; the count is per target, and the good frames read
+        # TARGETS (exactly 200 chars - the length the capture stored at until
+        # 2026-08-28, so never classified; the count is per target, and the
+        # good frames read
         # in the same list still classifies). ux: 1 key-stored-null + 1
         # malformed RECORD (a dict where the list belongs). Everything else
         # is housekeeping.

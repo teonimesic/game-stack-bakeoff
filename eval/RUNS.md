@@ -670,11 +670,18 @@ beside it (`prompt_capture_census.py --selftest`). Two rows discriminate the un-
 where the list belongs, and a list holding a non-string. Each malformed shape is refused whole —
 named `malformed`, never counted as null, never partially classified — and neither stops the
 walk; the unit is the record. A target of exactly 200 characters is refused from classification
-as well: the capture in `field.py` stores `str(target)[:200]`, so a stored target at that length
-may have lost its tail — the filename — and classifying it would be a guess. Those count under
+as well: the capture in `field.py` stored `str(target)[:200]` until 2026-08-28, so a stored
+target at that length may have lost its tail — the filename — and classifying it would be a
+guess. Those count under
 `truncated`, one per target, itemised in full, never as carried and never as a leak, while the
 record's good targets still classify — a different unit from `malformed`, and the fixture holds
 two truncated targets in one list to pin it.
+
+**2026-08-28 (task 204): the capture changed shape** — `field.py` now stores the full read
+target at any length, so a target it stores from that date cannot be a truncation. Every round
+in the table above was captured under the 200-character cap and keeps its truncated refusal,
+never re-read as carried or un-carried. No scored round is affected: `files_opened` is an audit
+field scored by nothing.
 
 **The defect is latent: 0 of the 39 captured non-code rounds read any evidence its pack did not
 carry.** The captured rounds' reads name only their own bucket's files and `BRIEF.md` — the audio

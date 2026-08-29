@@ -425,6 +425,16 @@ jobs:
       - name: judge/prompt_capture_census --selftest (the latent-null producer's pins)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/prompt_capture_census.py --selftest
+      # The PRODUCER side of that census: field.run_field's read capture. It stored
+      # str(target)[:200] until 2026-08-28 (task 204), cutting the tail - the filename -
+      # off any longer target, which is exactly why the census must refuse
+      # exactly-200-character stored targets instead of classifying them. This drives
+      # run_field with the `claude -p` subprocess stubbed the way blurb_selftest does,
+      # and pins that a target past the old cap lands whole in tool_calls and
+      # files_opened. Offline, no model, no network.
+      - name: judge/files_opened_selftest (the audit capture stores the full read target)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/files_opened_selftest.py
       # Task 202's corpus producer: the capture-geometry property the pack path's
       # first-frame read cannot see. Same shape - a fixture tree whose every census
       # answer is stated beside it, with the first-frame read itself pinned as the
