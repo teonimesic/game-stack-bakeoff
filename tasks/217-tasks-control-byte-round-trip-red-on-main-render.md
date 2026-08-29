@@ -1,7 +1,7 @@
 ---
 id: 217
 title: 'tasks_control byte round trip red on main: _render rewrites a hand-quoted scalar unquoted and the red lands on every open pull request through the merge checkout'
-status: todo
+status: in_progress
 priority: 1
 refs: eval/tools/tasks.py, eval/tools/tasks_control.py, tasks/216-tasks-py-check-passes-a-frontmatter-scalar-whos.md
 done_when: Either the writer preserves the quoting style of the line it read (a scalar the file holds quoted is re-emitted quoted, byte for byte, with the four census rows from task 216 as greens and the repaired tasks/214 title - which must stay quoted because it holds a space-hash - staying byte-identical), or tasks.py check refuses a frontmatter line whose quoting differs from what the writer would emit, so the committed queue can never hold a file the writer would rewrite. In both cases tasks_control round trip is green on the committed queue, and a mutant that re-quotes one canonical scalar in a fixture queue is caught by whichever gate owns the change.

@@ -59,6 +59,27 @@ class ProbeError(RuntimeError):
         self.lock_conflict = lock_conflict
 
 
+# Engines that take a project-wide lock (Unity refuses a second batchmode process
+# on an open project) need the previous session fully gone before the next starts.
+# A bot opens 4-8 sessions per submission, so this fires often. MEASURED: it cost
+# Unity both determinism criteria on every trial - a deduction that could only ever
+# land on one arm of a four-way comparison, which is bias rather than noise
+# (FINDINGS #25).
+#
+# ONE DEFINITION, CLOSED CLASS (tasks/215). This tuple is THE vocabulary: `audio.py`
+# imports it rather than holding a second hand copy, and `audio_selftest.py` asserts
+# the two names are the same object. The members are the engine's own refusal
+# wordings - two of them observed verbatim, 76 stored occurrences each, in the
+# `[stdout pollution]` true positives - and nothing broader. The bare substring
+# "lock" that used to sit here was the set's one open-class member: 0 true positives
+# and 0 records of any kind through it on the stored corpus, while in process it
+# matched benign engine words ("Clock: 60 fps", "Deadlock detection: off"), and
+# since tasks/214 a match on the audio side EXCLUDES the criterion rather than
+# scoring it - over-breadth is fail-open on both readers, so the class stays closed.
+LOCK_HINTS = ("another unity instance", "cannot open the same project",
+              "already running", "resource busy")
+
+
 @dataclass
 class Tick:
     tick: int
@@ -179,13 +200,13 @@ class ProbeSession:
             f"probe never started after {attempts} attempts, every one refused with a "
             f"project-lock signature: {last}", lock_conflict=True)
 
-    @classmethod
-    def _looks_like_lock_conflict(cls, err: BaseException) -> bool:
+    @staticmethod
+    def _looks_like_lock_conflict(err: BaseException) -> bool:
         """Only the CHILD's own output may vote. Harness notes are excluded on purpose:
         a note containing the word "lock" would otherwise make every later failure look
         like a lock conflict, which would turn fail-closed into fail-open."""
         msg = str(err).lower()
-        return any(h in msg for h in cls.LOCK_HINTS)
+        return any(h in msg for h in LOCK_HINTS)
 
     def _start_once(self) -> Tick:
         if shutil.which("just") is None:
@@ -224,15 +245,6 @@ class ProbeSession:
 
         header = self._read_line(self.startup_timeout_s, "waiting for the tick-0 header")
         return self._finish_start(header)
-
-    # Engines that take a project-wide lock (Unity refuses a second batchmode process
-    # on an open project) need the previous session fully gone before the next starts.
-    # A bot opens 4-8 sessions per submission, so this fires often. MEASURED: it cost
-    # Unity both determinism criteria on every trial - a deduction that could only ever
-    # land on one arm of a four-way comparison, which is bias rather than noise
-    # (FINDINGS #25).
-    LOCK_HINTS = ("another unity instance", "cannot open the same project",
-                  "lock", "already running", "resource busy")
 
     # -- one session per repository, enforced rather than hoped for --------- #
 

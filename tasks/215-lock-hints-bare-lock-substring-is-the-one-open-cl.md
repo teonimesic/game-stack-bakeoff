@@ -1,12 +1,12 @@
 ---
 id: 215
 title: LOCK_HINTS exists as two never-compared hand copies, and its one open-class member - the bare substring "lock" - has 0 true positives on the stored corpus while reading benign engine words as lock conflicts
-status: in_testing
+status: done
 priority: 5
 refs: eval/judge/probe.py, eval/judge/audio.py, eval/findings/one-arm-bias.md, eval/findings/certifies-nothing.md
 done_when: 'the two LOCK_HINTS tuples are one definition asserted equal at import (the #100/#114 same-object pattern) or a single shared constant, the bare "lock" substring is gone from it with every specific phrase retained, and a pinned check shows BOTH stored true-positive pollution lines still classify as lock conflicts while banners reading "Clock: 60 fps" and "Deadlock detection: off" no longer do - plus the audio.py note path re-censused, with the consequence asymmetry stated in the ticket this closes.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/96
-established_by: 'PR #96 at e5d0085: done_when met — one definition asserted the same object, bare "lock" gone with all 4 phrases retained, both stored true-positive pollution lines pinned classifying through both readers and the Clock/Deadlock banners pinned not classifying, audio note path re-censused (44 stored notes, 0 hint matches, 0 lock-classified records corpus-wide) and the inverted consequence asymmetry recorded. audio_selftest 124/124; bot_mutants full run green incl. 3 session-lock controls; 2 review rounds, round 2 clean; CI controls+gates+CodeRabbit all pass.'
+established_by: 'PR #96 squash 4ae32ac, branch head e5d00858d49f1b0a52cec23bb139cd6a297bdd19 (branch task-215-one-lock-hints); verified at that head in own detached checkout unpiped: audio_selftest 124/124 (identity row audio.LOCK_HINTS is probe.LOCK_HINTS, exact-vocabulary row against independently transcribed EXPECTED_LOCK_HINTS, both stored Unity refusal lines classify through both readers, Clock/Deadlock banners through neither, mutants 13/14/15 each caught), bot_mutants 53/0, sweep clean, check well-formed; re-derived census over 1429 stored json files reproduces the ticket numbers (2 true-positive lines, 0 bare-lock hits, 0 lock-classified records); review round 2 clean; merged main gates green unpiped (sweep, renumbered, check, audio_selftest 124/124); no finding allocated (corpus clean; the triggers future surface, the channel-not-wrong-number split); audit_criteria.py HARNESS_SIGNATURES deliberately left alone, flagged in the ticket.'
 ---
 
 `LOCK_HINTS` is defined twice by hand — probe.py:230 and audio.py:292 — five phrases

@@ -249,14 +249,18 @@ audio criterion fails with that as the recorded reason — fail-closed, never sk
 `wholegame.py evaluate --no-audio` exist for re-scoring the runs that predate it; applying the
 criteria retroactively would measure the task change rather than the work.
 
-**Every audio criterion has a mutant.** `audio_selftest.py` runs 110 expectations; `python3
-eval/judge/audio_selftest.py` prints the count on its closing line. It checks 5 audio criteria
-plus `audio.triggered` against a healthy fixture, then against 9 mutants, each of which must
-turn one of them red. The FINDINGS #25 lock exclusion on `audio.triggered` is pinned here too,
-through `probe.drive` with stub sessions and at the `read_manifest` tuple. 2 further mutants
-remove the lock bits (tasks/214); each must turn its lock fixture red while the controls stay
-green. Run it before believing an audio score. A criterion that cannot fail is worse than
-absent, because it looks like success.
+**Every audio criterion has a mutant.** Run `python3 eval/judge/audio_selftest.py` before
+believing an audio score; it prints its expectation count on the closing line and exits 0
+only if every one holds. It checks 5 audio criteria plus `audio.triggered` against healthy
+and failing fixtures, and every criterion has a mutant that must turn it red. The lock path
+is pinned end to end: `probe.drive` with stub sessions, the `read_manifest` lock bit
+(tasks/214), and the `LOCK_HINTS` vocabulary itself (tasks/215) — one closed-class
+definition in `probe.py` that `audio.py` aliases. The 2 stored Unity refusal lines must
+classify as lock conflicts through both readers; `Clock: 60 fps` and
+`Deadlock detection: off` must classify through neither. The mutants — lock bits removed,
+the bare `lock` substring restored, a specific phrase dropped, the tuple replaced by an
+equal-but-distinct copy — must each turn their fixture red while the controls stay green.
+A criterion that cannot fail is worse than absent, because it looks like success.
 
 **`capability.py` is captured, not scored, and it is measured from OUTSIDE the submission.** Nine
 fields — capture geometry, frame count, the wall/CPU/peak-RSS cost of `just film`, and the headless
