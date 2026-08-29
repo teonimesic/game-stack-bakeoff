@@ -1108,3 +1108,83 @@ The stored-round analysis half of the subjective layer — `eval/judge/field_ran
 `field_sweep.py`, the consumers of what this pass's file produces — and `eval/suites/`
 (the game prompts), which the 2026-08-28 second pass's pointer still names; regime-boundary
 rules as before.
+
+## 2026-08-28 (fifth pass) — the stored-round analysis half: `eval/judge/field_ranks.py` (743 lines) and `field_sweep.py` (619), both read in full
+
+**Looked for:** the question the fourth pass left on this half — does the analysis layer's
+record of what it does match what it does, and does anything here still earn its space —
+plus the one class the fourth pass's own finding (#210) makes me read for everywhere now:
+a mechanism claim no caller backs.
+
+**Read:** both files whole; `assert_poolable`'s guard site and every selftest pin; the
+gate-pairing loop and the `[have]` resume path in `field_sweep.main`; the stored corpus for
+the one field the pair depends on and never reads — top-level `run` in 30 of 30
+`wg-aspect-reliability` rounds (all one run), 0 of 10 `wg-tetris-judge-2026-08-17/pre`
+rounds (they predate the provenance fix); the whole tree for callers of
+`warn_rounds_without_provenance` (code and markdown); `CLEANUP-LOG.md` coverage of
+`judge_ledger.py` and `sequential.py` (none).
+
+### Found — filed as task 205 (p2)
+
+**The pair never asks whether the rounds they pool or pair share a run.**
+`field_ranks._by_stack` joins every round in a directory by submission id across all
+rounds; `assert_poolable` partitions by aspect class and nothing else. `field_sweep`
+accumulates rounds into `--out` across invocations by design, keyed by a filename with no
+run component, and its gates pair on game+aspect equality only — so the designed `[have]`
+resume path re-run against a different stored run produces order-invariance and
+reproducibility gates across two fields, a directory valuation summing both, and a
+directory `field_ranks` then pools into per-submission means across different games' work.
+This is #70's join and #80's third namespace at the analysis layer, in the tool
+`DECISIONS.md` names as THE producer for tier-3 figures and the withdrawn register points
+operators at. #80 fixed the capture (every round carries `run` since 2026-08-22); no
+consumer reads it — the same gap the files_opened capture had before #83 asked its
+question. Folded into the same ticket: **`warn_rounds_without_provenance` has no caller
+anywhere** — cited in #86 and task 19's record as a mechanism that reports, measured once
+by calling it by hand, and invoked by nothing since; it is the absent-data half of the same
+check (report rounds that cannot answer the run question at all). The guard must
+warn-absent rather than refuse when `run` is missing, or the tool becomes unable to read
+the tetris-judge corpus the withdrawn register cites.
+
+### Cleared — examined and judged sound, so the next pass does not redo it
+
+- **`assert_poolable` is a model of guard placement** — at the resource (`figures`), not
+  beside one caller (rule 13 argued in its own docstring); unknown ids refused even alone,
+  with the PR #24 review catch recorded at the pin.
+- **Barred-aspect reporting**: per-stack means in alphabetical order, never sorted by
+  value — the comment names the ranking the bar exists to withhold; the bar appears in the
+  header, on the per-aspect row, and in the refusal, so a reader reaching one number
+  directly still sees it.
+- **`_round_stats`' `len(v) == 2` gap filter**: a stack with three submissions silently
+  contributes no gap. Same principle as #102 — a gap that is not uniquely defined is
+  skipped rather than approximated — and the per-stack line still prints every arm. Cell
+  shape is 2. Not filed.
+- **No-retry resume semantics** in both sweep modes: a stored unusable round is loaded as
+  `[have]` and never re-run. Deliberate and fail-visible (`calls_usable` vs
+  `calls_attempted`, the `[FAIL]` line); the alternative is re-spending on a judge call or
+  hand-deleting a stored round, and the file's own docstring argues judge calls are cheap
+  but stored rounds are the record.
+- **The #159 discipline is total in `field_sweep`**: retired `--max-cost` kept as a
+  refusal with the reason on the flag, `Bounds` documented as finite-by-construction,
+  `stopped_by` written into every summary, the two tokval numbers named per #119, and
+  `SUMMARIES` asserted equal to `judge_ledger.SUMMARY_STEMS` at import (rule 12 in code).
+- **`_judge_round` returns its own cost** — the docstring records the under-count it
+  replaced (~22 tokval of probe rounds never counted) and why a counter that under-reports
+  is worse than none.
+- Both selftest/import baselines green at HEAD `59732aa` (`field_ranks --selftest`
+  0 unmet; sweep import with its `SUMMARIES` assert).
+
+### Method note
+
+The cross-run question came from asking of `_by_stack` what #70 asked of pack labels:
+what is the join key, and what namespace is it unique within? The submission id is unique
+within a run and nothing else in the file constrains the directory to one run — the same
+one-line question the fourth pass applied to `pack_parity`'s callers. The corpus
+measurement (30/30 vs 0/10) was run before filing, because a guard that refuses on absent
+`run` would break the tool against the withdrawn register's own "instead" commands.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/judge_ledger.py` and `eval/judge/sequential.py` — the two modules
+`field_sweep` imports and this log has never opened (`judge_ledger` decides what a
+summary IS and is the tokval producer every money-figure citation names; `sequential`
+holds the sampling protocol the sweep executes). Neither appears anywhere in this log.
