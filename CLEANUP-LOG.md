@@ -1490,3 +1490,85 @@ a row where the obvious first finding was the false one.
 take it once 212 has landed, reading the landed form. Alternate if it is still in
 flight: `eval/judge/probe.py`, the ProbeSession behind `probe_throughput`, which no
 pass has opened and which `static.py` and the render harnesses all lean on.
+
+## 2026-08-29 (tenth pass) — `eval/judge/probe.py`, the ProbeSession and the scripted play-bot tier
+
+989 lines read whole (the ninth pass's recorded alternate — png.py was still in flight
+under tasks/212 at the hour this pass ran, so its pointer's alternate applied).
+
+### Found
+
+Two tickets, both measured before filing, both latent (nothing stored is wrong):
+
+- **tasks/214** — `drive()` appends `audio.triggered` AFTER the lock-conflict exclusion
+  has already run over the bot criteria (probe.py:960-962 composes outside
+  `unusable_criteria`), so the #25 scored=False remedy does not reach the one criterion
+  that cannot inherit it. Measured in-process: `triggered_criterion(..., fired=[])`
+  (the audio.py:610 empty-fired branch) returns `passed=False, scored=True` while
+  `unusable_criteria` on the same lock error returns `scored=False`; the manifest branch
+  (audio.py:614-616, exhausted via read_manifest:296-312) has the same hole, under that
+  file's own "bias, not noise" comment. Reachable only on the narrow window
+  `_claim_repo` (#30) cannot remove — `grep -rl "project-lock signature" eval/runs/`
+  is empty.
+- **tasks/215** — `LOCK_HINTS`' bare `"lock"` substring is the set's one open-class
+  member: censused over every stored `[stdout pollution]` line (2 unique, BOTH genuine
+  Unity refusals, BOTH matching the specific phrases, 0 on the bare substring) and every
+  stored `probe_stderr` string (0 hint hits), and demonstrated in-process that
+  "Clock: 60 fps" and "Deadlock detection: off" classify as lock conflicts — which in
+  probe.py ends in `lock_conflict=True` → every criterion excluded as NOT MEASURED, the
+  fail-open direction the `_looks_like_lock_conflict` docstring says the harness-note
+  exclusion exists to prevent. The two definitions (probe.py:230, audio.py:292) are
+  hand copies never asserted equal, and they have already drifted in what a match
+  MEANS (exclusion vs extra retries). The pollution channel itself is load-bearing —
+  Unity prints its refusal on STDOUT, so without probe.py:383 the #25 remedy never sees
+  its own messages; the ticket narrows the set, never the channel.
+
+### Examined and judged sound
+
+- **`Tick.parse`** — strict on the four required keys, `state`/`events` types, and
+  non-object lines, each with the offending line prefix quoted at 200 chars.
+- **The session-guard lifecycle** — `_claim_repo`'s three cases (same-thread supersede
+  with `superseded` making later `step()`s raise a BOT-BUG message rather than a
+  submission defect; cross-thread wait with `lock_wait_s`; cross-process flock whose
+  timeout starts anyway with a note, because the in-process lock is the one that
+  matters), and `_release_repo` releasing child-gone-first (close() waits/kills before
+  unlocking, so the next session sees a released project, not a closing one).
+- **The fresh-queue-per-attempt fix** (probe.py:193-197) — a refused attempt's reader
+  thread owns the old queue and would otherwise hand its EOF sentinel to the next
+  attempt's first read.
+- **`_read_line`** — total-budget check per poll, per-line deadline, EOF named with the
+  child's poll code, blank lines skipped, and the pollution skip RECORDING rather than
+  failing (with the storage and the vote path that makes it load-bearing, above).
+- **The end-condition two-phase design** — idle-then-press with the press phase READ
+  THROUGH THE RESET, every tick of both phases read (not endpoints — the CodeRabbit
+  #40 raises are in the field comments), the settle window small ON PURPOSE with the
+  pacing arithmetic in the comment, and `end_condition_holds` REFUSING a session whose
+  `state.game_over` is not True at entry — fail-closed at the one place the state-flag
+  and event readings could disagree (the tasks/166 and tasks/157 history is in the
+  block comment and matches the code).
+- **`Criterion.scored` / `unusable_criteria`** — diagnostic-only as measured-but-
+  unscored, lock conflict as measured-but-excluded, and `drive()`'s "unscored" map
+  existing so a shrinking `total` cannot read as a quiet pass.
+- **`drive()`'s blind `except Exception`** — deliberate, commented as the rule-7 trade
+  (a bot bug costs a trial, never a false pass), and the dedicated play session
+  scoring nothing with `play_session_error` recorded so a missing representative play
+  is distinguishable from one never asked for (#52's separation is intact).
+- **`Bot.not_established`** — the honest third verdict for an experiment that cannot be
+  set up, scored=False by construction rather than by excuse.
+
+### Method note
+
+The probe-first ordering held a third time, and the corpus census changed the finding
+instead of merely confirming it: the reading had flagged the stdout-pollution channel
+itself as the defect (harness-labelled text in the buffer the docstring calls
+child-only), and the census showed the channel is the #25 remedy's load-bearing member —
+2 of 2 true positives, both on specific phrases — so the ticket aims at the one hint
+that has never matched anything real instead. The `.get`-shaped suspicion did not arise
+this pass; the composition-order defect (tasks/214) was found by tracing what `drive()`
+appends AFTER the try/except, which is where the exclusion has already happened.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/png.py` (208 lines) — still the primary pointer, once tasks/212 has landed
+so the landed form is what gets read. Alternate if 212 is somehow still open:
+`eval/judge/scene_probe.py`, which this pass found but did not open.
