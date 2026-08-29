@@ -3856,6 +3856,58 @@ property over the whole stored tree — 0 of 67 submissions mixed-size as of 202
 with its population in `eval/RUNS.md` — and is the thing to run before spending on a field
 whose filming this harness did not just do.
 
+## The renumbered-citation check reads every tracked file, not only markdown — decided 2026-08-29
+
+The 2026-08-23 decision above kept the citation check's scope right and its corpus wrong: the
+corpus was `_tracked_md`, so a stale `#N` inside a `.py` docstring was outside every gate here.
+Eight were found by reading while `--renumbered` ran exit 0 in the same window (#211 — 2 in task
+206, 6 in task 207). A gate's corpus is an input to the gate, so task 208 widened it rather than
+leaving code citations to passes that remember to read.
+
+**The corpus is a closed class, not an extension list.** The rule, stated directly: do not use a
+file-extension allowlist; scan every tracked path at the authoring revision minus 2 recorded
+exclusions (`eval/runs/` — data, not guidance — and the vendored analyser trees); name every path
+that cannot be scanned in the summary, whose totals count only what was read. Binaries are
+excluded by the NUL-byte property of git's own binary heuristic. An allowlist is the enumeration
+shape that failed everywhere else here: it fails on the first extension it did not have when it
+was written, and the failure is a silent narrowing of a gate back to its old blind spot.
+
+**What the producer reports, and what it costs.** `python3 eval/tools/docstat.py --renumbered`
+over the live tree (2026-08-29) reports 0 stale and 0 untriaged of 37, reads 276 document(s) +
+444 code/data path(s), and names all 15 skips; `time` on that command puts it at ~22 s. Blame is
+asked only of files whose text cites a number that has been reused, so the wide corpus costs
+1 filtered read per file, not 1 blame per file. `python3 eval/tools/triage_control.py` pairs the
+register against the check — 36 → 43 entries under this task (6 correct, 1 range) — and
+`--sweep` re-runs that pairing. The historical control `python3 eval/tools/docstat.py
+--renumbered --at bc605f0~1` reports the 6 citations task 207 repaired by hand, plus any repair
+committed after that tree that is not yet merged; at HEAD 0 appear. The corpus's first widened
+run — 8 stale rows, 8/8 true on inspection, 0 false — and the adjudication of its undecided rows
+are recorded in `eval/findings/documentation.md` (#211), which is where run history lives.
+
+**It stays a report, never a gate, for the reasons recorded 2026-08-23** — about a third of what
+it reports is decidable, blame launders any content edit that keeps the number, and the
+undecidable list contains correct rows by construction. Widening the corpus widens the report;
+it does not change that arithmetic.
+
+**The corpus is asserted, not promised.** `--selftest` pins it three ways: a walking oracle that
+never consults git's listing requires every tracked citing file it finds to be inside the corpus,
+with `eval/tools/docstat.py` present in both sets as the row whose answer is stateable in
+advance — the pin is one-directional and says so; a fixture
+repo pins a stale code citation at a historical commit as REPORTED and its two correct twins as
+not; and reverting the corpus to md-only is a red mutant (9 pins fail, the oracle names the
+unread code files). Re-measured 2026-08-29 after the round-3 pins, by reverting the selector to
+`.endswith('.md')` and re-running `_renumbered_corpus_pins`: 4 was the count when first
+written and 8 at the round-2 handback, before the review rounds added pins, and neither was
+re-read when they were. The tracked symlink `.claude/skills` is in the tree, not in the report: a
+skipped, named symlink, like the NUL binaries beside it. The corpus selector and the walking
+oracle ask 1 shared predicate, `_outside_corpus(path, root)` — root-relative with a leading
+separator, so a top-level `runs/` or `target/` is excluded at every depth while the checkout's
+own path is not part of the test — and the fixture holds exclusion probes at the top level and
+under a hostile `runs/` ancestor, 1 pin for each half of that sentence. Vendored names are path
+components, not substrings: `node_modules_notes.py` and `PackageCache-report.py` sit in the
+fixture corpus and in the walked set, because a name merely containing a vendored name is not a
+vendored tree.
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
