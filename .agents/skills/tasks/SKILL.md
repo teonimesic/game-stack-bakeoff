@@ -62,14 +62,25 @@ is the cost this layout exists to remove.
 
 `yaml.safe_load` parses every task file's frontmatter, and `tasks.py` writes it with
 `yaml.safe_dump`. **Edit a task file by hand and you may quote a value; do not hand-write one
-unquoted that contains `: ` or ` #`.** `tasks.py check` now reports an unparseable file by name
-instead of tolerating it.
+unquoted that contains `: ` or ` #`.** `tasks.py check` fails on both shapes instead of
+tolerating them:
 
-This is worth one paragraph because the failure was silent, not loud. Until 2026-08-23 the
+- Unquoted `: ` makes the file unparseable — reported by name.
+- Unquoted ` #` is the quieter loss: a hash preceded by whitespace starts a YAML comment, so
+  the file parses cleanly and the value comes back **truncated at the hash**. `check` compares
+  every frontmatter scalar against the line that wrote it and exits 1 when the parsed value is
+  a strict prefix of that line, naming the field; the repair is quoting the value. tasks/214's
+  title lived truncated this way for the file's whole life while `check` read the queue clean.
+  A hash after a NON-whitespace character (`,#189`, `(#NN)`) is not a comment, parses whole,
+  and stays green.
+
+The history is worth knowing because both failures were silent. Until 2026-08-23 the
 reader split each line on its first colon, so 44 of 58 files raised `ScannerError` — and, worse,
 9 more parsed *without error* and came back truncated: `refs: eval/FINDINGS.md #53, blocked by
 task 01` loaded as `eval/FINDINGS.md`, because ` #` starts a YAML comment. An external reader
-got a plausible wrong answer rather than a failure.
+got a plausible wrong answer rather than a failure. That truncation shape is exactly what the
+scalar check above now fails on; pinned in both directions by `eval/tools/tasks_control.py`
+direction 12, with the mutants in `eval/tools/tasks_mutants.py`.
 
 The id is deliberately left as bare digits (`id: 07`, not `id: '07'`), so a worktree still
 running an older `tasks.py` can find tasks by id. Everything else the serialiser quotes as

@@ -1683,6 +1683,252 @@ def _squash_rows(tmp: Path, live_refs: bool = False) -> tuple[list[tuple], list[
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 12
+#: THE LINE VERSUS THE PARSE. `tasks/214`'s title was written as an UNQUOTED YAML scalar
+#: containing " #" - which starts a comment - so every command in `tasks.py` displayed a
+#: truncated title from the day the ticket was filed while the file always held the full
+#: text, and `check` read the queue well-formed throughout (tasks/216). The census that
+#: bounded it, 2026-08-29 over all 214 ticket files then in the queue: ONE lossy scalar
+#: (that title), and four tickets whose unquoted scalars carry a hash following a
+#: NON-whitespace character and parse whole - the green controls a fix must not redden.
+#:
+#: THE TRIGGER IS THE PROPERTY, NOT THE CHARACTER. "The line's content begins with the
+#: value the parse kept and carries more" is the shape of comment truncation and of
+#: nothing else in this corpus; a check keyed on `" #"` would redden the REPAIRED 214
+#: title, which is single-quoted precisely so its ` #25` survives the read. That
+#: vocabulary check is the `lossy_by_vocabulary` mutant in `tasks_mutants.py`, and the
+#: green rows below are what kill it.
+LOSSY_DEFECT_COMMIT = "1703566"     # files tasks/214: title unquoted, " #" mid-value
+LOSSY_REPAIR_COMMIT = "cd4994d"     # same title single-quoted: full text, parses whole
+_T214 = "tasks/214-drive-appends-audio-triggered-after-a-lock-confli.md"
+
+#: The census tickets, pinned at the last commit that touched each - immutable addresses
+#: like direction 5's blobs, because a live file can be rewritten by a peer and a pin
+#: that moves is not a pin. 181 carries two of the four fields, which is why it is one
+#: row and not two.
+LOSSY_GREEN_COMMITS = (
+    ("174", "43a4792", "tasks/174-the-shift-estimator-answers-for-the-whole-frame-.md",
+     "refs ,#189"),
+    ("181", "c9586b5", "tasks/181-agents-md-and-decisions-md-cite-findings-as-bare.md",
+     "title (#NN) and done_when [#NN]"),
+    ("187", "42296a7", "tasks/187-a-rate-limited-coderabbit-reports-pass-and-the-j.md",
+     "refs ,#188"),
+)
+
+#: The ticket's own example of the shape that would bite hardest: a done_when losing its
+#: CONDITION at exactly the citation. Synthetic because the census found the one lossy
+#: scalar in a title - no real blob carries a lossy done_when - and the field generality
+#: is part of what is being pinned.
+LOSSY_DONE_WHEN_FIXTURE = ("tasks.py check exits 1 on this queue and docstat --findings "
+                           "names #214 in its index - the condition ends at the citation")
+
+
+def _fm_line(blob: str, field: str) -> str:
+    """One frontmatter line, whole, `field:` included - or a hard failure.
+
+    The fixtures below pin BY FIELD so a reflow of the surrounding blob cannot detach
+    the pin from the line it is about.
+    """
+    m = re.search(rf"^{field}: .*$", blob, re.M)
+    if m is None:
+        raise SystemExit(f"fixture blob has no `{field}:` line - the pin and its "
+                         f"subject have come apart")
+    return m.group(0)
+
+
+def _scratch_task(text: str, where: Path) -> tuple[Path, dict]:
+    """A task file on disk and the meta `_parse` builds from it - the production reader.
+
+    The predicate is pinned against what `_parse` actually hands `check`, never against a
+    hand-built dict: a second construction of the parsed values is a second address for
+    the one fact (AGENTS.md rule 12).
+    """
+    where.mkdir(parents=True, exist_ok=True)
+    p = where / "70-a.md"
+    p.write_text(text)
+    return p, T._parse(p)
+
+
+def lossy_check_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """`check` END TO END on scratch queues holding the real lines.
+
+    Exit 1 naming the field on the pre-repair 214 title and on a done_when truncated at
+    its citation; exit 0 over the five census lines TOGETHER, because a green row of one
+    shape each proves nothing about a queue that carries all of them - and because this
+    is the row the vocabulary mutant must redden, via the repaired 214 title it holds.
+    """
+    rows: list[tuple] = []
+    unchecked: list[str] = []
+    defect = _blob(LOSSY_DEFECT_COMMIT, _T214)
+    repaired = _blob(LOSSY_REPAIR_COMMIT, _T214)
+    if defect is None or repaired is None:
+        return rows, [f"direction 12's end-to-end rows NOT CHECKED - no blob at "
+                      f"{LOSSY_DEFECT_COMMIT} or {LOSSY_REPAIR_COMMIT}: no history to "
+                      f"read is not a pass"]
+
+    def run(name: str, files: dict[str, str], want_rc: int, phrase: str) -> None:
+        main, _ = _scratch_pair(tmp / re.sub(r"\W+", "-", name)[:40])
+        shutil.copy(TASKS_PY, main / "eval/tools/tasks.py")
+        for fn, text in files.items():
+            (main / "tasks" / fn).write_text(text)
+        rc, out = _run_tool(main / "eval/tools/tasks.py", "check")
+        rows.append((name, rc, rc == want_rc and phrase in out,
+                     f"want exit {want_rc} naming {phrase!r}; got exit {rc}: "
+                     f"{out.splitlines()[-1][:110] if out else '(no output)'}"))
+
+    run("`check` on a queue holding the real pre-repair 214 title (blob, not retyped)",
+        {"214-a.md": defect}, 1, "`title` parses shorter")
+    run("`check` on an unquoted done_when truncated at its ` #` citation",
+        {"70-a.md": _task_file("70", done_when=LOSSY_DONE_WHEN_FIXTURE)},
+        1, "`done_when` parses shorter")
+
+    green = {"214-b.md": repaired}
+    for tid, commit, path, _what in LOSSY_GREEN_COMMITS:
+        blob = _blob(commit, path)
+        if blob is None:
+            unchecked.append(f"the {tid} green row NOT CHECKED - no blob at {commit}")
+            continue
+        green[f"{tid}-c.md"] = blob
+    run("`check` on the four hash-following-non-whitespace lines and the repaired 214 "
+        "title (the greens, together)", green, 0, "well-formed")
+    return rows, unchecked
+
+
+def lossy_predicate_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """The PREDICATE, in process, on the real lines and on the shapes around them.
+
+    The e2e rows above ask whether `check` REPORTS what the predicate finds; these pin
+    the predicate itself, the way directions 4a/4b pin `reachability_warning` - and the
+    4c lesson is why both halves exist (tasks/106: computing everything, printing
+    nothing, every row green).
+    """
+    pred = getattr(T, "lossy_scalar_fields", None)
+    if pred is None:
+        return [("the lossy-scalar predicate exists (`tasks.lossy_scalar_fields`)",
+                 0, False,
+                 "tasks.py has no lossy_scalar_fields - the mechanism this direction "
+                 "pins does not exist in the subject")], []
+    rows: list[tuple] = []
+    unchecked: list[str] = []
+    scratch = tmp / "lossy-pred"
+
+    # THE DEFECT, read through the production reader: the parse is the truncated string
+    # the queue displayed, the LINE still carries the full text, and the predicate fires
+    # naming `title`. Three rows, because "fires" alone would also be true of a predicate
+    # that fired on the wrong value or for the wrong reason.
+    defect = _blob(LOSSY_DEFECT_COMMIT, _T214)
+    if defect is None:
+        unchecked.append(f"the defect predicate rows NOT CHECKED - no blob at "
+                         f"{LOSSY_DEFECT_COMMIT}")
+    else:
+        p, meta = _scratch_task(defect, scratch / "defect")
+        text = p.read_text(encoding="utf-8")
+        fired = pred(text, meta)
+        rows.append(("predicate FIRES on the real pre-repair 214 title, naming `title`",
+                     0, "title" in fired, f"fired on {fired}"))
+        rows.append(("...the parse really is the truncated string the queue displayed",
+                     0, str(meta.get("title", "")).endswith("so the"),
+                     f"title parses to ...{str(meta.get('title', ''))[-50:]}"))
+        raw = _fm_line(text, "title")
+        rows.append(("...while the LINE still carries the full text the file always held",
+                     0, raw.endswith("unusable_criteria"), f"line ends: ...{raw[-50:]}"))
+
+    # THE GREENS: the four census lines and the repaired title, each quiet, each with its
+    # precondition ASSERTED - that the line pinned is still hash-bearing, so a moved blob
+    # fails loudly here instead of passing vacuously.
+    repaired = _blob(LOSSY_REPAIR_COMMIT, _T214)
+    greens: list[tuple[str, str | None, str]] = [
+        (f"tasks/{tid} at {commit}", _blob(commit, path), what)
+        for tid, commit, path, what in LOSSY_GREEN_COMMITS
+    ]
+    greens.append(("tasks/214 repaired (single-quoted, full text)", repaired,
+                   "title quoted, ` #25` inside the quotes"))
+    for name, blob, what in greens:
+        if blob is None:
+            unchecked.append(f"predicate row NOT CHECKED - no blob for {name}")
+            continue
+        p, meta = _scratch_task(blob, scratch / re.sub(r"\W+", "-", name)[:30])
+        text = p.read_text(encoding="utf-8")
+        fired = pred(text, meta)
+        hash_lines = [ln.split(":")[0] for ln in text.splitlines()
+                      if re.match(r"^(title|done_when|refs): .*#", ln)]
+        rows.append((f"predicate stays QUIET on {name}: {what}",
+                     0, fired == [] and len(hash_lines) >= 1,
+                     f"fired on {fired}; hash-bearing field line(s): {hash_lines}"))
+
+    # THE SHAPES AROUND THE PROPERTY, each with the reason it must read the way it does.
+    # Wordings rather than a parametrisation, on the reachability_rows pattern: each row
+    # states the case it covers, and a mutant has to say which wording it no longer
+    # respects.
+    def fm(title: str, status: str = "todo", priority: str = "3",
+           refs: str = "''", done_when: str = "something observable",
+           body: str = "\nbody\n") -> str:
+        return (f"---\nid: 70\ntitle: {title}\nstatus: {status}\npriority: {priority}\n"
+                f"refs: {refs}\ndone_when: {done_when}\n---\n{body}")
+
+    cases = [
+        # An intentional-looking comment after an EMPTY value. Quiet BY DECISION: the
+        # parse is "" and the remedy sentence has no surviving value to point at, while
+        # the fields where emptiness is a defect are already gated by their own
+        # `no title` / `no done_when` failures. Pinned so it is a decision and not an
+        # accident.
+        ("quiet on `refs: # see task 189` (empty parse; comment idiom, not loss)",
+         fm("a title", refs="# see task 189"), []),
+        # Escaped quotes make the parsed value differ from the naive unquoting WITHOUT any
+        # loss. The prefix test - not inequality - is what keeps this quiet.
+        ("quiet on an escaped apostrophe the naive unquote does not reproduce",
+         fm("'the band''s own rows'"), []),
+        # The repair as a shape: quoted, and the ` #` the quotes protect survives the read.
+        # A vocabulary trigger (`" #" in line`) reddens this row - which is the point.
+        ("quiet on a quoted value whose ` #` the quotes protect",
+         fm("'the gate''s own #25 note'"), []),
+        # The legacy vocabulary is remapped on read: `open` parses to `todo`. Not a
+        # prefix, so quiet - a red here would fail every stale worktree's check, which is
+        # the exact thing LEGACY_STATUSES exists to prevent.
+        ("quiet on a legacy status remapped on read (`open` parses to `todo`)",
+         fm("a title", status="open"), []),
+        # EVERY scalar field, not an enumeration of the two the ticket names: a trailing
+        # comment is dropped off any unquoted value and the disagreement is real wherever
+        # it happens.
+        ("FIRES on `priority: 3 # high` - the property covers every scalar field",
+         fm("a title", priority="3 # high"), ["priority"]),
+        # The check reads the FRONTMATTER BLOCK. A body quoting the shape is prose, and a
+        # match there would fire on every ticket that documents this defect - this one
+        # included.
+        ("quiet when the shape appears in the BODY, which no frontmatter reader parses",
+         fm("a title", body="\ntitle: some # prose quoted in the body\n"), []),
+    ]
+    for name, text, want in cases:
+        _, meta = _scratch_task(text, scratch / "cases")
+        fired = pred(text, meta)
+        rows.append((f"predicate {name}", 0, fired == want,
+                     f"fired on {fired}, want {want}"))
+
+    # THE CENSUS, RE-RUN EVERY TIME INSTEAD OF QUOTED. 0 lossy scalars over 1593 scalar
+    # lines, measured 2026-08-29 (tasks/216); the row below re-derives the 0 against
+    # whatever the shared queue holds now, so a peer introducing the shape turns this red
+    # in the next run of this control rather than at the next lost tail.
+    if not T.TASKS.is_dir():
+        unchecked.append(f"live-queue scalar census NOT CHECKED - no queue at {T.TASKS}. "
+                         f"Not a pass: the 0 the ticket quotes is re-derived here")
+    else:
+        lost: list[str] = []
+        n = 0
+        for t in T._load():
+            if t.get("malformed"):
+                continue
+            try:
+                text = t["path"].read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            n += 1
+            lost += [f"{t.get('id')}.{k}" for k in pred(text, t)]
+        rows.append((f"live queue: no frontmatter scalar parses shorter than its line "
+                     f"wrote (0 of {n} tickets)", len(lost), not lost,
+                     "clean" if not lost else f"LOSSY: {', '.join(sorted(lost)[:6])}"))
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1729,7 +1975,9 @@ def main(argv: list[str]) -> int:
                    lambda: coverage_rows(),
                    lambda: status_rows(tmp),
                    lambda: evidence_rows(tmp, a.skip_prefix),
-                   lambda: landed_rows(tmp, a.live_squash_refs)):
+                   lambda: landed_rows(tmp, a.live_squash_refs),
+                   lambda: lossy_check_rows(tmp),
+                   lambda: lossy_predicate_rows(tmp)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)

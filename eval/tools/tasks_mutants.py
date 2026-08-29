@@ -156,6 +156,27 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "    if not risky or _words(prose, HYPOTHETICAL):",
         "    if not risky:  # MUTANT: an escape branch no longer silences anything",
         ("end to end on a universal WITH an escape branch",)),
+    # THE LINE-VERSUS-PARSE CHECK (tasks/216), deleted. The no-op shape: `check` reads the
+    # file, compares nothing, and the queue that says "all well-formed" over a truncated
+    # title is exactly the 25-day state this check exists to end. Both red rows must
+    # notice -- the title blob and the done_when citation -- or the check only guards the
+    # field it happened to be filed from.
+    "lossy_never_checked": (
+        '            lost = lossy_scalar_fields(t["path"].read_text(encoding="utf-8"), t)',
+        "            lost = []  # MUTANT: the line-versus-parse check never runs",
+        ("`check` on a queue holding the real pre-repair 214 title",
+         "`check` on an unquoted done_when truncated at its")),
+    # THE TRIGGER THE TICKET RULED OUT, RESTORED. `if " #" in line` is the character
+    # vocabulary: it cannot tell a hash that starts a comment from one the quotes protect,
+    # so it reddens the REPAIRED 214 title and every quoted value that legitimately
+    # carries " #", while agreeing with the real check on every unquoted loss. The green
+    # rows are what kill it -- the variant half (AGENTS.md rule 15): a mutant that only
+    # ever made red rows redder would be untestable without them.
+    "lossy_by_vocabulary": (
+        "        if value != carrier and carrier.startswith(value):",
+        '        if " #" in line:  # MUTANT: the character vocabulary the ticket ruled out',
+        ("the four hash-following-non-whitespace lines and the repaired 214 title",
+         "quiet on a quoted value whose ` #` the quotes protect")),
     # THE STATUS VOCABULARY. Dropping a value is the shape a half-landed rename takes, and it
     # is invisible to every row that only asks whether a WRONG status fails: `wip` is still
     # rejected with 4 values, or with 1. Two rows must notice -- the one that puts a file in
