@@ -107,14 +107,18 @@ class Image:
         `min(3, channels)` channels of each image - the definition as always.
 
         Since `tasks/212`: a byte-equality fast path (identical data cannot differ
-        under any tolerance, and consecutive captured frames are usually identical),
-        then one pass per channel pair - the slices walk each channel at C speed and
-        the comparisons run on unpacked ints, with no generator frame per pixel.
+        under any non-negative tolerance, and consecutive captured frames are
+        usually identical), then one pass per channel pair - the slices walk each
+        channel at C speed and the comparisons run on unpacked ints, with no
+        generator frame per pixel.
         `x - y > tol or y - x > tol` is `abs(x - y) > tol`. Pinned the same way as
         `ink_coverage`: `_reference_differs` in `judge/ink_window_control.py` is the
         shipped loop, and `--pin-dump` states every reading a change here must
         reproduce exactly. A data length that does not match the geometry raises
-        rather than reading past it.
+        rather than reading past it. A negative `tolerance` is outside how the
+        criterion ever calls this, but it is pinned anyway: the shipped loop marks
+        every pixel different there (`0 > tolerance`), so the fast path must not
+        fire - identical data reads 1.0, not 0.0 (tasks/212 review round 1).
         """
         if (self.width, self.height) != (other.width, other.height):
             return 1.0
@@ -125,7 +129,7 @@ class Image:
         ca, cb = self.channels, other.channels
         if len(a) != n * ca or len(b) != n * cb:
             raise PngError("image data length does not match width * height * channels")
-        if a == b:
+        if tolerance >= 0 and a == b:
             return 0.0
         k = min(3, ca, cb)
         tol = tolerance

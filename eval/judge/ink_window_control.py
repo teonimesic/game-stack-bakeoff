@@ -594,6 +594,17 @@ def test_vectorised_reader_matches_the_per_pixel_reference(tmp: Path) -> None:
            != _reference_differs(_pattern_frame(24, 18, ca), _pattern_frame(24, 18, cb), tol)]
     expect("mixed channel counts: differs_from agrees", bad == [], "; ".join(bad))
 
+    # THE FAST PATH, BOTH WAYS. Identical data takes the byte-equality shortcut at a
+    # non-negative tolerance and must NOT take it at a negative one - the shipped
+    # loop reads 1.0 there, because `0 > tolerance` marks every pixel different. A
+    # fast path that ignored the tolerance would read 0.0 and no row above could see
+    # it: every other row compares frames that differ.
+    same = _pattern_frame(24, 18, 3)
+    bad = [f"tol={tol}" for tol in (-1, 0, 1, 8)
+           if same.differs_from(same, tol) != _reference_differs(same, same, tol)]
+    expect("identical data (the fast path): differs_from agrees at -1/0/1/8",
+           bad == [], "; ".join(bad))
+
     edge, base = _boundary_frame((100, 100, 100)), png.Image(5, 1, 3, bytes((100, 100, 100)) * 5)
     bad = [f"{kind} tol={tol}" for tol in (0, 1, 7, 8, 9, 255)
            for kind, got, want in (
@@ -970,6 +981,18 @@ def mutants(inks: dict[str, dict[str, Any]], mutant_tmp: Path) -> None:
                  _reference_differs(self, other, tolerance + 1)):
         caught = edge.differs_from(base) != _reference_differs(edge, base)
     expect("mutant 'differs_from is one tolerance step loose' is caught by the pin",
+           caught)
+
+    # The fast path itself. An identical pair at a NEGATIVE tolerance must fall
+    # through to the loop, where the shipped semantics read 1.0; a fast path that
+    # ignores the tolerance reads 0.0, and this row is what sees it.
+    same = _pattern_frame(24, 18, 3)
+    with patched(png.Image, "differs_from",
+                 lambda self, other, tolerance=8:
+                 0.0 if self.data == other.data
+                 else _reference_differs(self, other, tolerance)):
+        caught = same.differs_from(same, -1) != _reference_differs(same, same, -1)
+    expect("mutant 'the equality fast path ignores the tolerance' is caught by the pin",
            caught)
 
     print("\n[mutants: can the bound census fail?]")
@@ -1415,7 +1438,10 @@ def pin_dump() -> int:
     arrangement, tolerances 0/1/8/255 against each frame's own mode and frame 0's,
     every consecutive pair - plus the synthetic frames for the channel counts,
     mixed-channel compares, tolerance edge and out-of-range references no render
-    harness emits. Lines are sorted, values printed with `repr` (exact round-trip):
+    harness emits. Since the tasks/212 review: every consecutive pair is read at
+    -1 as well as 0/1/8 - the tolerance the byte-equality fast path must NOT
+    shortcut - and the identical-pair readings are stated outright. Lines are
+    sorted, values printed with `repr` (exact round-trip):
     a diff is a changed measure, and there is nothing to adjudicate past it.
     """
     lines: list[str] = []
@@ -1446,7 +1472,7 @@ def pin_dump() -> int:
                     emit(f"{label} frame{i} ink_own_tol{tol}", im.ink_coverage(own, tol))
                     emit(f"{label} frame{i} ink_bg0_tol{tol}", im.ink_coverage(bg0, tol))
             for i, (a, b) in enumerate(zip(imgs, imgs[1:])):
-                for tol in (0, 1, 8):
+                for tol in (-1, 0, 1, 8):
                     emit(f"{label} delta{i} tol{tol}", a.differs_from(b, tol))
             emit(f"{label} analyse_frames",
                  sorted(static.analyse_frames(sorted(d.glob("*.png"))).items()))
@@ -1468,11 +1494,14 @@ def pin_dump() -> int:
         for bg in ((0, 0, 0), (100, 100, 100), (255, 255, 255), (300, -5, 128)):
             for tol in (0, 1, 8, 255):
                 emit(f"synthetic-c{c} bg{bg} tol{tol}", im.ink_coverage(bg, tol))
-    a3 = _pattern_frame(24, 18, 3)
     for ca, cb in ((3, 1), (1, 2), (2, 4), (4, 3), (1, 3)):
         for tol in (0, 8):
             emit(f"synthetic-differs {ca}v{cb} tol{tol}",
-                 a3.differs_from(_pattern_frame(24, 18, cb), tol))
+                 _pattern_frame(24, 18, ca).differs_from(
+                     _pattern_frame(24, 18, cb), tol))
+    same = _pattern_frame(24, 18, 3)
+    for tol in (-1, 0, 1, 8):
+        emit(f"synthetic-identical tol{tol}", same.differs_from(same, tol))
     edge = _boundary_frame((100, 100, 100))
     base = png.Image(5, 1, 3, bytes((100, 100, 100)) * 5)
     for tol in (0, 1, 7, 8, 9, 255):
@@ -1509,11 +1538,11 @@ def phases(inks: dict[str, dict[str, Any]],
         ("colour drift", lambda: test_a_colour_drift_that_drew_nothing_fails(tmp), 1),
         ("the two halves", lambda: test_the_two_halves(inks, tmp), 3),
         ("reader pin", lambda: test_vectorised_reader_matches_the_per_pixel_reference(tmp),
-         11 + 7),
+         12 + 7),
         ("class refusal", test_an_unplaceable_class_is_refused, 3),
         ("collect wiring", test_collect_reaches_the_criterion, 6),
         ("bound census", test_bound_census, 6),
-        ("mutants", lambda: mutants(inks, tmp), 14),
+        ("mutants", lambda: mutants(inks, tmp), 15),
         ("corpus null frames",
          lambda: test_the_corpus_arm_tolerates_a_null_frames_block(tmp), 8),
     ]

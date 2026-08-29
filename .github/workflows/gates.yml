@@ -332,11 +332,10 @@ jobs:
       # the restored 0.85 as a mutant. About 4.6 s locally (2026-08-29,
       # `time python3 eval/judge/ink_window_control.py`; the ~30 s this comment carried
       # until tasks/212 was the fixture phases' per-pixel ink reads, now vectorised in
-      # judge/png.py and pinned against the shipped per-pixel loops by the file's
+      # eval/judge/png.py and pinned against the shipped per-pixel loops by the file's
       # reader-pin phase -- what dominates now is those pin loops plus zlib). It writes
-      # its own PNGs through
-      # judge/png.py and stubs every
-      # subprocess `static.collect` makes, so it needs neither `just` nor a toolchain.
+      # its own PNGs through eval/judge/png.py and stubs every subprocess
+      # `static.collect` makes, so it needs neither `just` nor a toolchain.
       # The corpus arm reads eval/runs, which is gitignored, and prints NOT ASKED here.
       - name: judge/ink_window_control (render.nonempty's floor, both directions)
         if: ${{ !cancelled() }}
