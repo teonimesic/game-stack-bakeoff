@@ -1,11 +1,11 @@
 ---
 id: 209
 title: paired_verdicts.load() drops unparseable trial ids and passed-less criteria from every denominator, printing nothing
-status: in_testing
+status: done
 priority: 5
 refs: eval/judge/paired_verdicts.py,eval/judge/capability.py
 done_when: load() no longer loses either class silently - a report.json whose trial id is not 3 parts, and a criterion carrying `id` without `passed`, are each counted and NAMED where the module reports (the excluded/skipped list render() already prints, or a summary line beside it), with fixtures in the selftest whose answers are stated in the expectation (a 2-part tid is red because it is counted, not because the walk broke); a criterion without `passed` present on BOTH sides of a cell must land somewhere stated - today it vanishes from paired AND unpaired - and the fix says where; python3 eval/judge/paired_verdicts.py --selftest --runs-root <main checkout>/eval/runs exits 0 unpiped after.
-established_by: 'PR https://github.com/teonimesic/game-stack-bakeoff/pull/90 - 5 review rounds worked, all findings fixed in-round, ceiling reached with no open findings. python3 eval/judge/paired_verdicts.py --selftest --runs-root <main checkout>/eval/runs exits 0 unpiped: 38/38 checks, 5 corpus pins, all published figures reproduce, stored corpus 0 skips over 85 reports. Mutant verified 10/38 red after fixing a suite-crash in my own check that had undercounted it as 3.'
+established_by: 'PR #90 squash 8d76343 (7 commits, branch b0bbc91); verified at b0bbc91 in a fresh checkout unpiped: selftest 38/38 (33 synthetic answers-stated + 5 corpus pins exact 436/5/332, 232/0/120, 280/4/176, delta 156), 0 skips over 85 stored reports; full branch diff read in three passes as rounds landed; 5 CodeRabbit rounds — 4 fixed (empty tid, undecodable/non-mapping reports, non-string ids + missing/null criteria, explicit-null tier block), 1 declined with the r10 fixture and withdrawn by the reviewer; both threads resolved; orchestrator-verification and findings-decision paragraphs in the PR body before merge; queue commit 1bd89dd pushed first, update-branch merge head 1e5f137, gates+controls green there at merge; finding #212 allocated at merge by the orchestrator (the round-5 label check crashed the suite under the mutant via next() without a default, first read 3 red where the honest count was 10, fixed b0bbc91 to fail gracefully) — README/AGENTS/FINDINGS range lines updated to #19-#212, docstat --findings exit 0, --sweep and tasks.py check green on merged main'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/90
 ---
 

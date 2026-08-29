@@ -1010,3 +1010,33 @@ cannot be read back. The two fixtures are the whole evidence, and `eval/RUNS.md`
 implying a corpus measurement.
 
 ---
+
+## 212. A check that dies is not a check that reports: the mutant's damage first read 3 red of 38 because a crashing expectation stopped the suite six expectations early — exit 1 was correct in the large and the count was wrong in the detail
+
+Task 209 rebuilt `paired_verdicts.py`'s silent-drop handling (PR #90, squash `8d76343`), and
+its mutant control — both original drops re-introduced behind the new `(rows, skips)` API —
+was re-measured against the grown suite. First reading: **3 of 38 checks red**. True count,
+after repair: **10 of 38**. The gap was not a lenient mutant or a mis-stated expectation; the
+round-5 render-label check located its line with `next(...)` and **no default**, the mutant
+suppresses the skip block that line lives in, so the check raised `StopIteration` and the
+suite exited mid-run. Six expectations after the crash point were never evaluated. The
+measurement did not fail — it stopped, and the part of it that ran under-reported.
+
+The exit status was never wrong: the suite exited 1, nothing read as green. Rule 3 already
+covers the status axis (`a pipeline's exit status is the last stage's`). This defect lived on
+the **count axis**: a reader of "3 red" concludes the mutant is a third as damaging as it is,
+and the number is arithmetically correct over the population that ran — rule 4's shape in a
+suite instead of across runs, with the population silently truncated rather than
+heterogeneous. It was caught by reading the output, not by any check, because the
+instrument's own failure mode is "stops early", which is indistinguishable from a smaller
+result until someone counts the lines.
+
+Fixed in `b0bbc91`: the locator takes `""` as its default, so a missing skip line FAILs the
+one expectation that cares instead of killing the suite — and the expectation's comment now
+states why the default is load-bearing. Re-measured: 10/38, no crash, corpus pins unaffected.
+
+> **A crashing check fails closed in the large and lies in the detail: whatever it was
+> measuring is under-reported to exactly the extent of what never ran.** When a control reads
+> as *less* damaging than expected, count the expectations that evaluated before treating the
+> count as a measurement — the reason not to count the rest (the suite stopped) is rule 7's
+> channel, wearing an exit 1.
