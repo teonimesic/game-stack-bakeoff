@@ -294,13 +294,43 @@ def render(out: dict, reports: int, skipped: int) -> None:
 # --------------------------------------------------------------------------- #
 
 
+def triggered_row(run: str, trial: str, text: str) -> dict:
+    """One playbot record's text -> one census row, or a row carrying a refusal.
+
+    A record that exists is IN the population whatever it holds, so an unreadable
+    or ambiguous one is refused explicitly rather than crashed on or silently
+    skipped: a silent skip would shrink the null's own denominator, and a crash
+    would trade one bad record for no census at all. Classification requires
+    exactly 1 `audio.triggered` criterion - `next()` over 2 would classify an
+    arbitrary entry.
+    """
+    base = {"run": run, "trial": trial}
+    try:
+        rec = json.loads(text)
+    except ValueError as exc:
+        return {**base, "refusal": f"unreadable playbot.json: {exc}"}
+    if not isinstance(rec, dict):
+        return {**base, "refusal": "not a JSON object"}
+    crits = rec.get("criteria")
+    if not isinstance(crits, list):
+        return {**base, "refusal": "no criteria list"}
+    matches = [c for c in crits
+               if isinstance(c, dict) and c.get("id") == "audio.triggered"]
+    if len(matches) != 1:
+        return {**base, "refusal": f"{len(matches)} audio.triggered criteria, "
+                                   f"exactly 1 required"}
+    return {**base, "trig": matches[0],
+            "total": rec.get("total"), "usable": rec.get("usable")}
+
+
 def triggered_rows(runs_root: Path) -> tuple[list[dict], int, int]:
     """(playbot records carrying audio.triggered, reports read, skipped).
 
     The same counted frame as `load` - `report_paths` - so the two censuses
-    describe one population of gradings. A report without a sibling playbot.json,
-    or one without an `audio.triggered` criterion, is out of this population, the
-    same way a report without an audio block is out of the census above.
+    describe one population of gradings. A report without a sibling playbot.json
+    is out of this population, the same way a report without an audio block is
+    out of the census above; a playbot.json that exists but cannot be classified
+    comes back as a refusal row, never a skip.
     """
     counted, skipped = report_paths(runs_root)
     rows = []
@@ -308,22 +338,15 @@ def triggered_rows(runs_root: Path) -> tuple[list[dict], int, int]:
         pb = rep.parent / "playbot.json"
         if not pb.is_file():
             continue
-        rec = json.loads(pb.read_text())
-        crits = rec.get("criteria")
-        if not isinstance(crits, list):
+        try:
+            text = pb.read_text()
+        except OSError as exc:
+            rows.append({"run": str(pb.parents[3].relative_to(runs_root)),
+                         "trial": pb.parents[1].name,
+                         "refusal": f"unreadable playbot.json: {exc}"})
             continue
-        trig = next((c for c in crits
-                     if isinstance(c, dict) and c.get("id") == "audio.triggered"),
-                    None)
-        if trig is None:
-            continue
-        rows.append({
-            "run": str(pb.parents[3].relative_to(runs_root)),
-            "trial": pb.parents[1].name,
-            "trig": trig,
-            "total": rec.get("total"),
-            "usable": rec.get("usable"),
-        })
+        rows.append(triggered_row(str(pb.parents[3].relative_to(runs_root)),
+                                  pb.parents[1].name, text))
     return rows, len(counted), len(skipped)
 
 
@@ -354,6 +377,10 @@ def triggered_census(rows: list[dict]) -> dict:
     moved, refused, failed = [], [], []
     unchanged = 0
     for r in rows:
+        if r.get("refusal"):
+            r["result"] = {"outcome": r["refusal"]}
+            refused.append(r)
+            continue
         res = triggered_verdict(r)
         r["result"] = res
         if res["outcome"].startswith("INCOMPLETE"):
@@ -367,14 +394,16 @@ def triggered_census(rows: list[dict]) -> dict:
         # null is audited by eye rather than by matching the note's words (#30).
         if r["trig"].get("passed") is False:
             failed.append(r)
-    return {"rows": len(rows), "moved": moved, "refused": refused,
+    return {"rows": len(rows), "carrying": sum(1 for r in rows if "trig" in r),
+            "moved": moved, "refused": refused,
             "unchanged": unchanged, "failed": failed}
 
 
 def render_triggered(out: dict, reports: int, skipped: int) -> None:
     print(f"stored reports read {reports}, skipped as not-a-run {skipped}")
-    print(f"playbot records carrying audio.triggered: {out['rows']}")
-    print(f"unchanged {out['unchanged']}  moved {len(out['moved'])}  "
+    print(f"playbot.json records read: {out['rows']}")
+    print(f"carrying audio.triggered: {out['carrying']}  unchanged "
+          f"{out['unchanged']}  moved {len(out['moved'])}  "
           f"refused {len(out['refused'])}")
     for r in out["moved"]:
         print(f"\n  MOVED {r['run']}/{r['trial']}: scored True -> False "
@@ -676,10 +705,69 @@ def selftest() -> int:
     ])
     checks += 1
     if (len(agg["moved"]), agg["unchanged"], len(agg["failed"]),
-            len(agg["refused"])) != (1, 1, 2, 0):
+            len(agg["refused"]), agg["carrying"]) != (1, 1, 2, 0, 2):
         fails.append(f"triggered census over 2 rows: moved {len(agg['moved'])}, "
                      f"unchanged {agg['unchanged']}, failed {len(agg['failed'])}, "
-                     f"refused {len(agg['refused'])}; expected 1, 1, 2, 0")
+                     f"refused {len(agg['refused'])}, carrying {agg['carrying']}; "
+                     f"expected 1, 1, 2, 0, 2")
+
+    # -- tasks/214, review round 3: an unreadable or ambiguous record is an
+    # explicit refusal, never a crash and never a silent skip. The record EXISTS,
+    # so it is in the population; a reason not to classify it is a reason to
+    # REPORT, not to drop.
+    def trig_text(label: str, text: str, want_refusal: str | None) -> None:
+        nonlocal checks
+        checks += 1
+        row = triggered_row("r", label, text)
+        got = row.get("refusal")
+        if want_refusal is None:
+            if got is not None:
+                fails.append(f"{label}: refused ({got}), expected a classifiable row")
+        elif got is None or want_refusal not in got:
+            fails.append(f"{label}: refusal {got!r}, expected it to name "
+                         f"{want_refusal!r}")
+
+    good = json.dumps({"total": 4, "usable": True, "criteria": [
+        {"id": "state", "passed": True, "scored": True},
+        dict(scored_trig),
+    ]})
+    trig_text("healthy record", good, None)
+    # A record that classifies must carry exactly one audio.triggered...
+    checks += 1
+    row = triggered_row("r", "healthy", good)
+    if row.get("total") != 4 or row.get("trig", {}).get("id") != "audio.triggered":
+        fails.append(f"healthy record row: total={row.get('total')}, "
+                     f"trig id={row.get('trig', {}).get('id')}")
+    trig_text("invalid JSON", "{not json", "unreadable")
+    trig_text("not an object", json.dumps([1, 2]), "not a JSON object")
+    trig_text("no criteria list", json.dumps({"total": 0, "usable": False}),
+              "no criteria list")
+    trig_text("zero triggers", json.dumps({"total": 0, "usable": False,
+                                           "criteria": []}),
+              "0 audio.triggered criteria, exactly 1 required")
+    trig_text("duplicate triggers", json.dumps({"total": 0, "usable": False,
+                                                "criteria": [dict(scored_trig),
+                                                             dict(scored_trig)]}),
+              "2 audio.triggered criteria, exactly 1 required")
+    # ...and a refusal row reaches the census's refused bin, with its outcome.
+    agg2 = triggered_census([
+        triggered_row("r", "broken", "{not json"),
+        {"run": "r", "trial": "steady", "trig": dict(scored_trig),
+         "total": 4, "usable": True},
+    ])
+    checks += 1
+    if (len(agg2["refused"]), agg2["unchanged"], len(agg2["moved"]),
+            agg2["carrying"]) != (1, 1, 0, 1):
+        fails.append(f"triggered census with a refusal row: refused "
+                     f"{len(agg2['refused'])}, unchanged {agg2['unchanged']}, "
+                     f"moved {len(agg2['moved'])}, carrying {agg2['carrying']}; "
+                     f"expected 1, 1, 0, 1")
+    checks += 1
+    if not agg2["refused"] or not agg2["refused"][0]["result"]["outcome"].startswith(
+            "unreadable"):
+        fails.append(f"refusal row outcome: "
+                     f"{agg2['refused'][0]['result']['outcome'] if agg2['refused'] else 'none'}; "
+                     f"expected it to name the record's own defect")
 
     print(f"{checks} expectations checked, {len(fails)} unmet")
     for f in fails:
@@ -741,7 +829,7 @@ def main() -> int:
         if a.json:
             print(json.dumps({
                 "reports": reports, "skipped": skipped, "rows": out["rows"],
-                "unchanged": out["unchanged"],
+                "carrying": out["carrying"], "unchanged": out["unchanged"],
                 "moved": [{"run": r["run"], "trial": r["trial"]}
                           for r in out["moved"]],
                 "refused": [{"run": r["run"], "trial": r["trial"],

@@ -3001,17 +3001,24 @@ from the score rather than counted as a failure — already covered tier 1 throu
 A non-lock probe failure, and a run that happened and emitted no events, stay scored failures —
 the fail-closed default is not loosened. Both paths are pinned in `judge/audio_selftest.py`
 (110 expectations) and `judge/bot_mutants.py`, and the playbot-record census below is pinned in
-its own selftest (**61** expectations).
+its own selftest (**70** expectations; `python3 eval/judge/audio_regrade_census.py --selftest`
+prints the count on its closing line).
 
 ### What it invalidates, and what it does not
 
-**0 of 43 stored `audio.triggered` verdicts move**, with **0** refusals, over **85** stored
-reports — `python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
---triggered`, population *stored playbot.json records carrying an `audio.triggered` criterion*,
-read 2026-08-29. The census classifies each record from its own signature: the repair moves a
-verdict only where the same record shows `total=0` with `usable=False` — drive having excluded
-EVERYTHING — next to a `scored=True` verdict; `scored=False` on some criteria is the
-`diagnostic_only` design and moves nothing.
+**0 of 43 stored `audio.triggered` verdicts move**, over **69** stored playbot.json records read
+from **85** stored reports — `python3 eval/judge/audio_regrade_census.py --runs-root <main
+checkout>/eval/runs --triggered`, population *every stored playbot.json record alongside a
+counted report, classified or refused by name*, read 2026-08-29. Classification requires exactly
+1 `audio.triggered` criterion per record; a record that cannot be classified is refused rather
+than skipped, so a writer that ever stopped appending the criterion would show up as the whole
+population turning refused instead of a denominator that quietly shrinks. **26** of the 69 are
+refused for carrying none — every one from a run that predates the earliest stored audio grading
+(`wg-audio`, 2026-08-14) or from the scene suite, which declares no audio criteria — and **0**
+are refused for unreadability or ambiguity (duplicate criteria). The census classifies each
+carried record from its own signature: the repair moves a verdict only where the same record
+shows `total=0` with `usable=False` — drive having excluded EVERYTHING — next to a `scored=True`
+verdict; `scored=False` on some criteria is the `diagnostic_only` design and moves nothing.
 
 **The null is a fact about the corpus, not a silent extraction.** The only 2 failed stored
 verdicts — `wg-arena3d`'s two Rust trials, the same rows the twenty-second break printed — carry
