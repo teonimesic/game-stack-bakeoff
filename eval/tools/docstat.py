@@ -116,6 +116,23 @@ def is_vendored(p: str) -> bool:
     return any(v in p for v in VENDORED)
 
 
+def _outside_corpus(path: str) -> bool:
+    """The renumbered-citation corpus's two recorded exclusions, on ONE spelling.
+
+    `eval/runs/` is stored data, and the vendored analyser trees are not ours to read
+    (the corpus decision under #211). The test is on the ABSOLUTE path: the corpus joins
+    the root before asking, and the walking oracle prunes directories by their absolute
+    name - and while the two spelled the test differently, a TOP-LEVEL `runs/x` fell
+    between them. `git ls-files` emits no leading separator, so the relative test kept
+    what the absolute walk pruned, and the oracle pin - which only sees files the walk
+    REACHED - had no way to catch the disagreement (review round 1, PR 88; the fixture
+    pins `runs/secret.py` and `target/gen.py` to hold the alignment). `project_docs()`
+    tests the absolute path for the same reason. A DIRECTORY path ends in a separator,
+    as the walk's prune passes it.
+    """
+    return "/runs/" in path or is_vendored(path)
+
+
 def _tracked_paths(root: str | None = None, rev: str | None = None) -> list[str]:
     """Every tracked path IN THE TREE, relative to `root`, `/`-separated.
 
@@ -2944,15 +2961,20 @@ def _renumbered_corpus(hist: _History) -> list[str]:
     (#211, task 208). The selection is the whole tree minus two recorded exclusions
     rather than an allowlist of extensions: an allowlist is an enumeration, and the next
     citation lands in a language that is not on it. Non-text files are dropped at read
-    time, by the NUL-byte property git itself uses for binary, and the summary names the
-    count so a skipped file is never silent.
+    time, by the NUL-byte property git itself uses for binary, and every skip - NUL,
+    symlink, a path git cannot produce, a tracked path missing from the worktree - is
+    NAMED in the summary, whose read totals count only what was decoded. A skipped file
+    is never silent (review round 1, PR 88: the two `continue`s that were are the pins
+    named `unreadable` and `missing`).
 
     `_renumbered_corpus_pins` holds this corpus against a walking oracle, so a filter
     that learns to drop a citing file reddens the selftest rather than the corpus.
+    The exclusions are asked through `_outside_corpus`, on the absolute path - the one
+    spelling the oracle shares.
     """
     return [f for f in _tracked_paths(root=hist.root,
                                       rev=None if hist.worktree else hist.rev)
-            if "/runs/" not in f and not is_vendored(f)]
+            if not _outside_corpus(os.path.join(hist.root, *f.split("/")))]
 
 
 def _check_renumbered_citations(rev: str = "HEAD",
@@ -3050,11 +3072,17 @@ def _check_renumbered_citations(rev: str = "HEAD",
     stale: list[str] = []
     undecided: list[str] = []
     skipped: list[str] = []
+    read: list[str] = []
     for path in files:
         if hist.worktree:
             disk = os.path.join(hist.root, path)
             if not os.path.exists(disk):
-                continue                       # deleted in the working tree
+                # Tracked, gone from the worktree. Named, never silent: every reason a
+                # corpus path goes unread is a channel a bug can widen (rule 7), and the
+                # summary counts what was READ, so a skip that only shrank the corpus
+                # invisibly would be a clean report over an unseen hole.
+                skipped.append(f"{path} (missing on disk)")
+                continue
             if os.path.islink(disk):
                 # `.claude/skills` is a tracked symlink to `.agents/skills`; the old .md
                 # filter never reached it, and the first widened run crashed on it. A
@@ -3069,11 +3097,17 @@ def _check_renumbered_citations(rev: str = "HEAD",
         else:
             ok, data = _git_bytes(hist.root, "show", f"{hist.rev}:{path}")
             if not ok:
-                continue                       # absent at this revision; nothing to read
+                # The listing named this path and git could not produce it. Named and
+                # skipped rather than silent (review round 1, PR 88): `_live_corpus`
+                # reports a failed read instead of returning it as clean, and so does
+                # this one.
+                skipped.append(f"{path} (unreadable)")
+                continue
         if b"\0" in data:
             skipped.append(f"{path} (NUL)")
             continue          # not scannable text; named in the summary for being so
         lines = data.decode("utf-8", errors="replace").split("\n")
+        read.append(path)     # decoded and scannable: this is what the totals count
         # Blame is the expensive call. Only a file citing a number that has actually
         # been reused can produce a hit, so ask that question from the text first.
         if not any(int(m.group(1)) in reused
@@ -3107,11 +3141,11 @@ def _check_renumbered_citations(rev: str = "HEAD",
                         f"changing hands; the committed trees of that moment say it meant "
                         f"{held}. Read it. | {excerpt}")
 
-    n_docs = sum(1 for f in files if f.endswith(".md"))
+    n_docs = sum(1 for f in read if f.endswith(".md"))
     summary = (f"{len(events)} renumber event(s) in eval/findings/ history; "
                f"{len(reused)} number(s) have named more than one finding; corpus "
-               f"{n_docs} document(s) + {len(files) - n_docs} code/data path(s) read, "
-               f"{len(skipped)} non-text skipped"
+               f"{n_docs} document(s) + {len(read) - n_docs} code/data path(s) read, "
+               f"{len(skipped)} skipped"
                + (": " + ", ".join(sorted(skipped)) if skipped else ""))
     return stale, undecided, summary
 
@@ -5107,19 +5141,23 @@ def _citation_files_by_walk(root: str | None = None) -> list[str]:
 
     Non-text by the property the corpus itself uses - a NUL byte anywhere in the file - so
     the two agree about what is scannable rather than the oracle asking for more than the
-    subject can read.
+    subject can read. The `runs`/vendored exclusions are asked through `_outside_corpus`,
+    the SAME predicate the corpus asks, on the same absolute spelling: pruned by name on
+    one side and by relative path on the other, a top-level `runs/` or `target/` sat in
+    the gap, and the pin - which only sees files the walk reached - could not see it
+    (review round 1, PR 88).
     """
     base = ROOT if root is None else root
     out = []
     for d, subs, files in os.walk(base):
         subs[:] = [s for s in subs
-                   if s not in ("runs", "worktrees", ".git")
-                   and not is_vendored(os.path.join(d, s) + os.sep)]
-        if is_vendored(d + os.sep):
+                   if s not in ("worktrees", ".git")
+                   and not _outside_corpus(os.path.join(d, s) + os.sep)]
+        if _outside_corpus(d + os.sep):
             continue
         for f in files:
             p = os.path.join(d, f)
-            if is_vendored(p):
+            if _outside_corpus(p):
                 continue
             try:
                 data = open(p, "rb").read()
@@ -5144,6 +5182,9 @@ def _renumber_history_fixture(tmp: str) -> None:
     check must not accuse. `doc.md` carries the same stale plant as prose, because the
     widened corpus must not have displaced the document half. `blob.bin` cites `#99` past
     a NUL byte: outside the scannable corpus, and named in the summary for being so.
+    `runs/secret.py` and `target/gen.py` sit at the TOP LEVEL of the names the corpus
+    excludes - a filter that only works below the root keeps them and reddens the pins
+    (review round 1, PR 88).
 
     Commit times are forced and increasing, because the undecided branch reads `ctime` and
     three commits inside one wall-clock second would make `fresh.py`'s authoring time
@@ -5162,6 +5203,16 @@ def _renumber_history_fixture(tmp: str) -> None:
     write("stable.py", "value = 2  # the stable finding is finding #40\n")
     write("doc.md", "The mirror finding is finding #99.\n")
     write("blob.bin", b"\x00\x01 cites finding #99 past a NUL byte\x00")
+    # THE EXCLUSIONS AT EVERY DEPTH (review round 1, PR 88): `git ls-files` emits no
+    # leading separator, so a corpus filter testing the RELATIVE path keeps a TOP-LEVEL
+    # `runs/` or `target/` that the walking oracle - pruning absolute paths - drops, and
+    # the oracle pin, which only sees files the walk REACHED, cannot catch the
+    # disagreement. Both names belong to the recorded exclusions wherever they sit.
+    # `runs/secret.py` cites the stale #99, so a corpus that keeps it also REPORTS it
+    # and reddens the row pin; `target/gen.py` cites the never-moved #40, so only the
+    # membership pin can see it.
+    write("runs/secret.py", "value = 4  # the mirror finding is finding #99\n")
+    write("target/gen.py", "value = 5  # the stable finding is finding #40\n")
     # A VARIANT, not a mutant (rule 15): `.claude/skills` in the real tree is a tracked
     # symlink, the old .md filter never reached it, and the first widened run crashed
     # opening it. Correct input the reader could mishandle.
@@ -5190,7 +5241,7 @@ def _renumber_history_fixture(tmp: str) -> None:
 
     commit("the mirror finding is #99", "2000-01-01T00:00:01 +0000",
            ["eval/findings/a.md", "eval/findings/b.md", "tool.py", "stable.py",
-            "doc.md", "blob.bin", "linked.md"])
+            "doc.md", "blob.bin", "linked.md", "runs/secret.py", "target/gen.py"])
     write("eval/findings/a.md", "## 105. the mirror finding\n")
     commit("renumber 99 to 105", "2000-01-01T00:00:02 +0000", ["eval/findings/a.md"])
     write("fresh.py", "value = 3  # the collisions that moved #99 are history here\n")
@@ -5231,10 +5282,12 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
     stale: list[str] = []
     undecided: list[str] = []
     summary = ""
+    corpus: list[str] = []
     try:
         with tempfile.TemporaryDirectory() as tmp:
             _renumber_history_fixture(tmp)
             stale, undecided, summary = _check_renumbered_citations(rev="HEAD", root=tmp)
+            corpus = _renumbered_corpus(_History("HEAD", root=tmp))
     except Exception as exc:                       # noqa: BLE001 - reported, never raised
         summary = f"the fixture check RAISED: {type(exc).__name__}: {exc}"
     case("fixture: the stale code citation planted at a historical commit is reported, "
@@ -5253,6 +5306,60 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
     case("fixture: the summary states the widened corpus, so a clean report cannot be "
          "read over an unseen one",
          "code/data path(s)" in summary, True)
+    case("fixture: a TOP-LEVEL runs/ and target/ are outside the corpus and in no row - "
+         "the exclusions hold at every depth, not only below it (review round 1)",
+         ("runs/secret.py" in corpus, "target/gen.py" in corpus,
+          "runs/secret.py" in str(stale + undecided),
+          "target/gen.py" in str(stale + undecided),
+          "code/data path(s)" in summary),
+         (False, False, False, False, True))
+
+    # Review round 1, on the read loop: a path the listing holds that `git show` cannot
+    # produce was `continue`d SILENTLY, and was still counted as read in the summary.
+    # The patch is aimed at the module attribute the loop actually calls, so the
+    # unwrapped control is the same function object the loop resolves.
+    module = sys.modules[__name__]
+    stale2: list[str] = []
+    sum2 = ""
+    try:
+        with tempfile.TemporaryDirectory() as tmp2:
+            _renumber_history_fixture(tmp2)
+            orig_bytes = module._git_bytes
+
+            def _unreadable(root, *args):          # noqa: ANN001, ANN002 - pin-local
+                if args[:1] == ("show",) and args[1:2] == ("HEAD~1:tool.py",):
+                    return False, b"planted: git show cannot produce this path"
+                return orig_bytes(root, *args)
+
+            module._git_bytes = _unreadable
+            try:
+                stale2, _und2, sum2 = _check_renumbered_citations(rev="HEAD~1", root=tmp2)
+            finally:
+                module._git_bytes = orig_bytes
+    except Exception as exc:                       # noqa: BLE001 - reported, never raised
+        sum2 = f"the unreadable pin RAISED: {type(exc).__name__}: {exc}"
+    case("unreadable: a path the listing names but git cannot produce is NAMED in the "
+         "summary, reported in no row, and does not stop the rest of the corpus",
+         ("tool.py (unreadable)" in sum2, "doc.md" in str(stale2),
+          "code/data path(s)" in sum2),
+         (True, True, True))
+
+    # Review round 1, sibling case in the worktree branch: a tracked path deleted from
+    # the working tree was also `continue`d silently.
+    stale3: list[str] = []
+    sum3 = ""
+    try:
+        with tempfile.TemporaryDirectory() as tmp3:
+            _renumber_history_fixture(tmp3)
+            os.remove(os.path.join(tmp3, "tool.py"))    # tracked, gone from the worktree
+            stale3, _und3, sum3 = _check_renumbered_citations(rev="HEAD", root=tmp3)
+    except Exception as exc:                       # noqa: BLE001 - reported, never raised
+        sum3 = f"the missing pin RAISED: {type(exc).__name__}: {exc}"
+    case("missing: a tracked path deleted from the worktree is NAMED in the summary, "
+         "reported in no row, and does not stop the rest of the corpus",
+         ("tool.py (missing on disk)" in sum3, "doc.md" in str(stale3),
+          "code/data path(s)" in sum3),
+         (True, True, True))
 
     # The oracle half: live tree, walking against the git listing.
     try:
@@ -5298,11 +5405,20 @@ def _renumbered_corpus_pins(verbose: bool = False) -> list[str]:
             walked_rel = sorted(os.path.relpath(p, wtmp).replace(os.sep, "/")
                                 for p in _citation_files_by_walk(root=wtmp))
             tracked_rel = set(_tracked_paths(root=wtmp))
+            hist_w = _History("HEAD", root=wtmp)
+            corpus_rel = {os.path.relpath(os.path.join(hist_w.root, f),
+                                          wtmp).replace(os.sep, "/")
+                          for f in _renumbered_corpus(hist_w)}
             case("walk: the nested tracked citing file is found; runs/, the vendored "
                  "tree and the NUL binary are not walked at all",
                  walked_rel, ["deep/pkg/a.py", "loose.py"])
             case("walk: the pin's tracked intersection drops the on-disk untracked file",
                  sorted(r for r in walked_rel if r in tracked_rel), ["deep/pkg/a.py"])
+            case("walk: the corpus keeps the same tracked set the walk walks - the "
+                 "top-level runs/ and target/ the walk prunes are outside it too "
+                 "(review round 1)",
+                 sorted(r for r in corpus_rel if r in tracked_rel),
+                 ["blob.bin", "deep/pkg/a.py"])
     except Exception as exc:                       # noqa: BLE001 - reported, never raised
         case("walk: the fixture ran", f"RAISED {type(exc).__name__}: {exc}", "no raise")
 
