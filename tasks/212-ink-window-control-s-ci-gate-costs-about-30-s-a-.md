@@ -1,7 +1,7 @@
 ---
 id: 212
 title: ink_window_control's CI gate costs about 30 s a run, and the cost is per-pixel Python in the fixture phases
-status: todo
+status: in_progress
 priority: 5
 refs: eval/judge/ink_window_control.py, eval/judge/png.py, .github/workflows/gates.yml
 done_when: A producer states the gate's wall time beside the gate (the workflows README entry, dated), and either the fixture phases' cost is measured materially lower with every expectation still held and byte-identical fixture readings, or the cost is measured and declined in writing with the reason. Any change to png.ink_coverage or png.Image.differs_from is pinned against the current per-pixel values on all existing fixtures and blank-render arrangements before and after.
