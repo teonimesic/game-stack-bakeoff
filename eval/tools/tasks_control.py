@@ -2139,11 +2139,22 @@ def preservation_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
         after = target.read_text(encoding="utf-8")
         old_lines, new_lines = blob216.splitlines(), after.splitlines()
         changed = [(x, y) for x, y in zip(old_lines, new_lines) if x != y]
+        # THE EXPECTATION IS THE WHOLE FILE, NOT THE DIFF (review round 1, PR 97):
+        # `zip` truncates at the shorter side, so a writer that rewrote the status line
+        # AND appended or dropped trailing lines left this row green while the claim in
+        # its name was false -- measured before the repair: the old condition passes a
+        # writer that appends 2 junk lines. `expected` is the blob with exactly the one
+        # status line replaced, and the row demands the file after `_set` equal it byte
+        # for byte. `expected != blob216` asserts the substitution fired, so a pin drift
+        # fails here rather than silently demanding a no-op write.
+        expected = re.sub(r"^status: todo$", "status: in_progress", blob216,
+                          count=1, flags=re.M)
         rows.append(("`_set` on the hand-quoted 216 ticket rewrites ONLY the status line",
-                     rc, rc == 0 and after != blob216 and len(changed) == 1
+                     rc, rc == 0 and expected != blob216 and after == expected
+                     and len(changed) == 1
                      and changed == [("status: todo", "status: in_progress")],
-                     f"exit {rc}, {len(changed)} line(s) differ: "
-                     f"{[(x[:40], y[:40]) for x, y in changed[:3]]}"))
+                     f"exit {rc}, {len(changed)} line(s) differ, whole-file match: "
+                     f"{after == expected}: {[(x[:40], y[:40]) for x, y in changed[:3]]}"))
         title_after = next((ln for ln in new_lines if ln.startswith("title:")), "(absent)")
         title_before = next((ln for ln in old_lines if ln.startswith("title:")), "(absent)")
         rows.append(("...and the quoted title line is the file's own bytes back", 0,
