@@ -157,9 +157,15 @@ def load(runs_root: Path, only_run: str | None = None
     No class reaches `paired`, a cell, or a verdict or evidence difference.
     The unpaired count is about the SUITES, not the records: a criterion one
     trial recorded and the other never did stays a suite difference whatever
-    became of the record, and the skip line classifies the record without
-    editing that count. `render()` prints every skip beside the excluded
-    cells.
+    became of the record. It is also the one count a skip can move, and only
+    through what each side RECORDED: a named criterion - `id` without
+    `passed` - still counts as recorded, so a criterion both trials recorded
+    is no suite change even when one record is malformed, while a criterion
+    only the other trial recorded stays a difference. A record with no usable
+    id, and every record- or tier-level skip, contributes no key at all, so
+    a criterion the other side alone recorded reads as a difference there.
+    `render()` prints every skip beside the excluded cells, and its skip line
+    says which counts the classes cannot reach and which one they can.
     """
     rows: list[dict] = []
     skips: list[tuple[str, str]] = []
@@ -316,7 +322,9 @@ def render(rows: list[dict], skips: list[tuple[str, str]]) -> str:
         out.append(f"  {len(rs)} reports   terminal reasons "
                    f"{dict(sorted(reasons.items()))}")
         if run_skips:
-            out.append(f"  SKIPPED AT LOAD (walked, not counted anywhere below): "
+            out.append(f"  SKIPPED AT LOAD (excluded from paired, verdict and "
+                       f"evidence counts; a named criterion still counts as "
+                       f"recorded, so it can move the unpaired column): "
                        f"{len(run_skips)} record(s)")
             for d in run_skips:
                 out.append(f"    {d}")
@@ -575,6 +583,19 @@ def _synthetic_checks(root: Path) -> None:
     txt8 = render(rows8, skips8)
     expect("...and render() counts and names the skip beside the excluded cells",
            "SKIPPED AT LOAD" in txt8 and "playbot:bad" in txt8, "")
+    # The skip label must state its true scope. A named criterion joins
+    # `skipped_crits` and so DOES reach the unpaired column (r10's count
+    # stands); only paired, verdict and evidence are closed to it. "not
+    # counted anywhere below" is the label for EXCLUDED CELLS, where it is
+    # true, and was wrong here.
+    skip_line8 = next(l for l in txt8.splitlines() if "SKIPPED AT LOAD" in l)
+    expect("...and the skip label states what the classes cannot reach "
+           "(paired/verdict/evidence) and what a named one still is (recorded, "
+           "so `unpaired` can move)",
+           "paired" in skip_line8 and "verdict" in skip_line8
+           and "evidence" in skip_line8 and "unpaired" in skip_line8
+           and "not counted anywhere below" not in skip_line8,
+           skip_line8)
 
     # One well-formed side and one malformed side is NOT a suite change - the
     # grading suite did not change; one record of it cannot be scored. unpaired
