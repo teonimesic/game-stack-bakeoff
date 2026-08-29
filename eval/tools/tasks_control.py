@@ -1882,6 +1882,14 @@ def lossy_predicate_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
         # A vocabulary trigger (`" #" in line`) reddens this row - which is the point.
         ("quiet on a quoted value whose ` #` the quotes protect",
          fm("'the gate''s own #25 note'"), []),
+        # A YAML COLLECTION with a trailing comment: the parse keeps the whole value and
+        # loses nothing, so the predicate must stay quiet. Found in review on task 216:
+        # `_parse` stringifies collections through `_scalar`, so the string "['one']" is a
+        # strict prefix of the carrier "['one'] # note" and the first version FIRED here -
+        # a red on a value that lost nothing. The skip reads raw yaml types, not the meta.
+        ("quiet on a bracketed refs list with an inline comment (a collection has no "
+         "scalar to lose)",
+         fm("a title", refs="['one'] # note"), []),
         # The legacy vocabulary is remapped on read: `open` parses to `todo`. Not a
         # prefix, so quiet - a red here would fail every stale worktree's check, which is
         # the exact thing LEGACY_STATUSES exists to prevent.
@@ -1919,7 +1927,13 @@ def lossy_predicate_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
                 continue
             try:
                 text = t["path"].read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except (OSError, UnicodeDecodeError) as exc:
+                # A file that vanished or became unreadable after `_load` must SHRINK the
+                # census loudly, not quietly: a silent skip could publish a clean 0 over a
+                # population that silently lost a member (review round 1, task 216).
+                unchecked.append(f"live-queue scalar census skipped unreadable ticket "
+                                 f"{t.get('id')} ({t['path'].name}): {exc}. Not a pass: "
+                                 f"the 0 is only over tickets it could read")
                 continue
             n += 1
             lost += [f"{t.get('id')}.{k}" for k in pred(text, t)]

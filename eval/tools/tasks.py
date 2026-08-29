@@ -963,10 +963,17 @@ def lossy_scalar_fields(text: str, parsed: dict) -> list[str]:
 
     Only the FRONTMATTER block is read (`_FM_RE`, the reader's own address): a body
     quoting the shape is prose, not frontmatter. Mapping and list values are skipped --
-    they have no scalar to lose.
+    they have no scalar to lose -- and the skip reads the RAW yaml types, not `parsed`:
+    `_parse` has already stringified collections through `_scalar`, so `refs: ['one']
+    # note` would otherwise compare the STRING "['one']" against a carrier that begins
+    with it and fire on a value that lost nothing (found in review on task 216; pinned
+    in `tasks_control.py` direction 12).
     """
     m = _FM_RE.match(text)
     if m is None:
+        return []
+    raw_map = yaml.safe_load(m.group(1))
+    if not isinstance(raw_map, dict):
         return []
     out: list[str] = []
     for line in m.group(1).splitlines():
@@ -974,6 +981,8 @@ def lossy_scalar_fields(text: str, parsed: dict) -> list[str]:
         if lm is None:
             continue
         key = lm.group(1)
+        if isinstance(raw_map.get(key), (list, dict)):
+            continue
         value = parsed.get(key)
         if not isinstance(value, str) or not value:
             continue
