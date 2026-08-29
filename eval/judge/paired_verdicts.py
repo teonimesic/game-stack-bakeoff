@@ -197,11 +197,12 @@ def load(runs_root: Path, only_run: str | None = None
                               f"`{type(block).__name__}`, not a mapping with "
                               f"`criteria` - tier not read"))
                 continue
-            criteria = block.get("criteria") or []
+            criteria = block.get("criteria")
             if not isinstance(criteria, list):
-                skips.append((run, f"{tid} {tier}: `criteria` is a "
-                              f"`{type(criteria).__name__}`, not a list - "
-                              f"tier not read"))
+                got = "absent or null" if criteria is None \
+                    else f"a `{type(criteria).__name__}`"
+                skips.append((run, f"{tid} {tier}: `criteria` is {got}, "
+                              f"not a list - tier not read"))
                 continue
             for c in criteria:
                 if not isinstance(c, dict):
@@ -210,6 +211,13 @@ def load(runs_root: Path, only_run: str | None = None
                                   f"verdict to pair"))
                     continue
                 if "id" in c and "passed" in c:
+                    if not isinstance(c["id"], str):
+                        # `true` and `1` hash the same, a list or dict hashes
+                        # not at all: a non-string id must not key a pair.
+                        skips.append((run, f"{tid} {tier}: criterion `id` is a "
+                                      f"`{type(c['id']).__name__}`, not a "
+                                      f"string - no verdict to pair"))
+                        continue
                     crits[(tier, c["id"])] = (bool(c["passed"]), c.get("evidence", ""))
                 else:
                     missing = [k for k in ("id", "passed") if k not in c]
@@ -217,7 +225,7 @@ def load(runs_root: Path, only_run: str | None = None
                     skips.append((run, f"{tid} {tier}:{label}: criterion carries no "
                                   f"`{'` and no `'.join(missing)}` - no verdict "
                                   f"to pair"))
-                    if "id" in c:
+                    if "id" in c and isinstance(c["id"], str):
                         skipped_crits.add((tier, c["id"]))
         rows.append({"run": run, "tid": tid, "game": game, "stack": stack, "slot": slot,
                      "terminal_reason": _terminal_reason(run_root, tid), "crits": crits,
@@ -475,6 +483,16 @@ def _synthetic(root: Path) -> None:
     _write_raw(root, "r11", "g3__s1__t0",
                {"playbot": {"criteria": [None, {"id": "ok", "passed": True, "evidence": "E"}]}},
                None)
+    # r12: tier blocks and criterion ids the schema does not allow - `criteria`
+    # missing, null, and a string; ids that are a list and the integer 1, which
+    # would hash-collide with a boolean id. Each is a named skip; an empty
+    # `criteria` list stays a silent no (pinned by r10's t1).
+    _write_raw(root, "r12", "g1__s1__t0", {"playbot": {}}, "completed")
+    _write_raw(root, "r12", "g2__s1__t0", {"playbot": {"criteria": None}}, "completed")
+    _write_raw(root, "r12", "g3__s1__t0", {"playbot": {"criteria": "oops"}}, "completed")
+    _write_raw(root, "r12", "g4__s1__t0",
+               {"playbot": {"criteria": [{"id": ["a"], "passed": True},
+                                         {"id": 1, "passed": True}]}}, "completed")
 
 
 def _synthetic_checks(root: Path) -> None:
@@ -595,12 +613,28 @@ def _synthetic_checks(root: Path) -> None:
            and any("g3__s1__t0" in d and "NoneType" in d and "playbot" in d
                    for _, d in skips11), f"{skips11}")
 
+    # A tier block whose `criteria` is absent or null is a broken record, not an
+    # empty suite, and an id that is not a string cannot key a pair - `true`
+    # and `1` hash the same, so counting either would let two different
+    # records share one key. Named, each; the walk continues.
+    rows12, skips12 = load(root, "r12")
+    expect("MUTANT: four malformed tier blocks and ids reach no denominator",
+           all(r["crits"] == {} for r in rows12) and len(rows12) == 4,
+           f"{rows12}")
+    expect("...and all five records are named",
+           len(skips12) == 5
+           and sum("absent or null" in d for _, d in skips12) == 2
+           and any("g3__s1__t0" in d and "`str`" in d for _, d in skips12)
+           and any("`list`" in d and "not a string" in d for _, d in skips12)
+           and any("`int`" in d and "not a string" in d for _, d in skips12),
+           f"{skips12}")
+
     rows_all, skips_all = load(root)
     found = {r["run"] for r in rows_all}
     expect("a run nested one level deeper is found, not skipped",
            "r6/armA" in found, f"{sorted(found)}")
-    expect("the walk's own accounting states every skip it made: 9 over this tree",
-           len(skips_all) == 9, f"{sorted(skips_all)}")
+    expect("the walk's own accounting states every skip it made: 14 over this tree",
+           len(skips_all) == 14, f"{sorted(skips_all)}")
     txt_all = render(rows_all, skips_all)
     expect("a run holding ONLY a skipped report still gets its section",
            "=== r7 ===" in txt_all and "weird-tid" in txt_all, "")
