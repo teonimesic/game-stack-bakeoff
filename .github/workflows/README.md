@@ -106,10 +106,11 @@ packs carried), each pinning its extraction on fixtures whose answers are stated
 all four under 0.06s locally — and `frame_parity --selftest` is the same shape for the
 capture-geometry census: it checks mixed-size frames, unreadable frames, nested run
 directories, and size changes after the first frame that `build_pack` does not detect.
-`files_opened_selftest` is the producer side of the latent-null census: it drives `run_field`
-with the judge CLI stubbed and pins that the read capture stores the full read target at any
-length (it cut at 200 characters until 2026-08-28, task 204), which is the defect that makes the
-census refuse exactly-200-character stored targets rather than classify them.
+`files_opened_selftest` pins `run_field`'s read capture on a stubbed judge CLI, offline: the
+full read target is stored untruncated in `tool_calls` and `files_opened`, and only
+Read/NotebookRead targets count as reads. The latent-null census beside it refuses stored
+targets of exactly 200 characters rather than classify them — the length the capture cut at
+until 2026-08-28 (task 204).
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and
