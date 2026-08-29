@@ -1,12 +1,12 @@
 ---
 id: 214
 title: 'drive() appends audio.triggered after a lock-conflict unusable, so the #25 exclusion does not reach the one criterion added outside unusable_criteria'
-status: in_testing
+status: done
 priority: 5
 refs: eval/judge/probe.py, eval/judge/audio.py, eval/findings/one-arm-bias.md
 done_when: a fixture drives probe.drive with a stub ProbeSession whose start raises ProbeError(lock_conflict=True) and a bot declaring audio_game, and the returned audio.triggered criterion comes back scored=False with the NOT MEASURED project-lock reason instead of the current scored=True failure - while a stub that raises a NON-lock ProbeError, and a session that runs and genuinely emits no events, both leave audio.triggered scored=True failed (the fail-closed default is NOT loosened) - pinned in a selftest that runs unpiped exit 0, with a mutant restoring the current append-scorch behaviour going red on the lock fixture and green on the two controls.
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/94
-established_by: 'PR 94 @ 1e80e6b (5 review rounds, round 5 LANDED_COMMENT clean): TDD red 6-unmet then green 110/0 in audio_selftest, census --selftest 71/0 red-first rows, bot_mutants 0 unmet, docstat --sweep + tasks check + tasks_control + --renumbered all exit 0, stored census 69 read / 43 carrying / 0 moved / 26 refused with the 2 failed rows'' evidence verbatim; CI gates red only from main''s unpushed tasks/216 round-trip fix (see note), never from this diff.'
+established_by: 'PR #94 squash 7518e6d, branch head 1e80e6b6e32da9a52f362f568353704ffeb4242e; verified at that head in own detached checkout unpiped: audio_selftest 110/0 with the lock fixture scored=False NOT MEASURED and both controls scored=True failed, mutants 11/12 scorching lock fixtures and green on controls, triggered census 69 records/43 carrying/0 moved/26 refused, bot_mutants 53 mutants 0 unmet; review round 5 LANDED_COMMENT with all 9 threads resolved; merged main gates green unpiped (audio_selftest 110/0, sweep, renumbered, tasks check); no finding allocated (0 of 43 stored verdicts move; the channels were latent, 0 stored records through either).'
 ---
 
 `probe.drive()` handles a probe that cannot be opened or kept alive by calling
