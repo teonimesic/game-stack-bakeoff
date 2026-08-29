@@ -356,14 +356,23 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 eval/runner_capture_selftest.py
       # Both offline and both under 0.1 s. `field_ranks` carries the guards that decide what
-      # may be POOLED (a control must not enter a pooled figure) and what may be RANKED
-      # ACROSS STACKS (`idiomatic` and `framework_fluency` may not); `weight_sensitivity`
+      # may be POOLED (a control must not enter a pooled figure), what may be RANKED
+      # ACROSS STACKS (`idiomatic` and `framework_fluency` may not) and which RUN its
+      # rounds came from (a submission id names different work in each run, #70/#80);
+      # `weight_sensitivity`
       # is the tool any weighted aggregate here has to be swept with before publication,
       # and a sweep that reports STABLE on everything is indistinguishable from one that
       # cannot detect a flip. Neither was gated or recorded as excluded before 2026-08-24.
       - name: judge/field_ranks --selftest (pooling and cross-stack guards, both ways)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/field_ranks.py --selftest
+      # The same run guard at the SWEEP end, where it is cheapest: a stored round judged
+      # from another run in --out is refused before anything is written or paired, and a
+      # round carrying no run at all is listed, not refused (#86 -- they predate the
+      # provenance fields). Offline and under 0.1 s.
+      - name: judge/field_sweep --selftest (the sweep refuses a foreign run in --out)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/field_sweep.py --selftest
       - name: judge/weight_sensitivity --selftest (can the sweep find a constructed flip?)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/weight_sensitivity.py --selftest

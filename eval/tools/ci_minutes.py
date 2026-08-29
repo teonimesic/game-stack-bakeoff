@@ -2296,7 +2296,7 @@ def _selftest() -> int:
     # The count `.github/workflows/README.md` publishes. Pinned so the register cannot
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
-    check("gates.yml gate count", _cen["gates"]["gates"], 71)
+    check("gates.yml gate count", _cen["gates"]["gates"], 72)
     check("controls.yml gate count", _cen["controls"]["gates"], 11)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
@@ -2935,9 +2935,9 @@ def _selftest() -> int:
     check("a control only a gated sibling's DOCSTRING mentions is not",
           ("eval/tools/evidence_set_control.py" in _live_controls["ungated"],
            "eval/tools/evidence_set_control.py" in _live_controls["recorded"]), (True, True))
-    # THE MODE CENSUS, LIVE (`tasks/180`). 28 scripts declare a `--selftest` mode -- a
+    # THE MODE CENSUS, LIVE (`tasks/180`). 29 scripts declare a `--selftest` mode -- a
     # count with a producer, the one the register publishes beside `--controls` -- of
-    # which 27 have the mode NAMED by a tier and 1 is recorded. The merged problems list
+    # which 28 have the mode NAMED by a tier and 1 is recorded. The merged problems list
     # is already pinned empty above; these rows pin the counts and the three known-good
     # members, one per way the hand census that opened the ticket was wrong:
     #
@@ -2949,10 +2949,11 @@ def _selftest() -> int:
     #                           reached, found anyway because the population is the
     #                           tracked tree, not a list of directories.
     #   (task 201 moved both counts by 1: prompt_capture_census.py declares the mode
-    #   and gates.yml names it; task 202 did the same again with frame_parity.py.)
+    #   and gates.yml names it; task 202 did the same again with frame_parity.py;
+    #   task 205 did the same with field_sweep.py.)
     _m = _live_controls["modes"]
-    check("scripts declaring a --selftest mode", len(_m["population"]), 28)
-    check("of which a tier names the mode", len(_m["gated"]), 27)
+    check("scripts declaring a --selftest mode", len(_m["population"]), 29)
+    check("of which a tier names the mode", len(_m["gated"]), 28)
     check("and none runs bare unrecorded", _m["unrecorded"], [])
     check("linkcheck's mode is named, not just its bare form",
           "eval/tools/linkcheck.py" in _m["gated"], True)

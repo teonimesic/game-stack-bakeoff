@@ -167,6 +167,18 @@ It says it is a control **in code**, as `control_for="fun"`, and `field_ranks.as
 raises rather than pooling it with the opinions. Read it against `fun`, never added to it.
 Until 2026-08-23 that was a comment naming a field nothing set and nothing read (task 90).
 
+**The population is also ONE RUN, and that is guarded in both directions of the pipeline.**
+A submission id is a name within a run (#70) and so is a game (#80), and `_by_stack` joins by
+submission id across rounds, so rounds from two runs in one directory pool two different
+games' work into one per-submission mean. `field_ranks.assert_one_run` refuses a directory
+whose rounds carry disagreeing `run` fields before it prints anything, and
+`field_sweep.assert_out_run` refuses the sweep before anything is written or paired when a
+stored round in `--out` names a run different from `--run` (`tasks/205`). Rounds predating the
+provenance fields carry no `run` and are **listed, not refused** — `NO PROVENANCE` lines from
+`warn_rounds_without_provenance` — because they cannot answer the question at all, and
+refusing them would make the stored tetris-judge corpus unreadable; on a fully-provenanced
+directory the lines print nothing at all.
+
 **The frames are not equivalent across arms, and every aspect that reads them is told so.**
 Measured 2026-08-23 (task 68, FINDINGS #107): one arm's `just film` runs the whole app per tick so
 its renderer observes the entire run, while the other **three** advance the simulation to the

@@ -4,7 +4,7 @@
     python3 judge/field_sweep.py --run runs/wg-audio-... --games g1_pong \
         --aspects idiomatic fun --orders 2 --max-wall-min 90 --out judge-sweep/
 
-Why this exists rather than a loop in a shell: three separate protections, each of
+Why this exists rather than a loop in a shell: four separate protections, each of
 which this project has paid for the absence of.
 
 1. **BOUNDS DENOMINATED IN WHAT IS ACTUALLY FINITE, RECORDED IN THE SUMMARY.** This
@@ -25,6 +25,13 @@ which this project has paid for the absence of.
    everything the same score, or that reorders when the presentation order changes, is
    not a result and should not be read as one.
 
+4. **ONE DIRECTORY, ONE RUN.** Rounds accumulate into `--out` across invocations and are
+   loaded back without asking where they came from, so a stored round judged from a
+   different run pairs gates across two different fields and sums both into the field
+   figure. `assert_out_run` refuses the mix before any mode writes or pairs, and lists
+   the rounds that carry no `run` at all (they predate the provenance fields and cannot
+   be checked). `field_ranks.assert_one_run` is the same question at the analysis end.
+
 Sequential on purpose. Concurrent judge fan-out during a matrix contributed to four
 trials dying on an account session limit; and there is no hurry here, because unlike a
 trial a judge call can be re-run for the same money tomorrow.
@@ -36,6 +43,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -61,6 +69,9 @@ SUMMARIES = {"orders": "GATES.json", "sequential": "SEQUENTIAL.json",
 assert set(SUMMARIES.values()) == {f"{s}.json" for s in SUMMARY_STEMS}, (
     f"field_sweep writes {sorted(SUMMARIES.values())} but judge_ledger recognises "
     f"{sorted(f'{s}.json' for s in SUMMARY_STEMS)}")
+
+HERE = Path(__file__).resolve().parent
+SOURCE = Path(__file__).resolve()
 
 
 class Bounds:
@@ -228,6 +239,66 @@ def warn_rounds_without_provenance(out: Path) -> list[str]:
         if missing:
             old.append(f"{f.name}: no {', '.join(missing)}")
     return old
+
+
+def stored_round_run(out: Path) -> dict[str, str | None]:
+    """Each stored round in `out` -> the run it was judged from; None when it says none.
+
+    Rounds written since 2026-08-22 carry top-level `run` (#80's fix at the source);
+    earlier ones predate the field and are reported as None, never as a guess.
+
+    A file is a round by SHAPE - it carries `submissions` - and a summary by NAME, via
+    `judge_ledger.is_summary`, the one predicate the ledger audits sweeps with. Reading
+    the three summary names here instead would be a second list that the next summary
+    name silently falsifies (#38's shape; the SUMMARIES assert above holds the spellings
+    this file writes equal to the ledger's, not to a third copy).
+    """
+    runs: dict[str, str | None] = {}
+    for f in sorted(out.glob("*.json")):
+        if is_summary(f.name):
+            continue
+        try:
+            d = json.loads(f.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(d, dict) or "submissions" not in d:
+            continue
+        runs[f.name] = d.get("run") or None
+    return runs
+
+
+def assert_out_run(out: Path, run: str) -> list[str]:
+    """REFUSE before any round is written or paired when a stored round names another run.
+
+    Rounds accumulate into `--out` across invocations BY DESIGN (the rolling summary,
+    task 63), and the resume path loads them without asking where they came from: the
+    `[have]` path reads the file, the gates pair on game and aspect equality alone, and
+    `field_cost_usd` sums the whole directory. So one foreign round in the directory
+    pairs order-invariance and reproducibility gates across two different fields, sums
+    both into the field figure, and hands `field_ranks` a directory that pools two
+    games' work under one submission id (#70 - and a game is not a field either, #80:
+    four stored `g2_tetris3d` fields in different states of repair). MEASURED to have
+    happened: partial re-runs into existing directories are the #93/#120 shape.
+
+    Returns the names of rounds carrying NO run - a third value, not a disagreement.
+    They predate the provenance fields (#86) and cannot be checked against `--run`;
+    refusing them would make the sweep unable to top up the tetris-judge corpus the
+    withdrawn register cites. Fail closed on what a round CAN answer and answers
+    differently; warn on what it cannot answer at all.
+    """
+    stored = stored_round_run(out)
+    foreign = {name: r for name, r in stored.items() if r and r != run}
+    if foreign:
+        named = ", ".join(f"{n} (run {r})" for n, r in sorted(foreign.items()))
+        raise SystemExit(
+            f"refusing to sweep into {out}: {len(foreign)} stored round(s) were judged "
+            f"from a run that is not '{run}': {named}.\n"
+            f"Rounds accumulate into --out across invocations, and the gates here pair "
+            f"on game and aspect alone - a second run in the directory pairs "
+            f"order-invariance and reproducibility gates across two different fields, "
+            f"sums both into field_cost_usd, and hands field_ranks two games' work "
+            f"under one submission id (#70, #80). Use a fresh --out for this run.")
+    return sorted(name for name, r in stored.items() if not r)
 
 
 def assert_out_root_durable(out: Path) -> None:
@@ -454,15 +525,146 @@ def sequential_main(a: Any) -> int:
     return 0
 
 
+#: A directory OUTSIDE every temp file below, holding one stored round from a run
+#: nothing else names. The CLI row refuses against a path the subprocess reads for
+#: itself; it is rebuilt at the start of check 7 so repeated runs are deterministic.
+_REFUSAL_FIXTURE = Path(tempfile.gettempdir()) / "field_sweep_selftest_refusal"
+
+
+def selftest() -> int:
+    """The run guard, both directions, and that `main` still asks it first.
+
+    Offline and free: every fixture is a written file in a temp directory, and the one
+    subprocess invocation refuses before any judge call is reachable.
+    """
+    unmet: list[str] = []
+
+    def check(name: str, got, want) -> None:
+        ok = got == want
+        print(f"  [{'ok ' if ok else 'FAIL'}] {name}: got {got!r}" +
+              ("" if ok else f" want {want!r}"))
+        if not ok:
+            unmet.append(name)
+
+    def store_round(d: Path, name: str, run: str | None) -> None:
+        round_ = {"aspect": "fun", "game": "g1_pong", "usable": True,
+                  "submissions": [{"submission": "g1_pong__godot__t0", "score": 3}]}
+        if run is not None:
+            round_["run"] = run
+        (d / name).write_text(json.dumps(round_))
+
+    print("1. GREEN - a directory that does not exist yet refuses nothing")
+    with tempfile.TemporaryDirectory() as td:
+        fresh = Path(td) / "sweep"
+        check("no stored rounds, no warning lines", assert_out_run(fresh, "wg-x"), [])
+        check("the scan itself saw nothing", stored_round_run(fresh), {})
+
+    print("2. GREEN - a stored round from THE SAME run is reused, not refused")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        store_round(d, "g1_pong__fun__seed0.json", "wg-x")
+        check("matching run passes", assert_out_run(d, "wg-x"), [])
+        check("and the scan read its run", stored_round_run(d),
+              {"g1_pong__fun__seed0.json": "wg-x"})
+
+    print("3. RED - a stored round from a DIFFERENT run refuses, before any round is written")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        store_round(d, "g1_pong__fun__seed0.json", "wg-other")
+        try:
+            assert_out_run(d, "wg-x")
+            unmet.append("a foreign run in --out was not refused")
+            print("  [FAIL] the sweep accepted a foreign stored round")
+        except SystemExit as exc:
+            msg = str(exc)
+            print(f"  [ok ] refused: {msg.splitlines()[0][:70]}...")
+            check("the refusal names the stored round", "g1_pong__fun__seed0.json" in msg, True)
+            check("it names both runs", "wg-other" in msg and "wg-x" in msg, True)
+            check("it names the remedy (a fresh --out)", "--out" in msg, True)
+
+    print("4. VARIANT - a round with NO run is warned, not refused (the pre-#86 corpus)")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        store_round(d, "g1_pong__fun__seed0.json", "wg-x")
+        store_round(d, "g1_pong__ux__seed1.json", None)
+        check("matching + run-less passes, the run-less one listed",
+              assert_out_run(d, "wg-x"), ["g1_pong__ux__seed1.json"])
+
+    print("5. summaries are not rounds")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "GATES.json").write_text(json.dumps(
+            {"mode": "orders", "run": "wg-foreign", "calls_usable": 3}))
+        check("a summary naming a foreign run is invisible to the guard",
+              assert_out_run(d, "wg-x"), [])
+        check("and invisible to the scan", stored_round_run(d), {})
+
+    print("6. WIRING - main() asks the guard before any mode can write or pair")
+    src = SOURCE.read_text()
+    lines = src.splitlines()
+
+    # MAIN'S BODY ONLY. This selftest's own source names every needle below (the wiring
+    # row above is made of them), so searching the whole file matches the searcher -
+    # the reading must start at main's def, matched exactly, not by substring.
+    main_start = next(n for n, ln in enumerate(lines, 1)
+                      if ln == "def main() -> int:")
+
+    def main_line_of(needle: str) -> int:
+        """First occurrence in main's body - `a.out.mkdir(` and the needles also appear
+        in `repeats_main` and in this selftest, and the wrong occurrence reads the
+        wiring backwards (rule 12: the address is an input to the check)."""
+        return next((n for n, ln in enumerate(lines, 1)
+                     if n >= main_start and needle in ln), -1)
+
+    guard_line = main_line_of("no_run = assert_out_run(")
+    check("the guard is called exactly once, in main",
+          "\n".join(lines[main_start - 1:]).count("no_run = assert_out_run("), 1)
+    check("the call is before --repeats dispatch",
+          0 < guard_line < main_line_of("return repeats_main(a)"), True)
+    check("the call is before --sequential dispatch",
+          0 < guard_line < main_line_of("return sequential_main(a)"), True)
+    check("the call is before the orders mode writes anything",
+          0 < guard_line < main_line_of("a.out.mkdir("), True)
+    # THE CHECK MUST BE ABLE TO FAIL: the same reading against doctored source with the
+    # call deleted must lose the guard line entirely, or the pin is one that cannot go red.
+    doctored_lines = [ln for ln in lines if "no_run = assert_out_run(" not in ln]
+    doctored_guard = next((n for n, ln in enumerate(doctored_lines, 1)
+                           if "no_run = assert_out_run(" in ln), -1)
+    check("MUTANT: deleting the call turns the wiring row red", doctored_guard, -1)
+
+    print("7. CLI - the refusal happens before any work")
+    if _REFUSAL_FIXTURE.exists():
+        for p in _REFUSAL_FIXTURE.glob("*"):
+            p.unlink()
+    else:
+        _REFUSAL_FIXTURE.mkdir(parents=True)
+    store_round(_REFUSAL_FIXTURE, "g1_pong__fun__seed0.json", "wg-foreign")
+    proc = subprocess.run(
+        [sys.executable, str(SOURCE), "--run", "wg-this", "--games", "g1_pong",
+         "--aspects", "fun", "--out", str(_REFUSAL_FIXTURE)],
+        capture_output=True, text=True)
+    check("the CLI refuses a foreign stored round, exit 1", proc.returncode == 1, True)
+    check("stderr names the foreign run", "wg-foreign" in proc.stderr, True)
+    check("nothing new was written before the refusal",
+          sorted(p.name for p in _REFUSAL_FIXTURE.glob("*")),
+          ["g1_pong__fun__seed0.json"])
+
+    print(f"\n{len(unmet)} expectations unmet")
+    for u_ in unmet:
+        print(f"   UNMET: {u_}")
+    return 1 if unmet else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--run", type=Path, required=True)
-    ap.add_argument("--games", nargs="+", required=True)
-    ap.add_argument("--aspects", nargs="+", required=True, choices=sorted(ASPECTS))
+    ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--run", type=Path, default=None)
+    ap.add_argument("--games", nargs="+", default=None)
+    ap.add_argument("--aspects", nargs="+", default=None, choices=sorted(ASPECTS))
     ap.add_argument("--orders", type=int, default=2,
                     help="presentation orders per (game, aspect). 2 is the minimum "
                          "that can measure order-invariance at all.")
-    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--model", default=field.DEFAULT_MODEL)
     # RETIRED, AND KEPT AS A REFUSAL RATHER THAN DELETED. An operator with the old
     # recipe in muscle memory, or a stored command line, would otherwise get argparse's
@@ -509,6 +711,13 @@ def main() -> int:
     ap.add_argument("--repeat-seed", type=int, default=0,
                     help="which presentation order --repeats re-judges")
     a = ap.parse_args()
+    if a.selftest:
+        return selftest()
+    missing = [flag for flag, val in (("--run", a.run), ("--games", a.games),
+                                      ("--aspects", a.aspects), ("--out", a.out))
+               if val is None]
+    if missing:
+        ap.error(f"missing required arguments: {' '.join(missing)}  (or --selftest)")
     if a.max_cost is not None:
         print("--max-cost is retired. It bounded a sweep by a list-price valuation of "
               "tokens on an account where no money moves per token, so it could not "
@@ -529,6 +738,20 @@ def main() -> int:
         for r in wrong:
             print(f"  {r}", file=sys.stderr)
         return 2
+    # THE RUN GUARD, BEFORE ANY MODE WRITES OR PAIRS A ROUND. All three modes
+    # accumulate into --out and load stored rounds back, so one foreign run in the
+    # directory reaches every gate, every summary figure and every later field_ranks
+    # pool (assert_out_run's docstring holds the mechanism and the measured instances).
+    # This is also the caller `warn_rounds_without_provenance` never had (#86 measured
+    # it invoked by nothing): the listing prints here without the operator remembering
+    # to ask.
+    no_run = assert_out_run(a.out, a.run.name)
+    for line in warn_rounds_without_provenance(a.out):
+        print(f"NO PROVENANCE: {line}", flush=True)
+    if no_run:
+        print(f"NO PROVENANCE: {len(no_run)} stored round(s) in {a.out} carry no run; "
+              f"they cannot be checked against --run and are reused as-is when their "
+              f"(game, aspect, seed) is planned.", flush=True)
     if a.repeats:
         return repeats_main(a)
     if a.sequential:
