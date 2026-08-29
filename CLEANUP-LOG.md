@@ -1658,3 +1658,89 @@ credit.
 `eval/judge/scene_probe.py` (1,600+ lines — the largest unexamined file in
 `eval/judge/`; two passes in a row have deferred it). Its `rgb()` call, `differs_from`
 use and `frames_a` accumulation were touched only at the census level here.
+
+## 2026-08-29 (twelfth pass) — `eval/judge/scene_probe.py`, the tier-2 scene probe
+
+1,784 lines read whole (64 functions — the pointer recorded by the eleventh pass,
+deferred twice before that), plus a constant census over `eval/` for the capture
+contract and a check of what actually runs the pinning harness.
+
+### Found
+
+Nothing. The pass's one candidate died on reachability:
+
+- **`contract_frame_ticks` collapses below 12 distinct ticks if a scene ever declares
+  `ticks <= 10** (`(i*ticks)//(CONTRACT_FRAMES-1)` collides), which would hold
+  `frames_usable` False forever — and `why_frames_unusable` would then print
+  self-contradictory prose ("produced 12 frames, not the contracted 12"). Measured:
+  `ticks=10` yields 11 distinct ticks; `ticks=660` (both scenes) yields 12. NOT FILED —
+  the trigger is a configuration nobody has chosen (`CONTRACT_FRAMES` is
+  single-declared; no second scene exists), the failure is fail-closed (criteria fall
+  back to their telemetry halves), and the defect is the prose, which is
+  self-announcing when it fires. This is the dividing line against tasks/214 and
+  tasks/215, which were filed: those triggered on data the project HOLDS and failed
+  SILENTLY. This one triggers on nothing and fails loudly.
+
+### Examined and judged sound
+
+- **`_walk` as the only offset-subtraction site** — the tasks/162 repair holds: the
+  unwrap is per-tick against the layer's own `span`, maps into `(-span/2, span/2]` via
+  `ceil` (the `round` half-to-even trap is documented and avoided), and a layer is
+  walked only by carrying finite `offset` and positive `span` on EVERY trace line — the
+  hole/truncation/duplicate-id table in its docstring matches the one `lines[lid] !=
+  len(trace_a)` comparison that enforces it.
+- **The not_established / fail table is enforced everywhere** — a broken film recipe
+  fails (`image_only` gets FALSE with the reason); an experiment that cannot be set up
+  (`no frame in the light ramp`, `no own rows`, `leaning < 5 deg`, `no usable screen
+  box`) is `scored=False` via `not_established`. No criterion conflates them after the
+  read.
+- **The Nyquist precondition runs BEFORE the agreement test**, with the
+  aliased-agrees-with-itself variant named as the reason; the stationary-object blind
+  spot is excluded BY NAME and counted (`blind`), not widened into a tolerance; a
+  median shift of exactly 0 is RELIABLE — the fail-open channel round `image_parallax`
+  is documented closed.
+- **`measured_twice` is recorded, never inferred** — `image_ran` is called by exactly
+  the criteria listed in `both_halves` on both scenes (traced each call site), and
+  `drive()` clears the set per call, so a re-driven Scene cannot report a stale image
+  half.
+- **`seed.pair` as ONE four-part conjunction** — same-seed hashes AND cross-seed hashes
+  AND same-seed frame bytes AND cross-seed frame bytes, with both film comparisons
+  required together before `image_ran` fires (one alone is the half the other exists to
+  reject).
+- **`drive()` fails closed** — `ProbeError` → `unusable_criteria`; anything else →
+  `all_false` with the exception in the evidence; the lock conflict is the one unscored
+  channel (#25). `state_at` on a missing tick returns `{}`, which starves the layer
+  into `no_offset` reasons rather than inventing motion; a trace hole fails
+  `layers.depth_ordered` by name.
+- **Degenerate-distribution guards in `_wheels`** — the `[1,1,1,5]` speed swing with an
+  empty slow half is caught BEFORE `statistics.median` raises, with the reasoning in
+  the comment (an uncaught StatisticsError inside `drive`'s blind except would score
+  every criterion false — published wrong number, the worse direction).
+- **`_refracts` measures its control before trusting its measurement** — the bare-strip
+  drift gate refuses the comparison when the backdrop itself moved between the two
+  frames, so `structure`/`change` are never read off a confounded pair.
+
+### Measurement
+
+The docstring's "pinned in BOTH directions by `scene_mutants.py`" is a live claim:
+`controls.yml` runs the full scene_mutants suite, its `--census-selftest` and its
+`--reliability-selftest` on every push, and both `controls` and `gates` are green at
+the HEAD this pass read. `CONTRACT_FRAMES`/`contract_frame_ticks` are declared in this
+file only — no second copy exists to drift (the starters' parity with the contract is
+`frame_parity.py`'s running control).
+
+### Method note
+
+This is the third channel declined for the same reason, which is worth stating as the
+policy it has become: **a latent channel gets a ticket when its trigger is data the
+project holds and its failure is silent; it gets a log line when its trigger is a
+configuration nobody has chosen or its failure is self-announcing.** The queue is for
+channels that can fire on what exists, not for prose defects in worlds that do not
+exist.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/field.py` (2,173 lines) — now the largest unexamined file in the judge
+tree, and the ninth pass's census touched only its two `png` references. Alternate:
+`eval/judge/scene_mutants.py` (1,423), whose suites run green but whose own body no
+pass has read.
