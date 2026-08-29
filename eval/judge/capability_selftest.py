@@ -20,6 +20,11 @@ absence is useless here: `film` genuinely fails on real submissions, and a gate 
 cannot tell "this stack cannot report X" from "this submission did not get far enough
 to have an X" would either fire constantly or be switched off.
 
+A fourth fixture pins the reason itself: `stack_cannot` marked on EVERY arm of one
+(run, class) cell. No arm populates the field there, so the per-field asymmetry path
+has nothing to compare against, and before the reason scan existed the gate read []
+on it - the loudest contract break the contract knows, walked out at exit 0 (task 210).
+
 Exit code is 0 only if every expectation holds.
 """
 
@@ -208,6 +213,54 @@ def test_gate_mutant() -> None:
     check("...and names the field", any("capture.peak_rss_mb" in p for p in problems),
           str(problems))
     check("...and names the stack", any("godot" in p for p in problems), str(problems))
+    # The asymmetry path must keep firing beside the reason scan: this ticket did not
+    # replace it, and a repair that did would be a regression only this row sees.
+    check("...via the asymmetry path too, which the reason scan must not replace",
+          any("the mechanism is not identical across arms" in p for p in problems),
+          str(problems))
+
+
+def test_gate_stack_cannot_uniform() -> None:
+    print("\n[gate: MUTANT - stack_cannot marked on EVERY arm of one cell]")
+    # The uniform case, task 210. Nobody in the cell populates the field, so the
+    # asymmetry path has nothing to be asymmetric against and this read [] - silent
+    # exit 0 - before the reason scan existed. The docstring's way 3 says this reason
+    # is how you find out the contract is wrong; every arm of a cell marking it is
+    # the loudest way the contract can be wrong.
+    recs = []
+    for r in field_set():
+        r.fields["probe.ticks_per_second"] = None
+        r.reason["probe.ticks_per_second"] = capability.STACK_CANNOT
+        r.why["probe.ticks_per_second"] = "no mechanism on this arm"
+        recs.append(r)
+    problems = capability.no_stack_correlated_gap(recs)
+    check("a uniform stack_cannot cell is RED", problems != [], str(problems))
+    check("...one problem per record that marks it, and nothing else fired",
+          len(problems) == len(recs), f"{len(problems)} for {len(recs)} records")
+    check("...it names the field",
+          all("probe.ticks_per_second" in p for p in problems), str(problems))
+    check("...it names the reason",
+          all(capability.STACK_CANNOT in p for p in problems), str(problems))
+    check("...it is caught on every arm that marks it",
+          {s for p in problems for s in STACKS if f"({s})" in p} == set(STACKS),
+          str(sorted({s for p in problems for s in STACKS if f"({s})" in p})))
+
+    # ANYWHERE includes the class the four-arm claim is not asked of. A scene cell
+    # has no populated arm to be asymmetric against either, and excluded is not
+    # unread (AGENTS.md rule 7): the reason scan reads every record.
+    scene = []
+    for s in ("ts", "godot"):
+        r = scene_obs(run="wg-scene-cannot", stack=s)
+        r.fields["capture.frames"] = None
+        r.reason["capture.frames"] = capability.STACK_CANNOT
+        r.why["capture.frames"] = "no mechanism on this arm"
+        scene.append(r)
+    sproblems = capability.no_stack_correlated_gap(field_set() + scene)
+    check("a uniform stack_cannot on SCENE records is caught too, and only that",
+          len(sproblems) == 2, str(sproblems))
+    check("...both name the scene field and the reason",
+          all("capture.frames" in p and capability.STACK_CANNOT in p
+              for p in sproblems), str(sproblems))
 
 
 def test_gate_mutant_silent() -> None:
@@ -714,6 +767,7 @@ def main() -> int:
     test_nulls_are_explained()
     test_gate_positive()
     test_gate_mutant()
+    test_gate_stack_cannot_uniform()
     test_gate_mutant_silent()
     test_gate_variant()
     test_gate_needs_all_four()

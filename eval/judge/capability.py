@@ -493,7 +493,10 @@ def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
 
     3. **A null marked `stack_cannot`.** The contract says every field is measured by
        a mechanism identical on all four arms, so this reason should be unreachable.
-       If it appears, the contract is wrong and this is how you find out.
+       If it appears, the contract is wrong and this is how you find out: the reason
+       is counted wherever it appears, on every record, including the cell where
+       EVERY arm marks it - which the per-field asymmetry check cannot see, because
+       no arm there is populated to be asymmetric against.
 
     4. **A null with no reason at all.** Fail-closed. An unexplained absence is
        indistinguishable from a stack gap, and "every reason not to count a failure is
@@ -514,7 +517,7 @@ def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
     problems: list[str] = []
 
     # 1. FOUR ARMS, asked of the game population. `population_sentence` says what that
-    #    leaves out; the two checks below leave nothing out.
+    #    leaves out; the checks below leave nothing out.
     asked, _excluded = gate_population(records)
     present = {r.stack for r in asked}
     for arm in ARMS:
@@ -524,8 +527,9 @@ def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
                 f"{GATE_TASK_CLASS!r} submissions: the claim 'reportable by all four "
                 f"arms' cannot be checked against {sorted(present)}")
 
-    # 2. EVERY record, whatever its class. A record whose class this module cannot name
-    #    is one it can ask no per-arm question of, so it is counted rather than dropped.
+    # 2. WAYS 2 AND 4 - EVERY record, whatever its class. A record whose class this
+    #    module cannot name is one it can ask no per-arm question of, so it is counted
+    #    rather than dropped; a null with no reason kind is counted too.
     for r in records:
         if r.task_class == aspects.UNKNOWN_TASK:
             problems.append(
@@ -537,7 +541,27 @@ def no_stack_correlated_gap(records: list[Observation]) -> list[str]:
                     f"{r.run}/{r.trial} ({r.stack}): {f} is null with no reason kind; "
                     f"an unexplained absence is counted as a gap")
 
-    # 3. EVERY record, within its own (run, class) cell.
+    # 3. WAY 3 - a `stack_cannot` reason ANYWHERE, on every record. The per-field
+    #    check below reports one only when a populated arm sits beside it in the same
+    #    (run, class) cell; a cell where EVERY arm marks it has no populated arm to
+    #    be asymmetric against, and read silent before this scan existed (task 210) -
+    #    the loudest contract break there is, every arm lacking a mechanism the
+    #    contract says is measured identically everywhere. So the reason itself is
+    #    the trigger, not the asymmetry around it.
+    for r in records:
+        for f, kind in r.reason.items():
+            if kind == STACK_CANNOT:
+                problems.append(
+                    f"{r.run}/{r.trial} ({r.stack}): {f} carries the reason "
+                    f"{STACK_CANNOT!r}: the contract says every field is measured by "
+                    f"a mechanism identical on all four arms, so no arm should ever "
+                    f"have it and the contract is wrong")
+
+    # 4. THE WITHIN-RUN ASYMMETRY RULE - every record, within its own (run, class)
+    #    cell. Not one of the four ways above: a field populated on some arms and
+    #    never captured on another is a gap whatever the reason string says, and
+    #    before way 3 had a scan this path was the only thing that saw a one-arm
+    #    stack_cannot. It still fires beside the scan.
     for (run, klass), per_stack in _by_run_class_stack(records).items():
         stacks = [s for s in per_stack if s in ARMS]
         for f in FIELDS:
