@@ -188,6 +188,43 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "        except () as exc:  # MUTANT: the torn-write raise escapes as a traceback",
         ("`check` on a frontmatter that fails its second parse (injected raise) exits 1 "
          "NAMING the ticket, not a traceback",)),
+    # THE PRE-217 WRITER, RESTORED. `raw` accepted and ignored is exactly what shipped when
+    # cd4994d hand-quoted tasks/216: every line re-canonicalised, the quoted title emitted
+    # plain, and the byte round trip red on every open pull request at once. The live queue
+    # is canonical today, so direction 1 stays green under this mutant -- only the rows
+    # pinned to the blob that broke can see it. That is why direction 13 pins a fixture and
+    # does not trust the queue's current shape (tasks/217).
+    "render_discards_raw": (
+        "    if raw:\n"
+        "        text = _restore_lines(text, raw, out)",
+        "    if False:  # MUTANT: every line re-rendered canonically, as before tasks/217\n"
+        "        text = _restore_lines(text, raw, out)",
+        ("re-emits a scalar the file holds quoted", "ONLY the status line")),
+    # THE GUARD DELETED -- the fail-open half of the same mechanism. `_restore_lines`
+    # restores a raw line only when it parses to the value NOW BEING WRITTEN; without that
+    # test a `_set` status change restores the OLD line over the new value, at exit 0, with
+    # `status=in_progress` printed. The rows that catch it are the one-line-diff row and
+    # the variant asserting the write happened -- and the second is what separates "the
+    # write was reverted" from "the write was noisy" (AGENTS.md rule 7: a reason not to
+    # count a failure is a channel a bug can widen).
+    "render_ignores_value_changes": (
+        "            if yaml.safe_load(original) != {key: fm.get(key)}:\n"
+        "                continue",
+        "            if False:  # MUTANT: a changed value's old line is restored over it\n"
+        "                continue",
+        ("ONLY the status line", "status line DID change")),
+    # ONE CANONICAL SCALAR RE-QUOTED, and the gate that owns byte changes catches it: the
+    # id is emitted quoted on every file, so direction 1's live round trip goes red naming
+    # every queue file while the VALUE row beside it stays green. This is the other
+    # direction of the cd4994d defect -- not a quoting style the writer cannot reproduce,
+    # but the writer imposing a quoting style the file did not hold (tasks/217's done_when
+    # clause: caught by whichever gate owns the change).
+    "id_requoted": (
+        "    return dumper.represent_scalar("
+        "dumper.resolve(yaml.ScalarNode, text, (True, False)), text)",
+        "    return dumper.represent_scalar(\"tag:yaml.org,2002:str\", text, style=\"'\")"
+        "  # MUTANT: one canonical scalar re-quoted on every file",
+        ("round trip: all",)),
     # THE STATUS VOCABULARY. Dropping a value is the shape a half-landed rename takes, and it
     # is invisible to every row that only asks whether a WRONG status fails: `wip` is still
     # rejected with 4 values, or with 1. Two rows must notice -- the one that puts a file in
@@ -515,8 +552,8 @@ def _cycle(tmp: Path, name: str) -> bool:
     AN UNNAMED RED IS REPORTED, NOT FAILED, AND THAT IS MEASURED RATHER THAN PREFERRED.
     Raised by review on PR #6 (task 120): could a mutant that breaks more than it claims be
     reported CAUGHT for the wrong reason? It could in principle, and the price of closing it
-    is the whole suite. Over the 21 mutants here, **9 produce unnamed reds** -- 8 of them
-    predating that ticket -- because a shared mechanism is exactly what several of them cut:
+    is the whole suite. Over the 21 mutants of that revision, **9 produced unnamed reds** --
+    8 of them predating that ticket -- because a shared mechanism is exactly what several of them cut:
     `evidence_no_stdin` removes one sentinel that `note` and `done` both read, so 9 of its 13
     red rows are `note`'s. Failing on unnamed reds would turn those 9 mutants into failures
     without a single defect behind them.
