@@ -1,12 +1,12 @@
 ---
 id: 216
 title: tasks.py check passes a frontmatter scalar that parses shorter than the line wrote it - a space-hash in an unquoted scalar silently truncates the parsed value
-status: in_testing
+status: done
 priority: 5
 refs: eval/tools/tasks.py, tasks/214-drive-appends-audio-triggered-after-a-lock-confli.md
 done_when: 'tasks.py check exits nonzero on a fixture whose unquoted title or done_when scalar contains " #" - the lossy-parse property, stated as the raw line versus the parsed value rather than as a character vocabulary - while the four real rows where a hash follows a NON-whitespace character (tasks/174 refs ",#189", tasks/181 title "(#NN)" and done_when "[#NN]", tasks/187 refs ",#188") stay green, and the repaired tasks/214 title (single-quoted, full text, parses whole) stays green.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/95
-established_by: 'tasks_control direction 12 pins both ways: check exit 1 on the real 214 blob 1703566 and on a lossy done_when, exit 0 on the four census greens plus the repaired title; review round 2 added the torn-write pin: an injected second-parse failure must exit 1 NAMING the ticket with no traceback (red as a traceback before the fix), the predicate PROPAGATES parse failures (ParserError and the !!int 08 ValueError pinned), and mutant lossy_swallows_parse_error is CAUGHT by exactly that row; 132 measurements 0 FAILED 0 NOT CHECKED; full suite 38 mutants 0 survived; merged origin/main twice (216 conflict resolved to main''s later in_testing write, then 215); round-trip and check green on the merged branch''s own queue; PR 95 head 40edb55'
+established_by: 'PR #95 squash 57af4a6, final branch head a87d9dedd7cee09f052c6cec032d94ec72f6e61d; verified at 35d2671 and re-verified at a87d9de in own detached checkout unpiped: tasks_control direction 12 both directions (red on the blob-pinned pre-repair 214 title and a truncated done_when; green on census rows at their commits, the repaired quoted title, empty-parse idiom, escaped apostrophe, quoted space-hash; fires on priority; quiet on collections via raw yaml types), 129/0 then 132/0 after the torn-write fix; tasks.py check 216 well-formed; sweep clean; mutants 0 survived at both heads (37, then 38 with lossy_swallows_parse_error CAUGHT at exactly 1 red row); merged main gates green unpiped (sweep, renumbered, check, tasks_control 132/0); no finding allocated (nothing stored was acted on wrongly; the defect is the formats and is now gated).'
 ---
 
 Measured on tasks/214, today: its title was written as an unquoted YAML scalar ending
