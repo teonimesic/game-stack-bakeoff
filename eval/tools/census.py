@@ -34,7 +34,7 @@ are reported as `absent`, not folded into any other bucket.
 **A run directory is not always a child of `runs/`.** `archive-run1-byte-identical-prompts/`
 is a wrapper holding four run directories one level deeper, and the `*/trials/*.json` glob
 this tool shipped with dropped all 24 of their records without saying so — reporting 47
-spec-change records against a tree holding 71, and 137 tree-wide against 161 (#126). The
+spec-change records against a tree holding 71, and 137 tree-wide against 161 (#127). The
 search is now depth-independent and a run is identified by its path relative to `runs/`, so
 the count cannot be wrong about where it looked. Directories holding agent-authored trees
 (`work/`, `artifacts/`, `targets/`) are excluded and the number excluded is reported, because
@@ -152,7 +152,7 @@ def trial_paths(runs_dir: Path) -> tuple[list[Path], list[Path]]:
     """(counted, skipped) trial-record paths, found at any depth under runs_dir.
 
     Depth-independent because `archive-run1-byte-identical-prompts/` wraps four run
-    directories and a one-level glob silently lost all 24 of their records (#126).
+    directories and a one-level glob silently lost all 24 of their records (#127).
     """
     counted, skipped = [], []
     for path in sorted(runs_dir.rglob("trials/*.json")):
@@ -476,7 +476,7 @@ def selftest() -> int:
         #   3 whole-game records over 2 run dirs, 2 games, 2 stacks, 3 cells,
         #   terminal completed 1 / api_error 1 / absent 1, 6.00 tokval;
         #   2 spec-change records over 2 run dirs, 9.00 tokval — ONE OF THEM NESTED inside an
-        #   archive wrapper, which is the case a one-level glob lost (#126);
+        #   archive wrapper, which is the case a one-level glob lost (#127);
         #   tree 5 records, 4 dirs, 15.00 tokval, 1 skipped as agent-authored.
         _write(runs / "wg-a" / "trials" / "g1__rust__t0.json",
                {"game": "g1", "stack": "rust", "trial": 0,
