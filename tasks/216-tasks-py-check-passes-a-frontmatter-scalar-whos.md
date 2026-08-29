@@ -1,10 +1,11 @@
 ---
 id: 216
-title: 'tasks.py check passes a frontmatter scalar that parses shorter than the line wrote it - a space-hash in an unquoted scalar silently truncates the parsed value'
-status: todo
+title: tasks.py check passes a frontmatter scalar that parses shorter than the line wrote it - a space-hash in an unquoted scalar silently truncates the parsed value
+status: in_review
 priority: 5
 refs: eval/tools/tasks.py, tasks/214-drive-appends-audio-triggered-after-a-lock-confli.md
 done_when: 'tasks.py check exits nonzero on a fixture whose unquoted title or done_when scalar contains " #" - the lossy-parse property, stated as the raw line versus the parsed value rather than as a character vocabulary - while the four real rows where a hash follows a NON-whitespace character (tasks/174 refs ",#189", tasks/181 title "(#NN)" and done_when "[#NN]", tasks/187 refs ",#188") stay green, and the repaired tasks/214 title (single-quoted, full text, parses whole) stays green.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/95
 ---
 
 Measured on tasks/214, today: its title was written as an unquoted YAML scalar ending
