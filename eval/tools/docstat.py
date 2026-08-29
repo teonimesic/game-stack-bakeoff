@@ -593,7 +593,7 @@ def _project_root_for(doc: str) -> list[str]:
     A doc inside eval/starters/godot/ writes `tools/boundary.gd` relative to that
     starter's root, not to the repo root and not to the doc's own directory. Without
     this, every stack's own docs report dozens of phantom paths. (The example used to
-    be template-godot/, deleted 2026-08-23 — #119. The shape is unchanged: any tree a
+    be template-godot/, deleted 2026-08-23 — #122. The shape is unchanged: any tree a
     building agent is handed is its own root.)
     """
     roots, d = [], os.path.dirname(os.path.abspath(doc))
@@ -5097,7 +5097,7 @@ def cmd_sweep() -> int:
 
         # NO PATH CHECK. Docs legitimately write paths relative to a context stated in
         # prose or a table cell -- README named `tools/boundary.gd` in a row about
-        # template-godot/, where it did exist (that tree is gone, #119; the reason is
+        # template-godot/, where it did exist (that tree is gone, #122; the reason is
         # not). Measured when it was live: 0 true positives, 2 false.
         # A check that cannot be made reliable is removed, not tuned until it is quiet;
         # tuning until quiet is how a check comes to pass vacuously.

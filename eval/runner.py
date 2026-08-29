@@ -17,7 +17,7 @@ WHAT IS GONE AND WHAT IS NOT
     as #114.
   * The task text the 71 trials were given is NOT in any of them - the record
     stores `task: "t1_rally"` and nothing else. `suites/*.toml` and
-    `suites/prompts.py` are the sole copy, so they stay (#119).
+    `suites/prompts.py` are the sole copy, so they stay (#122).
 
 Measures how well a blank Claude Code session performs game-dev tasks inside a
 template, so the template and its instructions can be iterated on empirically.
@@ -1074,7 +1074,7 @@ def main() -> int:
     template = args.template.resolve()
 
     # The four trees this harness was built to drive were deleted on 2026-08-23
-    # (DECISIONS.md, #119). Without this, `prepare_repo`'s `copytree` raises a
+    # (DECISIONS.md, #122). Without this, `prepare_repo`'s `copytree` raises a
     # bare FileNotFoundError three frames down and a reader has to guess whether
     # they mistyped a path or the suite no longer exists. Say which.
     if not template.is_dir():
@@ -1102,7 +1102,7 @@ def main() -> int:
     # own run directory to the second, so a collision is unlikely rather than impossible -
     # and the reason to route it here is not this call site's risk. Giving the two
     # harnesses two similar manifest policies is how #100 came back, and it is how
-    # `suite.json` came to be guarded in one file and overwritten in the other (#119).
+    # `suite.json` came to be guarded in one file and overwritten in the other (#120).
     _tools = Path(__file__).resolve().parent / "tools"
     import importlib.util as _ilu
     _mspec = _ilu.spec_from_file_location("_manifest", _tools / "manifest.py")
