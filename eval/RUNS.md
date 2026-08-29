@@ -2984,6 +2984,54 @@ window a bot spends looking for the end — 9000 idle ticks on the arena, 60 pla
 Nothing constructed here comes close, and a game that never sets the flag is refused by design
 rather than by a budget.
 
+## THE LOCK EXCLUSION REACHED `audio.triggered` ON 2026-08-29 — a TWENTY-EIGHTH comparability break, and it moves no stored verdict
+
+**Check the ordinal before citing it.** Ordinals are allocated by hand and have collided.
+
+**Grader-side, and it is FINDINGS #25 closing its last unmeasured path** (`tasks/214`). The lock
+exclusion — a criterion the engine refused to measure is `scored=False`, NOT MEASURED, excluded
+from the score rather than counted as a failure — already covered tier 1 through
+`unusable_criteria`. Two paths still scored a lock-eaten probe as a *failed* criterion:
+
+| where | before | after |
+|---|---|---|
+| `judge/probe.py` `drive()` | appended `audio.triggered` **after** `unusable_criteria` had run, so on a lock-refused session it alone was scored, "no events at all" | the session's lock signature is carried to `triggered_criterion`, which returns it `scored=False` |
+| `judge/audio.py` `triggered_criterion()` manifest branch | a `read_manifest` whose retries exhausted on lock signatures scored like any broken manifest | the read returns a lock bit; the criterion returns NOT MEASURED |
+
+A non-lock probe failure, and a run that happened and emitted no events, stay scored failures —
+the fail-closed default is not loosened. Both paths are pinned in `judge/audio_selftest.py`
+(110 expectations) and `judge/bot_mutants.py`, and the playbot-record census below is pinned in
+its own selftest (**61** expectations).
+
+### What it invalidates, and what it does not
+
+**0 of 43 stored `audio.triggered` verdicts move**, with **0** refusals, over **85** stored
+reports — `python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
+--triggered`, population *stored playbot.json records carrying an `audio.triggered` criterion*,
+read 2026-08-29. The census classifies each record from its own signature: the repair moves a
+verdict only where the same record shows `total=0` with `usable=False` — drive having excluded
+EVERYTHING — next to a `scored=True` verdict; `scored=False` on some criteria is the
+`diagnostic_only` design and moves nothing.
+
+**The null is a fact about the corpus, not a silent extraction.** The only 2 failed stored
+verdicts — `wg-arena3d`'s two Rust trials, the same rows the twenty-second break printed — carry
+`total=0` with `usable=True`: a run that happened and emitted nothing, which is the non-lock
+fail-closed shape the repair deliberately leaves alone. Their evidence prints verbatim in the
+census output so this classification is auditable by eye rather than by matching the lock note's
+words — the manifest-lock path leaves no signature in a stored record, and matching note wording
+is the open-class matching that failed once already (#30). The extraction was also proven on
+hand-classified rows: these same 2 trials were classified by hand before the census ran, and the
+census agrees.
+
+**Why the null is expected**: FINDINGS #25's bias fired only on lock-taking stacks, and no stored
+trial ever hit a project-lock probe refusal — the corpus contains no instance of the shape the
+repair re-scores. **What is not comparable across this date** is a future trial whose probe the
+engine lock-refuses: its `audio.triggered` records NOT MEASURED, excluded, where an earlier-regime
+trial recorded a counted failure for the same engine condition.
+
+**Nothing under `eval/runs/**` was rewritten, and no stored score, gate outcome or `overall`
+changes.**
+
 
 ## Rules
 
