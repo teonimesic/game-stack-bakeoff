@@ -35,20 +35,48 @@ THE GAP IS THE INTERESTING PART, AND IT HAS A SIGN
             accounting quirk, it is a MISSING ARTIFACT: a round was paid for and its file
             is gone. It has happened - 13.16 tokval of `g1_pong` round-1 calls are recorded in
             `eval/RUNS.md` and exist nowhere on disk (task 04, closed by re-running them).
+            ONLY where every round states a cost. If a round with no recorded cost_usd is
+            named in the directory, its unrecorded cost may be the whole deficit, the
+            artifacts cannot decide between "file gone" and "cost never written", and the
+            verdict is INDETERMINATE - not published as a cause nobody on disk can
+            support, and not red: nothing here is excused, and the same deficit with
+            every cost stated is still MISSING ARTIFACT.
+
+A ROUND WITH NO COST IS NOT A ZERO
+----------------------------------
+`cost_usd` absent or null on a stored round is carried as None, counted in `n_rounds`,
+excluded from `field_cost_usd`, and NAMED - per directory by `audit`/`report`. The
+total is the sum of the rounds that state a cost and is low by an unknown amount
+wherever the warning prints; the alternative, folding the absence in as 0.0, is how a
+ledger under-reports (FINDINGS #121). Warned, never refused: the corpus stays readable
+and no exit code turns on the absence alone. Measured 2026-08-29: 0 of 97 stored
+rounds affected, so latent.
+
+AND THE SUBSET SEARCH IS BOUNDED
+--------------------------------
+`explain_gap`'s fallback enumerates all 2^n subsets, and `--tree` reaches it on any
+directory with a positive gap and no clean mtime split. Past `SUBSET_SEARCH_MAX` rounds
+the search is refused and the directory reports UNSEARCHED - red, naming the gap as
+unattributed and the search as not run - instead of hanging the cited producer. The
+mtime split, which is O(n^2) and the method that means something, still runs first and
+is still preferred where it separates.
 
 Usage, from eval/:
     python3 judge/judge_ledger.py --tree runs/
     python3 judge/judge_ledger.py --dir runs/wg-tetris-judge-2026-08-17/post
     python3 judge/judge_ledger.py --selftest
 
-Exit code is 1 if any directory is MISSING ARTIFACT or UNEXPLAINED, or if --selftest
-finds an expectation unmet. A resumed sweep is not an error and does not set it.
+Exit code is 1 if any directory is MISSING ARTIFACT, UNEXPLAINED or UNSEARCHED, or if
+--selftest finds an expectation unmet. A resumed sweep is not an error and does not set
+it.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import glob
+import io
 import itertools
 import json
 import os
@@ -102,6 +130,18 @@ EPS = 0.005
 #: carried-over round and a freshly written one is minutes wide.
 MIN_SPLIT_S = 60.0
 
+#: Rounds at which the exact subset-sum fallback REFUSES instead of running. The search
+#: enumerates all 2^n subsets and `--tree` walks every round-holding directory, so this
+#: bound is what stands between a future ~30-round directory and a hang. Measured 2026-08-29
+#: on the worst case - a gap no subset fits, so the enumeration runs to completion:
+#: 0.09 s at 18 rounds, 0.39 s at 20, 1.64 s at 22, 6.82 s at 24, doubling per +2 rounds;
+#: ~30 rounds projects to minutes and past ~32 to hours. 24 caps the worst case near 7 s
+#: per directory, and the largest real sweep the corpus holds is 11 rounds. A directory
+#: over the bound reports UNSEARCHED - red, because an unattributed gap is what this
+#: module exists to name - and the mtime split, O(n^2) and unbounded, still runs first
+#: and still answers where it separates.
+SUBSET_SEARCH_MAX = 24
+
 
 def load_rounds(d: str) -> list[dict]:
     """Every stored judge round in one directory, identified by SHAPE.
@@ -118,6 +158,15 @@ def load_rounds(d: str) -> list[dict]:
     `field_ranks` excludes `fun_frames` from every pooled SCORE because a control's scores
     are only meaningful against its treatment's (task 90). A dollar is a dollar whatever the
     aspect asked, so do not carry that exclusion across to here.
+
+    AND SO IS A ROUND WHOSE cost_usd IS ABSENT OR NULL - but not as 0.0. The `or 0.0`
+    this carried until 2026-08-29 read every such round as free: exactly the fallback
+    shape `read_counter`'s docstring refuses one function up ("Returns None rather than
+    0.0 ... 0.0 would read as agreement"), applied to the other number, and an
+    under-reporting ledger is worse than none (FINDINGS #121). The absence is carried
+    as None, named by `audit`/`report`, and excluded from the total there - a stated
+    non-measurement, not a zero. A recorded 0.0 is a measurement and stays 0.0.
+    Measured 2026-08-29: 0 of 97 stored rounds are affected, so latent.
     """
     out = []
     for f in sorted(glob.glob(os.path.join(d, "*.json"))):
@@ -130,9 +179,30 @@ def load_rounds(d: str) -> list[dict]:
         if isinstance(j, dict) and "submissions" in j and "aspect" in j:
             j["_path"] = f
             j["_mtime"] = os.path.getmtime(f)
-            j["_cost"] = float(j.get("cost_usd") or 0.0)
+            c = j.get("cost_usd")
+            j["_cost"] = float(c) if isinstance(c, (int, float)) else None
             out.append(j)
     return out
+
+
+def _split_costs(rounds: list[dict]) -> tuple[float, list[str]]:
+    """`(total, no_cost_names)` over one directory's rounds - the ONE copy of the sum.
+
+    The total is over the rounds that STATE a `cost_usd`; `no_cost_names` names the
+    rounds that state none, absent key and null value alike, so the caller can print
+    the exclusion instead of folding it in. A recorded 0.0 is a stated zero: summed,
+    and not in the names.
+    """
+    total = sum(r["_cost"] for r in rounds if r["_cost"] is not None)
+    no_cost = [os.path.basename(r["_path"]) for r in rounds if r["_cost"] is None]
+    return total, no_cost
+
+
+def field_cost(d: str) -> tuple[int, float, list[str]]:
+    """`(n_rounds, total, no_cost_names)` for a directory."""
+    rounds = load_rounds(d)
+    total, no_cost = _split_costs(rounds)
+    return len(rounds), total, no_cost
 
 
 def field_cost_usd(d: str) -> tuple[int, float]:
@@ -141,9 +211,14 @@ def field_cost_usd(d: str) -> tuple[int, float]:
     Deliberately shared rather than reimplemented: a ledger tool that computes the number
     one way and a harness that records it another way is two accountings again, which is
     the entire defect this module exists for.
+
+    The total is `_split_costs`' - over the rounds that state a cost. A round whose
+    cost_usd is absent or null is counted in `n_rounds`, excluded from `total`, and
+    named by `audit`/`report` when the directory is read back.
     """
     rounds = load_rounds(d)
-    return len(rounds), sum(r["_cost"] for r in rounds)
+    total, _names = _split_costs(rounds)
+    return len(rounds), total
 
 
 def read_counter(d: str) -> tuple[str | None, float | None]:
@@ -196,17 +271,27 @@ def explain_gap(rounds: list[dict], gap: float) -> tuple[str, list[str]]:
     2. Exact subset sum, when mtimes cannot separate them. Weaker evidence: a subset can
        fit by coincidence, so more than one fit is reported as AMBIGUOUS rather than
        resolved.
+
+       BOUNDED at `SUBSET_SEARCH_MAX` rounds, past which the search is refused and the
+       directory reports UNSEARCHED: the enumeration is 2^n, `--tree` reaches it on any
+       directory with a positive gap and no clean mtime split, and a tool that hangs
+       names nothing. A cost that states None cannot claim the gap either way, so both
+       methods run over the rounds that state a cost only - which changes nothing where
+       every round states one.
     """
-    by_t = sorted(rounds, key=lambda r: (r["_mtime"], r["_path"]))
+    searchable = [r for r in rounds if r["_cost"] is not None]
+    by_t = sorted(searchable, key=lambda r: (r["_mtime"], r["_path"]))
     for k in range(1, len(by_t)):
         head, tail = by_t[:k], by_t[k:]
         if abs(sum(r["_cost"] for r in head) - gap) > EPS:
             continue
         if min(r["_mtime"] for r in tail) - max(r["_mtime"] for r in head) > MIN_SPLIT_S:
             return "RESUMED", [os.path.basename(r["_path"]) for r in head]
+    if len(searchable) > SUBSET_SEARCH_MAX:
+        return "UNSEARCHED", []
     hits = []
-    for k in range(1, len(rounds) + 1):
-        for combo in itertools.combinations(rounds, k):
+    for k in range(1, len(searchable) + 1):
+        for combo in itertools.combinations(searchable, k):
             if abs(sum(r["_cost"] for r in combo) - gap) <= EPS:
                 hits.append([os.path.basename(r["_path"]) for r in combo])
                 if len(hits) > 1:
@@ -221,11 +306,17 @@ def explain_gap(rounds: list[dict], gap: float) -> tuple[str, list[str]]:
 
 
 def audit(d: str) -> dict:
-    """One directory's two numbers, their gap, and what the gap is."""
+    """One directory's two numbers, their gap, what the gap is, and what the sum left out.
+
+    The no-cost count is carried on EVERY verdict, `NO SUMMARY` included - a directory
+    nobody charged is still a directory whose field total may be low.
+    """
     rounds = load_rounds(d)
-    n, cost = len(rounds), sum(r["_cost"] for r in rounds)
+    cost, no_cost = _split_costs(rounds)
+    n = len(rounds)
     src, counter = read_counter(d)
     rec: dict = {"dir": d, "n_rounds": n, "field_cost_usd": round(cost, 4),
+                 "n_no_cost": len(no_cost), "no_cost": no_cost,
                  "summary": src, "charged_to_ceiling_usd": counter}
     if counter is None:
         rec["verdict"] = "NO SUMMARY"
@@ -234,7 +325,17 @@ def audit(d: str) -> dict:
     gap = cost - counter
     rec["gap_usd"] = round(gap, 4)
     if gap < -EPS:
-        rec["verdict"] = "MISSING ARTIFACT"
+        # A deficit is MISSING ARTIFACT only where every round states a cost - the
+        # verdict asserts "a round was paid for and its file is gone", and where a
+        # no-cost round is named, that file is ON DISK and its unrecorded cost may be
+        # the whole deficit. The verdict the artifacts cannot determine is not
+        # published: INDETERMINATE, on NO SUMMARY's precedent (unjudged is not free;
+        # undetermined is not missing). Not in BAD - nothing here is excused, and the
+        # same deficit with no no-cost round is still red (selftest cases 3 and 15).
+        if no_cost:
+            rec["verdict"] = "INDETERMINATE"
+        else:
+            rec["verdict"] = "MISSING ARTIFACT"
         rec["carried"] = []
     elif abs(gap) <= EPS:
         rec["verdict"] = "AGREES"
@@ -253,7 +354,7 @@ def walk(root: str) -> list[dict]:
     return sorted(out, key=lambda r: r["dir"])
 
 
-BAD = ("MISSING ARTIFACT", "UNEXPLAINED")
+BAD = ("MISSING ARTIFACT", "UNEXPLAINED", "UNSEARCHED")
 
 
 def report(recs: list[dict], root: str | None = None) -> int:
@@ -268,9 +369,22 @@ def report(recs: list[dict], root: str | None = None) -> int:
               f"{g:>8}  {r['verdict']}")
         if r.get("carried"):
             print(f"{'':46} carried over: {', '.join(r['carried'])}")
+        if r.get("no_cost"):
+            clause = (" - excluded from the field column"
+                      if r["verdict"] != "INDETERMINATE" else
+                      " - excluded from the field column; the deficit may be theirs, "
+                      "so the deficit is INDETERMINATE, not MISSING ARTIFACT")
+            print(f"{'':46} no cost_usd on {len(r['no_cost'])} round(s): "
+                  f"{', '.join(r['no_cost'])}{clause}")
         total += r["field_cost_usd"]
     print(f"\n{len(recs)} sweep director(ies), {sum(r['n_rounds'] for r in recs)} stored "
           f"rounds, field {tokenvalue.tag(total)}")
+    absent = sorted(name for r in recs for name in r.get("no_cost", []))
+    if absent:
+        print(f"the field total EXCLUDES {len(absent)} stored round(s) whose cost_usd is "
+              f"absent or null, named above - a stated non-measurement, not a zero. "
+              f"It is the sum of the rounds that state a cost, and is low by an unknown "
+              f"amount.")
     under = [r for r in recs if r["verdict"] in ("RESUMED", "AMBIGUOUS")]
     if under:
         print(f"{len(under)} summary counter(s) under-report by "
@@ -371,7 +485,7 @@ def selftest() -> int:
 
         # 7. REGRESSION GUARD ON THE REAL CASE. The ten stored `post` rounds and the
         #    21.05 its own sweep.log printed. Hand-entered from the files so the guard
-        #    survives the evidence tree being unavailable. FINDINGS #119.
+        #    survives the evidence tree being unavailable. FINDINGS #121.
         h = os.path.join(td, "post"); os.makedirs(h)
         carried = [("architecture__seed0", 5.0382153), ("architecture__seed1", 4.26154165),
                    ("audio__seed0", 0.7371495), ("audio__seed1", 0.5698161)]
@@ -428,12 +542,110 @@ def selftest() -> int:
         check("is_summary.round", is_summary("g1_pong__fun__seed0.json"), False)
         check("is_summary.notjson", is_summary("GATES.txt"), False)
 
+        # 11. A ROUND WITH NO cost_usd IS NOT A ZERO. Absent key and null value are the
+        #     two shapes of the absence; both must reach the audit record as a NAMED
+        #     count, be counted in n_rounds, and be excluded from the total with the
+        #     exclusion printed - never folded in as 0.0, the fallback `read_counter`
+        #     refuses one function up. A recorded 0.0 is a stated zero: counted,
+        #     summed, and NOT in the no-cost list. Warned, never refused: the report
+        #     stays exit 0.
+        n_ = os.path.join(td, "nocost"); os.makedirs(n_)
+        _write(n_, "paid.json", _round(3.00), 1000)
+        _write(n_, "absent.json",
+               {k: v for k, v in _round(0.0).items() if k != "cost_usd"}, 1001)
+        _write(n_, "null.json", _round(None), 1002)
+        _write(n_, "zero.json", _round(0.0), 1003)
+        r = audit(n_)
+        check("nocost.n", r["n_rounds"], 4)
+        check("nocost.cost", round(r["field_cost_usd"], 2), 3.00)
+        check("nocost.n_no_cost", r["n_no_cost"], 2)
+        check("nocost.names", sorted(r["no_cost"]), ["absent.json", "null.json"])
+        check("nocost.verdict", r["verdict"], "NO SUMMARY")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = report([r])
+        out = buf.getvalue()
+        check("nocost.exit", rc, 0)
+        check("nocost.report.names",
+              "absent.json" in out and "null.json" in out, True)
+        check("nocost.report.label", "EXCLUDES 2 stored round(s)" in out, True)
+        check("nocost.report.notzero", "a stated non-measurement, not a zero" in out,
+              True)
+
+        # 12. THE MTIME SPLIT IS STILL PREFERRED WHERE IT SEPARATES, ON A DIRECTORY OVER
+        #     THE SUBSET BOUND. The split is O(n^2) and unbounded; if the bound checked
+        #     first, an over-bound directory with a clean resume in it would come back
+        #     UNSEARCHED instead of the demonstrated answer.
+        o = os.path.join(td, "overbound_split"); os.makedirs(o)
+        _write(o, "old.json", _round(1.00), 1000)
+        for i in range(SUBSET_SEARCH_MAX + 1):
+            _write(o, f"new{i}.json", _round(2.00), 2000 + i)
+        _write(o, "SEQUENTIAL.json", {"measured_cost_usd": 2.00 * (SUBSET_SEARCH_MAX + 1)})
+        r = audit(o)
+        check("overbound_split.verdict", r["verdict"], "RESUMED")
+        check("overbound_split.carried", r["carried"], ["old.json"])
+
+        # 13. OVER THE BOUND WITH NOTHING THAT SEPARATES, the directory reports
+        #     UNSEARCHED - red, and fast, instead of a 2^n hang. Every round costs the
+        #     same and the gap is one round's worth, so a mutant that removes the bound
+        #     fails FAST: the k=1 subset pass finds two singleton hits in microseconds
+        #     and answers AMBIGUOUS, not UNSEARCHED.
+        u = os.path.join(td, "overbound"); os.makedirs(u)
+        for i in range(SUBSET_SEARCH_MAX + 2):
+            _write(u, f"r{i}.json", _round(1.00), 1000 + i * 0.001)
+        _write(u, "SEQUENTIAL.json", {"measured_cost_usd": SUBSET_SEARCH_MAX + 1})
+        r = audit(u)
+        check("overbound.verdict", r["verdict"], "UNSEARCHED")
+        check("overbound.carried", r.get("carried"), [])
+        check("overbound.bad", report([r]), 1)
+
+        # 14. A ROUND THAT STATES NO COST CANNOT CLAIM THE GAP. Both attribution methods
+        #     run over the rounds that state a cost only. A repair that kept the None
+        #     round inside the search would carry it alongside the round that does -
+        #     a subset containing a cost nobody recorded "summing" to the gap.
+        p = os.path.join(td, "gapnocost"); os.makedirs(p)
+        _write(p, "silent.json",
+               {k: v for k, v in _round(0.0).items() if k != "cost_usd"}, 1000)
+        _write(p, "paid_old.json", _round(1.00), 1001)
+        _write(p, "new.json", _round(2.00), 2000)
+        _write(p, "SEQUENTIAL.json", {"measured_cost_usd": 2.00})
+        r = audit(p)
+        check("gapnocost.n_no_cost", r["n_no_cost"], 1)
+        check("gapnocost.verdict", r["verdict"], "RESUMED")
+        check("gapnocost.carried", r["carried"], ["paid_old.json"])
+
+        # 15. A DEFICIT A ROUND WITH NO COST COULD ACCOUNT FOR IS INDETERMINATE, NOT
+        #     MISSING ARTIFACT. MISSING ARTIFACT asserts "a round was paid for and its
+        #     file is gone"; here the file is ON DISK, named in no_cost, and its
+        #     unrecorded cost may be the whole deficit - so the verdict the artifacts
+        #     cannot determine is not published, on NO SUMMARY's precedent (unjudged is
+        #     not free; undetermined is not missing). Not in BAD: the corpus stays
+        #     readable, and everything known still prints. The same deficit with every
+        #     round stating a cost is still red - case 3, unchanged.
+        q = os.path.join(td, "indeterminate"); os.makedirs(q)
+        _write(q, "r_paid.json", _round(3.00), 1000)
+        _write(q, "r_absent.json",
+               {k: v for k, v in _round(0.0).items() if k != "cost_usd"}, 1001)
+        _write(q, "GATES.json", {"measured_cost_usd": 7.00})
+        r = audit(q)
+        check("indeterminate.verdict", r["verdict"], "INDETERMINATE")
+        check("indeterminate.gap", round(r["gap_usd"], 2), -4.00)
+        check("indeterminate.n_no_cost", r["n_no_cost"], 1)
+        check("indeterminate.exit", report([r]), 0)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report([r])
+        check("indeterminate.report.clause",
+              "the deficit may be theirs" in buf.getvalue(), True)
+
         # 10. A CLEAN TREE WALK finds every directory holding rounds and no others - the
-        #    parent `td` holds only subdirectories and must not appear.
+        #    parent `td` holds only subdirectories and must not appear. Kept after the
+        #    cases above: it walks the tree they have just finished building.
         found = {os.path.basename(x["dir"]) for x in walk(td)}
         check("walk.dirs", found,
               {"agrees", "resumed", "missing", "unexplained", "nosummary", "shape",
-               "post", "copied", "superseded"})
+               "post", "copied", "superseded", "nocost", "overbound", "overbound_split",
+               "gapnocost", "indeterminate"})
 
     for f in fails:
         print(f"  FAIL {f}")

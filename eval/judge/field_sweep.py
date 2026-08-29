@@ -185,8 +185,8 @@ def _record_cost(summary: dict[str, Any], spent: float, out: Path) -> None:
     read that name as spend: 21.05 tokval was published as the cost of ten judge calls
     worth 31.66, and the same field's four earlier rounds - 10.61 of architecture and
     audio, written eight minutes before the sweep resumed - were invisible. Five of the
-    eleven stored sweep directories carry the same shape, 69.93 tokval in total.
-    FINDINGS #119.
+    twelve stored sweep directories carry the same shape, 69.93 tokval in total - read
+    2026-08-29 by `python3 judge/judge_ledger.py --tree runs/`. FINDINGS #121.
 
     THE FIX IS NOT A BIGGER NUMBER, IT IS TWO NAMED ONES. Re-attributing carried rounds to
     today's invocation would break the one counter here that has never been wrong. What
