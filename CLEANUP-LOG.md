@@ -1572,3 +1572,13 @@ appends AFTER the try/except, which is where the exclusion has already happened.
 `eval/judge/png.py` (208 lines) — still the primary pointer, once tasks/212 has landed
 so the landed form is what gets read. Alternate if 212 is somehow still open:
 `eval/judge/scene_probe.py`, which this pass found but did not open.
+
+### Addendum (same day, on the pass's own ticket)
+
+tasks/214's title exposed a queue-format channel: it was written as an unquoted YAML
+scalar containing "so the #25 exclusion...", and ` #` starts a comment in a plain
+scalar, so the PARSED title has been cut at "so the" since the ticket was created —
+with `tasks.py check` green throughout and the full bytes on disk. Filed as tasks/216
+(property check: parsed value shorter than the raw line), with the four census rows
+where a hash follows a non-whitespace character (174, 181 x2, 187) as the green
+controls; the repaired 214 title is the only lossy scalar in the queue.

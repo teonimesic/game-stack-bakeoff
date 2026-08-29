@@ -1,10 +1,11 @@
 ---
 id: 214
-title: drive() appends audio.triggered after a lock-conflict unusable, so the #25 exclusion does not reach the one criterion added outside unusable_criteria
-status: todo
+title: 'drive() appends audio.triggered after a lock-conflict unusable, so the #25 exclusion does not reach the one criterion added outside unusable_criteria'
+status: in_review
 priority: 5
 refs: eval/judge/probe.py, eval/judge/audio.py, eval/findings/one-arm-bias.md
-done_when: 'a fixture drives probe.drive with a stub ProbeSession whose start raises ProbeError(lock_conflict=True) and a bot declaring audio_game, and the returned audio.triggered criterion comes back scored=False with the NOT MEASURED project-lock reason instead of the current scored=True failure - while a stub that raises a NON-lock ProbeError, and a session that runs and genuinely emits no events, both leave audio.triggered scored=True failed (the fail-closed default is NOT loosened) - pinned in a selftest that runs unpiped exit 0, with a mutant restoring the current append-scorch behaviour going red on the lock fixture and green on the two controls.'
+done_when: a fixture drives probe.drive with a stub ProbeSession whose start raises ProbeError(lock_conflict=True) and a bot declaring audio_game, and the returned audio.triggered criterion comes back scored=False with the NOT MEASURED project-lock reason instead of the current scored=True failure - while a stub that raises a NON-lock ProbeError, and a session that runs and genuinely emits no events, both leave audio.triggered scored=True failed (the fail-closed default is NOT loosened) - pinned in a selftest that runs unpiped exit 0, with a mutant restoring the current append-scorch behaviour going red on the lock fixture and green on the two controls.
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/94
 ---
 
 `probe.drive()` handles a probe that cannot be opened or kept alive by calling
