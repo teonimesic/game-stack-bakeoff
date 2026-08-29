@@ -770,76 +770,91 @@ def main() -> int:
         # manifest-note path whose lock bit now excludes `audio.triggered`. This
         # is the pin that says the narrowing did not blunt the FINDINGS #25
         # remedy: both stored refusals still classify.
+        #
+        # `audio.time.sleep` is stubbed across every manifest read below, exactly
+        # as the manifest-lock section above does: an exhausted read sleeps 4s+8s
+        # per attempt, and the suite should pay compute, not retries.
         TP1 = ("[stdout pollution] It looks like another Unity instance is "
                "running with this project open.")
         TP2 = ("[stdout pollution] Multiple Unity instances cannot open the "
                "same project.")
-        for tp in (TP1, TP2):
-            check(probe.ProbeSession._looks_like_lock_conflict(probe.ProbeError(tp)),
-                  f"lock_tp_probe_reader: the stored pollution line must still "
-                  f"classify as a lock conflict -- {tp[:80]!r}")
-            m = audio.read_manifest(manifest_repo(tp))
-            check(m.manifest is None and m.lock is True,
-                  f"lock_tp_audio_reader: the stored pollution line must still buy "
-                  f"the lock verdict on the manifest path -- lock={m.lock} "
-                  f"note={m.note[:100]!r}")
-
-        # The benign banners the bare substring used to eat: both words carry
-        # "lock" inside them, neither is a refusal. On the probe path a match ends
-        # a genuinely hung submission as NOT MEASURED (fail-open on the failure
-        # mode this tier exists to catch); on the audio path it now excludes the
-        # criterion. Both readers pinned.
-        for banner in ("[stdout pollution] Clock: 60 fps",
-                       "[stdout pollution] Deadlock detection: off"):
-            check(not probe.ProbeSession._looks_like_lock_conflict(
-                      probe.ProbeError(banner)),
-                  f"benign_banner_probe_reader: {banner!r} must not classify as a "
-                  f"lock conflict")
-            m = audio.read_manifest(manifest_repo(banner))
-            check(m.manifest is None and m.lock is False,
-                  f"benign_banner_audio_reader: {banner!r} must not buy the lock "
-                  f"verdict -- lock={m.lock} note={m.note[:100]!r}")
-
-        # MUTANT 13: the bare substring back in the set. It must scorch the
-        # benign-banner pins on BOTH readers -- the stored true positives classify
-        # under it either way, so they are exactly the rows that cannot catch it.
-        real_hints = probe.LOCK_HINTS
-        probe.LOCK_HINTS = real_hints + ("lock",)
-        audio.LOCK_HINTS = probe.LOCK_HINTS
+        real_sleep = audio.time.sleep
+        audio.time.sleep = lambda _s: None
         try:
-            flipped = [
-                probe.ProbeSession._looks_like_lock_conflict(
-                    probe.ProbeError("[stdout pollution] Clock: 60 fps")),
-                audio.read_manifest(
-                    manifest_repo("Deadlock detection: off")).lock,
-            ]
-        finally:
-            probe.LOCK_HINTS = real_hints
-            audio.LOCK_HINTS = probe.LOCK_HINTS
-        check(all(flipped),
-              f"mutant 'bare lock restored' did not scorch the benign-banner pins "
-              f"-- probe_and_audio={flipped}")
+            for tp in (TP1, TP2):
+                check(probe.ProbeSession._looks_like_lock_conflict(
+                          probe.ProbeError(tp)),
+                      f"lock_tp_probe_reader: the stored pollution line must still "
+                      f"classify as a lock conflict -- {tp[:80]!r}")
+                m = audio.read_manifest(manifest_repo(tp))
+                check(m.manifest is None and m.lock is True,
+                      f"lock_tp_audio_reader: the stored pollution line must still "
+                      f"buy the lock verdict on the manifest path -- lock={m.lock} "
+                      f"note={m.note[:100]!r}")
 
-        # MUTANT 14: a specific phrase dropped. It must scorch the true-positive
-        # pin for THAT phrase and no other -- the second stored line still
-        # classifies under it, so the red row is attributable to the removal.
-        probe.LOCK_HINTS = tuple(h for h in real_hints
-                                 if h != "another unity instance")
-        audio.LOCK_HINTS = probe.LOCK_HINTS
-        try:
-            tp1_gone = not probe.ProbeSession._looks_like_lock_conflict(
-                probe.ProbeError(TP1))
-            tp1_audio_gone = audio.read_manifest(manifest_repo(TP1)).lock is False
-            tp2_still = probe.ProbeSession._looks_like_lock_conflict(
-                probe.ProbeError(TP2))
-        finally:
-            probe.LOCK_HINTS = real_hints
+            # The benign banners the bare substring used to eat: both words carry
+            # "lock" inside them, neither is a refusal. On the probe path a match
+            # ends a genuinely hung submission as NOT MEASURED (fail-open on the
+            # failure mode this tier exists to catch); on the audio path it now
+            # excludes the criterion. Both readers pinned.
+            for banner in ("[stdout pollution] Clock: 60 fps",
+                           "[stdout pollution] Deadlock detection: off"):
+                check(not probe.ProbeSession._looks_like_lock_conflict(
+                          probe.ProbeError(banner)),
+                      f"benign_banner_probe_reader: {banner!r} must not classify "
+                      f"as a lock conflict")
+                m = audio.read_manifest(manifest_repo(banner))
+                check(m.manifest is None and m.lock is False,
+                      f"benign_banner_audio_reader: {banner!r} must not buy the "
+                      f"lock verdict -- lock={m.lock} note={m.note[:100]!r}")
+
+            # MUTANT 13: the bare substring back in the set. It must scorch the
+            # benign-banner pins on BOTH readers -- the stored true positives
+            # classify under it either way, so they are exactly the rows that
+            # cannot catch it.
+            real_hints = probe.LOCK_HINTS
+            probe.LOCK_HINTS = real_hints + ("lock",)
             audio.LOCK_HINTS = probe.LOCK_HINTS
-        check(tp1_gone and tp1_audio_gone,
-              f"mutant 'phrase dropped' did not scorch the matching true-positive "
-              f"pin -- probe_red={tp1_gone} audio_red={tp1_audio_gone}")
-        check(tp2_still,
-              "mutant 'phrase dropped' must leave the OTHER stored line classified")
+            try:
+                flipped = [
+                    probe.ProbeSession._looks_like_lock_conflict(
+                        probe.ProbeError("[stdout pollution] Clock: 60 fps")),
+                    audio.read_manifest(
+                        manifest_repo("Deadlock detection: off")).lock,
+                ]
+            finally:
+                probe.LOCK_HINTS = real_hints
+                audio.LOCK_HINTS = probe.LOCK_HINTS
+            check(all(flipped),
+                  f"mutant 'bare lock restored' did not scorch the benign-banner "
+                  f"pins -- probe_and_audio={flipped}")
+
+            # MUTANT 14: a specific phrase dropped. It must scorch the
+            # true-positive pin for THAT phrase and no other -- the second stored
+            # line still classifies under it, so the red row is attributable to
+            # the removal.
+            probe.LOCK_HINTS = tuple(h for h in real_hints
+                                     if h != "another unity instance")
+            audio.LOCK_HINTS = probe.LOCK_HINTS
+            try:
+                tp1_gone = not probe.ProbeSession._looks_like_lock_conflict(
+                    probe.ProbeError(TP1))
+                tp1_audio_gone = audio.read_manifest(
+                    manifest_repo(TP1)).lock is False
+                tp2_still = probe.ProbeSession._looks_like_lock_conflict(
+                    probe.ProbeError(TP2))
+            finally:
+                probe.LOCK_HINTS = real_hints
+                audio.LOCK_HINTS = probe.LOCK_HINTS
+            check(tp1_gone and tp1_audio_gone,
+                  f"mutant 'phrase dropped' did not scorch the matching "
+                  f"true-positive pin -- probe_red={tp1_gone} "
+                  f"audio_red={tp1_audio_gone}")
+            check(tp2_still,
+                  "mutant 'phrase dropped' must leave the OTHER stored line "
+                  "classified")
+        finally:
+            audio.time.sleep = real_sleep
 
         # MUTANT 15: an equal copy that is not the same object -- exactly the
         # shape the two hand copies had. It must turn the one-definition pin red.
