@@ -43,17 +43,37 @@ class Image:
 
         The same measure the four render harnesses use in their own tests, so a frame
         that passes `renders a non-empty frame` in-repo also reads as non-empty here.
+
+        Since `tasks/212` this is byte translate + integer OR, not a loop per pixel:
+        each channel's bytes map through a 256-entry table to a 0/1 "outside the
+        tolerance band" flag (`bytes.translate`, C speed), the three flag strings OR
+        together as integers - a word-parallel per-pixel OR that cannot carry, because
+        every byte is 0 or 1 - and `bit_count` counts the pixels where any channel
+        left its band. Byte for byte the count the shipped loop produced: that loop is
+        kept as `_reference_ink` in `judge/ink_window_control.py`, which re-derives
+        every fixture and blank-arrangement reading through it, and whose `--pin-dump`
+        prints the readings any change to this function must reproduce exactly.
         """
         n = self.width * self.height
         if n == 0:
             return 0.0
+        c, d = self.channels, self.data
+        if len(d) != n * c:
+            # The shipped loop would have raised IndexError part-way or silently
+            # ignored trailing bytes; raise instead, before the slices below can
+            # misalign the per-channel lanes.
+            raise PngError(f"image data holds {len(d)} bytes, expected {n * c}")
         br, bg, bb = background
-        c, d, hit = self.channels, self.data, 0
-        for i in range(0, n * c, c):
-            if (abs(d[i] - br) > tolerance or abs(d[i + 1 if c > 1 else i] - bg) > tolerance
-                    or abs(d[i + 2 if c > 2 else i] - bb) > tolerance):
-                hit += 1
-        return hit / n
+
+        def outside(ref: int, chan: bytes) -> bytes:
+            return chan.translate(bytes(1 if abs(v - ref) > tolerance else 0
+                                        for v in range(256)))
+
+        ch0 = d[0::c]
+        hits = (int.from_bytes(outside(br, ch0), "big")
+                | int.from_bytes(outside(bg, d[1::c] if c > 1 else ch0), "big")
+                | int.from_bytes(outside(bb, d[2::c] if c > 2 else ch0), "big"))
+        return hits.bit_count() / n
 
     def is_flat(self, tolerance: int = 8) -> bool:
         """Is every pixel of THIS frame within `tolerance` of THIS frame's own mode?
@@ -83,18 +103,47 @@ class Image:
         return max(counts.items(), key=lambda kv: kv[1])[0] if counts else (0, 0, 0)
 
     def differs_from(self, other: "Image", tolerance: int = 8) -> float:
+        """Fraction of pixels differing by more than `tolerance` in any of the first
+        `min(3, channels)` channels of each image - the definition as always.
+
+        Since `tasks/212`: a byte-equality fast path (identical data cannot differ
+        under any non-negative tolerance, and consecutive captured frames are
+        usually identical), then one pass per channel pair - the slices walk each
+        channel at C speed and the comparisons run on unpacked ints, with no
+        generator frame per pixel.
+        `x - y > tol or y - x > tol` is `abs(x - y) > tol`. Pinned the same way as
+        `ink_coverage`: `_reference_differs` in `judge/ink_window_control.py` is the
+        shipped loop, and `--pin-dump` states every reading a change here must
+        reproduce exactly. A data length that does not match the geometry raises
+        rather than reading past it. A negative `tolerance` is outside how the
+        criterion ever calls this, but it is pinned anyway: the shipped loop marks
+        every pixel different there (`0 > tolerance`), so the fast path must not
+        fire - identical data reads 1.0, not 0.0 (tasks/212 review round 1).
+        """
         if (self.width, self.height) != (other.width, other.height):
             return 1.0
         n = self.width * self.height
+        if n == 0:
+            return 0.0
         a, b = self.data, other.data
         ca, cb = self.channels, other.channels
-        diff = 0
-        for p in range(n):
-            ia, ib = p * ca, p * cb
-            if any(abs(a[ia + k] - b[ib + k]) > tolerance
-                   for k in range(min(3, ca, cb))):
-                diff += 1
-        return diff / n if n else 0.0
+        if len(a) != n * ca or len(b) != n * cb:
+            raise PngError("image data length does not match width * height * channels")
+        if tolerance >= 0 and a == b:
+            return 0.0
+        k = min(3, ca, cb)
+        tol = tolerance
+        if k == 3:
+            hits = sum(1 for x, y, p, q, r, s in zip(a[0::ca], b[0::cb], a[1::ca],
+                                                     b[1::cb], a[2::ca], b[2::cb])
+                       if x - y > tol or y - x > tol or p - q > tol or q - p > tol
+                       or r - s > tol or s - r > tol)
+        else:
+            hits = sum(1 for t in zip(*(a[i::ca] for i in range(k)),
+                                      *(b[i::cb] for i in range(k)))
+                       if any(t[i] - t[k + i] > tol or t[k + i] - t[i] > tol
+                              for i in range(k)))
+        return hits / n
 
 
 def write_rgb(path: str | Path, width: int, height: int, pixels: bytes) -> None:
