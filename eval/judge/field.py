@@ -5,7 +5,7 @@ to a judge that must rank them against one another, and record the mapping
 separately so the analyst reading the ranking cannot see the stacks.
 
 Usage:
-    python3 judge/field.py pack   --run RUN --game g1_pong --out DIR [--order-seed N]
+    python3 judge/field.py pack   --run RUN --game g1_pong --aspect idiomatic --out DIR [--order-seed N]
     python3 judge/field.py run    --pack DIR --aspect idiomatic --out results.json
     python3 judge/field.py gates  --results a.json b.json
 """
