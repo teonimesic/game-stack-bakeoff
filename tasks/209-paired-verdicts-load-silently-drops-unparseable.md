@@ -1,7 +1,7 @@
 ---
 id: 209
 title: paired_verdicts.load() drops unparseable trial ids and passed-less criteria from every denominator, printing nothing
-status: todo
+status: in_progress
 priority: 5
 refs: eval/judge/paired_verdicts.py,eval/judge/capability.py
 done_when: load() no longer loses either class silently - a report.json whose trial id is not 3 parts, and a criterion carrying `id` without `passed`, are each counted and NAMED where the module reports (the excluded/skipped list render() already prints, or a summary line beside it), with fixtures in the selftest whose answers are stated in the expectation (a 2-part tid is red because it is counted, not because the walk broke); a criterion without `passed` present on BOTH sides of a cell must land somewhere stated - today it vanishes from paired AND unpaired - and the fix says where; python3 eval/judge/paired_verdicts.py --selftest --runs-root <main checkout>/eval/runs exits 0 unpiped after.
