@@ -849,15 +849,31 @@ extras, and a manifest covering a strict subset of the declared events. It also 
 because a check that reads its expectation from the grader goes green on both halves of
 one mistake.
 
+`audio.triggered` also carries the FINDINGS #25 lock exclusion (tasks/214). A session
+the engine refused under a project lock returns the criterion `scored=False` through
+`probe.drive` — NOT MEASURED, excluded from the score. A manifest read whose retries
+exhausted on lock signatures is excluded the same way, through the `read_manifest`
+lock bit. A non-lock probe failure, and a run that genuinely emitted no events, stay
+scored failures. 2 mutants remove each lock bit in turn; both must turn the lock
+fixtures red and leave the controls green.
+
 **After changing an audio criterion, re-score the stored corpus.** Run:
 
 ```shell
 python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
+python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs --triggered
 ```
 
-It re-applies these criteria offline to every stored grading, names the verdicts that
-move, and refuses the records it cannot compare. Record in `eval/RUNS.md` the population
-it checked, how many verdicts moved and which — including zero.
+The first pass re-applies these criteria offline to every stored `programmatic` grading.
+
+The `--triggered` pass reads the stored `playbot.json` records, where `audio.triggered` lives.
+It refuses any record that does not carry exactly one such criterion, and classifies the rest
+from the record's own signature: `total=0` with `usable=False` next to a `scored=True` verdict
+is what the lock exclusion moves.
+
+Both passes name the verdicts that move, print the failed rows' evidence verbatim, and refuse
+the records they cannot compare. Record in `eval/RUNS.md` the population each checked, how many
+verdicts moved and which — including zero.
 
 
 Only what is left after those is asked of a judge: does the music suit this game, are
