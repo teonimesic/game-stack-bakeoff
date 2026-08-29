@@ -1,11 +1,11 @@
 ---
 id: 213
 title: static.run's waiter turns an unobservable exit status into exit 0 - the one fail-open fallback in the tier-1 measurement path
-status: in_testing
+status: done
 priority: 5
 refs: eval/judge/static.py, eval/judge/rusage_selftest.py
 done_when: 'a fixture that forces os.wait4 to raise (ChildProcessError, in-process, the way this ticket''s probe did) takes static.run over a command whose true exit is nonzero and gets back NOT exit 0 - the module''s existing convention for an unspawnable binary (code 127) with a note in `note` that names the HARNESS as the cause ("could not reap: ..."), streams preserved, peak_rss_mb and cpu_seconds None (the honest third value, not 0.0) - pinned red-first in eval/judge/rusage_selftest.py (whose subject is already what static.run observes) with the unforced control still reading the true exit; the spawn-failure path keeps its 127 and the timeout path keeps its 124-with-note, both asserted unchanged in the same check; python3 eval/judge/rusage_selftest.py exits 0 unpiped after, and python3 eval/judge/capture_selftest.py is unaffected (it drives static.run over real children on every check).'
-established_by: 'Forced os.wait4 ChildProcessError over a true-exit-3 child: 127 with "could not reap:" note, streams preserved, resource fields None (red-first: exit 0 / empty note against the unfixed module); unforced control reads 3; spawn 127 and timeout 124-with-note asserted unchanged in the same check; mutant reinstating the fabricated 0 red on the fixture with every pre-existing check green; rusage_selftest exit 0 unpiped, capture_selftest 39/39, runner_capture_selftest 50/50; PR #92 one clean review round.'
+established_by: 'PR #92 squash 2a4328c, branch head f8dc5d9e65d50617a864f9202ad2f94622037d7c; verified at f8dc5d9 in own detached checkout unpiped: rusage_selftest exit 0 (38 PASS, 0 FAIL) with reap fixture + control + spawn/timeout variants + automated mutant all run and read, independent orchestrator probe (forced wait4 -> 127 + could-not-reap note + None resources; control reads 3; pure-timeout note byte-identical), capture_selftest and runner_capture_selftest exit 0, sweep exit 0; review LANDED_COMMENT zero inline threads at that head; merge head gates+controls green (gates 3m8s, controls 16m48s); no finding allocated (the defect is the ticket itself, filed by the ninth cleanup pass with the forced-wait4 probe before the fix); merged main gates green unpiped (sweep, renumbered, tasks.py check).'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/92
 ---
 
