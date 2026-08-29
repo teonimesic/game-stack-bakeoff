@@ -66,14 +66,16 @@ silently skips runs reports a floor over a population it did not describe.
 
 A record the walk REACHES but cannot classify is not dropped silently either: a report
 whose trial id is not a usable `game__stack__slot` (wrong number of parts, or a part
-empty), and a criterion carrying `id` without `passed`, are counted as skips and named
-beside the excluded cells - the rule `capability.no_stack_correlated_gap` enforces
-elsewhere, that a record the module cannot name is a counted problem with its name
-attached. Neither reaches `paired`, a cell, or a verdict or evidence difference; the
-unpaired count stays about the suites. Both channels were empty over the stored
-tree when measured (2026-08-29, 85 reports walked); this is the channel closed before
-a future run directory - judge packs land inside run directories (#83) - puts a
-differently-shaped directory under `artifacts/` and narrows the floor in silence.
+empty), a report that does not decode or is not a mapping, and a tier block or
+criterion of the wrong shape or carrying `id` without `passed`, are counted as skips
+and named beside the excluded cells - the rule `capability.no_stack_correlated_gap`
+enforces elsewhere, that a record the module cannot name is a counted problem with
+its name attached. None reaches `paired`, a cell, or a verdict or evidence
+difference; the unpaired count stays about the suites. Both channels were empty over
+the stored tree when measured (2026-08-29, 85 reports walked); this is the channel
+closed before a future run directory - judge packs land inside run directories
+(#83) - puts a differently-shaped directory under `artifacts/` and narrows the floor
+in silence.
 """
 from __future__ import annotations
 
@@ -137,22 +139,27 @@ def load(runs_root: Path, only_run: str | None = None
     Returns `(rows, skips)`. A skip is a record the walk REACHED and could not
     classify, named so it cannot be dropped silently - the rule
     `capability.no_stack_correlated_gap` enforces elsewhere: a record the module
-    cannot name is a counted problem with its name attached. Two classes:
+    cannot name is a counted problem with its name attached. The classes:
 
       - a report whose trial id is not a usable `game__stack__slot` - the wrong
         number of parts, or a part empty, so no cell can hold it: nothing can
         say which game and stack it belongs to;
-      - a criterion carrying `id` without `passed` (or the reverse), which has
-        no verdict to pair. A named one joins the row's `skipped_crits`, so
-        `count_cell` can tell a malformed record from a suite change; one with
-        no `id` has no key and lives only on this list.
+      - a report that does not decode, or is not a mapping - no tier can be
+        asked anything of it;
+      - a tier block that is not a mapping with a `criteria` list - the tier
+        is not read;
+      - a criterion that is not a mapping, or carries `id` without `passed`
+        (or the reverse) - it has no verdict to pair. A named one joins the
+        row's `skipped_crits`, so `count_cell` can tell a malformed record
+        from a suite change; one with no `id` has no key and lives only on
+        this list.
 
-    Neither class reaches `paired`, a cell, or a verdict or evidence
-    difference. The unpaired count is about the SUITES, not the records: a
-    criterion one trial recorded and the other never did stays a suite
-    difference whatever became of the record, and the skip line classifies
-    the record without editing that count. `render()` prints every skip
-    beside the excluded cells.
+    No class reaches `paired`, a cell, or a verdict or evidence difference.
+    The unpaired count is about the SUITES, not the records: a criterion one
+    trial recorded and the other never did stays a suite difference whatever
+    became of the record, and the skip line classifies the record without
+    editing that count. `render()` prints every skip beside the excluded
+    cells.
     """
     rows: list[dict] = []
     skips: list[tuple[str, str]] = []
@@ -168,11 +175,40 @@ def load(runs_root: Path, only_run: str | None = None
                           f"parts (game__stack__slot) - walked, reaches no cell"))
             continue
         game, stack, slot = parts
-        rec = json.loads(rep.read_text())
+        try:
+            rec = json.loads(rep.read_text())
+        except (OSError, ValueError) as e:
+            skips.append((run, f"{tid}: report.json does not decode: "
+                          f"{type(e).__name__}: {str(e)[:100]} - walked, "
+                          f"reaches no row"))
+            continue
+        if not isinstance(rec, dict):
+            skips.append((run, f"{tid}: report.json is a `{type(rec).__name__}`, "
+                          f"not a mapping - walked, reaches no row"))
+            continue
         crits = {}
         skipped_crits: set[tuple[str, str]] = set()
         for tier in ALL_TIERS:
-            for c in ((rec.get(tier) or {}).get("criteria")) or []:
+            block = rec.get(tier)
+            if block is None:
+                continue
+            if not isinstance(block, dict):
+                skips.append((run, f"{tid} {tier}: tier block is a "
+                              f"`{type(block).__name__}`, not a mapping with "
+                              f"`criteria` - tier not read"))
+                continue
+            criteria = block.get("criteria") or []
+            if not isinstance(criteria, list):
+                skips.append((run, f"{tid} {tier}: `criteria` is a "
+                              f"`{type(criteria).__name__}`, not a list - "
+                              f"tier not read"))
+                continue
+            for c in criteria:
+                if not isinstance(c, dict):
+                    skips.append((run, f"{tid} {tier}: criterion is a "
+                                  f"`{type(c).__name__}`, not a mapping - no "
+                                  f"verdict to pair"))
+                    continue
                 if "id" in c and "passed" in c:
                     crits[(tier, c["id"])] = (bool(c["passed"]), c.get("evidence", ""))
                 else:
@@ -426,6 +462,19 @@ def _synthetic(root: Path) -> None:
                    {"id": "broken", "evidence": "E"}]}}, "completed")
     _write_raw(root, "r10", "g1__s1__t1",
                {"playbot": {"criteria": []}}, "completed")
+    # r11: three reports the walk reaches that no classification can save - a
+    # file that does not decode, a top-level array, and a null inside a
+    # readable report's criteria. Each is a named skip; none aborts the walk,
+    # and the one readable criterion beside the null still lands.
+    _bad = root / "r11" / "artifacts" / "g1__s1__t0" / "eval"
+    _bad.mkdir(parents=True)
+    (_bad / "report.json").write_text("{not json")
+    _arr = root / "r11" / "artifacts" / "g2__s1__t0" / "eval"
+    _arr.mkdir(parents=True)
+    (_arr / "report.json").write_text("[]")
+    _write_raw(root, "r11", "g3__s1__t0",
+               {"playbot": {"criteria": [None, {"id": "ok", "passed": True, "evidence": "E"}]}},
+               None)
 
 
 def _synthetic_checks(root: Path) -> None:
@@ -531,12 +580,27 @@ def _synthetic_checks(root: Path) -> None:
            len(skips10) == 1 and "g1__s1__t0" in skips10[0][1]
            and "playbot:broken" in skips10[0][1], f"{skips10}")
 
+    # One unreadable report must not abort the walk for every other run in the
+    # tree - and must not vanish either: each is a named skip, the same rule as
+    # every other record the module cannot classify.
+    rows11, skips11 = load(root, "r11")
+    expect("MUTANT: an undecodable report and a top-level array reach no row, "
+           "the readable one beside them still lands",
+           [r["tid"] for r in rows11] == ["g3__s1__t0"]
+           and ("playbot", "ok") in rows11[0]["crits"], f"{rows11}")
+    expect("...and all three are named: decode, shape, and the null criterion",
+           len(skips11) == 3
+           and any("g1__s1__t0" in d and "does not decode" in d for _, d in skips11)
+           and any("g2__s1__t0" in d and "not a mapping" in d for _, d in skips11)
+           and any("g3__s1__t0" in d and "NoneType" in d and "playbot" in d
+                   for _, d in skips11), f"{skips11}")
+
     rows_all, skips_all = load(root)
     found = {r["run"] for r in rows_all}
     expect("a run nested one level deeper is found, not skipped",
            "r6/armA" in found, f"{sorted(found)}")
-    expect("the walk's own accounting states every skip it made: 6 over this tree",
-           len(skips_all) == 6, f"{sorted(skips_all)}")
+    expect("the walk's own accounting states every skip it made: 9 over this tree",
+           len(skips_all) == 9, f"{sorted(skips_all)}")
     txt_all = render(rows_all, skips_all)
     expect("a run holding ONLY a skipped report still gets its section",
            "=== r7 ===" in txt_all and "weird-tid" in txt_all, "")
