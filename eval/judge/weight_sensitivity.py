@@ -5,7 +5,7 @@ ANSWERED FOR THE SPLIT THIS WAS BUILT FOR, AND THE ANSWER RETIRED IT. It ran
 against `overall = 0.31*tier1 + 0.69*tier2`, a split no document derived. The
 sweep found FLIPS=0 - and 7 of 10 groups UNIDENTIFIABLE, which is the finding:
 the weight was inert because tier 1 returned one value, not because 0.31 was
-right (#92). On 2026-08-23 tier 1 became a GATE and `overall = tier2` (#119,
+right (#92). On 2026-08-23 tier 1 became a GATE and `overall = tier2` (#123,
 `RUBRIC.md`), so there is currently only one scored tier and nothing for this
 tool to sweep on a new run.
 
