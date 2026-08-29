@@ -249,9 +249,13 @@ audio criterion fails with that as the recorded reason — fail-closed, never sk
 `wholegame.py evaluate --no-audio` exist for re-scoring the runs that predate it; applying the
 criteria retroactively would measure the task change rather than the work.
 
-**Every audio criterion has a mutant.** `audio_selftest.py` runs 37 expectations: five criteria
-plus `audio.triggered` against a healthy fixture, then against nine mutants each of which must turn
-one of them red. Run it before believing an audio score. A criterion that cannot fail is worse than
+**Every audio criterion has a mutant.** `audio_selftest.py` runs 110 expectations; `python3
+eval/judge/audio_selftest.py` prints the count on its closing line. It checks 5 audio criteria
+plus `audio.triggered` against a healthy fixture, then against 9 mutants, each of which must
+turn one of them red. The FINDINGS #25 lock exclusion on `audio.triggered` is pinned here too,
+through `probe.drive` with stub sessions and at the `read_manifest` tuple. 2 further mutants
+remove the lock bits (tasks/214); each must turn its lock fixture red while the controls stay
+green. Run it before believing an audio score. A criterion that cannot fail is worse than
 absent, because it looks like success.
 
 **`capability.py` is captured, not scored, and it is measured from OUTSIDE the submission.** Nine

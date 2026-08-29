@@ -278,7 +278,7 @@ python3 eval/judge/field_sweep.py --run eval/runs/<name> --games g1_pong \
     --aspects idiomatic fun --orders 2 --max-wall-min 90 --out eval/runs/<name>/judge-sweep
 
 # controls - run these before believing any score
-python3 eval/judge/audio_selftest.py       # 6 audio criteria vs 9 mutants
+python3 eval/judge/audio_selftest.py       # 6 audio criteria vs 11 mutants, plus the #25 lock pin
 python3 eval/judge/bot_mutants.py          # every play-bot criterion pinned in both directions
 python3 eval/judge/capability_selftest.py  # the no-stack-gap gate, its mutant and its variant
 python3 eval/judge/rusage_selftest.py      # peak RSS / CPU against a child of known size

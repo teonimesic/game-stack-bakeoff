@@ -44,3 +44,11 @@ was prose naming the finding, and the ticket's body carried the full statement
 throughout. The agent's in_review write did not cause this (its truncated-looking line
 parses to the same value the original line did); it only made the display visible
 enough to chase.
+
+## note 2026-08-29
+
+Two lessons from the run, for the next agent on this file:
+
+- The control suite went green locally while CI's round-trip row went red on THIS ticket. The two runs read different copies of the same file: `tasks_control.py` resolves the queue to the MAIN checkout (which my `review` write had already normalised through `_render`), while CI reads the BRANCH's committed copy, which I had hand-authored with a single-quoted title that `_render` renders plain. A local green never covered the bytes the gate actually reads. Check the round-trip on the copy your branch commits, not on the main checkout's live copy.
+
+- Review found the predicate firing on `refs: ['one'] # note`: a YAML collection loses nothing, but `_parse` stringifies collections through `_scalar`, so the string "['one']" is a strict prefix of the carrier line and the first version read that as loss. The fix reads raw `yaml.safe_load` types and skips list/dict; pinned by a new direction-12 row in `tasks_control.py`.
