@@ -861,11 +861,16 @@ fixtures red and leave the controls green.
 
 ```shell
 python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs
+python3 eval/judge/audio_regrade_census.py --runs-root <main checkout>/eval/runs --triggered
 ```
 
-It re-applies these criteria offline to every stored grading, names the verdicts that
-move, and refuses the records it cannot compare. Record in `eval/RUNS.md` the population
-it checked, how many verdicts moved and which — including zero.
+The first re-applies these criteria offline to every stored `programmatic` grading; the
+second reads the stored `playbot.json` records, where `audio.triggered` lives, and
+classifies each from its own signature — `total=0` with `usable=False` next to a
+`scored=True` verdict is what the lock exclusion moves. Both name the verdicts that
+move, print the failed rows' evidence verbatim, and refuse the records they cannot
+compare. Record in `eval/RUNS.md` the population each checked, how many verdicts moved
+and which — including zero.
 
 
 Only what is left after those is asked of a judge: does the music suit this game, are
