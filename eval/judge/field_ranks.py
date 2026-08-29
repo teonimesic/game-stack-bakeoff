@@ -25,7 +25,7 @@ one of four different quantities.
 
 THE POPULATION IS ALSO A PARAMETER
 ----------------------------------
-A directory of rounds is not automatically one population, and two different things can put a
+A directory of rounds is not automatically one population, and three different things can put a
 round outside it.
 
 `fun_frames` is `fun`'s CONTROL - the same question with the telemetry withheld - and its
@@ -44,6 +44,13 @@ figure ignored it until task 146.
 So: `assert_poolable` refuses any population mixing a control or a barred aspect with another
 aspect, an aspect id `aspects.py` does not define is UNMEASURABLE rather than assumed scored,
 and every figure printed here names the aspects it is over.
+
+The third property is the RUN. A submission id is a name WITHIN a run (#70) and so is a game
+(#80), and `_by_stack` joins by submission id ACROSS rounds, so rounds from two runs in one
+directory pool two different games' work into one per-submission mean. `assert_one_run`
+refuses any directory whose rounds carry disagreeing `run` fields and lists the rounds that
+carry none (they predate the provenance fields and cannot answer); `field_sweep.assert_out_run`
+asks the same question at the sweep end, before anything is written or paired.
 
 Usage, from eval/:
     python3 judge/field_ranks.py --rounds runs/<field-dir>
@@ -72,6 +79,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from aspects import ASPECTS  # noqa: E402
+from field_sweep import warn_rounds_without_provenance  # noqa: E402
 
 VALUES = ("score", "rank")
 ORDERS = ("pool", "perround")
@@ -180,6 +188,56 @@ def assert_poolable(rounds: list[dict]) -> None:
         )
 
 
+def _round_label(r: dict) -> str:
+    """One nameable line for a round: its file when it was loaded from disk."""
+    p = r.get("_path")
+    if p:
+        return os.path.basename(str(p))
+    return f"{r.get('aspect')}/seed{r.get('order_seed')}"
+
+
+def assert_one_run(rounds: list[dict]) -> list[dict]:
+    """Rounds CARRYING `run` must agree on it; rounds without are returned, to warn.
+
+    #70: a submission id is a name WITHIN a run, and #80 the same for a game -
+    `g2_tetris3d` alone is four stored fields in different states of repair. `_by_stack`
+    joins by submission id ACROSS rounds, so two runs in one directory pool two
+    different games' work into one per-submission mean, and every figure reads that as
+    one population (rule 4). Every round written since 2026-08-22 carries `run` (#80's
+    fix at the source); this is the analysis-side consumer of it, and it refuses the mix
+    rather than trusting the operator to have noticed.
+
+    A round carrying NO `run` is a THIRD value, not a disagreement: 0 of 10 rounds in
+    `wg-tetris-judge-2026-08-17/pre` predate the field, and refusing them would make
+    this tool unable to read the very corpus the withdrawn register points operators at
+    (WR-tier3-pair's `replaced_by` names it). They are returned for the caller to list.
+    Fail closed on what a round CAN answer and answers differently; warn on what it
+    cannot answer at all (rule 7's direction, not its exception).
+
+    Like `assert_poolable`, this lives at the resource rather than beside one caller:
+    `figures()` refuses, so no future caller of a pooled figure re-derives the question.
+    """
+    carried: dict[str, list[dict]] = collections.defaultdict(list)
+    absent: list[dict] = []
+    for r in rounds:
+        run = r.get("run")
+        if run:
+            carried[str(run)].append(r)
+        else:
+            absent.append(r)
+    if len(carried) > 1:
+        named = "; ".join(
+            f"{run} <- {', '.join(_round_label(r) for r in rs)}"
+            for run, rs in sorted(carried.items()))
+        raise ValueError(
+            f"refusing to pool rounds from {len(carried)} different runs: {named}. "
+            f"A submission id names different work in each run (#70) and so does a "
+            f"game (#80), and _by_stack joins by submission id across rounds, so this "
+            f"directory is not one population and no figure over it has a reading. "
+            f"Split the directory by run.")
+    return absent
+
+
 def _by_stack(rounds: list[dict], value: str) -> dict[str, list[float]]:
     """Each stack's submission means, keyed by stack, in ALPHABETICAL order.
 
@@ -228,6 +286,7 @@ def figures(rounds: list[dict], value: str, order: str) -> tuple[float, float]:
     if not usable:
         return float("nan"), float("nan")
     assert_poolable(usable)
+    assert_one_run(usable)
     if order == "pool":
         return _round_stats(usable, value)
     pairs = [_round_stats([r], value) for r in usable]
@@ -243,20 +302,46 @@ def _ids(rounds: list[dict]) -> list[str]:
     return sorted({str(r.get("aspect")) for r in rounds})
 
 
-def report(rounds: list[dict], per_aspect: bool) -> int:
+def report(rounds: list[dict], per_aspect: bool, out_dir: Path | None = None) -> int:
     """Print the four readings over the SCORED aspects, naming what was and was not pooled.
 
     Returns 1 when nothing is poolable, because a directory whose every round is a control
     or an unrecognised aspect is unmeasurable by this tool, not zero-separation.
+
+    `out_dir` is the directory the rounds were loaded from, when there was one: the
+    provenance warning is then the existing `warn_rounds_without_provenance` listing
+    (re-read from disk, so it covers the directory the OPERATOR named, not merely the
+    rounds this call was handed). Without it, the rounds `assert_one_run` returned are
+    named instead - the same warning from the loaded objects. Prints nothing when every
+    round carries its provenance, which is why a fully-provenanced directory's report is
+    byte-identical to what it was before the run guard existed.
     """
     usable = [r for r in rounds if r.get("usable", True)]
     dropped = len(rounds) - len(usable)
+    # THE RUN GUARD, BEFORE ANY OUTPUT. A mixed-run directory refused here never
+    # prints a half table, and the per-stack joins below never see one either.
+    absent_run = assert_one_run(usable)
     parts = partition(usable)
     pooled = parts[SCORED]
     seeds = sorted({r.get("order_seed") for r in usable})
     subs = {s["submission"] for r in usable for s in r["submissions"]}
     print(f"rounds {len(usable)} usable, {dropped} dropped   "
           f"orders {seeds}   submissions {len(subs)}")
+
+    # THE WARN-ABSENT HALF: rounds that predate the provenance fields cannot answer the
+    # run question at all. Listed, never refused (#86) - the tetris-judge corpus the
+    # withdrawn register cites is entirely of this kind. Silent when empty, so a
+    # fully-provenanced directory reports byte-identically to before the guard existed.
+    if out_dir is not None:
+        missing = warn_rounds_without_provenance(out_dir)
+    else:
+        missing = [f"{_round_label(r)}: no run" for r in absent_run]
+    for line in missing:
+        print(f"NO PROVENANCE: {line}")
+    if missing:
+        print(f"NO PROVENANCE: {len(missing)} round(s) predate the provenance fields "
+              f"(#86) and cannot say which run they judged; figures over them have no "
+              f"nameable population.")
 
     # WHICH ASPECTS A POOLED FIGURE IS OVER, printed whether or not anything was excluded.
     # Stating it only when something is dropped makes its absence ambiguous between "nothing
@@ -362,22 +447,27 @@ _A_BARRED = sorted(i for i in ASPECTS if classify(i) == BARRED)
 
 
 def _synth(seed: int, table: dict[str, list[float]], usable: bool = True,
-           aspect: str | None = None) -> dict:
+           aspect: str | None = None, run: str | None = None) -> dict:
     subs = []
     for st, vals in table.items():
         for i, v in enumerate(vals):
             subs.append({"submission": f"{st}__t{i}", "stack": st,
                          "score": v, "rank": v})
     return {"aspect": aspect or _A_SCORED[0], "order_seed": seed, "usable": usable,
-            "submissions": subs}
+            "run": run, "submissions": subs}
 
 
-def selftest() -> int:
+def selftest(runs_root: Path | None = None) -> int:
     """Controls, in the order they can fail.
 
     The expectations below are computed BY HAND from the tables, before running anything,
     because a control whose expected value comes out of the code it is testing agrees with
     every bug that code has.
+
+    `runs_root` names a stored `eval/runs/` tree for the CORPUS pins at the end. Without
+    it they are skipped and the output says so (`NOT RUN`) - a skipped pin is a stated
+    non-measurement, never a pass (rule 12: without the flag a worktree's gitignored,
+    empty `eval/runs` would make every corpus row a confident zero).
     """
     unmet: list[str] = []
 
@@ -716,6 +806,132 @@ def selftest() -> int:
     check("while still printing the per-stack means the bar permits",
           "per stack, score: a=0.0  b=0.0  c=0.0  d=9.0" in text, True)
 
+    # ---- the run guard (#70, #80, task 205) --------------------------------------
+    #
+    # `_by_stack` joins every round in the directory by SUBMISSION ID across all rounds.
+    # A submission id is a name within a run (#70) and so is a game (#80: four stored
+    # `g2_tetris3d` fields in different states of repair), so rounds from two runs in one
+    # directory pool two different games' work into one per-submission mean. `run` has
+    # been in every round since 2026-08-22; this is the consumer that reads it.
+    #
+    # THREE values, not two: carried-and-agreeing is measurable, carried-and-disagreeing
+    # is refused, carrying nothing is a WARNING - 0 of 10 rounds in
+    # `wg-tetris-judge-2026-08-17/pre` predate the field, and refusing them would make
+    # this tool unable to read the very corpus the withdrawn register points operators
+    # at (WR-tier3-pair's `replaced_by` names it).
+    print("19. VARIANT - rounds carrying ONE run are measurable, exactly as before")
+    same_run = [dict(a, run="wg-run-one"), dict(b, run="wg-run-one")]
+    check("same-run pool between", figures(same_run, "score", "pool")[0], 2.0)
+    check("same-run pool within", figures(same_run, "score", "pool")[1], 0.5)
+    absent = assert_one_run(same_run)
+    check("no round was treated as absent", absent, [])
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = report(same_run, per_aspect=False)
+    check("same-run directory exits 0", rc, 0)
+    check("and prints no provenance warning",
+          "NO PROVENANCE" in buf.getvalue(), False)
+
+    print("20. REFUSAL - rounds carrying DIFFERENT runs are refused, fail-closed")
+    mixed_runs = [dict(a, run="wg-run-one"), dict(b, run="wg-run-other")]
+    try:
+        figures(mixed_runs, "score", "pool")
+        unmet.append("figures() pooled two rounds naming different runs")
+        print("  [FAIL] figures() pooled rounds from two runs silently")
+    except ValueError as exc:
+        print(f"  [ok ] figures() raised: {str(exc)[:70]}...")
+        check("the refusal names both runs",
+              "wg-run-one" in str(exc) and "wg-run-other" in str(exc), True)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            report(mixed_runs, per_aspect=False)
+        unmet.append("report() printed a table over rounds from two runs")
+        print("  [FAIL] report() reported a mixed-run directory")
+    except ValueError:
+        check("report() refused before printing ANY output", buf.getvalue(), "")
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            report(mixed_runs, per_aspect=True)
+        unmet.append("report(--per-aspect) reported a mixed-run directory")
+        print("  [FAIL] --per-aspect reported a mixed-run directory")
+    except ValueError:
+        check("--per-aspect refuses too (the per-stack join has the same key)",
+              buf.getvalue(), "")
+
+    print("21. MUTANT - pooling the two runs would move the figure, so the guard acts")
+    #     Hand-computed from the two tables (check 1's `pool` reading): the join puts
+    #     a__t0 at (4+0)/2=2, so stacks land 3,2,3,1 -> between 2.0, within 0.5 -
+    #     against 3.0/0.0 for round `a` alone. The numbers are the defect: a plausible
+    #     table over two different games' work.
+    polluted = _round_stats(mixed_runs, "score")
+    check("the joined reading is a plausible-looking 2.0/0.5",
+          (round(polluted[0], 4), round(polluted[1], 4)), (2.0, 0.5))
+    # Neuter the guard the way a refactor would - quietly - and the mixed population
+    # must come back with a figure. `figures` reads the module global, so patching it
+    # here proves the refusal is this function's verdict and not a syntactic accident.
+    live_guard = assert_one_run
+    globals()["assert_one_run"] = lambda rounds: []
+    try:
+        unguarded = figures(mixed_runs, "score", "pool")
+    finally:
+        globals()["assert_one_run"] = live_guard
+    check("MUTANT: the neutered guard lets the mixed figure through",
+          (round(unguarded[0], 4), round(unguarded[1], 4)), (2.0, 0.5))
+    check("the live guard is restored", globals()["assert_one_run"] is live_guard, True)
+
+    print("22. VARIANT - a round carrying NO run is a third value, not a disagreement")
+    one_carried = [dict(a, run="wg-run-one"), b]
+    absent = assert_one_run(one_carried)
+    check("the run-less round is returned as absent", len(absent), 1)
+    check("it is round b", absent and absent[0] is b, True)
+    check("one carried run + one absent is still measurable",
+          figures(one_carried, "score", "pool")[0], 2.0)
+
+    print("23. the warn listing is the existing warn_rounds_without_provenance listing")
+    with tempfile.TemporaryDirectory() as d:
+        json.dump(b, open(os.path.join(d, "g__fun__seed0.json"), "w"))
+        loaded = load_rounds(d)
+        absent = assert_one_run(loaded)
+        check("the run-less stored round is absent, not refused", len(absent), 1)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = report(loaded, per_aspect=False, out_dir=Path(d))
+        text = buf.getvalue()
+        check("report exits 0 on a run-less directory", rc, 0)
+        check("the listing is the existing function's line",
+              "NO PROVENANCE: g__fun__seed0.json: no run" in text, True)
+    # and the library path (no directory given) names the loaded rounds themselves
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        report(one_carried, per_aspect=False)
+    check("without a directory the loaded rounds are named",
+          "NO PROVENANCE" in buf.getvalue(), True)
+
+    print("24. CORPUS - the tetris-judge corpus stays readable (needs --runs-root)")
+    if runs_root is None:
+        print("  [NOT RUN] pass --runs-root <main checkout>/eval/runs; skipped is "
+              "stated, never silently green")
+    else:
+        d = runs_root / "wg-tetris-judge-2026-08-17" / "pre"
+        if not d.is_dir():
+            unmet.append(f"corpus pin: {d} does not exist")
+            print(f"  [FAIL] {d} does not exist")
+        else:
+            loaded = load_rounds(str(d))
+            absent = assert_one_run(loaded)
+            check("0 of its rounds carry run, none refused", len(absent), 10)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = report(loaded, per_aspect=False, out_dir=d)
+            text = buf.getvalue()
+            check("the corpus report exits 0", rc, 0)
+            check("all 10 rounds are listed as without run",
+                  sum(1 for ln in text.splitlines() if ": no run" in ln), 10)
+            check("the published rank+pool pair still reproduces",
+                  "   1.3125    2.5625" in text, True)
+
     print(f"\n{len(unmet)} expectations unmet")
     for u_ in unmet:
         print(f"   UNMET: {u_}")
@@ -727,16 +943,25 @@ def main() -> int:
     ap.add_argument("--rounds", metavar="DIR", help="a directory of stored judge rounds")
     ap.add_argument("--per-aspect", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--runs-root", type=Path, default=None, metavar="DIR",
+                    help="a stored eval/runs/ tree for the selftest's corpus pins; "
+                         "without it they print NOT RUN rather than passing")
     args = ap.parse_args()
     if args.selftest:
-        return selftest()
+        return selftest(args.runs_root)
     if not args.rounds:
         ap.error("--rounds DIR or --selftest")
     rounds = load_rounds(args.rounds)
     if not rounds:
         print(f"UNMEASURABLE: no judge rounds under {args.rounds}")
         return 1
-    return report(rounds, args.per_aspect)
+    try:
+        return report(rounds, args.per_aspect, out_dir=Path(args.rounds))
+    except ValueError as exc:
+        # The guards raise; the CLI reports. A traceback would still fail closed, but
+        # a refusal that names its reason is one the operator can act on.
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

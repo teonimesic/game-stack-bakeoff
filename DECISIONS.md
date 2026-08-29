@@ -430,17 +430,32 @@ without its method names one of four quantities, which is how a pair matching no
 to be published in four documents at once (#113).
 
 **There is a third parameter and it is the POPULATION.** A directory of rounds is not one
-population, and **2** different properties put a round outside it. Decided 2026-08-23 (task
-90) and extended 2026-08-24 (`tasks/146`): both properties **declare themselves to code** in
-`eval/judge/aspects.py`, a pooled figure covers what is left, and `field_ranks` names the
-aspects each figure is over — and every aspect it excluded, with the reason — in its own output.
-The guard is `field_ranks.assert_poolable`, which raises rather than silently dropping, and an
-aspect id `aspects.py` does not define is treated as **unmeasurable rather than scored**.
+population, and **3** different properties put a round outside it. Decided 2026-08-23 (task
+90) and extended 2026-08-24 (`tasks/146`) and 2026-08-28 (`tasks/205`): the first two
+**declare themselves to code** in `eval/judge/aspects.py`, a pooled figure covers what is
+left, and `field_ranks` names the aspects each figure is over — and every aspect it excluded,
+with the reason — in its own output. The guard is `field_ranks.assert_poolable`, which raises
+rather than silently dropping, and an aspect id `aspects.py` does not define is treated as
+**unmeasurable rather than scored**.
 
 | property | field | why it is out | instance |
 |---|---|---|---|
 | it is a **control** | `Aspect.control_for` | a control's scores mean something only against the aspect it controls, so pooling it is rule 4 | `fun_frames` |
 | it is **cross-stack barred** | `Aspect.cross_stack_bar` | the judge is told which stack it is looking at, so a *between-stack* reading of it is meaningless — and a pooled figure is exactly a between-stack range | `idiomatic` (#53), `framework_fluency` |
+| it is **from another run** | the round's top-level `run` | a submission id names different work in each run (#70) and so does a game (#80), and `_by_stack` joins by submission id ACROSS rounds — so a two-run directory pools two different games' work into one per-submission mean | `field_ranks.assert_one_run` refuses the mix (task 205) |
+
+**The run property is also guarded at the sweep end, where it is cheapest.** Rounds accumulate
+into `field_sweep.py --out` across invocations by design and the resume path loads them
+without asking where they came from, so `field_sweep.assert_out_run` (task 205) refuses the
+sweep BEFORE any round is written or paired when a stored round names a run different from
+`--run` — the gates there pair on game and aspect alone, and `field_cost_usd` sums the whole
+directory. Rounds carrying NO `run` are a third value, not a disagreement: they predate the
+provenance fields (#86) and cannot be checked, so both tools LIST them rather than refuse —
+refusing would make the tier-3 corpus the withdrawn register points at
+(`wg-tetris-judge-2026-08-17`, all 10 of its `pre` rounds run-less) unreadable. The listing is
+the existing `warn_rounds_without_provenance` output, which had no caller anywhere until this
+wired it into both CLIs; it prints nothing on a fully-provenanced directory, so a report over
+one is byte-identical to what it was before the guard existed.
 
 **The bar was in prose from #53 and in code from task 135, and the pooled figure ignored both
 until `tasks/146`.** A live document stating an aspect may not be ranked across stacks, beside a
