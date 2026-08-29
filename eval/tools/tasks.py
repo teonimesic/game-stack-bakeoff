@@ -109,8 +109,38 @@ Two properties the serialiser buys that hand-quoting does not: it is resolver-aw
 `True`); and `width` is set high enough that a long value stays on one line, which is what keeps
 `grep -h "^title:" tasks/*.md` working. The format is still grep-first. It is now also parseable
 by anything that is not this file.
-"""
 
+`check` ALSO FAILS A FILE WHOSE FRONTMATTER PARSES SHORTER THAN IT WAS WRITTEN
+-----------------------------------------------------------------------------
+Parsing cleanly is not the same as parsing WHOLLY, and the difference cost tasks/214 its
+title for the file's whole life. The title was written as an unquoted scalar containing
+" #25" mid-value; in YAML a hash preceded by whitespace starts a comment, so
+`yaml.safe_load` returned everything up to " so the" and dropped the rest -- at exit 0,
+with no diagnostic, on every read. The file always held the full text; `show`, the queue
+listing and the agent's own status write all displayed the truncated value; `check` read
+the queue well-formed throughout (found 2026-08-29, tasks/216). A reader who greps the
+file and a reader who trusts the queue disagree, and nothing flagged it.
+
+The bite reaches `done_when`: a value like "done when docstat --findings names #214"
+loses its CONDITION at exactly the citation, which is the field a dispatched agent is
+briefed from.
+
+So `check` now compares each frontmatter scalar against its own line, and fails when the
+parse kept a strict PREFIX of what the line carries (`lossy_scalar_fields`). The trigger
+is that disagreement, not a character vocabulary: a check keyed on `" #"` would redden
+the repaired 214 title, which is single-quoted precisely so its " #" survives the read,
+and would miss any other way a parse comes back short. The 2026-08-29 census over all
+214 ticket files then in the queue found exactly one lossy scalar -- that title -- and
+four tickets whose unquoted scalars carry a hash following a NON-whitespace character
+(`,#189`, `(#NN)`, `[#NN]`, `,#188`) which parse whole and are the green controls,
+pinned in `tasks_control.py` direction 12 with the pre-repair line as the red fixture,
+read from its commit rather than retyped.
+
+What this deliberately does NOT conclude: nothing in the stored queue was acted on
+wrongly -- 214's tail was prose naming the finding, and the ticket's body carried the
+full statement throughout. The loss was on the display side only, which is also why
+this is a gate on the FILE and not a rewrite of history.
+"""
 from __future__ import annotations
 
 import argparse
@@ -886,6 +916,90 @@ def _scalar(v) -> str:
     return str(v)
 
 
+def _unquote(raw: str) -> str:
+    """`raw` minus ONE layer of matching outer quotes, else unchanged.
+
+    One layer, and only when the first and last characters are the same quote: `''`
+    inside a single-quoted scalar is an escaped quote, and stripping it would manufacture
+    a mismatch where the parse is lossless. The prefix test in `lossy_scalar_fields` is
+    what makes the naive single layer safe -- an escaped apostrophe makes the parsed value
+    differ from the naive unquoting without being a prefix of it, and the check stays
+    quiet, which is why the test is a prefix and not an inequality.
+    """
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
+        return raw[1:-1]
+    return raw
+
+
+def lossy_scalar_fields(text: str, parsed: dict) -> list[str]:
+    """The frontmatter keys whose scalar parsed STRICTLY SHORTER than its line wrote.
+
+    THE PROPERTY, NOT A CHARACTER VOCABULARY (tasks/216). In an unquoted YAML scalar a
+    ` #` starts a comment, so `title: text #25 more` parses as `text` and everything the
+    writer wrote from the hash onward is dropped ON READ: the file holds it, no reader of
+    the parsed value sees it. tasks/214's title lived that way for the file's whole life
+    -- written unquoted with " #25 exclusion" mid-value, displayed truncated by every
+    command in this tool, `show` and the status writes and the queue listing, while
+    `check` read the queue well-formed throughout. A grep reader and a queue reader
+    disagreed, and nothing flagged it.
+
+    The trigger is therefore the disagreement itself: for each `key: value` line, the
+    value the parse kept must not be a strict PREFIX of what the line carries. Comment
+    truncation always ends the scalar mid-line, so the lossy shape is exactly "the line
+    begins with the parsed value and then keeps going". Quoted values are unquoted ONE
+    layer first (`_unquote`): the repaired 214 title is single-quoted and carries " #25"
+    inside the quotes -- the fix working -- and a naive prefix test against the raw bytes
+    would redden it.
+
+    `parsed` is the meta `_parse` builds -- every value through `_scalar`, `id` through
+    `_id_text` -- because that is what the queue actually displays, which is the side of
+    the disagreement the check protects.
+
+    Only non-empty string values can fire. An empty parse beside a commented raw line
+    (`refs: # note`) is indistinguishable from an intentional comment, the fields where
+    emptiness is a defect are already gated by `no title` / `no done_when`, and the
+    remedy sentence needs a surviving value to point at. That choice is pinned in
+    `tasks_control.py` direction 12, so it is a decision rather than an accident.
+
+    Only the FRONTMATTER block is read (`_FM_RE`, the reader's own address): a body
+    quoting the shape is prose, not frontmatter. Mapping and list values are skipped --
+    they have no scalar to lose -- and the skip reads the RAW yaml types, not `parsed`:
+    `_parse` has already stringified collections through `_scalar`, so `refs: ['one']
+    # note` would otherwise compare the STRING "['one']" against a carrier that begins
+    with it and fire on a value that lost nothing (found in review on task 216; pinned
+    in `tasks_control.py` direction 12).
+
+    The block is parsed here a SECOND time, so a ticket rewritten between the queue's
+    load and this read can fail HERE and not at the load. The contract is PROPAGATE:
+    a block that does not parse raises `yaml.YAMLError` or `ValueError` (the latter via
+    the constructor, `!!int '08'` -- the shape `_read_fm` already guards), and the
+    caller `cmd_check` turns that into a named failure with exit 1. Never swallow a
+    parse failure to `[]`: that would read as "nothing lost" over a file whose contents
+    are in doubt. Both halves are pinned in `tasks_control.py` direction 12.
+    """
+    m = _FM_RE.match(text)
+    if m is None:
+        return []
+    raw_map = yaml.safe_load(m.group(1))
+    if not isinstance(raw_map, dict):
+        return []
+    out: list[str] = []
+    for line in m.group(1).splitlines():
+        lm = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):(.*)$", line)
+        if lm is None:
+            continue
+        key = lm.group(1)
+        if isinstance(raw_map.get(key), (list, dict)):
+            continue
+        value = parsed.get(key)
+        if not isinstance(value, str) or not value:
+            continue
+        carrier = _unquote(lm.group(2).strip())
+        if value != carrier and carrier.startswith(value):
+            out.append(key)
+    return out
+
+
 def _parse(p: Path) -> dict:
     try:
         fm, body = _read_fm(p)
@@ -1318,6 +1432,39 @@ def cmd_check() -> int:
                        f"with `review`")
         if not t.get("title"):
             bad.append(f"{t.get('id')}: no title")
+        # THE LINE AND THE PARSE MUST AGREE ON LENGTH. tasks/214's title was written as an
+        # unquoted scalar containing " #", YAML comment-stripped it on every read, and
+        # `check` read the queue well-formed for the file's whole life while `show`, the
+        # listing and the status writes displayed the truncated value. See
+        # `lossy_scalar_fields` for the property and `tasks_control.py` direction 12 for
+        # both directions; the pre-repair 214 line is the red fixture, pinned from its
+        # commit rather than retyped.
+        try:
+            lost = lossy_scalar_fields(t["path"].read_text(encoding="utf-8"), t)
+        except (OSError, UnicodeDecodeError) as exc:
+            bad.append(f"{t.get('id')}: unreadable while checking scalar loss: {exc}")
+            lost = []
+        except (yaml.YAMLError, ValueError) as exc:
+            # A peer can rewrite a shared ticket between `_load`'s parse and THIS re-read,
+            # and the re-read's frontmatter then fails the SECOND `yaml.safe_load` inside
+            # `lossy_scalar_fields` -- a path the malformed-file report above cannot
+            # reach, because the file parsed when the queue was loaded. Fail the file BY
+            # NAME. A traceback here also exits 1 and reads as "the check failed the
+            # queue" when it is the check that died; swallowing the error to [] would
+            # read as clean over a file whose contents are in doubt. ValueError as well
+            # as YAMLError, and it is the same decision `_read_fm` documents: `!!int '08'`
+            # scans and parses cleanly, then fails in the constructor, escaping a
+            # YAMLError-only handler. One mid-check rewrite costs one named failure
+            # (review round 2 on tasks/216; pinned in `tasks_control.py` direction 12).
+            bad.append(f"{t.get('id')}: frontmatter did not parse while checking scalar "
+                       f"loss: {exc} - the ticket changed between the queue's load and "
+                       f"this read; re-run")
+            lost = []
+        for key in lost:
+            bad.append(f"{t.get('id')}: `{key}` parses shorter than its line wrote it - "
+                       f"in an unquoted YAML scalar a ` #` starts a comment, so the "
+                       f"queue reads {t.get(key, '')!r} and the file carries more. "
+                       f"Quote the value if the tail is content")
     # THE BODY IS ITS OWN TICKET. Both halves of commit 436bf64, which `check` read as clean.
     #
     # These run on `done` tasks too, unlike the reachability warning below. That exemption is
