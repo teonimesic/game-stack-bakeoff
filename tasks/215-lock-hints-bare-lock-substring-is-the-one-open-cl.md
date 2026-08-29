@@ -66,3 +66,19 @@ the repair did not blunt the #25 remedy. Pin the two benign banners as NOT class
 Pin the two copies equal (or one shared constant) so the next hint lands once. And run
 `bot_mutants.py`'s serialisation check after: #25's structural fix must be untouched by
 a wording-set change.
+
+## Correction 2026-08-29, after tasks/214 landed (PR #94, squash 7518e6d)
+
+The consequence asymmetry this ticket states for audio.py is INVERTED by 214's
+landing, and the inversion strengthens the ticket. `read_manifest` now returns a
+`ManifestRead` carrying a `lock` bit, and `triggered_criterion` marks a lock-eaten
+read `scored=False` NOT MEASURED. So an over-broad hint match in audio.py no longer
+"wastes retries and misclassifies nothing": a benign `Clock: 60 fps` banner now buys
+the retries, exhausts them, comes back `lock=True`, and **excludes** the criterion —
+fail-open on audio.py's side too, exactly like probe.py's. Both copies are now
+fail-open on over-breadth; only the RETRY cost differs between them. The one
+definition and the closed class are therefore worth more than this ticket first
+priced, and the pinned greens are unchanged: the four specific phrases still carry
+both stored true positives, the bare `"lock"` still has 0 stored true positives and
+0 stored records of any kind through it. The tuples themselves are untouched by 214
+(probe.py:234, audio.py:292; line numbers only drifted).
