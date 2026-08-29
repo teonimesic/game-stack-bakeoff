@@ -1,10 +1,11 @@
 ---
 id: 215
 title: LOCK_HINTS exists as two never-compared hand copies, and its one open-class member - the bare substring "lock" - has 0 true positives on the stored corpus while reading benign engine words as lock conflicts
-status: todo
+status: in_review
 priority: 5
 refs: eval/judge/probe.py, eval/judge/audio.py, eval/findings/one-arm-bias.md, eval/findings/certifies-nothing.md
 done_when: 'the two LOCK_HINTS tuples are one definition asserted equal at import (the #100/#114 same-object pattern) or a single shared constant, the bare "lock" substring is gone from it with every specific phrase retained, and a pinned check shows BOTH stored true-positive pollution lines still classify as lock conflicts while banners reading "Clock: 60 fps" and "Deadlock detection: off" no longer do - plus the audio.py note path re-censused, with the consequence asymmetry stated in the ticket this closes.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/96
 ---
 
 `LOCK_HINTS` is defined twice by hand — probe.py:230 and audio.py:292 — five phrases
