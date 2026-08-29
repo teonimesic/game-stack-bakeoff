@@ -124,6 +124,7 @@ asked whether it CAN go red. The repository's own `tasks.py` is never written to
 from __future__ import annotations
 
 import argparse
+import difflib
 import importlib.util
 import re
 import shutil
@@ -312,7 +313,14 @@ def _run_tool(tool: Path, *argv: str) -> tuple[int, str]:
 
 # --------------------------------------------------------------------------- direction 1
 def roundtrip_rows() -> tuple[list[tuple], list[str]]:
-    """Every file in the LIVE shared queue must survive read-then-write byte for byte."""
+    """Every file in the LIVE shared queue must survive read-then-write byte for byte.
+
+    The render is driven THE WAY `_set` DRIVES IT -- fm, body AND the reader's raw lines.
+    A render called without them tests a writer nobody runs: before tasks/217 it stayed
+    green here while the production write path (`_render(fm, body)`, no raw lines) rewrote
+    a hand-quoted scalar plain and reddened every open pull request at once. A writer that
+    will not accept what its own reader produces is a named FAIL, not a crash.
+    """
     if not T.TASKS.is_dir():
         return [], [f"round trip NOT CHECKED - no queue at {T.TASKS}"]
     files = sorted(T.TASKS.glob("*.md"))
@@ -322,11 +330,16 @@ def roundtrip_rows() -> tuple[list[tuple], list[str]]:
     for p in files:
         original = p.read_text(encoding="utf-8")
         try:
-            fm, body = T._read_fm(p)
+            fm, body, raw = T._read_fm(p)
         except T._Malformed as exc:
             unparseable.append(f"{p.name} ({exc})")
             continue
-        if T._render(fm, body) != original:
+        try:
+            rendered = T._render(fm, body, raw)
+        except TypeError:
+            broken.append(f"{p.name} (writer takes no raw lines)")
+            continue
+        if rendered != original:
             broken.append(p.name)
     rows = [(f"round trip: all {len(files)} queue files reproduce byte for byte",
              len(files) - len(broken) - len(unparseable), not broken and not unparseable,
@@ -344,7 +357,7 @@ def roundtrip_rows() -> tuple[list[tuple], list[str]]:
 
 def _values_survive(p: Path) -> bool:
     try:
-        fm, body = T._read_fm(p)
+        fm, body, _raw = T._read_fm(p)
     except T._Malformed:
         return False
     import io
@@ -1723,6 +1736,20 @@ LOSSY_DONE_WHEN_FIXTURE = ("tasks.py check exits 1 on this queue and docstat --f
                            "names #214 in its index - the condition ends at the citation")
 
 
+# --------------------------------------------------------------------------- direction 13
+#: THE TICKET THAT REDDENED EVERY OPEN PULL REQUEST (tasks/217). Hand-authored at cd4994d
+#: with a single-quoted title AND done_when, it was byte-legal YAML that the writer could
+#: not reproduce: `_render` re-emitted the title unquoted, so the byte round trip went red
+#: on every merge ref carrying the file -- through a queue file none of those pull requests
+#: touched. Pinned at its commit like every blob in this file: the live ticket was
+#: canonicalised by the very status write that closed tasks/216, so the defect shape exists
+#: at the commit and nowhere in the queue now. THAT IS WHY THIS DIRECTION EXISTS -- the
+#: property is durable, and a queue that happens to be canonical proves nothing about the
+#: next hand repair that quotes a scalar.
+HAND_QUOTED_COMMIT = "cd4994d"
+HAND_QUOTED_216 = "tasks/216-tasks-py-check-passes-a-frontmatter-scalar-whos.md"
+
+
 def _fm_line(blob: str, field: str) -> str:
     """One frontmatter line, whole, `field:` included - or a hard failure.
 
@@ -2014,6 +2041,186 @@ def lossy_predicate_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
     return rows, unchecked
 
 
+# --------------------------------------------------------------------------- direction 13
+def _through_writer(blob: str, scratch: Path) -> tuple[bool, str]:
+    """A blob read then re-written THE WAY `_set` WRITES IT: fm, body AND raw lines.
+
+    One helper for every byte-identity row below, because they are all the same claim about
+    different files: the writer can reproduce what it just read, quoted scalars included.
+    A render called without the raw lines is the pre-217 writer, and against the cd4994d
+    blob it is exactly the defect -- so a writer that will not accept its own reader's
+    output is a named FAIL here, never a TypeError traceback.
+    """
+    scratch.mkdir(parents=True, exist_ok=True)
+    p = scratch / "through.md"
+    p.write_text(blob, encoding="utf-8")
+    try:
+        fm, body, raw = T._read_fm(p)
+    except T._Malformed as exc:
+        return False, f"unparseable ({exc})"
+    try:
+        rendered = T._render(fm, body, raw)
+    except TypeError:
+        return False, ("writer takes no raw lines - a scalar the file holds quoted cannot "
+                       "survive it")
+    if rendered == blob:
+        return True, "byte for byte"
+    for d in difflib.unified_diff(blob.splitlines(), rendered.splitlines(), lineterm="", n=0):
+        if d[:1] in "+-" and d[:3] not in ("+++", "---"):
+            return False, f"DIFFERS: {d[:150]}"
+    return False, "DIFFERS (only in line endings)"
+
+
+def preservation_rows(tmp: Path) -> tuple[list[tuple], list[str]]:
+    """13: the writer can reproduce a scalar a hand repair quoted (tasks/217).
+
+    cd4994d hand-authored tasks/216 with a single-quoted title and done_when -- legal YAML,
+    `check`-clean, and UNREPRODUCIBLE by the writer: `_render` re-emitted the title plain,
+    so the byte round trip in CI went red on every pull request whose merge ref carried the
+    file. The immediate red cleared when the 216 agent's own status write canonicalised the
+    file, but the property stayed broken: any future hand repair that quotes a scalar the
+    writer would emit plain re-reddens every open pull request at once, through a file none
+    of them touched. The repair is in the writer -- it now re-emits, byte for byte, every
+    line whose value the write did not change -- and this direction pins it on the file
+    that broke, at the commit that broke it, rather than on a queue that happens to be
+    canonical today.
+
+    The rows, and why each is shaped the way it is:
+
+    * THE BLOB REPRODUCED (the ticket's own repro, inverted): read the cd4994d 216 file
+      with `_read_fm`, re-render through the production write path, and the bytes must come
+      back IDENTICAL. Red under the pre-217 writer, which returns the title unquoted.
+    * `_set` END TO END on a scratch queue: a status write on that ticket rewrites EXACTLY
+      one line. This is the row that says preservation did not become "the writer passes
+      raw bytes around": the write still happened, the changed field is in it, and
+      everything else -- title and done_when included -- is the file's own bytes back.
+    * VARIANTS (rule 15's other half -- the capability must survive the repair): the status
+      line DID change; and a value this write DID change is still serialised canonically,
+      quoted when its content needs it, because the serialiser -- not raw passthrough -- is
+      what keeps `": "` inside a value from becoming an unparseable file (#141's cause).
+    * THE GREENS, at the commits direction 12 pins them at: the repaired 214 title (quoted
+      precisely because it holds " #") and the four census lines, each through the writer
+      byte for byte. A preservation that re-quoted the unquoted, or re-canonicalised what
+      it was given, would redden these -- the same pull requests, from the other side.
+    """
+    rows: list[tuple] = []
+    unchecked: list[str] = []
+
+    # ONE SHA, TWO CONSTANTS. `cd4994d` is both the commit that repaired 214 (direction
+    # 12's LOSSY_REPAIR_COMMIT) and the one that hand-authored the quoted 216 ticket. Two
+    # names for one address is rule 12's shape, so the equality is asserted, not promised.
+    rows.append(("direction 13's hand-quoted fixture is direction 12's repair commit "
+                 "(one sha, one address)", 0,
+                 HAND_QUOTED_COMMIT == LOSSY_REPAIR_COMMIT,
+                 f"{HAND_QUOTED_COMMIT} vs LOSSY_REPAIR_COMMIT {LOSSY_REPAIR_COMMIT}"))
+
+    blob216 = _blob(HAND_QUOTED_COMMIT, HAND_QUOTED_216)
+    if blob216 is None:
+        unchecked.append(f"the preservation rows NOT CHECKED - no blob at "
+                         f"{HAND_QUOTED_COMMIT}: no history to read is not a pass")
+    else:
+        ok, detail = _through_writer(blob216, tmp / "pres-through")
+        rows.append(("the writer re-emits a scalar the file holds quoted, byte for byte "
+                     "(the cd4994d 216 blob)", len(blob216), ok, detail))
+
+        # END TO END through `_set`, which is the write every status transition makes.
+        # Scratch queue, T.TASKS swapped the way directions 11/11c swap it; the blob is
+        # the ticket, `todo`, exactly as the hand repair left it.
+        sq = tmp / "pres-set"
+        (sq / "tasks").mkdir(parents=True)
+        target = sq / "tasks" / "216-x.md"
+        target.write_text(blob216, encoding="utf-8")
+        saved = T.TASKS
+        try:
+            T.TASKS = sq / "tasks"
+            rc = T._set("216", status="in_progress")
+        finally:
+            T.TASKS = saved
+        after = target.read_text(encoding="utf-8")
+        old_lines, new_lines = blob216.splitlines(), after.splitlines()
+        changed = [(x, y) for x, y in zip(old_lines, new_lines) if x != y]
+        # THE EXPECTATION IS THE WHOLE FILE, NOT THE DIFF (review round 1, PR 97):
+        # `zip` truncates at the shorter side, so a writer that rewrote the status line
+        # AND appended or dropped trailing lines left this row green while the claim in
+        # its name was false -- measured before the repair: the old condition passes a
+        # writer that appends 2 junk lines. `expected` is the blob with exactly the one
+        # status line replaced, and the row demands the file after `_set` equal it byte
+        # for byte. `expected != blob216` asserts the substitution fired, so a pin drift
+        # fails here rather than silently demanding a no-op write.
+        expected = re.sub(r"^status: todo$", "status: in_progress", blob216,
+                          count=1, flags=re.M)
+        rows.append(("`_set` on the hand-quoted 216 ticket rewrites ONLY the status line",
+                     rc, rc == 0 and expected != blob216 and after == expected
+                     and len(changed) == 1
+                     and changed == [("status: todo", "status: in_progress")],
+                     f"exit {rc}, {len(changed)} line(s) differ, whole-file match: "
+                     f"{after == expected}: {[(x[:40], y[:40]) for x, y in changed[:3]]}"))
+        title_after = next((ln for ln in new_lines if ln.startswith("title:")), "(absent)")
+        title_before = next((ln for ln in old_lines if ln.startswith("title:")), "(absent)")
+        rows.append(("...and the quoted title line is the file's own bytes back", 0,
+                     title_after == title_before and title_after.startswith("title: '"),
+                     f"still quoted: {title_after.startswith('title: ' + chr(39))}; "
+                     f"{title_after[:90]}"))
+
+        # VARIANT: the write actually happened. A preservation that preserved the CHANGE
+        # too would be a no-op writer -- exit 0, `status=in_progress` printed, file
+        # untouched. It is the fail-open half of this mechanism and gets its own row.
+        rows.append(("VARIANT: the status line DID change (preservation is not a no-op "
+                     "writer)", 0, "status: in_progress" in new_lines,
+                     f"file says: {next((ln for ln in new_lines if ln.startswith('status:')), '(absent)')}"))
+
+    # VARIANT: a value this write DID change is serialised, not passed through. Raw lines
+    # only ever restore what the write did not touch; anything else goes out through
+    # safe_dump, which is what keeps `": "` inside a value from ending the line early.
+    # Asserted as the PROPERTY -- the line is quoted and parses back to the value -- rather
+    # than as PyYAML's particular quote character, which is its choice, not the mechanism.
+    rendered = None
+    try:
+        rendered = T._render({"established_by": 'wrote ": " into a value once'},
+                             "\nbody\n")
+    except TypeError:
+        pass
+    line = next((ln for ln in (rendered or "").splitlines()
+                 if ln.startswith("established_by:")), "(absent)")
+    quoted = line.startswith("established_by: '") or line.startswith('established_by: "')
+    value_back = None
+    try:
+        value_back = yaml.safe_load(line).get("established_by") if quoted else None
+    except yaml.YAMLError:
+        pass
+    ok = value_back == 'wrote ": " into a value once'
+    rows.append(("VARIANT: a changed value is written canonically, quoted when it needs it",
+                 len(line) if rendered else 0, ok, f"line: {line[:100]}"))
+
+    # THE GREENS at direction 12's pinned commits: the repaired 214 title and the four
+    # census lines, each through the writer byte for byte.
+    repaired214 = _blob(LOSSY_REPAIR_COMMIT, _T214)
+    if repaired214 is None:
+        unchecked.append(f"the 214 preservation green NOT CHECKED - no blob at "
+                         f"{LOSSY_REPAIR_COMMIT}")
+    else:
+        ok, detail = _through_writer(repaired214, tmp / "pres-214")
+        rows.append(("the repaired 214 title (quoted, ` #` inside) survives the write "
+                     "path byte for byte", len(repaired214), ok, detail))
+    green_blobs = []
+    for tid, commit, path, _what in LOSSY_GREEN_COMMITS:
+        b = _blob(commit, path)
+        if b is None:
+            unchecked.append(f"the {tid} preservation green NOT CHECKED - no blob at "
+                             f"{commit}")
+            continue
+        green_blobs.append((tid, b))
+    if green_blobs:
+        results = [(tid, *_through_writer(b, tmp / f"pres-g{tid}")) for tid, b in green_blobs]
+        bad = [(tid, d) for tid, ok, d in results if not ok]
+        rows.append((f"the four census greens survive the write path byte for byte "
+                     f"({', '.join(tid for tid, *_ in results)})", len(green_blobs),
+                     not bad,
+                     "all byte-identical" if not bad
+                     else f"CHANGED: {bad[:3]}"))
+    return rows, unchecked
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -2062,7 +2269,8 @@ def main(argv: list[str]) -> int:
                    lambda: evidence_rows(tmp, a.skip_prefix),
                    lambda: landed_rows(tmp, a.live_squash_refs),
                    lambda: lossy_check_rows(tmp),
-                   lambda: lossy_predicate_rows(tmp)):
+                   lambda: lossy_predicate_rows(tmp),
+                   lambda: preservation_rows(tmp)):
             r, u = fn()
             rows.extend(r)
             unchecked.extend(u)

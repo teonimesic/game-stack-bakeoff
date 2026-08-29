@@ -3908,6 +3908,35 @@ components, not substrings: `node_modules_notes.py` and `PackageCache-report.py`
 fixture corpus and in the walked set, because a name merely containing a vendored name is not a
 vendored tree.
 
+## The queue's writer preserves a hand-quoted scalar instead of refusing it — decided 2026-08-29
+
+`yaml.safe_dump` chooses quoting, and cd4994d was the measurement of what that costs: it
+hand-authored tasks/216 with a single-quoted title and done_when — legal YAML, `check`-clean —
+and the next status write re-emitted the title plain, because the serialiser emits plain whenever
+plain parses. The byte round trip in CI went red on every open pull request whose merge ref
+carried the queue, through a file none of them touched (tasks/217).
+
+Two repairs fit. **The writer preserves** — `_read_fm` also reads each single-line
+`key: ...` frontmatter line verbatim, and `_render` puts a line back byte for byte whenever the
+value behind it is unchanged (`_restore_lines`). **The check refuses** — `tasks.py check` fails
+any frontmatter line whose quoting differs from what the writer would emit, so the committed
+queue can never hold a file the writer would rewrite. The second was rejected on the census
+greens from task 216: the four hash-after-non-whitespace rows (`,#189`, `(#NN)`, `[#NN]`,
+`,#188`) hold quoting PyYAML would NOT emit, so a refusal gate reddens correct files a
+preservation writer reproduces exactly — the same shape that made the line-versus-parse check a
+property test rather than a character vocabulary. Preservation also keeps the writer's one
+invariant (grep-flat, resolver-aware serialisation for anything a write touches) while giving up
+nothing: the serialiser still chooses the bytes of every line a write changes.
+
+The guard cannot corrupt a write: a raw line restores only if it parses, standalone, to a mapping
+equal to `{key: value-being-written}` — a changed value fails that test and is serialised, and a
+line that does not parse standalone falls back to canonical output. Worst case is the pre-217
+writer, never corruption. Pinned in `tasks_control.py` direction 13 on the cd4994d blob itself
+(8 rows, including a variant asserting the status line DID change, so preservation is not a
+no-op writer); the pre-217 writer and the deleted guard are mutants `render_discards_raw` and
+`render_ignores_value_changes`, and the ticket's other clause — a mutant re-quoting one canonical
+scalar is caught by the gate that owns byte changes — is `id_requoted`.
+
 ## Keeping this current
 
 Update in the same session a decision is made or changed. Replace superseded entries rather than
