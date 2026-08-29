@@ -166,7 +166,11 @@ class ProbeSession:
                 self._note(f"[probe-lock] start attempt {attempt}/{attempts} refused "
                            f"by what reads as a project lock; retrying")
                 self.close()
-                time.sleep(min(20.0, 4.0 * attempt))
+                if attempt < attempts:
+                    # Between attempts only: sleeping after the last refusal would be
+                    # dead wall clock on every exhausted lock read (raised by
+                    # CodeRabbit for `audio.read_manifest`, the same loop's sibling).
+                    time.sleep(min(20.0, 4.0 * attempt))
         assert last is not None
         # Every attempt was refused with a project-lock signature. The submission has
         # not been measured, so callers must not score this as a failure - see

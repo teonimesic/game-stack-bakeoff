@@ -32,7 +32,7 @@ THE LOCK PATH IS PINNED HERE TOO (tasks/214). FINDINGS #25's exclusion lived onl
 `probe.unusable_criteria`, and `probe.drive` appended `audio.triggered` after it: on a
 lock-conflicted session every bot criterion came back `scored=False` while
 `audio.triggered` alone was counted a scored failure - "the driven run emitted no events
-at all" - on exactly the arm the exclusion exists to protect. Two mutants here restore
+at all" - on exactly the arm the exclusion exists to protect. 2 mutants here restore
 that composition and the un-flagged `read_manifest` tuple; the fail-closed default (a
 run that HAPPENED and emitted nothing) has its own rows and is not loosened.
 """

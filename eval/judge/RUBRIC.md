@@ -849,14 +849,13 @@ extras, and a manifest covering a strict subset of the declared events. It also 
 because a check that reads its expectation from the grader goes green on both halves of
 one mistake.
 
-`audio.triggered` additionally pins the FINDINGS #25 lock exclusion (tasks/214): a
-session the engine refused under a project lock brings the criterion back `scored=False`
-— NOT MEASURED, excluded from the score — through `probe.drive`, while a non-lock probe
-failure and a run that genuinely emitted no events stay scored failures, and a manifest
-read whose retries exhausted on lock signatures is excluded through the `read_manifest`
-lock bit. Two mutants restore the old append-without-the-lock-bit composition and the
-un-flagged manifest tuple, and must scorch the lock fixtures while leaving the controls
-green.
+`audio.triggered` also carries the FINDINGS #25 lock exclusion (tasks/214). A session
+the engine refused under a project lock returns the criterion `scored=False` through
+`probe.drive` — NOT MEASURED, excluded from the score. A manifest read whose retries
+exhausted on lock signatures is excluded the same way, through the `read_manifest`
+lock bit. A non-lock probe failure, and a run that genuinely emitted no events, stay
+scored failures. 2 mutants remove each lock bit in turn; both must turn the lock
+fixtures red and leave the controls green.
 
 **After changing an audio criterion, re-score the stored corpus.** Run:
 

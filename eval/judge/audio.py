@@ -328,7 +328,10 @@ def read_manifest(repo: Path, env: dict[str, str] | None = None,
             return ManifestRead(data, "", code)
         if not any(h in note.lower() for h in LOCK_HINTS):
             return ManifestRead(None, note, code)
-        time.sleep(min(20.0, 4.0 * attempt))
+        if attempt < attempts:
+            # Between attempts only: sleeping after the last read would be 12s of
+            # dead wall clock on every exhausted lock read (raised by CodeRabbit).
+            time.sleep(min(20.0, 4.0 * attempt))
     return ManifestRead(None, f"after {attempts} attempts: {note}", code, lock=True)
 
 

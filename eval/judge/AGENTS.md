@@ -250,10 +250,10 @@ audio criterion fails with that as the recorded reason — fail-closed, never sk
 criteria retroactively would measure the task change rather than the work.
 
 **Every audio criterion has a mutant.** `audio_selftest.py` runs 110 expectations (`python3
-eval/judge/audio_selftest.py` prints the count on its closing line): five criteria plus
-`audio.triggered` against a healthy fixture, then against nine mutants each of which must turn one
+eval/judge/audio_selftest.py` prints the count on its closing line): 5 criteria plus
+`audio.triggered` against a healthy fixture, then against 9 mutants each of which must turn one
 of them red — plus the FINDINGS #25 lock exclusion on `audio.triggered`, pinned through
-`probe.drive` with stub sessions and at the `read_manifest` tuple, with two mutants of its own
+`probe.drive` with stub sessions and at the `read_manifest` tuple, with 2 mutants of its own
 (tasks/214). Run it before believing an audio score. A criterion that cannot fail is worse than
 absent, because it looks like success.
 
