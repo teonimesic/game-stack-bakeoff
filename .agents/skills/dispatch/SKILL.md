@@ -153,6 +153,15 @@ Then `python3 eval/tools/tasks.py` to confirm it shows `in_progress`, and keep d
 **Never leave the queue idle behind one item** — a task in the queue was authorised when it was
 filed.
 
+> **Commit and push the ticket BEFORE you launch.** An `isolation: worktree` agent checks out a
+> COMMIT; an untracked ticket file does not exist in its tree, and nothing about the launch will
+> tell you so. On 2026-08-30 (task 224) the ticket was filed, the agent launched, and the file
+> was committed two commits later — the agent started from a tree with no ticket in it, and the
+> repair cost a message round-trip to deliver what one earlier commit would have. The order that
+> works: `tasks.py add`, `git add tasks/ && git commit && git push`, THEN launch. Earlier
+> dispatches (task 223) got this order right by accident of when the commit happened to land;
+> the skill is where the ordering should have lived, which is why this note exists now.
+
 ## 4. Take the pull request back
 
 **The queue tells you whose turn it is.** Five statuses, and only one of them is yours:
