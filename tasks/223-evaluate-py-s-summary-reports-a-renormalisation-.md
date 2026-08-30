@@ -1,7 +1,7 @@
 ---
 id: 223
 title: evaluate.py's summary reports a renormalisation the gate regime removed, with a reason field nothing sets
-status: todo
+status: in_progress
 priority: 4
 refs: eval/judge/evaluate.py
 done_when: summarise() prints no renormalisation claim and no 'reason:' line under the gate regime — either the NOTE branch is removed (the summary already prints 'tier 3 is DIAGNOSTIC' and the SKIPPED row) or it states only what is true, that the judge tier is diagnostic and cannot affect overall; the combine-step comment at :428-431 states the current arithmetic while keeping the historical 0.08 story as decision evidence in past tense; overall_excludes_judge_because has no remaining reader or is now written by the code that earns it; the record fields are unchanged — judge_usable keeps its False-on-skip semantics, which is load-bearing at eval/tools/scene_runner_control.py:340 where a refused legacy judge must read judge_usable False; scene_runner_control's rows still pass; python3 eval/tools/docstat.py --sweep, --renumbered and eval/tools/tasks.py check all exit 0.
