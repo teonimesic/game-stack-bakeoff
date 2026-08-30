@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ten mutants of `disclosure.py`, each removing one mechanism its selftest names.
+"""Twelve mutants of `disclosure.py`, each removing one mechanism its selftest names.
 
 `disclosure.py --selftest` mutates its own cue LIST in process, which cannot reach the
 helper patterns the cues are built from, nor the line that chooses which field to read.
@@ -23,6 +23,8 @@ because a documented row disagreed:
 | `given_fix` | the repair-phrased-as-a-fix cue | `wg-audio` `g1_pong__unity__t0`, which no other family reaches |
 | `not_a_report` | the guard separating breakage from documented behaviour | 3 corpus rows and 4 variants go loud, incl. the row that says the refusal is "not a defect to repair" |
 | `family_split` | telling the two families apart at all | `archive-arena2d` `rust__t0`'s starter passage lands in the unverified-own-work count |
+| `scan_filter` | the run scan's reach into artifact dirs holding no `agent_result.json` | the fixture and `wg-audio` scan-population pins; caught offline too (tasks/225) |
+| `scan_glob` | the tree scan's directory population, restored to a file glob | the same pins over the whole tree; caught offline too (tasks/225) |
 
 The last two exist because their loss makes the instrument look **healthier**: a dead guard
 and a pooled count both raise the located figure, and nothing that merely asks "does the
@@ -32,7 +34,9 @@ family still find what it should" can see either.
     python3 eval/tools/disclosure_mutants.py --runs-dir PATH   # against another corpus
 
 A missing corpus exits 2. These mutants are not meaningful against fixtures alone: six of
-the ten are caught only by a real stored message.
+the twelve are caught only by a real stored message. The exception proves the rule the
+other way — `scan_filter` and `scan_glob` are caught by the selftest's fixture half
+alone, because a trial with no stored message carries no text for a cue test to miss.
 """
 
 from __future__ import annotations
@@ -104,6 +108,21 @@ MUTANTS: dict[str, tuple[str, str]] = {
     "family_split": (
         "STARTER_FAMILY = frozenset(name for name, _ in STARTER_CUES)",
         "STARTER_FAMILY = frozenset()"),
+    # The scanner population the selftest's direction-0 and direction-5b pins hold:
+    # the scan reaches every artifact DIRECTORY, and a trial whose agent_result.json
+    # was never stored is a no_message row, not an absence (tasks/225). Restoring the
+    # old file filter is invisible to every cue test — the dropped trials carry no
+    # text to mislocate — so only the scan-population pins can see the loss. These
+    # two are caught by the fixture half alone, so they stay pinned with
+    # --skip-corpus where the other ten are not.
+    "scan_filter": (
+        "    dirs = [d for d in sorted(artifacts.iterdir()) if d.is_dir()]",
+        "    dirs = [d for d in sorted(artifacts.iterdir())\n"
+        "            if d.is_dir() and (d / \"agent_result.json\").is_file()]"),
+    "scan_glob": (
+        '    dirs = sorted(d for d in runs_dir.glob("*/artifacts/*") if d.is_dir())',
+        '    dirs = sorted(p.parent for p in\n'
+        '                  runs_dir.glob("*/artifacts/*/agent_result.json"))'),
 }
 
 
