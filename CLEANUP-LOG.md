@@ -2733,3 +2733,96 @@ verified against every heading before writing this: 0 hits. Alternate:
 `eval/judge/anonymise.py`, the anonymiser whose dropped-manifest made #62
 findable, verified the same just now — the two candidates I checked besides
 these (`census.py`, `field_ranks`) are prior subjects and were rejected.
+
+## Pass 26 — 2026-08-30 — `eval/judge/paired_verdicts.py` (773 lines, read whole)
+
+The producer built to retire a hand-done recount: the 2026-08-22 within-cell
+figures four documents quoted had no command that computed them, and
+reproducing `436` a day later meant reverse-engineering which tier set it had
+summed. **Judged sound; no ticket.** Of the producers read in passes 21-26,
+this is the one the others should be measured against — its three refusals are
+each tied to a specific wrong published number, and the docstring corrects its
+own draft in public ("This said 'six times' until it was re-derived").
+
+Sound, with the property each one answers:
+
+- **The tier set is part of the figure** (refusal 1): `436` reproduces only by
+  summing all three tiers, 156 of which are LLM-judge criteria at weight 0.00;
+  the deterministic recount of the same run is 280/4. The corpus pins assert
+  BOTH readings and the **156 delta between them** — "were these equal, the
+  tier set would not matter and the first refusal would be decoration".
+- **A cross-game sum is a count, never a rate** (refusal 2): the pooled rows
+  are printed — they are what the published figures were — labelled "a COUNT,
+  not a rate", with the reason (criterion counts differ per game; a pooled
+  rate weights the biggest game hardest) and the per-game rates above.
+- **A cell whose trials did not both complete is not a cell** (refusal 3):
+  terminal reason comes from the BUILD record (`trials/<tid>.json`), never the
+  report (#22's reasoning); a missing JSON reads `unknown`, never `completed`;
+  and the wg-g4c-capgate arms — byte-identical diff lists, 3× the highest real
+  cell's rate — are excluded by name. Today's live run shows both nested arms
+  reached and their cells excluded.
+- **`--runs-root` is required and refused, not guessed** (:754-766), and the
+  empty population **exits 2** with the path named — the exact shape task
+  224 (pass 25) found missing from `regrade_wholegame.py`. Same repository,
+  same discipline, one tool has it and one does not; the ticket cites the
+  sibling and this pass confirms the sibling's behaviour live.
+- **The walk is `**/`**, naming the nested arms a single `*/` misses, pinned
+  by an `r6/armA` fixture (:63-65, :670-671).
+- **Every record the walk reaches but cannot classify is named**: undecodable,
+  non-mapping, unusable trial id, malformed tier block, criteria of wrong
+  shape, `id` without `passed`, non-string ids — with the hash-collision
+  reason stated (`true` and `1` hash the same, so either would let two
+  different records share one key). "A record the module cannot name is a
+  counted problem with its name attached." The skip channels are announced
+  empty over the stored tree by every selftest run that prints no note — the
+  dated docstring claim re-derives itself each run.
+- **RECORDED vs SCOREABLE is kept distinct**, and the four quadrants are all
+  pinned: a criterion only one side recorded is a suite difference (r2); a
+  malformed record is still a record, so one malformed side is not a suite
+  change (r9); a suite difference stays counted when the side that recorded it
+  recorded it malformed (r10); both sides malformed reaches no denominator but
+  is named (r8). The skip label's own scope was corrected — "not counted
+  anywhere below" was wrong for skips — and the corrected label is pinned.
+- **The positive control, mutants and variants are labelled as such** in the
+  check names, and one check knows what its own mutant would look like: r7's
+  skip check counts to 2 because "were `rows == []` the only expectation, a
+  walker that stopped globbing would pass this fixture too".
+- **Evidence-diff is built in as the independence control**: without it, a
+  verdict tie is equally consistent with the grader having read the same file
+  twice — rule 9's question, asked by the instrument itself.
+- The **4 deterministic verdict differences are named per criterion** in the
+  live output — a count you can open, not just a number.
+- Selftest without `--runs-root` runs the synthetic half and **says the pins
+  did not run** — a skipped section that announces itself, never one that
+  reads as run.
+
+Live at HEAD b0e0004, unpiped: `--selftest --runs-root <main>/eval/runs` —
+**38/38 checks, 5/5 corpus pins**, every published figure reproduced with its
+tier set (wg-matrix ALL_TIERS 436/5/332, DETERMINISTIC 280/4/176; wg-audio48
+232/0/120 both); the full report over the stored tree names the nested
+excluded arms and all 4 deterministic differences. Exit 0.
+
+### Below the bar
+
+Nothing that survives scrutiny. The only candidate — pooled "0 paired" rows
+under excluded-cell runs reading, to a skimming reader, like a measured
+perfect tie — is exactly what the "EXCLUDED CELLS (not counted anywhere
+below)" header above each one exists to prevent; the label is the defence and
+it is pinned. The corpus pins hard-code figures for named runs and would fail
+loudly if those records were ever legitimately re-graded — which is a pin
+doing its job, not a defect.
+
+### Gates at HEAD b0e0004, unpiped
+
+`paired_verdicts.py --selftest --runs-root <main>` 38/38 + 5 pins exit 0;
+full-report exit 0; `docstat.py --sweep`, `--renumbered`, `tasks.py check`
+re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/anonymise.py` — the anonymiser whose dropped-manifest made #62
+findable four matrices late (the audit-trail paragraph in AGENTS.md is about
+it), verified against every heading before writing this: 0 hits. Alternate:
+`eval/judge/disclosure.py`, the rule-11 locator whose two-questions-two-counts
+caveats are load-bearing in AGENTS.md and worth reading at the source,
+verified 0 hits just now.
