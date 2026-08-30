@@ -119,16 +119,17 @@ Read/NotebookRead targets count as reads. The latent-null census beside it refus
 targets of exactly 200 characters rather than classify them — the length the capture cut at
 until 2026-08-28 (task 204).
 `judge_refusal_selftest` pins the retired generalist judge's refusal of a game its `GAME_BRIEF`
-table does not brief (task 221): the refusal is a recorded verdict whose fields are asserted as
-literals, nothing is spent before it (spies over `build_pack` and the model call must stay
-silent, on submission paths that do not exist so a guard that slipped below them reads as an
-exception), briefed games still render their own briefs with `_brief`'s direct index raising
-rather than restoring the old placeholder, and the census extraction that partitions stored
-`judge.json` files into real rounds, skipped markers and refusals by CONTENT is pinned on a
-fixture tree whose answer is written beside it — including a wrapper directory, because a
-filename census once counted evaluate()'s skipped markers as rounds of the game the trial id
-named. Its corpus arm reads `eval/runs/`, which is gitignored, and prints `NOT ASKED` in CI.
-0.1s locally.
+table does not brief: the refusal returns before the pack is built and before any model call
+(spies over both must stay silent, on submission paths that do not exist so a guard that
+slipped below them reads as an exception, not a refusal), the record's fields are asserted as
+literals — `refused: true`, `usable: false`, `0/13`, zero cost — briefed games still render
+their own briefs with `_brief`'s direct index raising rather than rendering a placeholder, and
+the census extraction that partitions stored `judge.json` files by CONTENT is pinned on a
+fixture tree whose answer is written beside it, including a wrapper directory, because a
+filename census cannot tell a skipped marker from a round. A record the census cannot parse is
+counted as `unparseable`, and the corpus arm goes red over any nonzero count rather than
+reporting the readable remainder as clean. Its corpus arm reads `eval/runs/`, which is
+gitignored, and prints `NOT ASKED` in CI. 0.1s locally.
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and

@@ -137,18 +137,17 @@ registry as the 6 game aspects and at the same weight, 0.00. 2 things govern usi
   than reading it as a game, and **it answers for the deterministic instruments too**:
   `aspects.INSTRUMENTS` declares the class of `playbot`, `scene_probe` and `legacy_judge`.
   `eval/tools/scene_runner_control.py --paths` prints the routes; each has a mutant.
-- **The class guard answers "game or scene"; `judge()` itself answers "which game".** A game
-  the suite launches but `judge.GAME_BRIEF` does not brief used to render `"(unknown game)"` and
-  answer all 13 criteria against a placeholder nobody wrote; since tasks/221 `judge()` refuses
-  it **as a recorded verdict** (`refused: true`, usable false, error naming the game and the
-  table) returned before the pack is built and before any model call — a record rather than an
-  exception, because `evaluate()`'s completeness gate needs `judge.json` present and tiers 1-2
-  are valid whatever this weight-0.00 tier answers. `_brief` indexes the table directly, so a
-  bypass of the guard raises rather than renders the placeholder. **Do not extend `GAME_BRIEF`
-  to admit a game**: the table is what every stored round was read against; a new game gets a
-  brief written for it or stays out of the retired judge's scope. `judge_refusal_selftest.py`
-  pins the record's literal fields, the spend-free path, the backstop and the stored census —
-  and its mutants are the two rejected repairs, the table extended and the placeholder restored.
+- **The class guard answers "game or scene"; `judge()` answers "which game".** A game with no
+  `judge.GAME_BRIEF` entry is refused, never answered: `judge()` returns a record —
+  `refused: true`, `usable: false`, `0/13`, `cost_usd 0.0`, an error naming the game and the
+  table — before the pack is built and before any model call, and `evaluate()` records it like
+  any other round so tiers 1-2 survive. `_brief` indexes the table directly, so a path that
+  bypasses the guard raises rather than renders a placeholder. **Never extend `GAME_BRIEF` to
+  admit a game whose brief has not been written**: the table is what every stored round was
+  read against; a new game gets a brief written for it or stays out of the retired judge's
+  scope. `judge_refusal_selftest.py` pins the record, the spend-free path, the backstop and the
+  stored census, and its mutants are the two rejected repairs — the table extended, the
+  placeholder restored.
 - **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
   `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
   prints the reason and the aspect's per-stack means — alphabetically by stack, never sorted

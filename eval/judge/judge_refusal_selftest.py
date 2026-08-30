@@ -27,25 +27,31 @@ What this file checks, and how:
                            than rendering a placeholder (the backstop behind the
                            guard), and the CLI still refuses by argparse choices.
   THE CENSUS               the extraction that partitions stored judge.json files into
-                           real rounds / skipped markers / refusals / other is pinned
-                           on a fixture tree whose answer is written as literals -
-                           including a wrapper directory holding a run, which is the
-                           treatment every new walker over runs/ gets (eval/AGENTS.md).
-                           With --runs-root the same census runs over the stored tree
-                           and asserts the guard moves nothing: every real round sits
-                           on a briefed game, so 0 stored conclusions change.
+                           real rounds / skipped markers / refusals / unparseable /
+                           other is pinned on a fixture tree whose answer is written
+                           as literals - including a wrapper directory holding a run,
+                           which is the treatment every new walker over runs/ gets
+                           (eval/AGENTS.md). With --runs-root the same census runs
+                           over the stored tree and asserts the guard moves nothing:
+                           every real round sits on a briefed game, so 0 stored
+                           conclusions change. A record that cannot be parsed is
+                           COUNTED (unparseable), never silently excluded, and the
+                           corpus arm goes red over any nonzero count - a census that
+                           reports the readable remainder as clean is the fail-open
+                           shape rule 7 names.
 
   MUTANTS                  GAME_BRIEF extended with the unbriefed game (the guard
                            stops firing and the record reads as a measurement again);
                            the placeholder restored under the direct index; both must
                            go red.
 
-    python3 judge/judge_refusal_selftest.py                  # offline, no corpus
-    python3 judge/judge_refusal_selftest.py --runs-root DIR  # + the stored census
+    python3 eval/judge/judge_refusal_selftest.py                  # offline, no corpus
+    python3 eval/judge/judge_refusal_selftest.py --runs-root DIR  # + the stored census
 
 The corpus arm reads eval/runs/, which is gitignored: absent, it prints NOT ASKED
 rather than a count; present but holding no judge.json, it exits 2 rather than
-report 0 (rule 12 - the address is an input to the check).
+report 0 (rule 12 - the address is an input to the check); holding a record it
+cannot parse, it goes red rather than report the rest as clean.
 """
 from __future__ import annotations
 
@@ -193,7 +199,9 @@ def census(root: Path) -> dict:
     g4_platformer rounds that way, and every one of them was a marker. The split is
     content-shaped: `refused` is judge()'s refusal, `skipped` is evaluate()'s marker,
     `usable` is a real round, and anything else is counted as other rather than
-    silently folded into a neighbouring class.
+    silently folded into a neighbouring class. A file that cannot be parsed is
+    counted as `unparseable` and returned - dropping it here would let a corpus of
+    unreadable records read as a clean, empty census.
     """
     kinds: Counter = Counter()
     games: Counter = Counter()
@@ -219,14 +227,17 @@ def census(root: Path) -> dict:
             "rounds": kinds["round"], "briefed": kinds["round"] - len(unbriefed),
             "unbriefed": len(unbriefed), "unbriefed_paths": unbriefed,
             "skipped": kinds["skipped"], "refused": kinds["refused"],
-            "other": kinds["other"]}
+            "unparseable": kinds["unparseable"], "other": kinds["other"]}
 
 
 def fixture_tree() -> Path:
-    """Five judge.json files in four classes, one of them behind a wrapper directory.
+    """Six judge.json files in five classes, one of them behind a wrapper directory.
 
     The unbriefed round is the pre-guard shape: usable, scored, on a game the table
-    does not brief - the record this repair exists to make impossible.
+    does not brief - the record this repair exists to make impossible. The last file
+    is not JSON at all: the census must count it as unparseable rather than drop it,
+    because a census that scores only the records it could read is the fail-open
+    shape rule 7 names.
     """
     root = Path(tempfile.mkdtemp(prefix="judge-refusal-fx-"))
     real = {"tier": "judge", "usable": True, "game": "g1_pong", "model": "sonnet",
@@ -248,15 +259,17 @@ def fixture_tree() -> Path:
         ("wrap/run-b/artifacts/t0/eval/judge.json", pre_guard),  # unbriefed round
         ("wrap/run-b/artifacts/t1/eval/judge.json", refused),    # the refusal
         ("wrap/run-b/artifacts/t2/eval/judge.json", other),      # empty-pack refusal
+        ("wrap/run-b/artifacts/t3/eval/judge.json",
+         '{"tier": "judge", "usable": '),                        # truncated write
     ):
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(blob))
+        p.write_text(blob if isinstance(blob, str) else json.dumps(blob))
     return root
 
 
-EXPECTED_FIXTURE = {"files": 5, "rounds": 2, "briefed": 1, "unbriefed": 1,
-                    "skipped": 1, "refused": 1, "other": 1}
+EXPECTED_FIXTURE = {"files": 6, "rounds": 2, "briefed": 1, "unbriefed": 1,
+                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 1}
 
 
 def test_the_census_extraction() -> None:
@@ -280,7 +293,11 @@ def corpus_arm(runs_root: Path) -> int:
     print(f"  real rounds               {got['rounds']}  ({got['games']})")
     print(f"  skipped markers           {got['skipped']}")
     print(f"  refused verdicts          {got['refused']}")
+    print(f"  unparseable records       {got['unparseable']}")
     print(f"  other usable=false        {got['other']}")
+    expect("every record the census counted was readable - an unreadable record is a "
+           "counted class, never a silent exclusion, and a nonzero count is red",
+           got["unparseable"] == 0, f"{got['unparseable']} unparseable")
     expect("every real round sits on a briefed game - the guard moves nothing",
            got["unbriefed"] == 0, "unbriefed: " + "; ".join(got["unbriefed_paths"][:4]))
     if FAILS:
@@ -288,6 +305,30 @@ def corpus_arm(runs_root: Path) -> int:
         return 1
     print("judge refusal selftest (stored census): OK")
     return 0
+
+
+def test_the_corpus_arm_fails_closed() -> None:
+    """The red half of the fail-closed row: a corpus with an unreadable record is red.
+
+    Before that row existed, corpus_arm() printed OK over a corpus whose every
+    judge.json was malformed - 69 files, 0 rounds, 0 anything, unbriefed 0: green. The
+    probe below replays that corpus in miniature and requires the arm to go red; with
+    the row removed, the arm returns 0 over the same tree and this row fails instead.
+    """
+    print("\n[the corpus arm fails closed on unreadable records]")
+    root = Path(tempfile.mkdtemp(prefix="judge-refusal-bad-"))
+    p = root / "run/artifacts/t0/eval/judge.json"
+    p.parent.mkdir(parents=True)
+    p.write_text('{"tier": "judge", "usable": ')
+    got = census(root)
+    expect("the census counts the malformed record rather than dropping it",
+           got["unparseable"] == 1 and got["files"] == 1, str(got))
+    saved = list(FAILS)
+    status = corpus_arm(root)
+    grew = len(FAILS) - len(saved)
+    FAILS[:] = saved
+    expect("a corpus whose record cannot be parsed goes RED, never OK",
+           status == 1 and grew == 1, f"corpus_arm returned {status}; {grew} red row(s)")
 
 
 # --------------------------------------------------------------------------- #
@@ -349,6 +390,7 @@ def main() -> int:
     test_briefed_games_are_unmoved()
     test_the_cli_still_refuses()
     test_the_census_extraction()
+    test_the_corpus_arm_fails_closed()
     mutants()
 
     root = a.runs_root

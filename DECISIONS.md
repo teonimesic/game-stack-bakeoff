@@ -4002,31 +4002,37 @@ ticket 220.
 
 ## The retired generalist judge refuses a game its brief table does not hold, as a recorded verdict — decided 2026-08-30 (tasks/221)
 
-The 2026-08-25 instruments decision declared a class for every route to a grading instrument,
-and the class guard answers "game or scene". It cannot answer "which game": `judge.GAME_BRIEF`
-held 3 entries for a 4-game suite, so the game axis had only the two argparse surfaces refusing
-it by `choices`, and `evaluate.py --game g4_platformer --with-legacy-judge` — the one path that
-reaches `judge()` without going through a CLI — rendered `"(unknown game)"` as the brief and
-would have answered all 13 criteria about a game nobody described. A placeholder-briefed tier-3
-record reads as a measurement.
+**The contract.** `judge()` refuses a game with no `GAME_BRIEF` entry, and the refusal is a
+record — never an exception, never a placeholder brief. It returns **before the pack is built
+and before any model call**, with `refused: true`, `usable: false`, `passed 0 / total 13`,
+literal `cost_usd 0.0`, an error naming the game and the table, and no `skipped` key — a shape
+distinct from both `evaluate()`'s skipped marker and the empty-pack refusal — and `evaluate()`
+stores it like any other round. `_brief` indexes `GAME_BRIEF` directly rather than through
+`.get` with a default, so a path that bypasses the guard raises `KeyError` instead of rendering
+a brief nobody wrote. `GAME_BRIEF` is not extended to admit a game: a new game arrives with a
+brief written for it or stays out of the retired judge's scope.
 
-**Refuse, never extend.** The tempting repair is a fourth brief — *"A platformer. A runner
-crosses pits and high ledges."* — and it is the one repair that is worse than the defect: the
-table is what every stored round was read against, so extending it changes what a re-run of an
-old round would mean, and a brief nobody wrote for a game nobody briefed is the placeholder
-under another name. The selftest carries that exact mutant (table extended, model stubbed to
-all-pass: the record reads as a measurement again) and the repair must turn it red.
+**Why refuse rather than extend.** The tempting repair is a fourth brief — *"A platformer. A
+runner crosses pits and high ledges."* — and it is the one repair that is worse than the
+defect: the table is what every stored round was read against, so extending it changes what a
+re-run of an old round would mean, and a brief nobody wrote for a game nobody briefed is the
+placeholder under another name. The selftest carries both rejected repairs as mutants — the
+table extended with the model stubbed to all-pass, and the placeholder restored under the
+direct index — and both must go red.
 
-**The refusal is a RECORD, not an exception.** `evaluate()`'s completeness gate needs
-`judge.json` present and parseable, and tiers 1 and 2 are valid whatever the retired diagnostic
+**Why a record rather than an exception.** `evaluate()`'s completeness gate needs `judge.json`
+present and parseable, and tiers 1 and 2 are valid whatever the retired diagnostic
 (weight 0.00) answers — so an exception mid-grading would fail a whole submission over the one
-tier that scores nothing. `judge()` returns `refused: true`, `usable: false`, an error naming
-the game and the table, `0/13`, `cost_usd 0.0` — a shape distinct from both the skipped marker
-(`skipped: true`, no game key) and the empty-pack refusal (`error`, no refused key) — and
-`evaluate()` stores it like any other round. It returns **before the pack is built and before
-any model call** (the resource is the judge spend; rule 13), and `_brief` now indexes
-`GAME_BRIEF` directly instead of `.get(..., default)`, so a bypass of the guard raises rather
-than resurrects the placeholder — the backstop the selftest pins with its own mutant.
+tier that scores nothing. The record is what lets a grading complete while the refusal stays
+visible in the stored census.
+
+**What this replaces.** The 2026-08-25 instruments decision declared a class for every route to
+a grading instrument, and the class guard answers "game or scene" — never "which game".
+`judge.GAME_BRIEF` held 3 entries for a 4-game suite, so the game axis had only the two
+argparse surfaces refusing it by `choices`, and `evaluate.py --game g4_platformer
+--with-legacy-judge` — the one path that reaches `judge()` without going through a CLI —
+rendered `"(unknown game)"` as the brief and answered all 13 criteria about a game nobody
+described. A placeholder-briefed tier-3 record reads as a measurement.
 
 **What the guard moves in the stored corpus: nothing.** The census re-derived with the guard in
 mind reads `python3 eval/judge/judge_refusal_selftest.py --runs-root <main checkout>/eval/runs`:
@@ -4034,7 +4040,9 @@ mind reads `python3 eval/judge/judge_refusal_selftest.py --runs-root <main check
 — 44 skipped markers, 0 refusals, 0 unbriefed rounds. 0 stored conclusions change. The census
 classifies by CONTENT, not by filename: a filename census counted `evaluate()`'s skipped
 markers as rounds of whatever game the trial id named, which is how cleanup-16's first
-extraction reported 8 g4_platformer rounds that were all markers.
+extraction reported 8 g4_platformer rounds that were all markers. A record it cannot parse is
+counted as `unparseable` and the corpus arm goes red over any nonzero count rather than
+reporting the readable remainder as clean.
 
 **To re-open:** a game added to the suite, which must arrive with a brief written for it or be
 declared out of the retired judge's scope — the guard makes the omission loud instead of
