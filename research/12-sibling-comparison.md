@@ -15,9 +15,10 @@ them so nobody re-files them. This document is the systematic read of everything
 rule the ticket sets: a mechanism can be right there and wrong here, because **the sibling
 measures a different object.**
 
-**The measured census: 20 sibling mechanisms already exist here in a same-or-stronger form, 1 is
-an adoption candidate pending ticket 220's measurement, 8 are rejected with recorded reasons,
-and 7 are things the sibling has that this repository deliberately does not.** Excluded stored
+**The measured census: 20 sibling mechanisms already exist here in a same-or-stronger form, 9
+are rejected with recorded reasons — the count includes the 1 adoption candidate, ticket
+220's trial failure-cause labels, whose measurement came back REJECT on 2026-08-30 — and 7 are
+things the sibling has that this repository deliberately does not.** Excluded stored
 results and caches are outside this conclusion.
 
 ## What the sibling is, and why that bounds the comparison
@@ -76,7 +77,7 @@ grader (AGENTS.md rule 9).
 | 19 | Coordinator tool hashes pinned (`coordinator-tools.json`); harness digest recorded | `tools/agent_harness_control.py` pins the claude arm's argv byte for byte; capture policy defined once in `runner.py`, imported, asserted identical (`runner_capture_selftest.py`) |
 | 20 | Byte-frozen prior document versions + manifest vs manifest-current (`FINAL-GODOT-STUDY-FROZEN.md`, `docs/RESEARCH_SYNTHESIS-GODOT-STUDY-FROZEN.md`) | git history + the recorded live/archive partition (`DECISIONS.md`, `ARCHIVE_PATHS` in `docstat.py`, asserted equal by `withdrawn_control.py`); append-only manifests keep the first record and stamp the sibling (`tools/manifest.py`) |
 
-## ADOPTED-CANDIDATE — filed
+## ADOPTED-CANDIDATE — measured and rejected (ticket 220, 2026-08-30)
 
 **Trial failure-cause labels, with the infrastructure-vs-agent separation folded in — ticket
 220.** The sibling applies a closed failure taxonomy per output (`setup/version`, `oracle-weakened`,
@@ -86,14 +87,26 @@ with one rule doing real work: *a preflight defect is recorded separately from a
 failure, and infrastructure logs distinguish the two* (`cross-engine/DESIGN.md`). This repo keeps
 re-deriving "why did these trials fail" by hand, one incident at a time — #45 `$TMPDIR`, #46 a bot
 that stood still, #49 a daemon gating `execve`, #37 stalled-vs-compiling — and `terminal_reason`
-partitions only how a session ended, not whose fault the outcome was. Ticket 220 asks for the
-closed vocabulary, a hand labelling of the stored whole-game corpus, a cross-tabulating producer,
-and **the accept/reject measurement in the ticket**: accept if a label group surfaces a pattern
-not already recorded in FINDINGS/DECISIONS; reject and withdraw the vocabulary if every group
-maps one-to-one onto what producers already answer. It is the only sibling mechanism this
-repository lacks both the vocabulary and the producer for; adoption is decided by the
-measurement ticket 220 defines, and until that runs, the status is pending. Everything else was
-already built here, and the rest is rejected below.
+partitions only how a session ended, not whose fault the outcome was. Ticket 220 defines the
+closed vocabulary, the hand labelling of the stored whole-game corpus, and **the accept/reject
+measurement**: accept only if a label group surfaces a pattern not already recorded in
+`eval/FINDINGS.md` or `DECISIONS.md`; reject and withdraw the vocabulary if every group maps
+one-to-one onto an already-recorded finding, observation, or `terminal_reason` partition. It is
+the only sibling mechanism this repository has neither the vocabulary nor the producer for.
+
+**Status: REJECT, measured 2026-08-30 — the vocabulary is withdrawn and nothing ships.** The
+measurement applies a 9-label vocabulary by hand to all 91 stored whole-game records
+(`census.py`'s population; the retired suite's 71 records and the 1 scene record excluded and
+named), and every label group maps one-to-one onto a recorded finding, a recorded `eval/RUNS.md`
+observation or a `terminal_reason` partition: the largest group, 18 starter defects, *is* the
+disclosure hand pass already recorded with per-stack counts; the 4 degraded-machine trials are
+exactly #49's banner; the 9 `api_error` trials are all account capacity, not one genuine API
+error. Neither cross-tab pattern adds a finding after decomposition. The arena concentration
+combines the recorded wedges, the turn ceiling and the account-limit trials. Rust's 18
+externally qualified trials of 25 combine starter defects, account limits, a turn ceiling, the
+harness probe and machine degradation. The reasoning and the re-open condition are in
+`DECISIONS.md` (trial failure-cause labels); the full labelling and the by-run cross-tab are in
+the ticket. Everything else was already built here, and the rest is rejected below.
 
 ## REJECTED — and the reason each does not transfer
 
@@ -161,10 +174,11 @@ reader of the sibling should not mistake these for oversights.
   task set, different scale (16 and 4 cells vs the stored matrix), and their own report labels the
   cross-engine result "descriptive only". No figure from this read may be quoted beside a figure
   from `eval/RUNS.md`.
-- **Nothing adopted here is adopted directly from the note.** The one candidate went through the
-  queue as ticket 220 with its own accept/reject measurement; any change this comparison
-  motivates to starters, criteria or prompts goes through the refine loop with a measurement
-  before and after. That regime caution is from the ticket, and it stands.
+- **Nothing is adopted from the note.** The 1 candidate went through the queue as ticket 220
+  with its own accept/reject measurement, and its status is REJECT — the vocabulary is
+  withdrawn rather than shipped. Any change this comparison motivates to starters, criteria
+  or prompts still goes through the refine loop with a measurement before and after. That regime
+  caution is from the ticket, and it stands.
 
 ## Scope of the comparison
 
