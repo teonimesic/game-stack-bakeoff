@@ -3302,3 +3302,69 @@ cost result, the between-stack range over the within-cell floor, grouped per
 (run directory, game) and never pooled; `runstat` reads the same `agent.cost_usd` key it
 aggregates, and no pass has ever read it whole. 0 heading hits, re-verified before
 writing this.
+
+## Pass 34 — 2026-08-30 — eval/tools/cost_census.py (1,910 lines, read whole)
+
+The producer for the cost result: between-stack range over the within-cell floor, grouped
+per (run directory, game) and never pooled; an ordering adjudication over three units
+(run, game, connected component) by exact permutation with a refusal before allocating past
+2,000,000 assignments and a lazy walk under it.
+
+**Sound on its own terms.** Every guard checked live in source and exercise: records are
+`isinstance`-dict-tested before field reads (a JSON string `"a game"` substring-matches the
+presence test); `_is_number` refuses bool/NaN/Infinity (all three parse as JSON literals);
+every refusal is a named `CostCensusError` naming its file and field; a 1-trial cell
+contributes nothing rather than a 0 gap; CLI-reachable thresholds (<2 stacks, <2 trials per
+cell) refuse rather than report; exclusions are counted by label (terminal reason,
+`harness {name}`, `no cost_usd`), never dropped; ranks are rank vectors, never mean rank
+(rule 4); `range_exceeds_floor` keeps its comparison when the floor is zero (ratio would be
+undefined); `pearson` strict-zips, returns None not 0.0, refuses <3 points; the permutation
+path counts the identity assignment so p can never be 0; the drop-one-cluster floor is
+computed, not closed-form (ties break the closed form); leader margins are decided by rank,
+not `means[0]` — the tie-on-name bug is documented in its O5. The selftest writes expected
+values as literals, pins the renderer separately from the producer, and pins child-process
+RSS growth (25 MB ceiling) because the permutation runs in a child.
+
+**Live reproduction over the stored tree, all unpiped:** the producer reproduces the
+docstring's every figure — 7 qualifying groups; between-stack range 42%–254%, lowest
+wg-g4c platformer; 5 of 7 groups exceed their floor, the below-line group 96%
+(wg-matrix/g2_tetris3d); ts cheapest in 5 of 7; r(cost, turns) 0.653–0.971; exclusion table
+absent 4, api_error 9, budget_exhausted 1, harness prime-agent 1, harness_kill_external 1,
+max_turns 1. `--ordering` matches its docstring: run unit p_any 0.0156 (its own floor),
+drop-one-cluster 0.0625; game unit 0.0469 < α; component unit floor 0.25 — "the question is
+unasked"; ts leads 5 of 7, beats floor in 0 of 5. Missing-tree control exits 2.
+
+**The defect, and it is between producers, not inside either.** The two producers disagree
+on the same tree today: `census.py` counts WHOLE-GAME **91**, `cost_census.py` reads
+whole-game **92**. Root cause read from the record:
+`eval/runs/wg-scene-s1ts-2026-08-25/trials/s1_parallax__ts__t0.json` carries BOTH
+`game: s1_parallax` AND `task_class: scene`. census.py classifies off `task_class_of()`
+(its selftest Direction 8 plants exactly this both-fields shape and pins it to SCENE);
+cost_census tests `WHOLEGAME_KEY not in d` — field presence. cost_census.py:120 still says
+"Same test as census.py, deliberately", and the test stopped being the same when the first
+scene record landed on 2026-08-25. Second channel, same shape: `NOT_A_RUN` is defined
+independently at cost_census.py:124 and census.py:144, identical today, nothing asserting
+it — four lines below the file's own TOKVAL_HARNESS comment that names exactly this failure
+shape ("restating the rule in both, with nothing asserting they agree, is how one tree
+comes to have two totals and neither reports a disagreement"). **No cost figure moves**:
+the record is excluded before grouping (harness_kill_external) and its cost is None, so
+every range, ratio and p above is unchanged — the damage is the population count and the
+exclusion table's scope, which a future scene record grows wrong by N. **Task 227 filed**
+(one shared classifier + asserted NOT_A_RUN, both-fields selftest pins, mutant turned red,
+producers re-run agreeing); finding to allocate when it lands.
+
+How it was found matters: no gate reads two producers against each other, so the
+disagreement was invisible to every check that ran green over both files — rule 12's shape
+(a partition restated in two files, a comment promising they match) caught by reading the
+pair whole, which is what these passes are for.
+
+**Live verification this pass:** `cost_census.py --selftest` → 0 failures; the producer
+and `--ordering` runs above; missing-tree control exit 2; `census.py` over the tree for the
+91-vs-92 measurement; the disputed record read whole.
+
+**Next pass pointer:** `eval/tools/manifest.py` (859 lines) — the append-only manifest
+guard (#77 → #93): the resource stated as "any durable record of what a measurement was
+configured to be is append-only", write path reserving the name with `O_EXCL` and
+superseding on collision, an `audit` mode sweeping eval/runs, selftest in
+`manifest_selftest.py`. The audit-trail exemplar AGENTS.md cites, and no pass has read it
+whole. 0 heading hits, re-verified before writing this.
