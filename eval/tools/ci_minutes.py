@@ -2297,7 +2297,7 @@ def _selftest() -> int:
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
     check("gates.yml gate count", _cen["gates"]["gates"], 74)
-    check("controls.yml gate count", _cen["controls"]["gates"], 11)
+    check("controls.yml gate count", _cen["controls"]["gates"], 12)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
     check("controls.yml setup is not counted", _cen["controls"]["setup"], 5)
@@ -2896,7 +2896,7 @@ def _selftest() -> int:
     # VARIANT: the injected reader must not have replaced the real one -- a default that
     # no longer reads the files would make every pin above vacuous.
     check("the default reader still reads the real workflows",
-          gate_census(None, _import_yaml)["controls"]["gates"], 11)
+          gate_census(None, _import_yaml)["controls"]["gates"], 12)
 
     # VARIANT: a clean census must still be published, and exit 0, in both modes.
     for _as_json in (False, True):
@@ -2951,10 +2951,10 @@ def _selftest() -> int:
     #   (task 201 moved both counts by 1: prompt_capture_census.py declares the mode
     #   and gates.yml names it; task 202 did the same again with frame_parity.py;
     #   task 205 did the same with field_sweep.py; task 224 did the same with
-    #   regrade_wholegame.py.)
+    #   regrade_wholegame.py; task 226 did the same with verify_blind.py.)
     _m = _live_controls["modes"]
-    check("scripts declaring a --selftest mode", len(_m["population"]), 30)
-    check("of which a tier names the mode", len(_m["gated"]), 29)
+    check("scripts declaring a --selftest mode", len(_m["population"]), 31)
+    check("of which a tier names the mode", len(_m["gated"]), 30)
     check("and none runs bare unrecorded", _m["unrecorded"], [])
     check("linkcheck's mode is named, not just its bare form",
           "eval/tools/linkcheck.py" in _m["gated"], True)
