@@ -1,11 +1,12 @@
 ---
 id: 222
 title: The capture census tokeniser does not split at newlines, and its docstring says it does
-status: in_review
+status: done
 priority: 4
 refs: eval/judge/prompt_capture_census.py,tasks/218
 done_when: 'The main tokeniser path treats newline as a segment separator exactly as the fallback path already does (one-line change in _tokenise or _segments - not a second mechanism), the demonstrated command and its semicolon control are pinned as selftest rows with both answers stated as literals, python3 eval/judge/prompt_capture_census.py --selftest exits 0, the live census over eval/runs still reproduces the pre-registered figures (468 calls, 31 refused, 337 no-path, 179 operands, 0 un-carried on both halves), and the docstring''s split claim matches the code either way. Do NOT conclude anything stored was misclassified: 0 population commands fire the shape, so no published number moves.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/102
+established_by: selftest exit 0 at merged main; live census 468 calls, 336 no-path, 180 operands, 0 un-carried both halves, old-vs-new diff three lines all accounted; docstat --sweep, --renumbered, tasks.py check exit 0; CI gates, controls, CodeRabbit green at 0fa23df; squash merge 3e87379
 ---
 
 eval/judge/prompt_capture_census.py's Bash-half extractor bash_operand_paths documents: split into simple commands at ;, |, &&, || AND NEWLINES. The ValueError fallback path implements the newline split (it replaces newlines with semicolons before splitting); the main shlex path does not - shlex emits no token for a newline (whitespace), so newline-joined commands arrive at _segments as ONE segment. Demonstrated in-process: bash_operand_paths of cat A/audio.json NEWLINE sed 's/x/y/' B/audio.json returns A/audio.json, s/x/y/, B/audio.json - the sed SCRIPT extracted as a path operand, which named_bucket classifies as other, i.e. a PHANTOM UN-CARRIED LEAK; the semicolon control returns A/audio.json, B/audio.json. The failure direction is the one named_bucket's own docstring forbids: a false positive shaped like a finding, moving the 2026-08-28 pre-registration's 0. The file has repaired this family twice already (the <( process substitution and the find expression value, both adjudicated corpus false positives, both pinned as selftest rows) - this is the third member, found before it fired. MEASURED 2026-08-30: within the census's population (57 non-code rounds, 437 usable Bash calls) 3 commands hold newlines and 0 collapse to the defective shape - every published figure stands today, including the pre-registered 0. Corpus-wide including code-seeing rounds outside the population: 1,833 usable Bash calls, 27 hold newlines, 3 collapse to one segment with a pattern-first verb present (all three in idiomatic rounds, all extracting nothing because their scripts sit in non-extractable positions). The trigger shape is data the project holds; the population just has not drawn it yet.
@@ -108,3 +109,7 @@ and the call counted no-path. "ONE segment" is true only of the ticket's demonst
 (`cat A/audio.json\nsed 's/x/y/' B/audio.json`), which holds no other separator. RUNS.md, the
 PR body and this note now carry the corrected account. The figures and the per-call diff are
 unaffected.
+
+## note 2026-08-30
+
+Orchestrator decision at merge (2026-08-30, squash 3e87379): no FINDINGS entry for the superseded 2026-08-29 337/179 pair. Nothing published moved - the pre-registration headline, 0 un-carried on both halves, is untouched - and nothing was acted on those two figures: they are instrument itemisation, not a result, and no conclusion was ever derived from the split itself. The correction lives where its readers are: the RUNS.md Bash-half table restated at today producer output with the movement narrated in place per that section repair convention, plus the account above and in the PR body findings-decision section. Verification reproduced the old-vs-new census diff independently: three changed lines, all accounted for.
