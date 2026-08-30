@@ -2314,3 +2314,76 @@ the population has never drawn files as a channel, not as a wrong number.
 format: never a subject. Pass 7 read `capability.py` whole and verified its selftest's
 GATING and two pins (the geometry double-statement, the TRIAL_RE fix) from the outside;
 no pass has read the selftest itself. Alternate: re-derive from the import graph.
+
+## Pass 21 — 2026-08-30 — `eval/judge/capability_selftest.py` (799 lines, read whole)
+
+The pass-20 pointer, taken — never a subject; pass 7 read `capability.py` whole and
+this suite's gating from the outside, and tasks/210's repair landed with its pins here.
+Found nothing to file: the suite is the mutant/variant discipline (rule 15) applied
+without a gap, and every expectation is an independent statement rather than a read-back
+of its subject.
+
+### What it holds, and what holds it up
+
+The controls for `capability.py`'s whole claim — *every field it declares is reportable
+by all four arms* — which its own docstring names as the exact shape this project ships
+and retracts: a check that runs, reports success, and could not have failed.
+
+- **Every gate carries positive / MUTANT / VARIANT, and the variants are the discriminating
+  half**: film failures spread across stacks stay GREEN (data about submissions), a
+  one-stack SUBMISSION failure stays GREEN on the gate but is reported as skew naming the
+  arm — the distinction the file exists for. The scene gap test goes further: the same
+  one-arm absence is RED when it is a mechanism gap inside the scene population and skew
+  when it is a submission failure, and the game population of the same run is GREEN on its
+  own — the per-(run, class) grouping pinned from both sides.
+- **`census_disagreements` is the task-113 pattern done right**: the census's expectation
+  is re-derived from the records by independent logic, never from the census's own
+  buckets — AND the fixture's counts are also stated as literals ahead of the run, so a
+  wrong re-derivation cannot agree with a wrong census.
+- **Excluded is not unread (rule 7, in code)**: the scene record excluded from the
+  four-arm claim still fails the gate on an unexplained null; a record of no known class
+  at all is swept, counted, and named in a gate failure rather than dropped into a `?` row
+  nothing partitions.
+- **tasks/210's uniform `stack_cannot` row** — the cell where the asymmetry path has
+  nothing to compare against, which read `[]` at exit 0 before the reason scan — is
+  pinned RED per record naming field and reason, on every arm that marks it, including on
+  SCENE records; and the asymmetry-path string is asserted ALONGSIDE the reason scan in
+  the plain mutant, so a repair that replaced one mechanism with the other would be a
+  regression only that row sees.
+- **The DECLINED register cannot carry a frozen figure**: `FROZEN_FIGURE` ("N of M")
+  is refused in DECLINED prose (tasks/182's 62-of-68 literal, which printed two screens
+  under a computed header reading 69 — produced-looking rather than produced), the
+  `measured_by` names must resolve to `CENSUSES` callables with a negative control
+  proving a dead name goes red, and the innocent-text VARIANT pins digits that are not
+  corpus figures ("Three of four arms", "12 frames at 640x400") staying green — the
+  census's own sentence format ("2 of the 5") cannot trip it either, since `of the`
+  breaks the pattern.
+- **`STARTER_DEFAULT_GEOMETRY` is a double statement compared by a row**: the four
+  starter sources are read for their `VIEW_WIDTH`/`VIEW_HEIGHT` declarations and asserted
+  equal to the constant — rule 12's medicine, and the starters (the product) are read,
+  never edited.
+- **The disk test pins summary-versus-artifact**: a PNG header disagreeing with
+  `programmatic.json`'s `sizes` — the pixels win, and the disagreement is recorded in the
+  record's notes rather than hidden.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- `test_gate_mutant` et al. mutate `Observation` objects from `field_set()` in place —
+  safe only because `field_set()` rebuilds fresh records per call; noted as a property a
+  future refactor to a shared fixture would break.
+- The docstring's `python3 judge/capability_selftest.py` shorthand is the house
+  convention (checked against siblings in pass 14), not the tasks/203 class.
+
+### Gates at HEAD a3e0f1a, unpiped
+
+`capability_selftest.py` exit 0, all controls hold, every row PASS; wired at
+`gates.yml:321`.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/evaluate.py` (580 lines) — the grading dispatch that wires `judge.py`,
+`field.py`, `static.py` and the scene probe into the tiers; named in six passes'
+findings (the skipped markers pass 16 counted, the tier-2 dispatch pass 3 verified from
+the guard side) and never read whole. Verified against every heading: never a subject.
+Alternate: `eval/judge/tier1_census.py` (770 lines), the floor-test producer AGENTS.md
+rule 16 names, never a subject either.
