@@ -2636,3 +2636,100 @@ entry named as alternate, re-verified against every heading before writing
 this entry: 0 hits. Alternate: `eval/judge/paired_verdicts.py`, the producer
 two withdrawal-register entries name as their replacement, if it has not been
 a subject — verify before following, the discipline pass 23 finally paid for.
+
+## Pass 25 — 2026-08-30 — `eval/judge/regrade_wholegame.py` (119 lines, read whole)
+
+The offline re-scoring path: rebuilds `report.json`'s `overall` from the stored
+per-tier JSON instead of paying for re-runs that would also re-roll the
+stochastic judge tier. Read whole; **one defect, ticketed (task 224, p4,
+dispatched this session)** — the rest is sound, and three of its properties are
+the project's hardest-won rules implemented in a *writer*, which is rarer than
+in a checker.
+
+Sound, with the rule each one answers:
+
+- **It rebuilds from the tier files, not from the embedded copy** (:38-39) —
+  "the embedded copy is what we are correcting". A repair that read its own
+  subject's claim as input would be circular; this reads the primary sources
+  and rewrites the derived record (the `rewrite_reports` pattern the docstring
+  cites).
+- **A regrade across a regime boundary is refused by default** (:51-62), in
+  the best blocked comment in the judge tree: "A REGRADE ACROSS A REGIME
+  BOUNDARY IS NOT A REGRADE, IT IS A RE-SCORING." The boundary is detected from
+  the record's own `scoring_regime` field — stamped by `evaluate.py`, compared
+  against the live constant — not from a path or a date; the refusal printout
+  names what to record in `eval/RUNS.md`; and task 29's `established_by`
+  records the guard as part of the regime landing, so this is a bought control
+  that has held.
+- **The unmeasured-tier guard is recomputed, never inherited** (:74-84), with
+  #31 named as the class: a regraded report predating `playbot_usable` would
+  silently lose the flag and the guard would stop firing — excusing trials
+  back into the aggregates, which is fail-open, the direction that costs the
+  result. A writer that re-derives a guard rather than copying the record
+  forward.
+- **Dry run by default**, `--write` required, and the summary line states
+  which mode ran (:103-104).
+- **Atomic write** (:27-30): pid-suffixed temp + `os.replace` — the
+  artifact-mid-write ambiguity of rule 2 has no window here.
+- The **diff is printed per trial** with `*` on every row that would move and
+  the judge (diagnostic) column beside it: the operator sees what the rewrite
+  does before and while doing it.
+- `rec.pop("overall_no_judge", None)` (:86) — the legacy second statement of
+  the score is **removed**, not left stale beside the new one. One statement
+  per live record.
+- The gate verdict is **recomputed from the rebuilt tier data** (:71), and
+  `judge_is_diagnostic_only = True` is a constant of this regime with the
+  regime field stamped into the same record — a future reader can tell the
+  constant from a measurement.
+
+Live at HEAD a26c7ac, unpiped: on the pre-regime run
+(`wg-matrix-2026-08-13T14-02-50`) all 24 reports are detected as crossings,
+held back, "LEFT ALONE", with the RUNS.md instruction printed, and the
+old-vs-new diff shows exactly the rows the 0.31 weight used to move; on the
+post-regime run (`wg-scene-s1ts-2026-08-25`) one row reads old==new 0.8333
+with judge diagnostic 0.000. Dry-run writes nothing — mtime and size of a
+`report.json` unchanged across a run.
+
+### The defect: success on nothing, at exit 0
+
+Pointed at a run directory holding no reports — and at a path that does not
+exist — the tool prints the empty table plus "0 report(s) inspected (dry run;
+pass --write)" and **exits 0, on both shapes, reproduced unpiped**. Missing
+dir, empty dir and real run dir are indistinguishable from the output, and
+exit 0 reads as completion; under `--write` the failure direction is the worst
+one this tool has: **a regrade believed done was not done.** The siblings
+refuse exactly this input (`weight_sensitivity.py` exits 1 on an empty
+population; `tier1_census.py` requires `--runs-root` naming the failure), and
+**nothing tests this file at all** — no selftest, no fixture, no mutant
+anywhere in the repository; its only pins are doc references (README:292's
+usage line, task 197's verification that the line parses). Filed as
+**task 224**; the ticket states what must still FAIL after the fix, not the
+mechanism, and pins the regime-guard behaviour with controls so the repair
+cannot disturb it.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- `float(tiers[k].get("score", 0.0))` (:46) reads an **absent** score as 0.0,
+  and an empty tier file is treated as `{}` (:45) which also reads 0.0 — the
+  absent-vs-zero shape pass 23 recorded for `tier1_census.py`'s 2x2. Measured
+  today: 207 non-empty tier files under `eval/runs/*/`, **0 missing a score
+  key**. Unreachable in the stored corpus; would matter only on truncated or
+  foreign input, and the dry-run diff is the visibility if it ever happens.
+- `judge_is_diagnostic_only` is hard-coded True (:73). True under this regime
+  by construction; the `scoring_regime` field written beside it is what keeps
+  it honest if the regime ever changes again.
+
+### Gates at HEAD a26c7ac, unpiped
+
+Both dry-runs and the two empty-shape controls as above; the tier-file census
+(207/0) as above; `docstat.py --sweep`, `--renumbered` and `tasks.py check`
+re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/paired_verdicts.py` — the producer two withdrawal-register entries
+name as their replacement (WR-paired-verdict-tie, WR-paired-evidence-diff),
+verified against every heading before writing this: 0 hits. Alternate:
+`eval/judge/anonymise.py`, the anonymiser whose dropped-manifest made #62
+findable, verified the same just now — the two candidates I checked besides
+these (`census.py`, `field_ranks`) are prior subjects and were rejected.
