@@ -217,7 +217,7 @@ def census(root: Path) -> dict:
             kinds["unparseable"] += 1
             continue
         if not isinstance(d, dict) or any(
-                d.get(k) is not None and not isinstance(d.get(k), bool)
+                k in d and not isinstance(d[k], bool)
                 for k in ("refused", "skipped", "usable")):
             kinds["other"] += 1
             continue
@@ -244,10 +244,11 @@ def fixture_tree() -> Path:
 
     The unbriefed round is the pre-guard shape: usable, scored, on a game the table
     does not brief - the record this repair exists to make impossible. The truncated
-    write is not JSON at all, and the last 2 records parse but hold the wrong shape -
-    a list, and a mapping whose usable flag is the string "false" - because a census
-    that classified on a truthy string, or dropped a record it could not shape,
-    would be the fail-open form rule 7 names.
+    write is not JSON at all, and the last 3 records parse but hold the wrong shape -
+    a list, a mapping whose usable flag is the string "false", and a mapping whose
+    refused flag is explicit null (present, so `k in d` - not missing) - because a
+    census that classified on a truthy string, treated null as absent, or dropped a
+    record it could not shape, would be the fail-open form rule 7 names.
     """
     root = Path(tempfile.mkdtemp(prefix="judge-refusal-fx-"))
     real = {"tier": "judge", "usable": True, "game": "g1_pong", "model": "sonnet",
@@ -276,6 +277,9 @@ def fixture_tree() -> Path:
         ("wrap/run-b/artifacts/t5/eval/judge.json",
          {"tier": "judge", "usable": "false", "game": "g1_pong",
           "submission_id": "fx-str"}),                           # non-boolean flag
+        ("wrap/run-b/artifacts/t6/eval/judge.json",
+         {"tier": "judge", "refused": None, "skipped": False, "usable": True,
+          "game": "g1_pong", "submission_id": "fx-null"}),       # explicit-null flag
     ):
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -283,8 +287,8 @@ def fixture_tree() -> Path:
     return root
 
 
-EXPECTED_FIXTURE = {"files": 8, "rounds": 2, "briefed": 1, "unbriefed": 1,
-                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 3}
+EXPECTED_FIXTURE = {"files": 9, "rounds": 2, "briefed": 1, "unbriefed": 1,
+                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 4}
 
 
 def test_the_census_extraction() -> None:
@@ -295,8 +299,9 @@ def test_the_census_extraction() -> None:
         expect(f"fixture {key} == {want}", got[key] == want, f"got {got[key]}")
     expect("the fixture's per-game split is g1_pong 1, g4_platformer 1",
            got["games"] == {"g1_pong": 1, UNBRIEFED: 1}, str(got["games"]))
-    expect("the non-mapping record and the string-flag record are other, never classified",
-           got["other"] == 3 and "g1_pong" in got["games"] and UNBRIEFED in got["games"]
+    expect("the non-mapping record, the string-flag record and the null-flag record "
+           "are other, never classified",
+           got["other"] == 4 and "g1_pong" in got["games"] and UNBRIEFED in got["games"]
            and got["rounds"] == 2,
            f"other={got['other']} rounds={got['rounds']} games={got['games']}")
 
