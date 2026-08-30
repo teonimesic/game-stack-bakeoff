@@ -3190,3 +3190,53 @@ half of rule 15, written where the next maintainer will read it.
 **Next pass pointer:** `eval/tools/precampaign_smoke.py` (357 lines), touched by
 merged PR #105 three days ago and never read by a cleanup pass — the most recently
 changed unexamined tool. 0 heading hits, re-verified before writing this.
+
+## Pass 32 — 2026-08-30 — `eval/tools/precampaign_smoke.py` (357 lines, read whole)
+
+The once-per-campaign pre-flight: 4 in-process assertions plus 16 subprocess rows, each
+carrying a comment naming the defect that bought it (#56's dead `plan`, #60's work-root
+drift, #108's 0/0 axis, #98's pristine-red godot gate, #100/#114's capture policies).
+Judged **sound**. Its honesty is structural: the docstring and the closing banner both say
+a green row means the gate is ALIVE, never that it PASSED, and the `prompt_guard` row
+names itself "LIVENESS ONLY - scratch, deleted; NOT the launch artifact" so the 2026-08-17
+misreading (#45, #57) cannot recur by resemblance.
+
+### Live verification, all unpiped, from `eval/` as the file runs its rows
+
+- `--list` exit 0, 19 rows. **Address census over the file's own references**: all 14
+  script paths exist, the hardcoded `runs/wg-arena3d-2026-08-15T12-46-30` resolves, and
+  `frame_parity --run` over it exits 0 (`PARITY: every submission filmed at the same
+  size`) — the "known-uniform" claim in the row's comment is still true.
+- **All 4 `plan` rows exit 0** — the command that was dead for an entire regime (#56),
+  which is why this file exists, still runs.
+- 6 cheap selftest rows re-run directly, all exit 0: `audio_selftest`, `capture_selftest`,
+  `runner_capture_selftest`, `sequential_selftest`, `agent_harness_control`,
+  `hook_audit_control`. The in-process assertions pass: work roots agree, 4 games declare
+  end-condition criteria, 3 frame criteria geometry-invariant, 14 tier-1 bounds declare
+  populations (none class-dependent).
+- **Not re-run here, stated**: `starter_parity` (outlived a 2-minute shell budget; the
+  smoke allows it 900s), `parity_selftest` and `starter_gate_control` (machine-heavy —
+  15-20 min of `just warm`/`just verify` per stack). None of the three is CI-gated
+  (grep over controls.yml: no matches), which is the point — this file is their only
+  schedule. The disclosure and docstat rows were verified at task 225 and in every gate
+  run this week.
+
+### Two probe errors of mine, recorded because both are rule-12 firing at me
+
+I first ran `frame_parity` from the repository root, read its exit 2 as a defect in the
+file, and reported it as a found defect mid-pass. The address is cwd-relative BY DESIGN —
+the smoke runs every row with `cwd=eval`, where it resolves and passes. Then `timeout`
+turned all 7 selftest rows into uniform 127s: macOS has no GNU `timeout`, and seven
+identical failures across seven different tools was the instrument reporting itself
+(rule 9). Nothing in the file was wrong; both scares were mine.
+
+### Examined and judged sound, no ticket
+
+The file is not in the register's census and cannot be: it is a runner, not a selftest,
+and its own liveness is enforced by `PROTOCOL.md` line 11 mandating it before a matrix —
+the correct mechanism for a thing whose class is "run once per campaign".
+
+**Next pass pointer:** `eval/tools/runstat.py` (412 lines) — the tool #60 is named for,
+the one whose false-quiet sentence this file's `check_work_root_agreement` guards; it has
+never been read whole by a pass, and the work-root move that broke it is three findings
+deep. 0 heading hits, re-verified before writing this.
