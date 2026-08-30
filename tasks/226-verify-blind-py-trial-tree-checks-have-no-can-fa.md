@@ -1,11 +1,12 @@
 ---
 id: 226
 title: verify_blind.py trial-tree checks have no can-fail proof anywhere
-status: in_review
+status: in_testing
 priority: 3
 refs: 'eval/judge/verify_blind.py, eval/judge/blurb_selftest.py, finding #39, task 224, task 200'
 done_when: '1. eval/judge/verify_blind.py carries a --selftest mode: builds fixture trial trees under tempfile (no eval/runs, no network), plants at minimum the four shapes - canary GUID in a trial tree, a real criterion id in a trial tree, RUBRIC.md at an ancestor of one, bare invocation - each asserted to the nonzero exit WITH the offending file named in output, plus one clean fixture asserted to exit 0 (the positive control), plus a floor pin that criterion_ids() is nonempty. 2. The can-fail half: a mutant copy of the tool with the trial-tree scan neutered makes the selftest fail - run it, record the red rows here, and state the neutering mechanism. 3. A CI tier names the mode (verify_blind --selftest in controls.yml); the register count and coverage sentence move 29 to 30 selftest-declaring scripts; ci_minutes --selftest exits 0. 4. eval/tools/docstat.py --sweep and --renumbered and eval/tools/tasks.py check all exit 0 at the branch head. 5. The live starters stay untouched - every plant lives in the selftest own fixtures, and the selftest exits 0 at the branch head.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/106
+established_by: 'PR #106 (task-226-verify-blind-can-fail head 4048c0c): verify_blind --selftest 25/25 with scan-neutered and vocab-emptied mutants, register wired both directions (UNRECORDED exit 1 before, 31/30/1 after), all gates exit 0 at the staged head; CodeRabbit round 1 clean; the register prose found stale-by-one (224''s) repaired and handed over for a finding number - full account in the ticket note 2026-08-30'
 ---
 
 WHAT IT IS: eval/judge/verify_blind.py is the blinding gate - run-matrix and evaluate-run invoke it unpiped as a gate on every run (both SKILL.md files, line 20), and README.md:10 points readers at it for the blinding claim. Three checks on trial trees: the RUBRIC canary, rubric reachability from any ancestor, the criterion vocabulary.
