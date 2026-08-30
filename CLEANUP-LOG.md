@@ -1815,3 +1815,73 @@ the time, and the corpus confirms it in the wild.
 `eval/judge/scene_mutants.py` (1,423 lines) — pass 12's alternate, twice passed over.
 Its suites run green in CI, but no pass has read what its mutants actually mutate.
 Alternate after that: `eval/judge/audio_selftest.py` (875), then `capability.py` (790).
+
+## Pass 14 — 2026-08-30 — `eval/judge/scene_mutants.py` (1,423 lines, read whole)
+
+Pass 13's pointer: its suites run green in CI, but no pass had read what its mutants
+actually mutate. With this pass the scene layer is read whole — pass 12 read
+`scene_probe.py`, this pass reads the suite that pins it.
+
+### Found
+
+- **All four invocations are gated; pass 12's log entry understates the wiring.**
+  `controls.yml` runs the full suite (`:130`), `--census-selftest` (`:136`),
+  `--reliability-selftest` (`:144`) **and `--attribution-selftest` (`:152`)**, and the CI
+  register names the last two. Pass 12's entry names only three. The defect was in this
+  log, not in CI; recorded here rather than editing the standing entry.
+- **The stored scene-gradings population moved 0 → 1 since the suite was written**
+  (`wg-scene-s1ts-2026-08-25/.../playbot.json`, tier `scene_probe`, measured through the
+  suite's own `stored_scene_gradings`). The census handles it honestly — at n=1 it prints
+  "extend this census" rather than a number — and with one subject no number is computable
+  (rule 4). The extension question is gated behind task 145 (the operator's scene-matrix
+  decision), so no ticket is filed ahead of it.
+- **Coverage, measured statically against the registry:** 15 criteria / 23 mutants /
+  0 uncovered / 11 variants; 10 criteria carry a single mutant. That is the same shape the
+  play-bot suite has, and the variant-count question for the family is already
+  `tasks/155`'s. Nothing new filed.
+
+### Cleared — examined and judged sound, do not redo it
+
+- **The patch discipline is fail-closed at both layers.** `apply_patches` and `_probe_with`
+  each assert the target appears exactly once, so a drifted fixture or a drifted
+  `scene_probe.py` SystemExits instead of silently not mutating (#41's shape, refused at
+  the suite level). CI green at merged main proves every target still bites today.
+- **The positive control runs first, per scene, and an UNSCORED mutant is an escape, not a
+  catch** (docstring and the explicit expectation at the scoring site). Extra verdict flips
+  outside a mutant's declared `collateral` are reported, and a criterion with no mutant is
+  itself a problem row — the coverage refusal at the end of `main`.
+- **The census states its own population's limit in its output** — "FIXTURES, NOT
+  SUBMISSIONS", NOT ASKED distinguished from 0, and the stored tier read by PARSING each
+  json rather than string-matching serialisations, with the enumeration trap named in the
+  comment above it. `census()`'s problem count is deliberately not folded into `main`'s
+  exit code: an open question is the census's output, and `census_selftest` consumes the
+  count as its API.
+- **The two offline selftests are rule 12 and #150 made code.** Subjects are hand-written
+  records whose answers are stated before anything runs; the mutants edit the SHIPPED
+  `scene_probe.py`, never the table; a mutant that raises is a distinct caught verdict
+  with the divide-by-zero mechanism named, not a harness crash; and the `no_offset` case
+  records the day a declared reason key was reachable by no evidence string.
+- **The attribution table flows through `_bands`, not straight into `_own_band`**, with the
+  bypass it prevents named (rows the profile can never sample); variant tolerances are
+  per-criterion with the reason in `notes`, and a tolerance that never fires prints as
+  dead — rule 7 made visible. The three real-submission lessons (`tasks/162`, `164`,
+  `174`) live in the suite as variants the probe once failed, each marked "NO MUTANT
+  COULD HAVE FOUND THIS" with the reason.
+- **The docstring's `python3 judge/scene_mutants.py` shorthand** — checked against
+  siblings (bot_mutants.py identical) before being judged; house convention, not the
+  tasks/203 class.
+
+### Method note
+
+The pass's one live suspicion — the attribution selftest ungated — came from reading pass
+12's log summary and died on the register and the workflow file. The log's own
+incompleteness was the only defect, which is why the correction is recorded here: a
+pointer's accuracy is part of what a later pass inherits.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/audio_selftest.py` (875 lines) — the corrected pointer: pass 13 listed
+`capability.py` as the alternate, but pass 7 (2026-08-29, seventh) already read it whole.
+Alternate after that: none named — the judge tree's larger unread files are gone through;
+the pass after audio_selftest should pick from `eval/suites/` (regime-boundary rules as
+before) or re-derive from the import graph.
