@@ -731,16 +731,18 @@ holding neither shape. **0 is the answer of `python3 eval/judge/prompt_capture_c
 --runs-root <main checkout>/eval/runs` re-run at each repair above, not of the earlier
 run that itemised 2.**
 
-**2026-08-30 (task 222): the tokeniser repair, and the two secondary figures move by one.**
+**2026-08-30 (task 222): the tokeniser repair, and the 2 secondary figures move by 1.**
 `bash_operand_paths` documented a split at newlines that its main tokeniser path did not make:
-shlex consumes a newline between two commands as whitespace, so a newline-joined command
-(`cd "<pack>" && for d in B C D E F G H; do echo ...; done\ncat B/audio.json`) arrived as ONE
-segment whose first verb is `cd`, and a genuine carried `cat` on the second line was counted
-under `no-path` — invisible as a read. Repaired (the newline is a lexer punctuation token and
+shlex consumed the newline as whitespace, so the token stream of the newline-joined command
+(`cd "<pack>" && for d in B C D E F G H; do echo ...; done\ncat B/audio.json`) carried no
+separator at the newline and the old path split only at the command's `;` and `&&` —
+`cat B/audio.json` stayed in the segment beginning with `done`, `_segment_reads` ignored that
+segment because `done` is not a reading verb, so the genuine carried read was never walked and
+the call counted under `no-path`. Repaired (the newline is a lexer punctuation token and
 is out of the lexer's whitespace set, the same treatment the ValueError fallback already gives
 it; a newline INSIDE quotes is data and is pinned as surviving), and re-run over the same
-corpus: `no extractable path` 337 → **336** and `operands classified` 179 → **180**, the whole
-delta one stored `audio` command of that shape whose second line reads `B/audio.json` —
+corpus: `no extractable path` 337 → **336** and `operands classified` 179 → **180** — the whole
+delta **1** stored `audio` command of that shape, whose second line reads `B/audio.json`,
 carried, so the un-carried figures above are unchanged. The phantom this repair closes — a
 newline-joined command collapsing to one segment with a pattern-first verb present, so the
 sed script `s/x/y/` extracted as a path operand — held **0** stored commands in the population
