@@ -3240,3 +3240,65 @@ the correct mechanism for a thing whose class is "run once per campaign".
 the one whose false-quiet sentence this file's `check_work_root_agreement` guards; it has
 never been read whole by a pass, and the work-root move that broke it is three findings
 deep. 0 heading hits, re-verified before writing this.
+
+## Pass 33 — 2026-08-30 — `eval/tools/runstat.py` (412 lines, read whole)
+
+The run diagnostic #60 is named for — partition by terminal reason, then watch drivers,
+engines and work trees. Judged **sound**. Every defect class this project has named is
+already embodied in it, and the docstring carries the trap list as a list of things the
+tool refuses to do rather than as history:
+
+- `files_touched` runs `find -mmin` and returns **-1 on probe failure**, never 0, and the
+  report prints `PROBE FAILED` for it — the `|| echo 0` shape rule 3 forbids, caught by
+  construction.
+- A missing `--run-dir` raises `SystemExit` naming the path: absence must not read as
+  "not started".
+- `read_trials` raises `cost key moved, do not guess` on a `total_cost_usd` field —
+  schema drift refuses rather than silently reading nothing.
+- `report()` partitions by terminal reason, and when a group mixes trials that ran with
+  trials that never took a turn it **suppresses the pooled mean** (rule 4), keeps `n` at
+  the population, prints the ran-subset mean separately, and writes
+  `NO READABLE FIGURE in k record(s)` where a zero would lie.
+- Drivers are found by matching the python interpreter actually running `wholegame.py`
+  and taking its `--run-dir` — `pgrep -f runstat`-style name matching would match this
+  tool itself; engines are matched by process NAME, never the command line.
+- `WORK_ROOT` carries the two-defence comment; the merged "no trees found / no writes"
+  sentence is two sentences, and the NONE FOUND arm states outright that it says nothing
+  about the agents — the exact #60 repair.
+- Every report prints the `tokenvalue.DEFINITION` line (#159): the tool cannot emit a
+  `$` figure without its definition travelling with it.
+
+### Live verification, all unpiped, from `eval/` where `runs/` resolves
+
+- `--selftest` (added with the aggregation hardening): **15/15 pins green, exit 0**. The
+  mutant is the old `c or 0.0` expression itself, evaluated beside the real aggregation
+  on the same records; the pin asserts the mutant WOULD have printed a 5.00 mean and the
+  real output does not. Fixtures are written tmp-then-`os.replace`, the same policy as
+  every artifact here — "a fixture is not a reason to keep a second policy".
+- Newest run (`wg-scene-s1ts-2026-08-25`, the held task-145 scene run): a
+  `harness_kill_external` trial renders as an `n/a` row, the group prints
+  `NO READABLE FIGURE in 1 record(s)` with no total, and the definition line prints. The
+  fail-closed shapes are live, not just pinned.
+- Negative control `--run-dir runs/no-such-run-dir`: exit 1,
+  `runstat: no such run directory: runs/no-such-run-dir`.
+- The NONE FOUND arm: `wg-audio48-2026-08-14T19-55-47` (16 completed trials, one group,
+  total 486.27 mean 30.39 over the readable population) prints
+  `work trees: NONE FOUND under /Users/stefano/game-research-work/...` with the
+  "says nothing about the agents" warning — both arms of the merged-sentence defect seen
+  live and distinct. A first control aimed at `runs/wg-matrix-2026-08-13` also refused:
+  that name is not a directory directly under `eval/runs/`, so the refusal is the tool
+  naming its address, not a defect.
+
+### Examined and judged sound, no ticket
+
+`--watch` re-reports the same `--run-dir` each tick, which is correct for the only thing
+it is for (watching one run to completion). The selftest is registered in the
+`ci_minutes` census the same way the other tool selftests are; CI green on the last push
+is the register's own assertion, and `--controls` is re-run below as part of this pass's
+gates.
+
+**Next pass pointer:** `eval/tools/cost_census.py` (1,910 lines) — the producer for the
+cost result, the between-stack range over the within-cell floor, grouped per
+(run directory, game) and never pooled; `runstat` reads the same `agent.cost_usd` key it
+aggregates, and no pass has ever read it whole. 0 heading hits, re-verified before
+writing this.
