@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 74 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 74 documentation, queue and selftest gates | 12 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -147,7 +147,12 @@ the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives out
 baseline graded through the same path and the INERT mutation that must survive — one grade and
 two controls over the bare invocation),
 `audio_selftest`,
-`rusage_selftest`, `skill_layout_control`.
+`rusage_selftest`, `verify_blind --selftest` (the blinding gate's can-fail proof:
+fixture trial trees under a tempdir, every contaminated shape asserted to exit 1 naming
+the offending file, and two mutants of the tool itself -- its scan neutered, its
+criterion vocabulary emptied -- each required to fail the rows it owns; before it
+existed nothing in the repository could turn the trial-tree checks red),
+`skill_layout_control`.
 `scene_runner_control` is the runner's half of the scene question. It names 6 routes from an
 operator's command to a grading instrument or a judge pack and drives each one. Every group of
 rows carries a mutant or a variant. It grades `eval/judge/fixtures/ref_parallax` through `just`, which
@@ -374,14 +379,14 @@ which of them no workflow step and no git hook **names**, and requires each of t
 in the `left out` column below. Exit 1 names any that does not, and `ci_minutes --selftest`
 runs the live census, so the gate is CI's rather than a command someone has to remember.
 
-**The same command also counts scripts that declare a `--selftest` mode.** 29 git-tracked scripts under
+**The same command also counts scripts that declare a `--selftest` mode.** 31 git-tracked scripts under
 `eval/` declare a `--selftest` mode (a count `python3 eval/tools/ci_minutes.py --controls`
 re-derives on every run, decided on each script's syntax tree — an `add_argument` or an argv
 test — never on the word, which appears in prose and in other tools' command lists). A script
 whose whole purpose is to be a gate is the stem class above; these are tools whose main job is
 something else and which grew a mode pinning their own arithmetic. **For this population, gated
 means the MODE is named**: a tier running a script bare runs its default mode, not this one.
-`linkcheck` bare was gated while `linkcheck --selftest` was not. Today 28 of the 29 have the
+`linkcheck` bare was gated while `linkcheck --selftest` was not. Today 30 of the 31 have the
 mode named by a tier and 1 is
 recorded below. A row of the form `` `script --selftest` `` — two tokens, no more — is what
 records one; a row like `wallclock.py without --selftest` or `host_perf_probe.py --caps`

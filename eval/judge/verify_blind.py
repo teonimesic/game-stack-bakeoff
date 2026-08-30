@@ -21,13 +21,29 @@ Three checks, each of which has to pass:
 
 Exit code 0 means blind, 1 means contaminated. Fail closed: an unreadable path counts
 as a failure, not as a pass.
+
+`--selftest` is the can-fail proof for these three checks. It builds fixture trial
+trees under a tempdir - no eval/runs, no network, no starter touched - one per shape
+the checks exist for, and asserts each in the direction that makes it a check: every
+contaminated shape exits 1 naming the offending file, the clean tree exits 0, and
+the bare invocation is refused. It then rebuilds this file twice from its own source,
+each mutant neutering one load-bearing line - the scan's hit append, and the
+criterion vocabulary's assignment - and requires each neutering to turn a specific
+row red while the rows the other checks own stay green. A verify_blind whose scan
+reports nothing on contaminated input therefore fails this suite. Before task 226
+nothing in the repository could make these checks fail: blurb_selftest.py exercises
+only the --packs path, and #39 is what a check with no red half is worth.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -68,7 +84,7 @@ def criterion_ids() -> list[str]:
     create a file whose name contains one, and matching them makes the real signal
     unreadable among the noise.
     """
-    ids = set(re.findall(r"`([a-z]+\.[a-z_]+)`", RUBRIC.read_text()))
+    ids = set(re.findall(r"`([a-z]+\.[a-z_]+)`", RUBRIC.read_text()))  # SELFTEST-VOCAB-SOURCE
     return sorted(i for i in ids
                   if "." in i
                   and not i.startswith(("just.", "src."))
@@ -99,7 +115,7 @@ def scan(root: Path, needles: dict[str, str]) -> list[str]:
             continue
         for label, needle in needles.items():
             if needle in text:
-                hits.append(f"{label}: {p}")
+                hits.append(f"{label}: {p}")  # SELFTEST-NEUTER-SCAN
     return hits
 
 
@@ -220,6 +236,216 @@ def check(trial_dirs: list[Path], strict_vocab: bool = True) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# --selftest. The can-fail proof for the three trial-tree checks above.
+#
+# The two lines the mutants neuter carry a marker comment each, and the marker
+# is spelled exactly twice in this file: once here, once on the line it marks.
+# So a count over the shipped source reads 2 and a count over a correctly
+# mutated copy reads 1, which is the structural half of each mutant row. The
+# count is taken rather than a search for the mutation's effect, because the
+# searcher's own source carries every string it would search for (task 113).
+# --------------------------------------------------------------------------- #
+_SCAN_MARK = "SELFTEST-NEUTER-SCAN"
+_VOCAB_MARK = "SELFTEST-VOCAB-SOURCE"
+
+
+class _Checks:
+    def __init__(self) -> None:
+        self.n = 0
+        self.fails: list[str] = []
+
+    def expect(self, name: str, cond: bool) -> None:
+        self.n += 1
+        if not cond:
+            self.fails.append(name)
+
+
+def _run(*args: str, script: Path | None = None) -> tuple[int, str, str]:
+    p = subprocess.run(
+        [sys.executable, str(script or Path(__file__).resolve()), *args],
+        capture_output=True, text=True, timeout=120)
+    return p.returncode, p.stdout, p.stderr
+
+
+def _load(path: Path):
+    """Import a copy of this tool by path, for its `criterion_ids()`/`canary()`."""
+    spec = importlib.util.spec_from_file_location("_verify_blind_under_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _rows(script: Path, fixtures: dict[str, Path], ids: list[str],
+          tmp: Path) -> dict[str, bool]:
+    """Run one copy of the tool over every fixture shape; did each row hold?
+
+    All copies are evaluated over the SAME fixtures against the REAL imported
+    vocabulary, so a mutant's row is red exactly when its behaviour left the
+    shape the row is about.
+    """
+
+    def go(out: dict[str, bool], name: str, want_rc: int, want: tuple[str, ...],
+           *args: str) -> None:
+        rc, o, e = _run(*args, script=script)
+        out[name] = rc == want_rc and all(w in o + e for w in want)
+
+    out: dict[str, bool] = {}
+    rc_clean, o_clean, _e = _run(str(fixtures["clean"]), script=script)
+    out["clean tree exits 0 BLIND"] = rc_clean == 0 and "BLIND" in o_clean
+    go(out, "canary plant exits 1 naming the file", 1,
+       ("CANARY IN TRIAL TREE", "leak.py"), str(fixtures["canary"]))
+    go(out, "criterion plant exits 1 naming the id and the file", 1,
+       (f"CRITERION ID {ids[0]}", "leak.py"), str(fixtures["vocab"]))
+    go(out, "ancestor RUBRIC.md file arm exits 1 naming the path", 1,
+       ("RUBRIC.md in ancestor", str(tmp / "ancfile/work")),
+       str(fixtures["ancfile"]))
+    go(out, "ancestor judge/ arm exits 1 naming the path", 1,
+       ("RUBRIC REACHABLE", str(tmp / "ancdir/work/judge/RUBRIC.md")),
+       str(fixtures["ancdir"]))
+    rc, o, e = _run(script=script)
+    out["bare invocation refused at exit 2"] = (
+        rc == 2 and "give trial directories" in e)
+    # Two statements of one fact, kept apart: the count the tool prints about
+    # itself, and the vocabulary imported from the file. They must agree.
+    m = re.search(r"criterion ids\s*:\s*(\d+) checked", o_clean)
+    out["printed criterion count is the imported vocabulary"] = (
+        bool(m) and int(m.group(1)) == len(ids))
+    return out
+
+
+def _selftest() -> int:
+    c = _Checks()
+    here = Path(__file__).resolve()
+    src = here.read_text()
+
+    # THE FLOOR PINS, imported from this file rather than inferred from a run.
+    # An empty vocabulary would leave check 3 silently passing on leaking trees
+    # (`if strict_vocab and ids`), and a rubric without its canary line cannot
+    # verify anything.
+    mod = _load(here)
+    ids = mod.criterion_ids()
+    c.expect("vocabulary floor: criterion_ids() is nonempty", bool(ids))
+    guid = mod.canary()
+    c.expect("canary floor: the rubric carries a GUID", bool(guid))
+    if not ids or not guid:
+        print(f"\n{c.n - len(c.fails)}/{c.n} expectations held")
+        print("FAILED: " + ", ".join(c.fails))
+        return 1
+    vocab_id = sorted(ids)[0]
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+
+        # One subtree per shape, plants nested so no trial's ancestor walk
+        # crosses another's. An ancestor of any of these holding a RUBRIC.md of
+        # its own would redden the clean row loudly - fail closed, and named.
+        def trial(rel: str) -> Path:
+            d = tmp / rel
+            d.mkdir(parents=True)
+            (d / "justfile").write_text("run:\n\t@python3 game.py\n")
+            (d / "game.py").write_text('print("the game")\n')
+            return d
+
+        fixtures = {"clean": trial("clean/trial"), "canary": trial("canary/trial"),
+                    "vocab": trial("vocab/trial"), "ancfile": trial("ancfile/work/trial"),
+                    "ancdir": trial("ancdir/work/trial")}
+        (fixtures["canary"] / "leak.py").write_text(f'x = "{guid}"\n')
+        (fixtures["vocab"] / "leak.py").write_text(f"assert {vocab_id}\n")
+        (tmp / "ancfile/work/RUBRIC.md").write_text("# a planted rubric file\n")
+        (tmp / "ancdir/work/judge").mkdir()
+        (tmp / "ancdir/work/judge/RUBRIC.md").write_text("# the real rubric's shape\n")
+
+        # The green half, against the shipped file: every row must hold.
+        for name, held in _rows(here, fixtures, ids, tmp).items():
+            c.expect(name, held)
+
+        # THE MUTANTS. Each rebuilds this file with ONE marked line neutered,
+        # and each must turn its own rows red while the rows the OTHER checks
+        # own stay green - that separation is what makes them discriminating
+        # rather than merely failing. The mutants are run over the fixtures
+        # bare, never with --selftest: a selftest evaluating itself is the
+        # recursion ci_minutes.py bounds GATES_DEPTH against.
+        scan_mut_text = re.sub(
+            r"^[ \t]*hits\.append\(f\"\{label\}: \{p\}\"\)[^\n]*" + _SCAN_MARK
+            + r"[^\n]*\n",
+            " " * 16 + "pass  # neutered: the scan can report nothing\n",
+            src, flags=re.M)
+        vocab_mut_text = re.sub(
+            r"^[ \t]*ids = set\(re\.findall[^\n]*" + _VOCAB_MARK + r"[^\n]*\n",
+            " " * 4 + "ids: set[str] = set()  # neutered: the vocabulary is empty\n",
+            src, flags=re.M)
+
+        scan_mut = tmp / "mutant_scan" / "verify_blind.py"
+        scan_mut.parent.mkdir()
+        scan_mut.write_text(scan_mut_text)
+        vocab_mut = tmp / "mutant_vocab" / "verify_blind.py"
+        vocab_mut.parent.mkdir()
+        vocab_mut.write_text(vocab_mut_text)
+        # A copy of this tool resolves RUBRIC.md against ITS OWN directory, so
+        # each mutant needs the rubric beside it or `canary()` dies on every
+        # run - a crash that would redden every mutant row for a reason that has
+        # nothing to do with the neutering.
+        for mut_dir in (scan_mut.parent, vocab_mut.parent):
+            shutil.copy(HERE / "RUBRIC.md", mut_dir / "RUBRIC.md")
+
+        c.expect("MUTANT scan-neutered: the mutation changed the source",
+                 src.count(_SCAN_MARK) - 1 == scan_mut_text.count(_SCAN_MARK))
+        rc, o, _e = _run(str(fixtures["canary"]), script=scan_mut)
+        c.expect("MUTANT scan-neutered: the canary leak exits 0 and reads BLIND "
+                 "(check can fail)",
+                 rc == 0 and "BLIND" in o and "CONTAMINATED" not in o)
+        rc, o, _e = _run(str(fixtures["vocab"]), script=scan_mut)
+        c.expect("MUTANT scan-neutered: the criterion leak exits 0 and reads BLIND "
+                 "(check can fail)",
+                 rc == 0 and "BLIND" in o and "CONTAMINATED" not in o)
+        scan_rows = _rows(scan_mut, fixtures, ids, tmp)
+        c.expect("MUTANT scan-neutered: the ancestor file arm is STILL caught",
+                 scan_rows["ancestor RUBRIC.md file arm exits 1 naming the path"])
+        c.expect("MUTANT scan-neutered: the ancestor judge/ arm is STILL caught",
+                 scan_rows["ancestor judge/ arm exits 1 naming the path"])
+        c.expect("MUTANT scan-neutered: the clean tree is still BLIND",
+                 scan_rows["clean tree exits 0 BLIND"])
+        c.expect("MUTANT scan-neutered: bare invocation still refused",
+                 scan_rows["bare invocation refused at exit 2"])
+        c.expect("MUTANT scan-neutered: the printed criterion count still agrees",
+                 scan_rows["printed criterion count is the imported vocabulary"])
+
+        c.expect("MUTANT vocab-emptied: the mutation changed the source",
+                 src.count(_VOCAB_MARK) - 1 == vocab_mut_text.count(_VOCAB_MARK))
+        # The sibling defect in one row: check 3 is gated on the vocabulary being
+        # non-empty, so emptying it does not error - the leak is passed as BLIND
+        # with `0 checked`.
+        rc, o, _e = _run(str(fixtures["vocab"]), script=vocab_mut)
+        c.expect("MUTANT vocab-emptied: the criterion leak exits 0 and reads BLIND "
+                 "with 0 checked (check can fail)",
+                 rc == 0 and "BLIND" in o and "0 checked" in o
+                 and "CONTAMINATED" not in o)
+        c.expect("MUTANT vocab-emptied: the imported vocabulary is empty",
+                 _load(vocab_mut).criterion_ids() == [])
+        vocab_rows = _rows(vocab_mut, fixtures, ids, tmp)
+        c.expect("MUTANT vocab-emptied: the canary plant is STILL caught",
+                 vocab_rows["canary plant exits 1 naming the file"])
+        c.expect("MUTANT vocab-emptied: the ancestor file arm is STILL caught",
+                 vocab_rows["ancestor RUBRIC.md file arm exits 1 naming the path"])
+        c.expect("MUTANT vocab-emptied: the ancestor judge/ arm is STILL caught",
+                 vocab_rows["ancestor judge/ arm exits 1 naming the path"])
+        c.expect("MUTANT vocab-emptied: the clean tree is still BLIND",
+                 vocab_rows["clean tree exits 0 BLIND"])
+        c.expect("MUTANT vocab-emptied: bare invocation still refused",
+                 vocab_rows["bare invocation refused at exit 2"])
+
+    print(f"\n{c.n - len(c.fails)}/{c.n} expectations held")
+    if c.fails:
+        print("FAILED: " + ", ".join(c.fails))
+        return 1
+    print("verify_blind selftest: every trial-tree check can fail - the canary, "
+          "the vocabulary and both ancestor arms each turn their fixture red "
+          "naming the offending file, and a scan-neutered copy and an "
+          "empty-vocabulary copy each fail the rows they own.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="*", type=Path, default=[],
@@ -230,7 +456,13 @@ def main() -> int:
                     help="judge pack directories: scan every non-code file in them "
                          "(BRIEF.md, .claude/skills/**) for stack tokens, because those "
                          "are hand-written evidence the blinded judge reads")
+    ap.add_argument("--selftest", action="store_true",
+                    help="run the offline fixture suite over the three trial-tree "
+                         "checks, including the scan-neutered and vocabulary-emptied "
+                         "mutants of this file")
     a = ap.parse_args()
+    if a.selftest:
+        return _selftest()
     if not a.paths and not a.packs:
         ap.error("give trial directories, --packs, or both")
     if a.packs:

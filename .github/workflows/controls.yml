@@ -177,6 +177,15 @@ jobs:
       - name: judge/rusage_selftest
         if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
         run: python3 eval/judge/rusage_selftest.py
+      # The blinding gate's can-fail proof, and the only one its trial-tree checks have:
+      # fixture trees under a tempdir, every contaminated shape asserted to exit 1 naming
+      # the offending file, and two mutants of the tool itself -- scan neutered,
+      # vocabulary emptied -- each required to fail the rows it owns. #39 is what a check
+      # nothing can make fail is worth; before this existed (task 226) nothing in the
+      # repository could turn these three checks red.
+      - name: judge/verify_blind --selftest
+        if: ${{ !cancelled() && steps.scope.outputs.relevant != 'false' }}
+        run: python3 eval/judge/verify_blind.py --selftest
       # 124.7s, and it plants five breakages in the skill layout and restores them. The
       # `.claude/skills` symlink is load-bearing and fails silently, so this is exactly the
       # kind of gate nobody would remember to run.
