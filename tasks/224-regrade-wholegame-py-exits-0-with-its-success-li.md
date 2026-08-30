@@ -1,12 +1,12 @@
 ---
 id: 224
 title: regrade_wholegame.py exits 0 with its success line on a run dir holding no reports
-status: in_testing
+status: done
 priority: 4
 refs: eval/judge/regrade_wholegame.py
 done_when: '1. A run dir that does not exist, and one holding no artifacts/*/eval/report.json, each exit nonzero and do not print the success line; a real run dir in dry-run still exits 0 and its output is unchanged. 2. Controls are run and recorded in the ticket: the two failing shapes above, the real-dir positive control (eval/runs/wg-scene-s1ts-2026-08-25 dry-run), and the regime guard unchanged - eval/runs/wg-matrix-2026-08-13T14-02-50 dry-run still holds back 24 with the LEFT ALONE message. 3. Dry-run still writes nothing (mtime+size of a report.json unchanged across a run). 4. Whatever check is added (selftest or fixture) fails if the guard is removed - a mutant proves the check can fail. 5. eval/tools/docstat.py --sweep and --renumbered and eval/tools/tasks.py check all exit 0 at the branch head.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/104
-established_by: 'Both failing shapes exit nonzero with no success line (empty dir 1, nonexistent 2, file-not-dir 2); wg-scene-s1ts-2026-08-25 dry-run byte-identical at exit 0; wg-matrix-2026-08-13T14-02-50 still holds back 24 LEFT ALONE byte-identical; report.json mtime+size unchanged, 0 .tmp; selftest 28/28 with a source-excision mutant that flips all 6 refusal rows red, and the selftest ran red first (20/29) on the unfixed tool; sweep, renumbered, tasks check, ci_minutes --selftest, lint all exit 0 at head 7e294bf. PR #104.'
+established_by: 'Merged PR 104 squash from 6bc8d5db447c26ed61307287e4ddcb3d202b04bf. Verified unpiped in an own detached checkout: refusals exit 1 (no reports) / 2 (missing path) / 2 (plain file), success line on none; positive control wg-scene-s1ts-2026-08-25 dry-run exit 0, 1 report inspected; regime guard wg-matrix-2026-08-13T14-02-50 exit 0, 24 LEFT ALONE; report.json mtime 1787688789 size 24463 unchanged across all runs; selftest 28/28; can-fail proven independently by sed-neutering both guard conditions -> selftest red on exactly the refusal rows (incl. mutation-changed-the-source), restored -> green; docstat --sweep, --renumbered, tasks.py check all 0 at the merged head. Tool file byte-identical from 7e294bf to the merged head. No CodeRabbit round at any head; merged on own verification per the in_testing hand-back semantics. CI green at 6bc8d5d (controls 17m2s, gates 2m21s).'
 ---
 
 WHAT IT IS: eval/judge/regrade_wholegame.py is the offline re-scoring path - it rebuilds report.json's overall from the stored per-tier JSON files instead of re-running anything; README.md:292, eval/RUNS.md (twice) and eval/AGENTS.md:171 ('prefer offline re-grading to any re-run') all send readers to it, and it mutates stored evidence under --write.
