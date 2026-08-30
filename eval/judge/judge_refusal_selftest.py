@@ -203,9 +203,13 @@ def census(root: Path) -> dict:
     happily returns a list or a string, and a non-boolean flag is truthy whatever it
     spells, so a record that is not a mapping - or whose refused/skipped/usable flag
     is present and not a bool - is counted as `other`, never classified by a value it
-    does not hold. A file that cannot be parsed is counted as `unparseable` and
-    returned - dropping it here would let a corpus of unreadable records read as a
-    clean, empty census.
+    does not hold. The flags must also agree: the instrument writes exactly one true
+    flag per record (refusal refused:true/usable:false, marker skipped:true/usable:
+    false, round usable:true), so exactly one true flag decides the class and a
+    record with none or with 2 or more is `other` - an if-chain ordered refused-first
+    would fold a contradictory record into whichever flag it tests first. A file that
+    cannot be parsed is counted as `unparseable` and returned - dropping it here
+    would let a corpus of unreadable records read as a clean, empty census.
     """
     kinds: Counter = Counter()
     games: Counter = Counter()
@@ -221,17 +225,23 @@ def census(root: Path) -> dict:
                 for k in ("refused", "skipped", "usable")):
             kinds["other"] += 1
             continue
-        if d.get("refused"):
+        # `.get`, not `d[k]`: a flag key may be ABSENT (the empty-pack record has no
+        # refused/skipped keys); the shape guard above already ensured any present
+        # flag is a bool, so `is True` is exact for the rest.
+        true_flags = [k for k in ("refused", "skipped", "usable") if d.get(k) is True]
+        if len(true_flags) != 1:
+            kinds["other"] += 1
+            continue
+        kind = true_flags[0]
+        if kind == "refused":
             kinds["refused"] += 1
-        elif d.get("skipped"):
+        elif kind == "skipped":
             kinds["skipped"] += 1
-        elif d.get("usable"):
+        else:
             kinds["round"] += 1
             games[str(d.get("game"))] += 1
             if d.get("game") not in judge.GAME_BRIEF:
                 unbriefed.append(str(f))
-        else:
-            kinds["other"] += 1
     return {"files": sum(kinds.values()), "kinds": dict(kinds), "games": dict(games),
             "rounds": kinds["round"], "briefed": kinds["round"] - len(unbriefed),
             "unbriefed": len(unbriefed), "unbriefed_paths": unbriefed,
@@ -244,10 +254,12 @@ def fixture_tree() -> Path:
 
     The unbriefed round is the pre-guard shape: usable, scored, on a game the table
     does not brief - the record this repair exists to make impossible. The truncated
-    write is not JSON at all, and the last 3 records parse but hold the wrong shape -
-    a list, a mapping whose usable flag is the string "false", and a mapping whose
-    refused flag is explicit null (present, so `k in d` - not missing) - because a
-    census that classified on a truthy string, treated null as absent, or dropped a
+    write is not JSON at all, and the last 4 records parse but hold the wrong shape -
+    a list, a mapping whose usable flag is the string "false", a mapping whose
+    refused flag is explicit null (present, so `k in d` - not missing), and a
+    mapping with 2 true flags, refused and usable, which no instrument here writes -
+    because a census that classified on a truthy string, treated null as absent,
+    folded a contradictory record into the first flag its chain tests, or dropped a
     record it could not shape, would be the fail-open form rule 7 names.
     """
     root = Path(tempfile.mkdtemp(prefix="judge-refusal-fx-"))
@@ -280,6 +292,9 @@ def fixture_tree() -> Path:
         ("wrap/run-b/artifacts/t6/eval/judge.json",
          {"tier": "judge", "refused": None, "skipped": False, "usable": True,
           "game": "g1_pong", "submission_id": "fx-null"}),       # explicit-null flag
+        ("wrap/run-b/artifacts/t7/eval/judge.json",
+         {"tier": "judge", "refused": True, "usable": True, "game": "g1_pong",
+          "submission_id": "fx-2true"}),                         # contradictory flags
     ):
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -287,8 +302,8 @@ def fixture_tree() -> Path:
     return root
 
 
-EXPECTED_FIXTURE = {"files": 9, "rounds": 2, "briefed": 1, "unbriefed": 1,
-                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 4}
+EXPECTED_FIXTURE = {"files": 10, "rounds": 2, "briefed": 1, "unbriefed": 1,
+                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 5}
 
 
 def test_the_census_extraction() -> None:
@@ -299,9 +314,9 @@ def test_the_census_extraction() -> None:
         expect(f"fixture {key} == {want}", got[key] == want, f"got {got[key]}")
     expect("the fixture's per-game split is g1_pong 1, g4_platformer 1",
            got["games"] == {"g1_pong": 1, UNBRIEFED: 1}, str(got["games"]))
-    expect("the non-mapping record, the string-flag record and the null-flag record "
-           "are other, never classified",
-           got["other"] == 4 and "g1_pong" in got["games"] and UNBRIEFED in got["games"]
+    expect("the 4 wrong-shape records - non-mapping, string flag, null flag, "
+           "contradictory flags - are other, never classified",
+           got["other"] == 5 and "g1_pong" in got["games"] and UNBRIEFED in got["games"]
            and got["rounds"] == 2,
            f"other={got['other']} rounds={got['rounds']} games={got['games']}")
 
