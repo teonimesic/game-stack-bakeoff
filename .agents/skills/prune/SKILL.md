@@ -79,7 +79,22 @@ If an open task already covers it, add your evidence to that file instead.
 
 ### 3. Pick ONE area not covered recently
 
-One area, explored properly, beats six skimmed. Candidates, but do not feel bound by them:
+One area, explored properly, beats six skimmed.
+
+**A recorded pointer is a claim, not a decision.** The previous entry's "next pass should
+take X" was written by a reader as fallible as you, and has twice named a file an earlier
+pass had already read (pass 13's alternate; pass 17's pointer). Verify before following:
+
+```bash
+grep "^## Pass" CLEANUP-LOG.md | grep "<candidate path>"
+```
+
+A hit means it is a prior pass's *subject* — the pointer is void, pick your own area, and
+record the voiding in your entry. The check reads the headings, not prose: alternates and
+pin sites name files that were never read. This is step 1 applied to the pointer itself,
+and it costs one grep.
+
+Candidates, but do not feel bound by them:
 
 | area | what tends to accumulate |
 |---|---|

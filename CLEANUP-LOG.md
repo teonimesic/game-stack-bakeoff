@@ -2076,3 +2076,71 @@ capture-side counterpart of this pass's subject: cited throughout `eval/IMPROVEM
 imported by six selftest modules (`blind_dir`, `blind_ext`, `blurb`, `field_sweep`,
 `files_opened`, `pack`), read around by every one of them and through by no pass.
 Alternate after: `eval/judge/blurb_selftest.py` (1,573 lines).
+
+## Pass 18 — 2026-08-30 — `eval/judge/field.py` re-read: the pointer was stale, and that is the finding
+
+This pass began by following pass 17's pointer to `eval/judge/field.py` — and the file had
+already been read whole, by **pass 13, one day earlier**. `git diff 080faef..HEAD --
+eval/judge/field.py` is empty: the read below was of a byte-identical file. The pass-17
+pointer was written without checking the log this entry is part of, which is the third
+instance of one defect:
+
+- pass 13 listed `capability.py` as its alternate; pass 7 had already read it (found by
+  pass 14, which recorded: *"a pointer's accuracy is part of what a later pass inherits"*).
+- pass 13 itself pointed at `field.py` as "the largest unexamined file in the judge tree"
+  — correctly, at the time.
+- pass 17 pointed back at `field.py`, which pass 13's own heading records as read. The
+  pass-14 correction was the rule that should have caught this and did not — because it
+  lived as prose inside a past entry, four passes upstream, which is where a correction
+  goes to stop firing. Same failure as a rule violated by the person who had just written
+  it: evidence about where the rule lived, not about the reader.
+
+**Repaired where the pass actually runs**, `.agents/skills/prune/SKILL.md` step 3: a
+recorded pointer is a claim, not a decision — before following it, `grep "^## Pass"
+CLEANUP-LOG.md | grep <candidate path>`; a hit means it is a prior subject, the pointer is
+void, and the voiding is recorded in the new entry. The check is against the headings, not
+prose mentions, because alternates and pin sites name files that were never read.
+
+### What the re-read itself established
+
+The file is unchanged, and pass 13's judgements stand as written: the five pre-spend
+guards and their order, `_provenance`, `separation()`'s stated-and-measured SD convention
+with `marginal_pairs`, `reproducibility()` refusing a seed mismatch by name, tie-aware
+`_tau` returning `None` (not `0.0`) at zero comparable pairs, `independence()` judged
+per-pair with saturated aspects gating first, and `ceiling()` kept SUPERSEDED with its
+reasons. Two things pass 13 did not record, both below the ticket bar (self-announcing,
+pre-spend, write nothing):
+
+- **`run_field`'s first line is the one refusal outside the file's own contract.**
+  `json.loads(mapping_path(pack).read_text())` is unguarded, and the docstring states the
+  design it violates: *"a refusal that is a stored record can be read afterwards and a
+  traceback cannot."* A missing or corrupt MAPPING raises instead of returning
+  `{"usable": False}`. Loud on stderr, fires before any spend, nothing written — and the
+  offline path already classifies a pack without a manifest as "unmeasurable, not clean"
+  via `packcheck`. The `mapping["game"]` subscript (vs `.get` at the applicability call)
+  is the same shape. Cosmetic; filed here so the next reader does not re-derive it.
+- **`--max-budget-usd 12.0` on judge calls checked against DECISIONS.md** and consistent:
+  the no-money-figure decision records the judge budget by name — *"held at its stored
+  value so new rounds stay comparable with the 97 on disk"* — distinct from the build-side
+  ban. Pass 13 measured the same thing from the spend side; the decision is the third
+  statement of it.
+
+tasks/218, filed from pass 13's read of this file, is done (PR #98) — the capture census
+now reads the Bash/Grep half it was missing.
+
+### Gates at HEAD a3cc3a1, unpiped
+
+Seven suites that import or drive this module, all exit 0: `blurb_selftest.py`,
+`blind_dir_selftest.py`, `blind_ext_selftest.py`, `files_opened_selftest.py`,
+`pack_selftest.py`, `field_sweep.py --selftest`, `sweep_bounds_control.py` (20/20). Plus
+the module's own live gate: `field.py packcheck --run eval/runs/wg-g4c-2026-08-21T02-26-46`
+→ `clean=True`, exit 0 — the 23-stale-files state named in `pack_matches_manifest`'s
+comment is historical; today's packs match their manifests.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/blurb_selftest.py` (1,573 lines) — named twice as an alternate (passes 16 and
+17), verified against the log's headings before naming it here: never a subject. It pins
+`judge_prompt`'s wording and `run_field`'s argv, which makes it the capture-side
+selftest this pass's gates just exercised black-box. Alternate after that: re-derive from
+the import graph — the judge tree's larger unread files are gone through.
