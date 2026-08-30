@@ -3940,17 +3940,17 @@ scalar is caught by the gate that owns byte changes — is `id_requoted`.
 
 ## Trial failure-cause labels: measured and rejected — decided 2026-08-30
 
-The 1 adoption candidate out of task 219's comparison with `game-research-gpt`
-(`research/12-sibling-comparison.md`): the sibling's closed 16-label failure taxonomy, applied
-per output and aggregated as "what actually failed", with 1 rule doing real work there — a
-preflight defect is recorded separately from an admitted-agent failure. This repository kept
-re-deriving "why did these trials fail" one incident at a time, and `terminal_reason` records
-only how a session ended, so the candidate went to the queue as ticket 220 carrying its own
-accept/reject measurement: accept if a label group surfaces a pattern not already recorded in
-FINDINGS or DECISIONS; **reject and withdraw the vocabulary if every group maps one-to-one onto
-a recorded finding, a recorded observation, or a `terminal_reason` partition.**
+**Ticket 220 decides the 1 adoption candidate out of task 219's comparison with
+`game-research-gpt` (`research/12-sibling-comparison.md`) — the sibling's closed 16-label
+failure taxonomy, applied per output and aggregated as "what actually failed", with 1 rule
+doing real work there: a preflight defect is recorded separately from an admitted-agent
+failure.** The gap it fills is that `terminal_reason` partitions only how a session ended, not
+whose fault the outcome was. The measurement rule: **ACCEPT when a label group surfaces a
+pattern not already recorded in `eval/FINDINGS.md` or `DECISIONS.md`; REJECT and withdraw the
+vocabulary when every group maps one-to-one onto a recorded finding, a recorded observation,
+or a `terminal_reason` partition.**
 
-**It came back REJECT, and the vocabulary is withdrawn — nothing shipped.** A closed 9-label
+**Verdict: REJECT — the vocabulary is withdrawn and nothing ships.** A closed 9-label
 vocabulary was applied by hand in 1 session (2026-08-30) to every stored whole-game trial
 record — **91 records over 12 run directories, from `python3 eval/tools/census.py` (read
 2026-08-30)** — with the retired spec-change suite's 71 records

@@ -90,22 +90,22 @@ that stood still, #49 a daemon gating `execve`, #37 stalled-vs-compiling — and
 partitions only how a session ended, not whose fault the outcome was. Ticket 220 defines the
 closed vocabulary, the hand labelling of the stored whole-game corpus, and **the accept/reject
 measurement**: accept only if a label group surfaces a pattern not already recorded in
-FINDINGS/DECISIONS; reject and withdraw the vocabulary if every group maps one-to-one onto what
-producers already answer. It is the only sibling mechanism this repository has neither the
-vocabulary nor the producer for.
+`eval/FINDINGS.md` or `DECISIONS.md`; reject and withdraw the vocabulary if every group maps
+one-to-one onto an already-recorded finding, observation, or `terminal_reason` partition. It is
+the only sibling mechanism this repository has neither the vocabulary nor the producer for.
 
 **Status: REJECT, measured 2026-08-30 — the vocabulary is withdrawn and nothing ships.** The
 measurement applies a 9-label vocabulary by hand to all 91 stored whole-game records
 (`census.py`'s population; the retired suite's 71 records and the 1 scene record excluded and
 named), and every label group maps one-to-one onto a recorded finding, a recorded `eval/RUNS.md`
 observation or a `terminal_reason` partition: the largest group, 18 starter defects, *is* the
-disclosure hand pass already recorded with per-stack counts; the 4 degraded-machine trials *are*
-#49's banner; the 9 `api_error` trials are all account capacity, not one genuine API error. The
-2 label groups that look like new patterns — infrastructure damage concentrating on the arena
-runs, and rust's 18 externally-qualified trials of 25 — decompose into recorded mechanisms
-pooled across incompatible causes. The reasoning and the re-open condition are in `DECISIONS.md`
-(trial failure-cause labels); the full labelling and the by-run cross-tab are in the ticket.
-Everything else was already built here, and the rest is rejected below.
+disclosure hand pass already recorded with per-stack counts; the 4 degraded-machine trials are
+exactly #49's banner; the 9 `api_error` trials are all account capacity, not one genuine API
+error. The 2 label groups that look like new patterns — infrastructure damage concentrating on
+the arena runs, and rust's 18 externally-qualified trials of 25 — decompose into recorded
+mechanisms pooled across incompatible causes. The reasoning and the re-open condition are in
+`DECISIONS.md` (trial failure-cause labels); the full labelling and the by-run cross-tab are in
+the ticket. Everything else was already built here, and the rest is rejected below.
 
 ## REJECTED — and the reason each does not transfer
 
