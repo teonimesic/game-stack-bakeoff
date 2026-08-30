@@ -1744,3 +1744,74 @@ exist.
 tree, and the ninth pass's census touched only its two `png` references. Alternate:
 `eval/judge/scene_mutants.py` (1,423), whose suites run green but whose own body no
 pass has read.
+
+## Pass 13 — 2026-08-29 — `eval/judge/field.py`
+
+The pointer from pass 12: the largest unexamined file in the judge tree. Read in full
+(2,173 lines, 31 defs/classes) — the pack/run/gates CLI, the blinding inputs consumed
+from the pack side, `run_field`'s five pre-spend guards, and the four gates.
+
+### What was read and judged sound
+
+- **`run_field`'s guard order** — mapping-leak refusal → `applicability()` BEFORE the
+  `ASPECTS[aspect_id]` subscript (an unknown id is a stored `usable: False`, not a
+  KeyError) → `sees` match → scene-statement CONTENT comparison (existence is not the
+  resource; `UnicodeError` named beside `OSError`) → the `knowingly_truncated` third
+  value refused rather than read as false (#62's direction, closed).
+- **`_provenance`** — every field answers "what did this round actually see": brief
+  hash, scene-statement hash, `sees`, geometry, truncation flag, budget, turns.
+- **`separation()`** — SE-based pair resolution replacing #58's modal threshold; the SD
+  convention stated with the measured spread across the three candidates; `marginal_pairs`
+  within 10% of threshold made visible; the low-n warning names #74's flattering n=2.
+- **`reproducibility()`** — refuses a different `order_seed` and points at
+  `order_invariance` by name, so the two questions cannot be silently swapped.
+- **`_tau`/`independence()`** — tie-aware with `comparable_pairs` reported; saturated
+  aspects gate the whole verdict first; per-pair not over the minimum; order-seed basis
+  recorded, collapsed orders listed.
+- **`ceiling()`** kept, marked SUPERSEDED with why; `by_stack` is a labelled per-cell
+  display, not an aggregate a gate reads.
+
+### Suspicions raised and measured to nothing
+
+- `separation()`/`reproducibility()` are absent from `main()`'s `gates` branch — but
+  `field_sweep.py` calls both (lines 448, 451, 826), and its own comment records that
+  the no-caller gap was found and repaired. The sweep is the path that holds them.
+- `judge_prompt`'s bucket clause silently omits a `sees` bucket with no wording —
+  pinned by `blurb_selftest.py` (rendered prompt per aspect over the whole registry,
+  lines 639–660) plus a mutant proving `run_field` passes the pack's own `sees` into
+  the argv (lines 693–704).
+- `_atomic`'s crash litter (`<out>.<pid>.tmp`) — does not match `*.json` globs, so no
+  reader can pick up a half-write; the rename itself already guarantees the misread
+  png.py's writer guards against.
+- The `--max-budget-usd 12.0` default on every judge call — a ceiling in a unit that
+  does not bind (#159), observed per-call judge spend sits far under it, and it is
+  recorded per round in `provenance.per_call_budget_usd`, so it is visible rather than
+  silent.
+
+### What was found, and filed
+
+**`files_opened` is half of what a judge round records, and the census that claims
+"what the rounds read" reads only that half.** Measured before filing, over every
+usable field record matching `eval/runs/**/*__*__seed*.json`: 97 rounds, 71 carrying
+`tool_calls`, holding 6,812 Read/NotebookRead targets and **2,308 Bash** ones — the
+second-largest population in the corpus, all stored with full targets (since task 204)
+and read by no census. `prompt_capture_census.py` is titled "WHAT THE NON-CODE JUDGE
+ROUNDS READ" and its six states sum to the aspect's n over `files_opened` alone, so a
+judge that `cat`s or `grep`s an un-carried path lands in no state and the latent-null
+figure in `eval/RUNS.md` would not move. Latent channel, trigger is data the project
+holds, failure silent — a ticket under the pass-12 policy: **tasks/218**.
+
+The vocabulary scan that bounded it: 30 Bash targets touch stack tokens (`bevy`,
+`UnityEngine`, `project.godot`) — visible by design (#53), not a blind leak; the one
+`crates/sim` hit is in a pre-#131-repair pack that finding already bounded. The ticket
+says both, so nobody re-files them.
+
+Incidental corroboration from the same census: 393 `Agent` tool calls across stored
+judge rounds — the subagent capability `JUDGE_PROMPT` offers was verified by a probe at
+the time, and the corpus confirms it in the wild.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/scene_mutants.py` (1,423 lines) — pass 12's alternate, twice passed over.
+Its suites run green in CI, but no pass has read what its mutants actually mutate.
+Alternate after that: `eval/judge/audio_selftest.py` (875), then `capability.py` (790).
