@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 72 documentation, queue and selftest gates | 11 mutant and control suites |
+| checks | 73 documentation, queue and selftest gates | 11 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -118,6 +118,18 @@ full read target is stored untruncated in `tool_calls` and `files_opened`, and o
 Read/NotebookRead targets count as reads. The latent-null census beside it refuses stored
 targets of exactly 200 characters rather than classify them — the length the capture cut at
 until 2026-08-28 (task 204).
+`judge_refusal_selftest` pins the retired generalist judge's refusal of a game its `GAME_BRIEF`
+table does not brief: the refusal returns before the pack is built and before any model call
+(spies over both must stay silent, on submission paths that do not exist so a guard that
+slipped below them reads as an exception, not a refusal), the record's fields are asserted as
+literals — `refused: true`, `usable: false`, `0/13`, zero cost — briefed games still render
+their own briefs with `_brief`'s direct index raising rather than rendering a placeholder, and
+the census extraction that partitions stored `judge.json` files by CONTENT is pinned on a
+fixture tree whose answer is written beside it, including a wrapper directory, because a
+filename census cannot tell a skipped marker from a round. A record the census cannot parse is
+counted as `unparseable`, and the corpus arm goes red over any nonzero count rather than
+reporting the readable remainder as clean. Its corpus arm reads `eval/runs/`, which is
+gitignored, and prints `NOT ASKED` in CI. 0.1s locally.
 `eval/instrfollow/pool.py --selftest` is the instruction-count apparatus: the gold artifact
 obeying all 16 checkers, a mutant sweep requiring each mutant to flip exactly one checker, and
 the fail-closed refusals, over checked-in fixtures at 1.7s locally. It lives outside `eval/tools/` and
@@ -235,7 +247,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **72** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **73** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks

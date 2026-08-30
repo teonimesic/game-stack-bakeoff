@@ -172,7 +172,11 @@ def _brief(game: str, criteria: list[tuple[str, str]], n_files: int,
         "",
         "## The game they were asked to build",
         "",
-        GAME_BRIEF.get(game, "(unknown game)"),
+        # Direct index, not `.get(..., default)`: the placeholder brief is the defect
+        # this module was carrying (tasks/221). judge() refuses an unbriefed game above,
+        # so a missing key here can only mean judge() was bypassed - and a KeyError is
+        # the right answer to that, not a brief nobody wrote.
+        GAME_BRIEF[game],
         "",
         "## What you have",
         "",
@@ -340,6 +344,36 @@ def judge(submission: Path, starter: Path, game: str, frames_dir: Path | None = 
           keep_pack: Path | None = None, max_turns: int = 60,
           budget: float = 2.0, timeout_s: int = 1800) -> dict[str, Any]:
     sid = submission_id or uuid.uuid4().hex[:12]
+
+    # HARD GUARD, GAME AXIS. The 2026-08-25 instruments decision (DECISIONS.md) guarded
+    # the CLASS axis - `aspects.INSTRUMENTS` declares `legacy_judge: game`, and
+    # `evaluate.assert_legacy_judge_allowed` refuses a scene before tier 1 - but the
+    # GAME axis stood open: GAME_BRIEF holds 3 entries and the suite has 4 games, so
+    # `--with-legacy-judge` on g4_platformer passed the class guard into a placeholder
+    # brief and would have answered all 13 criteria about a game nobody described. Only
+    # this function could close it: it owns GAME_BRIEF (rule 13), and its own CLI
+    # already refuses the same set by argparse choices. `evaluate.py --game
+    # g4_platformer --with-legacy-judge` is the path that was exposed.
+    #
+    # A RECORD, not an exception. evaluate() writes judge.json and its completeness
+    # gate refuses a trial whose tier files are missing, so a raise here would convert
+    # a tier-3 subject problem into a failed grading of tiers 1 and 2, which are valid
+    # whatever the tier-3 answer. `refused: true` is what makes this verdict distinct
+    # from the empty-pack refusal below and from evaluate()'s skipped marker; the
+    # census that partitions them is judge_refusal_selftest.py.
+    if game not in GAME_BRIEF:
+        return {
+            "tier": "judge", "refused": True,
+            "error": f"no GAME_BRIEF entry for {game!r} - the retired judge's 13 "
+                     f"criteria are written about the briefed games only "
+                     f"({sorted(GAME_BRIEF)}), so it is refused rather than answered "
+                     "against a placeholder brief. Do not extend GAME_BRIEF to admit "
+                     "it: the table is what every stored round was read against.",
+            "game": game, "model": model, "submission_id": sid,
+            "usable": False, "passed": 0, "total": len(ALL_CRITERIA), "score": 0.0,
+            "instability": None, "criteria": [], "pack": None, "cost_usd": 0.0,
+        }
+
     pack = Path(tempfile.mkdtemp(prefix=f"pack-{sid}-"))
     manifest = build_pack(submission, starter, pack, frames_dir, sid)
 
