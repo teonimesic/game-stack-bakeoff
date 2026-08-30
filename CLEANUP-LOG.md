@@ -3087,3 +3087,66 @@ asserted on real files). No action on any of them.
 
 **Next pass pointer:** `eval/judge/repack.py` (353 lines), named as alternate
 in the pass-28 entry, re-verified 0 heading hits before writing this.
+
+## Pass 30 — 2026-08-30 — `eval/judge/repack.py` (353 lines, read whole)
+
+The tool that re-packs a stored run's judge packs with the starter-drift exclusion set
+COMPUTED rather than guessed (#77 is the failure it exists to prevent). Judged **sound**.
+The design that earns it: the exclusion formula's two terms both come from the same
+packer, so the tool never trusts their difference alone — every excluded file must ALSO
+be byte-identical to its blob in the work tree's `starter baseline` commit, and the
+`--starters` override is read only as a fallback while the baseline commit stays the
+anchor.
+
+### Live verification, all unpiped, all at main HEAD 94d7905
+
+- **Positive control with a known-good answer**: `wg-scene-s1ts-2026-08-25` (1 submission,
+  work tree alive, starter frozen since 2026-08-23) with `--starters eval/starters` →
+  exit 0, `stored=24 rebuilt=24 exclude=0 corroborated=True labels_reproduce=True` —
+  exactly the shape a no-drift run must produce.
+- **Refusal axes, each fired live**: work trees deleted → all 8 `wg-g4c` submissions
+  REFUSED "no work tree on disk; cannot corroborate", exit 1. Recorded starter path gone
+  (a deleted agent worktree) → REFUSED naming the RECORDED path and the missing override,
+  rule 12 in the refusal text. `pack.manifest` stripped from a COPY of the run → REFUSED
+  "UNRECOVERABLE, not empty". Override starter replaced by the work tree's own authored
+  content → all 24 origins REFUSED as orphaned, "the starter moved toward the submission",
+  exit 1. Truncated run name → exit 2 "`run` takes a PATH, not a run name" (#96's guard,
+  still holding).
+- **The override self-corrects, three probes**: polluting the override with a NEW file →
+  exit 0 (nothing compares against a file the work tree lacks). Modifying a packed file's
+  starter copy → exit 0 unchanged, because `hud.ts` is AUTHORED and starter pollution
+  cannot flip authored work. The mechanism in both: the drop rule compares work-tree bytes
+  to the starter, but the CORROBORATION compares to the baseline commit — a wrong override
+  can mislabel template as authored, and the baseline then certifies the exclusion is
+  exactly the untouched file, which is the correct outcome, not a silent pass.
+
+### Examined and judged sound, no ticket
+
+- **plan/write asymmetry**: `plan()` tolerates a missing `pack.submission_id` (falls back
+  to `{game}-{name}`) while `write()` indexes it directly — a KeyError on `--write` for a
+  pack that the dry run passed. Bounded against stored data: 44 of 44 packs with a
+  manifest carry `submission_id`, so the shape is unreachable today. Latent and loud
+  (crashes, no corruption); logged, not ticketed.
+- **Register invisibility**: `repack.py` has no `_control/_mutants/_selftest` stem and
+  declares no `--selftest`, so `ci_minutes --controls` cannot see it — the same class as
+  pass 29's finding about `verify_blind.py`. The difference is the duty cycle:
+  `verify_blind` gates every run and its silent loss would be invisible; `repack` is a
+  manual recovery tool whose failures are loud (exit 1, printed refusals, `packcheck`
+  after), ran once, and its refusal machinery was re-proven by hand here. No `--selftest`
+  demanded.
+
+### What the refusals taught about stored history
+
+The 2026-08-23 `wg-g4c` re-pack is now **unrepeatable**: its work trees are gone, so a
+re-run refuses all 8 submissions. That is the tool working — an exclusion set that cannot
+be corroborated must not be computed, and the refusal is what stands between the stored
+result and a re-pack that would reclassify template code as authored. The `repack-2026-08-23-stale-files-removed/`
+directory flagged by `verify_blind --packs` is the deliberate audit copy of removed leaked
+files (#95), and `packcheck`'s CARGO/Rust hits are #131's recorded unrepaired stored-pack
+state — neither is a defect, and `--packs` gates packs at build time, not over stored
+history.
+
+**Next pass pointer:** `eval/tools/evidence_set_control.py` (366 lines), one of the four
+RECORDED-bare files in the register's first population — gated nowhere, named only in the
+left-out table, so it gets no CI attention at all. 0 heading hits, re-verified before
+writing this.
