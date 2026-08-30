@@ -377,6 +377,12 @@ def _segment_reads(seg: list[str]) -> list[str]:
                 # satisfies the pattern slot, so the next operand is a file.
                 expect_value = True
                 pattern_pending = False
+            elif verb in _PATTERN_FIRST and tok[:2] in _VALUE_FLAGS and len(tok) > 2:
+                # the ATTACHED spelling - `-epat`, `-fVALUE`, or the shell-glued
+                # `-e's/.../'`, one token either way - carries the pattern
+                # INLINE: there is no next token to consume and the pattern slot
+                # is satisfied here, so the file after it extracts.
+                pattern_pending = False
             continue
         if pattern_pending:
             pattern_pending = False
@@ -822,6 +828,16 @@ def selftest() -> int:
         ("grep -il 'pat' A/audio.json B/audio.json",
          ["A/audio.json", "B/audio.json"]),
         ("grep -e pat A/audio.json", ["A/audio.json"]),
+        # PR #98 round 2: the ATTACHED spellings - `-epat`, `-fVALUE`, and the
+        # shell-glued `-e's/.../'` - are one token, so the option skip passed
+        # them by and the pattern slot ate the FILE after them. The value is
+        # the pattern inline: no next-token consumption, the file extracts.
+        ("grep -epat A/audio.json", ["A/audio.json"]),
+        ("sed -e's/^/  /' A/audio.json", ["A/audio.json"]),
+        ("awk -fprog.awk A/audio.json", ["A/audio.json"]),
+        # ...while the separate form still consumes its next token as the
+        # pattern file, exactly as before.
+        ("grep -f pats.txt A/audio.json", ["A/audio.json"]),
         # PR #98 review: -e/-f consume a VALUE only for the pattern-first
         # verbs; for cat/tail/less they are plain options and the file after
         # them is an operand (tail -f of a pack file is a real read shape).

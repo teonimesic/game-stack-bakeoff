@@ -727,7 +727,9 @@ value or that punctuation token, and no read location. The review round added tw
 extractor repairs, pinned the same way: `-e`/`-f` consume a value only on the pattern-first
 verbs (`cat -e` and `tail -f` name a file, not a value), and every redirect spelling
 (`>>`, `2>`, `&>`) skips its write target — both move 0 stored measurements, the corpus
-holding neither shape. **0 is the fixed producer's answer.**
+holding neither shape. **0 is the answer of `python3 eval/judge/prompt_capture_census.py
+--runs-root <main checkout>/eval/runs` re-run at each repair above, not of the earlier
+run that itemised 2.**
 
 **Why this is a pre-registration rather than a stored hash.** `provenance` hashes `BRIEF.md`
 (`brief_sha256`) and the scene statement; it does not hash the prompt, because the prompt is the
