@@ -690,6 +690,42 @@ known-good rows. What the prompt told these judges to do and what they did diver
 scored on the difference. The 18 others predate the `files_opened` capture (task 09,
 2026-08-22) and are **permanently unassessable, not clean** — the #83 third value again.
 
+**2026-08-29 (task 218): the census widened to the Bash half, and the 0 stands there too.**
+`files_opened` records Read calls only, but since task 204 (2026-08-28) each round also stores
+`tool_calls` — every tool call with its full target — and the same producer now walks the Bash
+calls beside it, extracting the path-like operands of the reading verbs (`cat head tail less
+grep sed awk wc find`) and classifying each against the same pack layout. Unit and refusal rules
+are the module docstring's to state; in short: the call is the unit; a command of exactly 200
+characters is refused whole (the same cap the Read half refuses at); a call that yields no
+extractable literal path is a counted state (`no-path`), never a silent drop; and a round whose
+`tool_calls` key is absent, null or malformed is unassessable on this half, counted, never read
+as clean. Same producer, and the Read-half table above is byte-identical under the widened
+census — the shared classifier's new operand shapes move 0 stored Read targets.
+
+| aspect | usable `tool_calls` | absent | Bash calls | commands refused (200 chars) | no extractable path | operands classified | un-carried Bash reads |
+|---|---|---|---|---|---|---|---|
+| `audio` | 7 | 4 | 89 | 7 | 40 | 99 | **0** |
+| `fun` | 7 | 4 | 81 | 6 | 55 | 29 | **0** |
+| `fun_frames` | 16 | 6 | 202 | 8 | 172 | 25 | **0** |
+| `ux` | 9 | 4 | 96 | 10 | 70 | 26 | **0** |
+| total | 39 | 18 | 468 | 31 | 337 | 179 | **0** |
+
+All 468 are `Bash` calls — the stored corpus holds **0** `Grep` tool calls. The honest
+population of the zero: 468 shell commands over the 39 rounds whose `tool_calls` capture is
+usable; 31 of them truncated at exactly 200 characters and refused whole; 337 with no
+extractable path (no reading verb, an expansion, a pattern operand, a nested shell); 179
+operands, every one carried. The same 18 rounds are unassessable here as on the Read half, not
+clean. The first run of the widened census itemised **2** un-carried reads, and both were
+adjudicated false positives of the extractor, not leaks — the punctuation `<(` of a process
+substitution (`wc -l < <(ls A/frames)`) read as the redirected file, and a find expression
+VALUE (`find . -iname "BRIEF.md" -o -iname "brief.md"`) read as a path operand — both commands
+were reading evidence their packs carried. The extractor was fixed against its own corpus
+shapes (a punctuation token after `<` is not a file; find's operands are paths only before the
+first expression token), with the two corpus commands pinned as literal unit rows in
+`--selftest`; the fix moves 13 operands across 12 stored commands, every one an expression
+value or that punctuation token, and no read location. **0 is the fixed producer's answer, and
+the two itemisations that preceded it are recorded here rather than quietly discarded.**
+
 **Why this is a pre-registration rather than a stored hash.** `provenance` hashes `BRIEF.md`
 (`brief_sha256`) and the scene statement; it does not hash the prompt, because the prompt is the
 process argument and lands on no disk the round stores. Which side of this boundary a stored
