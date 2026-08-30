@@ -268,14 +268,14 @@ def checks(tmp: Path) -> list[tuple[str, list[str], Path]]:
     out.append(("agent_harness_control (argv byte-identity + 12 mutants, offline)",
                 ["python3", "tools/agent_harness_control.py"], EVAL))
     out.append(("docstat --sweep", ["python3", "tools/docstat.py", "--sweep"], EVAL))
-    # The reader of the agents' own closing messages, and its twelve mutants. Both need
-    # the stored corpus: six of the twelve are caught only by a real message, and the
-    # selftest's documented rows come from `runs/`. Run from the main checkout — in a
-    # worktree both exit 2 saying the corpus is absent, which is the honest answer and a
-    # red row here.
+    # The reader of the agents' own closing messages, and its twelve mutants. The selftest's
+    # documented rows come from `runs/`; 2 of the twelve mutants are caught only by a real
+    # message, so the mutants tool exits 2 without the corpus — after running its offline
+    # half, which is a measurement anywhere. Run from the main checkout; in a worktree
+    # exit 2 here is the honest answer and a red row.
     out.append(("disclosure --selftest (documented rows, both directions)",
                 ["python3", "tools/disclosure.py", "--selftest"], EVAL))
-    out.append(("disclosure_mutants (12 mutants, 6 caught only by real data)",
+    out.append(("disclosure_mutants (12 mutants, 2 caught only by real data)",
                 ["python3", "tools/disclosure_mutants.py"], EVAL))
     # Liveness for the frame-parity guard: run it against a run known to be UNIFORM, so a
     # green row means the tool works rather than that some other run is clean.

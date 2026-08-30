@@ -6,7 +6,8 @@ helper patterns the cues are built from, nor the line that chooses which field t
 Those are exactly the mechanisms whose loss is invisible: a wider `_GAP` still locates
 every documented discloser, and reading the truncated field still locates most of them.
 So each mutant here rewrites one span of the source and runs the real selftest against
-the real corpus. **Every mutant must be caught.**
+it — offline where the fixture half is the honest measurement, against the real corpus
+for all twelve. **Every mutant must be caught.**
 
 Two of the six reproduce defects that existed in drafts of this tool and were found only
 because a documented row disagreed:
@@ -33,10 +34,21 @@ family still find what it should" can see either.
     python3 eval/tools/disclosure_mutants.py                   # against eval/runs/
     python3 eval/tools/disclosure_mutants.py --runs-dir PATH   # against another corpus
 
-A missing corpus exits 2. These mutants are not meaningful against fixtures alone: six of
-the twelve are caught only by a real stored message. The exception proves the rule the
-other way — `scan_filter` and `scan_glob` are caught by the selftest's fixture half
-alone, because a trial with no stored message carries no text for a cue test to miss.
+Two passes. The OFFLINE half runs in every checkout — no corpus needed — and applies
+ALL twelve against the selftest's fixture half alone, so offline coverage is measured
+by something that runs rather than proved once by hand (the tasks/225 review was right
+about the version of this file that only claimed it). On a corpus run the offline
+survivors must equal `CORPUS_ONLY_MUTANTS` EXACTLY, in both directions: a mutant that
+dies offline but is declared corpus-only is a stale declaration, and one that survives
+offline without being declared is red — the set is pinned, not just populated. The
+corpus half then applies all twelve against the real stored messages. A missing corpus
+still exits 2 once the offline half agrees with the declaration — and 1 if it does not.
+
+Measured 2026-08-30 by running all twelve with `--skip-corpus`: 10 die on fixture-side
+checks alone, and 2 are caught only by a real stored message — `tail` (the wg-arena3d
+truncation control) and `family_split` (`archive-arena2d` `rust__t0`). That measurement
+is now re-derived on every run of this file. A trial with no stored message carries no
+text for a cue test to miss, which is why the scan mutants pin offline with the rest.
 """
 
 from __future__ import annotations
@@ -112,9 +124,9 @@ MUTANTS: dict[str, tuple[str, str]] = {
     # the scan reaches every artifact DIRECTORY, and a trial whose agent_result.json
     # was never stored is a no_message row, not an absence (tasks/225). Restoring the
     # old file filter is invisible to every cue test — the dropped trials carry no
-    # text to mislocate — so only the scan-population pins can see the loss. These
-    # two are caught by the fixture half alone, so they stay pinned with
-    # --skip-corpus where the other ten are not.
+    # text to mislocate — so only the scan-population pins can see the loss. Both are
+    # caught by the fixture half alone, and the offline pass in main() pins them with
+    # --skip-corpus in any checkout.
     "scan_filter": (
         "    dirs = [d for d in sorted(artifacts.iterdir()) if d.is_dir()]",
         "    dirs = [d for d in sorted(artifacts.iterdir())\n"
@@ -125,46 +137,99 @@ MUTANTS: dict[str, tuple[str, str]] = {
         '                  runs_dir.glob("*/artifacts/*/agent_result.json"))'),
 }
 
+# The mutants whose only catches live in the selftest's REAL-CORPUS rows (direction 5).
+# Measured 2026-08-30 by running all twelve with --skip-corpus: exactly `tail` (the
+# wg-arena3d truncation control) and `family_split` (archive-arena2d rust__t0, whose
+# starter passage must land in the unverified-own-work count) survive without a corpus;
+# the other ten die on fixture-side checks alone. The offline pass in main() re-derives
+# that measurement on every run and requires the survivors to equal this set EXACTLY:
+# an undeclared offline survivor is red (fail-closed default for new mutants), and a
+# declared mutant that dies offline is a stale entry to trim. Declaring here is a
+# recorded decision, never a silent gap.
+CORPUS_ONLY_MUTANTS = frozenset({"tail", "family_split"})
+
+
+def run_pass(base: str, tmp: Path, names: list[str], runs: Path | None,
+             declared: frozenset[str] = frozenset()) -> list[str]:
+    """Apply each named mutant and run the real selftest against it.
+
+    `runs=None` runs the selftest with `--skip-corpus` — the fixture half alone,
+    which is a measurement wherever this file lives. Survivors that are in
+    `declared` are expected in that mode and labelled as such. A mutant whose
+    search text has drifted is a survivor too, because a no-op mutant reports a
+    pass for a check that never changed.
+    """
+    survivors: list[str] = []
+    for name in names:
+        old, new = MUTANTS[name]
+        if old not in base:
+            print(f"--- mutant {name}: NOT APPLIED — its search text is no longer in "
+                  f"{SOURCE.name}. A no-op mutant reports a pass for a check that "
+                  f"never changed.")
+            survivors.append(f"{name} (not applied)")
+            continue
+        path = Path(tmp) / f"{name}.py"
+        path.write_text(base.replace(old, new, 1))
+        argv = [sys.executable, str(path), "--selftest"]
+        argv += ["--skip-corpus"] if runs is None else ["--runs-dir", str(runs)]
+        proc = subprocess.run(argv, capture_output=True, text=True)
+        caught = proc.returncode != 0
+        verdict = "CAUGHT (exit %d)" % proc.returncode if caught else (
+            "SURVIVED (declared corpus-only — the corpus half holds it)"
+            if runs is None and name in declared else "SURVIVED")
+        print(f"--- mutant {name}: {verdict}")
+        for line in proc.stdout.splitlines():
+            print(f"    {line}")
+        if not caught:
+            survivors.append(name)
+    return survivors
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--runs-dir", default=str(DEFAULT_RUNS))
     args = ap.parse_args()
     runs = Path(args.runs_dir).expanduser().resolve()
-    if not runs.is_dir():
-        print(f"UNMEASURABLE: no corpus at {runs}. Four of these six mutants are caught "
-              f"only by a real stored message; an agent worktree has no eval/runs/, so "
-              f"run this in the main checkout.", file=sys.stderr)
-        return 2
 
     base = SOURCE.read_text()
-    survivors: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
-        for name, (old, new) in MUTANTS.items():
-            if old not in base:
-                print(f"--- mutant {name}: NOT APPLIED — its search text is no longer in "
-                      f"{SOURCE.name}. A no-op mutant reports a pass for a check that "
-                      f"never changed.")
-                survivors.append(f"{name} (not applied)")
-                continue
-            path = Path(tmp) / f"{name}.py"
-            path.write_text(base.replace(old, new, 1))
-            proc = subprocess.run(
-                [sys.executable, str(path), "--selftest", "--runs-dir", str(runs)],
-                capture_output=True, text=True)
-            caught = proc.returncode != 0
-            print(f"--- mutant {name}: "
-                  f"{'CAUGHT (exit %d)' % proc.returncode if caught else 'SURVIVED'}")
-            for line in proc.stdout.splitlines():
-                print(f"    {line}")
-            if not caught:
-                survivors.append(name)
+        # THE OFFLINE HALF, ALWAYS RUN, OVER ALL TWELVE. In whatever checkout this runs
+        # in — a worktree with no eval/runs/ included — it measures which mutants die on
+        # fixture-side checks alone, and that measurement must equal CORPUS_ONLY_MUTANTS.
+        # This pass is what makes the offline-coverage claim in the docstring a
+        # measurement rather than prose: the tasks/225 review was right that a coverage
+        # claim nothing runs is not a claim.
+        offline_survivors = run_pass(base, tmp, list(MUTANTS), None,
+                                     declared=CORPUS_ONLY_MUTANTS)
+        if set(offline_survivors) != CORPUS_ONLY_MUTANTS:
+            undeclared = [s for s in offline_survivors
+                          if s not in CORPUS_ONLY_MUTANTS]
+            stale = sorted(CORPUS_ONLY_MUTANTS - set(offline_survivors))
+            print(f"\nOFFLINE-PIN MISMATCH: {len(offline_survivors)} of {len(MUTANTS)} "
+                  f"mutants survive the fixture half, but CORPUS_ONLY_MUTANTS declares "
+                  f"{{{', '.join(sorted(CORPUS_ONLY_MUTANTS))}}}. "
+                  f"undeclared survivors (red — pin the mutant offline or declare it): "
+                  f"{undeclared or 'none'}; stale declarations (trim): "
+                  f"{stale or 'none'}.", file=sys.stderr)
+            return 1
+        if not runs.is_dir():
+            print(f"UNMEASURABLE: no corpus at {runs}. "
+                  f"{len(CORPUS_ONLY_MUTANTS)} of the {len(MUTANTS)} mutants are caught "
+                  f"only by a real stored message "
+                  f"({', '.join(sorted(CORPUS_ONLY_MUTANTS))}), so the corpus half "
+                  f"cannot run here; the offline half above did, and agrees with the "
+                  f"declaration. Run this in the main checkout.", file=sys.stderr)
+            return 2
+        survivors = run_pass(base, tmp, list(MUTANTS), runs)
 
     if survivors:
         print(f"\nSURVIVED: {', '.join(survivors)} — the selftest cannot see the loss of "
               f"that mechanism.")
         return 1
-    print(f"\nall {len(MUTANTS)} mutants caught against {runs}")
+    print(f"\nall {len(MUTANTS)} mutants caught against {runs}; the offline half "
+          f"re-measured {len(MUTANTS) - len(offline_survivors)} of them as "
+          f"fixture-catchable, matching CORPUS_ONLY_MUTANTS "
+          f"({', '.join(sorted(CORPUS_ONLY_MUTANTS))})")
     return 0
 
 
