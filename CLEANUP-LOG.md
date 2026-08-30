@@ -2733,3 +2733,296 @@ verified against every heading before writing this: 0 hits. Alternate:
 `eval/judge/anonymise.py`, the anonymiser whose dropped-manifest made #62
 findable, verified the same just now — the two candidates I checked besides
 these (`census.py`, `field_ranks`) are prior subjects and were rejected.
+
+## Pass 26 — 2026-08-30 — `eval/judge/paired_verdicts.py` (773 lines, read whole)
+
+The producer built to retire a hand-done recount: the 2026-08-22 within-cell
+figures four documents quoted had no command that computed them, and
+reproducing `436` a day later meant reverse-engineering which tier set it had
+summed. **Judged sound; no ticket.** Of the producers read in passes 21-26,
+this is the one the others should be measured against — its three refusals are
+each tied to a specific wrong published number, and the docstring corrects its
+own draft in public ("This said 'six times' until it was re-derived").
+
+Sound, with the property each one answers:
+
+- **The tier set is part of the figure** (refusal 1): `436` reproduces only by
+  summing all three tiers, 156 of which are LLM-judge criteria at weight 0.00;
+  the deterministic recount of the same run is 280/4. The corpus pins assert
+  BOTH readings and the **156 delta between them** — "were these equal, the
+  tier set would not matter and the first refusal would be decoration".
+- **A cross-game sum is a count, never a rate** (refusal 2): the pooled rows
+  are printed — they are what the published figures were — labelled "a COUNT,
+  not a rate", with the reason (criterion counts differ per game; a pooled
+  rate weights the biggest game hardest) and the per-game rates above.
+- **A cell whose trials did not both complete is not a cell** (refusal 3):
+  terminal reason comes from the BUILD record (`trials/<tid>.json`), never the
+  report (#22's reasoning); a missing JSON reads `unknown`, never `completed`;
+  and the wg-g4c-capgate arms — byte-identical diff lists, 3× the highest real
+  cell's rate — are excluded by name. Today's live run shows both nested arms
+  reached and their cells excluded.
+- **`--runs-root` is required and refused, not guessed** (:754-766), and the
+  empty population **exits 2** with the path named — the exact shape task
+  224 (pass 25) found missing from `regrade_wholegame.py`. Same repository,
+  same discipline, one tool has it and one does not; the ticket cites the
+  sibling and this pass confirms the sibling's behaviour live.
+- **The walk is `**/`**, naming the nested arms a single `*/` misses, pinned
+  by an `r6/armA` fixture (:63-65, :670-671).
+- **Every record the walk reaches but cannot classify is named**: undecodable,
+  non-mapping, unusable trial id, malformed tier block, criteria of wrong
+  shape, `id` without `passed`, non-string ids — with the hash-collision
+  reason stated (`true` and `1` hash the same, so either would let two
+  different records share one key). "A record the module cannot name is a
+  counted problem with its name attached." The skip channels are announced
+  empty over the stored tree by every selftest run that prints no note — the
+  dated docstring claim re-derives itself each run.
+- **RECORDED vs SCOREABLE is kept distinct**, and the four quadrants are all
+  pinned: a criterion only one side recorded is a suite difference (r2); a
+  malformed record is still a record, so one malformed side is not a suite
+  change (r9); a suite difference stays counted when the side that recorded it
+  recorded it malformed (r10); both sides malformed reaches no denominator but
+  is named (r8). The skip label's own scope was corrected — "not counted
+  anywhere below" was wrong for skips — and the corrected label is pinned.
+- **The positive control, mutants and variants are labelled as such** in the
+  check names, and one check knows what its own mutant would look like: r7's
+  skip check counts to 2 because "were `rows == []` the only expectation, a
+  walker that stopped globbing would pass this fixture too".
+- **Evidence-diff is built in as the independence control**: without it, a
+  verdict tie is equally consistent with the grader having read the same file
+  twice — rule 9's question, asked by the instrument itself.
+- The **4 deterministic verdict differences are named per criterion** in the
+  live output — a count you can open, not just a number.
+- Selftest without `--runs-root` runs the synthetic half and **says the pins
+  did not run** — a skipped section that announces itself, never one that
+  reads as run.
+
+Live at HEAD b0e0004, unpiped: `--selftest --runs-root <main>/eval/runs` —
+**38/38 checks, 5/5 corpus pins**, every published figure reproduced with its
+tier set (wg-matrix ALL_TIERS 436/5/332, DETERMINISTIC 280/4/176; wg-audio48
+232/0/120 both); the full report over the stored tree names the nested
+excluded arms and all 4 deterministic differences. Exit 0.
+
+### Below the bar
+
+Nothing that survives scrutiny. The only candidate — pooled "0 paired" rows
+under excluded-cell runs reading, to a skimming reader, like a measured
+perfect tie — is exactly what the "EXCLUDED CELLS (not counted anywhere
+below)" header above each one exists to prevent; the label is the defence and
+it is pinned. The corpus pins hard-code figures for named runs and would fail
+loudly if those records were ever legitimately re-graded — which is a pin
+doing its job, not a defect.
+
+### Gates at HEAD b0e0004, unpiped
+
+`paired_verdicts.py --selftest --runs-root <main>` 38/38 + 5 pins exit 0;
+full-report exit 0; `docstat.py --sweep`, `--renumbered`, `tasks.py check`
+re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/anonymise.py` — the anonymiser whose dropped-manifest made #62
+findable four matrices late (the audit-trail paragraph in AGENTS.md is about
+it), verified against every heading before writing this: 0 hits. Alternate:
+`eval/judge/disclosure.py`, the rule-11 locator whose two-questions-two-counts
+caveats are load-bearing in AGENTS.md and worth reading at the source,
+verified 0 hits just now.
+
+## Pass 27 — 2026-08-30 — `eval/judge/anonymise.py` (461 lines, read whole)
+
+The anonymiser the AGENTS.md audit-trail paragraph is about: the dropped-file
+manifest it returns is the capture that made #62 findable four matrices late.
+Read whole; **judged sound; no ticket.** Driven live at the function level, not
+only through its selftest.
+
+### Examined and judged sound, with the probe that held each one up
+
+- **The manifest is the audit trail, and its always-0 counter is deliberate.**
+  `files_dropped_for_length` is 0 by construction since #69 removed the cap and
+  is kept so the completeness gate can ASSERT it — a budget reintroduced later
+  cannot truncate silently. The counter of an absence that must stay absent,
+  kept instead of deleted as vacuous. `field.py`'s `pack_matches_manifest` is
+  the independent reader of the same property (disk set == manifest set), and
+  the docstring names it.
+- **The destination guard is rule 12 in a writer** (`:356-364`): refuses dest
+  == submission/starter and dest an ANCESTOR of either, because "this is the
+  one place where getting the address wrong is unrecoverable". Verified live
+  both shapes refused. The condition matches its message — my first probe
+  built `dest` INSIDE the submission and called the pass a defect; the guard's
+  stated purpose is a dest that CONTAINS the submission (clearing deletes the
+  evidence), and building into a subdirectory of the submission mutates
+  nothing it does not own. The probe was the wrong shape; the guard is right.
+- **The #69 numbering property holds live**: two passes into one dest with the
+  submission shrunk between them — zero stale files, disk==manifest, labels
+  renumbered. The docstring's claim (a pack is a NUMBERING, not a set) is
+  enforced by the clear, and the corpus damage that bought it (wg-g4c's 23
+  unaccounted files over nine passes) is named where the clear was added.
+- **The segment matcher is the closed-class rule in code** — a vocabulary of
+  38 one-arm names matched as IDENTIFIER SEGMENTS in any case convention, with
+  `_match_window` refusing one-letter segments (what stops `Vec3.UnitY`
+  spelling `unity`) and `_LITERAL_TOKENS` holding the two forms segmentation
+  cannot save (`three` the numeral, `Node2D`). Every negative control in its
+  own comment reproduces live: immunity, UnitY, tscn, bestScore,
+  is_three_dimensional, bare `node` — all clean; CARGO_MANIFEST_DIR,
+  WinitPlugin, crates/sim, bevyengine/bevy#6183, TypeScript, gdlintrc — all
+  found. The substring search the comment measures this against would have
+  rewritten `immunity` 54 times.
+- **`find_stack_names` is the same code path as the rewrite, deliberately** —
+  a detector with its own vocabulary would agree with the rewriter by
+  construction and measure nothing; the compensating control is the selftest's
+  sweep over REAL stored pack text (85 packs, 0 leaking, run green today).
+- **The selftest is gated and measures in both directions**: 38 names × 3 case
+  forms with 0 surviving, 38 drop-one-name mutants with 0 silent, 128 real
+  leak lines 0 surviving, **400 innocent lines 0 corrupted** (the variant half
+  — a scrubber that also rewrites `immunity` would die here), idempotence over
+  528 lines, then the stored sweep. Wired at `gates.yml:298`.
+- **Identity is defended twice, on purpose**: `_TRIAL_ID_RE` (the answer-key
+  shape `g4_platformer__godot__t1`) and `_WORK_PATH_RE` (absolute work-tree
+  paths baked into scripts), because "one of them is a list of directory names
+  and this project has learned what a list-shaped guard misses" — the `.codex`
+  skip is the list; the regexes are the property. `verify_blind.py` consumes
+  all three (`:145`, `:150`, `:162`).
+- The shuffle seed is `sha256(submission_id)` — per-submission, deterministic,
+  re-derivable; ordering cannot systematically favour a stack, and a re-pack
+  reproduces byte-identical order.
+- **`exclude_origins` (starter drift)** is passed in explicitly and the caller
+  must show its working — the comment derives the correct set as (rebuilt pack)
+  MINUS (stored manifest) MINUS (legitimately returning length drops), so the
+  filter cannot silently widen.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- **`except OSError: continue` at `:410-411`** drops an unreadable file from
+  the pack with no count anywhere — an ERROR read as a filter decision (rule
+  7's shape; every other drop here is a deterministic class). Probed live with
+  a `chmod 000` code file: absent from manifest and disk, nothing reports it.
+  **Censused before judging it**: `find eval/runs -type f ! -perm -400` → **0
+  files** in the entire stored tree. Latent, no held trigger, silent → log
+  line under the pass-12 policy, not a ticket.
+- The other uncounted drops — `DROP_NAMES`, non-`CODE_EXT`, empty files,
+  AppleDouble `._` — are deliberate presentation filters, and the manifest
+  records what the judge actually sees; only the OSError case converts an
+  error into a filter.
+- "Bee" (named in `tier1_census.py`'s skip list) is Unity's `Library/Bee`
+  toolchain tree — covered here by `SKIP_DIRS`' `Library`. Checked because the
+  two skip lists overlap imperfectly and the census comment does not say so.
+
+### Gates at HEAD 8ba1eb2, unpiped
+
+`anonymise_selftest.py` 7 checks, 0 unmet, exit 0; function-level probes as
+above (guards, numbering, matcher controls, OSError probe); `docstat.py
+--sweep`, `--renumbered`, `tasks.py check` re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/verify_blind.py` — named twice as an alternate (passes 27 and the
+entry above), verified 0 heading hits before writing this. Alternate:
+`eval/judge/repack.py`, also verified 0.
+
+## Pass 28 — 2026-08-30 — `eval/tools/disclosure.py` (896 lines, read whole)
+
+The rule-11 locator: the tool built because "31 of 75 completed trials had
+written a disclosure and no grader, report or gate opened one". **One defect,
+ticketed (task 225, p4, dispatched this session)** — the rest is sound, and
+its selftest is one of the two-directional exemplars the log keeps naming.
+
+### The pointer had the wrong directory, not the wrong file
+
+Pass 26's alternate named `eval/judge/disclosure.py`; the file lives at
+`eval/tools/disclosure.py`. The subject was still valid — the heading grep is
+path-agnostic and no heading had ever named any `disclosure.py` — but the
+path was found wrong on contact, by following the import graph
+(`wholegame.py:68`) instead of the pointer. Recorded per pass 14's rule: a
+pointer's accuracy is part of what a later pass inherits. Third wrong-pointer
+instance this log (pass 13's alternate, pass 17's pointer, pass 22's
+alternate) — this one a directory, the others files that were already read.
+
+### Found — filed as tasks/225
+
+**Both scanners silently drop artifact directories that hold no
+`agent_result.json`.** `scan_run` filters on `is_file()` and `scan_tree` on
+the glob, so such a trial produces no row at all — while `read_trial` carries
+a branch for exactly this state (`:419-420`, status `no_message`, reason "no
+agent_result.json stored") that is unreachable from every CLI path. Measured
+before filing: **98 artifact dirs under `eval/runs/*/artifacts/*/`, 91 carry
+the file, 7 do not** across 3 runs — one of them (`s1_parallax__ts__t0`) a
+fully graded trial with `submission.tar.gz` and `eval/` present and no
+closing message stored. Reproduced live: `--run-dir` on
+`wg-audio-2026-08-14T12-29-42` prints **"11 trials" for a run holding 15
+artifact dirs**; the whole-tree table prints `wg-g4` as `3 / 4 / 4` for a
+6-dir run; `wholegame.py:1062` inherits the short count. The tool's whole
+ethic — no_message is UNMEASURABLE never silence, 0 is refused — names this
+population as the one that must never be invisible, and the channel makes it
+invisible. Diagnostic-only, so p4; ticket states the property (every artifact
+dir yields exactly one row; trials count == dirs reached) and pins the
+refusals, the corpus pins and the 25/15 figures as must-not-move.
+
+### Examined and judged sound
+
+- **Three values, never two** — `classify()` refuses null, empty and the
+  API's limit string as `no_message`, pinned by unit checks AND three real
+  corpus rows (`MUST_BE_NO_MESSAGE`) covering both limit-string variants.
+- **The field choice is load-bearing and tested on real data** — the selftest
+  proves a head-of-message disclosure invisible to the 3000-char tail, and
+  its corpus control asserts the whole message still holds more passages than
+  the tail for the exact trial (#49's run) whose disclosure sits at character
+  0 of 3912.
+- **Direction 1b of the selftest is the dead-or-duplicated check**: removing
+  ANY single cue family must silence at least one variant, or the family is
+  dead and looks alive from outside. Combined with direction 1's
+  empty-BOTH-lists mutant (so neither family can cover for the other) and
+  `disclosure_mutants` deleting each cue at source, the cue set cannot rot
+  silently.
+- **Written from the property, with every widening and narrowing named** —
+  the closed `_GAP` set (three stored false positives fixed by closing it),
+  `_PERF` past-tense-only (the habitual that broke the archive-arena2d
+  control), first-person `_WEAK`, `NOT_A_REPORT`'s three sentence properties
+  scoped to the starter family alone because applying them to CUES "would
+  silently drop disclosures".
+- **The two never-pooled families** carry their own denominators and the
+  tasks/94 correction (26 vs 25) is told where the pooling happened.
+- **The two documented dead zones are recorded, not hidden**: `residual`
+  fires on 0 of 90 stored messages (kept because it is what a future run's
+  required section would produce) and `recipe_red` locates no row the other
+  starter cues do not — each with its variant-only load-bearing test named.
+- **Refusal discipline**: both scanners raise rather than report an empty
+  population, `--skip-corpus` prints "a non-measurement, not a pass", and a
+  missing corpus exits 2. `wholegame.py:1063-1065` catches the raise and
+  prints the same distinction.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- A heading passage includes its first 3 body lines, and those lines are not
+  marked claimed — a body sentence carrying a cue appears twice (inside the
+  heading passage AND as its own sentence). Trial-level located/quiet counts
+  are unaffected; the doubled sentence is visible verbatim twice in the
+  output, so it self-announces.
+- `--run-dir X --json` silently ignores `--json` (it is consulted only on the
+  tree path). Accepted-but-ignored, rule 13's companion shape — but any JSON
+  consumer fails loudly on the text it receives instead.
+- `--trial` and `--full` `json.loads` without the `DisclosureError` wrap — a
+  corrupt file is a bare traceback, loud and pre-output, where `read_trial`
+  wraps the same read.
+- The CAVEAT/docstring figures (75 readable, 90 messages) are dated hand-pass
+  numbers; the live tree now holds 91 messages (one more rust since
+  2026-08-23). Expected drift of a dated figure recorded with its date — the
+  hand-classified columns cannot be re-derived by the tool, which is why the
+  CAVEAT quotes both.
+
+### Live at HEAD 332c467, unpiped
+
+`--selftest` exit 0 with corpus (variants, mutants, three values, truncation
+control, all corpus pins); published locator figures reproduce exactly —
+unverified 25, starter 15, per-stack 3/11/3/8; the 98/91/7 census and the
+11-of-15 reproduction as above.
+
+### Gates at HEAD 332c467, unpiped
+
+`docstat.py --sweep`, `--renumbered`, `tasks.py check` re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/verify_blind.py` — the blinding gate, named as alternate in the
+two entries above, verified 0 heading hits before writing this. It consumes
+`anonymise`'s exports and the pack's rendered text; task 200 found the skills
+invoking it bare at exit 2. Alternate: `eval/judge/repack.py`, verified 0
+hits.
