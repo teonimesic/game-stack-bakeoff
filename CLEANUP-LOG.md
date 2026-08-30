@@ -2546,3 +2546,93 @@ pointer), and the first committed by the session that had just re-derived the ru
 passes' prose (16, 22, 23) and never a subject (verified against every heading
 before writing this: 0 hits). Alternate: `eval/judge/regrade_wholegame.py`, the
 offline re-scoring path `evaluate.py`'s docstring leans on, likewise verified 0 hits.
+
+## Pass 24 — 2026-08-30 — `eval/judge/weight_sensitivity.py` (379 lines, read whole)
+
+The other rule-16 producer: the sweep whose FLIPS=0 answer retired the
+`0.31/0.69` split it was built for. Read whole; **judged sound; no ticket.**
+Where tier1_census was the cleanest census, this is the best-documented tool in
+the judge tree — its docstring does the one thing almost no tool here does:
+**it pre-states what its own output must not be read as.**
+
+Sound, with the property each one answers:
+
+- The docstring names its own misuse and forbids it (:12-17): the sweep covers
+  the OPEN interval deliberately, the gate scheme IS w1=0, so **`FLIPS=0` was
+  not evidence for the gate change and must not be quoted as if it were** — and
+  it names the tool that asks the endpoint question (`tier1_census.py`). It
+  also states the output is not a stack ranking (`DECISIONS.md` bars that) and
+  its orderings are not results. A reader cannot reach the wrong conclusion
+  without passing the sentence that says not to.
+- **UNIDENTIFIABLE is a distinct verdict, not folded into STABLE** (:158-163):
+  tier 1 constant means "the weight is inert HERE and we cannot tell whether
+  0.31 was right", which calls for the opposite action from "the weight is
+  defensible by not mattering". This is #92's finding as a type in the return
+  value, not a paragraph in a log.
+- The **positive control states its geometry** (:242-257): a reversal crosses
+  a tie, so a clean flip is THREE orderings and not two — the selftest asserts
+  the sequence A>B, A=B, B>A and the tie's location near w1=0.5. (The comment
+  records that asserting two was the test's own error and the sweep was right.)
+- The **endpoint false positive has a regression guard** (:295-308): the fixture
+  is "the shape of 3 of the 10 real stored groups" that the first version's
+  closed-interval sweep called FLIPS. The fix is tested both ways — not a flip,
+  AND the endpoint orderings are still computed and printed beside the verdict,
+  because "everything ties once tier 2 is dropped" is a fact about tier 1's
+  discriminating power worth seeing. Between this tool (endpoints shown,
+  excluded from the verdict) and tier1_census (asks AT the endpoint), the pair
+  covers the whole interval with no gap and no double count.
+- `--runs-root` is **refused, not guessed** (:331-350), naming #60 and the
+  worktree-empty-`runs/` failure in the help text, exit 2 with the repair in
+  the message — the same rule-12 pattern as its sibling, independently written.
+- An unusable playbot tier is **excluded as bias, not noise** (#25 named, :79-83),
+  flagged through and counted per group in the printed head.
+- Ties are **grouped, not broken by name** (:107-117), with the reason stated:
+  tie→strict and strict→tie are different events, and the sweep must tell them
+  apart.
+- Partition by (run, game) **before** sweeping (rule 4 in the docstring) — which
+  is why this reports 11 small groups rather than one confident line.
+- Its address is `artifacts/*/eval/report.json`, **one file per trial**, so the
+  superseded-grading dedup tier1_census needs does not arise here; a re-grade
+  rewrites the same file and leaves one record.
+
+Live at HEAD 843e67d, unpiped: selftest 12/12; `--all --runs-root <main>` over
+the stored corpus: **groups: 11, FLIPS=0, STABLE=3, UNIDENTIFIABLE=8** — the
+figure AGENTS.md rule 16 publishes ("says the same thing at 8 of 11"),
+reproduced by its producer. Sampled groups confirm the informative shape: the
+matrix groups print tier-1 distinct values 1 (hence UNIDENTIFIABLE) with the
+w1=1 endpoint collapsing to a four-way tie — tier 1 never discriminated
+anything there, visible in the tool's own output.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- The comment at :65-66 names `_orderings`, "which records the bracketing w1
+  pair" — **no function of that name exists**; the mechanism is `sweep`'s
+  `seen` list and `_ordering` (singular). Same-file comment rot, the weak
+  local cousin of the #38 class: a reader is 40 lines from the real name.
+- `load_trials` drops a report missing either tier key (:88-89) and **counts
+  the drop nowhere** — the "a skip nobody counts" shape tier1_census prints
+  and this one does not. Measured today: 69 report.json files under
+  `eval/runs/*/artifacts/*/eval/`, 69 with both keys, 0 skipped (the same 69
+  tier1_census counts — the producers agree on the population). An
+  all-missing directory exits 1 visibly; a *mixed* one narrows the group
+  under a printed n that cannot show it.
+- Homogeneity is claimed from the (run, game) partition alone, and the stored
+  records carry **no turn-budget field at all** (measured over all 69 record
+  key sets), so a budget-mixed group would be indistinguishable here rather
+  than mixed. The #35 heterogeneity lived in run-configuration records this
+  tool never reads. Not reachable on today's corpus; the claim "one
+  homogeneous group" in `sweep`'s docstring is currently true by absence of
+  the field, not by a check.
+
+### Gates at HEAD 843e67d, unpiped
+
+`weight_sensitivity.py --selftest` 12/12 exit 0; `--all` figures as above;
+`docstat.py --sweep`, `--renumbered` and `tasks.py check` re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/regrade_wholegame.py` — the offline re-scoring path the pass-23
+entry named as alternate, re-verified against every heading before writing
+this entry: 0 hits. Alternate: `eval/judge/paired_verdicts.py`, the producer
+two withdrawal-register entries name as their replacement, if it has not been
+a subject — verify before following, the discipline pass 23 finally paid for.
