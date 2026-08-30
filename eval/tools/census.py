@@ -81,67 +81,23 @@ import tokenvalue  # noqa: E402
 # imported rather than restated. It was spelled out here and again in `cost_census.py` —
 # the two producers that decide which records may be summed — with nothing asserting the
 # two agreed, which is rule 12 with a dollar figure attached.
-from agent_harness import TOKVAL_HARNESS, harness_of  # noqa: E402
+#
+# The whole-game / scene / spec-change partition and the agent-authored skip list are the
+# same shape one population down: this module and `cost_census.py` each spelled their own
+# test until the first scene record landed and the two totals for one tree disagreed by
+# one (task 227). They are imported from the shared module, and the selftests pin the
+# import in both directions.
+from agent_harness import (  # noqa: E402
+    NOT_A_RUN,
+    TOKVAL_HARNESS,
+    TaskClassError,
+    harness_of,
+    population_of,
+    task_class_of,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
-
-# The field whose presence separates the two populations. A whole-game record is written
-# by wholegame.py, which always sets it; a spec-change record is written by runner.py,
-# which never does.
-WHOLEGAME_KEY = "game"
-
-#: Which task class a stored record belongs to. Written by `wholegame.py build`.
-TASK_CLASS_KEY = "task_class"
-
-
-#: Every class this census knows how to partition. A PRESENT value outside it is refused.
-TASK_CLASSES = frozenset({"game", "scene"})
-
-#: Distinguishes an ABSENT `task_class` from one stored as `null`.
-#:
-#: `record.get(KEY)` returns `None` for both, and they are opposite claims: absent means
-#: "written by a harness that could not launch a scene" and is read as `game`; `null` is a
-#: record that HAS the field and did not say what it holds. `dict.get`'s second argument
-#: is the only thing that separates them, and it has to be a value no stored record can
-#: carry - `None` cannot be, which is exactly the collision.
-_ABSENT = object()
-
-
-def task_class_of(record: dict) -> str:
-    """`"game"` or `"scene"` for one stored record. Raises on a class it does not know.
-
-    ABSENT READS AS `game` BY CONSTRUCTION, not by convenience. `wholegame.py` gained
-    `--scenes` and this field in one change, so a record written without the field was
-    written by a harness that could not launch a scene. Reading it as `game` is therefore
-    a statement about the corpus, and it is one a scene record cannot slip past: any
-    record a scene run produces carries the field.
-
-    A PRESENT VALUE THIS DOES NOT KNOW IS REFUSED, and that is a different question from
-    the absent one. `== "scene" else "game"` tests one instance of an open class: a third
-    task class, or `"Scene"` off a typo, would land inside the published bake-off count
-    and its tokval total with nothing saying so. A partition whose trigger enumerates the
-    values it happened to know about is the failure this repository has a rule for.
-
-    `null` IS A PRESENT VALUE AND IS REFUSED WITH THE REST. `record.get(KEY)` answers
-    `None` for an absent key and for `"task_class": null`, so the default that makes the
-    absent case a `game` would silently make the null case one too - a record that has
-    the field and did not say what it holds, counted inside the bake-off figure. The
-    sentinel is what separates them.
-    """
-    klass = record.get(TASK_CLASS_KEY, _ABSENT)
-    if klass is _ABSENT:
-        return "game"
-    if klass not in TASK_CLASSES:
-        raise CensusError(f"`{TASK_CLASS_KEY}` is {klass!r}, which is not one of "
-                          f"{sorted(TASK_CLASSES)} — refusing to pool it into a "
-                          f"population it may not belong to")
-    return klass
-
-# Directories that hold trees written by a building agent or by a toolchain, not by a
-# harness. A `trials/` directory appearing under one of these is not ours; counting it
-# would be fail-open. Every skip is counted and reported.
-NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
 
 
 class CensusError(RuntimeError):
@@ -205,7 +161,7 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
         # over every record and has no path to name.
         try:
             task_class_of(data)
-        except CensusError as exc:
+        except TaskClassError as exc:
             raise CensusError(f"{path}: {exc}") from exc
         out.append((str(path.parent.parent.relative_to(runs_dir)), path.name, data))
     if not out:
@@ -261,10 +217,14 @@ def _terminal(record: dict) -> str:
 
 def census(runs_dir: Path) -> dict:
     records, skipped = load_records(runs_dir)
-    tasks = [r for r in records if WHOLEGAME_KEY in r[2]]
-    wholegame = [r for r in tasks if task_class_of(r[2]) == "game"]
-    scenes = [r for r in tasks if task_class_of(r[2]) == "scene"]
-    specchange = [r for r in records if WHOLEGAME_KEY not in r[2]]
+    # ONE classifier, shared with cost_census (task 227). `load_records` has already
+    # refused any task class nobody partitions, so the three buckets here are total.
+    by_population: dict[str, list] = {"whole-game": [], "scene": [], "spec-change": []}
+    for record in records:
+        by_population[population_of(record[2])].append(record)
+    wholegame = by_population["whole-game"]
+    scenes = by_population["scene"]
+    specchange = by_population["spec-change"]
 
     cells = collections.Counter((d["game"], d["stack"]) for _, _, d in wholegame)
     per_run = {}
@@ -587,6 +547,34 @@ def selftest() -> int:
                 pass
         check("an ABSENT task_class still reads as a game",
               task_class_of({"game": "g1_pong"}), "game")
+
+        # THE PARTITION IS THE SHARED ONE, not a local twin (task 227). IDENTITY, not
+        # equality: a copy redefined here with equal value would be a second definition,
+        # and a second definition is exactly what drifted. The source pins hold the other
+        # half — no literal partition may remain in this file, because the import is the
+        # whole mechanism.
+        import agent_harness
+        check("task_class_of is the shared classifier",
+              task_class_of is agent_harness.task_class_of, True)
+        check("population_of is the shared classifier",
+              population_of is agent_harness.population_of, True)
+        check("NOT_A_RUN is the shared skip list",
+              NOT_A_RUN is agent_harness.NOT_A_RUN, True)
+        census_source = Path(__file__).read_text()
+        # The searched literals are assembled from parts so they cannot match the line
+        # that searches for them — the first version of this pin went red on itself.
+        check("no literal skip list is left in this file",
+              'frozenset({' + '"work"' in census_source, False)
+        check("no literal whole-game key is left in this file",
+              'WHOLEGAME_KEY = ' + '"game"' in census_source, False)
+        # The both-fields record is the shape that separated the two producers' spellings
+        # (task 227): the `game` field's presence says whole-game, the class says scene.
+        check("population_of puts a both-fields record in scene",
+              population_of({"game": "s1_parallax", "task_class": "scene"}), "scene")
+        check("population_of keeps a classless record whole-game",
+              population_of({"game": "g1_pong"}), "whole-game")
+        check("population_of reads no `game` field as spec-change",
+              population_of({"task": "t1_rally"}), "spec-change")
         check("wholegame.trial_records", wg["trial_records"], 9)
         check("wholegame.run_directories", wg["run_directories"], 3)
         check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})

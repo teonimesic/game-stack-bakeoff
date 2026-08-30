@@ -13,6 +13,20 @@ vocabulary.
     parse(...)      stdout -> the harness's own result object (also what gets stored)
     normalise(...)  that object -> the trial record's `agent` block, shared field names
     preflight(...)  the isolation this arm needs, asserted at launch, and its audit trail
+    population_of(...)  whole-game / scene / spec-change for a stored record — ONE
+                        classifier for every producer that reads the tree, with
+                        NOT_A_RUN, the agent-authored skip list, beside it
+
+## One classifier for the record populations, and one skip list
+
+`population_of()` decides whole-game / scene / spec-change, and `NOT_A_RUN` is the
+agent-authored skip list every walker of `eval/runs/` shares. Both were restated per
+tool — two spellings of the partition in the two census producers and three copies of
+the skip list, each beside a comment promising the others agreed — until the first scene
+record landed and the two producers' totals for one tree disagreed by one, with nothing
+reporting it (task 227). The definitions live here because both census producers already
+import this module; a tool that spells the partition a second way has stopped describing
+the tree.
 
 ## What normalises, and what MUST NOT
 
@@ -225,6 +239,92 @@ def harness_of(record: dict[str, Any]) -> str:
     if from_agent and from_launch and from_agent != from_launch:
         return f"{CONFLICT_PREFIX}{from_agent}|{from_launch}"
     return from_agent or from_launch or TOKVAL_HARNESS
+
+
+# ---------------------------------------------- which population a record belongs to
+
+#: Presence of this field separates a record written for a game or a scene from one
+#: written by the retired spec-change suite, which never set it.
+WHOLEGAME_KEY = "game"
+
+#: Which task class a stored record belongs to. Written by `wholegame.py build`.
+TASK_CLASS_KEY = "task_class"
+
+#: Every task class this project partitions on. A PRESENT value outside it is refused,
+#: never pooled.
+TASK_CLASSES = frozenset({"game", "scene"})
+
+#: Distinguishes an ABSENT `task_class` from one stored as `null`. `record.get(KEY)`
+#: returns `None` for both, and they are opposite claims: absent means "written before
+#: the field existed" and reads as `game`; `null` means the record HAS the field and did
+#: not say what it holds, which is refused like any other unknown value. `None` cannot
+#: be the sentinel, which is exactly the collision.
+_ABSENT = object()
+
+
+class TaskClassError(ValueError):
+    """A record's `task_class` is present and is not one this project partitions on."""
+
+
+def task_class_of(record: dict[str, Any]) -> str:
+    """`"game"` or `"scene"` for one stored record; `TaskClassError` on a class it
+    does not know.
+
+    ABSENT READS AS `game` BY CONSTRUCTION, not by convenience. Scenes arrived with the
+    field in one change (`eval/SCENES.md`), so a record written without it was written
+    by a harness that could not launch a scene. Reading absence as `game` is a statement
+    about the corpus, and a scene record cannot slip past it: every record a scene run
+    produces carries the field.
+
+    A PRESENT VALUE THIS DOES NOT KNOW IS REFUSED BY NAME. `== "scene" else "game"`
+    tests one instance of an open class: a third task class, or `"Scene"` off a typo,
+    would land inside the published record counts and tokval totals with nothing saying
+    so. A partition whose trigger enumerates the values it happened to know about is the
+    failure this repository has a rule for.
+
+    `null` IS A PRESENT VALUE AND IS REFUSED WITH THE REST. `record.get(KEY)` answers
+    `None` for an absent key and for `"task_class": null` alike, so a default that makes
+    the absent case a `game` would silently make the null case one too — a record that
+    has the field and did not say what it holds, counted inside the population it may
+    not belong to. The sentinel is what separates them.
+    """
+    klass = record.get(TASK_CLASS_KEY, _ABSENT)
+    if klass is _ABSENT:
+        return "game"
+    if klass not in TASK_CLASSES:
+        raise TaskClassError(
+            f"`{TASK_CLASS_KEY}` is {klass!r}, which is not one of {sorted(TASK_CLASSES)}"
+            " — refusing to pool it into a population it may not belong to")
+    return klass
+
+
+def population_of(record: dict[str, Any]) -> str:
+    """`"whole-game"`, `"scene"` or `"spec-change"` for one stored record.
+
+    THE ONE classifier behind every producer's partition of the stored tree. The two
+    census producers each spelled their own test — this one read the task class,
+    `cost_census.py` keyed on field presence — and on the day the first scene record
+    landed, the two totals for one tree disagreed by one, with nothing reporting the
+    disagreement (task 227). The record that separates the two spellings carries `game`
+    AND `task_class: scene`: it has the field whose presence the old test keyed on, and
+    it is not a game.
+
+    A record with no `game` field is `spec-change` whatever its `task_class` says — the
+    retired suite's records are identified by that field's absence — and an unknown
+    class still raises through `task_class_of` rather than being read as anything.
+    """
+    if WHOLEGAME_KEY not in record:
+        return "spec-change"
+    return "whole-game" if task_class_of(record) == "game" else "scene"
+
+
+#: Directories holding trees written by a building agent or a toolchain, not by a
+#: harness. Not descended into; a `trials/` directory under one of these is not ours,
+#: and counting it would be fail-open. ONE definition, imported by every walker —
+#: `tools/census.py`, `tools/cost_census.py`, `tools/manifest.py` and
+#: `judge/tier1_census.py` each carried a copy beside a comment promising the others
+#: agreed, which is a comment where an assertion belongs (task 227).
+NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
 
 
 class Harness:
