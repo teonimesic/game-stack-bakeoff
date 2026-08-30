@@ -3026,3 +3026,64 @@ two entries above, verified 0 heading hits before writing this. It consumes
 `anonymise`'s exports and the pack's rendered text; task 200 found the skills
 invoking it bare at exit 2. Alternate: `eval/judge/repack.py`, verified 0
 hits.
+
+## Pass 29 — 2026-08-30 — `eval/judge/verify_blind.py` (261 lines, read whole)
+
+The blinding gate. Three checks on trial trees — the RUBRIC canary, rubric
+reachability from any ancestor, the criterion vocabulary — plus `check_pack_skill`
+over judge packs. Run-matrix and evaluate-run invoke it as a gate on every run,
+unpiped, exit code preserved; both carry task 200's fix (measured: both skills
+copy starters to a blind dir and pass `"$blind"/s/*/`; bare invocation exits 2
+with `give trial directories, --packs, or both`).
+
+### Judged sound, measured live
+
+- **Positive control**: starter copies per the skill's own recipe — exit 0, BLIND,
+  84 criterion ids, 5 trial trees.
+- **Negative controls, built by hand — all fire.** Canary GUID planted in a trial
+  tree: exit 1 naming the file. `ball.wall_bounce` planted in the ts tree:
+  exit 1, CRITERION ID. `RUBRIC.md` planted at an ancestor (`s/judge/`): exit 1,
+  RUBRIC REACHABLE, with the move-outside-the-repository message.
+- **The vocabulary covers the graders.** 84 rubric ids vs 48 `Criterion(`
+  literals across `eval/judge/*.py`: the only defined-but-unvocabularyd id is
+  `stub.ok`, an `audio_selftest.py` fixture, not a criterion. The harmful
+  direction — a real criterion id the scan would miss — is empty today.
+- **The 4 MB silent skip holds nothing.** `_files` drops text files over 4 MB
+  without counting them; every file over 4 MB under `eval/runs/` outside
+  SKIP_DIRS is `.tar.gz`/`.diff`/`.patch`, none in TEXT_EXT. Latent channel,
+  no held data — recorded, not ticketed.
+- Fail-closed where it claims to be: `canary()` SystemExits if RUBRIC loses its
+  CANARY line; `scan()` records an unreadable file as a hit; the `--packs` half
+  can already fail in `blurb_selftest.py` (fresh pack green, leaky pack red).
+- One unreachable shape, recorded one clause: the ancestor walk breaks before
+  scanning the filesystem root's children.
+
+### The defect — filed as task 226 (p3)
+
+**The trial-tree half has no can-fail proof anywhere in the repository.** Grep
+for the canary across every `eval/judge/*_selftest.py`, `*_mutants.py`,
+`*_control.py`: zero hits. The register's census cannot see the file either:
+`ci_minutes --controls` censuses `_control`/`_mutants`/`_selftest` stems and
+scripts declaring a `--selftest` mode — `verify_blind.py` is in neither
+population, and it has no `left out` row (consistent with the table's own
+rules, which is exactly why nothing asks). So a scan that stopped being able to
+fail prints BLIND at exit 0 on every future run and nothing disagrees — #39's
+shape, pre-emptively, on the gate behind README's blinding claim. This pass
+proved by hand, in three commands, that all three checks can still fail; that
+proof exists nowhere the next session can run it. Task 224 was this same class
+offline (a tool nothing exercised); this one sits on every run.
+
+Also folded into the ticket: check 3's `and ids` silently no-ops on an empty
+vocabulary — the selftest's floor pin (84 today) is what catches it.
+
+### Examined and judged sound, no ticket
+
+`ci_minutes --controls`' exclusion machinery (`.github/workflows/README.md`
+:357-470, read whole): closed stem class, `--selftest` population decided on
+each script's syntax tree not the word, exclusion = name AND reason, the table
+found by its header cells, bare-name ambiguity goes red naming both candidates.
+`blurb_selftest.py`'s `verify_blind --packs` pins (can-fail and green both
+asserted on real files). No action on any of them.
+
+**Next pass pointer:** `eval/judge/repack.py` (353 lines), named as alternate
+in the pass-28 entry, re-verified 0 heading hits before writing this.

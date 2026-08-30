@@ -441,6 +441,15 @@ jobs:
       - name: judge/tier2_census --selftest (the play-quality producer's pins)
         if: ${{ !cancelled() }}
         run: python3 eval/judge/tier2_census.py --selftest
+      # `regrade_wholegame` is the offline re-scoring path eval/AGENTS.md sends re-graders
+      # to, and it mutates stored evidence under --write -- so a run directory that
+      # cannot hold a regrade must be refused, never answered with the success line and
+      # exit 0, which is what both failing shapes got until task 224. The fixtures are
+      # written, not read from eval/runs, so this is offline; its mutant excises the
+      # refusals out of the tool's own source and must turn them red.
+      - name: judge/regrade_wholegame --selftest (the re-scoring path refuses an empty run dir)
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/regrade_wholegame.py --selftest
       # The 2026-08-28 pre-registration's producer (task 201): what the stored non-code
       # judge rounds read against what their packs carried. Same shape as the three
       # above - a fixture tree whose every census answer is stated beside it, 0.048s
