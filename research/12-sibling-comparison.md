@@ -1,44 +1,43 @@
 # What the sibling programme holds that this repository could use
 
-**Task 219. Read 2026-08-30**, from the trees on disk at `~/Documents/heavenstudio/game-research-gpt`
-(its git metadata does not read from here — exit 128, recorded in the ticket — so paths below are
-file paths, not commits). **Read-only on the sibling: nothing was written there** (verified: no
-file in the tree modified after 2026-08-29). Claims about the sibling are sourced to its paths;
-claims about this repository are sourced to ours. Interpretations are labelled.
+**Task 219. Comparison snapshot: 2026-08-30.** The sibling tree at
+`~/Documents/heavenstudio/game-research-gpt` is **read-only** from this repository — verified: no
+file in it modified after 2026-08-29. Its git metadata does not read from this machine (exit
+128, recorded in the ticket), so sibling claims below cite file paths, not commits. The
+comparison covers the mechanism-bearing paths listed under "Scope of the comparison"; stored
+results and caches are outside line-by-line scope. Claims about this repository cite our own
+paths. Interpretations are labelled.
 
 ## The question, and the answer
 
-This repo has mined `game-research-gpt` three times, each productively: the withdrawal register
-came from its `FINAL-CORRECTIONS.json` (task 55, landed as `eval/withdrawn.json` +
-`docstat.py --withdrawn`), tier 1 was re-scoped as a gate on its hard-gates-before-scoring model
-(task 29, landed in `eval/judge/RUBRIC.md` and `DECISIONS.md`), and its ADR reversal-condition
-habit was adopted 2026-08-23 (`DECISIONS.md`, "Reversal conditions"; first imported by task 11).
-Three hits from three targeted looks is evidence the remaining surface was worth one systematic
-read — it is not proof any particular mechanism transfers, and the read below was done with that
-symmetry in mind: a mechanism can be right there and wrong here, because **the sibling measures a
-different object.**
+Three targeted extractions from `game-research-gpt` are already landed; the table below cites
+them so nobody re-files them. This document is the systematic read of everything else, under one
+rule the ticket sets: a mechanism can be right there and wrong here, because **the sibling
+measures a different object.**
 
-**The answer is that the mine is worked out.** The tables below are the census of the read: **20
-sibling mechanisms already exist here in a same-or-stronger form, 1 is a genuine adoption
-candidate (ticket 220), 8 are rejected with recorded reasons, and 7 are things the sibling has
-that this repository deliberately does not.** Nothing in the remaining unread surface would
-change a published result. The sibling is a mature parallel programme and reading it whole was
-worth one session; a fourth targeted extraction would find another row 1–20, not a new instrument.
+**The measured census: 20 sibling mechanisms already exist here in a same-or-stronger form, 1 is
+an adoption candidate pending ticket 220's measurement, 8 are rejected with recorded reasons,
+and 7 are things the sibling has that this repository deliberately does not.** Excluded stored
+results and caches are outside this conclusion. The tables below are the census's derivation.
 
 ## What the sibling is, and why that bounds the comparison
 
-`game-research-gpt` recommends a game-development **template to humans**: one Godot 4.7.1 +
-typed-GDScript universal project (`template/`), chosen from a source-backed survey (301 URLs with
-SHA-256-recorded local copies, `research/source-manifest.json`), validated by engine spikes
-(`research/spikes/`), a four-agent pilot with disclosed repair rounds (mean 0.925 → 0.950 after
-repairs, `evaluation/reports/FINAL.md`), and a matched 16-cell four-engine comparison (Godot
-0.7875 / Defold 0.7500 / Bevy 0.5625 / Unity 0.5125, one stochastic run per cell, explicitly
-"descriptive `n=1` evidence, not a statistical engine-superiority claim" —
-`evaluation/cross-engine/results/FINAL.md`). This repository measures **what coding agents can
-build**, per stack, under a blind graded harness. Same surface area, different measurement
-object: their harness defends submitted evidence against tampering and their reviewers are fresh
-sessions with human-scale judgement; our harness defends the *instrument* against its own
-failure modes, because the subject we cannot trust is the grader (AGENTS.md rule 9).
+The sibling recommends a game-development **template to human developers**: one Godot 4.7.1
+typed-GDScript universal project (`template/`). It supports that recommendation with a
+source-backed survey (`research/source-manifest.json`), engine spikes (`research/spikes/`), a
+four-agent pilot with disclosed repair rounds (`evaluation/reports/FINAL.md`), and a matched
+16-cell four-engine comparison (`evaluation/cross-engine/results/FINAL.md`).
+
+Its figures: 301 surveyed URLs with SHA-256-recorded local copies; pilot mean 0.925 before
+repairs and 0.950 after; comparison means Godot 0.7875, Defold 0.7500, Bevy 0.5625, Unity
+0.5125 — one stochastic run per cell, "descriptive `n=1` evidence, not a statistical
+engine-superiority claim" in the comparison's own words.
+
+This repository measures **what coding agents can build**, per stack, under a blind-graded
+harness. The two measure different objects: the sibling's harness defends submitted evidence
+against tampering, with fresh sessions as reviewers; this repository's harness defends the
+*instrument* against its own failure modes, because the thing that cannot be trusted here is the
+grader (AGENTS.md rule 9).
 
 `research/decisions/` on the sibling side is **empty** — their durable decisions live in
 `docs/adr/` (4 ADRs, each ending in reversal conditions) and the addendum/freeze discipline of
@@ -54,9 +53,8 @@ failure modes, because the subject we cannot trust is the grader (AGENTS.md rule
 
 ## ALREADY-HERE — the sibling mechanism, and this repo's equivalent
 
-The ticket predicted most mechanisms would land here. They did. Each row states what the sibling
-does, and where the equivalent lives — so the next reader checks the pointer rather than the
-claim.
+Each row states what the sibling does, and where the equivalent lives here — so the next reader
+checks the pointer rather than the claim.
 
 | # | Sibling mechanism (path) | Here |
 |---|---|---|
@@ -95,8 +93,10 @@ partitions only how a session ended, not whose fault the outcome was. Ticket 220
 closed vocabulary, a hand labelling of the stored whole-game corpus, a cross-tabulating producer,
 and **the accept/reject measurement in the ticket**: accept if a label group surfaces a pattern
 not already recorded in FINDINGS/DECISIONS; reject and withdraw the vocabulary if every group
-maps one-to-one onto what producers already answer. It is the only sibling mechanism that survives
-both halves of that test here: everything else was already built, and the rest is rejected below.
+maps one-to-one onto what producers already answer. It is the only sibling mechanism this
+repository lacks both the vocabulary and the producer for; adoption is decided by the
+measurement ticket 220 defines, and until that runs, the status is pending. Everything else was
+already built here, and the rest is rejected below.
 
 ## REJECTED — and the reason each does not transfer
 
@@ -169,20 +169,24 @@ reader of the sibling should not mistake these for oversights.
   motivates to starters, criteria or prompts goes through the refine loop with a measurement
   before and after. That regime caution is from the ticket, and it stands.
 
-## What was read
+## Scope of the comparison
 
-Sibling side, whole: `README.md`, `NOTICE.md`, `study-build.json` (shape; `ruff.toml` present and
-skimmed — a lint config, and `tools/lint.py` covers the question); `docs/` (both syntheses, all 4
-ADRs); `evaluation/` README, all 6 harness modules' function inventories, the 7 schema files
-listed, one pilot task spec read whole, `reports/FINAL.md`, `reports/FINAL-GODOT-STUDY-FROZEN.md`
-(head), `INSTRUCTION_REVISIONS.md`, `reviews/` (README, round2-attempts, one adjudication
-record), `cross-engine/DESIGN.md`, `TEMPLATE_PARITY.md`, `preregistration.json` (structure),
-`STUDY_AGENT.md`, `FORMAL_CELL_PROMPT.md`, `results/FINAL.md`, the commitment/reveal pair;
-`cross-engine-v3/README.md`, `formal-ops/RUNBOOK.md`, the audits and drafts inventoried by name;
-`research/SOURCES.md`, `raw/`, `sources/` and `spikes/` inventoried,
-`raw/evaluation-methodology.md` read whole, `decisions/` (empty). Data dumps under
-`evaluation/runs/`, the `baselines/*.json` bodies, `.formal-run-*`, cache images and Unity
-`Library/` trees were **not** read line-by-line; they are stored results and caches, not
-mechanisms. `scripts/evaluation/*.py` read at docstring level. This repo side: `AGENTS.md`, `eval/AGENTS.md`,
+Sibling side, inside line-by-line scope: `README.md`, `NOTICE.md`, `study-build.json` (shape;
+`ruff.toml` is a lint config, and `tools/lint.py` covers that question here); `docs/` (both
+syntheses, all 4 ADRs); the `evaluation/` README, all 6 harness modules' function inventories,
+the 7 schema files, one pilot task spec whole, `reports/FINAL.md`,
+`reports/FINAL-GODOT-STUDY-FROZEN.md` (head), `INSTRUCTION_REVISIONS.md`, `reviews/` (README,
+round2-attempts, one adjudication record), `cross-engine/DESIGN.md`, `TEMPLATE_PARITY.md`,
+`preregistration.json` (structure), `STUDY_AGENT.md`, `FORMAL_CELL_PROMPT.md`,
+`results/FINAL.md`, the commitment/reveal pair; `cross-engine-v3/README.md`,
+`formal-ops/RUNBOOK.md`, and the audits and drafts by name; `research/SOURCES.md`,
+`raw/evaluation-methodology.md` whole, and `raw/`, `sources/`, `spikes/` by inventory;
+`research/decisions/` is empty; `scripts/evaluation/*.py` at docstring level.
+
+Sibling side, outside line-by-line scope: data dumps under `evaluation/runs/`, the
+`baselines/*.json` bodies, `.formal-run-*`, cache images, and Unity `Library/` trees — stored
+results and caches, not mechanisms, and outside every conclusion above.
+
+This repository side: `AGENTS.md`, `eval/AGENTS.md`,
 `eval/judge/AGENTS.md`, `RUBRIC.md`, `DECISIONS.md` (reversal-conditions and rubric sections),
 `tasks/29`, `tasks/55`, `research/11`, and the judge modules named in the pointers.
