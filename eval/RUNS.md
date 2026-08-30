@@ -704,16 +704,16 @@ census — the shared classifier's new operand shapes move 0 stored Read targets
 
 | aspect | usable `tool_calls` | absent | Bash calls | commands refused (200 chars) | no extractable path | operands classified | un-carried Bash reads |
 |---|---|---|---|---|---|---|---|
-| `audio` | 7 | 4 | 89 | 7 | 40 | 99 | **0** |
+| `audio` | 7 | 4 | 89 | 7 | 39 | 100 | **0** |
 | `fun` | 7 | 4 | 81 | 6 | 55 | 29 | **0** |
 | `fun_frames` | 16 | 6 | 202 | 8 | 172 | 25 | **0** |
 | `ux` | 9 | 4 | 96 | 10 | 70 | 26 | **0** |
-| total | 39 | 18 | 468 | 31 | 337 | 179 | **0** |
+| total | 39 | 18 | 468 | 31 | 336 | 180 | **0** |
 
 All 468 are `Bash` calls — the stored corpus holds **0** `Grep` tool calls. The honest
 population of the zero: 468 shell commands over the 39 rounds whose `tool_calls` capture is
-usable; 31 of them truncated at exactly 200 characters and refused whole; 337 with no
-extractable path (no reading verb, an expansion, a pattern operand, a nested shell); 179
+usable; 31 of them truncated at exactly 200 characters and refused whole; 336 with no
+extractable path (no reading verb, an expansion, a pattern operand, a nested shell); 180
 operands, every one carried. The same 18 rounds are unassessable here as on the Read half, not
 clean. The first run of the widened census itemised **2** un-carried reads, and both were
 adjudicated false positives of the extractor, not leaks — the punctuation `<(` of a process
@@ -730,6 +730,24 @@ verbs (`cat -e` and `tail -f` name a file, not a value), and every redirect spel
 holding neither shape. **0 is the answer of `python3 eval/judge/prompt_capture_census.py
 --runs-root <main checkout>/eval/runs` re-run at each repair above, not of the earlier
 run that itemised 2.**
+
+**2026-08-30 (task 222): the tokeniser repair, and the two secondary figures move by one.**
+`bash_operand_paths` documented a split at newlines that its main tokeniser path did not make:
+shlex consumes a newline between two commands as whitespace, so a newline-joined command
+(`cd "<pack>" && for d in B C D E F G H; do echo ...; done\ncat B/audio.json`) arrived as ONE
+segment whose first verb is `cd`, and a genuine carried `cat` on the second line was counted
+under `no-path` — invisible as a read. Repaired (the newline is a lexer punctuation token and
+is out of the lexer's whitespace set, the same treatment the ValueError fallback already gives
+it; a newline INSIDE quotes is data and is pinned as surviving), and re-run over the same
+corpus: `no extractable path` 337 → **336** and `operands classified` 179 → **180**, the whole
+delta one stored `audio` command of that shape whose second line reads `B/audio.json` —
+carried, so the un-carried figures above are unchanged. The phantom this repair closes — a
+newline-joined command collapsing to one segment with a pattern-first verb present, so the
+sed script `s/x/y/` extracted as a path operand — held **0** stored commands in the population
+when found and holds **0** now: no stored round was misclassified as a leak, and the
+pre-registration's headline figure is untouched. The 337/179 first measured on 2026-08-29 were
+read through the defective path and are superseded by the table above, which is today's
+producer output.
 
 **Why this is a pre-registration rather than a stored hash.** `provenance` hashes `BRIEF.md`
 (`brief_sha256`) and the scene statement; it does not hash the prompt, because the prompt is the
