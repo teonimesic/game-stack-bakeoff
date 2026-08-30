@@ -3680,6 +3680,7 @@ settled question is noise that makes the live ones harder to find.
 | `tasks/` is reviewed by CodeRabbit rather than excluded with the other archives | A review comment **correcting a figure, a number or the prose** in a `tasks/` file. The exclusion is then 1 line — move the pattern into the archive block in `.coderabbit.yaml`. Nothing else re-opens it: noise about a ticket's *content* is the cost being accepted for the reviewer having the brief |
 | `skillspector` is disabled; every other analyser is left on | SkillSpector gaining **per-rule configuration** — the schema offers `enabled` and nothing else, so today it is all or nothing — or a skill arriving here from **outside the dispatch-and-merge loop**, which is what would make a scanner for malicious skill manifests worth 14 findings and 0 true positives. For the analysers still on, the trigger is unchanged: a tool naming itself on a comment nobody wanted. `languagetool` is at 1 finding and 1 false positive, which decides nothing; do not disable it on the argument that 173 markdown files must be noisy |
 | One authoritative path per skill | A **maintained** non-Claude consumer — a sibling that actually reads a skills tree and edits it. The 2026-08-23 measurement was 0 readers and 0 content-bearing edits in 3 commits; a copy that anyone maintains is a different object from the one that was deleted. Even then the first question is whether a pointer serves it, since a copy reintroduces the drift, not the reader |
+| Trial failure-cause labels: measured and rejected (task 220) | A trial whose cause **no existing partition expresses** — not a new instance of a recorded cause but a new class. The 2026-08-30 labelling found 0 of 91; if one appears, extend `terminal_reason`'s closed set at the runner, which has both a writer and a reader, rather than revive a hand label — a register only a person can fill has no producer and its counts go stale forever |
 
 The rows with no entry here are not exempt; they are decisions where the owner's judgement is the
 input and no measurement would overturn them.
@@ -3936,6 +3937,66 @@ writer, never corruption. Pinned in `tasks_control.py` direction 13 on the cd499
 no-op writer); the pre-217 writer and the deleted guard are mutants `render_discards_raw` and
 `render_ignores_value_changes`, and the ticket's other clause — a mutant re-quoting one canonical
 scalar is caught by the gate that owns byte changes — is `id_requoted`.
+
+## Trial failure-cause labels: measured and rejected — decided 2026-08-30
+
+The one adoption candidate out of task 219's comparison with `game-research-gpt`
+(`research/12-sibling-comparison.md`): the sibling's closed 16-label failure taxonomy, applied
+per output and aggregated as "what actually failed", with one rule doing real work there — a
+preflight defect is recorded separately from an admitted-agent failure. This repository kept
+re-deriving "why did these trials fail" one incident at a time, and `terminal_reason` records
+only how a session ended, so the candidate went to the queue as ticket 220 carrying its own
+accept/reject measurement: accept if a label group surfaces a pattern not already recorded in
+FINDINGS or DECISIONS; **reject and withdraw the vocabulary if every group maps one-to-one onto
+a recorded finding, a recorded observation, or a `terminal_reason` partition.**
+
+**It came back REJECT, and the vocabulary is withdrawn — nothing shipped.** A closed 9-label
+vocabulary was applied by hand in one session (2026-08-30) to every stored whole-game trial
+record — **91 records over 12 run directories, from `python3 eval/tools/census.py` (read
+2026-08-30)** — with the retired spec-change suite's 71 records and the 1 scene record excluded
+and named, not labelled. Labels take a precedence: terminal-determining causes first
+(account-limit > machine-wedge > turn-ceiling > budget-cap), then outcome-qualifying
+(machine-degraded, grading-artifact-loss, starter-defect), then agent-work; not-a-submission
+for a trial that never ran the task.
+
+| label | n | maps onto |
+|---|---|---|
+| agent-work | 53 | the default — `completed` and externally unqualified |
+| starter-defect | 18 | the disclosure hand pass in `eval/tools/disclosure.py`'s docstring — the same 18 identities, per-stack godot 5 / rust 12 / ts 0 / unity 1 — plus #98 and tasks/81 |
+| account-limit | 9 | the `api_error` partition (9 of 9; 0 genuine API errors), split by the session-limit note in `eval/runs/wg-cal48-2026-08-14T14-30-58/NOTES.md` and the weekly-quota section of `eval/RUNS.md` |
+| machine-wedge | 4 | the absent-`terminal_reason` partition; `eval/RUNS.md`'s arena2d sections record them as an unresolved observation by design |
+| machine-degraded | 4 | #49 — the arena3d two-populations banner in `eval/RUNS.md` |
+| turn-ceiling | 1 | `max_turns` + #35 |
+| budget-cap | 1 | `budget_exhausted` + #33 |
+| grading-artifact-loss | 0 | #45's population was the retired suite; 0 whole-game applications |
+| not-a-submission | 1 | the harness-probe record `eval/RUNS.md` already bars from every game population |
+
+The cross-tab against `terminal_reason` is exact: api_error 9 → account-limit 9, absent 4 →
+machine-wedge 4, max_turns 1 → turn-ceiling 1, budget_exhausted 1 → budget-cap 1, and the 76
+`completed` split into agent-work 53, starter-defect 18, machine-degraded 4, not-a-submission 1.
+By stack the 53 agent-work are ts 21, unity 15, godot 10, rust 7 — rust carries 18 externally
+qualified trials of its 25, and that number decomposes entirely into the per-stack starter
+counts already published with the disclosure hand pass.
+
+Two patterns looked like ACCEPT candidates and neither survives its decomposition. The arena
+runs concentrate the infrastructure damage — all 4 wedges, the 1 ceiling and all 8 `wg-g4b`
+account-limit trials — but the wedges are recorded as an unresolved observation on purpose
+(#37's lesson), so a concentration claim would manufacture a diagnosis from causes deliberately
+recorded without one. Rust's 18-of-25 reads like a stack property and pools five mechanisms —
+starter defects, account limits, a turn ceiling, the harness probe, the degraded machine — that
+share nothing but the stack column; pooling them is the heterogeneous-mean shape rule 4 bans,
+and split apart, each is already measured.
+
+What remains is that the labels renamed distinctions the repository already carries:
+`terminal_reason` for how a session ended, the two disclosure families for what the agent said
+about its own work and for what arrived broken, the comparability register for what changed in
+the world while a run was in flight, #49's banner for the machine split. A permanent
+hand-maintained register would add a number with no producer — the shape the count-discipline
+rules exist to prevent — so no label file and no producer are shipped. **Re-open when a trial
+ends in a way no existing partition expresses**; the repair then is to extend
+`terminal_reason`'s closed set at the runner, which has both a writer and a reader, never to
+revive a hand label. The full labelling, per-trial identities and the by-run cross-tab are in
+ticket 220.
 
 ## Keeping this current
 
