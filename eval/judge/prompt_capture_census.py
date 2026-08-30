@@ -220,11 +220,26 @@ _VALUE_FLAGS = frozenset({"-e", "-f"})
 #: `{a,b}` all land here.
 _EXPANSION_CHARS = "$`{}*?~"
 
-#: Simple commands are split at these and ONLY these. `<` and `>` are
-#: deliberately absent: they are handled inside the segment, where `< file`
-#: is a read and `> file` is a write target - splitting on them would deliver
-#: the redirected file as a verb-less segment and lose the read.
-_SEGMENT_BREAK = frozenset("();|&")
+#: Simple commands are split at these and ONLY these - newline included
+#: (task 222): the lexer emits it as a punctuation token, so it splits here
+#: exactly like `;`, which is how the ValueError fallback already treats it.
+#: `<` and `>` are deliberately absent: they are handled inside the segment,
+#: where `< file` is a read and `> file` is a write target - splitting on
+#: them would deliver the redirected file as a verb-less segment and lose
+#: the read.
+_SEGMENT_BREAK = frozenset("();|&\n")
+
+#: The lexer's punctuation set: shlex's default `();<>|&` plus the newline
+#: (task 222). With it shlex ends a word at a newline and emits the newline
+#: as its own token, alone or inside a punctuation run, while a newline
+#: INSIDE quotes is data and never reaches the set. The other half is in
+#: `_tokenise`: shlex consults whitespace BEFORE its punctuation machinery
+#: and its constructor removes a punctuation char from wordchars only, so a
+#: newline left in whitespace is consumed silently and two newline-joined
+#: commands arrive as ONE segment - which is how the sed script `s/x/y/`
+#: extracted as a path operand: a false positive shaped like a finding, the
+#: direction `named_bucket`'s docstring forbids.
+_LEX_PUNCT = "();<>|&\n"
 
 #: `FOO=bar cmd ...` — an environment assignment before the verb, never the
 #: verb itself nor an operand.
@@ -234,16 +249,26 @@ _ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 def _tokenise(command: str) -> list[str]:
     """One shell level of tokens, quotes respected, separators visible.
 
-    `punctuation_chars` keeps runs of `;|&()<>' as whole tokens so the
-    segment walker can see them; `whitespace_split` keeps word tokens whole.
-    An untokenisable command (unbalanced quote) falls back to splitting on
-    the separators and whitespace - stated in the docstring as a limit, and
-    the itemisation adjudicates whatever it yields.
+    `punctuation_chars` keeps runs of `;|&()<>' and newline as whole tokens
+    so the segment walker can see them; `whitespace_split` keeps word tokens
+    whole. THE NEWLINE IS A SEPARATOR, NOT WHITESPACE (task 222): shlex
+    consults whitespace before its punctuation machinery, so the newline is
+    dropped from the whitespace set as well as being in `_LEX_PUNCT` - in
+    whitespace it was consumed silently, newline-joined commands arrived as
+    ONE segment, and a pattern-first verb's script (`sed 's/x/y/'`)
+    extracted as a path operand. A newline inside quotes is DATA and stays
+    inside its token: the quoted state consults neither set. An untokenisable
+    command (unbalanced quote) falls back to splitting on the separators and
+    whitespace - stated in the docstring as a limit, and the itemisation
+    adjudicates whatever it yields; that path's newline replace is blind
+    because the quotes have already failed to lex, so a quoted newline in a
+    fallback command does not survive (the main path's does).
     """
     try:
-        lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lex = shlex.shlex(command, posix=True, punctuation_chars=_LEX_PUNCT)
         lex.whitespace_split = True
         lex.commenters = ""
+        lex.whitespace = lex.whitespace.replace("\n", "")
         return list(lex)
     except ValueError:
         for sep in ("&&", "||"):
@@ -873,6 +898,26 @@ def selftest() -> int:
         ("python3 analyze.py", []),               # not a reading verb
         ('for d in A B C; do find "$d" -type f; done', []),   # expansion in loop
         ("bash -c 'cat /etc/shadow'", []),        # nested shell: THE LIMIT
+        # TASK 222: the newline is a segment separator on the MAIN tokeniser
+        # path too, exactly as the ValueError fallback already treats it.
+        # The demonstrated defect: before the fix shlex consumed a newline
+        # between two commands as whitespace, both arrived as ONE segment, and
+        # the sed SCRIPT `s/x/y/` extracted as a path operand - which
+        # named_bucket classifies as `other`, i.e. a PHANTOM UN-CARRIED LEAK,
+        # the false-positive direction named_bucket's own docstring forbids.
+        # Pinned beside its semicolon control, both answers literal:
+        ("cat A/audio.json\nsed 's/x/y/' B/audio.json",
+         ["A/audio.json", "B/audio.json"]),
+        ("cat A/audio.json;sed 's/x/y/' B/audio.json",
+         ["A/audio.json", "B/audio.json"]),
+        # ...and the other half of the same property, which the repair must
+        # not break: a newline INSIDE quotes is DATA, not a separator. The
+        # ValueError fallback's blind `replace("\n", ";")` would read the
+        # first of these back as a DIFFERENT token (`A/new;line.json`);
+        # quoted operands keep their newline, and a quoted pattern is still
+        # the pattern slot, never a path.
+        ("cat 'A/new\nline.json'", ["A/new\nline.json"]),
+        ("grep 'foo\nbar' A/audio.json", ["A/audio.json"]),
     ]
     for command, want in commands:
         got = bash_operand_paths(command)
