@@ -314,10 +314,14 @@ def check_legacy_judge_guard(rows: Rows) -> None:
     # below is ever removed, this row must go RED, not spend a judge round discovering
     # that. The canned answer is also what makes the extension mutant below read as a
     # measurement.
-    spent: list[str] = []
+    # Named model_calls, not "spent": tokenvalue's discovery reads any variable formatted
+    # into a string as a possible *_usd producer, and a local called spent in an f-string
+    # is exactly the shape it matches - the name alone would demand this file in
+    # PRODUCERS.
+    model_calls: list[str] = []
 
     def canned(*_a, **_kw):
-        spent.append("model")
+        model_calls.append("model")
         return ({"structured_output": {"criteria": [
                     {"id": cid, "evidence": "x" * 30, "reason": "r", "passed": True}
                     for cid, _q in legacy_judge.ALL_CRITERIA]}}, "")
@@ -336,8 +340,8 @@ def check_legacy_judge_guard(rows: Rows) -> None:
                stored.get("refused") is True and rec.get("judge_usable") is False,
                f"judge_usable={rec.get('judge_usable')} "
                f"stored.refused={stored.get('refused')}")
-    rows.check("no judge round was paid for on the way to the refusal", not spent,
-               f"model calls: {spent}")
+    rows.check("no judge round was paid for on the way to the refusal", not model_calls,
+               f"model calls: {model_calls}")
     shutil.rmtree(out, ignore_errors=True)
 
     # MUTANT: the table is EXTENDED instead of the game refused - the exact repair

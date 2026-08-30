@@ -4016,9 +4016,9 @@ brief written for it or stays out of the retired judge's scope.
 runner crosses pits and high ledges."* — and it is the one repair that is worse than the
 defect: the table is what every stored round was read against, so extending it changes what a
 re-run of an old round would mean, and a brief nobody wrote for a game nobody briefed is the
-placeholder under another name. The selftest carries both rejected repairs as mutants — the
+placeholder under another name. The selftest carries the 2 rejected repairs as mutants — the
 table extended with the model stubbed to all-pass, and the placeholder restored under the
-direct index — and both must go red.
+direct index — and the 2 mutants must go red.
 
 **Why a record rather than an exception.** `evaluate()`'s completeness gate needs `judge.json`
 present and parseable, and tiers 1 and 2 are valid whatever the retired diagnostic
@@ -4028,9 +4028,9 @@ visible in the stored census.
 
 **What this replaces.** The 2026-08-25 instruments decision declared a class for every route to
 a grading instrument, and the class guard answers "game or scene" — never "which game".
-`judge.GAME_BRIEF` held 3 entries for a 4-game suite, so the game axis had only the two
-argparse surfaces refusing it by `choices`, and `evaluate.py --game g4_platformer
---with-legacy-judge` — the one path that reaches `judge()` without going through a CLI —
+`judge.GAME_BRIEF` held 3 entries for a 4-game suite, so the game axis had only the
+2 argparse surfaces refusing it by `choices`, and `evaluate.py --game g4_platformer
+--with-legacy-judge` — the only path that reaches `judge()` without going through a CLI —
 rendered `"(unknown game)"` as the brief and answered all 13 criteria about a game nobody
 described. A placeholder-briefed tier-3 record reads as a measurement.
 

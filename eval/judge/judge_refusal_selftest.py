@@ -199,9 +199,13 @@ def census(root: Path) -> dict:
     g4_platformer rounds that way, and every one of them was a marker. The split is
     content-shaped: `refused` is judge()'s refusal, `skipped` is evaluate()'s marker,
     `usable` is a real round, and anything else is counted as other rather than
-    silently folded into a neighbouring class. A file that cannot be parsed is
-    counted as `unparseable` and returned - dropping it here would let a corpus of
-    unreadable records read as a clean, empty census.
+    silently folded into a neighbouring class. Shape is part of content: `json.loads`
+    happily returns a list or a string, and a non-boolean flag is truthy whatever it
+    spells, so a record that is not a mapping - or whose refused/skipped/usable flag
+    is present and not a bool - is counted as `other`, never classified by a value it
+    does not hold. A file that cannot be parsed is counted as `unparseable` and
+    returned - dropping it here would let a corpus of unreadable records read as a
+    clean, empty census.
     """
     kinds: Counter = Counter()
     games: Counter = Counter()
@@ -211,6 +215,11 @@ def census(root: Path) -> dict:
             d = json.loads(f.read_text())
         except (json.JSONDecodeError, UnicodeDecodeError):
             kinds["unparseable"] += 1
+            continue
+        if not isinstance(d, dict) or any(
+                d.get(k) is not None and not isinstance(d.get(k), bool)
+                for k in ("refused", "skipped", "usable")):
+            kinds["other"] += 1
             continue
         if d.get("refused"):
             kinds["refused"] += 1
@@ -234,10 +243,11 @@ def fixture_tree() -> Path:
     """Six judge.json files in five classes, one of them behind a wrapper directory.
 
     The unbriefed round is the pre-guard shape: usable, scored, on a game the table
-    does not brief - the record this repair exists to make impossible. The last file
-    is not JSON at all: the census must count it as unparseable rather than drop it,
-    because a census that scores only the records it could read is the fail-open
-    shape rule 7 names.
+    does not brief - the record this repair exists to make impossible. The truncated
+    write is not JSON at all, and the last 2 records parse but hold the wrong shape -
+    a list, and a mapping whose usable flag is the string "false" - because a census
+    that classified on a truthy string, or dropped a record it could not shape,
+    would be the fail-open form rule 7 names.
     """
     root = Path(tempfile.mkdtemp(prefix="judge-refusal-fx-"))
     real = {"tier": "judge", "usable": True, "game": "g1_pong", "model": "sonnet",
@@ -261,6 +271,11 @@ def fixture_tree() -> Path:
         ("wrap/run-b/artifacts/t2/eval/judge.json", other),      # empty-pack refusal
         ("wrap/run-b/artifacts/t3/eval/judge.json",
          '{"tier": "judge", "usable": '),                        # truncated write
+        ("wrap/run-b/artifacts/t4/eval/judge.json",
+         '[]'),                                                  # parses, not a mapping
+        ("wrap/run-b/artifacts/t5/eval/judge.json",
+         {"tier": "judge", "usable": "false", "game": "g1_pong",
+          "submission_id": "fx-str"}),                           # non-boolean flag
     ):
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -268,8 +283,8 @@ def fixture_tree() -> Path:
     return root
 
 
-EXPECTED_FIXTURE = {"files": 6, "rounds": 2, "briefed": 1, "unbriefed": 1,
-                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 1}
+EXPECTED_FIXTURE = {"files": 8, "rounds": 2, "briefed": 1, "unbriefed": 1,
+                    "skipped": 1, "refused": 1, "unparseable": 1, "other": 3}
 
 
 def test_the_census_extraction() -> None:
@@ -280,6 +295,10 @@ def test_the_census_extraction() -> None:
         expect(f"fixture {key} == {want}", got[key] == want, f"got {got[key]}")
     expect("the fixture's per-game split is g1_pong 1, g4_platformer 1",
            got["games"] == {"g1_pong": 1, UNBRIEFED: 1}, str(got["games"]))
+    expect("the non-mapping record and the string-flag record are other, never classified",
+           got["other"] == 3 and "g1_pong" in got["games"] and UNBRIEFED in got["games"]
+           and got["rounds"] == 2,
+           f"other={got['other']} rounds={got['rounds']} games={got['games']}")
 
 
 def corpus_arm(runs_root: Path) -> int:

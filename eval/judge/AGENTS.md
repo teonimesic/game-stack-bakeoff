@@ -146,7 +146,7 @@ registry as the 6 game aspects and at the same weight, 0.00. 2 things govern usi
   admit a game whose brief has not been written**: the table is what every stored round was
   read against; a new game gets a brief written for it or stays out of the retired judge's
   scope. `judge_refusal_selftest.py` pins the record, the spend-free path, the backstop and the
-  stored census, and its mutants are the two rejected repairs — the table extended, the
+  stored census, and its mutants are the 2 rejected repairs — the table extended, the
   placeholder restored.
 - **`framework_fluency` and `idiomatic` may not be ranked across stacks**, and
   `Aspect.cross_stack_bar` says so to code rather than only to a reader. `field_ranks.py`
