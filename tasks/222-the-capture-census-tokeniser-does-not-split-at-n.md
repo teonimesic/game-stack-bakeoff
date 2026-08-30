@@ -1,10 +1,11 @@
 ---
 id: 222
 title: The capture census tokeniser does not split at newlines, and its docstring says it does
-status: todo
+status: in_review
 priority: 4
 refs: eval/judge/prompt_capture_census.py,tasks/218
 done_when: 'The main tokeniser path treats newline as a segment separator exactly as the fallback path already does (one-line change in _tokenise or _segments - not a second mechanism), the demonstrated command and its semicolon control are pinned as selftest rows with both answers stated as literals, python3 eval/judge/prompt_capture_census.py --selftest exits 0, the live census over eval/runs still reproduces the pre-registered figures (468 calls, 31 refused, 337 no-path, 179 operands, 0 un-carried on both halves), and the docstring''s split claim matches the code either way. Do NOT conclude anything stored was misclassified: 0 population commands fire the shape, so no published number moves.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/102
 ---
 
 eval/judge/prompt_capture_census.py's Bash-half extractor bash_operand_paths documents: split into simple commands at ;, |, &&, || AND NEWLINES. The ValueError fallback path implements the newline split (it replaces newlines with semicolons before splitting); the main shlex path does not - shlex emits no token for a newline (whitespace), so newline-joined commands arrive at _segments as ONE segment. Demonstrated in-process: bash_operand_paths of cat A/audio.json NEWLINE sed 's/x/y/' B/audio.json returns A/audio.json, s/x/y/, B/audio.json - the sed SCRIPT extracted as a path operand, which named_bucket classifies as other, i.e. a PHANTOM UN-CARRIED LEAK; the semicolon control returns A/audio.json, B/audio.json. The failure direction is the one named_bucket's own docstring forbids: a false positive shaped like a finding, moving the 2026-08-28 pre-registration's 0. The file has repaired this family twice already (the <( process substitution and the find expression value, both adjudicated corpus false positives, both pinned as selftest rows) - this is the third member, found before it fired. MEASURED 2026-08-30: within the census's population (57 non-code rounds, 437 usable Bash calls) 3 commands hold newlines and 0 collapse to the defective shape - every published figure stands today, including the pre-registered 0. Corpus-wide including code-seeing rounds outside the population: 1,833 usable Bash calls, 27 hold newlines, 3 collapse to one segment with a pattern-first verb present (all three in idiomatic rounds, all extracting nothing because their scripts sit in non-extractable positions). The trigger shape is data the project holds; the population just has not drawn it yet.
@@ -52,3 +53,58 @@ the common (balanced-quote) path does not.
   check the quoted-newline case first: a newline inside quotes is DATA, not a
   separator, and the fallback's blind replace would corrupt it. The right shape is
   whichever preserves quoted newlines while splitting unquoted ones — pin both.
+
+## note 2026-08-30
+
+Outcome (2026-08-30, PR #102, branch task-222-capture-census-newline-separator).
+
+**The repair is not the translate shape the ticket anticipated.** Translating `\n` to `;`
+before lexing corrupts a quoted newline (the ticket's own warning), and a quote-aware scan is
+a second mechanism. What shlex actually does, read from the CPython source on this machine:
+`read_token` consults `self.whitespace` BEFORE its punctuation machinery in both the
+whitespace and word states, and the constructor removes a punctuation char from `wordchars`
+only — so `\n` left in whitespace is consumed silently and never reaches the punctuation
+branch. The repair is one mechanism at its two touchpoints: `_LEX_PUNCT = "();<>|&\n"` (the
+lexer's punctuation set; the constructor arg, not a post-hoc property write) and
+`lex.whitespace = lex.whitespace.replace("\n", "")` in `_tokenise`, plus `\n` in
+`_SEGMENT_BREAK` so the existing walker splits at the emitted token. Quoted newlines survive
+because the quoted state consults neither set. Empirically: punctuation-set-only glues words
+(`A/audio.json\nsed` became one token); whitespace-only also glues. Both halves are needed.
+
+**Pinned in `--selftest`, four rows, answers literal:** the demonstrated command (red before
+the fix, phantom `s/x/y/` visible in the failure), its semicolon control, and two
+quoted-newline variants that were green before the fix and must survive it
+(`cat 'A/new\nline.json'` → the operand keeps its newline; `grep 'foo\nbar' A/audio.json` →
+the pattern slot, never a path).
+
+**The done_when's figure clause was falsified by one call and handled, not smoothed over.**
+Pre-registered 468 calls, 31 refused, 0 un-carried on both halves: all stand. But no-path
+337 → 336 and operands 179 → 180. The whole delta is `g4_platformer__audio__seed0__rep4`:
+`cd "<pack>" && for d in ...; do echo ...; done` newline `cat B/audio.json` — glued, the first
+verb is `cd`, so a genuine carried read on the second line counted as no-path. Verified by
+diffing per-call extraction between `git show HEAD:` (pre-fix) and the fixed module over the
+whole population: exactly one call differs, and the direction is correctness, not phantom.
+The ticket's "every published figure stands today" was measured pre-fix and was true then;
+post-fix it holds for every figure except these two, which were measurements OF the defective
+path. **RUNS.md's Bash-half table and prose are restated at today's producer output
+(336/180), with the movement narrated in place under 2026-08-30 (task 222), per that
+section's existing repair convention.** The ticket's "do not conclude anything stored was
+misclassified" holds in the sense that matters: 0 population commands fire the phantom shape
+(newline-joined, pattern-first, script extracted), and the un-carried headline is untouched
+on both halves.
+
+**Needs a number from the orchestrator:** whether the supersession of the 2026-08-29
+337/179 figures (measured through the defective tokeniser, corrected by this repair) warrants
+a FINDINGS entry — this ticket does not allocate one.
+
+## note 2026-08-30
+
+CORRECTION to the note above (review round 1, CodeRabbit comment 3889615283 — it was right,
+measured before acting): the note's account "glued, the first verb is `cd`" was wrong. The old
+path DID split the moved command at its `;` and `&&` (4 segments); only the newline emitted no
+separator token, so `cat B/audio.json` landed in the segment beginning with `done`
+(`[done, cat, B/audio.json]`), whose verb is not a reading verb — that segment yielded nothing
+and the call counted no-path. "ONE segment" is true only of the ticket's demonstrated command
+(`cat A/audio.json\nsed 's/x/y/' B/audio.json`), which holds no other separator. RUNS.md, the
+PR body and this note now carry the corrected account. The figures and the per-call diff are
+unaffected.
