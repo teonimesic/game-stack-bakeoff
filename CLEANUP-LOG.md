@@ -2914,7 +2914,115 @@ above (guards, numbering, matcher controls, OSError probe); `docstat.py
 
 ### Not opened, and the next pass should take one
 
-`eval/judge/disclosure.py` — the pass-26 alternate, re-verified against every
-heading before writing this: 0 hits. Alternate: `eval/judge/verify_blind.py`
-— the gate this pass saw reading `anonymise`'s exports; a subject never,
-verified 0 hits just now.
+`eval/judge/verify_blind.py` — named twice as an alternate (passes 27 and the
+entry above), verified 0 heading hits before writing this. Alternate:
+`eval/judge/repack.py`, also verified 0.
+
+## Pass 28 — 2026-08-30 — `eval/tools/disclosure.py` (896 lines, read whole)
+
+The rule-11 locator: the tool built because "31 of 75 completed trials had
+written a disclosure and no grader, report or gate opened one". **One defect,
+ticketed (task 225, p4, dispatched this session)** — the rest is sound, and
+its selftest is one of the two-directional exemplars the log keeps naming.
+
+### The pointer had the wrong directory, not the wrong file
+
+Pass 26's alternate named `eval/judge/disclosure.py`; the file lives at
+`eval/tools/disclosure.py`. The subject was still valid — the heading grep is
+path-agnostic and no heading had ever named any `disclosure.py` — but the
+path was found wrong on contact, by following the import graph
+(`wholegame.py:68`) instead of the pointer. Recorded per pass 14's rule: a
+pointer's accuracy is part of what a later pass inherits. Third wrong-pointer
+instance this log (pass 13's alternate, pass 17's pointer, pass 22's
+alternate) — this one a directory, the others files that were already read.
+
+### Found — filed as tasks/225
+
+**Both scanners silently drop artifact directories that hold no
+`agent_result.json`.** `scan_run` filters on `is_file()` and `scan_tree` on
+the glob, so such a trial produces no row at all — while `read_trial` carries
+a branch for exactly this state (`:419-420`, status `no_message`, reason "no
+agent_result.json stored") that is unreachable from every CLI path. Measured
+before filing: **98 artifact dirs under `eval/runs/*/artifacts/*/`, 91 carry
+the file, 7 do not** across 3 runs — one of them (`s1_parallax__ts__t0`) a
+fully graded trial with `submission.tar.gz` and `eval/` present and no
+closing message stored. Reproduced live: `--run-dir` on
+`wg-audio-2026-08-14T12-29-42` prints **"11 trials" for a run holding 15
+artifact dirs**; the whole-tree table prints `wg-g4` as `3 / 4 / 4` for a
+6-dir run; `wholegame.py:1062` inherits the short count. The tool's whole
+ethic — no_message is UNMEASURABLE never silence, 0 is refused — names this
+population as the one that must never be invisible, and the channel makes it
+invisible. Diagnostic-only, so p4; ticket states the property (every artifact
+dir yields exactly one row; trials count == dirs reached) and pins the
+refusals, the corpus pins and the 25/15 figures as must-not-move.
+
+### Examined and judged sound
+
+- **Three values, never two** — `classify()` refuses null, empty and the
+  API's limit string as `no_message`, pinned by unit checks AND three real
+  corpus rows (`MUST_BE_NO_MESSAGE`) covering both limit-string variants.
+- **The field choice is load-bearing and tested on real data** — the selftest
+  proves a head-of-message disclosure invisible to the 3000-char tail, and
+  its corpus control asserts the whole message still holds more passages than
+  the tail for the exact trial (#49's run) whose disclosure sits at character
+  0 of 3912.
+- **Direction 1b of the selftest is the dead-or-duplicated check**: removing
+  ANY single cue family must silence at least one variant, or the family is
+  dead and looks alive from outside. Combined with direction 1's
+  empty-BOTH-lists mutant (so neither family can cover for the other) and
+  `disclosure_mutants` deleting each cue at source, the cue set cannot rot
+  silently.
+- **Written from the property, with every widening and narrowing named** —
+  the closed `_GAP` set (three stored false positives fixed by closing it),
+  `_PERF` past-tense-only (the habitual that broke the archive-arena2d
+  control), first-person `_WEAK`, `NOT_A_REPORT`'s three sentence properties
+  scoped to the starter family alone because applying them to CUES "would
+  silently drop disclosures".
+- **The two never-pooled families** carry their own denominators and the
+  tasks/94 correction (26 vs 25) is told where the pooling happened.
+- **The two documented dead zones are recorded, not hidden**: `residual`
+  fires on 0 of 90 stored messages (kept because it is what a future run's
+  required section would produce) and `recipe_red` locates no row the other
+  starter cues do not — each with its variant-only load-bearing test named.
+- **Refusal discipline**: both scanners raise rather than report an empty
+  population, `--skip-corpus` prints "a non-measurement, not a pass", and a
+  missing corpus exits 2. `wholegame.py:1063-1065` catches the raise and
+  prints the same distinction.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- A heading passage includes its first 3 body lines, and those lines are not
+  marked claimed — a body sentence carrying a cue appears twice (inside the
+  heading passage AND as its own sentence). Trial-level located/quiet counts
+  are unaffected; the doubled sentence is visible verbatim twice in the
+  output, so it self-announces.
+- `--run-dir X --json` silently ignores `--json` (it is consulted only on the
+  tree path). Accepted-but-ignored, rule 13's companion shape — but any JSON
+  consumer fails loudly on the text it receives instead.
+- `--trial` and `--full` `json.loads` without the `DisclosureError` wrap — a
+  corrupt file is a bare traceback, loud and pre-output, where `read_trial`
+  wraps the same read.
+- The CAVEAT/docstring figures (75 readable, 90 messages) are dated hand-pass
+  numbers; the live tree now holds 91 messages (one more rust since
+  2026-08-23). Expected drift of a dated figure recorded with its date — the
+  hand-classified columns cannot be re-derived by the tool, which is why the
+  CAVEAT quotes both.
+
+### Live at HEAD 332c467, unpiped
+
+`--selftest` exit 0 with corpus (variants, mutants, three values, truncation
+control, all corpus pins); published locator figures reproduce exactly —
+unverified 25, starter 15, per-stack 3/11/3/8; the 98/91/7 census and the
+11-of-15 reproduction as above.
+
+### Gates at HEAD 332c467, unpiped
+
+`docstat.py --sweep`, `--renumbered`, `tasks.py check` re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/verify_blind.py` — the blinding gate, named as alternate in the
+two entries above, verified 0 heading hits before writing this. It consumes
+`anonymise`'s exports and the pack's rendered text; task 200 found the skills
+invoking it bare at exit 2. Alternate: `eval/judge/repack.py`, verified 0
+hits.
