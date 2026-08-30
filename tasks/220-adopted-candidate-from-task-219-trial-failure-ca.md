@@ -1,7 +1,7 @@
 ---
 id: 220
 title: 'ADOPTED-CANDIDATE from task 219: trial failure-cause labels with a producer, from the sibling failure taxonomy'
-status: todo
+status: in_progress
 priority: 3
 refs: research/12-sibling-comparison.md, ~/Documents/heavenstudio/game-research-gpt/research/raw/evaluation-methodology.md, eval/FINDINGS.md, eval/tools/census.py, eval/tools/disclosure.py
 done_when: 'A closed label vocabulary for trial failure cause exists in the repo; every stored whole-game trial carries one label applied by hand in one session, population taken from tools/census.py, the retired suite excluded or named; a producer cross-tabs labels by run and by stack; and the accept-or-reject measurement is written into the ticket: ACCEPT when some label group surfaces a cross-run or cross-stack pattern not already recorded in FINDINGS or DECISIONS - a rule-9 shared-cause cluster, or a published figure the labels qualify; REJECT and withdraw the vocabulary when every group maps one-to-one onto an already-recorded finding or a terminal_reason partition, which would mean the labels add no dimension. Either outcome closes the task.'
