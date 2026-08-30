@@ -1948,3 +1948,60 @@ pass 12 (`scene_prompts.py` inside the 4,168-line layer read). The one remainder
 `suites/prompts.py` (97 lines, the FIRST bake-off's per-stack prompt vocabulary, predating
 the whole-game suite) — no pass has read it; too small to be a pointer on its own, but it
 is the tree's one unexamined file.
+
+## Pass 16 — 2026-08-30 — `eval/judge/judge.py` (449 lines, read whole)
+
+The pass-15 pointer, taken: zero coverage in 15 passes, unchanged since task 34's lint
+triage, cited by two live documents. The pointer's question — *is the grading entry
+point live, and what does its stillness mean?* — has a definite answer.
+
+### The answer: retired, not stale
+
+`judge.py` is the RETIRED 13-criterion generalist judge (`aspects.INSTRUMENTS`:
+`legacy_judge`), opt-in behind `--with-legacy-judge` and default-skipped — `evaluate.py`
+writes a skipped marker (`game: None, usable: False, passed: 0/13, no model`) when it
+does not run. Its stillness is retirement plus the 2026-08-25 instruments decision
+moving its guarding to the class axis; the two live documents that cite it
+(`research/12` rows 6 and 12) quote its docstring, which is unchanged and still
+accurate. The docstring's six constraints are each visible in the code (DEFAULT_MODEL
+`sonnet` against builders on `opus`; the SCHEMA orders evidence and reason before
+`passed`; `_pass_one` drops a pass with under 20 characters of evidence; the
+forward/reverse conjunction with `instability`; `build_pack` for blindness), and the
+docstring's "thirteen failures" matches `len(ALL_CRITERIA)`. The `--out` help text
+carries a real incident (spliced JSON from two judges aimed at one path) with its own
+repair — atomic write plus refuse-unless-empty.
+
+### Found: one ticket
+
+**The game axis of the guard is missing (tasks/221).** The 2026-08-25 decision guarded
+the CLASS axis — `legacy_judge: "game"` — but `judge()` itself renders
+`GAME_BRIEF.get(game, "(unknown game)")`: `GAME_BRIEF` holds 3 entries, the suite has 4
+games, and `g4_platformer` passes the class guard into 13 criteria answered against a
+placeholder brief. The CLI surface refuses it (`argparse` choices are the
+`GAME_BRIEF` keys); only the `evaluate.py` path is exposed. Measured before filing: the
+stored corpus holds **25 real judge rounds (g1_pong 9, g3_arena 8, g2_tetris3d 8), every
+one on a briefed game; 0 fired, and 44 of the 69 stored `judge.json` files are skipped
+markers, not rounds.** The repair is the refusal, not a g4 brief — `GAME_BRIEF` is a
+retired instrument's table, and extending it would change what a re-run of old rounds
+would mean.
+
+### Method note: the pass's own first census was wrong, and the correction is the lesson
+
+The first extraction counted `judge.json` FILENAMES and reported **8 g4_platformer judge
+rounds** — the exact trap the corpus then disproved: those 8 files are `evaluate.py`'s
+skipped markers, byte-shaped `game: None / usable: False / 0/13 / model: None`, and no
+kept pack or brief exists behind them. Re-counted by content, the real/skipped split
+emerged and every real round's game checked against `GAME_BRIEF`. Rule 2 — never infer a
+process's state from an artifact's state — applied to a census this pass ran itself,
+which is the pass-12 corollary (verifying is not safer than making) measured once more:
+the trap fired in the first 30 seconds of a cleanup pass, on the tool side of a
+`find | sed`.
+
+### Not opened, and the next pass should take it
+
+`eval/judge/bot_mutants.py` (2,904 lines) — **the largest file in the judge tree and no
+pass has ever read it whole**; it is the enforcement tool for AGENTS.md rule 15 (the
+mutant/variant halves), cited by the rule itself, and its last entries in this log are
+someone else's counts of it, never a read. Alternates after: `eval/judge/field.py`
+(2,173 lines — the capture, cited 9 times, read around but not through) and
+`eval/judge/blurb_selftest.py` (1,573 lines).
