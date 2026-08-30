@@ -2234,3 +2234,83 @@ a subject. It is the census pass 13 filed tasks/218 against and the file tasks/2
 merged PR #98 just widened to the Bash/Grep half of the capture; reading the widened
 census is the closest look anyone has taken at the repair since it landed. Alternate:
 `capability_selftest.py` (798, never a subject), then `paired_verdicts.py` (772).
+
+## Pass 20 — 2026-08-30 — `eval/judge/prompt_capture_census.py` (998 lines, read whole)
+
+The pass-19 pointer, taken. Began by closing pass 19's loose end: the pass-18
+pointer-verification repair in `.agents/skills/prune/SKILL.md` used the single-format
+grep (`^## Pass`), and pass 19 found passes 1-12 headed their entries
+`## 2026-08-DD (nth pass) — …` — the repair could not see the oldest third of the log it
+checks. The grep is now format-agnostic (`^## `), with the one-pass-later catch recorded
+beside it: a check written for the format its author happened to see is an enumeration
+again.
+
+### What the file holds, and what holds it up
+
+The latent-null producer for the 2026-08-28 pre-registration: did any stored NON-CODE
+judge round read evidence its pack did not carry, through `files_opened` (the Read half)
+or — since tasks/218's PR #98 — through `tool_calls` Bash/Grep calls (the second table).
+Its defences, each read rather than trusted:
+
+- **Every reason not to classify is a counted state with its own column.** absent / null
+  / malformed on BOTH capture keys independently (a round malformed on one half still
+  contributes the other — the fixture pins all four directions); 200-char targets
+  refused per TARGET on the Read half, 200-char commands refused WHOLE on the Bash half
+  (different units, stated where each is counted); no-path a state, never a drop.
+  `.get` is used nowhere the absent/null distinction matters — membership checks, after
+  that exact collapse was caught in the fixture.
+- **The extractor's every branch is a selftest literal**, including the two adjudicated
+  corpus false positives pinned AT their commands (`wc -l < <(ls A/frames)` extracting
+  the substitution's operand, `find -iname "brief.md"`'s expression value), the PR #98
+  review rounds (attached `-epat` spellings; `-e`/`-f` consuming a value only on
+  pattern-first verbs, so `cat -e` and `tail -f` still extract), and the redirect
+  spellings with a quoted `>` staying data.
+- **The stated limits are limits, with compensating controls**: no pack root in the
+  record, so classification is by shape and every un-carried read is itemised with its
+  full target/command; one shell level, so nested interpreters land in no-path, counted;
+  the fixture's outside-the-pack mimic pins the shape-not-location decision as a decision.
+- **Exit 2 on an empty population** — UNMEASURED, not clean — and `--runs-root`'s help
+  names the worktree trap (a worktree's `eval/runs` is gitignored and empty, which would
+  read as UNMEASURED).
+
+### Found — filed as tasks/222
+
+**`bash_operand_paths`' docstring claims the split "at `;`, `|`, `&&`, `||` and
+newlines"; the main shlex path does not split at newlines.** shlex emits no token for a
+newline, so newline-joined commands arrive at `_segments` as ONE segment — and a
+pattern-first verb after the newline loses its pattern-slot protection: demonstrated
+in-process, `cat A/audio.json\nsed 's/x/y/' B/audio.json` extracts the sed SCRIPT
+`s/x/y/` as a path operand, which classifies `other` — a phantom un-carried leak moving
+the pre-registration's 0. The unbalanced-quote fallback DOES split newlines, so the two
+tokeniser paths disagree about the same command. Measured before filing: within the
+census's population (57 non-code rounds, 437 usable Bash calls) 3 commands hold newlines
+and 0 collapse to the shape — every published figure stands; corpus-wide including
+code-seeing rounds outside the population, 3 of 1,833 collapse, all in `idiomatic`
+rounds, all extracting nothing. Latent, phantom-POSITIVE direction, trigger shape held
+by the corpus, third member of a family this file has repaired and pinned twice —
+ticket, not log line.
+
+### Gates at HEAD 9e4b24c, unpiped
+
+`--selftest` exit 0 (every classifier and extractor branch answered as stated; fixture
+rows for both tables). Live census over `eval/runs` exit 0: **57 non-code rounds, 468
+Bash/Grep calls, 31 truncated commands refused whole, 337 no-path, 179 operands, 0
+un-carried on BOTH halves** — matching the pre-registered figures to the digit, with
+the pre-registration's 0 standing on the widened corpus. Wired at `gates.yml:448` with
+its register row (`workflows/README.md:110`).
+
+### Method note
+
+The defect came from asking one question of the tokeniser the docstring invites: what
+does the main path do that the fallback does differently? The two paths exist for
+unbalanced quotes, and comparing them showed the newline handling is one of the things
+that differs — the docstring describes the fallback's behaviour, the code runs the main
+one. The population-specific count ran before filing, because a channel whose trigger
+the population has never drawn files as a channel, not as a wrong number.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/capability_selftest.py` (798 lines) — verified against every heading
+format: never a subject. Pass 7 read `capability.py` whole and verified its selftest's
+GATING and two pins (the geometry double-statement, the TRIAL_RE fix) from the outside;
+no pass has read the selftest itself. Alternate: re-derive from the import graph.

@@ -86,13 +86,16 @@ take X" was written by a reader as fallible as you, and has twice named a file a
 pass had already read (pass 13's alternate; pass 17's pointer). Verify before following:
 
 ```bash
-grep "^## Pass" CLEANUP-LOG.md | grep "<candidate path>"
+grep "^## " CLEANUP-LOG.md | grep "<candidate path>"
 ```
 
 A hit means it is a prior pass's *subject* — the pointer is void, pick your own area, and
 record the voiding in your entry. The check reads the headings, not prose: alternates and
 pin sites name files that were never read. This is step 1 applied to the pointer itself,
-and it costs one grep.
+and it costs one grep. The heading match is format-agnostic on purpose: passes 1-12 headed
+their entries `## 2026-08-DD (nth pass) — …`, passes 13+ use `## Pass N — …`, and a grep
+keyed to one format silently stops covering the other — which pass 19 caught in this very
+repair one pass after it was written.
 
 Candidates, but do not feel bound by them:
 
