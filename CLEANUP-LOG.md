@@ -2465,3 +2465,84 @@ load-bearing at `eval/tools/scene_runner_control.py:340` and must not change.
 AGENTS.md rule 16 names, never a subject (verified against every heading: 0 hits).
 Alternate: `eval/wholegame.py`, the runner the queue's whole-game trials drive, larger
 than anything read so far.
+
+## Pass 23 — 2026-08-30 — `eval/judge/tier1_census.py` (770 lines, read whole)
+
+The floor-test producer behind AGENTS.md rule 16's companion paragraph, and the tool
+whose verdict decided tier 1 should become a gate rather than a smaller number (#123).
+Read whole; **judged sound; no ticket.** This is the cleanest census in the repo —
+every defect class this log has recorded elsewhere is already defended here, usually
+in a form naming the incident that bought it.
+
+Sound, with the failure each property answers:
+
+- `--runs-root` is **required**, and the requirement names its failure: a worktree's
+  empty gitignored `runs/` would report zero failures everywhere — the
+  instrument-reporting-itself shape of rule 9, at the exact moment the tool exists to
+  catch (rule 12: the address is an input). The root is printed beside every count.
+- The search is **depth-independent** (the #126 repair) and counts what it skips —
+  `Library/`, `Bee`, agent-authored trees — with the skipped count printed, never
+  dropped: a skip nobody counts is the defect being replaced.
+- **One row per submission**, deduped on the graded work tree rather than the report
+  path, with superseded gradings held out of the headline **and printed** with their
+  agreement/disagreement — and when the deduped verdict and the pooled verdict
+  disagree, **both are printed**. On this corpus they do disagree (FLOOR-ONLY deduped,
+  DISCRIMINATES pooled, on the superseded wg-g4c-capgate rows), and the tool shows the
+  disagreement instead of choosing a winner (rules 4 and 9).
+- Blocked and playbot-unusable trials are held out of the variance question, with the
+  holdout count visible per group rather than silently pooled in.
+- `ordering_change` asks the weight question **at w1=0** — the endpoint
+  `weight_sensitivity.py` deliberately excludes by sweeping the open interval. The
+  gate regime sits outside that interval, so FLIPS=0 over [0,1) never said anything
+  about it; this sibling is the only producer that does. REVERSED is the outcome that
+  counts against the change, and it has its own positive control in the selftest.
+- Selftest: 27 checks, every fixture's answer stated in advance, a **positive control
+  for the headline** (a constructed group must flip to DISCRIMINATES — the guard
+  against an always-FLOOR-ONLY check, which is rule 15's "can it still pass" half),
+  and six mutants each of whose module globals is restored before the assertion runs.
+- `OLD_W1 = 0.31` is kept as a literal, not imported: the scheme it reproduces is
+  gone from `evaluate.py`, so there is nothing to import it from — a number whose
+  provenance is a comment is honest about that.
+
+Live at HEAD ffe5294, unpiped: 69 stored submissions, 85 gradings on disk, 16
+superseded and held out, 0 skipped; blocking 2x2 = 2 blocked at t2=0.00 / 0 blocked at
+t2>0, 0 unblocked-failed at t2=0.00 / **6 unblocked-failed at t2>0** — the figure the
+AGENTS.md rule-16 paragraph quotes as "6 failed nothing tier 2 depends on", reproduced
+by its producer; ordering reversed 0, coarsened 3, identical 8; 11 groups, 0 varying
+under both tiers; **VERDICT: FLOOR-ONLY** (pooled: DISCRIMINATES, printed beside it).
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- `blocking_2x2` reads `float(r["t2"] or 0.0)` — an **absent** tier-2 would enter the
+  t2=0.00 cells as if measured, where `groups()` holds `None` out. Not reachable in
+  the stored corpus today (every stored grading writes a `tier_scores` block; the 2x2
+  cells total the same 8 failing rows the headline counts). It becomes reachable the
+  day any writer emits criteria without tier scores, and the cells it would inflate
+  are precisely the ones that corroborate the blocking decision — log line, not
+  ticket, because the data the channel would eat does not exist yet.
+- The per-group `blocked` column is `len(g) - len(live)`, which also holds out
+  playbot-unusable trials — a wider holdout under a narrower name. The 2x2 is the
+  report that separates the two reasons; read the column as "not in the variance
+  population", not as "build-blocked".
+
+### The pointer discipline, fired at the writer this time
+
+Pass 22's alternate (the paragraph above) named `eval/wholegame.py` — **void**: that
+file was the subject of the 2026-08-27 (second pass) entry, and pass 23's own
+pre-flight grep found the two headings it heads. The step-3 grep had been run against
+the pointer this pass FOLLOWED (`tier1_census.py`, 0 hits) and not against the
+alternate it PROPOSED — the check covered the claims being consumed, not the claims
+being written. Third instance of this exact failure (pass 13's alternate, pass 17's
+pointer), and the first committed by the session that had just re-derived the rule.
+
+### Gates at HEAD ffe5294, unpiped
+
+`tier1_census.py --selftest` 27/27 exit 0; live census figures as above;
+`docstat.py --sweep` and `--renumbered` and `tasks.py check` re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/weight_sensitivity.py` — the other rule-16 producer, cited in three
+passes' prose (16, 22, 23) and never a subject (verified against every heading
+before writing this: 0 hits). Alternate: `eval/judge/regrade_wholegame.py`, the
+offline re-scoring path `evaluate.py`'s docstring leans on, likewise verified 0 hits.
