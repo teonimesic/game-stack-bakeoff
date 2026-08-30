@@ -1885,3 +1885,66 @@ pointer's accuracy is part of what a later pass inherits.
 Alternate after that: none named — the judge tree's larger unread files are gone through;
 the pass after audio_selftest should pick from `eval/suites/` (regime-boundary rules as
 before) or re-derive from the import graph.
+
+## Pass 15 — 2026-08-30 — `eval/judge/audio_selftest.py` (876 lines, read whole)
+
+Pass 14's pointer, taken as named. The file is the mutation suite for the audio criteria,
+and it is where four of this project's disciplines are simultaneously load-bearing: rule 15
+(mutants are not enough — the variants are the half that catches `tasks/152`'s
+junk-entries buy), the task-113 rule (an expectation kept in step with its subject by a
+ROW THAT COMPARES THEM — `EVENTS_AS_WRITTEN` is transcribed by hand and compared to both
+`audio.GAME_EVENTS` and the RENDERED prompts, which is what caught `tasks/151`), the
+closed-class rule (LOCK_HINTS pinned in both directions through both readers, with 3
+mutants: substring restored, phrase dropped, equal-but-distinct copy), and rule 7 (the
+fail-closed default — a run that HAPPENED and emitted nothing — has its own rows, so the
+lock exclusion cannot quietly loosen it).
+
+### Found
+
+Nothing to file. The one live suspicion — the docstring says "six audio criteria" while
+`healthy()`'s docstring says "all five" — died on the frame, not on the prose: `collect()`
+carries 5 criteria and `audio.triggered` is the sixth, driven through `probe.drive` below;
+each docstring is right in its own frame, and the positive controls loop
+`audio.CRITERIA` directly, so they adapt if either count moves. Manufacturing a pin for a
+docstring prose count is the task-92 lesson (the quantifier trigger went 26 red with no
+true positive), not a gap.
+
+### Cleared, by reading rather than by trusting CI
+
+- **Every mutant kills by a row naming its mechanism, and the two hardest mutants assert
+  their CONTROLS stay green** — mutant 11 (append without the lock bit) must scorch the
+  lock fixture *and* leave both non-lock controls green, with the reason stated (a scorch
+  that also failed the controls would be a different, fail-closed defect); mutant 14
+  (phrase dropped) must leave the OTHER stored line classified, so the red row is
+  attributable to the removal.
+- **The stub boundary is chosen, not accidental**: `drive_with` replaces
+  `probe.ProbeSession` wholesale because `drive()` names the class directly — no engine,
+  no child process, no `just` on the lock paths; the manifest-lock paths stub
+  `audio.time.sleep` instead so the REAL retry loop runs (4s+8s per exhausted read,
+  measured, not skipped).
+- **`MUTANT 15`'s comment encodes a real Python trap**: `tuple(t)` on an exact tuple IS
+  `t`, so the equal-copy mutant would manufacture nothing; the file builds the copy
+  through `list()`.
+- **No dead weight**: every helper (`tone`, `silence`, `add_extras`, `VOICES`, `PONG`,
+  `EVENT_LINE`, `EVENTS_MARKER`) has a consumer; all imports are used.
+
+### Measured
+
+`python3 eval/judge/audio_selftest.py` unpiped, this pass: **124 expectations checked,
+0 unmet, exit 0.** The suite is also gated in `controls.yml` on every pull request, so
+this file's green does not depend on anyone remembering it.
+
+### Not opened, and the next pass should take it
+
+`eval/judge/judge.py` (449 lines) — **zero coverage in 15 passes** (the only file in
+`eval/judge/` the log has never once named), and `git log` shows it untouched since task
+34's lint triage, near the repo's start. Two live documents cite it
+(`research/12-sibling-comparison.md` rows 6 and 12 quote its docstring and its
+one-submission-per-session discipline). A pass should read it whole and answer: is the
+grading entry point live, and if it is, what does it mean that everything around it
+changed while it did not? Alternates after: re-derive from the import graph.
+`eval/suites/` is otherwise gone through — `wholegame_prompts.py` pass 2, the scene layer
+pass 12 (`scene_prompts.py` inside the 4,168-line layer read). The one remainder is
+`suites/prompts.py` (97 lines, the FIRST bake-off's per-stack prompt vocabulary, predating
+the whole-game suite) — no pass has read it; too small to be a pointer on its own, but it
+is the tree's one unexamined file.
