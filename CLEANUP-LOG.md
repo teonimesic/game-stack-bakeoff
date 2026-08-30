@@ -3150,3 +3150,43 @@ history.
 RECORDED-bare files in the register's first population — gated nowhere, named only in the
 left-out table, so it gets no CI attention at all. 0 heading hits, re-verified before
 writing this.
+
+## Pass 31 — 2026-08-30 — `eval/tools/evidence_set_control.py` (366 lines, read whole)
+
+One of the four RECORDED-bare files — named in the register's left-out table, gated
+nowhere. The pass question: does the recorded reason still hold, and can the controls
+still fail? Judged **sound**, no ticket.
+
+### Live verification, all unpiped
+
+- **Bare**: exit 0, 11/11 controls, `git classified 7,465 paths ignored across the
+  suite` — the suite-level positive control is armed, not the degenerate one-bucket
+  pass. The real-trees cases run with `require_both=False` for a documented reason
+  (a rust work tree genuinely contains nothing its .gitignore names), and the
+  adversarial + synthetic cases carry the per-case control instead.
+- **All four mutants killed**: `dir_only`, `anchored`, `depth`, `last_wins` each
+  exit 0 `mutant killed`. These mutate the imported module in-process — nothing on
+  disk changes, nothing to restore.
+- **The recorded reason still holds**: `--runs-root /tmp/does-not-exist` → exit 2.
+  The register's row says the control is `UNMEASURABLE` without `eval/runs/`, which
+  is gitignored and never in a CI checkout — that is why it is recorded rather than
+  gated, and it is still true.
+- **Rule 12 by construction**: the control takes `RUNS = ES.DEFAULT_RUNS_ROOT` from
+  the module it controls, so both address one tree unless a caller overrides one;
+  no path is spelled twice.
+
+### Examined, latent, logged
+
+The one defect shape found: `git_partition` un-quotes C-quoted paths with
+`unicode_escape`, which turns git's octal escapes into mojibake (`\303\251` → `Ã©`,
+not `é`) — a non-ASCII filename would disagree between git's side and os.walk's side
+and redden a correct control. Bounded: **0 non-ASCII filenames** in any work tree
+the control reads, and the failure direction is a RED control (costs attention,
+never silently passes). Logged, not ticketed. The synthetic precedence fixture
+remains the load-bearing piece: its own comment records that three of the four
+mutants were INERT against real .gitignore files before it existed — the variant
+half of rule 15, written where the next maintainer will read it.
+
+**Next pass pointer:** `eval/tools/precampaign_smoke.py` (357 lines), touched by
+merged PR #105 three days ago and never read by a cleanup pass — the most recently
+changed unexamined tool. 0 heading hits, re-verified before writing this.
