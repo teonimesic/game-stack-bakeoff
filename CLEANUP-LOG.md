@@ -2826,3 +2826,95 @@ it), verified against every heading before writing this: 0 hits. Alternate:
 `eval/judge/disclosure.py`, the rule-11 locator whose two-questions-two-counts
 caveats are load-bearing in AGENTS.md and worth reading at the source,
 verified 0 hits just now.
+
+## Pass 27 — 2026-08-30 — `eval/judge/anonymise.py` (461 lines, read whole)
+
+The anonymiser the AGENTS.md audit-trail paragraph is about: the dropped-file
+manifest it returns is the capture that made #62 findable four matrices late.
+Read whole; **judged sound; no ticket.** Driven live at the function level, not
+only through its selftest.
+
+### Examined and judged sound, with the probe that held each one up
+
+- **The manifest is the audit trail, and its always-0 counter is deliberate.**
+  `files_dropped_for_length` is 0 by construction since #69 removed the cap and
+  is kept so the completeness gate can ASSERT it — a budget reintroduced later
+  cannot truncate silently. The counter of an absence that must stay absent,
+  kept instead of deleted as vacuous. `field.py`'s `pack_matches_manifest` is
+  the independent reader of the same property (disk set == manifest set), and
+  the docstring names it.
+- **The destination guard is rule 12 in a writer** (`:356-364`): refuses dest
+  == submission/starter and dest an ANCESTOR of either, because "this is the
+  one place where getting the address wrong is unrecoverable". Verified live
+  both shapes refused. The condition matches its message — my first probe
+  built `dest` INSIDE the submission and called the pass a defect; the guard's
+  stated purpose is a dest that CONTAINS the submission (clearing deletes the
+  evidence), and building into a subdirectory of the submission mutates
+  nothing it does not own. The probe was the wrong shape; the guard is right.
+- **The #69 numbering property holds live**: two passes into one dest with the
+  submission shrunk between them — zero stale files, disk==manifest, labels
+  renumbered. The docstring's claim (a pack is a NUMBERING, not a set) is
+  enforced by the clear, and the corpus damage that bought it (wg-g4c's 23
+  unaccounted files over nine passes) is named where the clear was added.
+- **The segment matcher is the closed-class rule in code** — a vocabulary of
+  38 one-arm names matched as IDENTIFIER SEGMENTS in any case convention, with
+  `_match_window` refusing one-letter segments (what stops `Vec3.UnitY`
+  spelling `unity`) and `_LITERAL_TOKENS` holding the two forms segmentation
+  cannot save (`three` the numeral, `Node2D`). Every negative control in its
+  own comment reproduces live: immunity, UnitY, tscn, bestScore,
+  is_three_dimensional, bare `node` — all clean; CARGO_MANIFEST_DIR,
+  WinitPlugin, crates/sim, bevyengine/bevy#6183, TypeScript, gdlintrc — all
+  found. The substring search the comment measures this against would have
+  rewritten `immunity` 54 times.
+- **`find_stack_names` is the same code path as the rewrite, deliberately** —
+  a detector with its own vocabulary would agree with the rewriter by
+  construction and measure nothing; the compensating control is the selftest's
+  sweep over REAL stored pack text (85 packs, 0 leaking, run green today).
+- **The selftest is gated and measures in both directions**: 38 names × 3 case
+  forms with 0 surviving, 38 drop-one-name mutants with 0 silent, 128 real
+  leak lines 0 surviving, **400 innocent lines 0 corrupted** (the variant half
+  — a scrubber that also rewrites `immunity` would die here), idempotence over
+  528 lines, then the stored sweep. Wired at `gates.yml:298`.
+- **Identity is defended twice, on purpose**: `_TRIAL_ID_RE` (the answer-key
+  shape `g4_platformer__godot__t1`) and `_WORK_PATH_RE` (absolute work-tree
+  paths baked into scripts), because "one of them is a list of directory names
+  and this project has learned what a list-shaped guard misses" — the `.codex`
+  skip is the list; the regexes are the property. `verify_blind.py` consumes
+  all three (`:145`, `:150`, `:162`).
+- The shuffle seed is `sha256(submission_id)` — per-submission, deterministic,
+  re-derivable; ordering cannot systematically favour a stack, and a re-pack
+  reproduces byte-identical order.
+- **`exclude_origins` (starter drift)** is passed in explicitly and the caller
+  must show its working — the comment derives the correct set as (rebuilt pack)
+  MINUS (stored manifest) MINUS (legitimately returning length drops), so the
+  filter cannot silently widen.
+
+### Below the bar, recorded so the next reader does not re-derive it
+
+- **`except OSError: continue` at `:410-411`** drops an unreadable file from
+  the pack with no count anywhere — an ERROR read as a filter decision (rule
+  7's shape; every other drop here is a deterministic class). Probed live with
+  a `chmod 000` code file: absent from manifest and disk, nothing reports it.
+  **Censused before judging it**: `find eval/runs -type f ! -perm -400` → **0
+  files** in the entire stored tree. Latent, no held trigger, silent → log
+  line under the pass-12 policy, not a ticket.
+- The other uncounted drops — `DROP_NAMES`, non-`CODE_EXT`, empty files,
+  AppleDouble `._` — are deliberate presentation filters, and the manifest
+  records what the judge actually sees; only the OSError case converts an
+  error into a filter.
+- "Bee" (named in `tier1_census.py`'s skip list) is Unity's `Library/Bee`
+  toolchain tree — covered here by `SKIP_DIRS`' `Library`. Checked because the
+  two skip lists overlap imperfectly and the census comment does not say so.
+
+### Gates at HEAD 8ba1eb2, unpiped
+
+`anonymise_selftest.py` 7 checks, 0 unmet, exit 0; function-level probes as
+above (guards, numbering, matcher controls, OSError probe); `docstat.py
+--sweep`, `--renumbered`, `tasks.py check` re-run at commit time.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/disclosure.py` — the pass-26 alternate, re-verified against every
+heading before writing this: 0 hits. Alternate: `eval/judge/verify_blind.py`
+— the gate this pass saw reading `anonymise`'s exports; a subject never,
+verified 0 hits just now.
