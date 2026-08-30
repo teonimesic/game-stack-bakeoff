@@ -2005,3 +2005,74 @@ mutant/variant halves), cited by the rule itself, and its last entries in this l
 someone else's counts of it, never a read. Alternates after: `eval/judge/field.py`
 (2,173 lines — the capture, cited 9 times, read around but not through) and
 `eval/judge/blurb_selftest.py` (1,573 lines).
+
+## Pass 17 — 2026-08-30 — `eval/judge/bot_mutants.py` (2,904 lines, read whole)
+
+The pass-16 pointer, taken: the largest file in the judge tree, the enforcement tool for
+AGENTS.md rule 15's two halves, cited by the rule itself — and until now read only in
+fragments, its own log entries being other passes' counts of it. Read whole across this
+session.
+
+### What it holds, and what holds it up
+
+Four registries and three written-tape families. `MUTANTS` (53 entries over 45 criteria,
+the summary line naming MUTANTS not criteria since `tasks/170`); `VARIANTS` (17
+correct-but-unusual games, every criterion required to pass on each); `PENDING_VARIANTS`
+(**empty, and that is a legal state** — every declared false negative has been repaired,
+the last promoted by `tasks/160`); `HAZARDS` (70 per-criterion answers to "what correct
+game would mis-score this?", grouped by 11 shapes, with `--hazards` the producer for the
+per-criterion figure). The tape families exist where a mutant needs a game the fixtures'
+physics cannot be steered into: `rally_tapes` (a rally of one hit, hits on consecutive
+ticks, a hit tick that also carries the point), `EndTapeSession` (the
+`end_condition_holds` refusal), `grace_tapes` (`match.ends` through the score-locator's
+window).
+
+The load-bearing bits, each verified rather than merely read:
+
+- **`hazard_gate` is bidirectional and its selftest pins it red 8 ways** — live-vs-registry
+  both directions, duplicate keys, undefined shapes, orphan subjects no criterion claims,
+  `covered_by` naming nothing / a cross-fixture label / one real plus one bogus / the same
+  label twice. The red pins use synthetic entries, never live data.
+- **`_apply` refuses to apply a patch whose target does not appear exactly once** — a
+  mutation that silently fails to mutate raises.
+- **`adjudicate_pending` goes red on the EMPTY set** (a landed repair must be promoted into
+  `VARIANTS`) and on any changed shape; and because `PENDING_VARIANTS` is legitimately
+  empty, the selftest borrows a synthetic `Pending` rather than `PENDING_VARIANTS[0]`, so
+  the check did not quietly stop running when the list emptied.
+- **The 512/513 grace rows are hardcoded on purpose** — a row built from
+  `bot_pong.GRACE_BUDGET` would stay green through exactly the edit it exists to catch.
+- **`read_end_signal` pins "drove 0 ticks" because nothing else moves**: verdict and
+  evidence are byte-identical with the guard deleted — and the file says plainly that this
+  escape happened when the control was first written. The tick count is the half that
+  pins it.
+- **The one waiver channel (`Variant.tolerates`) is currently carried by no variant**
+  (the pit variant's six tolerances were removed at task 76), and a tolerance that stops
+  firing self-announces — `fired for NOTHING - the tolerance is dead` — rather than
+  failing silently.
+
+### Found: no ticket
+
+Two cosmetic notes, neither a defect under the pass-12 bar (latent channel + data held +
+silent failure): `variant_rows` is initialised twice in `main` (lines 2744 and 2806,
+nothing appended between — no data can be lost); and `hazard_census`'s bare-shape
+difference prints only shapes that have rows, so a `SHAPES` definition whose rows were all
+replaced would vanish from the census — but `hazard_gate` pins every live criterion to an
+entry, so that drift cannot happen silently, and the census is an aid, not a gate.
+
+### Gates at HEAD 70fa421, unpiped
+
+`--selftest` 36/36 exit 0 (registry 8 + pending 3 + `unmet` 3 + rally tapes 10 + end
+signal 3 + grace tapes 8 — a different 36 from any criteria count in an older entry);
+`--hazards` exit 0 (70 criteria, 45 with a mutant, 17 variants, 0 pending); full suite
+exit 0 — **53 mutants pinned in both directions, 17 variants, 3 session-lock controls,
+0 unmet**. The four `also flipped [...]` notes (e.g. `PF_ALWAYS_ACTIVE` flipping the four
+contact-cluster criteria) are the suite's designed informational report about undeclared
+side effects, not undeclared failures — the mutant's own target went PASS→FAIL scored.
+
+### Not opened, and the next pass should take it
+
+`eval/judge/field.py` (2,173 lines, confirmed) — the pass-16 alternate and the
+capture-side counterpart of this pass's subject: cited throughout `eval/IMPROVEMENTS.md`,
+imported by six selftest modules (`blind_dir`, `blind_ext`, `blurb`, `field_sweep`,
+`files_opened`, `pack`), read around by every one of them and through by no pass.
+Alternate after: `eval/judge/blurb_selftest.py` (1,573 lines).
