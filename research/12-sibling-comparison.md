@@ -101,9 +101,11 @@ named), and every label group maps one-to-one onto a recorded finding, a recorde
 observation or a `terminal_reason` partition: the largest group, 18 starter defects, *is* the
 disclosure hand pass already recorded with per-stack counts; the 4 degraded-machine trials are
 exactly #49's banner; the 9 `api_error` trials are all account capacity, not one genuine API
-error. The 2 label groups that look like new patterns — infrastructure damage concentrating on
-the arena runs, and rust's 18 externally-qualified trials of 25 — decompose into recorded
-mechanisms pooled across incompatible causes. The reasoning and the re-open condition are in
+error. The 2 cross-tab patterns that look new — infrastructure damage concentrating on
+the arena runs, and rust's 18 externally-qualified trials of 25 — add no finding: the arena
+concentration combines the recorded wedges, the turn ceiling and the account-limit trials, and
+rust's count combines starter defects, account limits, a turn ceiling, the harness probe and
+machine degradation. The reasoning and the re-open condition are in
 `DECISIONS.md` (trial failure-cause labels); the full labelling and the by-run cross-tab are in
 the ticket. Everything else was already built here, and the rest is rejected below.
 
