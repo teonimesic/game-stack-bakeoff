@@ -90,7 +90,18 @@ is one of:
 |---|---|
 | `passages` | the agent wrote a message and it names something unverified or a residual risk |
 | `quiet` | the agent wrote a message and no cue matched it — **not** proof it disclosed nothing |
-| `no_message` | `null`, or the API's limit string. **Unmeasurable**, never "quiet" |
+| `no_message` | `null`, the API's limit string, **or never stored at all**. **Unmeasurable**, never "quiet" |
+
+## The scan's population is the artifact DIRECTORIES
+
+Since tasks/225: every directory under `runs/<run>/artifacts/` yields exactly one row,
+and a scan's trials count equals the artifact directories it reached. A trial whose
+`agent_result.json` was never stored is a `no_message` row naming the missing file —
+the state `read_trial` always had a branch for, which both scanners filtered out until
+2026-08-30, so those trials vanished from every count (`--run-dir` on the wg-audio run
+reported 11 for a 15-directory run; the whole tree reported 91 for 98 directories).
+`--full` deliberately enumerates stored messages, not trial directories: it prints what
+was written and holds no counts.
 
 ## It reads the WHOLE message
 
@@ -126,6 +137,7 @@ import collections
 import json
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -434,27 +446,39 @@ def read_trial(artifact_dir: Path) -> Row:
 
 
 def scan_run(run_dir: Path) -> list[Row]:
+    """Every artifact directory under `<run>/artifacts/` yields exactly one row.
+
+    The population is the DIRECTORIES, not the files in them (tasks/225): a trial
+    whose `agent_result.json` was never stored is a `no_message` row carrying its
+    reason — `read_trial`'s own branch — never an absence from the report. A file
+    under `artifacts/` that is not a directory is not a trial and yields nothing.
+    """
     artifacts = run_dir / "artifacts"
     if not artifacts.is_dir():
         raise DisclosureError(f"no artifacts directory at {artifacts}")
-    dirs = [d for d in sorted(artifacts.iterdir())
-            if d.is_dir() and (d / "agent_result.json").is_file()]
+    dirs = [d for d in sorted(artifacts.iterdir()) if d.is_dir()]
     if not dirs:
         raise DisclosureError(
-            f"{artifacts} holds no <trial>/agent_result.json — refusing to report 0")
+            f"{artifacts} holds no trial directories — refusing to report 0")
     return [read_trial(d) for d in dirs]
 
 
 def scan_tree(runs_dir: Path) -> list[Row]:
+    """Every artifact directory at `<runs>/*/artifacts/<trial>/` yields one row.
+
+    Same property as `scan_run`, over the whole tree: the population is the
+    artifact directories, so a run whose only trial never stored a message still
+    appears — as `no_message` — rather than disappearing from the per-run table.
+    """
     if not runs_dir.is_dir():
         raise DisclosureError(
             f"no runs directory at {runs_dir} (it is gitignored; an agent worktree does "
             f"not have one — read the main checkout)")
-    paths = sorted(runs_dir.glob("*/artifacts/*/agent_result.json"))
-    if not paths:
+    dirs = sorted(d for d in runs_dir.glob("*/artifacts/*") if d.is_dir())
+    if not dirs:
         raise DisclosureError(
-            f"{runs_dir} holds no */artifacts/*/agent_result.json — refusing to report 0")
-    return [read_trial(p.parent) for p in paths]
+            f"{runs_dir} holds no */artifacts/<trial> directories — refusing to report 0")
+    return [read_trial(d) for d in dirs]
 
 
 # --------------------------------------------------------------------------- rendering
@@ -470,8 +494,8 @@ CAVEAT = (
     "TWO FAMILIES, NEVER POOLED — over the 75 stored messages an agent actually wrote, this\n"
     "locator finds 25 unverified-own-work against a hand-classified 31 (eval/RUNS.md), and\n"
     "15 starter-arrived-broken against a hand-classified 18 (this module's docstring).\n"
-    "`NO MESSAGE` is unmeasurable, not silence: `.result` was null, or held the API's own\n"
-    "limit string where agent text would be.")
+    "`NO MESSAGE` is unmeasurable, not silence: `.result` was null, held the API's own\n"
+    "limit string where agent text would be, or was never stored at all.")
 
 
 def render_rows(rows: list[Row], indent: str = "") -> list[str]:
@@ -692,6 +716,47 @@ def selftest(runs_dir: Path | None) -> int:
         if got != want:
             failures.append(f"{label}: got {got!r}, want {want!r}")
 
+    # ---- direction 0: the scan reaches EVERY artifact directory (tasks/225). The
+    # population of a scan is the artifact DIRECTORIES it reaches, not the files in
+    # them: a trial whose closing message was never stored is a `no_message` row
+    # carrying its reason — never an absence — and a file under artifacts/ that is
+    # not a directory is not a trial. The refusals are the other half of the same
+    # property: an empty population is a refusal (exit 2), not a report of zero.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        arts = root / "run-a" / "artifacts"
+        (arts / "t_full").mkdir(parents=True)
+        (arts / "t_full" / "agent_result.json").write_text(
+            '{"result": "I could not verify the audio."}')
+        (arts / "t_bare").mkdir()                       # message never stored
+        (arts / "t_bare" / "diff.patch").write_text("x")
+        (arts / "stray.txt").write_text("not a trial")  # a FILE is not a trial
+        (root / "run-empty" / "artifacts").mkdir(parents=True)
+        empty_root = root / "empty-root"
+        empty_root.mkdir()
+        rows = scan_run(root / "run-a")
+        check("scan_run reaches the file-less dir",
+              sorted(r.trial_id for r in rows), ["t_bare", "t_full"])
+        bare = [r for r in rows if r.trial_id == "t_bare"]
+        check("file-less dir yields one no_message row naming the file",
+              [(r.status, "agent_result.json" in r.reason) for r in bare],
+              [("no_message", True)])
+        check("scan_tree reaches the file-less dir",
+              sorted((r.run, r.trial_id, r.status) for r in scan_tree(root)),
+              [("run-a", "t_bare", "no_message"), ("run-a", "t_full", "passages")])
+        for label, call in (
+                ("scan_run on an artifacts dir holding no trial subdirs",
+                 lambda: scan_run(root / "run-empty")),
+                ("scan_run on a missing artifacts dir",
+                 lambda: scan_run(root / "nope")),
+                ("scan_tree on a root holding no artifact dirs",
+                 lambda: scan_tree(empty_root))):
+            try:
+                call()
+            except DisclosureError:
+                continue
+            failures.append(f"{label}: reported a count instead of refusing (exit 2)")
+
     # ---- direction 1: the located set can be EMPTIED. A cue set that cannot go quiet is
     # a check that cannot fail, and would report every message as a disclosure. BOTH
     # lists are emptied: leaving one populated would let it cover for the other.
@@ -792,6 +857,33 @@ def selftest(runs_dir: Path | None) -> int:
             row = read_trial(runs_dir / run / "artifacts" / tid)
             if row.status != "no_message":
                 failures.append(f"{run}/{tid}: an aborted trial came back {row.status}")
+        # ---- direction 5b: the SCANS, not just read_trial (tasks/225). Every artifact
+        # directory on disk yields exactly one row. The walk below is the expectation,
+        # written here and not imported from the scanners: the defect was the scanners'
+        # own filter, so the directory listing is the independent statement of the fact.
+        audio = runs_dir / "wg-audio-2026-08-14T12-29-42"
+        on_disk = sorted(d.name for d in (audio / "artifacts").iterdir() if d.is_dir())
+        audio_rows = {r.trial_id: r for r in scan_run(audio)}
+        check("scan_run covers every artifact dir in wg-audio",
+              sorted(audio_rows), on_disk)
+        check("wg-audio's never-stored messages are no_message rows naming the file",
+              sorted((r.trial_id, r.status, "agent_result.json" in r.reason)
+                     for r in audio_rows.values()
+                     if not (audio / "artifacts" / r.trial_id
+                             / "agent_result.json").is_file()),
+              sorted([("g2_tetris3d__godot__t0", "no_message", True),
+                      ("g2_tetris3d__rust__t0", "no_message", True),
+                      ("g2_tetris3d__unity__t0", "no_message", True),
+                      ("g2_tetris3d__unity__t1", "no_message", True)]))
+        tree_rows = scan_tree(runs_dir)
+        check("scan_tree covers every artifact dir in the tree",
+              sorted((r.run, r.trial_id) for r in tree_rows),
+              sorted((d.parent.parent.name, d.name)
+                     for d in runs_dir.glob("*/artifacts/*") if d.is_dir()))
+        scene = [r for r in tree_rows if r.trial_id == "s1_parallax__ts__t0"]
+        check("the scene trial whose message was never stored is named, not invisible",
+              [(r.run, r.status, "agent_result.json" in r.reason) for r in scene],
+              [("wg-scene-s1ts-2026-08-25", "no_message", True)])
         # The truncation control, on real data rather than a fixture.
         row = read_trial(runs_dir / "wg-arena3d-2026-08-15T12-46-30" / "artifacts"
                          / "g3_arena__rust__t1")
