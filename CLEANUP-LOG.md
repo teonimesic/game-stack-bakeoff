@@ -2144,3 +2144,93 @@ comment is historical; today's packs match their manifests.
 `judge_prompt`'s wording and `run_field`'s argv, which makes it the capture-side
 selftest this pass's gates just exercised black-box. Alternate after that: re-derive from
 the import graph — the judge tree's larger unread files are gone through.
+
+## Pass 19 — 2026-08-30 — `eval/judge/blurb_selftest.py` (1,573 lines, read whole)
+
+The pass-18 pointer, taken — and verified against the log's *every* heading before being
+followed, not only the `## Pass` ones: passes 1-12 use `## 2026-08-DD (nth pass) — …`, and
+the repaired grep must read both formats. blurb_selftest.py had been named twice as an
+alternate and had pinned other files' checks since the sixth pass; it had never been a
+subject.
+
+### What it holds, and what holds it up
+
+The selftest for **judge-facing pack text** — every sentence a judge reads about the pack
+must describe the packer that built it. Born from the 2026-08-22 defect: `EVIDENCE_BLURB`
+went on warning every code judge about a size budget for a period after #69 removed the
+budget, in the damaging direction (invited to discount an absence it was seeing in full).
+Its 13 checks:
+
+- **The subject is the resource, written as one.** `judge_facing_texts()` collects every
+  text that speaks to the judge — BRIEF.md, the sampling skill, the `claude -p` prompt,
+  SCENE.md — and "a further judge-facing text is covered the moment it is added here". The
+  rule-audit lesson (trigger as property, not enumeration) applied where the enumeration
+  would have been a list of the two constants that were wrong.
+- **Check 1 is keyed on `(sees, blind_language)`, not `sees`** — the fixture's own
+  #138-shaped defect, caught here and documented: keyed on `sees` alone it built one code
+  pack and checked `architecture`'s brief against it.
+- **`measured_incomplete()` reads the stored reports through this file's own code**, not
+  through `pack_completeness` — the wiring defect being pinned is that the claim was not a
+  function of the packer's state, so the check cannot take the packer's word for the state.
+- **Check 4 is aimed at the claims, not the rendered brief** — and the comment carries the
+  measurement that chose the address: the obvious one (rendered text) false-positives 3×
+  on the skill's past-tense history paragraph; the shipped one (present-tense claims) is
+  0 FP live, 2 TP pre-repair. The task-92 lesson applied in code, with the corpus counts
+  recorded.
+- **Expectations spelled out here, reconciled by rows** — `FRAMES_AUDIENCE_GAME/SCENE` and
+  `PROMPT_EVIDENCE_WORDING` are the second, independent statement of constants in
+  field.py, with `audiences-still-agree` and `prompt-wordings-still-agree` keeping the two
+  in step (the task-113 pattern: a row, never a shared object).
+- **The argv row reads what `run_field` hands `claude -p`**, not `judge_prompt`'s return —
+  the address the defect lived at — driven with `_StubJudge` so the guards and argv build
+  execute and nothing is spent; and its mutant drops the pack from the call to prove the
+  row can see exactly that.
+- **Mutant 3c(a) is pinned red ONLY on non-code aspects** and asserted green on the
+  code-seeing ones: "a pin that went red on those too would not be distinguishing a wrong
+  prompt from a right one."
+- **Check 7 is a variant (rule 15)**: `dropped=4` is a stored number in
+  `eval/report.json` — no mutant can manufacture it, and it is the only input reaching
+  `allow_truncated`.
+- **`STATEMENT_STATES`' third column is WHICH refusal**, which is what makes `undecodable`
+  a test: `read_text` defaults to the locale codec, so on a non-UTF-8 host the
+  invalid-byte statement would decode and take the mismatch branch — the column asserts
+  the branch, not just the refusal.
+- **The scene-leak variant asks whether the leak SURVIVES the packer** — every other piece
+  of pack text goes through `neutralise`, so only a leaking statement driven through the
+  real `build_pack` can show the statement must be written raw (laundering it would leave
+  the blinding gate reading text the harness had already cleaned).
+- **Check 13's census pins are literals beside the fixture**, and the population-
+  accounting row is read off the census's OWN output (each row's n must equal
+  same+moved+unbuildable, rows must sum to the headline) — "summing the literals would
+  only prove they add up". `_SEES_BY_ASPECT` is kept local so a future `sees` change shows
+  as a mismatch here rather than silently reclassifying 63 stored rounds. The census
+  refuses exit 2 on an empty/missing root — UNMEASURED, not clean.
+
+### Found: no ticket. Two cosmetic notes
+
+- **The fixture's shape keys are hardcoded to the registry's current assignments**:
+  `packs[("frames", False)]` for the argv mutant, `("code", True)` for the blind-shape
+  mutants, `("s1_parallax", <fidelity sees>, False)` for the statement states. A future
+  change to any aspect's `blind_language` or `sees` that dissolves one of those shapes
+  turns this selftest into a KeyError rather than a named row — loud and self-announcing,
+  so below the bar, but the coupling is to the registry, not to the fixture.
+- **Check 3b calls `judge_facing_texts` three times per text** (iterate, then t0, then t1)
+  — two redundant rebuilds per row; SKILL.md reads from disk each time anyway. Nothing
+  turns on it.
+
+### Gates at HEAD a239547, unpiped
+
+`blurb_selftest.py` exit 0; `stored_rounds_mutants.py` exit 0 (all 7 mutants caught, each
+reddening a named census expectation; control green); and the census producer run LIVE:
+`blurb_selftest.py --stored-rounds eval/runs` exit 0 — 97 rounds, 40 code-seeing, 14
+hashed, 26 unassessable — **matching `eval/RUNS.md`'s published table (lines 567, 574-577)
+to the digit**, population sentences included. The table task 132 bought the producer for
+is current.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/prompt_capture_census.py` (998 lines) — verified against every heading: never
+a subject. It is the census pass 13 filed tasks/218 against and the file tasks/218's
+merged PR #98 just widened to the Bash/Grep half of the capture; reading the widened
+census is the closest look anyone has taken at the repair since it landed. Alternate:
+`capability_selftest.py` (798, never a subject), then `paired_verdicts.py` (772).
