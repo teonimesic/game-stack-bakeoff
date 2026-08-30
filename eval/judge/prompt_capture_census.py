@@ -208,7 +208,10 @@ _READ_VERBS = frozenset(
 #: and extracting it would read a false un-carried leak.
 _PATTERN_FIRST = frozenset({"grep", "sed", "awk"})
 
-#: grep flags whose NEXT token is the pattern or a pattern file, not a path.
+#: Pattern-first flags whose NEXT token is the pattern or a pattern file,
+#: not a path - honoured for the pattern-first verbs only: `cat -e` shows
+#: line ends and `tail -f` follows the file named after it, so there the
+#: next token is an operand.
 _VALUE_FLAGS = frozenset({"-e", "-f"})
 
 #: A token carrying any of these is a shell EXPANSION, not a literal path:
@@ -333,8 +336,13 @@ def _segment_reads(seg: list[str]) -> list[str]:
                     reads.append(nxt)
             i += 2
             continue
-        if t == ">":
-            i += 2  # the write target, skipped
+        if ">" in t and set(t) <= {">", "&"}:
+            # every punctuation-only redirect spelling: >, >>, &>, >& - and
+            # the `2` of `2>` arrives as its own word token. Skip the operator
+            # AND its write target: a redirect target is written, never read.
+            # A quoted > inside a data argument carries other characters and
+            # does not match, so `grep "a>b" A/audio.json` still extracts.
+            i += 2
             continue
         walk.append(t)
         i += 1
@@ -360,9 +368,13 @@ def _segment_reads(seg: list[str]) -> list[str]:
             pattern_pending = False
             continue
         if not endopts and tok.startswith("-") and len(tok) > 1:
-            if tok in _VALUE_FLAGS:
-                # the pattern arrives via -e/-f, so the first free operand
-                # is a file: the pattern-first skip must not eat it
+            if verb in _PATTERN_FIRST and tok in _VALUE_FLAGS:
+                # -e/-f take a VALUE only on the pattern-first verbs (grep's
+                # -f is a pattern file; sed/awk match). The same spellings on
+                # the other verbs are plain options: `cat -e` shows line ends
+                # and `tail -f` FOLLOWS the file named after it, so eating the
+                # next token there would hide a real read. The value also
+                # satisfies the pattern slot, so the next operand is a file.
                 expect_value = True
                 pattern_pending = False
             continue
@@ -810,6 +822,17 @@ def selftest() -> int:
         ("grep -il 'pat' A/audio.json B/audio.json",
          ["A/audio.json", "B/audio.json"]),
         ("grep -e pat A/audio.json", ["A/audio.json"]),
+        # PR #98 review: -e/-f consume a VALUE only for the pattern-first
+        # verbs; for cat/tail/less they are plain options and the file after
+        # them is an operand (tail -f of a pack file is a real read shape).
+        ("cat -e A/audio.json", ["A/audio.json"]),
+        ("tail -f A/audio.json | head -5", ["A/audio.json"]),
+        # PR #98 review: an append or combined redirect (>>, 2>>) is a write
+        # target exactly like >, and its target is not a read operand.
+        ("cat A/audio.json >> log.txt", ["A/audio.json"]),
+        ("wc -l A/audio.json 2>> err.txt", ["A/audio.json"]),
+        # ...but a quoted > inside a pattern argument is data, not a redirect.
+        ('grep "a>b" A/audio.json', ["A/audio.json"]),
         ("cat < A/audio.json", ["A/audio.json"]),
         # BOTH from the stored corpus, where the pre-fix extractor itemised
         # each as an un-carried read - the two false positives that had to be

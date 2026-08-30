@@ -694,12 +694,12 @@ scored on the difference. The 18 others predate the `files_opened` capture (task
 `files_opened` records Read calls only, but since task 204 (2026-08-28) each round also stores
 `tool_calls` — every tool call with its full target — and the same producer now walks the Bash
 calls beside it, extracting the path-like operands of the reading verbs (`cat head tail less
-grep sed awk wc find`) and classifying each against the same pack layout. Unit and refusal rules
-are the module docstring's to state; in short: the call is the unit; a command of exactly 200
-characters is refused whole (the same cap the Read half refuses at); a call that yields no
-extractable literal path is a counted state (`no-path`), never a silent drop; and a round whose
-`tool_calls` key is absent, null or malformed is unassessable on this half, counted, never read
-as clean. Same producer, and the Read-half table above is byte-identical under the widened
+grep sed awk wc find`) and classifying each against the same pack layout. The unit is the call.
+A command of exactly 200 characters is refused whole, under the same cap the Read half refuses
+at. A call that yields no extractable literal path is a counted state (`no-path`), never a
+silent drop. A round whose `tool_calls` key is absent, null or malformed is unassessable on
+this half: counted, never read as clean. The full statement of both halves' units and refusal
+rules is the module docstring. The Read-half table above is byte-identical under the widened
 census — the shared classifier's new operand shapes move 0 stored Read targets.
 
 | aspect | usable `tool_calls` | absent | Bash calls | commands refused (200 chars) | no extractable path | operands classified | un-carried Bash reads |
@@ -723,8 +723,11 @@ were reading evidence their packs carried. The extractor was fixed against its o
 shapes (a punctuation token after `<` is not a file; find's operands are paths only before the
 first expression token), with the two corpus commands pinned as literal unit rows in
 `--selftest`; the fix moves 13 operands across 12 stored commands, every one an expression
-value or that punctuation token, and no read location. **0 is the fixed producer's answer, and
-the two itemisations that preceded it are recorded here rather than quietly discarded.**
+value or that punctuation token, and no read location. The review round added two more
+extractor repairs, pinned the same way: `-e`/`-f` consume a value only on the pattern-first
+verbs (`cat -e` and `tail -f` name a file, not a value), and every redirect spelling
+(`>>`, `2>`, `&>`) skips its write target — both move 0 stored measurements, the corpus
+holding neither shape. **0 is the fixed producer's answer.**
 
 **Why this is a pre-registration rather than a stored hash.** `provenance` hashes `BRIEF.md`
 (`brief_sha256`) and the scene statement; it does not hash the prompt, because the prompt is the
