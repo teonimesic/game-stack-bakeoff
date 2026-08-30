@@ -18,7 +18,7 @@ measures a different object.**
 **The measured census: 20 sibling mechanisms already exist here in a same-or-stronger form, 1 is
 an adoption candidate pending ticket 220's measurement, 8 are rejected with recorded reasons,
 and 7 are things the sibling has that this repository deliberately does not.** Excluded stored
-results and caches are outside this conclusion. The tables below are the census's derivation.
+results and caches are outside this conclusion.
 
 ## What the sibling is, and why that bounds the comparison
 
@@ -52,9 +52,6 @@ grader (AGENTS.md rule 9).
 | Every ADR ends with reversal conditions (`docs/adr/0001`–`0004`) | `DECISIONS.md` "Reversal conditions" section, adopted 2026-08-23, narrow scope, each row names its producer |
 
 ## ALREADY-HERE — the sibling mechanism, and this repo's equivalent
-
-Each row states what the sibling does, and where the equivalent lives here — so the next reader
-checks the pointer rather than the claim.
 
 | # | Sibling mechanism (path) | Here |
 |---|---|---|
