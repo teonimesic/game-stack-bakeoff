@@ -101,7 +101,7 @@ named), and every label group maps one-to-one onto a recorded finding, a recorde
 observation or a `terminal_reason` partition: the largest group, 18 starter defects, *is* the
 disclosure hand pass already recorded with per-stack counts; the 4 degraded-machine trials are
 exactly #49's banner; the 9 `api_error` trials are all account capacity, not one genuine API
-error. The 2 cross-tab patterns look new. Neither adds a finding. The arena concentration
+error. Neither cross-tab pattern adds a finding after decomposition. The arena concentration
 combines the recorded wedges, the turn ceiling and the account-limit trials. Rust's 18
 externally qualified trials of 25 combine starter defects, account limits, a turn ceiling, the
 harness probe and machine degradation. The reasoning and the re-open condition are in
