@@ -343,6 +343,16 @@ jobs:
       - name: judge/pack_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/judge/pack_selftest.py
+      # The retired 13-criterion judge refuses a game with no GAME_BRIEF entry, as a
+      # recorded verdict, before the pack is built (tasks/221). Pins the refusal's literal
+      # fields, the spend-free path, the KeyError backstop in _brief, the CLI's argparse
+      # refusal, and the census extraction over stored judge.json files - on fixtures
+      # whose answer is written as literals, plus 2 mutants. Its corpus arm reads
+      # eval/runs, which is gitignored, and prints NOT ASKED here. 0.1s locally
+      # (2026-08-30, `time python3 eval/judge/judge_refusal_selftest.py`).
+      - name: judge/judge_refusal_selftest
+        if: ${{ !cancelled() }}
+        run: python3 eval/judge/judge_refusal_selftest.py
       - name: judge/sequential_selftest
         if: ${{ !cancelled() }}
         run: python3 eval/judge/sequential_selftest.py

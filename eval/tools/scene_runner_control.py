@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,8 @@ sys.path.insert(0, str(EVAL / "suites"))
 
 import aspects  # noqa: E402
 import evaluate as ev  # noqa: E402
+import judge as legacy_judge  # noqa: E402
+import probe  # noqa: E402
 import scene_probe  # noqa: E402
 import static  # noqa: E402
 import wholegame as wg  # noqa: E402
@@ -62,6 +65,10 @@ FIXTURE = EVAL / "judge" / "fixtures" / "ref_parallax"
 GAME = "g1_pong"
 SCENE = "s1_parallax"
 
+#: A game the suite launches and `judge.GAME_BRIEF` does not brief - the P4 class guard
+#: admits it, and what refuses it is the instrument itself (tasks/221).
+UNBRIEFED_GAME = "g4_platformer"
+
 PATHS = [
     ("P1", "wholegame.py build --games/--scenes",
      "the rendered prompt in wholegame.ALL_TASKS",
@@ -74,7 +81,9 @@ PATHS = [
      "evaluate.TIER2_INSTRUMENT, checked by aspects.applicability"),
     ("P4", "wholegame.py evaluate --with-legacy-judge",
      "judge.judge - 13 criteria written about games",
-     "evaluate.assert_legacy_judge_allowed -> aspects.applicability"),
+     "evaluate.assert_legacy_judge_allowed -> aspects.applicability (class axis); "
+     "judge.judge refuses a game with no GAME_BRIEF entry, as a recorded verdict "
+     "(game axis)"),
     ("P5", "evaluate.py --game",
      "everything evaluate.evaluate reaches",
      "argparse choices = evaluate.TIER2_INSTRUMENT"),
@@ -284,6 +293,90 @@ def check_legacy_judge_guard(rows: Rows) -> None:
             with contextlib.suppress(_Stop, Exception):
                 ev.evaluate(FIXTURE, FIXTURE, SCENE, _tmp("p4m"), run_judge=True)
     rows.mutant("MUTANT: the legacy-judge guard is a no-op", bool(reached))
+
+    # THE GAME AXIS. The class guard answers "game or scene"; it cannot answer "which
+    # game" - `judge.GAME_BRIEF` holds 3 entries and the suite has 4, and both argparse
+    # surfaces admit all four. What refuses the unbriefed game is the instrument itself,
+    # and it refuses as a RECORDED verdict: tiers 1 and 2 are valid whatever tier 3
+    # answers, and evaluate()'s completeness gate needs judge.json present and
+    # parseable, so an exception here would fail a grading whose deterministic tiers
+    # are fine (tasks/221). The tiers are stubbed because the property under test is
+    # the tier-3 record, not the toolchain.
+    def stub_tier1(*_a, **_kw):
+        return {"tier": "programmatic", "passed": 1, "total": 1, "score": 1.0,
+                "criteria": [{"id": "build.compiles", "passed": True, "scored": True}]}
+
+    def stub_tier2(*_a, **_kw):
+        return {"tier": "playbot", "usable": True, "passed": 1, "total": 1,
+                "score": 1.0, "criteria": []}
+
+    # The model is stubbed with a full-pass answer rather than left real: if the guard
+    # below is ever removed, this row must go RED, not spend a judge round discovering
+    # that. The canned answer is also what makes the extension mutant below read as a
+    # measurement.
+    spent: list[str] = []
+
+    def canned(*_a, **_kw):
+        spent.append("model")
+        return ({"structured_output": {"criteria": [
+                    {"id": cid, "evidence": "x" * 30, "reason": "r", "passed": True}
+                    for cid, _q in legacy_judge.ALL_CRITERIA]}}, "")
+
+    out = _tmp("p4game")
+    with patched(static, "collect", stub_tier1):
+        with patched(probe, "drive", stub_tier2):
+            with patched(legacy_judge, "_run_claude", canned):
+                rec = ev.evaluate(FIXTURE, FIXTURE, UNBRIEFED_GAME, out, run_judge=True)
+    tier3 = rec.get("judge") or {}
+    stored = json.loads((out / "judge.json").read_text())
+    rows.check("evaluate() on an unbriefed game completes and records a refused tier 3",
+               rec.get("tiers_complete") is True and tier3.get("refused") is True,
+               f"complete={rec.get('tiers_complete')} tier3={tier3}")
+    rows.check("the refusal is on disk in judge.json and excluded from the score",
+               stored.get("refused") is True and rec.get("judge_usable") is False,
+               f"judge_usable={rec.get('judge_usable')} "
+               f"stored.refused={stored.get('refused')}")
+    rows.check("no judge round was paid for on the way to the refusal", not spent,
+               f"model calls: {spent}")
+    shutil.rmtree(out, ignore_errors=True)
+
+    # MUTANT: the table is EXTENDED instead of the game refused - the exact repair
+    # tasks/221 rejects. The guard stops firing, the model (stubbed) answers all 13
+    # criteria against a brief nobody wrote for this game, and the record reads as a
+    # measurement again. The rows above must go red.
+    extended = dict(legacy_judge.GAME_BRIEF)
+    extended[UNBRIEFED_GAME] = "A placeholder brief nobody wrote for this game."
+    out = _tmp("p4gamemut")
+    with patched(static, "collect", stub_tier1):
+        with patched(probe, "drive", stub_tier2):
+            with patched(legacy_judge, "GAME_BRIEF", extended):
+                with patched(legacy_judge, "build_pack",
+                             lambda *a, **k: {"files_in_pack": 3, "frames": 0}):
+                    with patched(legacy_judge, "_run_claude", canned):
+                        rec = ev.evaluate(FIXTURE, FIXTURE, UNBRIEFED_GAME, out,
+                                          run_judge=True)
+    tier3 = rec.get("judge") or {}
+    rows.mutant("MUTANT: GAME_BRIEF gains the unbriefed game - the tier-3 record "
+                "reads as a measurement again",
+                tier3.get("refused") is not True and tier3.get("usable") is True,
+                f"tier3.refused={tier3.get('refused')} usable={tier3.get('usable')}")
+    shutil.rmtree(out, ignore_errors=True)
+
+    # MUTANT: the refusal is an EXCEPTION rather than a record - the other shape
+    # tasks/221 rejects by name. evaluate() would die after tiers 1 and 2 have run,
+    # leaving a grading with no judge.json and an incomplete record.
+    def _raise(*_a, **_kw):
+        raise ValueError("no GAME_BRIEF entry")
+
+    out = _tmp("p4gameraise")
+    with patched(static, "collect", stub_tier1):
+        with patched(probe, "drive", stub_tier2):
+            with patched(legacy_judge, "judge", _raise):
+                crashed = refuses(lambda: ev.evaluate(FIXTURE, FIXTURE, UNBRIEFED_GAME,
+                                                      out, run_judge=True))
+    rows.mutant("MUTANT: the refusal raises instead of recording - evaluate() dies "
+                "after the deterministic tiers", crashed)
+    shutil.rmtree(out, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------- #
