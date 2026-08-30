@@ -924,8 +924,11 @@ Every record carries `gate` (verdict + failing ids + blocking ids) and
 `scoring_regime`. Records written before 2026-08-23 have neither: their `overall`
 is 0.31*tier1 + 0.69*tier2 and is NOT comparable with a gate-regime score.
 
-If a tier is unusable (empty pack) or skipped it is EXCLUDED and the remaining
-weights are renormalised - never folded in as a zero.
+A tier that measured nothing is never folded in as a zero. While the judge carried
+weight it was EXCLUDED and the remaining weights renormalised - the repair for an
+empty judging pack that scored a confident 0.08 during validation. Under the gate
+regime there is nothing to renormalise: a skipped or unusable judge cannot move
+`overall` at all, and the record's `judge_usable` flag says which it was.
 ```
 
 Reported per criterion, per tier, per game, per stack. A total on its own is not a

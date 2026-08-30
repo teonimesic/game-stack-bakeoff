@@ -528,8 +528,9 @@ and asserts set equality per submission; `field.build_pack` refuses a code field
 and `--allow-truncated` does not excuse it. A pack with no manifest is **unmeasurable, not
 clean**. `judge/pack_selftest.py` pins both halves and must stay green.
 
-`evaluate.py` returns `usable: false` and excludes a tier with weight renormalisation rather than
-scoring an empty pack.
+An empty pack is refused, not scored: `judge()` returns `usable: false` and `evaluate.py`
+records it — never a zero. The judge tier is diagnostic at weight 0.00, so nothing is
+renormalised and `overall` is unaffected either way.
 
 ### What the judge is TOLD about the pack is an instrument, and it needs a gate of its own
 

@@ -425,10 +425,15 @@ def evaluate(submission: Path, starter: Path, game: str, out: Path,
     rec["diagnostic_scores"] = {k: float(rec[k].get("score", 0.0))
                                 for k in DIAGNOSTIC_TIERS if k in rec}
     rec["judge_is_diagnostic_only"] = True
-    # A judge tier that could not run is EXCLUDED and the remaining weights are
-    # renormalised - it is not folded in as a zero. Scoring an instrument that
-    # measured nothing as "measured badly" is how an empty judging pack turned into a
-    # confident 0.08 during validation.
+    # `judge_usable` is RECORDED, not acted on. The judge tier is in DIAGNOSTIC_TIERS
+    # and not in WEIGHTS, so `overall` sums WEIGHTS only: a judge tier that could not
+    # run cannot affect the score, and there is nothing to renormalise. The flag is
+    # how a reader of the record tells a tier that measured something from one that
+    # did not - False on a skip and on a refusal alike, and `scene_runner_control.py`
+    # reads the refused case as False. History: while the tier carried weight, an
+    # empty judging pack was folded in as a zero and scored a confident 0.08 during
+    # validation, which is what made "refuse to score" the rule; the gate regime then
+    # removed the last weights the exclusion had anything to renormalise.
     rec["judge_usable"] = bool(tier3.get("usable")) and not tier3.get("skipped")
 
     # A PLAY-BOT TIER THAT MEASURED NOTHING IS NOT A SCORE OF ZERO.
@@ -514,11 +519,12 @@ def summarise(rec: dict[str, Any]) -> str:
         "tier 1 is a GATE and tier 3 is DIAGNOSTIC; neither contributes to `overall`",
         "",
     ]
-    if not rec.get("judge_usable", True):
-        lines.append("NOTE: the judge tier was excluded from `overall`; the remaining "
-                     "weights were renormalised.")
-        lines.append(f"      reason: {rec.get('overall_excludes_judge_because')}")
-        lines.append("")
+    # No NOTE about the judge tier here. One used to hang off `judge_usable` claiming
+    # the tier was "excluded from `overall`" with "the remaining weights renormalised"
+    # - false under the gate regime on both counts, since the judge carries no weight
+    # and nothing is renormalised (task 223). What the reader needs is already here,
+    # truthfully: the line above, and the `judge  SKIPPED` / `judge  UNUSABLE: ...`
+    # row below saying whether the tier ran.
     for tier in ("programmatic", "playbot", "judge"):
         t = rec.get(tier) or {}
         diag = tier in DIAGNOSTIC_TIERS

@@ -58,6 +58,28 @@ NINE = ("build.compiles", "verify.green", "lint.clean", "tests.exist", "tests.gr
         "render.frames", "render.nonempty", "render.animates", "probe.responds")
 ALL_PASS = tier1(*[(c, True, True) for c in NINE])
 
+#: The tier-3 record a DEFAULT evaluate() run writes: `run_judge` defaults off, and
+#: the skipped literal carries `usable: False` - so `judge_usable` is False on every
+#: default run BY CONSTRUCTION. This exact shape is what the summary used to hang a
+#: false renormalisation NOTE off (task 223).
+SKIPPED_TIER3 = {"tier": "judge", "skipped": True, "usable": False, "passed": 0,
+                 "total": 13, "score": 0.0, "criteria": [], "instability": None,
+                 "cost_usd": 0.0}
+
+
+def summarise_record(tier3: dict) -> dict:
+    """A record shaped as evaluate() writes it, so summarise() reads a real shape."""
+    return {
+        "game": "g1_pong", "submission": "runs/x/artifacts/t0", "overall": 0.75,
+        "wall_s": 1.0,
+        "gate": evaluate.gate_verdict(ALL_PASS),
+        "programmatic": ALL_PASS,
+        "playbot": {"tier": "playbot", "usable": True, "passed": 15, "total": 15,
+                    "score": 0.75, "criteria": []},
+        "judge": tier3,
+        "judge_usable": bool(tier3.get("usable")) and not tier3.get("skipped"),
+    }
+
 
 # --------------------------------------------------------------------------- #
 
@@ -92,6 +114,43 @@ def test_fail_closed() -> None:
            "not a pass" in evaluate.gate_line(g).lower(), evaluate.gate_line(g))
     expect("the summary line says so when a record predates the regime",
            "predates" in evaluate.gate_line(None), evaluate.gate_line(None))
+
+
+def test_the_summary_says_how_overall_was_built() -> None:
+    print("\n[the summary reports the regime in force, never a renormalisation]")
+    # A DEFAULT run: run_judge off, tier 3 the skipped literal, judge_usable False by
+    # construction. Every default evaluation's stdout used to print a NOTE over this
+    # shape claiming the judge tier was "excluded from `overall`" with "the remaining
+    # weights renormalised", followed by `reason:` from a field nothing writes
+    # (task 223). Under the gate regime neither clause can be true.
+    s = evaluate.summarise(summarise_record(SKIPPED_TIER3))
+    claim = [ln for ln in s.splitlines() if "renormalis" in ln.lower()]
+    reason = [ln for ln in s.splitlines() if ln.strip().startswith("reason:")]
+    judge_row = [ln.strip() for ln in s.splitlines() if ln.startswith("judge")]
+    regime = [ln.strip() for ln in s.splitlines() if "DIAGNOSTIC" in ln]
+    expect("a default run's summary claims no renormalisation", not claim, str(claim))
+    expect("and prints no `reason:` line", not reason, str(reason))
+    expect("the skipped tier is still named - nothing went silent",
+           bool(judge_row) and "SKIPPED" in judge_row[0], str(judge_row))
+    expect("the regime is stated: tier 3 diagnostic, out of `overall`",
+           len(regime) == 1 and "neither contributes" in regime[0], str(regime))
+
+    # The other False: a judge that RAN and was refused (an unbriefed game). It must
+    # read as unusable with its cause, and still claim no renormalisation - this is
+    # the shape scene_runner_control.py reads `judge_usable is False` from.
+    refused = {"tier": "judge", "refused": True, "usable": False, "passed": 0,
+               "total": 13, "score": 0.0, "criteria": [], "instability": None,
+               "cost_usd": 0.0,
+               "error": "no GAME_BRIEF entry for 'g4_platformer'"}
+    s2 = evaluate.summarise(summarise_record(refused))
+    unusable = [ln.strip() for ln in s2.splitlines() if ln.startswith("judge")]
+    claim2 = [ln for ln in s2.splitlines() if "renormalis" in ln.lower()]
+    reason2 = [ln for ln in s2.splitlines() if ln.strip().startswith("reason:")]
+    expect("a refused judge reads as UNUSABLE naming its cause",
+           len(unusable) == 1 and "UNUSABLE" in unusable[0]
+           and "GAME_BRIEF" in unusable[0], str(unusable))
+    expect("and it also claims no renormalisation",
+           not claim2 and not reason2, f"{claim2} {reason2}")
 
 
 def test_variants_the_gate_must_still_pass() -> None:
@@ -188,11 +247,34 @@ def mutants() -> None:
     expect("mutant 'restore the 0.31/0.69 split' makes `overall` move with tier 1, "
            "and is caught", hi != lo, f"{hi} vs {lo}")
 
+    # 5. THE RENORMALISATION NOTE, REINSTATED. The removed branch hung off the same
+    #    skipped shape the summary checks read; restoring it must turn both halves of
+    #    the claim red - the wording and the `reason:` line nothing writes.
+    original_summarise = evaluate.summarise
+
+    def with_old_note(rec):
+        s = original_summarise(rec)
+        if not rec.get("judge_usable", True):
+            s += ("\nNOTE: the judge tier was excluded from `overall`; the remaining "
+                  "weights were renormalised."
+                  f"\n      reason: {rec.get('overall_excludes_judge_because')}")
+        return s
+
+    evaluate.summarise = with_old_note
+    poisoned = evaluate.summarise(summarise_record(SKIPPED_TIER3))
+    evaluate.summarise = original_summarise
+    note = [ln.strip() for ln in poisoned.splitlines()
+            if "renormalis" in ln.lower() or ln.strip().startswith("reason:")]
+    caught = len(note) == 2
+    expect("mutant 'the renormalisation NOTE returns' is caught by the summary check",
+           caught, str(note))
+
 
 def main() -> int:
     test_the_gate_decides()
     test_fail_closed()
     test_variants_the_gate_must_still_pass()
+    test_the_summary_says_how_overall_was_built()
     test_the_score_no_longer_moves_with_tier_1()
     mutants()
     print(f"\n{CHECKS - len(FAILS)}/{CHECKS} expectations held")
