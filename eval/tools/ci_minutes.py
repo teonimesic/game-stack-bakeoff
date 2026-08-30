@@ -2296,7 +2296,7 @@ def _selftest() -> int:
     # The count `.github/workflows/README.md` publishes. Pinned so the register cannot
     # drift from the workflows again: it said 32 for long enough to be wrong by 3.
     _cen = gate_census()
-    check("gates.yml gate count", _cen["gates"]["gates"], 73)
+    check("gates.yml gate count", _cen["gates"]["gates"], 74)
     check("controls.yml gate count", _cen["controls"]["gates"], 11)
     # Setup is not a gate. controls.yml installs just and ffmpeg; classifying on the step
     # NAME would score "install ffmpeg (judge/audio.py's measuring instrument)" as a check.
@@ -2950,10 +2950,11 @@ def _selftest() -> int:
     #                           tracked tree, not a list of directories.
     #   (task 201 moved both counts by 1: prompt_capture_census.py declares the mode
     #   and gates.yml names it; task 202 did the same again with frame_parity.py;
-    #   task 205 did the same with field_sweep.py.)
+    #   task 205 did the same with field_sweep.py; task 224 did the same with
+    #   regrade_wholegame.py.)
     _m = _live_controls["modes"]
-    check("scripts declaring a --selftest mode", len(_m["population"]), 29)
-    check("of which a tier names the mode", len(_m["gated"]), 28)
+    check("scripts declaring a --selftest mode", len(_m["population"]), 30)
+    check("of which a tier names the mode", len(_m["gated"]), 29)
     check("and none runs bare unrecorded", _m["unrecorded"], [])
     check("linkcheck's mode is named, not just its bare form",
           "eval/tools/linkcheck.py" in _m["gated"], True)
