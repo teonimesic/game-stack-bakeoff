@@ -2387,3 +2387,81 @@ findings (the skipped markers pass 16 counted, the tier-2 dispatch pass 3 verifi
 the guard side) and never read whole. Verified against every heading: never a subject.
 Alternate: `eval/judge/tier1_census.py` (770 lines), the floor-test producer AGENTS.md
 rule 16 names, never a subject either.
+
+## Pass 22 — 2026-08-30 — `eval/judge/evaluate.py` (580 lines, read whole)
+
+The grading dispatch: tier 1 collected as a gate, tier 2 dispatched per task by
+`TIER2_INSTRUMENT`, the legacy judge off by default, the pack always built, the record
+combined and completeness-gated.
+
+### Sound — the load-bearing list
+
+- **`gate_verdict` is fail-closed on an empty tier**: `total=0 passed=0` is not a pass
+  (rule 1); `scored=False` is excluded from the question rather than counted as a
+  failure, and the engine project-lock exception is named as the only thing that flag
+  can mark (#25). `blocking_failed` drives `score_is_independent`, which is the honest
+  way to say "tier 2's 0.00 restates the gate".
+- **`TIER2_INSTRUMENT` is a second statement, compared by a guard**: written per task id
+  and refused by `aspects.applicability` before anything is driven — a check that cannot
+  fail if derived from the class it polices (the task-113 shape, done right). An
+  unplaceable task id is refused before pack, score or stored record exist, and the
+  error says why ("the trial is paid for by then").
+- **The legacy-judge refusal fires at the top of `evaluate()`**, before tiers 1 and 2
+  have spent anything — rule 13's guard-the-resource-on-the-path-that-holds-it, applied
+  to the third runner path.
+- **`STALE_CACHES` is dropped before any command runs**, with the measured defect
+  narrated (Unity `Library/` penalising exactly the agents that did what the audio task
+  asked) and the call's original wrong placement recorded: a truthful log line from a
+  repair after the measurement is indistinguishable from no repair.
+- **The judge pack's `except` is deliberately blind and recorded, not swallowed** —
+  `build_pack` walks a tree the harness did not write, so the exception set is open by
+  construction; the failure lands in `rec["pack"]` with the type name and the
+  deterministic tiers still get written.
+- **The completeness gate writes before it raises**: the partial record is stamped
+  `tiers_complete=false` on disk, then the RuntimeError fires — fail-closed and
+  recoverable, the tier-3-died-mid-run failure it was bought with named in place.
+- **`SCORING_REGIME` is stamped on every record** and `gate_line` is never silent about
+  an absent, unusable or failed gate.
+
+### Examined and judged sound
+
+The dated decision-time figures — the USER RULING's bounded-0.10-vs-gap-0.0622 and
+spread 0.000/0.308/0.462; the gate decision's 68-trials/7-failures and 2-of-2 vs 5-of-5
+corroboration; the retired judge's $1.75/$42 — all sit in decision blocks that name their
+producers (`weight_sensitivity.py`, `tier1_census.py`) as re-runnable, and the producers
+re-derive them over the grown corpus (rule 16's companion). The $42 is a straight
+per-submission constant, not the retrospective-mean projection that `WR-g1pong-round1-13-15`
+withdrew.
+
+### THE FINDING — tasks/223, p4
+
+**`summarise()` reports a renormalisation the gate regime removed, on every default
+run.** The NOTE branch (:517-521) keys on `judge_usable`, which is False on every default
+run by construction (the skipped tier-3 literal carries `usable: False`), so every
+standard evaluation's stdout prints "the remaining weights were renormalised" plus
+`reason:` from `overall_excludes_judge_because` — read at :520, set nowhere in the
+repository. Under `WEIGHTS = {"playbot": 1.0}` there is nothing to renormalise and the
+judge cannot affect `overall` at all; the combine-step comment at :428-431 states the
+same stale account two paragraphs above the file's own correct one at :452-459. The
+record's arithmetic is correct and no stored number moves — the defect is the reporting
+path telling every reader of every summary something false about how the score was
+built. Scope guard recorded in the ticket: `judge_usable`'s False-on-skip semantics is
+load-bearing at `eval/tools/scene_runner_control.py:340` and must not change.
+
+### Noted, not ticketed
+
+`--with-legacy-judge --no-judge` together silently no-ops the legacy judge
+(:571) — the accepted-but-ignored shape, but in the safe direction (no spend), and
+`--no-judge` is explicit user intent for exactly that outcome.
+
+### Gates at HEAD ad38dda, unpiped
+
+`docstat.py --sweep` exit 0 (289 docs); `docstat.py --renumbered` exit 0, 0 stale
+0 untriaged; `tasks.py check` exit 0.
+
+### Not opened, and the next pass should take one
+
+`eval/judge/tier1_census.py` (770 lines) — pass 21's alternate, the floor-test producer
+AGENTS.md rule 16 names, never a subject (verified against every heading: 0 hits).
+Alternate: `eval/wholegame.py`, the runner the queue's whole-game trials drive, larger
+than anything read so far.
