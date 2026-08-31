@@ -1511,8 +1511,15 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # the classifier's job on every record, spec-change included; and a non-string
         # class (`[]`) must raise the refusal the loaders wrap, not the `TypeError` an
         # unhashable value raises at the membership test, which nothing catches.
+        # The whole-game fixture is VALID but for `task_class`. A fixture with a missing
+        # `agent` block would be refused for that block under the very regression this
+        # pin exists for — classified whole-game, then rejected by `_validate_wholegame`
+        # with the same CostCensusError naming this file — so a refusal alone proves
+        # nothing; the refusal is required to NAME `task_class`.
+        badclass_record = _rec("gX", "ts", 1.0, 10)
+        badclass_record["task_class"] = []
         for bad_record in ({"task": "t1_rally", "task_class": "cutscene"},
-                           {"game": "gX", "task_class": []}):
+                           badclass_record):
             _write(runs / "run-a" / "trials" / "badclass.json", bad_record)
             try:
                 cost_census(runs)
@@ -1522,6 +1529,10 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                 if "badclass.json" not in str(exc):
                     failures.append(f"unknown task class {bad_record['task_class']!r}: "
                                     f"error does not name the file: {exc}")
+                if "task_class" not in str(exc):
+                    failures.append(f"unknown task class {bad_record['task_class']!r}: "
+                                    f"error does not name the field it was refused "
+                                    f"for: {exc}")
             except Exception as exc:  # noqa: BLE001 - any other class is also a failure
                 failures.append(f"unknown task class {bad_record['task_class']!r}: raised "
                                 f"{type(exc).__name__}, not CostCensusError: {exc}")
