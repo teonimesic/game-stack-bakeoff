@@ -1501,6 +1501,31 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                 failures.append(f"non-object record ({literal}): raised "
                                 f"{type(exc).__name__}, not CostCensusError: {exc}")
         (runs / "run-a" / "trials" / "notanobject.json").unlink()
+
+        # Direction 11c: an OBJECT whose task class nobody partitions — on a whole-game
+        # record AND on a spec-change one. The no-`game` branch of `population_of` used
+        # to return "spec-change" BEFORE the class was read, so this tool validated the
+        # record at load and REPORTED it under spec-change while census.py's loader
+        # (which calls `task_class_of` directly) refused the same bytes — one malformed
+        # record, refused by one producer and counted by the other. Reading the class is
+        # the classifier's job on every record, spec-change included; and a non-string
+        # class (`[]`) must raise the refusal the loaders wrap, not the `TypeError` an
+        # unhashable value raises at the membership test, which nothing catches.
+        for bad_record in ({"task": "t1_rally", "task_class": "cutscene"},
+                           {"game": "gX", "task_class": []}):
+            _write(runs / "run-a" / "trials" / "badclass.json", bad_record)
+            try:
+                cost_census(runs)
+                failures.append(f"an unknown task class {bad_record['task_class']!r} "
+                                f"was accepted and reported")
+            except CostCensusError as exc:
+                if "badclass.json" not in str(exc):
+                    failures.append(f"unknown task class {bad_record['task_class']!r}: "
+                                    f"error does not name the file: {exc}")
+            except Exception as exc:  # noqa: BLE001 - any other class is also a failure
+                failures.append(f"unknown task class {bad_record['task_class']!r}: raised "
+                                f"{type(exc).__name__}, not CostCensusError: {exc}")
+            (runs / "run-a" / "trials" / "badclass.json").unlink()
         (runs / "run-a" / "trials" / "broken.json").write_text("{not json")
 
         # ---- VARIANTS. A mutant asks whether the check CAN fail; only a variant asks

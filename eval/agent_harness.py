@@ -287,11 +287,17 @@ def task_class_of(record: dict[str, Any]) -> str:
     the absent case a `game` would silently make the null case one too — a record that
     has the field and did not say what it holds, counted inside the population it may
     not belong to. The sentinel is what separates them.
+
+    A NON-STRING VALUE IS REFUSED WITH THE REST, NOT CRASHED ON. A task class is a string
+    by construction, so `[]` or `{}` is outside the closed set for the same reason an
+    unknown string is — and it must raise `TaskClassError`, which the loaders catch and
+    wrap naming the file, rather than the `TypeError` an unhashable value raises at the
+    membership test itself, which nothing catches.
     """
     klass = record.get(TASK_CLASS_KEY, _ABSENT)
     if klass is _ABSENT:
         return "game"
-    if klass not in TASK_CLASSES:
+    if not isinstance(klass, str) or klass not in TASK_CLASSES:
         raise TaskClassError(
             f"`{TASK_CLASS_KEY}` is {klass!r}, which is not one of {sorted(TASK_CLASSES)}"
             " — refusing to pool it into a population it may not belong to")
@@ -309,13 +315,18 @@ def population_of(record: dict[str, Any]) -> str:
     AND `task_class: scene`: it has the field whose presence the old test keyed on, and
     it is not a game.
 
-    A record with no `game` field is `spec-change` whatever its `task_class` says — the
-    retired suite's records are identified by that field's absence — and an unknown
-    class still raises through `task_class_of` rather than being read as anything.
+    THE CLASS IS VALIDATED ON EVERY RECORD, SPEC-CHANGE INCLUDED. `cost_census.py` asks
+    this function to validate each record at load, and `census.py` asks `task_class_of`
+    directly — so if the no-`game` branch returned before the class was read, a record
+    with an unknown class would be REFUSED by one producer and REPORTED by the other.
+    The retired suite never wrote the field, so a record with no `game` and a present
+    unknown class is not a record the suite could have written either; both producers
+    refuse it by name (task 227 review).
     """
+    task_class = task_class_of(record)
     if WHOLEGAME_KEY not in record:
         return "spec-change"
-    return "whole-game" if task_class_of(record) == "game" else "scene"
+    return "whole-game" if task_class == "game" else "scene"
 
 
 #: Directories holding trees written by a building agent or a toolchain, not by a

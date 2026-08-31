@@ -257,7 +257,7 @@ def census(runs_dir: Path) -> dict:
             "skipped_agent_authored": len(skipped),
         },
         "wholegame": {
-            "population": "stored trial records carrying a `game` field",
+            "population": "stored trial records whose `task_class` is `game` or absent",
             "trial_records": len(wholegame),
             "run_directories": len({r for r, _, _ in wholegame}),
             "games": dict(sorted(collections.Counter(
@@ -548,6 +548,26 @@ def selftest() -> int:
         check("an ABSENT task_class still reads as a game",
               task_class_of({"game": "g1_pong"}), "game")
 
+        # Direction 8e: an unknown class on a record with NO `game` field is refused by
+        # THIS PRODUCER TOO, not only by the classifier function above. The no-`game`
+        # branch of `population_of` used to return "spec-change" before the class was
+        # read, so cost_census.py — whose loader validates through `population_of` —
+        # reported the same bytes this tool refused (task 227 review round 1).
+        with tempfile.TemporaryDirectory() as tmp4:
+            specced = Path(tmp4) / "runs"
+            _write(specced / "core-n" / "trials" / "t9_rally__ts__t0.json",
+                   {"task": "t9_rally", "task_class": "cutscene",
+                    "agent": {"cost_usd": 5.0, "terminal_reason": "completed"}})
+            try:
+                census(specced)
+                failures.append("a spec-change record with an unknown task class was "
+                                "accepted instead of refused")
+            except CensusError as exc:
+                check("the spec-change refusal names the file",
+                      "t9_rally__ts__t0.json" in str(exc), True)
+                check("and names the class it could not place",
+                      "'cutscene'" in str(exc), True)
+
         # THE PARTITION IS THE SHARED ONE, not a local twin (task 227). IDENTITY, not
         # equality: a copy redefined here with equal value would be a second definition,
         # and a second definition is exactly what drifted. The source pins hold the other
@@ -575,6 +595,27 @@ def selftest() -> int:
               population_of({"game": "g1_pong"}), "whole-game")
         check("population_of reads no `game` field as spec-change",
               population_of({"task": "t1_rally"}), "spec-change")
+        # AND THE CLASS IS REFUSED ON A SPEC-CHANGE RECORD TOO. The no-`game` branch of
+        # `population_of` used to return before the class was read, so the same malformed
+        # record was refused by this tool (whose loader calls `task_class_of` directly)
+        # and REPORTED by cost_census.py (whose loader validates through `population_of`)
+        # — one record, a refusal in one producer and a count in the other.
+        try:
+            population_of({"task": "t1_rally", "task_class": "cutscene"})
+            failures.append("population_of pooled a spec-change record with an unknown "
+                            "task class instead of refusing it")
+        except TaskClassError:
+            pass
+        # AN UNHASHABLE CLASS RAISES THE REFUSAL, NOT A TypeError. `[] not in` a frozenset
+        # raises TypeError, which the loaders do not catch — the tool would die on a
+        # traceback naming no file.
+        try:
+            task_class_of({"game": "g1_pong", "task_class": []})
+            failures.append("task_class_of read an unhashable task class as a game")
+        except TaskClassError:
+            pass
+        except TypeError:
+            failures.append("task_class_of raised TypeError on an unhashable task class")
         check("wholegame.trial_records", wg["trial_records"], 9)
         check("wholegame.run_directories", wg["run_directories"], 3)
         check("wholegame.games", wg["games"], {"g1": 7, "g2": 2})
@@ -625,6 +666,13 @@ def selftest() -> int:
         check("scene.run_directories", scn["run_directories"], 1)
         check("scene.scenes", scn["scenes"], {"s1_parallax": 2})
         check("scene.agent_cost_usd", scn["agent_cost_usd"], 40.0)
+        # THE LABEL NAMES THE POPULATION THE CLASSIFIER IMPLEMENTS, checked against the
+        # fixture that separates the two spellings. It read "carrying a `game` field" —
+        # the field-presence spelling, the exact test that counted the both-fields record
+        # above as whole-game (task 227 review round 1).
+        check("the whole-game label names the class test, not field presence",
+              wg["population"],
+              "stored trial records whose `task_class` is `game` or absent")
         check("no scene record is in the whole-game count", wg["trial_records"], 9)
         check("no scene id is in the whole-game games counter",
               "s1_parallax" in wg["games"], False)
