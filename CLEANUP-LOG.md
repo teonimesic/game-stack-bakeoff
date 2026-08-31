@@ -3440,3 +3440,76 @@ Next pointer: `eval/tools/mergeable.py` (942 lines; `grep -cin mergeable` over t
 log before this entry: 0; heading verified — "Is this pull request safe to merge?
 Green is not the question that failed"). Note for the next pass: PR #107 does not
 touch it.
+
+## Pass 36 — 2026-08-31 — eval/tools/mergeable.py (942 lines, read whole)
+
+Pointer picked at the end of pass 35. `grep -cin mergeable` over this log read 1
+before this entry — pass 35's own pointer line; no pass had READ the file. It is the
+merge gate born of the #12/#13 incident (both pull requests green against a main
+containing neither; merging #13 broke main), and like pass 35's subject it is a rule-12
+descendant with its lessons pinned at the rows.
+
+**Sound on its own terms:**
+
+- Two gated questions, and the second is the one that catches the incident: required
+  checks green AT THE CURRENT HEAD, and the branch not behind its base. `mergeable_state
+  = behind` is treated as corroboration only, because GitHub returns it only where
+  up-to-date branches are required — the commit comparison is pinned as the real test.
+- The #42 row is the design's best move: when every named check passes and GitHub still
+  refuses (`required_conversation_resolution`), the tool reports ITS OWN blocker list as
+  INCOMPLETE and says do not merge on its say-so. `REFUSING_STATES` is the closed class
+  the host returns; the named checks are the enumeration, and the row exists because the
+  enumeration has already been incomplete once.
+- The review-state half is reported and never gated, with `DECISIONS.md` carrying the
+  reason: the squash merge itself makes the final head unreviewed, so gating on it fires
+  where nothing is wrong. PR #62 decided this — its status description reads
+  `Review completed`, byte-identical to a really-reviewed pull request's, at a head no
+  round finished on. Description strings are an open class; the tool QUOTES them, never
+  parses them, and names `pr_review_state.py` as the producer of the verdict.
+- Rule 12 throughout: `REVIEWER` carries the `[bot]` suffix with a mutant proving the
+  suffix-less filter selects nothing from the recorded reviews; the head passed to the
+  status endpoint is the already-read head, never re-resolved; and the commit list must
+  END AT THE HEAD before a gap measured in it means anything — `/pulls/<n>/commits`
+  caps at 250, and counting in a truncated list is a number in range, the most
+  dangerous shape a broken measurement takes.
+- Selftest: green-first row; the known-answer pair #60/#63 recorded as verbatim API
+  payloads and read against BOTH ("a reading that answers the same way on both is
+  reporting the instrument"); mutants patch THIS module's globals, with the first-run
+  SURVIVED recorded at the row (an `import mergeable` under `__main__` builds a second
+  module object nothing executes); `REQUIRED` is pinned against the workflows that
+  exist.
+
+**Measured live, 2026-08-31, unpiped:**
+
+- `--selftest` → exit 0, 75 rows, all ok.
+- Independent expectation derived first: `git rev-list --count 12ce5d9..origin/main` = 3
+  (main moved twice after the PR's last push).
+- `mergeable.py 107` → behind by 3, refusal names the gap, exit 1 — agrees with the
+  independent count. Rollup: `controls SUCCESS`, `gates SUCCESS`, `CodeRabbit SUCCESS —
+  'Review rate limited'`, quoted rather than judged on.
+
+**What the live run found that the queue view could not:** 1 unresolved review thread on
+`eval/RUNS.md` (`coderabbitai`, trivial — state the wallclock section's current
+contract instead of its history). Checked against the branch head before acting: the
+asked-for text is present at 12ce5d98, where `wallclock.py` "takes its tree walk from
+`census.py` and its population partition from the one shared classifier in
+`eval/agent_harness.py`" — the agent's round-2 change, never formally resolved because
+the review limit meant no round to re-read it. Replied on the thread with that evidence
+and resolved it; independent re-read: 0 unresolved threads. **This mattered:
+`required_conversation_resolution` would have refused the merge the moment it was
+approved.** The #42 shape, live, on our own pull request.
+
+Merge-path note for when approval comes: the PR is 3 commits behind main, so the
+sequence is update branch → CI green at the NEW head → squash (a green run at the old
+head is a statement about a commit nobody is merging — this tool's own first lesson).
+
+**Found: nothing wrong in the file.** Cleared whole: docstring, `_gh`, `pr_facts`,
+`base_head`/`behind_by`, `check_problems`, `staleness_problems`,
+`unresolved_threads`/`conversation_problems`, `agreement_problems`, `head_statuses`,
+`rollup_rows`/`unrequired_notes`, `reviewer_reviews*`, `branch_commits`, `review_notes`,
+`report`, the full selftest with its three recorded pull requests, and `main`.
+
+Next pointer: `eval/tools/tasks_control.py` (2,307 lines; `grep -cin tasks_control`
+over this log before this entry: 0; heading verified — "Can `tasks.py` still lose a
+value, mis-report a success, or warn where nothing is wrong?"). PR #107 does not touch
+it.
