@@ -152,6 +152,35 @@ MUTANTS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         '        with open(p, "a", encoding="utf-8") as fh:',
         ("`note` from a worktree exits 0", "wrote into the MAIN checkout's queue",
          "byte-identical plus exactly the section")),
+    # THE ADDRESS, `add` HALF (AGENTS.md rule 12; `note_writes_worktree` above is the
+    # `note` half). Pointed at the worktree's own root, the ticket lands where no
+    # orchestrator looks and the queue being filed into never sees it. In the scratch
+    # pair the worktree has NO tasks/ directory, so the write dies with a traceback --
+    # exit 1 over a queue that received nothing -- and BOTH current-copy rows must
+    # notice: the one asserting exit 0 with exactly one created file, and the one
+    # asserting the MAIN queue is what grew. Found by cleanup pass 38: direction 2's
+    # `add` path had no mutant at all.
+    "add_writes_worktree": (
+        '        with open(TASKS / f"{nid}-{slug}.md", "x", encoding="utf-8") as fh:',
+        '        with open(ROOT / "tasks" / f"{nid}-{slug}.md", "x", '
+        'encoding="utf-8") as fh:  # MUTANT: the worktree copy, not the queue',
+        ("`add` from a worktree exits 0 and prints the created path",
+         "`add` wrote into the MAIN checkout's queue, not the worktree's")),
+    # THE RETRY THAT FILES A SECOND TASK (#94). The repair makes `add` print the
+    # ABSOLUTE path from a worktree instead of exiting 1 over a completed write; the
+    # defect that repair closes is the SECOND write a misled retry makes. Restored here
+    # as a second file at exit 0 -- the one mutation direction 2's current-copy row
+    # exists to catch, and its only killer: the positive control runs the PRE-FIX blob,
+    # which no mutation of the current copy can reach. Its first proof was a hand-built
+    # mutant in one session (cleanup pass 37); this entry is what keeps the claim from
+    # decaying back to a sentence, which is this file's whole reason to exist.
+    "add_double_create": (
+        '        created = TASKS / f"{nid}-{slug}.md"\n        try:',
+        '        created = TASKS / f"{nid}-{slug}.md"\n'
+        '        with open(TASKS / f"{nid}-{slug}-2.md", "x", encoding="utf-8") as fh:\n'
+        '            fh.write(body)  # MUTANT: the retry files a SECOND task, at exit 0\n'
+        "        try:",
+        ("`add` from a worktree exits 0 and prints the created path",)),
     "escape_ignored": (
         "    if not risky or _words(prose, HYPOTHETICAL):",
         "    if not risky:  # MUTANT: an escape branch no longer silences anything",

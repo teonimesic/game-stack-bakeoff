@@ -3571,3 +3571,72 @@ this log before this entry: 0 as a subject — line 660 is a different context; 
 verified — "The mutants of `tasks.py` that `tasks_control.py`'s rows are supposed to
 catch."). The natural companion: this pass read the check whole; next pass reads the
 thing that asks whether the checks can still fail.
+
+## Pass 38 — 2026-08-31 — eval/tools/tasks_mutants.py (740 lines; 711 read whole, then 2 mutants ADDED) — 1 GAP FOUND AND CLOSED
+
+Pointer from pass 37, no deferral: PR #107 does not touch it. Read whole in one read,
+judged, then verified live — the first pass in this loop to end with the suite itself
+changed rather than only judged.
+
+**Sound.** The runner is built to the same standard as the control it grades, and nothing
+below it was found wanting: the queue address is IMPORTED from the subject, never
+re-derived (`QUEUE = _t.TASKS`; two `parents[n]` expressions differing by one is how rule
+12 gets paid for a second time); every anchor has its occurrence count asserted == 1
+before injection, and the refusal names the hazard (a no-op mutant reports a pass for a
+check that never changed); the baseline runs first through the same tempdir, the same
+symlink and the same `--tasks-py` path, its greenness gates everything below, and it
+additionally asserts every `kills` entry matches some live row — so a renamed row becomes
+a failure here rather than a silent "the mutant survived", which would read as a defect
+in `tasks.py`; failed rows are parsed from the TABLE and not the summary, measured via
+the task-113 truncation that turned every round-trip row into the four characters
+`round`; unnamed reds are reported, not failed, and that is measured (9 of 21 mutants
+produced them at task 120 — a shared mechanism cut by several mutants at once — with the
+ACCEPTING rows named as what actually guards the wrong-reason catch); the runner's own
+positive control is inert BY CONSTRUCTION (a trailing comment on `MISFILED_MARGIN`'s
+line, which `margin_up`/`margin_down` already prove is killable) so it cannot expire the
+way the pre-`tasks/106` real mutation did; `--selftest` also asks the drifted-anchor
+refusal; #134 is asserted at the end over bytes, not promised in a comment; three
+addresses (subject, control, queue) print on every run.
+
+**THE FIND — direction 2's `add` path had no mutant at all.** Pass 37 repaired the
+current-copy row's dead count assertion and proved the row can go red with a hand-built
+double-create mutant — a proof that lived in this log as prose and decayed back to
+unfalsifiable the moment that session ended. That is precisely the state this file's
+docstring exists to end (task 82: five mutants killed "by hand, in one session", leaving
+behind a sentence). The positive control cannot carry the claim: it runs the PRE-FIX blob
+from git, which no mutation of the current copy can reach, so the repaired row's only
+runnable killer had to live here. The address row had the same asymmetry — `note`'s half
+had `note_writes_worktree`; `add`'s half had nothing.
+
+**The fix, two mutants** (inserted after `note_writes_worktree`, their mechanism sibling):
+
+- `add_double_create` — a second exclusive write of `body` after the first, at exit 0:
+  #94's retry-files-a-second-task shape, restored.
+- `add_writes_worktree` — the open pointed at `ROOT / "tasks"` instead of `TASKS`. In
+  the scratch pair the worktree has NO `tasks/` directory (verified in `_scratch_pair`
+  before writing it: a fresh `git init` repo whose worktree checks out README only), so
+  the write dies in a traceback at exit 1 over a queue that received nothing — the
+  fail-closed shape, and both current-copy rows must notice it.
+
+**Verified, every half measured and none predicted:**
+
+- Full PRE-change suite at HEAD: baseline green (140 rows, 0 FAILED), **41 mutants,
+  0 survived**, inert mutation SURVIVED with 0 red, drifted anchor refuses, `tasks.py`
+  byte-identical before and after. (Notably it was ~25 min of block-buffered silence
+  while alive — `ps` over the tempdir path, not the output file, is what showed it
+  grading mutant 40 of 41.)
+- `--mutate add_double_create --selftest`: CAUGHT, **1 red of 140, 0 unnamed** — only
+  the row naming it, with the address row correctly still green over its one file —
+  plus selftest ok.
+- `--mutate add_writes_worktree`: CAUGHT, **2 red of 140, 0 unnamed** — both
+  current-copy rows, as designed.
+- Named-rows arithmetic checked rather than assumed: 64 distinct `kills` names, up 2
+  from 62; the set deduplicates by design and 17 names are shared across mutants.
+- Gates: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`,
+  `ci_minutes.py --controls` — all exit 0.
+
+Next pointer: `eval/tools/findings_control.py` (496 lines; grep over this log before
+this entry: 0 mentions of any kind; heading verified — "End-to-end controls for
+`docstat.py --findings`, the producer for the findings count."). Three passes have now
+sat inside the tasks toolchain; this is the sibling control harness for the findings
+count and has never been looked at.
