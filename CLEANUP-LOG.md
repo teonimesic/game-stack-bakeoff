@@ -3368,3 +3368,75 @@ configured to be is append-only", write path reserving the name with `O_EXCL` an
 superseding on collision, an `audit` mode sweeping eval/runs, selftest in
 `manifest_selftest.py`. The audit-trail exemplar AGENTS.md cites, and no pass has read it
 whole. 0 heading hits, re-verified before writing this.
+
+## Pass 35 — 2026-08-30 — eval/tools/pr_review_state.py (1,123 lines, read whole)
+
+Pointer moved before the pass: pass 34 pointed here at `eval/tools/manifest.py` (859
+lines), but PR #107 touches that file, so a read of it now would be superseded at merge.
+`pr_review_state.py` had 0 prior coverage (`grep -cin pr_review_state` over this log
+before this entry: 0). This is the rule-12 tool born of task 127 — the poll that takes
+its address (`--pr` AND `--branch`) as arguments every invocation, after 16 polls of
+`not yet` at exit 0 about another agent's pull request.
+
+**Sound on its own terms, and the strongest selftest discipline in the tree:**
+
+- The address is asserted, not assumed, and every refusal names its cause — the A-rows
+  pin the FIRST WORD of each (`WRONG PR`, `NO HEAD SHA`, `NO BRANCH`, `STALE HEAD`,
+  `EXPECTED HEAD NOT A FULL SHA`), including a variant that would pass an `in` test
+  (A3, branch prefix) and one that passes a length test (A6, 40 non-hex characters).
+- The `raises` helper requires a NAMED refusal: a stray traceback is a red row saying
+  "raised X instead of a named refusal", and no-raise is red too. Where a cause can
+  drift it is asserted by `firstword`; `raises` alone is used only on single-arm rows.
+  This is task 227's masking lesson (a pin satisfied by a refusal of the wrong cause)
+  already applied, before that lesson was written — recorded, not a defect.
+- `attempt` turns a crash into a red VALUE, so a mutant dying on a traceback is
+  diagnosed rather than silently scored as caught (the `drop_field` lesson, task 92).
+- The failed-round arm (#185) keeps the REAL bytes — `meshery/meshery#21612`'s
+  `coderabbitai[bot]` failure comment — because this repository's own instance was
+  rewritten in place and is gone. B19 pins it at the head it names, AND pins
+  `by_comment=1` beside it: the second row is WHY the old check read a dead round as a
+  clean landing. Failure blocks are dated by the block's OWN last sha, so a previous
+  round's failure beside this head's clean summary does not suppress (B20, B21), two
+  blocks in one comment do not let the second overrule the first (B24), and a block
+  naming no sha still counts — fail-closed where the evidence is missing (rule 7, B23).
+- `--ignore-notice` governs STOPPING, never landing, and the variants prove it cannot
+  become "wait for ever" in either of its uses (F7, F10: silence still expires loudly
+  on the quiet bound).
+- The wait is silence-bounded (quiet 1200s, flight 3600s latched), and F1b pins the RED
+  half of the bound change: the retired 15-minute clock returns UNRESOLVED on the
+  19m26s review that actually landed (task 130's timeline).
+- E1c is the row that is easy to forget exists: every gh call carries a finite timeout,
+  because handling a timeout is not the same as asking for one — without it the
+  conversion above is unreachable and every gh call blocks forever.
+- The census refuses at its own listing cap (H0: `gh pr list` honours `--limit`
+  silently, so a full page means TRUNCATED), and refuses per-row when its two API reads
+  disagree about the branch (H2) — the address assertion carried into the bulk mode.
+- I1 pins flag FORWARDING from the CLI into `wait_for`: every function-level row calls
+  it directly, so replacing the kwarg with a constant would leave them all green while
+  the flag did nothing. G3 compares the result contract against a SECOND literal rather
+  than the same object — the task 113 lesson, stated at the row.
+- The printed count is what ran (`ran[0]`), never a constant; 100 checks, 21 of them
+  variants.
+
+**Measured live, 2026-08-30, unpiped:**
+
+- `--selftest` → exit 0, `ok (0 failures, 100 checks, 21 of them variants)`.
+- Positive control with a known answer held in advance: `--pr 107 --branch
+  task-227-one-partition-two-producers` → exit 0, `LANDED_COMMENT by_review=0
+  by_comment=1 in_flight=0 failed=0 notice=Review limit reached`, head
+  `12ce5d9871...` — byte-for-byte the answer this session already held.
+- Negative control on the same address: `--branch task-999-wrong-branch-on-purpose` →
+  exit 1, refusal names both branches and says "You are polling somebody else's pull
+  request."
+
+**Found: nothing.** Cleared whole: docstring and guard/verdict tables, `_gh` /
+`parse_pages` / fetchers, `check_address`, `alert_headings`, `failed_rounds`,
+`classify`, `poll`, `render`, `_emit`, `wait_for`, `census`, the full selftest, and
+`main` (whose `--ignore-notice` help text carries the exclusion-not-discard reasoning
+for the comment arm: CodeRabbit posts NO review object when it finds nothing
+actionable, so the arm is narrowed one observed mechanism at a time).
+
+Next pointer: `eval/tools/mergeable.py` (942 lines; `grep -cin mergeable` over this
+log before this entry: 0; heading verified — "Is this pull request safe to merge?
+Green is not the question that failed"). Note for the next pass: PR #107 does not
+touch it.
