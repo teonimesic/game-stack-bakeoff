@@ -377,10 +377,17 @@ def add_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
         # `--why` is passed because the CURRENT copy requires it and `check` now fails on an
         # empty body. The pre-fix positive control accepts it too -- it was optional there --
         # so one argv still exercises both copies.
+        before = {q.name for q in (main / "tasks").glob("*.md")}
         rc, out = _run_tool(wt / "eval/tools/tasks.py", "add", title,
                             "--why", "a body, so the file `add` writes passes `check`",
                             "--done-when", "an observable condition")
-        return rc, out, sorted(q.name for q in (main / "tasks").glob("*.md"))
+        # What THIS invocation created, not what the queue holds: the positive control runs
+        # first on the same scratch pair, so a whole-queue listing is 2 by the time the
+        # current copy is probed and a `== 1` on it is false by construction. (The dead
+        # `len(created) == len(created)` this replaced was that false row, abandoned rather
+        # than aimed -- found by cleanup pass 37.)
+        return rc, out, sorted(q.name for q in (main / "tasks").glob("*.md")
+                               if q.name not in before)
 
     # The positive control FIRST: if the pre-fix copy passes this harness, the harness is
     # not exercising the path and the green row below would mean nothing.
@@ -406,7 +413,7 @@ def add_rows(tmp: Path, skip_prefix: bool) -> tuple[list[tuple], list[str]]:
     printed = out.splitlines()[-1] if out else ""
     ok_path = printed.startswith("created ") and (main / "tasks").name in printed
     rows.append(("`add` from a worktree exits 0 and prints the created path", rc,
-                 rc == 0 and ok_path and len(created) == len(created),
+                 rc == 0 and ok_path and len(created) == 1,
                  f"{printed[:150]}"))
     rows.append(("`add` wrote into the MAIN checkout's queue, not the worktree's", 0,
                  bool(created) and not (wt / "tasks").exists(),

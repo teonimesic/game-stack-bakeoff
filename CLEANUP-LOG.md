@@ -3513,3 +3513,61 @@ Next pointer: `eval/tools/tasks_control.py` (2,307 lines; `grep -cin tasks_contr
 over this log before this entry: 0; heading verified — "Can `tasks.py` still lose a
 value, mis-report a success, or warn where nothing is wrong?"). PR #107 does not touch
 it.
+
+## Pass 37 — 2026-08-31 — eval/tools/tasks_control.py (2,307 lines, read whole) — 1 DEFECT FOUND AND FIXED
+
+Pointer from pass 36, no deferral needed: PR #107 does not touch this file. Read in two
+chunks, judged, then verified live.
+
+**Sound.** The strongest control discipline in the tree, and nothing below it was found
+wanting: positive controls read as blobs from the commits that PREDATE each repair
+(`466d436^`, `ea9f853`, `dce1172`) so every green row is provable as observable; expected
+bytes stated in this file, never imported from the subject (the `_expected_block` comment
+carries the measured mutant that survived when they were); directions 2/3 run the subject
+as a subprocess in a real main-plus-worktree pair because the defects only exist where
+`TASKS` and `ROOT` disagree; `_blob` does not `.strip()` (the `"\n\n"` stub lesson);
+direction 11's three-valued git answers pinned at both the consumer and the producer;
+11c's patch-id cache keyed on the pair with the moved-main variant, failures not cached;
+the torn-write injection asserts its own needle occurs exactly once; the `_set` row
+demands the whole expected file, not a diff (the `zip` truncation lesson); the live-queue
+censuses re-run rather than quoted and shrink loudly on unreadable tickets; exit 3
+fail-closed ("Never read 3 as a pass").
+
+**THE FIND — a dead count assertion on the exact defect direction 2 exists for.** The
+current-copy `add` row asserted `len(created) == len(created)` — a tautology — while its
+name claims "exits 0 and prints the created path" and the defect the direction exists for
+is #94's "the retry files a SECOND task". A future `add` that wrote two files at exit 0
+would have kept every row green: row 1's count term was dead, `ok_path` reads only the
+last printed line, and row 2 asserts `bool(created)`, true for 2. The positive control
+(line 402) asserts `len(created) == 1`, proving the harness CAN observe the count — the
+green row just never asked.
+
+Two repairs were needed, and the second is the lesson:
+
+1. The obvious fix, `len(created) == 1`, is **false by construction**: the positive
+   control runs first on the same scratch pair, so by the time the current copy is probed
+   the whole-queue listing holds 2. The full harness run caught my own first fix red on
+   the healthy copy — and that construction is almost certainly how the tautology was
+   born: an `== 1` that could not pass, abandoned as `== ==` instead of re-aimed.
+2. The fact the row names is what THIS invocation created, so `probe` now returns the
+   DELTA (files beyond a pre-invocation snapshot) and the row asserts `len(created) == 1`
+   on that. Both probes get sharper: the positive control's `== 1` now means "wrote
+   exactly one file" rather than "the queue holds one file".
+
+**Verified, both halves, in the state the harness actually runs** (positive control ON —
+my first probe used `--skip-prefix` and so exercised a state the full run never produces,
+which is why its green half passed and the full run then failed; rule 14's shape, on me):
+
+- healthy repo `tasks.py`, control ON: all three `add` rows ok=True;
+- a double-create mutant (second exclusive write before `return 0`, injected via
+  `--tasks-py`'s mechanism into a tempdir copy, needle count asserted == 1 first): the
+  current-copy row FAILS while row 2 stays green over its two files — the demonstration
+  that before the fix nothing in this direction asked;
+- full run after the repair: **140 measurements, 0 FAILED, 0 NOT CHECKED, exit 0**,
+  shared queue untouched (226 before, 226 after).
+
+Next pointer: `eval/tools/tasks_mutants.py` (711 lines; `grep -in tasks_mutants` over
+this log before this entry: 0 as a subject — line 660 is a different context; heading
+verified — "The mutants of `tasks.py` that `tasks_control.py`'s rows are supposed to
+catch."). The natural companion: this pass read the check whole; next pass reads the
+thing that asks whether the checks can still fail.
