@@ -155,3 +155,51 @@ accepted, one declined:
 
 After fixing, re-run the done_when gates plus both producers over the stored tree; the
 agreement numbers in the note above must still hold (91 / 91, scene 1, spec-change 71).
+
+## note 2026-08-30
+
+## review round 1 addressed (2026-08-30)
+
+CodeRabbit posted 4 actionable comments; adjudicated per the orchestrator's section above.
+Three accepted and fixed at the ONE classifier in eval/agent_harness.py, one declined as
+adjudicated (the RUNS.md sentence states the current contract and carries the (task 227)
+provenance citation; no change).
+
+1. ACCEPTED — population_of now calls task_class_of(record) BEFORE the no-`game` return,
+   so an unknown class on a spec-change record is refused by BOTH producers. cost_census's
+   loader already wraps the raised TaskClassError in a CostCensusError naming the file,
+   which is what its validation-through-population_of call site relies on; census.py's
+   loader refuses through task_class_of directly. Verified broken first:
+   population_of({"task": "x", "task_class": "cutscene"}) returned "spec-change" while
+   census.py refused the same record.
+2. ACCEPTED — task_class_of checks isinstance(klass, str) before membership, so an
+   unhashable value (`task_class: []`) raises the NAMED TaskClassError the loaders wrap,
+   not the TypeError nothing catches. Verified broken first: TypeError
+   "cannot use 'list' as a set element".
+4. ACCEPTED — census.py's wholegame.population label now reads "stored trial records whose
+   `task_class` is `game` or absent" (was "carrying a `game` field", the field-presence
+   spelling this task removes).
+
+Pins added (red demonstrated by hand-reverting both fixes: census --selftest FAILED 2 named
+rows, cost_census --selftest FAILED 2 named rows including "raised TypeError, not
+CostCensusError"; restored, both ok):
+- census selftest: population_of refuses a spec-change record's unknown class;
+  task_class_of raises TaskClassError (not TypeError) on an unhashable class;
+  Direction 8e: census() refuses a no-`game` + unknown-class tree, naming file and class;
+  the wholegame population label is pinned to the class-based wording beside the
+  both-fields fixture.
+- cost_census selftest Direction 11c: a no-`game` + unknown-class record and an unhashable
+  class both raise CostCensusError naming the file.
+
+Still green after the fixes: census --selftest, cost_census --selftest,
+cost_census_mutants (42/42 caught, control green), wallclock --selftest,
+wallclock_mutants (13/13, control green), manifest_selftest, tier1_census --selftest (29/29).
+
+Agreement re-run 2026-08-30 after the round-1 fixes, over the main checkout's eval/runs
+(read-only; find -newer against a fresh marker returned empty):
+    python3 eval/tools/census.py --runs-dir <main>/eval/runs
+        -> WHOLE-GAME 91 (label: task_class is `game` or absent), SCENE 1, SPEC-CHANGE 71
+    python3 eval/tools/cost_census.py --runs-dir <main>/eval/runs
+        -> whole-game trial records read 91; records by population scene 1, spec-change 71,
+           whole-game 91
+The numbers in the note above still hold: 91 / 91, scene 1, spec-change 71.
