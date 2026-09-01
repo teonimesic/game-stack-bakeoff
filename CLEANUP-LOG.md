@@ -3698,3 +3698,64 @@ entry: one passing mention, the "manual by design" line — never a subject; hea
 verified — "The hourly heartbeat's measurement, as a file rather than a shell string in
 a monitor."). The monitors have driven every one of these passes for a week; the tool
 that decides "is new work happening" has never itself been read.
+
+## Pass 40 — 2026-09-01 — eval/tools/heartbeat.py (402 lines, read whole) — 1 STALE COUNT FIXED IN AGENTS.md, 1 ADDRESS GAP FILED (task 229)
+
+Pointer from pass 39, no deferral. Never once a subject before this pass (one passing
+mention, the "manual by design" line). Read in one read, judged, then every count
+verified against an independent measurement, unpiped.
+
+**Sound.** The work-tree refusal is a property probe — `git rev-parse
+--is-inside-work-tree` asked AT the main checkout — not the `core.bare` marker, with the
+second confounder (`core.worktree`) named, both settings reported as facts beside the
+repair, and the why-not-a-hook asymmetry reasoned in place (`git commit` exits 128
+before any hook runs, so the state the guard detects is the one a hook cannot fire in).
+`TASK_METRIC` is a map asserted equal to `tasks.STATUSES` on every run (rule 12 in
+code), legacy aliases mapped, and unknown statuses bucketed into `tasks_unknown` rather
+than dropped — the 3-of-5 incident is recorded where the fix is. `_tracked_files` runs
+`ls-files` with `check=True` rather than returning a plausible zero; the symlink skip
+(`.claude/skills`, mode-120000, task 114) is deliberate and distinguished by
+`is_symlink()` from the warned tracked-but-unreadable skip; outputs are counted, not
+source (`judge_rounds`/`graded_submissions` via `rglob`), for the recorded reason that
+judge rounds land inside existing run directories and move no source count.
+
+**Verified live — every count reproduced independently:** tracked 872 = 872
+(`git ls-files`); findings 194, highest #212 (agrees with `docstat.py --findings` run at
+HEAD); task statuses todo 1 / inflight 0 / in_review 1 / in_testing 1 / done 224 /
+unknown 0, matching `grep -h '^status:' tasks/*.md | sort | uniq -c` exactly; runs 16 =
+top-level `wg-*` directories; judge_rounds 97 = `find eval/runs -name '*__seed*.json'`;
+graded_submissions 85 = `find eval/runs -name report.json`; skills 10 = `ls
+.claude/skills`.
+
+**THE FIND 1 — AGENTS.md said "nine files" twice; the producer says 10.**
+`heartbeat.py` prints `skills=10`, `docstat.py --sweep` reads 10 `SKILL.md` files, and
+`DECISIONS.md` pins "all 10 `SKILL.md` files" — the tenth skill (`update-readme`)
+landed after the sentence was written, and no gate reads this wording, so the
+hand-typed cardinal went stale in the project's most-loaded document. This is the
+README line-187 shape. FIXED directly in this pass by **dropping the cardinals** rather
+than pinning 10: a count that grew once silently will grow again, the sentence's claim
+("one set of files"; "the files are still there") is the part that matters, and no
+producer is named at the sentence to keep a pinned 10 honest.
+
+**THE FIND 2 — the refusal probes one address; the counts read another.**
+`_assert_main_checkout_is_a_work_tree` verifies the MAIN checkout; `collect()` then
+counts `ROOT`, derived from `__file__` — the tree the RUNNING COPY lives in. The two
+are never compared. From a linked worktree's copy (agent worktrees are full checkouts)
+the refusal passes — the main checkout IS a work tree — and every count goes
+branch-local: findings, tasks and `project_lines` become plausible-and-wrong (read as
+work disappearing), and a fresh worktree has no `eval/runs/` so the three output counts
+read 0. The docstring's "excluded by construction" is a property of the invocation
+address, not of the metric, and AGENTS.md states it as the latter. FILED as task 229,
+with the red-first demonstration and a `--selftest` pin required (task 228's pattern,
+including its ci_minutes census consideration).
+
+Noted, not filed: `runs` counts top-level `wg-*` only while `census.py` searches at any
+depth. Measured zero nested `wg-*` directories today, and the two `rglob` output counts
+would still move if one landed — a proxy by this file's own docstring. Revisit only if
+a nested run directory ever appears.
+
+Next pointer: `eval/tools/census.py` (749 lines; grep over this log before this entry:
+zero mentions, never a subject; heading verified — "Count what the stored tree actually
+holds, so no document has to remember."). It is the producer behind AGENTS.md's
+keep-current table and one withdrawn register entry (WR-tree-census-one-level is about
+its numbers) — the tool whose figures live documents quote has never itself been read.

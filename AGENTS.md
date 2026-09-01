@@ -56,7 +56,7 @@ skill that lives in a home directory silently applies to unrelated work.
 
 The real files live at `.agents/skills/<name>/SKILL.md`, and **that is the sole authoritative
 path — edit there.** `.claude/skills` is a **symlink** to it, so every path below resolves to
-the same nine files. Invoke the one that covers what you are about to do rather than
+one set of files. Invoke the one that covers what you are about to do rather than
 reconstructing the procedure — each encodes failures that cost trials.
 
 **One copy, any number of pointers.** `.agents/` is the cross-tool convention, so Codex, Claude
@@ -69,7 +69,7 @@ what would re-open it, is in `DECISIONS.md`.
 
 **The pointer is load-bearing and it fails silently.** Measured against `claude` 2.1.220: a
 project holding only `.agents/skills` loads **no skills at all**. Delete `.claude/skills` and the
-nine files are still there, still at the authoritative address, and unreachable by every agent —
+files are still there, still at the authoritative address, and unreachable by every agent —
 so `docstat.py --sweep` asserts the symlink exists and resolves, rather than only counting files.
 `eval/tools/skill_layout_control.py` pins that gate red on all five ways the layout can break.
 
