@@ -1322,7 +1322,7 @@ blockquote's own blank line, at a fence, or at the next top-level list item.
   conclusion in either direction, and honouring the bar moved the sign on 3 readings without
   anyone touching the method. **The weight is unchanged; only its stated reason is.** The
   two grounds under "Grading" above never depended on this field at all — a bounded contribution
-  of 0.10 against a tightest adjacent gap of 0.0622, and an aggregate noisiest exactly where it
+  of 0.0154 against a tightest adjacent gap of 0.0667, and an aggregate noisiest exactly where it
   would matter — and #83 means neither round is defensible as blind regardless. The withdrawn
   pair is FINDINGS #113; the "within ~10% in both" reading that briefly stood in for it is wrong
   on one of the two fields and is #115. Both stay in the log and appear in no live document as a
@@ -3356,9 +3356,9 @@ was already the guard for the three paths that reach a judge FIELD, and none of 
 runner. Wiring scenes in adds three more routes, and what stood in for a guard on the largest of
 them was `evaluate.BOTS[task]` raising `KeyError` — a refusal that exists because a dict happens
 to hold four keys, arrives after tier 1 has already run, and disappears the moment anyone adds a
-fifth. `judge.py` had not even that: `GAME_BRIEF.get(game, "(unknown game)")` supplies a brief
-rather than refusing, so a scene handed to the retired generalist judge is answered on all 13
-game criteria.
+fifth. `judge.py` had not even that: `GAME_BRIEF.get(game, "(unknown game)")` supplied a brief
+rather than refusing, and a scene handed to the retired generalist judge was answered on all 13
+game criteria — the hole the refusal contract below closes.
 
 So `aspects.INSTRUMENTS` declares the class of every non-aspect instrument — `playbot`,
 `scene_probe`, `legacy_judge` — and `applicability()` answers for both registries. 1 function

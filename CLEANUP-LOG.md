@@ -4313,3 +4313,70 @@ this log and the only top-level document with no dedicated skill or producer gat
 it. README.md is the same shape (386 lines, 21 mentions, never a subject) but is the most
 gated doc in the repository — three producer checks, renumber-triage pins, a dedicated
 skill; DECISIONS first.
+
+## Pass 51 — 2026-09-01 — `DECISIONS.md` (4,058 lines, read whole) — 2 REPAIRS: the Open bullet quoting figures its own Grading section retires, and a decision describing in the present tense the behaviour a later decision in the same file removed
+
+Subject chosen by pass 50's pointer (0 heading mentions across all 50 passes — checked —
+and the most-cited authority in this log). Read whole; two repairs, both the same family:
+a live document stating a figure or a behaviour that another part of the same file records
+as retired.
+
+1. **The "Open" bullet on the tier-3 weight said "a bounded contribution of 0.10 against a
+   tightest adjacent gap of 0.0622"** while pointing by name at the Grading section, which
+   states **0.0154** against **0.0667** — 0.10 was the WEIGHT tier 3 briefly held, not the
+   contribution, and the gap was recomputed to 0.0667 on tier 2 alone, with 0.0622 marked
+   there in terms as "not reproduced by that method and its own method is unrecorded". The
+   restatement now carries the section's own figures; the argument around them is untouched.
+2. **The 2026-08-25 instruments decision still said `judge.py`'s `GAME_BRIEF.get(game,
+   "(unknown game)")` "supplies a brief rather than refusing"** — present tense, but the
+   2026-08-30 refusal contract in the same file replaced exactly that: `judge()` refuses an
+   unbriefed game as a recorded verdict and `_brief` indexes directly. The clause is now
+   past tense and points at the contract that closed it. The decision's reasoning stands.
+
+**Verified and sound** (producers run, not quoted — this is the file that demands that of
+every other live document, so it was held to it):
+
+- `tier1_census.py --runs-root eval/runs` → 69 stored submissions, 8 with any tier-1
+  failure, 0 of 11 groups both-vary, 8 single-value groups, `reversed: 0 coarsened: 3
+  identical: 8`, FLOOR-ONLY — reproduces Grading and the Open bullet digit for digit,
+  including 61 of 69 (= 69 − 8) and 61 of the 68 games, 0 of the 1 scene.
+- `tier2_census.py --runs-root eval/runs` → `groups: 11 saturated: 5`, saturated groups
+  summing to 35 (8+3+8+8+8) — the Open bullet's "5 of 11 groups, 35 of the 68 games"
+  exactly. Both reversal-table rows that say "Currently" (tier 1 0 of 11, tier 2 5 of 11)
+  hold today.
+- `census.py` → 91 whole-game records over 12 run directories, 71 spec-change records,
+  1 scene record — the failure-cause-labels section's population line, with the same
+  exclusions named.
+- `judge_ledger.py --tree eval/runs/` → 12 sweep directories, 97 stored rounds — the
+  g1_pong section's "97 rounds over 12 directories".
+- `capability.py --runs eval/runs` → 64 of the 69 at the starter default, 3 varied,
+  2 with no geometry, same per-record identities — the reversal row read 2026-08-27, still
+  true today.
+- `grep -c '^## Iteration '` → 17 (`eval/IMPROVEMENTS.md`) and 2 (root) — the
+  improvement-loop section's counts, still true.
+- The improvement-loop section's run-directory claim, checked at the address the section
+  itself spells: exactly 2 run directories postdate `wg-g4c-2026-08-21T02-26-46`
+  (`wg-harness-probe-primeagent-2026-08-24`, `wg-scene-s1ts-2026-08-25`) and each holds
+  exactly 1 entry under `artifacts/`; the g4c directory holds 8.
+- Internal arithmetic: the 91-record label cross-tab (9+4+1+1+76; 53+18+4+1 = 76;
+  53 = 21+15+10+7; 18 = 5+12+0+1; rust 25 = 7 + 18 externally qualified); the cost-route
+  design floor `4 × (1/4)⁴ = 0.0156`; capability 64+3+2 = 69; the reversal table's 1/N
+  range 0.0435 (arena, 23 scored criteria) to 0.0769 (pong/tetris, 13), consistent with the
+  tier-2 census's per-game scored counts and with JUDGING.md's recomputation table.
+- Dated figures left dated per the file's own CURRENT-or-DATED rule: instruction_census
+  112-155 (2026-08-23), the discrimination reads of 2026-08-23, frame_parity 0 of 67
+  (2026-08-28; pass 50 re-derived it), the $13.16 / $698.21 / $33.63 historical aggregates.
+
+**Judged sound, deliberately untouched:** the money-gate sections' self-description (#159
+exempts it by design); each decision's motivation text describing the state at decision
+time where a later section owns the supersession — the two cross-references this pass added
+are the only places the pair now touches.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged of 37), tasks check exit 0 (230 well-formed).
+
+Next pointer: **`eval/judge/RUBRIC.md`** (989 lines) — 0 heading mentions across all passes
+(checked), the grading contract three skills and README's grading table cite, actively
+edited by landed tasks, never read whole by a pass. Alternate: `eval/RUNS.md` (3,143 lines,
+also 0 mentions) — the comparability register, mostly never-prune regime boundaries, so a
+pass there is verification-heavy; RUBRIC first.
