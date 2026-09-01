@@ -4069,3 +4069,50 @@ Next pointer: **`.agents/skills/work/SKILL.md`** — 0 mentions across all prior
 never a subject. It is the procedure every dispatched agent runs — five of them this session —
 and the dispatch skill's step-5 rule ("the defect is here or in the ticket") has been exercised
 repeatedly without the work skill itself ever being read by a pass.
+
+## Pass 46 — 2026-09-01 — .agents/skills/work/SKILL.md (385 lines, read whole) — 1 DELETED TREE NAMED IN A NEVER-TOUCH LIST; the procedure five dispatches ran this session finally read
+
+Subject of pass 45's pointer: the skill every dispatched agent runs, read whole against the
+five dispatches this session exercised it with, and checked at HEAD before anything was judged.
+
+REPAIRED here, one table cell:
+
+- **§4's never-touch row named `template*/` — a tree deleted 2026-08-23.** The retirement is
+  `DECISIONS.md`'s own entry (#122), the artefacts a later merge re-added were removed again in
+  `5df8c89`, and the live project `AGENTS.md` states the deletion in its starters row. The work
+  skill's row kept naming it. A never-touch list's whole job is naming what exists, so this is
+  AGENTS.md's "confidently wrong" class, and it survived because no gate reads for it — the
+  sweep checks references and frontmatter, not path mentions inside a table cell. Repaired by
+  dropping the path; the `eval/starters/*/` row stands, and its four named instruments were
+  confirmed present at HEAD (`verify_blind.py`, `starter_parity.py`, `starter_gate_control.py`,
+  and the regime note in `eval/RUNS.md`). Every other live `template*/` mention in the
+  repository is in DECISIONS.md or `research/`, where the retirement itself is the subject —
+  those stay.
+
+MEASURED SOUND, recorded so the next pass does not redo it:
+
+- **`.coderabbit.yaml` — checked before concluded.** §6 cites that filename; the file exists
+  under exactly that name (23k, at the root). A wrong-address suspicion that did not survive
+  contact with the tree, recorded because the pass that skips the check is the one that "fixes"
+  a correct filename.
+- **The status lifecycle (§1) matches the queue as observed, not as described.** 227 sits
+  `in_review` carrying its PR URL in frontmatter; 231 sits `in_testing` with a one-line
+  `established_by` and its findings in an appended note section — §6 and §7's contract, run
+  end to end by this session's agents.
+- **The pr_review_state interface in §6 is the tool's.** Flags (`--pr --branch --expect-head
+  --wait`), verdicts, and exit codes including UNRESOLVED at 13 — the task-231 agent's 40-poll
+  expiry ran exactly this path.
+- **The squash-only claim is the register's.** PR title/body become the merge commit's
+  subject/body, stated identically in `.github/workflows/README.md`'s Merging section.
+- **§2's finding-allocation prohibition and its evidence (fourteen collisions in one day, one
+  task renumbered twice) are the reason the rule exists** — evidence a rule was bought with,
+  kept by the standing test.
+
+Cost of the pass: one path in one cell; no behavior, no gate, no count moved. The skill is in
+the sweep corpus, so the gates below cover the edit.
+
+Next pointer: **`.agents/skills/add-game/SKILL.md`** — 0 mentions across all prior passes by
+count, never a subject. It governs writing a task prompt and a play-bot criterion, the piece of
+the instrument that decides what a trial asks, and its authoritative file is
+`eval/suites/wholegame_prompts.py`'s docstring (10 mentions — the docstring has been read; the
+procedure that edits it has not).
