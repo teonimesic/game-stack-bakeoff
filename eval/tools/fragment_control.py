@@ -24,7 +24,17 @@ Exit status is read UNPIPED (AGENTS.md rule 3). A mutant run is EXPECTED to fail
 script inverts it: exit 0 from a mutant run would mean the controls cannot see the mechanism
 they name.
 
-    python3 eval/tools/fragment_control.py
+**The default runs the clean pass AND every mutant**, and is red if any of them survives -
+the repair `corpus_control.sweep` records from PR 54, which this file had also not received.
+The clean half is largely coverage `docstat --sweep` already buys: it runs this same check
+over the same reference corpus and runs `_duplicate_fragment_pins` beside it, so a default
+that only repeated it would gate what already gates while the mutants ran nowhere but an
+operator's terminal. And `whole_line` is exactly the mutant a future reader has to be able
+to watch die - it is the design measured at 0 true positives on the real defect, which makes
+it the first thing a plausible "simplification" reaches for.
+
+    python3 eval/tools/fragment_control.py                   # clean pass + every mutant - what CI runs
+    python3 eval/tools/fragment_control.py --clean-only      # the controls alone, unmutated
     python3 eval/tools/fragment_control.py --list-mutants
     python3 eval/tools/fragment_control.py --mutate no_check
 """
@@ -282,10 +292,57 @@ def apply_mutant(name: str) -> None:
         raise SystemExit(f"unknown mutant {name}; --list-mutants")
 
 
+def sweep() -> int:
+    """The clean run and EVERY mutant, in one invocation.
+
+    THIS IS WHAT THE CI STEP RUNS, and it is why the step exists at all - the repair
+    `corpus_control.sweep` records from PR 54, which this file had not received: with the
+    default at `controls()` alone, the gate repeated the clean half `docstat --sweep`
+    already runs over the same corpus, and no mutant ever ran outside an operator's
+    terminal. A suite whose mutants are opt-in is a suite whose mutants are the one thing
+    nobody re-runs - and `whole_line` is the recorded design that measured as a complete
+    false negative, so its continued inability to pass is exactly what a bare clean run
+    cannot assert.
+    """
+    print(f"duplicate-fragment controls, window {DS._DUP_FRAGMENT_WINDOW}\n")
+    clean_failed = controls()
+    print(f"\nCLEAN  {'FAILED' if clean_failed else 'passed'}, expected passed\n")
+
+    pristine = {n: getattr(DS, n) for n in PATCHED}
+    killed: list[str] = []
+    survived: list[str] = []
+    for name in MUTANTS:
+        for n, v in pristine.items():  # a mutant must not leak into the next
+            setattr(DS, n, v)
+        apply_mutant(name)
+        if all(getattr(DS, n) is pristine[n] for n in PATCHED):
+            survived.append(f"{name}: rebound nothing - it is not testing anything")
+            continue
+        failed = controls()
+        print(f"\nMUTANT {name:<18} "
+              + ("SURVIVED  <- the controls cannot see the mechanism it names"
+                 if not failed else "went red, as it must"))
+        (survived if not failed else killed).append(name)
+    for n, v in pristine.items():
+        setattr(DS, n, v)
+
+    print(f"\n{len(killed)} of {len(MUTANTS)} mutants died; "
+          f"{len(survived)} survived"
+          + ("" if not survived else ":\n  " + "\n  ".join(survived)))
+    if clean_failed or survived:
+        return 1
+    print("A mutant run is EXPECTED to fail its controls; a mutant that survives means "
+          "the controls no longer reach the mechanism they name, and the gate's green "
+          "is once again the ambiguity this file exists to prevent.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mutate", metavar="NAME")
     ap.add_argument("--list-mutants", action="store_true")
+    ap.add_argument("--clean-only", action="store_true",
+                    help="the controls on the unmutated tree, without the mutant sweep")
     a = ap.parse_args()
     if a.list_mutants:
         for k, v in MUTANTS.items():
@@ -305,8 +362,11 @@ def main() -> int:
               "cannot see the mechanism they name.")
         return 0 if rc else 1
 
-    print(f"duplicate-fragment controls, window {DS._DUP_FRAGMENT_WINDOW}\n")
-    return controls()
+    if a.clean_only:
+        print(f"duplicate-fragment controls, window {DS._DUP_FRAGMENT_WINDOW}\n")
+        return controls()
+
+    return sweep()
 
 
 if __name__ == "__main__":

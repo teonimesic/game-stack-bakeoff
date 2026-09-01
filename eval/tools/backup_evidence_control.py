@@ -23,7 +23,16 @@ the expected answer is hand-written.
 And a MUTANT (`--mutate NAME`) removes one mechanism the checker relies on, to
 prove the adversarial cases can go red for the reason they name.
 
-    ./backup_evidence_control.py
+**The default runs the clean pass AND every mutant**, and is red if any of them survives -
+the repair `corpus_control.sweep` records from PR 54, which this file had not received: the
+five mutants are the only proof that the seven adversarial cases can go red for the reason
+each names, and with them opt-in the step repeated a clean pass nothing could fail while
+they ran nowhere but an operator's terminal. The `--runs-root` arm runs ONCE, on the clean
+pass: every mutant removes a check, so genuine baselines stay clean under all five, and
+re-running the real tree per mutant would measure the same thing six times.
+
+    ./backup_evidence_control.py                      # clean pass + every mutant - what CI runs
+    ./backup_evidence_control.py --clean-only         # the controls alone, unmutated
     ./backup_evidence_control.py --mutate no_blob_compare
     ./backup_evidence_control.py --list-mutants
 """
@@ -219,12 +228,87 @@ def run_real(runs_root: Path) -> tuple[int, list[str]]:
     return len(pairs), failures
 
 
+def run_pass(runs_root: Path | None) -> tuple[int, list[str]]:
+    """One full pass: the fixture cases, plus the real tree when an address was given."""
+    scratch = Path(tempfile.mkdtemp(prefix="baseline-control-"))
+    try:
+        ran, failures = run_cases(scratch)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+    real_n, real_failures = 0, []
+    if runs_root:
+        real_n, real_failures = run_real(runs_root.resolve())
+        if real_n == 0:
+            real_failures.append(
+                f"--runs-root {runs_root} holds no starter baselines — this "
+                f"control checked NOTHING against real data")
+
+    print(f"fixture cases   {ran - len(failures)}/{ran} as expected")
+    if runs_root:
+        # `0/0` would read as a pass. Say the address was empty instead — rule 12:
+        # the path is an input to the check, and a wrong one looks like a result.
+        print(f"real baselines  {max(real_n - len(real_failures), 0)}/{real_n} clean"
+              + ("   NO BASELINES AT THIS ADDRESS" if real_n == 0 else ""))
+    for f in failures + real_failures:
+        print(f"  FAIL {f}")
+    return ran, failures + real_failures
+
+
+def sweep(runs_root: Path | None) -> int:
+    """The clean pass and EVERY mutant, in one invocation.
+
+    THIS IS WHAT THE CI STEP RUNS, and it is why the step exists at all - the repair
+    `corpus_control.sweep` records from PR 54, which this file had not received: with
+    the default at the clean pass alone, the gate proved nothing could fail and no
+    mutant ever ran outside an operator's terminal. A suite whose mutants are opt-in
+    is a suite whose mutants are the one thing nobody re-runs.
+
+    The real-tree arm runs on the clean pass only, for the reason the docstring gives.
+    And the restore between mutants is LOAD-BEARING here rather than hygiene:
+    `apply_mutant` captures `BE.verify_starter_baseline`'s CURRENT value as the
+    original to filter, so a mutant that leaked would hand the next mutant a wrapped
+    function and the pair would grade a composition neither name.
+    """
+    print("starter-baseline controls, clean pass first\n")
+    ran, clean_bad = run_pass(runs_root)
+    print(f"\nCLEAN  {'FAILED' if clean_bad else 'passed'}, expected passed\n")
+
+    pristine = BE.verify_starter_baseline
+    killed: list[str] = []
+    survived: list[str] = []
+    for name in MUTANTS:
+        BE.verify_starter_baseline = pristine  # a mutant must not leak into the next
+        apply_mutant(name)
+        if BE.verify_starter_baseline is pristine:
+            survived.append(f"{name}: rebound nothing - it is not testing anything")
+            continue
+        ran_m, bad = run_pass(None)
+        print(f"\nMUTANT {name:<18} "
+              + ("SURVIVED  <- the controls cannot see the mechanism it names"
+                 if not bad else "went red, as it must"))
+        (survived if not bad else killed).append(name)
+    BE.verify_starter_baseline = pristine
+
+    print(f"\n{len(killed)} of {len(MUTANTS)} mutants died; "
+          f"{len(survived)} survived"
+          + ("" if not survived else ":\n  " + "\n  ".join(survived)))
+    if clean_bad or survived:
+        return 1
+    print("A mutant run is EXPECTED to fail its controls; a mutant that survives means "
+          "the controls no longer reach the mechanism they name, and the gate's green "
+          "is once again the ambiguity this file exists to prevent.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--runs-root", type=Path, default=None,
-                    help="also verify every real baseline under this tree")
+                    help="also verify every real baseline under this tree (clean pass only)")
     ap.add_argument("--mutate", help="break one mechanism and expect red")
     ap.add_argument("--list-mutants", action="store_true")
+    ap.add_argument("--clean-only", action="store_true",
+                    help="the controls on the unmutated checker, without the mutant sweep")
     a = ap.parse_args()
 
     if a.list_mutants:
@@ -233,34 +317,21 @@ def main() -> int:
         return 0
 
     if a.mutate:
+        if a.runs_root:
+            # An accepted-but-ignored flag is worse than an unsupported one (AGENTS.md
+            # rule 13): under a mutant the sweep runs fixture cases only, so a --runs-root
+            # here would be read and then silently not used.
+            raise SystemExit("--runs-root runs on the clean pass only; drop it or drop "
+                             "--mutate")
         apply_mutant(a.mutate)
         print(f"MUTANT ACTIVE: {a.mutate} — {MUTANTS[a.mutate]}\n")
 
-    scratch = Path(tempfile.mkdtemp(prefix="baseline-control-"))
-    try:
-        ran, failures = run_cases(scratch)
-    finally:
-        shutil.rmtree(scratch, ignore_errors=True)
-
-    real_n, real_failures = 0, []
-    if a.runs_root:
-        real_n, real_failures = run_real(a.runs_root.resolve())
-        if real_n == 0:
-            real_failures.append(
-                f"--runs-root {a.runs_root} holds no starter baselines — this "
-                f"control checked NOTHING against real data")
-
-    print(f"fixture cases   {ran - len(failures)}/{ran} as expected")
-    if a.runs_root:
-        # `0/0` would read as a pass. Say the address was empty instead — rule 12:
-        # the path is an input to the check, and a wrong one looks like a result.
-        print(f"real baselines  {max(real_n - len(real_failures), 0)}/{real_n} clean"
-              + ("   NO BASELINES AT THIS ADDRESS" if real_n == 0 else ""))
-    for f in failures + real_failures:
-        print(f"  FAIL {f}")
-
-    bad = failures + real_failures
-    if a.mutate:
+        scratch = Path(tempfile.mkdtemp(prefix="baseline-control-"))
+        try:
+            ran, failures = run_cases(scratch)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+        print(f"fixture cases   {ran - len(failures)}/{ran} as expected")
         # Under a mutant the fixture cases MUST fail. A mutant that changes
         # nothing means the mechanism it removed was not carrying the check.
         if failures:
@@ -271,11 +342,15 @@ def main() -> int:
               "the mutant removed.")
         return 1
 
-    if bad:
-        print("\nFAILED")
-        return 1
-    print("\nOK")
-    return 0
+    if a.clean_only:
+        _, bad = run_pass(a.runs_root)
+        if bad:
+            print("\nFAILED")
+            return 1
+        print("\nOK")
+        return 0
+
+    return sweep(a.runs_root)
 
 
 if __name__ == "__main__":

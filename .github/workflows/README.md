@@ -67,17 +67,41 @@ directory that does not exist, and a root that is no repository at all. Its gree
 `core.bare=false`, `core.bare` absent, and a healthy checkout read from a linked worktree. It
 works on throwaway repositories under `$TMPDIR`, restores the configuration in a `finally`, and
 carries 1 mutant: the guard removed.
-`fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
-directions; its `whole_line` mutant is the design measured as a complete false negative, so it
-is what stops that being tried again. Its REAL row reads a historical blob, which needs the
+`fragment_control` pins `docstat`'s duplicate-fragment check, and since 2026-09-01 its default
+is the clean pass followed by **all 8 mutants** — `time python3 eval/tools/fragment_control.py`,
+4.5s locally, `--clean-only` the controls alone at 0.65s. The clean half is coverage
+`docstat --sweep` already buys — the same check over the same reference corpus, with
+`_duplicate_fragment_pins` beside it — so the mutants are why the step exists; its
+`whole_line` mutant is the design measured as a complete false negative, and it is what
+stops that being tried again. Its REAL row reads a historical blob, which needs the
 `fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
-`python3 eval/tools/findings_control.py` prints its own row count and takes about 2.3s locally.
-It needs `git` and no history: the count corpus is read from the index rather than from the disk
+`python3 eval/tools/findings_control.py` is the findings producer's end-to-end controls; since
+2026-09-01 the default is the clean pass plus **all 9 mutants** — `time python3
+eval/tools/findings_control.py`, about 25s locally, most of it fixture trees built and driven
+as real subprocesses (`--clean-only` is the controls alone, ~3s). Each mutant is a text patch
+applied to a COPY of `docstat.py` in a tempdir — the module-global restore the corpus and
+withdrawn sweeps do has no surface here — so the sweep snapshots the repository's own
+`docstat.py` and compares it after every mutant, restoring from the snapshot and reporting a
+survivor on a mismatch; the hour of uncommitted work `build()`'s docstring records losing to a
+patch applied in place is the reason that check is a comparison and not a promise. The old
+`--all-mutants` mode — the same loop minus the clean pass and minus the leak check, run only
+when an operator asked — is kept as an alias of the default sweep, which is why the pass-39
+record of it still resolves. It needs `git` and no history: the count
+corpus is read from the index rather than from the disk
 (#198), so its fixture trees are repositories. One is deliberately left un-`init`ed and must exit
 **2** rather than 1, because a tree git cannot list has to stop the producer rather than shrink
 its corpus to `RANGE_DOCS` and read clean. Its last row is about the control itself — an
 inherited `GIT_DIR` outranks `cwd` silently — so it reproduces that against a decoy repository
 before asserting the fixture builder is immune.
+`backup_evidence_control` is the starter-baseline provenance checker's controls — whether the
+stored `starter-baseline.tar.gz` + `.blobs.txt` pair is still the commit it claims to be
+(FINDINGS #104). Its fixture is a real repository, and the pair comes from the same two
+commands the harness runs (`git archive --prefix=<tid>/`, `git ls-tree -r`), so nothing about
+the expected answer is hand-written; seven adversarial damages must each be caught, and since
+2026-09-01 the default is the clean pass then **all 5 mutants**, 0.75s locally — each
+mutant's failure set is exactly the case its check carries (blob comparison carries two: a
+flipped member byte and a rewritten ls-tree oid), and `--runs-root` runs once on the clean
+pass, because genuine baselines stay clean under all five.
 `corpus_control` asks which files the sweep reads at all, and its default runs the clean
 pass **and all 7 mutants** — 3.9s locally, most of it the 8 fixture repositories. `docstat
 --selftest` makes the same clean call, so a gate that only repeated it would duplicate a gate;
@@ -93,9 +117,11 @@ the five flips that justified wiring the register as a gate at all had run only 
 operator asked — `corpus_control`'s sweep docstring records the same defect and its repair
 (PR 54; written without the sigil because a hash followed by 54 is the match pattern of a
 withdrawn finding, and a live document may not state it outside a declared block), and this
-file had not received it. `fragment_control`,
-`findings_control` and `backup_evidence_control` carry opt-in mutants on the same shape; their
-conversion is filed, not done here.
+file had not received it. All three siblings named there are converted the same way (task 231,
+the same day), so every control that carries a `--mutate` mode now runs its mutants in the
+default pass; the one exception is `evidence_set_control`, whose whole script stays out of CI
+with the recorded reason in the exclusion table — it exits 2 `UNMEASURABLE` without
+`eval/runs/`, which is gitignored, so its mutants are reachable by nobody here.
 `runner_capture_selftest` is `eval/judge/capture_selftest.py` pointed at the agent harness: 2.26s
 locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rather than CPU and
 does not move with the runner.
