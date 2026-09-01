@@ -3640,3 +3640,61 @@ this entry: 0 mentions of any kind; heading verified — "End-to-end controls fo
 `docstat.py --findings`, the producer for the findings count."). Three passes have now
 sat inside the tasks toolchain; this is the sibling control harness for the findings
 count and has never been looked at.
+
+## Pass 39 — 2026-08-31 — eval/tools/findings_control.py (496 lines, read whole; 1 guard ADDED) — 1 LATENT HAZARD FOUND AND CLOSED
+
+Pointer from pass 38, no deferral: PR #107's changed files (census pair, manifest,
+wallclock, harness, RUNS) do not include it. Never once a subject before this pass.
+Read in one read, judged, then verified live.
+
+**Sound.** The known answer stated in this file before anything measures it
+(`KNOWN_COUNT`/`KNOWN_LO`/`KNOWN_HI`); every fixture case carries its expected exit AND
+the output substring naming the reason, so a green exit over the wrong mechanism cannot
+pass; the green cases additionally parse the JSON payload and assert the producer
+REPORTS the stated count and highest — "an exit code alone would pass on a tool that
+counted nothing and found nothing to disagree with" is written in the code, and the
+`.get`-with-default alternative is named and rejected (rule 3's sibling); the
+`--count-triggers` variant asserts the SHAPE of the output (shipped row 0, quantifier
+row ≥1) because an extractor that has stopped matching reports 0 on every row, which is
+also what a clean corpus reports; `_git` drops ALL `GIT_*` variables with the
+enumeration lesson stated in place ("the next reader meets `GIT_COMMON_DIR`") and is
+written out rather than imported so the control stays an independent reader of the
+subject; `hostile_git_env` carries its own red half — it reproduces the vulnerable shape
+against a decoy index before asserting `_git` is immune, "without which the green one is
+a check that cannot fail"; REAL TREE is skipped under a mutant with the reason printed
+(it would grade the unmutated tool); the mutants run on COPIES, with the in-place-patch
+lesson recorded in `build`'s docstring. The all-mutants run was read per-mutant, not
+only at its summary: failure counts vary (3,1,2,2,1,1,1,1,9) and every mutant reddens
+exactly the rows naming its mechanism — `count_from_the_index` and
+`no_index_reconciliation` both redden only COUNTED TWICE, which is the pair of survivors
+that row was built for, per its own docstring.
+
+**THE FIND — the mutant anchors are checked for PRESENCE, never for UNIQUENESS.**
+`build` applied `src.replace(old, new, 1)` behind `if old not in src` — so an anchor
+occurring twice mutates whichever copy came first, silently, and the controls then grade
+a mutation this file did not name. Both sibling runners assert this and refuse:
+`tasks_mutants._write_copy` ("an ambiguous one mutates whichever copy came first. Fix
+the anchor.") and the torn-write injection in `tasks_control` (needle count asserted ==
+1). The hazard is latent — all 9 live anchors were measured at exactly 1 occurrence in
+`docstat.py` before the fix — and the red half was demonstrated before fixing: a probe
+mutant anchored on a string occurring twice applied to the first copy with no refusal.
+
+**The fix**: `src.count(old)` before replace; `n == 0` keeps the existing refusal
+verbatim; `n > 1` refuses with the sibling's wording and the measured rationale named.
+
+**Verified, red first:**
+
+- RED (before the fix): probe mutant on a 2× anchor applied silently, first copy only,
+  1 line mutated of 2 occurrences.
+- GREEN (after): the same probe refuses, naming the count; the absent-anchor refusal
+  still fires with its original message; plain controls **21 controls, 0 failed,
+  exit 0**; `--all-mutants` **9 mutants, 0 survived, all caught, exit 0**.
+- Task 228 filed: the two refusals are pinned by nothing permanent (this file has no
+  `--selftest`; `tasks_mutants` pins its drift refusal that way) — the ticket carries
+  the `ci_minutes --controls` selftest-census consideration.
+
+Next pointer: `eval/tools/heartbeat.py` (402 lines; grep over this log before this
+entry: one passing mention, the "manual by design" line — never a subject; heading
+verified — "The hourly heartbeat's measurement, as a file rather than a shell string in
+a monitor."). The monitors have driven every one of these passes for a week; the tool
+that decides "is new work happening" has never itself been read.

@@ -174,10 +174,20 @@ def build(tmp: Path, *, bodies: list[int], indexed: list[int], count: int, high:
     src = DOCSTAT.read_text()
     if mutant:
         old, new = MUTANTS[mutant]
-        if old not in src:
+        n = src.count(old)
+        if n == 0:
             raise SystemExit(f"mutant `{mutant}` does not apply: its anchor is not in "
                              f"{DOCSTAT}. The code moved and the mutant is inert - which "
                              f"is a defect in this file, not a pass.")
+        if n > 1:
+            # Measured rather than preferred (cleanup pass 39): `replace(old, new, 1)`
+            # mutates whichever copy came first, and the controls then grade a mutation
+            # this file did not name. Both sibling runners assert this -- the count
+            # before injecting, `tasks_mutants._write_copy`; the needle before the
+            # torn-write fault, `tasks_control` -- and the refusal wording is theirs.
+            raise SystemExit(f"mutant `{mutant}` does not apply: its anchor occurs {n} "
+                             f"times in {DOCSTAT}. An ambiguous one mutates whichever "
+                             f"copy came first. Fix the anchor.")
         src = src.replace(old, new, 1)
     (tmp / "eval" / "tools" / "docstat.py").write_text(src)
     if not no_dir:
