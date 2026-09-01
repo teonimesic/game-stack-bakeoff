@@ -4116,3 +4116,43 @@ count, never a subject. It governs writing a task prompt and a play-bot criterio
 the instrument that decides what a trial asks, and its authoritative file is
 `eval/suites/wholegame_prompts.py`'s docstring (10 mentions — the docstring has been read; the
 procedure that edits it has not).
+
+## Pass 47 — 2026-09-01 — .agents/skills/add-game/SKILL.md (163 lines, read whole) — 1 PATHLESS ADDRESS AND 1 UNCITED FIGURE IN THE SKILL THAT EDITS THE INSTRUMENT'S INPUT
+
+Subject of pass 46's pointer, read whole and checked against HEAD line by line before
+anything was judged. This is the skill governing task prompts and bot criteria — the piece of
+the instrument a trial's subject actually reads.
+
+MEASURED SOUND — every address it names verified present at HEAD (11 paths, one `find`), the
+prompt_guard flags it teaches are the tool's (`--identity`, `--snapshot DIR`, `--diff DIR` in
+its argparse), the `eval/suites/rendered` snapshot-and-diff wiring it describes is what
+`gates.yml` lines 155-164 actually run (bare guard, then `--diff eval/suites/rendered`, with
+the regenerate-deliberately comment beside it), and both finding citations are in range.
+
+REPAIRED here, two one-liners:
+
+- **"Register in `evaluate.py`" named no path.** The file is `eval/judge/evaluate.py` — the
+  skill's only pathless reference, in a list where every other entry is spelled from the root.
+  Rule 12's shape: the address is an input, and a dispatched agent resolving a bare stem from
+  its cwd is the failure the citation discipline exists to prevent. `RUBRIC.md` in the same
+  sentence got the same repair.
+- **"within-cell spread has been measured at 1.6×" cited nothing.** The figure is finding
+  #23's ("a single trial cannot calibrate a process whose within-cell spread is 1.6x",
+  `eval/findings/certifies-nothing.md`), found by reading the archive — no producer exists for
+  it and none should: it is a one-time measurement of one corpus, which is exactly the class
+  that cites its finding rather than re-derives. Now cited.
+
+Also examined and left alone, recorded so it is not re-derived: the "5 of 11" tier-2 figure
+names its producer (`tier2_census.py`) and instructs the reader to run it rather than quote
+the number, which is the convention working as designed; "differ by 6 points" is a property of
+`--identity`'s output format that the same section forbids quoting from memory; and the two
+`--runs-root <main checkout>/eval/runs` spellings are the worktree-era convention the judge
+docs already carry.
+
+Cost of the pass: one path and one citation; no behavior. The skill is in the sweep corpus.
+
+Next pointer: **`.agents/skills/update-readme/SKILL.md`** — 1 mention across all prior passes
+and it is a DECISIONS.md pin note, never a subject (no heading names it; counts and headings
+both checked). It governs edits to `README.md`, the front door — and four verified pull
+requests are waiting to land results into it, so the procedure that gates those edits is due
+its read before they arrive.
