@@ -3819,3 +3819,56 @@ that was never filed as a task, which name producers that have since been built 
 `eval/findings/*.md` bodies, `eval/FINDINGS.md` index, #19–#212. This is a different
 kind of subject — a pass over the log's open questions, not one file — and the queue's
 open count (5, of which 4 blocked or held) is the reason to run it now.
+
+## Pass 42 — 2026-09-01 — eval/FINDINGS.md + eval/findings/ read as a BACKLOG (194 findings triaged for open work never acted on) — 1 UNOWNED OPEN ITEM FOUND AND ITS TRIGGER MADE MECHANICAL
+
+The queue's own suggestion, offered three times as its open count fell to 4 blocked-or-held.
+Ran early rather than waiting for the monitor's next firing: the heartbeat had reported
+counters still three hours running, and this was the only authorised work available. Method:
+the index read whole (194 rows); a marker grep over the six body files
+(`still open`, `not yet established`, `unresolved`, `would need`, `not established`,
+`unmeasured`, `remains to be`) surfaced 45 lines; every candidate section read with context;
+each "filed as its own task" claim checked against `tasks/` status lines; each settled
+question checked against `DECISIONS.md`, not memory.
+
+**Closed before this pass, verified against artifacts — the log's open markers outlive their
+closures, which is the log working as designed but costs every future reader a re-derivation:**
+
+| open marker | closed by |
+|---|---|
+| #40 "why #40 is still open, and what would close it" | the section after it: closed on evidence, Unity measured mid-pack, 8 of 8 |
+| #84 "other criteria in the same class, not yet audited" | finding #88: both candidates measured, both clean |
+| #82 "Still open": g4_platformer__unity__t0 dies en route | "recorded as its own task" = `tasks/18`, status done |
+| the scene shift estimator's "own ticket" | `tasks/174`, status done |
+| #183 "no criterion was repaired; tasks/157–160 carry them" | `tasks/157`–`160`, all four done |
+| #104's starter-baseline hazard | settled inside the finding: baselines preserved under `eval/runs/<run>/starter-baselines/`, `repack.py` refuses unchecked packs |
+| whether spend tracks a cap; paced vs truncated | `DECISIONS.md` "No run is bounded by a money figure" (2026-08-23); the no-cap runs are the recorded configuration |
+| #172's unmeasured scene-ramp spread | standing decision 2026-08-24 (spaced, uncapped, exclusive); the real-data ask is held `tasks/145` |
+
+**THE FIND — #153's disable verification has never fired, and nothing carried the trigger.**
+`certifies-nothing.md` states the limit: the skillspector disable (2026-08-24) "is not yet
+verified to work — the pull request that disabled it touches no skill file, so its zero
+attachments are zero for the wrong reason. The next skill diff settles it." Verified never
+fired: every `.agents/skills/` change since is a direct push to main (`57af4a6` 08-29,
+`a3e0f1a`/`b0e0004`/`5e6b1cf` 08-30); the only merged pull request in the window (#98, 08-30)
+touches `eval/RUNS.md` and one judge tool. The condition needs a skill diff **through a pull
+request**, and the session that next produces one is a dispatched agent or a merge-time
+orchestrator — neither reads #153. REPAIRED in this pass, smallest mechanism that fires at the
+right moment: one paragraph in the **dispatch skill's merge procedure**
+(`.agents/skills/dispatch/SKILL.md`, after the gate list) — a branch touching `.agents/skills/`
+must count SkillSpector attachments on its pull request and record the count beside the switch
+in `DECISIONS.md`. A todo task was considered and rejected: nothing could dispatch it until a
+skill PR happened, so it would have sat in the queue as permanent undispatchable todo — the
+queue is for work, not watches.
+
+Noted, not filed: the open-marker table above is exactly the shape "a rule you must remember
+to re-derive" takes in prose — but `eval/FINDINGS.md` is the archive, superseded readings stay
+by design, and each closure is adjacent to its marker in the same body. The cost is one
+verification per future reader; rewriting closed sections would falsify the record.
+
+Next pointer: **`eval/tools/docstat.py`** — heading-verified never a whole-file subject across
+all 41 prior passes (the 2026-08-27 `eval/tools/` entry was reachability, and pass 39 read its
+CONTROL, `findings_control.py`, not the file). It is the producer behind the sweep, the
+findings count, the range check, the withdrawn register and the renumber triage — the gate
+every live-document claim in this repository passes through. Its census-trigger derivation
+lives in `DECISIONS.md` (task 92); the file itself is unread.
