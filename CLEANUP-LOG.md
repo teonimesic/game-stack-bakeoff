@@ -3948,3 +3948,76 @@ Next pointer: **`eval/tools/withdrawn_control.py` (391 lines)** — heading-veri
 across all prior passes; never a subject. It is the control harness for the withdrawal register
 (docstat.py credits it with five mutants each flipping the control), and the register is one of
 the sweep's gates — an instrument whose controls deserve the same read the instrument got.
+
+## Pass 44 — 2026-09-01 — eval/tools/withdrawn_control.py (391 lines, read whole) — THE #54 PRINCIPLE APPLIED TO 1 OF 5 CONTROLS; withdrawn_control'S MUTANTS NOW RUN BY DEFAULT
+
+Pass 43's pointer. Read whole, then everything verified live rather than believed: the 54
+controls run green at HEAD (13 register entries, agreeing with the sweep's count); all five
+mutants flip (41, 52, 50, 42, 53 of 54 — the inversion of the docstring's claim, now re-measured
+rather than cited).
+
+Examined and judged sound (so the next pass does not redo them): nine control classes, each with
+its reason stated in the docstring, each mapped to at least one live row; mutants patch FUNCTIONS
+never constants, with a before/after guard that catches a patch rebinding nothing (the
+constant-patched-after-import failure the file names as #12's corollary); the archive partition
+asserted in code for 8 live and 7 archive paths rather than promised by prose; HISTORICAL's limit
+stated rather than smoothed — `WR-20-of-24` predates the repository's first commit, its row
+proves the narrower thing, and the docstring says so; duty cycle clean — the unmutated run is a
+CI step (gates.yml:256), covered by the register's generic `*_control.py` clause, and its
+fail-closed behaviour on a shallow clone is documented in the checkout comment with the measured
+exits; per-entry fire-ability is exercised for ALL 13 entries on every sweep by the anchor check,
+so the 4 planted POSITIVEs are not the only thing standing between the patterns and silence; the
+hit-format parsing the controls lean on (`split(":")[0]`, `split("states `")`) verified against
+live output.
+
+**THE FIND — corpus_control's own docstring states the principle, and it was applied to 1 of the
+5 controls that need it.** Five controls carry a `--mutate` mode; no workflow step and no git
+hook invokes `--mutate` on ANY of them; only `corpus_control` runs its mutants in its DEFAULT
+pass (`sweep()`, whose docstring records the exact cost of the other shape: "no mutant ever ran
+outside an operator's terminal. A suite whose mutants are opt-in is a suite whose mutants are
+the one thing nobody re-runs", raised by CodeRabbit on PR #54). The four others —
+`withdrawn_control`, `fragment_control`, `findings_control`, `backup_evidence_control` — run
+bare in CI, so their mutants are person-invoked only, and no left-out row records that. For
+`withdrawn_control` it is worse than duty cycle: its five flips are the recorded justification
+for the withdrawal register gating at all (docstat.py's wiring note credits them), and their
+continued ability to fire was asserted nowhere. This is pass 43's finding one level up: an
+ability-to-fire claim whose truth nothing mechanical maintains.
+
+REPAIRED here for the subject file: `withdrawn_control.sweep()` — the corpus_control pattern
+verbatim in structure (clean pass, then every mutant with a leak-checked restore between runs,
+SURVIVED reported and exit 1 on any survivor), `--clean-only` preserving the controls-alone
+mode, `--mutate NAME` unchanged. The historical corpora are cached per process (`_CORPUS_CACHE`)
+so six control runs pay the three `git show`s once: the step goes 5s → 14.8s measured
+(`time python3 eval/tools/withdrawn_control.py`), not the naive 6×. Both directions proven
+(rule 15): the real sweep kills 5 of 5; a deliberately neutered `file_scope` in a throwaway copy
+reads SURVIVED at exit 1. `PATCHED` now names the rebindable attributes once, for the single-
+mutant guard and the sweep's leak check both.
+
+Filed, not done: task 231 converts the three remaining siblings and names `evidence_set_control`
+as mention-only (its mutants are unreachable by anyone, but its whole script is left out of CI
+with a recorded reason — a different question). The register gains a narrative row for the
+converted step, with the timing command written beside the figure per the count rule. No register
+COUNT moved: no step added or removed (`ci_minutes --gates` reads steps), and the `takes` spread
+is a dated reading of the last 12 runs that the register itself says to re-read rather than
+trust.
+
+Cost of the pass: the gates step this file owns goes from ~5s to ~15s, buying "the five flips
+run on every push" — the same trade corpus_control accepted at PR #54. Four gates re-run unpiped
+at the end (sweep, renumbered, tasks check, ci_minutes --controls), plus the converted step
+itself.
+
+Next pointer: **`eval/tools/triage_control.py` (232 lines)** — 0 mentions across all prior
+passes, verified by count rather than by heading-reading; never a subject. It is the control
+harness for the triage register, the sweep gate sitting next to the withdrawal register this
+pass read — the smallest of the never-examined controls, and the pattern this pass and pass 43
+established says the controls of gates deserve the read the gates got.
+
+Measured on the way out, gate working as designed: the first sweep after the register row was
+written went RED on it — the row cited "PR #54", and `WR-arch-ux-redundancy`'s match pattern is
+bare `#54`, so a pull-request number and a withdrawn finding's citation are the same string in a
+live document. The AGENTS.md namespace paragraph counts four hand-allocated namespaces that have
+all collided; this is a cross-namespace one, and the register cannot see the difference — in
+markdown, `#54` IS the finding citation, so the pattern is right by construction and the wording
+yielded: "PR 54", with the reason written beside it so the next editor does not restore the
+sigil and re-derive the red. (`corpus_control`'s docstring keeps "PR #54" freely — `.py` files
+are not in the register's corpus. Line 449's "PR #16" stays clean because no entry matches 16.)
