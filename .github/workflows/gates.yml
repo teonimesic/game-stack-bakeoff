@@ -282,7 +282,8 @@ jobs:
       # checkout, agent commits are not.
       # About 1s locally: `time python3 eval/tools/heartbeat_control.py`.
       # 2 runs of that command, minutes apart, differed by 28%. Throwaway git
-      # repositories under $TMPDIR: no history, no toolchain.
+      # repositories under $TMPDIR: a local fixture commit, no project history,
+      # no toolchain.
       - name: heartbeat_control (a work-tree main checkout, and only its copy counts)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/heartbeat_control.py

@@ -62,10 +62,10 @@ the working tree survives.
 `heartbeat_control` runs in about 1s — `time python3 eval/tools/heartbeat_control.py` is
 the reading — and asks whether the hourly heartbeat still refuses to report a count when it
 is pointed at the wrong tree. Its red cases:
-- a linked worktree's COPY of the heartbeat — the counts would be that branch's, plausible
-  and wrong, and `eval/runs/` being untracked, a fresh worktree reports all 3 output counts
-  as 0 (`tasks/229`). The address refusal runs first, so this is also what a worktree copy
-  is answered with when the main checkout is broken;
+- a linked worktree's COPY of the heartbeat — `python3 eval/tools/heartbeat.py` run there
+  counts that branch, plausible and wrong, and `eval/runs/` being untracked, reports all 3
+  output counts as 0 from a fresh worktree (`tasks/229`). The address refusal runs first,
+  so this is also what a worktree copy is answered with when the main checkout is broken;
 - `core.bare=true` in the main checkout, read from the main checkout;
 - a `core.worktree` pointing at a directory that does not exist;
 - a root that is no repository at all.
