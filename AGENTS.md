@@ -130,6 +130,13 @@ counts are byte-identical to a healthy run. The refusal names the path, both set
 reach that state, and the one-line repair. **No git hook can carry this check**: `git commit`
 exits 128 before any hook runs.
 
+**And it refuses when the copy that runs is not the main checkout's.** The counts read the tree
+the running copy lives in, so from a linked worktree — which agents have — they are branch-local
+and plausible: work landing on any other branch reads as work disappearing, and `eval/runs/`
+being untracked, a fresh worktree reports all three output counts as 0 (`tasks/229`). The
+refusal names both addresses; the repair is to run the main checkout's copy. `heartbeat_control.py`
+pins both refusals.
+
 > **"Nothing moved" is a claim about the snapshot, not about the world.** Three times the
 > counters sat still through real work: once the file list went by extension, once by
 > directory, once it counted source when the work produced JSON. Check the artifacts before

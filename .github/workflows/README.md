@@ -60,13 +60,17 @@ refusals out of the tool's own source and must turn them red.
 no document corpus: it kills a child mid-plant in a throwaway git repository and asks whether
 the working tree survives.
 `heartbeat_control` runs in about 1s — `time python3 eval/tools/heartbeat_control.py` is
-the reading — and asks whether the hourly heartbeat still refuses to report a
-count when the **main checkout is not a work tree**. Its red cases are `core.bare=true` read
-from the main checkout, the same read from a linked worktree, a `core.worktree` pointing at a
-directory that does not exist, and a root that is no repository at all. Its green cases are
-`core.bare=false`, `core.bare` absent, and a healthy checkout read from a linked worktree. It
-works on throwaway repositories under `$TMPDIR`, restores the configuration in a `finally`, and
-carries 1 mutant: the guard removed.
+the reading — and asks whether the hourly heartbeat still refuses to report a count when it
+is pointed at the wrong tree. Its red cases are `core.bare=true` read from the main checkout,
+the same read from a linked worktree, a `core.worktree` pointing at a directory that does not
+exist, a root that is no repository at all, and a linked worktree's COPY of the heartbeat —
+the counts would be that branch's, plausible and wrong, and `eval/runs/` being untracked, a
+fresh worktree reports all three output counts as 0 (`tasks/229`). Its green cases are
+`core.bare=false` and `core.bare` absent; the live row adapts to where the control itself
+runs, because CI checks out the main worktree and agents commit from linked ones. It works on
+throwaway repositories under `$TMPDIR`, restores the configuration in a `finally`, and carries
+2 mutants: the work-tree guard removed, and the address comparison removed — each reproducing
+the silent pre-fix behaviour.
 `fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
 directions; its `whole_line` mutant is the design measured as a complete false negative, so it
 is what stops that being tried again. Its REAL row reads a historical blob, which needs the

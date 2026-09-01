@@ -1,21 +1,36 @@
 #!/usr/bin/env python3
-"""Can the heartbeat's work-tree guard go red, and can it still go green?
+"""Can the heartbeat's guards go red, and can they still go green?
 
     python3 eval/tools/heartbeat_control.py
 
-`heartbeat.py` refuses to report a count when the MAIN CHECKOUT is not a work tree — the
-state `core.bare=true` reaches, and a `core.worktree` pointing nowhere reaches too. This is
-the pair of questions `AGENTS.md` rules 1 and 15 ask of that guard: a mutant asks whether it
-*can* fail, and the variants ask whether it can still *pass* on inputs it might mishandle.
+`heartbeat.py` refuses to report a count in two states, one address each:
+
+1. THE MAIN CHECKOUT is not a work tree — the state `core.bare=true` reaches, and a
+   `core.worktree` pointing nowhere reaches too (`tasks/184`).
+2. THE COPY THAT RUNS is not the main checkout's. `collect` counts ROOT, derived from
+   `__file__`; from a linked worktree's copy — and agent worktrees are full checkouts —
+   every count went branch-local, plausible and wrong, while the row below called that
+   green (`tasks/229`). The counts read the tree the running copy lives in, so WHICH copy
+   runs is part of the measurement, and only a comparison of the two addresses holds it.
+
+These are the questions `AGENTS.md` rules 1 and 15 ask of both guards: a mutant asks whether
+each *can* fail, and the variants ask whether each can still *pass* on inputs it might
+mishandle.
 
 THE SUBJECT IS A FIXTURE, AND THE LIVE REPOSITORY IS ONLY EVER READ
 ------------------------------------------------------------------
-Row `live_green` runs the real `heartbeat.py` against this checkout and changes nothing. Every
+The live row runs the real `heartbeat.py` against this checkout and changes nothing. Every
 red row is produced in a throwaway repository under `$TMPDIR` instead, because setting
 `core.bare` on the real main checkout would, for as long as it stood, stop `git worktree add`,
 every merge, and every git command any concurrent session ran there. `tasks/184` asks for the
 red direction to restore the flag in a `finally`; the fixture does that too, since a fixture
 left bare would poison the rows after it.
+
+The live row adapts to where THIS CONTROL runs, and that is not a hedge: from the main
+checkout (CI, the monitors) the live heartbeat must count; from a linked worktree — and every
+dispatched agent commits from one — counting IS the defect `tasks/229` removed, so the live
+run must refuse and name both addresses. Each branch asserts a definite expectation, so the
+refusal is pinned against the real repository from wherever the gate happens to run.
 
 THE GUARD IS NOT ASKED TO CONFIRM ITSELF
 ----------------------------------------
@@ -23,14 +38,20 @@ Each row sets the state with `git config` and then reads the answer out of a **f
 `python3` process**, so acceptance is never mistaken for propagation (`tasks/175`, #202). The
 expected text is spelled out here rather than imported from `heartbeat.py`: a control that
 builds its expectation by calling its subject has no second statement of the fact to compare
-against (`AGENTS.md` rule 12, task 113).
+against (`AGENTS.md` rule 12, task 113). The live worktree row derives the main checkout's
+path from `git rev-parse --git-common-dir` — a different command than the heartbeat's
+`worktree list` — so the expectation is a second derivation, not the subject's own answer.
 
-WHAT THE MUTANT ESTABLISHES
----------------------------
-`mutant_bare_silent` deletes the guard call and runs the result against the broken fixture.
-It must exit **0 with a full count block** — which is not only "the check can fail", it is
-the pre-fix behaviour reproduced: `heartbeat.py` printed byte-identical output in a bare
+WHAT THE MUTANTS ESTABLISH
+--------------------------
+`mutant_bare_silent` deletes the work-tree guard call and runs the result against the broken
+fixture. It must exit **0 with a full count block** — which is not only "the check can fail",
+it is the pre-fix behaviour reproduced: `heartbeat.py` printed byte-identical output in a bare
 checkout and in a healthy one, at exit 0 both times, while `git status` beside it exited 128.
+`mutant_root_compare_silent` deletes the address comparison and runs the result from the
+fixture's linked worktree, where the pre-fix heartbeat counted branch-local at exit 0 — the
+defect `tasks/229` was filed from, reproducible on demand instead of only in the session that
+found it.
 
 WHAT IT DOES NOT COVER
 ----------------------
@@ -51,15 +72,24 @@ from pathlib import Path
 TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parents[1]
 
-#: The 3 things every refusal has to say, stated here and NOT read from `heartbeat.py`.
-#: `tasks/184`: the guard "names `core.bare` and states the one-line repair in its own output,
-#: so the next session reads the fix rather than deriving it". The refusal prints BOTH keys it
-#: knows about whichever one is set, so a reader who meets the other state still learns that the
-#: check looked at it.
+#: The 3 things every work-tree refusal has to say, stated here and NOT read from
+#: `heartbeat.py`. `tasks/184`: the guard "names `core.bare` and states the one-line repair in
+#: its own output, so the next session reads the fix rather than deriving it". The refusal
+#: prints BOTH keys it knows about whichever one is set, so a reader who meets the other state
+#: still learns that the check looked at it.
 WANT_IN_REFUSAL = (
     "NOT A WORK TREE",
     "core.bare",
     "core.worktree",
+)
+
+#: The same for the address refusal (`tasks/229`): what it must say no matter which two
+#: addresses it is shown. The paths themselves are asserted per row, as whole lines, because
+#: a refusal naming the WRONG worktree still contains a worktree path -- the whole-line rule
+#: below.
+WANT_ROOT_REFUSAL = (
+    "NOT THE MAIN CHECKOUT",
+    "No count is reported",
 )
 
 
@@ -121,19 +151,40 @@ def _build_fixture(base: Path) -> tuple[Path, Path]:
 
 
 def _mutant(script: Path) -> Path:
-    """`heartbeat.py` with the guard CALL deleted, written beside the original.
+    """`heartbeat.py` with the work-tree guard CALL deleted, written beside the original.
 
-    The replacement is asserted to have changed something. A mutant that silently failed to
-    apply is a row that passes for the wrong reason, which is the defect this file exists to
-    catch elsewhere.
+    The anchor is asserted UNAMBIGUOUS as well as present — `src.count(call) == 1`, the
+    rule pass 39 of the cleanup log added to the sibling runners: an anchor occurring twice
+    mutates whichever copy came first, silently, and the rows then grade a mutation this
+    file did not name.
     """
     src = script.read_text(encoding="utf-8")
-    call = "    _assert_main_checkout_is_a_work_tree()\n"
-    if call not in src:
-        raise SystemExit("heartbeat_control: the mutant could not find the guard call "
-                         f"{call.strip()!r} in {script} — it has been renamed or removed, so "
+    call = "    _assert_main_checkout_is_a_work_tree(main)\n"
+    n = src.count(call)
+    if n != 1:
+        raise SystemExit(f"heartbeat_control: the guard call {call.strip()!r} occurs {n} "
+                         f"times in {script} (want 1) — renamed, removed or ambiguous, so "
                          "no row below is asking what it claims to ask.")
     out = script.with_name("heartbeat_mutant.py")
+    out.write_text(src.replace(call, "", 1), encoding="utf-8")
+    return out
+
+
+def _mutant_root(script: Path) -> Path:
+    """`heartbeat.py` with the ADDRESS comparison deleted, written beside the original.
+
+    The second guard's own mutant: without this row the address refusal is one edit away
+    from silent removal while every row above it stays green — the decay `tasks/229` was
+    filed to prevent. The anchor carries the same unambiguity assertion as `_mutant`.
+    """
+    src = script.read_text(encoding="utf-8")
+    call = "    _assert_root_is_main_checkout(ROOT, main)\n"
+    n = src.count(call)
+    if n != 1:
+        raise SystemExit(f"heartbeat_control: the address-comparison call {call.strip()!r} "
+                         f"occurs {n} times in {script} (want 1) — renamed, removed or "
+                         "ambiguous, so no row below is asking what it claims to ask.")
+    out = script.with_name("heartbeat_root_mutant.py")
     out.write_text(src.replace(call, "", 1), encoding="utf-8")
     return out
 
@@ -171,9 +222,39 @@ def main() -> int:
         rows.append((name, ok, note))
 
     # ---- the known-good row: the live repository, read and not touched -------------------
+    # WHERE THIS CONTROL RUNS DECIDES WHICH ANSWER IS RIGHT, and each branch asserts a
+    # definite expectation. From the main checkout (CI, the monitors) the live heartbeat
+    # must count; from a linked worktree -- and every dispatched agent commits from one --
+    # counting IS the defect tasks/229 removed, so the live run must refuse and name both
+    # addresses. The main checkout's path is derived here from `--git-common-dir`, a
+    # different command than the heartbeat's `worktree list`, so the expectation is a
+    # second derivation of the fact rather than the subject's own answer (AGENTS.md
+    # rule 12, task 113).
+    common = _git(ROOT, "rev-parse", "--git-common-dir")
+    if common.returncode != 0:
+        raise SystemExit(f"heartbeat_control: `git rev-parse --git-common-dir` failed in "
+                         f"{ROOT} (exit {common.returncode}): {common.stderr.strip()}")
+    common_path = Path(common.stdout.strip())
+    common_path = common_path if common_path.is_absolute() else ROOT / common_path
+    # The common dir is the .git DIRECTORY; the main checkout that holds it is its parent.
+    # From the main checkout `--git-common-dir` answers `.git` relative, from a worktree it
+    # answers absolute -- both spellings land here.
+    live_main = common_path.resolve().parent
+    here = ROOT.resolve()
     r = _run_heartbeat(TOOLS / "heartbeat.py")
-    row("live_green", r.returncode == 0 and "project_lines=" in r.stdout,
-        f"this checkout, unmodified: exit {r.returncode}")
+    if live_main == here:
+        row("live_green", r.returncode == 0 and "project_lines=" in r.stdout,
+            f"this checkout is the main checkout, unmodified: exit {r.returncode}")
+    else:
+        ok, missing = _refused(r, [
+            *WANT_ROOT_REFUSAL,
+            f"    this copy (ROOT, from __file__):   {here}\n",
+            f"    main checkout (git worktree list): {live_main}\n",
+            f"    python3 {live_main}/eval/tools/heartbeat.py",
+        ])
+        row("live_red_from_worktree", ok,
+            f"this checkout is a LINKED WORKTREE: exit {r.returncode}; missing from the "
+            f"refusal: {missing or 'nothing'}")
 
     # RESOLVED, and that is not tidiness. On darwin `$TMPDIR` is `/var/folders/...`
     # while `/var` is a symlink to `/private/var`, so `git worktree list` reports the
@@ -194,9 +275,34 @@ def main() -> int:
 
         healthy = r.stdout
 
+        # ---- red: the SECOND guard, and the state tasks/229 was filed from ---------------
+        # A linked worktree's copy of the heartbeat counts branch-local, plausible and
+        # wrong: agent worktrees are full checkouts, so the counts are findings and tasks
+        # of one branch read as the project's, and `eval/runs/` being untracked, a fresh
+        # worktree reports all three output counts as 0. The refusal must name BOTH
+        # addresses as whole lines and point the repair at the main checkout's copy -- a
+        # repair naming the wrong checkout still contains a path, so fragments would pass
+        # it (the rule `_refused`'s docstring holds).
         r = _run_heartbeat(hb_wt)
-        row("linked_worktree_green", r.returncode == 0 and "project_lines=" in r.stdout,
-            f"core.bare=false, run in a LINKED WORKTREE: exit {r.returncode}")
+        ok, missing = _refused(r, [
+            *WANT_ROOT_REFUSAL,
+            f"    this copy (ROOT, from __file__):   {wt.resolve()}\n",
+            f"    main checkout (git worktree list): {main_ck}\n",
+            f"    python3 {main_ck}/eval/tools/heartbeat.py",
+        ])
+        row("linked_worktree_refuses", ok,
+            f"a linked worktree's copy, core.bare=false: exit {r.returncode}; missing "
+            f"from the refusal: {missing or 'nothing'}")
+
+        # The mutant: the pre-fix behaviour, reproduced on demand. The address comparison
+        # deleted, the worktree copy counts again -- identical to the healthy main-checkout
+        # block, because the fixture's two checkouts hold the same commit. That identity is
+        # what made the defect invisible: plausible, wrong, exit 0.
+        root_mutant = _mutant_root(hb_wt)
+        r = _run_heartbeat(root_mutant)
+        row("mutant_root_compare_silent", r.returncode == 0 and r.stdout == healthy,
+            f"address comparison deleted: exit {r.returncode}, output "
+            f"{'identical to the healthy run' if r.stdout == healthy else 'DIFFERS'}")
 
         _git(main_ck, "config", "--unset", "core.bare")
         try:
@@ -298,8 +404,9 @@ def main() -> int:
         print(f"{'ok  ' if ok else 'RED '} {name:<{width}}  {note}")
     print(f"\n{len(rows) - bad} / {len(rows)} rows as expected")
     if bad:
-        print("A row above did not come out as expected. The heartbeat's work-tree guard "
-              "is not doing what this control says it does.", file=sys.stderr)
+        print("A row above did not come out as expected. The heartbeat's guards -- the "
+              "work-tree guard and the address comparison -- are not doing what this "
+              "control says they do.", file=sys.stderr)
         return 1
     return 0
 
