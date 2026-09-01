@@ -3872,3 +3872,79 @@ CONTROL, `findings_control.py`, not the file). It is the producer behind the swe
 findings count, the range check, the withdrawn register and the renumber triage — the gate
 every live-document claim in this repository passes through. Its census-trigger derivation
 lives in `DECISIONS.md` (task 92); the file itself is unread.
+
+## Pass 43 — 2026-09-01 — eval/tools/docstat.py (6005 lines, read whole) — THE #70 PACK-LABEL GATE WAS NEVER PINNED; #70's "Pinned both ways" CLAIM MADE TRUE; 1 REDUNDANT CORPUS SCAN REMOVED
+
+Pass 42's pointer. Read whole over two sittings. Four suspicions raised while reading; each
+verified against live artifacts before acting; **three dissolved on measurement, one survived,
+and it is the pass's finding.**
+
+**THE FIND — the pack-label gate has run since 2026-08-22 with no pin anywhere, and finding #70
+says "Pinned both ways."** `git log --all -S pack_label_pins` is empty; no pin suite references
+the check; nothing else exercises it. The gate fires only on real defects, so its entire
+observable history is "0 rows over a clean corpus" — byte-identical to a check that cannot fire
+(AGENTS.md rule 15's exact shape). The false claim sits in the ARCHIVE
+(`eval/findings/documentation.md`, the #70 section), so the repair **adds the pins rather than
+editing the archive**: the archive's job is to record what was believed, and what was believed
+here was wrong until today.
+
+REPAIRED in this pass, TDD red→green: `_pack_label_hits` extracted verbatim from the sweep loop
+so the pins drive the same code the sweep runs, on text in memory — not a re-implementation
+beside it (task 113's lesson: a control that recomputes its expectation from its own copy agrees
+with every mutant of the copy and none of the subject). `_pack_label_pins`: 11 cases — 4 red
+(the defect shape plus each marker of the alternation: glob, `__seed`, `repeats7`), 6 green
+(single round; the correct join key; each exemption on the use the finding blesses), and 1 green
+THE CHANNEL (rule 7): the defect excused by `mapping` in its own trailing comment, pinned
+as-is so any tightening of the exemption moves that row consciously. Wired into `--selftest`
+after `_bare_flag_pins` and into `--sweep` after `_count_trigger_pins`; `pack_seen` counter and
+summary clause added (163 modules — agrees with the measured live corpus). Red confirmed first
+(NameError on `_pack_label_hits`), then green: selftest 213 PASS, 0 pins wrong.
+
+**The gate caught its own pins.** The first sweep run after the pins landed went RED with 5
+rows — all 5 the pins' own fixture strings, because the check reads `*.py` and now scans
+docstat.py itself. Repair: the `["label"]` token split across an implicit string concatenation,
+so every fixture stays byte-identical at runtime while no physical line of the pins file
+matches the trigger. The pins verify the split: one fixture was initially mis-split
+(`reps[0][""label']` — a doubled quote) and the red pin failed on it, catching the defect before
+any sweep run saw it. A malformed split fails loudly; a weakened exemption would not.
+
+Measured and NOT filed, with the reason: the substring exemption (`mapping`/`manifest` anywhere
+in the line) is load-bearing in exactly its loose form. Live corpus 2026-09-01: 163 modules
+scanned, 26 carry a multi-round marker, 3 trigger lines — all in `eval/judge/field.py`, all 3
+exempted for a use #70 itself blesses (resolving through the mapping; reading a manifest). The
+obvious tightening — the exemption word must PRECEDE the trigger — breaks a correct live line
+in field.py. An exemption-tightening task was considered and rejected: it would prescribe a
+repair toward a measured false positive, and the channel the loose form leaves open is now
+pinned green instead, which is the fail-loud version of the same vigilance.
+
+Folded in, one variable: `_check_withdrawal_register()` ran twice on the sweep's clean path
+(once discarding its summary, once re-run for the summary alone — a full-corpus scan each
+time). Now one call, summary reused. Output verified byte-identical clause by clause against
+the pre-change run.
+
+Examined and judged sound (so the next pass does not redo them): LEGACY_BARE_IDS exact at 18
+(no slack note + clean exit ⇒ no drift); recursive `**` glob does not descend into
+dot-directories (measured in a throwaway tree) — agent worktrees under `.claude/` are excluded
+from the pack-label scan doubly, by the dot rule and by REPO=eval/; corpus pins include a
+hostile GIT_DIR test and a planted-register control; GIT_* env vars scrubbed in `_git_at`/
+`_git_bytes`; the fail-closed refusals hold (`_tracked_paths` raises on git failure,
+`read_findings_census` refuses rather than reporting 0); the renumbered corpus pins are wrapped
+so a pin that cannot run reddens rather than passes; HARNESS_TRIGGER's inert `judge/`
+alternative is recorded rather than repaired — its loose boundary is deliberate (it admits
+`regrade_wholegame.py`, which the 4-name trigger it replaced missed); `_DELIBERATELY_FAKE`'s
+`plant\w*` covers every inflection (the one-inflection failure class); both-direction pins
+throughout are red on REAL historical blobs (1f6fb65, 75dde71), not synthetic strings. The
+money-unit gate's closed-class predicate and the census predicate's 0/28 pin record were
+verified against DECISIONS.md, not memory.
+
+Cost of the pass: one sweep cycle went red on the pins' own fixtures (a live demonstration the
+trigger fires on real input — the exact property whose absence was the finding), and four gates
+run unpiped at the end, all green: `docstat.py --sweep`, `docstat.py --renumbered`,
+`tasks.py check`, `eval/tools/ci_minutes.py --controls`. (The last of those was first invoked at
+the wrong address, `eval/ci_minutes.py` — the rule-12 row about aiming at an unverified path,
+firing again on the writer of the row.)
+
+Next pointer: **`eval/tools/withdrawn_control.py` (391 lines)** — heading-verified 0 mentions
+across all prior passes; never a subject. It is the control harness for the withdrawal register
+(docstat.py credits it with five mutants each flipping the control), and the register is one of
+the sweep's gates — an instrument whose controls deserve the same read the instrument got.
