@@ -4190,3 +4190,39 @@ prior passes, neither a subject (one names its authoritative file, one a verify_
 note). Its authoritative file `eval/PROTOCOL.md` was a subject on 2026-08-26 and both have
 moved since; no pass has ever asked whether the skill and the doc it defers to still agree,
 which is the #38 failure mode in its native habitat.
+
+## Pass 49 — 2026-09-01 — .agents/skills/run-matrix/SKILL.md (108 lines, read whole) — NOTHING FOUND; the #38 check against its authoritative file comes out clean
+
+Subject of pass 48's pointer, read whole. The question this pass existed for: the skill and
+`eval/PROTOCOL.md` — subject of the 2026-08-26 pass — have both moved since, and no pass had
+asked whether they still agree. They do, on every point this pass could verify:
+
+- **The standing configuration agrees.** Skill §2 and PROTOCOL.md line 107 state the same
+  thing in the same shape: `--max-turns 1000`, do not pass `--max-budget-usd`, with the #159
+  reasoning (a stated cap terminates and instructs; neither protects anything) in both.
+- **The measured rate is the record's.** Skill says 72.83 over 369 turns = 0.197/turn,
+  n=1, read off `g3_arena__rust__t0` in `wg-arena3d-2026-08-15T12-46-30`; PROTOCOL.md line 139
+  carries 0.1974 for the same trial; the stored record reads `agent.cost_usd = 72.8348` and
+  `agent.num_turns = 369`. Both documents quote the record faithfully, name the producer
+  (`runstat.py --run-dir ...`) and state n=1.
+- **Every file the skill names exists** at its implied address from `eval/` (`wholegame.py`,
+  `tools/runstat.py`, `judge/verify_blind.py`, `judge/bot_mutants.py`,
+  `judge/audio_selftest.py`, `tools/precampaign_smoke.py`).
+- **§3's retry-scoping warning is wholegame.py's own documented behavior**: the rmtree
+  hazard is in the source's comments (line 375), and `--only` exists and *refuses* an id it
+  cannot see (lines 718-729) — the guard the warning leans on.
+
+Also examined and sound: §1's blind-check recipe (copies outside the repo, EXIT-trap cleanup,
+unpiped exit code) matches `eval/judge/AGENTS.md`'s blinding rule it points at; §5's wedge
+signature (frozen CPU across two samples AND zero descendants) is the AGENTS.md rule-2/#37
+diagnostic order; §7's `agent.cost_usd` field name confirmed in the same record.
+
+Nothing repaired, nothing filed. Two consecutive found-nothing passes on skills that were
+dispatched agents' actual procedures all session — recorded as evidence the
+write-the-correction-into-the-file discipline is holding, not as grounds to stop checking.
+
+Next pointer: **`eval/judge/JUDGING.md`** — 6 mentions across all passes, never a subject by
+heading (checked). It is the subjective layer's authority and the `evaluate-run` skill's
+authoritative file; `RUBRIC.md` and `PROTOCOL.md` have both been subjects, the doc between
+them has not, and the last four passes each verified a procedure against ITS authority — this
+is the one authority no pass has opened.
