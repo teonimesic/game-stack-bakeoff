@@ -3759,3 +3759,63 @@ zero mentions, never a subject; heading verified — "Count what the stored tree
 holds, so no document has to remember."). It is the producer behind AGENTS.md's
 keep-current table and one withdrawn register entry (WR-tree-census-one-level is about
 its numbers) — the tool whose figures live documents quote has never itself been read.
+
+## Pass 41 — 2026-09-01 — eval/tools/census.py (749 lines, read whole) — 1 DEFECT FILED (task 230), blocked on PR #107 landing
+
+**First, the coverage correction.** Pass 40's pointer below says "grep over this log
+before this entry: zero mentions". That grep used the full path `eval/tools/census.py`,
+which matches nothing; the bare substring matches 26 lines — sibling tool names
+(`tier1_census.py`, `cost_census.py`), register prose, and two prior pointers. What is
+true and what mattered: **no pass heading ever took census.py as its subject.** Pass 25's
+"Not opened" note calling it a "prior subject" traced to the 2026-08-27 `eval/tools/`
+directory pass, which read the directory for GATE REACHABILITY (46 tools classified by
+purpose), not any file's content. Never read whole before this pass. The lesson is the
+log's own rule 12 shape: say what was grepped FOR, and at what address.
+
+Pointer from pass 40. Read in one read. The classifier region (lines 80–144:
+`WHOLEGAME_KEY`, `TASK_CLASSES`, `_ABSENT`, `task_class_of`, `NOT_A_RUN`, the
+`harness_of` import) is **in-flight** — PR #107 moves all of it into
+`eval/agent_harness.py` so the two census producers stop spelling their own partition —
+so every finding was cross-checked against `/tmp/p107-verify` before filing.
+
+**Sound, and a lot of it.** Refuses rather than reporting zero, twice (missing tree,
+empty tree), each as `CensusError` exit 2 with the address printed beside every count.
+Depth-independent search with the #127 archive-wrapper case in the selftest, and the
+agent-authored skip COUNTED and reported rather than silent. `_priced` refuses three
+cost shapes that are numbers to a reader and not to an aggregate — bool (an `int` to
+`isinstance`), NaN/inf (one makes the whole total NaN), absent — plus the foreign
+harness whose USD is another vendor's price list (#159), and each exclusion is COUNTED,
+not just dropped (#36). `null` vs absent `task_class` separated by a sentinel, with the
+absent-reads-as-game claim argued as a fact about the corpus rather than a default.
+The selftest states its known answer before measuring, pins the crash shapes by name,
+and asserts both halves of every partition (pooled AND not pooled).
+
+**THE FIND — the module's own named shape, unfixed for one key.** `load_records`
+refuses a non-object record (line 190), a null `agent` block (line 200) and an unknown
+`task_class` (line 206) **by name**, each with a comment saying an error several frames
+away naming no file is loud and useless. The partition then reads `d["stack"]` bare in
+five places (269, 275, 276, 305, 326) over records guaranteed only `game`. Reproduced
+2026-09-01: a record carrying `game` and no `stack` dies with a bare
+`KeyError: 'stack'` at census.py:269, exit 1, no path named — and a scene variant hits
+the same crash at lines 326–327. **Survives PR #107**: reproduced against
+`/tmp/p107-verify` at its line 229; `population_of` in the PR's `agent_harness.py`
+validates the class on every record but no key presence. FILED as task 230, with the
+fixture recipe and the shared-classifier placement question (after #107, both
+producers classify through `agent_harness`, which is where a key-presence refusal
+belongs if the loaders are to name the file). The ticket records the dependency: **same
+file as the in-flight PR, lands after #107 merges** — so it is queued, not dispatched.
+
+Noted, not filed: the `specchange` section carries no `harness` counter while its three
+sibling sections do (asymmetry in a diagnostic block, not a sum anyone quotes); a
+selftest comment says "until pull request 21" for what the register would call #36
+(harmless, and comments are archive). The queue tool's own suggestion — re-read
+`eval/FINDINGS.md` for anything filed and never acted on — is taken up next pass
+rather than folded into this one, which was already a file subject.
+
+Next pointer: **`eval/FINDINGS.md` + `eval/findings/`, read as a backlog rather than as
+a log** — the sweep the heartbeat has asked for twice: which findings state open work
+that was never filed as a task, which name producers that have since been built (their
+"instead" is now runnable), and which are actionable-but-orphaned. Heading verified:
+`eval/findings/*.md` bodies, `eval/FINDINGS.md` index, #19–#212. This is a different
+kind of subject — a pass over the log's open questions, not one file — and the queue's
+open count (5, of which 4 blocked or held) is the reason to run it now.
