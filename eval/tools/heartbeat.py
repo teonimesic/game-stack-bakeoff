@@ -75,7 +75,9 @@ and every count went branch-local, plausible and wrong -- work landing on any ot
 branch read as work disappearing, and `eval/runs/` being untracked, a fresh worktree
 reported 0 runs, 0 judge rounds and 0 graded submissions (measured before the fix: exit
 0, `runs=0`, against a main checkout holding 16, 97 and 85). `_assert_root_is_main_
-checkout` compares the two addresses and refuses, naming both; `heartbeat_control.py`
+checkout` compares the two addresses and refuses, naming both, and is asked FIRST -- so a
+worktree copy is answered with both addresses even when the main checkout is broken too.
+`heartbeat_control.py`
 pins it in both directions and carries the mutant that deletes the call.
 
     python3 eval/tools/heartbeat.py          # key=value lines, one per metric
@@ -228,6 +230,11 @@ def _assert_root_is_main_checkout(root: Path, main: str) -> None:
     `heartbeat_control.py` pins this refusal in both directions, from the live repository
     and from a fixture, and carries the mutant that deletes the call below -- the pre-fix
     behaviour, reproduced on demand.
+
+    IT RUNS BEFORE THE WORK-TREE PROBE. A worktree copy with a broken main checkout is
+    answered HERE, with both addresses, rather than by a refusal about the checkout that
+    names only the checkout: run the right copy first, and the next refusal, if one still
+    fires, fires where ROOT is the main checkout and its address is the running copy's.
     """
     if Path(root).resolve() == Path(main).resolve():
         return
@@ -419,14 +426,20 @@ def _criteria() -> int:
 
 def collect() -> dict[str, int]:
     # FIRST, because every metric below is a statement about the main checkout and
-    # `git ls-files` answers happily in a bare one. TWO refusals, one address each: the
-    # first asks whether the main checkout is usable, the second asks whether THIS COPY
-    # lives there. Either alone leaves the other unguarded -- the first alone counted
-    # branch-local from a worktree (`tasks/229`), the second alone would count a bare
-    # checkout's index (`tasks/184`).
+    # `git ls-files` answers happily in a bare one. TWO refusals, one address each, and
+    # THE ORDER IS LOAD-BEARING: the address comparison runs before the work-tree probe,
+    # so a reader in the wrong copy is sent to the right one before anything about the
+    # checkout itself is diagnosed -- and every refusal that can then fire names both
+    # paths, or fires where ROOT IS the main checkout, so naming main names the running
+    # copy. Work-tree first, the order until PR #109's review, refused a worktree copy
+    # with a broken main checkout by naming only the main checkout -- and telling the
+    # reader that linked worktrees go on working, which that reader would have taken as
+    # licence to count branch-local. Either guard alone leaves the other unguarded: the
+    # address guard alone would count a bare checkout's index (`tasks/184`), the work-tree
+    # guard alone counted branch-local from a worktree (`tasks/229`).
     main = _main_checkout_path()
-    _assert_main_checkout_is_a_work_tree(main)
     _assert_root_is_main_checkout(ROOT, main)
+    _assert_main_checkout_is_a_work_tree(main)
     tracked = _tracked_files()
     n_findings, highest = _findings()
     tasks = _tasks()

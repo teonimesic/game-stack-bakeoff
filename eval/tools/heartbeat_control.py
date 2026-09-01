@@ -12,6 +12,9 @@
    every count went branch-local, plausible and wrong, while the row below called that
    green (`tasks/229`). The counts read the tree the running copy lives in, so WHICH copy
    runs is part of the measurement, and only a comparison of the two addresses holds it.
+   That comparison runs FIRST, so every refusal that can fire from a worktree is this one,
+   naming both addresses -- including the state where the main checkout is broken too,
+   which the bare-state refusal answered with one address until PR #109's review.
 
 These are the questions `AGENTS.md` rules 1 and 15 ask of both guards: a mutant asks whether
 each *can* fail, and the variants ask whether each can still *pass* on inputs it might
@@ -326,15 +329,23 @@ def main() -> int:
             row("bare_red_from_main", ok,
                 f"exit {r.returncode}; missing from the refusal: {missing or 'nothing'}")
 
-            # The variant a naive probe misses: from a linked worktree `git rev-parse
-            # --is-bare-repository` answers `false`, and everything the agent does still
-            # works. That second half is asserted rather than only printed — it is the
-            # reason no git hook can carry this check, and a row that merely reported it
-            # would go on passing if linked worktrees stopped working.
+            # The COMBINED state, and the reason the address refusal runs first: a worktree
+            # copy with a bare main checkout is answered with the ADDRESS refusal, naming
+            # both addresses -- not with a refusal about the checkout that names only the
+            # checkout. `git rev-parse --is-bare-repository` answers `false` from a linked
+            # worktree and every git command the agent runs there still works -- asserted
+            # rather than printed, because it is why no git hook can carry the bare-state
+            # check, and a row that merely reported it would go on passing if linked
+            # worktrees stopped working.
             wt_status = _git(wt, "status", "--porcelain")
             r = _run_heartbeat(hb_wt)
-            ok, missing = _refused(r, want_bare)
-            row("bare_red_from_linked_worktree", ok and wt_status.returncode == 0,
+            ok, missing = _refused(r, [
+                *WANT_ROOT_REFUSAL,
+                f"    this copy (ROOT, from __file__):   {wt.resolve()}\n",
+                f"    main checkout (git worktree list): {main_ck}\n",
+                f"    python3 {main_ck}/eval/tools/heartbeat.py",
+            ])
+            row("bare_main_from_worktree_refuses_address", ok and wt_status.returncode == 0,
                 f"exit {r.returncode} while `git status` in that worktree is exit "
                 f"{wt_status.returncode}; missing: {missing or 'nothing'}")
 
