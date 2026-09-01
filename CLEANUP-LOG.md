@@ -4156,3 +4156,37 @@ and it is a DECISIONS.md pin note, never a subject (no heading names it; counts 
 both checked). It governs edits to `README.md`, the front door — and four verified pull
 requests are waiting to land results into it, so the procedure that gates those edits is due
 its read before they arrive.
+
+## Pass 48 — 2026-09-01 — .agents/skills/update-readme/SKILL.md (174 lines, read whole) — NOTHING FOUND; every verifiable claim checked and none failed
+
+Subject of pass 47's pointer, read whole and verified claim by claim — deliberately, because
+this is the procedure that will gate the README edits when the four waiting pull requests land.
+A found-nothing pass recorded as the result it is: several passes find almost nothing, and the
+record of what was checked is what stops the next pass redoing it.
+
+VERIFIED AT HEAD, each against the artifact rather than against the sentence:
+
+- All 7 producer paths in §3 exist (`census.py`, `instruction_census.py`, `judge_ledger.py`,
+  `tier1_census.py`, `tier2_census.py`, `field_ranks.py`, `linkcheck.py` — existence checks).
+- `python3 eval/tools/tasks.py list` (§7) exists at line 1687 and runs at exit 0. Recorded
+  because the pass's own first grep, truncated by `head`, made it look absent — the check that
+  almost manufactured a phantom, one section before the skill says `--sweep` does not check
+  paths and a phantom once passed it.
+- §9's claim that `renumber_triage.json` pins exact substrings of README is true: 43 rows,
+  including `README.md` / cites 103 / anchor `keeps the other (#100, #103)` — read from the
+  register, not remembered.
+- §5's statement that `docstat --sweep` does not check file paths agrees with AGENTS.md's own
+  audit of the sweep's coverage; `linkcheck.py --selftest` before the live run is rule 12's
+  corollary stated as a command.
+- §2's `$421` example carries the #159 discipline in its own wording (a list-price valuation,
+  "rather than a price"), and the reference-style `[#128]` + bottom-block link shape it
+  mandates is what linkcheck's anchor derivation makes safe.
+
+Nothing repaired, nothing filed. The skill is accurate at HEAD on every point this pass could
+check mechanically.
+
+Next pointer: **`.agents/skills/run-matrix/SKILL.md`** (108 lines) — 2 mentions across all
+prior passes, neither a subject (one names its authoritative file, one a verify_blind exit
+note). Its authoritative file `eval/PROTOCOL.md` was a subject on 2026-08-26 and both have
+moved since; no pass has ever asked whether the skill and the doc it defers to still agree,
+which is the #38 failure mode in its native habitat.
