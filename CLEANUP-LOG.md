@@ -4021,3 +4021,51 @@ markdown, `#54` IS the finding citation, so the pattern is right by construction
 yielded: "PR 54", with the reason written beside it so the next editor does not restore the
 sigil and re-derive the red. (`corpus_control`'s docstring keeps "PR #54" freely — `.py` files
 are not in the register's corpus. Line 449's "PR #16" stays clean because no entry matches 16.)
+
+## Pass 45 — 2026-09-01 — eval/tools/triage_control.py (232 lines, read whole) — 1 PHANTOM NAME IN A LIVE DOCSTRING, and the pass-44 gap measured as not applying here
+
+Subject of pass 44's pointer, read in full and run at HEAD before anything was judged. Green:
+43 register entries, 0 problems; 37 undecidable rows, 37 paired.
+
+JUDGED SOUND, recorded so the next pass does not redo it:
+
+- **The pass-44 gap (opt-in mutants nobody re-runs) does not apply, and the reason is
+  structural, not historical.** withdrawn_control's clean pass reads the real corpus, where
+  green is the expected result — a neutered mechanism is invisible there, so its mutants are
+  the only can-fail proof and their opt-in status was the defect. triage_control's run instead
+  PLANTS defects and asserts specific reds: UNMATCHED, AMBIGUOUS, ABSENT, SELF and UNPARSEABLE
+  each name the problem string they require, so every run is its own can-fail proof of the
+  gate half, and the pairing half carries rule 15's other direction — two variants
+  (line-number drift, past-column-96) with the negative and the VARIANT control that state the
+  truncation bug they hold shut. A mutant sweep here would mostly re-prove what every run
+  already proves; no conversion task filed, and this is the measurement that decision rests on.
+- Duty cycle: `gates.yml` names and runs it bare (lines 268-270), required tier.
+- The CI register names it nowhere and owes no row: `ci_minutes --controls` enforces coverage
+  at the script level and the narrative rows are deliberately selective; a tier runs it, so
+  the exclusion table is the only place a row could be owed and it is not owed there.
+- Every docstat internal the suite names exists at HEAD (`_History`, `_check_renumbered_citations`,
+  `TRIAGE_PATH`, `_load_triage`, `_triage_index`, `_row_line`, `_triage_for`,
+  `_check_triage_register` — grep, unpiped).
+
+REPAIRED here, docstring only, no behavior:
+
+- **`_assert_redirected` did not exist.** The `Tree` docstring credited a function by that name
+  with refusing to run the controls until the redirect was proven; the mechanism is real and
+  inline — the REDIRECT control in `register_controls` — but the name occurs exactly once in
+  the repository, in the sentence naming it (grep over `eval/` and `.agents/`). Finding #38's
+  class: a document naming something that does not exist is confidently wrong. It survived
+  because `docstat --sweep` reads markdown and not `.py` docstrings, which is the boundary the
+  defect lives exactly one line inside.
+- **"36 rows nobody has read" was a digit from writing time with no producer.** The live
+  register holds 43 entries and 37 undecidable rows; nothing gates a triage-row count, which is
+  precisely why the figure could go stale unobserved. Reworded to the property ("a register of
+  rows nobody has read"), the mechanism unchanged. Both edits are inside the module docstring,
+  and the suite re-ran green after them (exit 0).
+
+Cost of the pass: 4 docstring lines moved; no gate, register or count touched. Triage register
+unmoved: 43 entries before and after.
+
+Next pointer: **`.agents/skills/work/SKILL.md`** — 0 mentions across all prior passes by count,
+never a subject. It is the procedure every dispatched agent runs — five of them this session —
+and the dispatch skill's step-5 rule ("the defect is here or in the ticket") has been exercised
+repeatedly without the work skill itself ever being read by a pass.
