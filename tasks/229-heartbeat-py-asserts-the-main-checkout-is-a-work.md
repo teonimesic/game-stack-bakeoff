@@ -1,10 +1,11 @@
 ---
 id: 229
 title: heartbeat.py asserts the main checkout is a work tree, then counts the tree its own file lives in
-status: todo
+status: in_review
 priority: 3
 refs: Clean-up pass 40 (CLEANUP-LOG.md); AGENTS.md rule 12; task 228 for the --selftest pattern and its census consideration; the worktree agents' fork of the fivefold-jump incident, heartbeat.py docstring case 2
 done_when: 'heartbeat.py refuses to count, with the refusal naming both paths, when ROOT is not the main checkout (the main path is already computed by _main_checkout_path - the comparison is one line plus the message). The refusal is pinned so it does not decay the way pass-37''s prose-only verification did: a --selftest mode (following findings_control.py''s pattern, task 228) asserts the refusal fires when the two addresses differ and does not fire when they match; if --selftest is added, ci_minutes.py''s census rule applies (named by a workflow step or recorded as left out in .github/workflows/README.md). The pin runs red-first: demonstrate the current code counting happily from a worktree copy before adding the refusal. Hand-run verification counts too, but only if the pin exists afterwards - the reverse (fix now, pin later) is the decay this queue exists to prevent.'
+pr: https://github.com/teonimesic/game-stack-bakeoff/pull/109
 ---
 
 Cleanup pass 40 read eval/tools/heartbeat.py whole. _assert_main_checkout_is_a_work_tree probes git rev-parse --is-inside-work-tree AT the path git names as the main checkout - and then collect() counts ROOT, derived from __file__, i.e. the checkout the RUNNING COPY lives in. Nothing compares the two. Run from a linked worktree's copy (agent worktrees are full checkouts), the refusal passes - the main checkout IS a work tree - and every count goes branch-local: findings, tasks and project_lines become plausible-and-wrong for the branch (read as work disappearing), and eval/runs/ is absent in a fresh worktree so the three output counts read 0. The docstring's claim that worktrees are 'excluded by construction' is true only when the copy that runs is the main checkout's - AGENTS.md states that exclusion as a property of the metric, and it is a property of the invocation address. This is AGENTS.md rule 12's shape exactly: the check verifies one address while the measurement reads another.
