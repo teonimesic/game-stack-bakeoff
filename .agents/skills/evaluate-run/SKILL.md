@@ -76,6 +76,10 @@ pack two aspects read.
 
 Then, in order, and none may be skipped:
 
+0. **Reproducibility** — `JUDGING.md`'s gate 0, and it comes first because two of four gate
+   verdicts once flipped with the evidence held byte-identical. Judge the same field in the
+   SAME presentation order twice before believing any verdict below; a single-run gate result
+   is a sample, not a measurement.
 1. **Ceiling** — no judge may grade everything the same. Watch the *mode*, not just the
    top score: a judge putting seven of eight at the bottom reads as healthy otherwise.
 2. **Independence** — if aspects produce the same ranking there is one judge with many

@@ -4226,3 +4226,90 @@ heading (checked). It is the subjective layer's authority and the `evaluate-run`
 authoritative file; `RUBRIC.md` and `PROTOCOL.md` have both been subjects, the doc between
 them has not, and the last four passes each verified a procedure against ITS authority — this
 is the one authority no pass has opened.
+
+## Pass 50 — 2026-09-01 — `eval/judge/JUDGING.md` (1,462 lines, read whole) — 4 REPAIRS: a closed priority list still asking for work, a scene claim its own stored record contradicts (in two docs), and a gate the evaluate-run skill omits
+
+Pass 49's pointer: the one authority no pass had opened — `RUBRIC.md` and `PROTOCOL.md` had
+both been read, the doc between them had not.
+
+**Repaired:**
+
+1. **The closing priority list ("What would improve the layer most, in order") presented
+   items 1-4 as outstanding while the document's own body had closed them.** Item 1 asked
+   for the adjudication that §"That ordering is withdrawn" records as done (all eleven
+   firings adjudicated, none a property of the games, `FINDINGS.md` §26). Item 2 asked for
+   the judge the 9-aspect table above it says exists. Item 3's comparative rewrite is
+   literally what "each judge scores the whole field" is, and RUBRIC.md records the rubric
+   replacement. Item 4 is half-done (`fun` built and its pre-registration answered; a
+   difficulty-and-tuning aspect never built). Each item now carries its outcome, in the form
+   item 5 already used — its DONE marker proved the list was being read as live, which is
+   what made the others a defect rather than history. The design-time sections above it (the
+   layer matrix, "the three worth building first") were left as history: their own framing
+   dates them, and the repaired list now signposts their outcomes.
+2. **"No scene has been built" was false against the stored record.** One scene trial
+   exists: `wg-scene-s1ts-2026-08-25/trials/s1_parallax__ts__t0.json` reads `task_class:
+   "scene"`, `terminal_reason: harness_kill_external` at wall 3,599 s, no frames, and a
+   record_note stating it is NOT a completed trial and must never enter a submission
+   population. Both documents carrying the clause were last committed AFTER the run
+   (SCENES.md `0d270fb` 2026-08-27, JUDGING.md `fe96eee` 2026-08-28) — a missed update, not
+   old age — and the 2026-08-28 pass that read the scene layer whole missed it too. Repaired
+   in JUDGING.md and in `eval/SCENES.md` ("because no scene has been built" → no scene
+   submission exists, with the trial named). The load-bearing claim — no scene field packed,
+   no round run — was checked against the stored rounds and holds.
+3. **The `evaluate-run` skill's ordered gate list omitted reproducibility** — `JUDGING.md`'s
+   gate 0, "run this before believing any of the others", and the one whose verdicts have
+   flipped on byte-identical input. The skill listed 4 gates under "none may be skipped";
+   blinding was covered by its §0, gate 0 was covered nowhere. Inserted as item 0, matching
+   the doc's numbering. Same #38 direction as pass 49, one file over: skill vs its own
+   authority.
+4. `../IMPROVEMENTS.md` → `eval/IMPROVEMENTS.md` (the falsifier confirmed at
+   `eval/IMPROVEMENTS.md:282`; every other path in the file is repo-relative, and a relative
+   path defeats grep).
+
+**Verified and sound** (the pass's main work — the doc is the subjective layer's authority
+and nearly everything in it is checkable):
+
+- **Producers run, not quoted:** `frame_parity.py --runs-root eval/runs` → 67 submissions
+  with frames, 0 non-uniform — reproduces the doc's "0 of 67" exactly. `paired_verdicts.py
+  --runs-root eval/runs` → 9 groups, 5 at 0.00% on denominators 30-148, max 2.86% (4 of 140)
+  — reproduces the discrimination paragraph digit for digit.
+- **`len(ASPECTS) = 9`** imported and counted, not grepped; 6 game + 3 scene as tabled.
+- **Every named symbol exists where the doc says:** `control_for="fun"`,
+  `FRAMES_BLIND_SPOT`, `applicability` (called at pack, at run_field's refusal, and in
+  field_sweep), build_pack's MAPPING refusal sites, `separation`, `reproducibility`,
+  `order_invariance`, `independence`, `ceiling`, `warn_rounds_without_provenance`
+  (field_sweep.py:215), `neutralise` (anonymise.py:294), `assert_poolable` /
+  `assert_one_run` / the `NOT POOLED` prints / `cross_stack_bar` (field_ranks.py),
+  `assert_out_run` (field_sweep.py:270), `Sampler` (sequential.py:146), `MAX_RUNS = 24`,
+  `n_for_statistical_tie` (reported key, sequential.py:222); flags `--max-rounds`,
+  `--max-wall-min`, `--sequential`, `--max-runs`, `--allow-truncated`. `pack_parity` is
+  absent, as the doc says (deleted, task 202).
+- **All 3 withdrawal register entries** the doc names are in `eval/withdrawn.json`.
+- **RUBRIC agreement:** "Tier 1 is a GATE" (RUBRIC.md:67) against this doc's "one scored
+  tier"; the old rubric's replacement is RUBRIC's own section.
+- **Internal arithmetic spot-checked:** the $105-$635 and $211-$388 / $738-$1,357 /
+  $1,264-$2,327 projections, $58-$653 at 96 rounds, the SD/SE tables (0.418/√5 = 0.187 and
+  friends), the truncation table's SE column, 1.74× → 1.5-1.8× opens and ~1.25× cost, the
+  unadjudicated pattern's 1.857 vs 0.286 (6.5×), and the zero-SE discount table (23-7=16
+  etc.).
+- **29 file/directory existence checks.** Two run names the doc cites as date prefixes
+  resolve to `wg-matrix-2026-08-13T14-02-50` and `wg-g4c-2026-08-21T02-26-46` — the exact
+  names missed, the prefixes unique; recorded as a rule-12 near-miss against my own check,
+  not the doc.
+
+**Judged sound, deliberately untouched:** `--max-cost` still exists as a field_sweep flag
+while the doc says the ceiling "no longer exists" — the doc means the authorisation
+(DECISIONS.md: no run is bounded by a money figure), not the flag. Two rounding edges left
+alone: the per-aspect costs sum to 100.85 against a stated 100.84 total, and SE at n=6
+reads 0.2499 from the rounded 0.612 where the doc says "equal, not below" — both
+unroundable from the table, neither actionable.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged of 37), tasks check exit 0 (230 well-formed).
+
+Next pointer: **`DECISIONS.md`** (4,058 lines) — 0 headings across all 50 passes (checked),
+25 mentions, every one a pointer target, never a subject. It is the most-cited authority in
+this log and the only top-level document with no dedicated skill or producer gate watching
+it. README.md is the same shape (386 lines, 21 mentions, never a subject) but is the most
+gated doc in the repository — three producer checks, renumber-triage pins, a dedicated
+skill; DECISIONS first.

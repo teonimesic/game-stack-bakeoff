@@ -407,10 +407,11 @@ host does to a frame-time number, and it decides the design. The short form:
 - **Report the ramp with its budget and resolution.** A level number without them is not a
   quantity anyone can compare later.
 
-**What is still unmeasured is the run-to-run spread of a real submission**, because no scene has
-been built. Every figure above is one fixed synthetic workload and is therefore a floor: it says
-the machine is not what stops a ramp, and it cannot say the submission is not. Measure that on
-the first scene that exists, before reporting any stack comparison.
+**What is still unmeasured is the run-to-run spread of a real submission**, because no scene
+submission exists: the one scene trial on disk (`s1_parallax__ts__t0`, 2026-08-25) was killed
+mid-build and never filmed. Every figure above is one fixed synthetic workload and is therefore
+a floor: it says the machine is not what stops a ramp, and it cannot say the submission is not.
+Measure that on the first scene that exists, before reporting any stack comparison.
 
 ## Tier 3 aspects for scenes
 
