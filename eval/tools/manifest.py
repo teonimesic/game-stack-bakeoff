@@ -136,6 +136,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# ONE definition of the agent-authored skip list, imported rather than restated. This
+# module, `tools/census.py`, `tools/cost_census.py` and `judge/tier1_census.py` each
+# carried a copy beside a comment promising the others agreed — a comment where an
+# assertion belongs (task 227). The selftest pins the import by identity.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from agent_harness import NOT_A_RUN  # noqa: E402
+
 # Schema 1: stacks/games/trials/model/max_turns/max_budget_usd/work_root/started_at.
 # Schema 2 adds `run_dir` (self-identification) and `manifest_schema`, and on a re-run
 # `supersedes` / `previous_started_at`.
@@ -455,12 +462,6 @@ class RunAudit:
 def is_run_directory(d: Path) -> bool:
     return d.is_dir() and (
         (d / "trials").is_dir() or any(d.glob("suite*.json")))
-
-
-#: Directories written by a building agent or a toolchain rather than by a harness. Not
-#: descended into. Same list as `tools/census.py::NOT_A_RUN` and
-#: `judge/tier1_census.py::NOT_A_RUN`, for the same reason and against the same tree.
-NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
 
 
 def find_run_directories(runs_dir: Path) -> tuple[list[Path], list[Path]]:
