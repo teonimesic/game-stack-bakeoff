@@ -3174,15 +3174,15 @@ large one is counted as unreadable rather than as a jump. **The shipped estimato
 the reference, 5 of 44 on the nearest-first variant, 2 of 44 on the 1.5x variant — and every one
 of the 8 is the same shape**, on the band holding a car the camera follows.
 
-**1 submission has now met these criteria, and the two populations are stated apart wherever a
-scene score is reported.** Every threshold was still chosen against fixtures written by the same
-hand as the criteria; the stored population is work an agent produced, and neither is the other.
-`scene_mutants.py --census` reports what each criterion separated over FIXTURES and says so;
-`--census --runs-root <main checkout>/eval/runs` additionally reads every stored scene grading
-under the root into per-criterion tables under its own banner, refuses a record that does not
-carry exactly the shape `scene_probe.drive` writes — named reason, named file, in no count — and
-prints `NOT ASKED` on a tree holding no gradings rather than `0 separated`. `--census-selftest`
-proves the census can say NO, in both halves.
+**1 submission meets these criteria. Fixture and stored populations are reported apart, and
+no scene score pools them.** Every threshold is chosen against fixtures written by the same hand
+as the criteria; the stored population is work an agent produced. `scene_mutants.py --census`
+reports what each criterion separated over FIXTURES and says so; `--census --runs-root <main
+checkout>/eval/runs` additionally reads every stored scene grading under the root into per-criterion
+tables under its own banner, and refuses a record that does not carry exactly the shape
+`scene_probe.drive` writes: the record's file is named by reason, and it enters no count. On a tree
+holding no gradings it prints `NOT ASKED` rather than `0 separated`. `--census-selftest` proves
+the census can say NO, in both halves.
 
 **To re-open:** a real submission that any criterion fails for a reason that is not about the
 submission — which is #46's shape and the honest prior here; an estimator miss that is not the
