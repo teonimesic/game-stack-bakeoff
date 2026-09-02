@@ -4817,3 +4817,36 @@ mentions across all passes — checked; pass 56's stated alternate). The per-fol
 AGENTS.md files are the rules every session loads, and this one has never been read
 whole against what is true now. Alternate: `eval/G4-PLATFORMER.md` (0 heading
 mentions) — the fourth game's design record, which README cites for its criteria.
+
+## Pass 58 — 2026-09-02 — the `dup` section of `prune_scan.py`, read whole (4 hits), and the scan's dead/lint totals re-read
+
+Ran `python3 eval/tools/prune_scan.py` and read its `dup` section exhaustively; each hit
+adjudicated against the file, not against the scanner's claim:
+
+- **A paragraph shared by all 4 `eval/starters/*/AGENTS.md`** — the placeholder rule, the
+  "a red gate on an untouched tree is a defect here" rule, and the red-then-green repair
+  discipline. **Sound.** A starter tree is extracted ALONE into a trial, so it cannot
+  reference a sibling stack: self-containment is by construction, and the copies are
+  identical by intent. This is not #99's shape — that finding was a preamble carrying
+  STACK-SPECIFIC claims into a single-variable experiment; these paragraphs are
+  stack-neutral working contract. Cross-copy drift is `starter_parity`'s question (and
+  task 235 is open on exactly that tool's blindness).
+- **`rust/docs/bevy-0.19-notes.md` <-> `unity/docs/unity-6-notes.md`** — 2 paragraphs: the
+  "signatures and deltas, not a tutorial" design rationale (with its ICSE/−15% evidence)
+  and "trust the compiler over this file". Same verdict: one design statement, deliberate
+  in each self-contained note. Sound.
+- **`tasks/01..11` and `tasks/24..26` preambles** — the `work` skill's boilerplate,
+  identical by design. Sound.
+
+**Also read, no action:** `dead` returns 0; `lint` totals (43 PLW1510 / 8 BLE001) sit on
+the triaged baseline of #105 — a hit from either is a site nobody has considered, but
+none of today's rows named a new defect worth a ticket; `history` (108) is dominated by
+CLEANUP-LOG.md's own entries and AGENTS.md:94, both archive-by-nature or deliberate
+motivation history. `fat`: the largest section in the repo is AGENTS.md's
+"Rules this project learned the hard way" — the evidence the rules were bought with,
+excluded from pruning by the skill's own never-list.
+
+**Next pass candidate:** `eval/tools/` complexity rows (`cost_census.py` `selftest` at
+cx 114 and ci_minutes `_selftest` at cx 216 are the two biggest functions in the repo) —
+readable for split candidates, low urgency, and each is a pinned selftest where churn
+is its own risk.

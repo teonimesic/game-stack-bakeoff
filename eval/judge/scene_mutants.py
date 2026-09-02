@@ -688,42 +688,272 @@ def _cell(passed: bool | None, scored: bool | None) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def stored_scene_gradings(runs_root: Path | None) -> tuple[int, list[str]]:
-    """How many SCENE gradings exist on disk, and where.
+# --------------------------------------------------------------------------- #
+# The stored corpus: every scene grading on disk, read or refused
+# --------------------------------------------------------------------------- #
 
-    Zero is not a result about the criteria and must never be printed as one - it is
-    `NOT ASKED`. A census that reports "0 submissions separated" from an empty tree is
-    the shape AGENTS.md rule 12 is about: a sound method aimed at an address holding
-    nothing.
+
+@dataclass(frozen=True)
+class StoredGrading:
+    """One stored scene grading, read. `passed`/`scored` carry every criterion of
+    the record's scene - the shape check below refuses anything less."""
+
+    path: str
+    scene: str
+    passed: dict[str, bool]
+    scored: dict[str, bool]
+    total_passed: int
+    total: int
+    score: float
+
+
+@dataclass(frozen=True)
+class StoredRefusal:
+    """A record that exists on disk and cannot be read exactly. Named, counted,
+    and entered into no count: an assumed verdict is a verdict about a submission
+    nobody measured (`audio_regrade_census.py`'s discipline, rule 7)."""
+
+    path: str
+    reason: str
+
+
+def read_stored_grading(rec: Any, path: str) -> StoredGrading | StoredRefusal:
+    """One parsed candidate record -> a grading, or a refusal naming its defect.
+
+    The record carries exactly the shape `scene_probe.drive` writes - `tier`,
+    `scene`, `criteria[]` with `id`/`passed`/`scored`, `unscored{}`, `score`,
+    `usable` - and every field is cross-checked against the criteria list, so a
+    corrupted or hand-edited record cannot enter the counts half-read. `bool` is a
+    subclass of `int` in Python, so every numeric field refuses a bool explicitly,
+    and `passed`/`scored` read as strict bools because `bool("false")` is True
+    (rule 7). A scene the registry does not hold is refused rather than mapped: its
+    criteria were defined against a registry this checkout may no longer agree with.
     """
-    if runs_root is None:
-        return -1, []
-    if not runs_root.is_dir():
-        return -1, [f"{runs_root} is not a directory"]
-    # PARSE IT. Matching `'"tier": "scene_probe"'` and its unspaced twin is an
-    # enumeration of 2 serialisations out of an open set - any other spacing, or an
-    # indented writer, counts zero, and the caller then prints "0 scene gradings on
-    # disk. No scene has been built or graded", which is a claim about the world drawn
-    # from a matcher that can only under-count.
-    found = []
-    for path in runs_root.rglob("*.json"):
+    if not isinstance(rec, dict):
+        return StoredRefusal(
+            path, "NOT_AN_OBJECT - a grading must be a JSON object carrying tier, "
+                  "scene and criteria")
+    scene_name = rec.get("scene")
+    if not isinstance(scene_name, str) or scene_name not in scene_probe.SCENES:
+        return StoredRefusal(
+            path, f"UNKNOWN_SCENE - {scene_name!r} is not a scene this instrument "
+                  f"registers; no criteria registry can be chosen for it without "
+                  f"guessing")
+    want = [cid for cid, _q in scene_probe.SCENES[scene_name].criteria]
+    crits = rec.get("criteria")
+    if not isinstance(crits, list):
+        return StoredRefusal(
+            path, "NO_CRITERIA_LIST - the record carries no list of criteria, so "
+                  "there is nothing to count")
+    passed: dict[str, bool] = {}
+    scored: dict[str, bool] = {}
+    seen: set[str] = set()
+    for c in crits:
+        if not isinstance(c, dict):
+            return StoredRefusal(
+                path, "MALFORMED_CRITERION - a criteria entry is not an object")
+        cid = c.get("id")
+        if not isinstance(cid, str):
+            return StoredRefusal(
+                path, "MALFORMED_CRITERION - a criterion id is not a string")
+        if cid in seen:
+            return StoredRefusal(
+                path, f"DUPLICATE_CRITERION - {cid!r} appears more than once; "
+                      f"counting it twice would count the measurement twice")
+        p, s = c.get("passed"), c.get("scored")
+        if not isinstance(p, bool) or not isinstance(s, bool):
+            return StoredRefusal(
+                path, f"MALFORMED_CRITERION - {cid!r} carries passed={p!r} "
+                      f"scored={s!r}; a verdict that is not a boolean would compare "
+                      f"as a pass (bool(\"false\") is True)")
+        if cid not in want:
+            return StoredRefusal(
+                path, f"UNDECLARED_CRITERION - {cid!r} is not one of "
+                      f"{scene_name}'s criteria; the record was graded against a "
+                      f"registry this checkout does not hold")
+        seen.add(cid)
+        passed[cid] = p
+        scored[cid] = s
+    if seen != set(want):
+        missing = sorted(set(want) - seen)
+        return StoredRefusal(
+            path, f"INCOMPLETE_CRITERIA - the record carries no verdict for "
+                  f"{missing}; the missing criteria would silently leave the counts")
+    unscored = rec.get("unscored")
+    if not isinstance(unscored, dict):
+        return StoredRefusal(
+            path, "UNSCORED_DISAGREEMENT - unscored is not an object of reasons")
+    if set(unscored) != {cid for cid in want if not scored[cid]}:
+        return StoredRefusal(
+            path, "UNSCORED_DISAGREEMENT - unscored's keys are not exactly the "
+                  "criteria the record scored False; the record disagrees with "
+                  "itself about what it measured")
+    total, n_passed = rec.get("total"), rec.get("passed")
+    n_scored = sum(1 for cid in want if scored[cid])
+    n_scored_passed = sum(1 for cid in want if scored[cid] and passed[cid])
+    if (not isinstance(total, int) or isinstance(total, bool) or total < 0
+            or not isinstance(n_passed, int) or isinstance(n_passed, bool)
+            or n_passed < 0 or n_passed > total):
+        return StoredRefusal(
+            path, f"TOTALS_DISAGREEMENT - passed={n_passed!r} total={total!r} is "
+                  f"not a pair of counts")
+    if total != n_scored or n_passed != n_scored_passed:
+        return StoredRefusal(
+            path, f"TOTALS_DISAGREEMENT - the record says {n_passed}/{total} but "
+                  f"its criteria list holds {n_scored_passed}/{n_scored} scored; "
+                  f"the score and the verdicts disagree")
+    usable = rec.get("usable")
+    if not isinstance(usable, bool) or usable != (total > 0):
+        return StoredRefusal(
+            path, f"USABLE_DISAGREEMENT - usable={usable!r} against a record that "
+                  f"scored {total} criteria; `usable` is bool(scored) by contract")
+    score = rec.get("score")
+    want_score = n_passed / total if total else 0.0
+    if isinstance(score, bool) or not isinstance(score, (int, float)) \
+            or score != want_score:
+        return StoredRefusal(
+            path, f"SCORE_DISAGREEMENT - score={score!r} against "
+                  f"{n_passed}/{total}; the stored score is not its own record's "
+                  f"division")
+    return StoredGrading(path, scene_name, passed, scored, n_passed, total,
+                         float(score))
+
+
+def stored_scene_records(runs_root: Path
+                         ) -> tuple[list[StoredGrading], list[StoredRefusal], int]:
+    """Every stored scene grading under `runs_root`: read, or refused by name.
+
+    Two nets over one walk, because unreadable and absent are different claims
+    (rule 12):
+
+    - every `playbot.json` - the one address `evaluate.py` writes a tier-2 grading
+      to, scene or game alike - is a candidate whatever it holds, so an unparseable
+      one or one naming a tier neither instrument writes is a REFUSAL, never a
+      silent zero;
+    - every other `*.json` whose CONTENT parses to `tier == "scene_probe"` is a
+      candidate too, so a grading stored under another name is still found.
+
+    The content match parses rather than spells out serialisations, and it can
+    only under-count: a non-playbot json that fails to parse cannot name its tier,
+    and stays out. A game-tier playbot.json is not a refusal - it is another task
+    class's record, out of this population by construction - and is returned as
+    the third value so a "nothing found" can say what the walk DID see.
+    """
+    gradings: list[StoredGrading] = []
+    refusals: list[StoredRefusal] = []
+    n_playbot = 0
+    for path in sorted(runs_root.rglob("*.json")):
+        is_slot = path.name == "playbot.json"
         try:
-            doc = json.loads(path.read_text())
-        except (OSError, ValueError):
+            rec = json.loads(path.read_text())
+        except (OSError, ValueError) as exc:
+            if is_slot:
+                refusals.append(StoredRefusal(
+                    str(path), f"UNREADABLE_JSON - the tier-2 slot holds an "
+                               f"unreadable record: {exc}"))
             continue
-        if isinstance(doc, dict) and doc.get("tier") == "scene_probe":
-            found.append(str(path))
-    return len(found), found
+        if not isinstance(rec, dict):
+            if is_slot:
+                refusals.append(StoredRefusal(
+                    str(path), "NOT_AN_OBJECT - the tier-2 slot holds a JSON "
+                               "array or scalar, not a record"))
+            continue
+        tier = rec.get("tier")
+        if tier == "scene_probe":
+            out = read_stored_grading(rec, str(path))
+            if isinstance(out, StoredGrading):
+                gradings.append(out)
+            else:
+                refusals.append(out)
+        elif is_slot:
+            if tier == "playbot":
+                n_playbot += 1
+            else:
+                refusals.append(StoredRefusal(
+                    str(path), f"UNCLAIMED_SLOT - the tier-2 record names tier "
+                               f"{tier!r}, which is neither scene_probe nor "
+                               f"playbot, so no reader owns it"))
+    return gradings, refusals, n_playbot
+
+
+def _census_stored(runs_root: Path | None) -> None:
+    """The stored-corpus half of `--census`: per-criterion counts over every
+    stored scene grading, every file named, refusals loud. Printed under its own
+    banner so no reader can mistake it for the fixture tables above."""
+    if runs_root is None:
+        print("Stored scene gradings: NOT ASKED - pass --runs-root <main checkout>/"
+              "eval/runs to look.")
+        return
+    if not runs_root.is_dir():
+        print(f"Stored scene gradings: {runs_root} is not a directory")
+        return
+    gradings, refusals, n_playbot = stored_scene_records(runs_root)
+    if not gradings and not refusals:
+        if n_playbot:
+            print(f"Stored scene gradings: NOT ASKED - 0 scene gradings on disk. "
+                  f"{n_playbot} playbot.json record(s) under the root, all "
+                  f"game-tier: no scene has been built or graded. This is not "
+                  f"'separated nothing'; it is a question that has not been put.")
+        else:
+            print("Stored scene gradings: NOT ASKED - 0 scene gradings on disk, "
+                  "and no tier-2 record at all. No scene has been built or "
+                  "graded. This is not 'separated nothing'; it is a question "
+                  "that has not been put.")
+        return
+    bar = "=" * 78
+    print(f"\n{bar}")
+    print(f"STORED SCENE GRADINGS - the corpus: {len(gradings)} record(s) under "
+          f"{runs_root}, {len(refusals)} refused.")
+    print("Every file is named; a refused record is named and enters no count "
+          "below. This")
+    print("population is work an agent produced; the tables above are fixtures "
+          "written by")
+    print("this repository, and neither population is the other.")
+    print(bar)
+    by_scene: dict[str, list[StoredGrading]] = {}
+    for g in gradings:
+        by_scene.setdefault(g.scene, []).append(g)
+    for scene in sorted(by_scene):
+        gs = by_scene[scene]
+        cls = scene_probe.SCENES[scene]
+        print(f"\n{scene}: {len(gs)} stored grading(s)")
+        for g in gs:
+            print(f"  {g.path}   {g.total_passed}/{g.total} scored "
+                  f"(score {g.score:.3f})")
+        w = max(len(cid) for cid, _ in cls.criteria)
+        print(f"{'criterion':<{w}}  {'pass':>5} {'fail':>5} {'unsc':>5}  separated")
+        print("-" * (w + 40))
+        for cid, _ in cls.criteria:
+            p = sum(1 for g in gs if g.scored[cid] and g.passed[cid])
+            f = sum(1 for g in gs if g.scored[cid] and not g.passed[cid])
+            u = sum(1 for g in gs if not g.scored[cid])
+            if p and f:
+                sep = "yes"
+            elif u == len(gs):
+                # The probe's scored=False means the experiment could not be set
+                # up - a different claim from `measured, one value only`.
+                sep = "NO - UNSCORED ON EVERY STORED GRADING"
+            else:
+                sep = "NO - AN OPEN QUESTION"
+            print(f"{cid:<{w}}  {p:>5} {f:>5} {u:>5}  {sep}")
+    if refusals:
+        print("\nREFUSED - in the population, readable by nobody, in no count "
+              "above:")
+        for r in refusals:
+            print(f"  {r.path}\n    {r.reason}")
 
 
 def census(rows: list[tuple[str, str, str, dict[str, bool], dict[str, bool]]],
            runs_root: Path | None) -> int:
-    """What each criterion separated, over the population that exists.
+    """What each criterion separated, over each population that exists.
 
-    **The population here is FIXTURES, not submissions.** No scene has been built or
-    graded, so this answers *can this criterion take both values, and on what* - never
-    *does it separate real work*. A criterion is discriminating on a corpus it has met;
-    every criterion in `scene_probe.py` has met none.
+    **The tables here are FIXTURES, not submissions**, and they answer *can this
+    criterion take both values on material this repository wrote, and on what* -
+    never *does it separate real work*. Beside them, when `--runs-root` is passed,
+    `_census_stored` reads every stored scene grading on disk and reports the same
+    question over the corpus. The two populations are printed under different
+    banners and are never pooled: a fixture is written by the same hand as the
+    criterion, a grading is not.
     """
     by_scene: dict[str, list] = {}
     for scene, kind, label, passed, scored in rows:
@@ -749,19 +979,7 @@ def census(rows: list[tuple[str, str, str, dict[str, bool], dict[str, bool]]],
     print("\nTHE POPULATION ABOVE IS FIXTURES, NOT SUBMISSIONS. It answers whether a "
           "criterion\nCAN take both values on material this repository wrote, which is "
           "not the same question\nas whether it separates work an agent produced.")
-    n, where = stored_scene_gradings(runs_root)
-    if n < 0:
-        print("Stored scene gradings: NOT ASKED - pass --runs-root <main checkout>/"
-              "eval/runs to look.")
-    elif n == 0:
-        print("Stored scene gradings: NOT ASKED - 0 scene gradings on disk. No scene "
-              "has been\nbuilt or graded, so no criterion here has ever met a "
-              "submission. This is not\n'separated nothing'; it is a question that has "
-              "not been put.")
-    else:
-        print(f"Stored scene gradings: {n} found - {where[:3]}. Extend this census to "
-              f"read them\nrather than reporting the fixture population as if it were "
-              f"the corpus.")
+    _census_stored(runs_root)
     if problems:
         print(f"\n{problems} criterion/scene rows separated nothing in the fixture "
               f"population. Each is\nan open question about the CRITERION: it is either "
@@ -1191,6 +1409,29 @@ def reliability_selftest() -> int:
 # --------------------------------------------------------------------------- #
 
 
+def _scene_record(scene: str, passed: dict[str, bool],
+                  scored: dict[str, bool]) -> dict:
+    """A stored-shaped scene grading, in exactly the shape `scene_probe.drive` writes.
+
+    The ANSWERS are the caller's stated table, and the selftest's checks assert those
+    stated numbers as literals - never what the reader returns for the record - so the
+    fixture does not import its expectation from the code it checks. The writer here is
+    a fixture, not `drive` itself, which would need a submission.
+    """
+    crits = [{"id": cid, "question": q, "passed": passed[cid],
+              "evidence": f"evidence for {cid}", "scored": scored[cid]}
+             for cid, q in scene_probe.SCENES[scene].criteria]
+    tot = sum(1 for c in crits if c["scored"])
+    p = sum(1 for c in crits if c["scored"] and c["passed"])
+    return {"tier": "scene_probe", "scene": scene, "seeds": [7, 99], "ticks": 660,
+            "frames_captured": 12, "frames_usable": True, "film_notes": [],
+            "events_fired": [], "passed": p, "total": tot,
+            "usable": bool(tot), "score": p / tot if tot else 0.0,
+            "measured_twice": [], "image_only": [],
+            "unscored": {c["id"]: c["evidence"] for c in crits if not c["scored"]},
+            "wall_s": 1.0, "criteria": crits}
+
+
 def census_selftest() -> int:
     """Can the census say NO?
 
@@ -1198,6 +1439,14 @@ def census_selftest() -> int:
     from one that cannot report anything else, and it would read as a clean bill of
     health for a criterion that never fired. So drive it over a population built here,
     where the answers are stated before it runs.
+
+    The STORED half does the same over a runs tree built here, for the reading of
+    stored scene gradings: per-criterion counts stated as literals, every file named,
+    every malformed record refused by a named reason and entering no count, a game-tier
+    record invisible to the section, and an empty tree still reading NOT ASKED. The
+    refusals are the mutant half - each is an input the reading must go red on - and
+    the well-formed records counted beside them are the variant half: noise must not
+    refuse the corpus.
     """
     scene = "s2_glass"
     ids = [cid for cid, _ in scene_probe.SCENES[scene].criteria]
@@ -1244,6 +1493,205 @@ def census_selftest() -> int:
         print(f"census selftest: {len(bad)} unmet -- the census cannot be trusted to "
               f"report a criterion that separated nothing")
         print(text)
+        return 1
+
+    # -- the STORED half: a runs tree whose answers are stated first --------- #
+    #
+    # Two s1 gradings that disagree on 2 criteria and agree everywhere else, an s2
+    # grading under a NON-playbot name (the content net must still find it), a
+    # game-tier playbot.json (another task class: neither counted nor refused), a
+    # scene record with a verdict stored as a string, an unparseable playbot.json,
+    # and a playbot.json naming a tier neither instrument writes. Every count and
+    # every refusal below is a literal written before the census ran.
+    s1 = [cid for cid, _ in scene_probe.SCENES["s1_parallax"].criteria]
+    s2 = [cid for cid, _ in scene_probe.SCENES["s2_glass"].criteria]
+    base_pass = {cid: True for cid in s1}
+    base_score = {cid: True for cid in s1}
+    base_pass["layers.depth_ordered"] = False
+    base_score["layers.image_parallax"] = False
+    base_score["loop.seamless"] = False
+    a_pass = dict(base_pass)                       # state.shape PASS
+    b_pass = dict(base_pass, **{"state.shape": False, "layers.depth_ordered": True})
+    c_pass = {cid: True for cid in s2}
+    c_score = {cid: True for cid in s2}
+    e_record = _scene_record("s1_parallax", a_pass, base_score)
+    e_record["criteria"][0]["scored"] = "false"    # a verdict stored as a string
+
+    with tempfile.TemporaryDirectory(prefix="scene-census-stored-") as td:
+        root = Path(td)
+        files = {
+            "run-a/artifacts/s1_parallax__ts__t0/eval/playbot.json":
+                _scene_record("s1_parallax", a_pass, base_score),
+            "run-a/artifacts/s1_parallax__ts__t1/eval/playbot.json":
+                _scene_record("s1_parallax", b_pass, base_score),
+            # Net B: right content, a name the tier-2 slot never uses.
+            "run-b/artifacts/s2_glass__rs__t0/eval/scene_regrade.json":
+                _scene_record("s2_glass", c_pass, c_score),
+            # Another task class: in the slot, out of this population.
+            "run-c/artifacts/g1_pong__gd__t0/eval/playbot.json":
+                {"tier": "playbot", "total": 4, "usable": True, "criteria": []},
+            "run-d/artifacts/s1_parallax__ts__t2/eval/playbot.json": e_record,
+            "run-e/artifacts/s1_parallax__ts__t3/eval/playbot.json": "{not json",
+            "run-f/artifacts/s2_glass__gd__t0/eval/playbot.json":
+                {"tier": "legacy_judge", "criteria": []},
+        }
+        for rel, doc in files.items():
+            p = root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(doc if isinstance(doc, str) else json.dumps(doc))
+
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            census([], root)
+        stored = buf.getvalue()
+        lines = stored.splitlines()
+        abs_paths = {rel: str(root / rel) for rel in files}
+        # The census prints a refusal as the record's path line followed by its
+        # reason line, so a match needs BOTH lines, never one.
+        def refused_as(rel: str, token: str) -> bool:
+            return any(abs_paths[rel] in ln and token in nxt
+                       for ln, nxt in zip(lines, lines[1:]))
+        checks = [
+            ("the stored section is its own, named apart from the fixture tables",
+             "STORED SCENE GRADINGS" in stored and "the corpus" in stored),
+            ("3 scene gradings and 3 refusals are counted",
+             "3 record(s)" in stored and "3 refused" in stored),
+            ("every scene grading's file is named",
+             all(abs_paths[rel] in stored
+                 for rel in files if rel.startswith(("run-a", "run-b")))),
+            ("a game-tier playbot.json is neither counted nor refused",
+             "g1_pong" not in stored),
+            ("the string verdict is refused by name",
+             refused_as("run-d/artifacts/s1_parallax__ts__t2/eval/playbot.json",
+                        "MALFORMED_CRITERION")),
+            ("the unparseable record is refused by name",
+             refused_as("run-e/artifacts/s1_parallax__ts__t3/eval/playbot.json",
+                        "UNREADABLE_JSON")),
+            ("a slot record naming a third tier is refused by name",
+             refused_as("run-f/artifacts/s2_glass__gd__t0/eval/playbot.json",
+                        "UNCLAIMED_SLOT")),
+            ("the per-scene header states its population",
+             "s1_parallax: 2 stored grading(s)" in stored
+             and "s2_glass: 1 stored grading(s)" in stored),
+            # STATED COUNTS. `state.shape` passes on record a and fails on record b;
+            # `layers.depth_ordered` the other way round; the 2 unscored criteria are
+            # unscored on both; everything else passes twice.
+            ("state.shape 1 pass 1 fail, separated",
+             any(ln.startswith("state.shape") and ln.rstrip().endswith("yes")
+                 and ln.split()[1:3] == ["1", "1"] for ln in lines)),
+            ("layers.depth_ordered 1 pass 1 fail, separated",
+             any(ln.startswith("layers.depth_ordered")
+                 and ln.split()[1:3] == ["1", "1"] and ln.rstrip().endswith("yes")
+                 for ln in lines)),
+            ("layers.image_parallax unscored on both and named as never measured",
+             any(ln.startswith("layers.image_parallax")
+                 and ln.split()[1:4] == ["0", "0", "2"]
+                 and "UNSCORED ON EVERY STORED GRADING" in ln for ln in lines)),
+            ("wheels.match_speed passes twice and is not called separated",
+             any(ln.startswith("wheels.match_speed")
+                 and ln.split()[1:4] == ["2", "0", "0"]
+                 and "NO - AN OPEN QUESTION" in ln for ln in lines)),
+            ("the s2 content-net row passes on its single grading",
+             any(ln.startswith("glass.refracts") and ln.split()[1:4] == ["1", "0", "0"]
+                 and "NO - AN OPEN QUESTION" in ln for ln in lines)),
+        ]
+        # THE MUTANTS OF THE READER: every refusal kind, driven directly, each an
+        # input the shape check must go red on. A record that exists cannot be
+        # silently skipped, so each malformed shape has its own named answer.
+        good = _scene_record("s1_parallax", a_pass, base_score)
+        n_unit = len(checks)
+
+        def refuses(label: str, rec: object, token: str) -> None:
+            got = read_stored_grading(rec, "p")
+            ok = (isinstance(got, StoredRefusal) and token in got.reason)
+            checks.append((label, ok))
+
+        def mutate(**kw: object) -> dict:
+            d = json.loads(json.dumps(good))
+            for k, v in kw.items():
+                d[k] = v
+            return d
+
+        refuses("a scene the registry does not hold is UNKNOWN_SCENE",
+                mutate(scene="s9_nowhere"), "UNKNOWN_SCENE")
+        refuses("a record with no criteria list is refused",
+                mutate(criteria={}), "NO_CRITERIA_LIST")
+        refuses("a criteria entry that is not an object is refused",
+                mutate(criteria=good["criteria"] + ["state.shape"]),
+                "MALFORMED_CRITERION")
+        refuses("an id that is not a string is refused",
+                mutate(criteria=good["criteria"][:-1]
+                       + [{"id": 7, "passed": True, "scored": True}]),
+                "MALFORMED_CRITERION")
+        refuses("a duplicate criterion is refused",
+                mutate(criteria=good["criteria"] + [good["criteria"][0]]),
+                "DUPLICATE_CRITERION")
+        refuses("an id outside the scene's registry is refused",
+                mutate(criteria=good["criteria"][:-1]
+                       + [{"id": "water.level_under_tilt", "passed": True,
+                           "scored": True}]),
+                "UNDECLARED_CRITERION")
+        refuses("a missing registry criterion is refused",
+                mutate(criteria=good["criteria"][:-1]), "INCOMPLETE_CRITERIA")
+        refuses("unscored keys that disagree with the criteria are refused",
+                mutate(unscored={}), "UNSCORED_DISAGREEMENT")
+        refuses("a total that disagrees with the criteria is refused",
+                mutate(total=7), "TOTALS_DISAGREEMENT")
+        refuses("a non-integer passed count is refused",
+                mutate(passed="5"), "TOTALS_DISAGREEMENT")
+        refuses("usable that disagrees with the totals is refused",
+                mutate(usable=True, total=0, passed=0, score=0.0,
+                       criteria=[dict(c, scored=False) for c in good["criteria"]],
+                       unscored={c["id"]: "x" for c in good["criteria"]}),
+                "USABLE_DISAGREEMENT")
+        refuses("a score that disagrees with the counts is refused",
+                mutate(score=0.5), "SCORE_DISAGREEMENT")
+        refuses("a score stored as a string is refused",
+                mutate(score="0.833"), "SCORE_DISAGREEMENT")
+        refuses("not an object at all is refused", [1, 2], "NOT_AN_OBJECT")
+        # The GREEN half: the well-formed record reads as a grading, not a refusal.
+        checks.append(("the well-formed record reads as a grading",
+                       isinstance(read_stored_grading(good, "p"), StoredGrading)))
+
+        # EVERY stored check is asserted and printed. An earlier version sliced
+        # `checks[n_unit:]`, which skipped the 13 in-situ checks above entirely - they
+        # were computed and discarded while this line still reported them met, and the
+        # stored half of the selftest could not say NO (found by review on task 232).
+        bad += [name for name, ok in checks if not ok]
+        for name, ok in checks:
+            print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+
+        # An empty tree and a game-only tree are NOT ASKED, never a zero result.
+        with tempfile.TemporaryDirectory(prefix="scene-census-empty-") as td2:
+            buf2 = io.StringIO()
+            with contextlib.redirect_stdout(buf2):
+                census([], Path(td2))
+            empty = buf2.getvalue()
+        buf3 = io.StringIO()
+        with contextlib.redirect_stdout(buf3):
+            census([], root / "run-c")          # holds only the g1_pong record
+        games = buf3.getvalue()
+        for name, ok in (
+                ("an empty tree reads NOT ASKED, never 0 separated",
+                 "NOT ASKED" in empty and "0 scene gradings on disk" in empty),
+                ("a game-only tree reads NOT ASKED and says what it did see",
+                 "NOT ASKED" in games and "game-tier" in games
+                 and "1 playbot.json" in games)):
+            checks.append((name, ok))
+            if not ok:
+                bad.append(name)
+            print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+
+    if bad:
+        print(f"census selftest: {len(bad)} unmet -- the census cannot be trusted to "
+              f"report a criterion that separated nothing")
+        print(text)
+        try:
+            print(stored)
+        except NameError:
+            pass
         return 1
     print(f"census selftest: {len(checks)} expectations met")
     return 0

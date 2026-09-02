@@ -144,16 +144,23 @@ does not resemble, and both run in `controls.yml`. The two reference scenes are
 `judge/fixtures/ref_parallax` and `judge/fixtures/ref_glass`.
 
 **1 submission has now met these criteria, and it is 1.** `eval/RUNS.md` holds it. Every
-threshold was still chosen against fixtures written by the same hand as the criterion, so
-`python3 judge/scene_mutants.py --census` — which reports over FIXTURES and says so — is still
-what a scene result must be read against.
+threshold was still chosen against fixtures written by the same hand as the criterion, so a scene
+result is read against the fixture population and the stored one together, under separate
+banners:
+
+    python3 judge/scene_mutants.py --census --runs-root <main checkout>/eval/runs
+
+`--census` alone reports FIXTURES. With `--runs-root`, it also reports each stored scene
+grading under the root. It names each accepted scene grading and each refused scene record,
+and refuses records that do not match the shape written by `eval/judge/scene_probe.py`.
 
 **First contact with a real submission found a false negative and 2 criteria it could not set
 up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`.
 `layers.depth_ordered` is repaired and re-graded (`tasks/162`, and the decision it forced is
 below); so is the tier-1 ink ceiling, which no longer exists (`judge/RUBRIC.md`). The
 standing limit is the sentence above: every threshold was chosen against fixtures, and a scene
-result is read against `scene_mutants.py --census` until that stops being true.
+result is read against `scene_mutants.py --census --runs-root` — fixtures and stored corpus,
+separately bannered — until that stops being true.
 
 **One instrument error is already measured**, so the first run does not have to rediscover it:
 across the 3 parallax fixtures the image-side shift estimator misses **8 of 132 frame pairs** — 1

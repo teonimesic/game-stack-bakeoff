@@ -1,7 +1,7 @@
 ---
 id: 230
 title: 'census.py reads d["stack"] bare: a whole-game record without one dies in a comprehension naming no file'
-status: todo
+status: in_progress
 priority: 3
 refs: 'eval/tools/census.py:269,275,276,305,326; eval/agent_harness.py population_of (PR #107 tree); LANDS AFTER #107 MERGES — same file, in-flight'
 done_when: 'A fixture record classified whole-game carrying `game` and no `stack` (and a scene variant: `task_class`: scene, no `stack`) makes census.py exit 2 with a CensusError naming the record''s file; same for cost_census.py if the check lands in shared code; pinned in both directions in the module''s selftest (red: the crash shape refuses by name; green: every existing fixture still counts) and any control runner that covers it updated; gates unpiped exit 0'
