@@ -463,7 +463,7 @@ over `(tier 2, tier 3)`. `judge/RUBRIC.md` holds the commands and the current co
 **`fidelity` is read against a statement of the scene, and that statement is in the pack.**
 "Looks like the thing that was described" needs the description. It is `field.SCENE_STATEMENTS`,
 written into every scene pack as `SCENE.md` by `judge/field.py build_pack` — one hand-written
-statement per scene, the same text in all 8 submissions' packs, so it separates nothing. The
+statement per scene, the same text in every submission's pack, so it separates nothing. The
 rendered prompt is not a candidate and never was: it exists per stack, and
 `anonymise.find_stack_names` returns a stack token in every one of the 8.
 

@@ -4380,3 +4380,89 @@ Next pointer: **`eval/judge/RUBRIC.md`** (989 lines) — 0 heading mentions acro
 edited by landed tasks, never read whole by a pass. Alternate: `eval/RUNS.md` (3,143 lines,
 also 0 mentions) — the comparability register, mostly never-prune regime boundaries, so a
 pass there is verification-heavy; RUBRIC first.
+
+## Pass 52 — 2026-09-01 — `eval/judge/RUBRIC.md` (989 lines, read whole) — 6 REPAIRS: a retired gap figure still quoted, a top-N claim true of 6 not 7, a self-declared-stale mutant list that had drifted, and a phantom population of 8 scene submissions stated twice across two files
+
+Subject chosen by pass 51's pointer (0 heading mentions across all passes — checked). Read
+whole. One repair family with two shapes: figures gone stale against their producers, and
+populations that never existed stated as counts.
+
+1. **Argument 1 for the zero weight quoted gap 0.0622** — the exact figure
+   `JUDGING.md`'s Weights section marks "not reproduced by this method and the method
+   behind it is not recorded anywhere". Now 0.0667, with the method named (tier 2 alone,
+   per game, recomputed 2026-08-23) and a pointer to the table. This is the propagation
+   tail of the retirement pass 51 fixed at its source in `DECISIONS.md`: the same dead
+   figure was still live in the second file that quotes the argument.
+2. **"The 7 highest of the 66 stored game sets are all `g4_platformer`"** — the 7th is
+   `wg-matrix`'s `g3_arena__rust__t0` (mean ink 0.60285). Found while verifying: the same
+   trial id also exists in `wg-arena3d` with 0 readable frames and mean ink 0.0, which is
+   #70's shape — a submission id is a name within a run — and is why the naive top-7
+   contradicted `ink_window_control`'s per-id printout until the two copies were listed.
+   "6 highest" is what the corpus supports under both references.
+3. **The `ref_arena` mutant list, carried under its own caveat "nothing keeps this copy
+   in step with it", had drifted exactly as the caveat promised**: it named as unpinned 4
+   criteria (`player.moves`, `enemies.spawn`, `fire.spawns_bullets`, `aim.independent`)
+   that have since carried mutants, and the headline said 13 of 22 where the run pins 17
+   of 22. The copy is deleted — the run is the set, now stated with its verified totals
+   (53 mutant rows over 45 criteria; per fixture pong 7, tetris3d 5, arena 17,
+   platformer 16) — and "40 across 4 games" in the platformer section reads 45. The
+   platformer's "16 of the 20" was still current and was not touched.
+4. **"It is the same text for all 8 submissions"** (`fidelity` statement): there never
+   were 8 scene submissions — 0 existed when the sentence was written (`JUDGING.md`;
+   0 scene rounds of the ledger's 97), and 1 exists now. Now "every submission of its
+   scene". **The same phantom count stood in `eval/SCENES.md`** ("the same text in all 8
+   submissions' packs") and got the same repair; that file's other 8 — rendered prompts,
+   2 scenes × 4 stacks — is a real population and stands.
+5. **The NOT ASKED block's population was false twice over.** Its comment said
+   `groups: 10 ... UNIDENTIFIABLE=7` against the tool's 11/8 today, and its point 1 said
+   all 10 groups are games with "0 scene gradings, because no scene has been built" and
+   "24 `g4_platformer`" — three defects in one sentence: 1 scene grading has existed since
+   2026-08-25 (`wg-scene-s1ts`, tiers 1-2 only), the 24 was a mixed population of 8 live
+   gradings plus 16 superseded `wg-g4c-capgate` gradings of the same 8 work trees, and
+   the population the weight question actually needs — scene **tier-3** rounds — is
+   empty for the specific reason that no scene field has ever been packed, so a `w3`
+   sweep has no rounds to vary. Rewritten with all of it, ledger count cited.
+
+**Verified and sound** (producers run, not quoted):
+
+- `weight_sensitivity.py --all` and the `runs/*` form, identical: groups 11, FLIPS=0,
+  STABLE=3, UNIDENTIFIABLE=8; populations g1_pong 25 (8+8+1+8), g2_tetris3d 19, g3_arena
+  16, g4_platformer 8, s1_parallax 1. `--selftest` → 12 controls PASS.
+- `bot_mutants.py --hazards` → 70 criteria with a recorded hazard, 45 carrying a mutant;
+  full run exit 0 — "53 mutants pinned in both directions over 45 criteria, 17 variants,
+  0 pending, 3 session-lock controls, 0 expectation(s) unmet" — per-fixture distinct
+  pinned 7/5/17/16 as repaired above.
+- `tier1_census.py` → 69 submissions, 8 failures (2 BLOCKING arena rust t0/t1 + 6
+  non-blocking), capgate held-out 16 with 14 agree / 2 disagree (ts__t0 0.70,
+  unity__t0 0.85, matching the capgate paragraph digit for digit), scene tier-2 0.833,
+  FLOOR-ONLY headline, pooled DISCRIMINATES. `tier2_census.py` → 69 trials, 5 saturated
+  groups summing 35, selective 10, whole 2, diagnostics without spread.
+- `ink_window_control.py` → 85 gradings / 69 submissions / 16 superseded; game n=68,
+  scene n=1; `--reference-shift` → 67 readable frame sets of 69 (2 with none on disk),
+  10 of 67 move, 0 sets under the 0.001 floor under either reference (lowest 0.00811),
+  86/86 expectations held — the doc's "66 stored game sets" and "804 stored frames"
+  (67 × 12) both reproduce, and the 66/67 pair that survived scrutiny here was
+  initially suspected wrong and is not.
+- `field_ranks.py --rounds runs/wg-aspect-reliability` → 30 rounds, POOLED 4 scored [20],
+  NOT POOLED `fun_frames` control [5] + `idiomatic` barred [5]; score/pool 0.5250/0.4000
+  exact; all 4 readings between-exceeds-within.
+- `judge_ledger.py --tree` → 12 sweep directories, 97 stored rounds, 0 scene lines.
+- The flat-reference claim (ink 0.0 on a solid frame) re-derived via `png.read` +
+  `is_flat`; ASPECTS is 9 and its ids match the aspect table.
+
+**Judged sound, deliberately untouched:** the capgate paragraph (producer-exact); "Why
+the previous rubric was replaced" (load-bearing history); the tier-1-as-gate framing and
+its floor/discriminates language (consistent with the census headline); dated figures
+left dated per the file's convention. **Prune:** one candidate found and it WAS the
+repair — the drifted mutant copy, deleted outright (small and obvious, done directly); a
+task filing of it would have been a second copy of the same defect.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged of 37), tasks check exit 0 (230 well-formed).
+
+Next pointer: **`eval/RUNS.md`** (3,143 lines) — pass 51's alternate, 0 heading mentions
+across all passes (checked; the pass-33 grep hit is `runstat.py`, not this file), the
+comparability register whose regime boundaries are mostly never-prune, so a pass there
+is verification-heavy: expect to run producers against figures, not to cut. Alternate:
+`eval/SCENES.md` (497 lines, 0 heading mentions; this pass repaired one line of it
+without reading the file whole).
