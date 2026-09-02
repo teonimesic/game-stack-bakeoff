@@ -659,6 +659,34 @@ def selftest() -> int:
     except SystemExit as exc:
         row(False, f"a REAL mutant (`{name}`) still APPLIES, exactly once", str(exc))
 
+    # (d) the mode flags refuse each other. `--clean-only --mutate NAME` used to run the
+    # mutation path, because `--mutate` is dispatched first, and silently ignore the
+    # other flag - an accepted-and-ignored flag, which is worse than an unsupported one
+    # (rule 13). All three sibling runners carry the same mutually exclusive argparse
+    # group; the two siblings have no --selftest mode of their own and adding one would
+    # move the CI register's --selftest census, so their refusal is pinned here beside
+    # the identical one.
+    for sib in (HERE / "fragment_control.py", HERE / "backup_evidence_control.py"):
+        p = subprocess.run([sys.executable, str(sib), "--list-mutants"],
+                           capture_output=True, text=True)
+        first = next((ln.split()[0] for ln in p.stdout.splitlines() if ln.strip()), None)
+        if not first:
+            row(False, f"{sib.name}: --list-mutants names a mutant to drive",
+                f"stdout was {p.stdout[:120]!r}")
+            continue
+        p = subprocess.run([sys.executable, str(sib), "--clean-only", "--mutate", first],
+                           capture_output=True, text=True)
+        row(p.returncode == 2 and "not allowed" in p.stdout + p.stderr,
+            f"{sib.name}: --clean-only --mutate {first} REFUSES (exit 2)",
+            f"exit {p.returncode}: {(p.stdout + p.stderr).strip()[:150]}")
+    for combo in (("--clean-only", "--mutate", next(iter(MUTANTS))),
+                  ("--all-mutants", "--clean-only")):
+        p = subprocess.run([sys.executable, str(HERE / "findings_control.py"), *combo],
+                           capture_output=True, text=True)
+        row(p.returncode == 2 and "not allowed" in p.stdout + p.stderr,
+            f"findings_control.py: {' '.join(combo)} REFUSES (exit 2)",
+            f"exit {p.returncode}: {(p.stdout + p.stderr).strip()[:150]}")
+
     row(DOCSTAT.read_bytes() == before,
         "docstat.py is byte-identical before and after - the mutants ran on copies")
 
@@ -668,16 +696,20 @@ def selftest() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mutate", metavar="NAME",
-                    help="run the controls against a MUTATED COPY of docstat.py in a "
-                         "tempdir; the repository's own file is never written to")
-    ap.add_argument("--all-mutants", action="store_true",
-                    help="an alias of the default sweep, kept so the pass-39 record in "
-                         "CLEANUP-LOG.md still resolves")
-    ap.add_argument("--list-mutants", action="store_true")
-    ap.add_argument("--clean-only", action="store_true",
-                    help="the controls on the unmutated tool, without the mutant sweep")
-    ap.add_argument("--selftest", action="store_true",
+    # One mode per invocation: `--clean-only --mutate NAME` used to run the mutation path
+    # and silently ignore the other flag, and an accepted-but-ignored flag is worse than
+    # an unsupported one (rule 13). argparse refuses the combination with exit 2.
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--mutate", metavar="NAME",
+                       help="run the controls against a MUTATED COPY of docstat.py in a "
+                            "tempdir; the repository's own file is never written to")
+    modes.add_argument("--all-mutants", action="store_true",
+                       help="an alias of the default sweep, kept so the pass-39 record in "
+                            "CLEANUP-LOG.md still resolves")
+    modes.add_argument("--list-mutants", action="store_true")
+    modes.add_argument("--clean-only", action="store_true",
+                       help="the controls on the unmutated tool, without the mutant sweep")
+    modes.add_argument("--selftest", action="store_true",
                     help="the two refusals in `build`, pinned: an anchor absent from "
                          "docstat.py must refuse, an anchor measured at run time to "
                          "occur more than once must refuse, and a real mutant must "

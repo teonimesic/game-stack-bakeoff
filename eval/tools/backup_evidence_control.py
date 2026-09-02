@@ -305,10 +305,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--runs-root", type=Path, default=None,
                     help="also verify every real baseline under this tree (clean pass only)")
-    ap.add_argument("--mutate", help="break one mechanism and expect red")
-    ap.add_argument("--list-mutants", action="store_true")
-    ap.add_argument("--clean-only", action="store_true",
-                    help="the controls on the unmutated checker, without the mutant sweep")
+    # One mode per invocation: `--clean-only --mutate NAME` used to run the mutation path
+    # and silently ignore the other flag, and an accepted-but-ignored flag is worse than
+    # an unsupported one (rule 13). argparse refuses the combination with exit 2;
+    # --runs-root stays outside the group - it is a modifier of the clean pass, not a mode.
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--mutate", help="break one mechanism and expect red")
+    modes.add_argument("--list-mutants", action="store_true")
+    modes.add_argument("--clean-only", action="store_true",
+                       help="the controls on the unmutated checker, without the mutant sweep")
     a = ap.parse_args()
 
     if a.list_mutants:

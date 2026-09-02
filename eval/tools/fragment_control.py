@@ -339,10 +339,14 @@ def sweep() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mutate", metavar="NAME")
-    ap.add_argument("--list-mutants", action="store_true")
-    ap.add_argument("--clean-only", action="store_true",
-                    help="the controls on the unmutated tree, without the mutant sweep")
+    # One mode per invocation: `--clean-only --mutate NAME` used to run the mutation path
+    # and silently ignore the other flag, and an accepted-but-ignored flag is worse than
+    # an unsupported one (rule 13). argparse refuses the combination with exit 2.
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--mutate", metavar="NAME")
+    modes.add_argument("--list-mutants", action="store_true")
+    modes.add_argument("--clean-only", action="store_true",
+                       help="the controls on the unmutated tree, without the mutant sweep")
     a = ap.parse_args()
     if a.list_mutants:
         for k, v in MUTANTS.items():
