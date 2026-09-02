@@ -46,12 +46,13 @@ How much of a prompt is the same in every stack:
 
 | | lines shared across all 4 stacks | characters |
 |---|---|---|
-| the 4 games | 97.3–98.4% | 90.4–95.0% |
+| the 4 games | 97.4–98.4% | 91.0–95.4% |
 | `s1_parallax` | 96.3% | 88.5% |
 | `s2_glass` | 96.8% | 88.2% |
-| all 24 rendered prompts | 97.3% | 90.9% |
+| all 24 rendered prompts | 97.4% | 91.3% |
 
-    python3 eval/tools/prompt_guard.py --identity
+    python3 eval/tools/prompt_guard.py --identity   # re-read 2026-09-02: game rows and
+    # the aggregate had drifted; both scene rows reproduced exactly
 
 **Quote the unit.** In the aggregate the line share and the character share differ by about 6
 percentage points, because a substituted line is a long one — a whole vocabulary paragraph on 1
@@ -407,11 +408,14 @@ host does to a frame-time number, and it decides the design. The short form:
 - **Report the ramp with its budget and resolution.** A level number without them is not a
   quantity anyone can compare later.
 
-**What is still unmeasured is the run-to-run spread of a real submission**, because no scene
-submission exists: the one scene trial on disk (`s1_parallax__ts__t0`, 2026-08-25) was killed
-mid-build and never filmed. Every figure above is one fixed synthetic workload and is therefore
-a floor: it says the machine is not what stops a ramp, and it cannot say the submission is not.
-Measure that on the first scene that exists, before reporting any stack comparison.
+**What is still unmeasured is the run-to-run spread of a real submission.** A submission now
+exists: the one scene trial on disk (`s1_parallax__ts__t0`, 2026-08-25) was killed from
+outside mid-build and its work tree salvaged, and the submission it contains has been filmed
+and graded — `eval/RUNS.md` holds the record, and the probe section above counts it as the 1
+submission. But one killed trial measures no spread, and it is not a completed trial. Every
+figure above is one fixed synthetic workload and is therefore a floor: it says the machine is
+not what stops a ramp, and it cannot say the submission is not. Measure the spread before
+reporting any stack comparison.
 
 ## Tier 3 aspects for scenes
 

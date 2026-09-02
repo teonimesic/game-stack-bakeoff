@@ -4551,3 +4551,76 @@ and this pass read it whole without auditing it: the scene contract, the probe d
 records and the perf-host requirements have never been producer-checked. Alternate:
 `eval/PERF-HOST.md` (305 lines, 0 heading mentions — checked), which SCENES.md names as
 the authority for its performance section.
+
+## Pass 54 — 2026-09-02 — `eval/SCENES.md` (496 lines, read whole) — 2 REPAIRS: a producer-moved identity table, and the performance section calling its own 1 submission nonexistent
+
+Subject chosen by pass 53's pointer. Read whole earlier the same session and
+producer-checked now. The scene instrument's control battery is green end to end — the
+two defects are both prose: one table behind its command, one sentence contradicted by
+the same file 260 lines up.
+
+1. **The identity table's game rows and aggregate were behind `prompt_guard.py
+   --identity`.** Recorded 97.3–98.4% lines / 90.4–95.0% characters for the 4 games and
+   97.3% / 90.9% for all 24; the producer prints **97.4–98.4 / 91.0–95.4** and **97.4 /
+   91.3**. Both scene rows reproduced exactly (96.3/88.5, 96.8/88.2), as did the "about 6
+   percentage points" reading the paragraph under the table makes of the aggregate (6.1).
+   The game prompts moved under the table; the read date is now on the command line.
+2. **The performance section said "no scene submission exists … killed mid-build and
+   never filmed" of the trial its own probe section counts.** The record says the trial
+   was killed from outside at 3599 s, the work tree salvaged (24 files), and the
+   submission graded — 12 frames captured and usable (`frames_usable: true`), 24 PNGs on
+   disk, tier 2 re-graded three times since (`eval/RUNS.md`'s scene record). The stale
+   clause predated the salvage. Rewritten: the submission exists, filmed and graded;
+   what is still unmeasured is the spread, because **one killed trial measures no
+   spread, and it is not a completed trial** — not because no submission exists.
+
+**Verified and sound** (producers run, not quoted):
+
+- `scene_mutants.py --census` → both scenes, every criterion `separated` (s1: 8 rows all
+  ok across reference/mutants/variants; s2: 15 subjects, all 7 criteria separate), and
+  its FIXTURES-NOT-SUBMISSIONS banner intact. `--attribution-selftest` → 9 band tables,
+  4 mutants, 0 expectations unmet, offline as the doc claims.
+- `scene_runner_control.py` → 53 rows, 0 failures: the record names the task class and
+  the tier-2 instrument, the slot holds scene-probe output, the reference passes 8/8,
+  and no tier-1 audio criterion appears in a scene grading. `aspects_selftest.py` →
+  PASS, including the mutant declaring `scene_probe` a game instrument.
+- `prompt_guard.py` → exit 0 (no criterion or threshold vocabulary in a rendered scene
+  prompt); `prompt_guard_control.py` → 27 rows, the preamble-edit rows reading exactly
+  **8** scene prompts and **16** game prompts as the doc states. `blurb_selftest.py` →
+  exit 0. `ink_window_control.py --runs-root eval/runs` → 86/86, and its output shows
+  the scene trial's retired-ceiling hit re-grading to PASS under the floor-only rule.
+- **Every band figure cross-checked against `eval/RUNS.md`'s scene record, exact**: road
+  1.66–2.25 and verge 0.76–0.99 spans per pair (the 2 aliased), the other 5 within
+  0.00–0.48, 6 of 7 bands refused for own-rows (5 of those 6 with 0), clouds and sky
+  reading 0px, and the stored `playbot.json` holding the graded-day verdicts (5 of 6 =
+  0.833, `layers.depth_ordered` FAIL — the since-repaired false negative — exactly as
+  the 4-column re-grade table says). The 8-of-132 estimator figure matches
+  `scene_probe.py`'s docstring term for term.
+- **The capture contract verified in source, not in prose**: `film.ts`'s `sampleTicks`
+  builds `floor(i*TICKS/11)` for i in 0..11 with both ends included; all 4 starter film
+  recipes exist at the named in-starter paths; all 4 starters carry the
+  reproducibility-across-runs test (unity's is `RenderingIsReproducibleAcrossRuns`,
+  `RenderTests.cs:179` — the doc's lowercase phrasing greps past it in PascalCase).
+  `PERF-HOST.md` holds every figure SCENES.md quotes of it: 1.975x, 2.13x, the 25 s gap,
+  and 1.0–3.4 as the union of its two ramp-level ranges.
+- The 3 stored gradings the census found: the probe's graded-day record only; the
+  re-grade history lives in `eval/RUNS.md`'s tables, which is the documented split.
+  Task **232 filed** for the census extension the tool itself asks for.
+
+**Judged sound, deliberately untouched:** the attribution and aliasing derivation
+histories (evidence class — the pre-`174` whole-band readings, the 11-pair series, the
+25px-vs-13.5px variant measurement); the sequencing and ambition sections (no figures);
+the `front.occludes` telemetry-only argument. One abandoned check worth recording: a
+fresh `scene_probe.py` run against the stored **artifact** directory fails with "no
+justfile found" — that directory is the capture layout, not a work tree; the re-grade
+address is the extracted `submission.tar.gz` (`eval/RUNS.md`'s own recipe), and the
+stored grading, not a re-run, is the record of what tier 2 did.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged), tasks check exit 0 (231 tasks), prompt_guard exit 0 post-edit.
+
+Next pointer: **`eval/PERF-HOST.md`** (305 lines, 0 heading mentions — re-checked this
+pass) — the performance authority every scene ramp number defers to; its figures were
+confirmed present this pass but never producer-checked. Alternate: `DECISIONS.md` (1
+prior heading mention, and it is the file where superseded content must be replaced
+rather than annotated).
