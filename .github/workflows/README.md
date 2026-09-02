@@ -1,6 +1,6 @@
 # CI and git hooks
 
-Two GitHub Actions workflows and two git hooks. Everything here runs the same checks the
+2 GitHub Actions workflows and 2 git hooks. Everything here runs the same checks the
 repository already had; the workflows are what make them run without being remembered.
 
 ## The two workflows
@@ -74,18 +74,42 @@ the control itself runs, because CI checks out the main worktree and agents comm
 linked ones. It works on throwaway repositories under `$TMPDIR`, restores the configuration
 in a `finally`, and carries 2 mutants — the work-tree guard removed, the address comparison
 removed — and must catch both.
-`fragment_control` is 0.42s locally and pins `docstat`'s duplicate-fragment check in both
-directions; its `whole_line` mutant is the design measured as a complete false negative, so it
-is what stops that being tried again. Its REAL row reads a historical blob, which needs the
+`fragment_control` pins `docstat`'s duplicate-fragment check, and since 2026-09-01 its default
+is the clean pass followed by **all 8 mutants** — `time python3 eval/tools/fragment_control.py`,
+4.5s locally, `--clean-only` the controls alone at 0.65s. The clean half is coverage
+`docstat --sweep` already buys — the same check over the same reference corpus, with
+`_duplicate_fragment_pins` beside it — so the mutants are why the step exists; its
+`whole_line` mutant is the design measured as a complete false negative, and it is what
+stops that being tried again. Its REAL row reads a historical blob, which needs the
 `fetch-depth: 0` checkout — in a shallow clone it goes red rather than skipping.
-`python3 eval/tools/findings_control.py` prints its own row count and takes about 2.3s locally.
-It needs `git` and no history: the count corpus is read from the index rather than from the disk
-(#198), so its fixture trees are repositories. One is deliberately left un-`init`ed and must exit
+`python3 eval/tools/findings_control.py` is the findings producer's end-to-end controls; since
+2026-09-01 the default is the clean pass plus **all 9 mutants** — `time python3
+eval/tools/findings_control.py`, about 25s locally, most of it fixture trees built and driven
+as real subprocesses (`--clean-only` is the controls alone, ~3s). Each mutant is a text patch
+applied to a COPY of `docstat.py` in a tempdir — the module-global restore the corpus and
+withdrawn sweeps do has no surface here — so the sweep snapshots the repository's own
+`docstat.py` and compares it after every mutant, restoring from the snapshot and reporting a
+survivor on a mismatch; the hour of uncommitted work `build()`'s docstring records losing to a
+patch applied in place is the reason that check is a comparison and not a promise. The old
+`--all-mutants` mode — the same loop minus the clean pass and minus the leak check, run only
+when an operator asked — is kept as an alias of the default sweep, which is why the pass-39
+record of it still resolves. It needs `git` and no history: the count
+corpus is read from the index rather than from the disk
+([#198]), so its fixture trees are repositories. One is deliberately left un-`init`ed and must exit
 **2** rather than 1, because a tree git cannot list has to stop the producer rather than shrink
 its corpus to `RANGE_DOCS` and read clean. Its last row is about the control itself — an
 inherited `GIT_DIR` outranks `cwd` silently — so it reproduces that against a decoy repository
 before asserting the fixture builder is immune.
-`findings_control --selftest` runs the mode beside the bare form above it: it pins the two
+`backup_evidence_control` is the starter-baseline provenance checker's controls — whether the
+stored `starter-baseline.tar.gz` + `.blobs.txt` pair is still the commit it claims to be
+(findings [#104]). Its fixture is a real repository, and the pair comes from the same two
+commands the harness runs (`git archive --prefix=<tid>/`, `git ls-tree -r`), so nothing about
+the expected answer is hand-written; 7 adversarial damages must each be caught, and since
+2026-09-01 the default is the clean pass then **all 5 mutants**, 0.75s locally — each
+mutant's failure set is exactly the case its check carries (blob comparison carries two: a
+flipped member byte and a rewritten ls-tree oid), and `--runs-root` runs once on the clean
+pass, because genuine baselines stay clean under all 5.
+`findings_control --selftest` runs the mode beside the default sweep above it: it pins the two
 refusals `build` applies its mutants through — an anchor absent from `docstat.py`, and one
 **measured at run time** to occur more than once, so no hardcoded ambiguous line can go stale —
 and requires a real mutant to still apply exactly once, because a `build` that refuses
@@ -101,13 +125,15 @@ history.
 runs the clean pass **and all 5 mutants** — `time python3 eval/tools/withdrawn_control.py`,
 about 15s locally, most of it `git show` over 3 historical revisions that the process reads
 once and shares across the mutant runs (`--clean-only` is the controls alone, 5s). Until then
-the five flips that justified wiring the register as a gate at all had run only when an
+the 5 flips that justified wiring the register as a gate at all had run only when an
 operator asked — `corpus_control`'s sweep docstring records the same defect and its repair
 (PR 54; written without the sigil because a hash followed by 54 is the match pattern of a
 withdrawn finding, and a live document may not state it outside a declared block), and this
-file had not received it. `fragment_control`,
-`findings_control` and `backup_evidence_control` carry opt-in mutants on the same shape; their
-conversion is filed, not done here.
+file had not received it. All 3 siblings named there are converted the same way (task 231,
+the same day), so every control that carries a `--mutate` mode now runs its mutants in the
+default pass; the one exception is `evidence_set_control`, whose whole script stays out of CI
+with the recorded reason in the exclusion table — it exits 2 `UNMEASURABLE` without
+`eval/runs/`, which is gitignored, so its mutants are reachable by nobody here.
 `runner_capture_selftest` is `eval/judge/capture_selftest.py` pointed at the agent harness: 2.26s
 locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rather than CPU and
 does not move with the runner.
@@ -129,7 +155,7 @@ gate that asks whether a `dest` and the code reading it are still the same name.
 grammar and the anchor rule the bare run leans on, which is the split `ci_minutes --controls`
 reads as two invocations of one script (0.04s).
 `census --selftest`, `disclosure --selftest --skip-corpus` and `instruction_census --selftest`
-pin three census producers on fixtures whose answers are stated before the tool runs — the
+pin 3 census producers on fixtures whose answers are stated before the tool runs — the
 stored-tree count, the disclosure locator the whole-game report reads through, and the
 instruction-density counters — all offline, all under 0.06s locally. `disclosure` carries
 `--skip-corpus` because its corpus arm reads `eval/runs/` and refuses rather than score an
@@ -322,7 +348,7 @@ run is a linked worktree, and that is where the state is invisible: `status`, `c
 
 Two things about that population. Editing a gate script is **not** in it — the census reads the
 *set* of them, so only an add, a delete or a rename moves the verdict, which is why the second
-command filters on `ADR`. And `.github/` is a superset of the three files that matter, taken as
+command filters on `ADR`. And `.github/` is a superset of the 3 files that matter, taken as
 a directory so a fourth workflow needs no edit here; over-counting is the safe direction,
 because it can only weaken the case for `pre-push`.
 The pair it guards is self-referential — the hook runs the gate, the gate runs the hook in
@@ -419,7 +445,7 @@ two directories) goes red naming both rather than excuse both.
 **An exclusion is a name AND a reason**, so a row whose `why` cell is blank records that
 somebody noticed and goes red — that half is the whole promise this table makes.
 
-Three things it deliberately does not do. It reads the **`left out` column only**, because a
+3 things it deliberately does not do. It reads the **`left out` column only**, because a
 name appearing in a neighbouring row's reason excuses nothing. A span carrying a flag —
 `tasks_control --live-squash-refs` — excuses **that mode**, never the script, so a bare row is
 the only thing that answers for a script nothing runs. And **gated means NAMED**: a control
@@ -436,7 +462,7 @@ row that outlived its exclusion, and a reader trusting it concludes a live check
 
 **A gate command is read the way a shell reads it: tokenised, and the token it RUNS matched as a
 path resolved against the repository root.** So a quote, a trailing comment, a `./` prefix or an
-absolute path all name the same script, while three things name nothing — a different address
+absolute path all name the same script, while 3 things name nothing — a different address
 (`nested/eval/tools/x_control.py`), a path that is merely an argument (`echo <control>`), and a
 repository-relative interpreter in front of it. What the shell runs is the script alone or one of
 `python`/`python3` ahead of it, which is the rule the scope step is already held to. Text that
@@ -463,7 +489,7 @@ every control in the repository is ungated.
 | `tasks_control --live-squash-refs` | it grades PR #16's real squash pair, and `delete_branch_on_merge` removed that branch — only the checkout that performed the merge still holds the tip, so in CI it is NOT CHECKED (exit 3) rather than a pass. Direction 11c's own fixture squashes for real and **is** gated |
 | the full `lint.py` rule set | 100 findings stand untriaged (`lint.py --counts`). CI gates syntax errors only — the subset at zero that can still go red. A gate that is red on day one gets skipped, and skipping is silent |
 | `host_perf_probe.py --caps`, `--gpu`, `--spread`, `--drift` | they measure the darwin host they run on: `--caps` needs `taskpolicy`, the other three need a Metal device, and all 4 need the machine to themselves — on a shared runner they would report the runner's neighbours. Each refuses off darwin **by name** rather than passing vacantly. **Its offline half, `--selftest`, IS gated**: it pins the percentile, spread and drift arithmetic every arm reports through, with a mutant per row |
-| `skill_layout_control --selftest` | the mode **is** `skill_layout_selftest.py`, which `gates.yml` runs — `skill_layout_control.py` dispatches `--selftest` to it and adds nothing, so a tier for the alias would run the same pins a second time. The script's own five plants stay in `controls.yml` and its bare form is gated there |
+| `skill_layout_control --selftest` | the mode **is** `skill_layout_selftest.py`, which `gates.yml` runs — `skill_layout_control.py` dispatches `--selftest` to it and adds nothing, so a tier for the alias would run the same pins a second time. The script's own 5 plants stay in `controls.yml` and its bare form is gated there |
 
 ### Which gates read THIS file
 
@@ -518,7 +544,7 @@ or `false` rather than assuming either. Read it from there, or from `gh repo vie
 teonimesic/game-stack-bakeoff --json isPrivate`. A sentence here saying which one it is would
 be a fourth copy of a fact that changes without telling anyone: the tool went on printing
 `PRIVATE -- these minutes are metered` for a day after the repository was made public, and
-three documents said the same. `DECISIONS.md` is the one live document that states it, with
+3 documents said the same. `DECISIONS.md` is the one live document that states it, with
 that command beside it.
 
 **That producer answers the billing question, not the waiting one.** It counts per job, rounds
@@ -573,3 +599,7 @@ more than the run-to-run noise. Re-read it with `gh pr checks <n>` rather than t
 written here — **not** with `ci_minutes.py`, which answers a different question: it reports
 *billable* minutes, per job, rounded up to the whole minute and excluding the queue wait, while
 what a merge waits on is elapsed wall clock.
+
+<!-- Finding links. Anchors are GitHub's heading rule, verified by eval/tools/linkcheck.py. -->
+[#198]: ../../eval/findings/certifies-nothing.md#198---git--c-dir-names-a-directory-and-an-inherited-git_dir-outranks-it-silently
+[#104]: ../../eval/findings/limits-and-cost.md#104-the-only-record-of-the-starter-a-run-was-given-is-a-git-commit-no-archive-contains-and-the-reclamation-rule-says-to-delete-it
