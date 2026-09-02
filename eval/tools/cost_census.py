@@ -52,8 +52,13 @@ Every guard below exists because its absence is a plausible in-range answer, not
   a difference. Such a group does not qualify, and the reason is printed.
 - **A mixed `terminal_reason` population is not one population.** Only the requested reason
   enters; the rest are counted and reported, never silently dropped.
-- **A spec-change record has no `game` field** and must never be pooled with a whole-game
-  one, exactly as `census.py` partitions them.
+- **The population test is the ONE classifier, not this tool's own spelling of it.** A
+  scene record carries a `game` field like every other, so a field-presence test counted
+  the first stored scene as a whole-game trial while `census.py` put it in its scene
+  population — the two producers' totals for one tree disagreeing by one, reported
+  nowhere (task 227). The classifier is imported from `agent_harness.py`, and a record
+  that is not this tool's is counted under its own population label
+  (`records_by_population`) rather than vanishing from the report.
 - **Zero variance makes Pearson undefined**, and `0.0` is a plausible-looking answer for it.
   It is reported as `undefined`.
 - **`agent.num_turns` is absent from some stored records.** `r` is computed over the subset
@@ -111,17 +116,25 @@ import tokenvalue  # noqa: E402
 # ONE definition, shared with `census.py`. These two tools decide which records may be
 # summed; restating the rule in both, with nothing asserting they agree, is how one tree
 # comes to have two totals and neither reports a disagreement (rule 12).
-from agent_harness import TOKVAL_HARNESS, harness_of  # noqa: E402
+#
+# The whole-game / scene / spec-change partition is the same shape one population down.
+# This tool spelled its own field-presence test beside a comment promising it matched
+# census.py's, until the first scene record landed carrying `game` AND
+# `task_class: scene` — into the whole-game population here and into the scene population
+# there, the two producers' totals for one tree disagreeing by one with nothing reporting
+# it (task 227). The classifier is imported, and the selftests pin the import in both
+# directions.
+from agent_harness import (  # noqa: E402
+    NOT_A_RUN,
+    TOKVAL_HARNESS,
+    WHOLEGAME_KEY,
+    TaskClassError,
+    harness_of,
+    population_of,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS = ROOT / "eval" / "runs"
-
-# Presence of this field is what separates a whole-game record from a spec-change one.
-# Same test as census.py, deliberately — two spellings of one partition disagree eventually.
-WHOLEGAME_KEY = "game"
-
-# Directories holding trees written by a building agent or a toolchain, not by a harness.
-NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
 
 # Pearson over fewer than 3 points is not a correlation, it is a line through the points.
 MIN_R_POINTS = 3
@@ -160,15 +173,22 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, Path, dict]], list[Pat
         except json.JSONDecodeError as exc:
             raise CostCensusError(f"{path}: {exc}") from exc
         # THE RECORD'S SHAPE, before anything reads a field out of it. The population
-        # test in `cost_census()` is `WHOLEGAME_KEY not in d`, which on a JSON STRING is
-        # a substring test: a file holding `"a game"` would be read as a whole-game
-        # record and every `.get` below it would raise `AttributeError` naming no path,
-        # while a file holding `"agent"` would be classified as the retired suite's and
-        # dropped — a record lost from a census that reports no skip.
+        # test in `population_of` is `WHOLEGAME_KEY not in record`, which on a JSON
+        # STRING is a substring test: a file holding `"a game"` would be read as a
+        # whole-game record and every `.get` below it would raise `AttributeError`
+        # naming no path, while a file holding `"agent"` would be classified as the
+        # retired suite's and dropped — a record lost from a census that reports no skip.
         if not isinstance(data, dict):
             raise CostCensusError(
                 f"{path}: the record is {type(data).__name__}, not an object — a trial "
                 f"file is a JSON object")
+        # A TASK CLASS NOBODY PARTITIONS FAILS BY NAME, at load, with the path — the
+        # same refusal census.py's loader makes. Left to the partition it would surface
+        # as an uncaught `TaskClassError` naming no file.
+        try:
+            population_of(data)
+        except TaskClassError as exc:
+            raise CostCensusError(f"{path}: {exc}") from exc
         out.append((str(path.parent.parent.relative_to(runs_dir)), path, data))
     if not out:
         raise CostCensusError(
@@ -339,9 +359,18 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
             f"deflates the floor and inflates the ratio")
 
     records, skipped = load_records(runs_dir)
+    # ONE classifier, shared with census.py (task 227). Field presence alone was the
+    # spelling that drifted: a scene record carries `game` like every other record, so
+    # the presence test counted the first stored scene into this tool's whole-game
+    # population. A record that is not this tool's is COUNTED under its own population
+    # label rather than silently absent — `records_by_population` in the result and the
+    # report states every population the tree holds.
     wholegame = []
+    by_population: collections.Counter = collections.Counter()
     for run, path, d in records:
-        if WHOLEGAME_KEY not in d:
+        pop = population_of(d)
+        by_population[pop] += 1
+        if pop != "whole-game":
             continue
         _validate_wholegame(path, d)
         wholegame.append((run, d))
@@ -409,6 +438,7 @@ def cost_census(runs_dir: Path, terminal_reason: str = "completed",
         "min_stacks": min_stacks,
         "min_trials_per_cell": min_trials_per_cell,
         "wholegame_records": len(wholegame),
+        "records_by_population": dict(sorted(by_population.items())),
         "excluded_by_terminal_reason": dict(sorted(excluded.items())),
         "skipped_agent_authored": len(skipped),
         "groups": groups,
@@ -747,6 +777,10 @@ def render(c: dict) -> str:
         f"read on {c['read_on']} from {c['runs_dir']}",
         f"population: {c['population']}",
         f"  whole-game trial records read   {c['wholegame_records']}",
+        "  records by population           "
+        + (", ".join(f"{k} {v}"
+                     for k, v in c["records_by_population"].items())
+           or "none"),
         "  excluded, other terminal_reason "
         + (", ".join(f"{k} {v}" for k, v in c["excluded_by_terminal_reason"].items())
            or "none"),
@@ -1014,6 +1048,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
     # than a FAIL line even though both exit non-zero.
     EMPTY: dict = {"groups": [], "rejected_groups": [], "excluded_by_terminal_reason": {},
                    "wholegame_records": None, "skipped_agent_authored": None,
+                   "records_by_population": None,
                    "across_groups": {"groups_where_range_exceeds_floor": None}}
 
     # Every per-group field this selftest reads. Written out rather than derived from a
@@ -1116,6 +1151,15 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         _write(runs / "run-a" / "trials" / "t1_rally__ts__t0.json",
                {"task": "t1_rally", "agent": {"cost_usd": 555.0,
                                               "terminal_reason": "completed"}})
+        # Direction 4b: THE RECORD THAT DRIFTED THE TWO PRODUCERS (task 227). A scene
+        # record carries `game` like every other, so the old field-presence test read it
+        # as a whole-game trial — its cost toward the groups, its count into
+        # wholegame_records — while census.py put the same record in its scene
+        # population. It must land under its OWN label and in no group, and its cost is
+        # chosen so that every figure below moves if it leaks.
+        _write(runs / "run-a" / "trials" / "s1_parallax__ts__t0.json",
+               {"game": "s1_parallax", "task_class": "scene", "stack": "ts",
+                "agent": {"cost_usd": 999.0, "terminal_reason": "completed"}})
         # Direction 5: a trials/ dir inside an agent-authored tree is skipped and counted.
         _write(runs / "run-a" / "work" / "someagent" / "trials" / "notours.json",
                _rec("gX", "rust", 777.0, 777))
@@ -1139,8 +1183,49 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         check("cell gap ratio", _round(g["cell_gap_ratio"], 4), 5.0)
         check("max_turns record excluded and reported",
               c["excluded_by_terminal_reason"], {"max_turns": 1})
+        # 9 game records (8 completed + 1 max_turns) — the scene record is NOT one of
+        # them, which is the whole pin: under the field-presence spelling it was.
         check("spec-change record never entered", c["wholegame_records"], 9)
+        # THE SCENE POPULATION IS COUNTED UNDER ITS OWN LABEL, never silently absent.
+        check("the scene record is counted under its own label",
+              c["records_by_population"],
+              {"scene": 1, "spec-change": 1, "whole-game": 9})
+        # Wrapped: a mutant upstream can leave `c` as the EMPTY placeholder, and render
+        # raising on it must be a NAMED failure, not a traceback that silences every row
+        # below (the same lesson the zero-floor render test below encodes).
+        rendered_wg = ""
+        try:
+            rendered_wg = render(c)
+        except Exception as exc:  # noqa: BLE001 - any failure rendering is a failure
+            failures.append(f"render on the known-answer tree raised "
+                            f"{type(exc).__name__}: {exc}")
+        check("the render states the scene population",
+              "scene 1" in rendered_wg, True)
+        check("the scene's tokval reached no group",
+              999.0 not in [row["low"] for grp in c["groups"]
+                            for row in grp["per_stack"]], True)
         check("agent-authored trials/ skipped", c["skipped_agent_authored"], 1)
+
+        # THE CLASSIFIER IS THE SHARED ONE (task 227). IDENTITY, not equality: a copy
+        # redefined here with equal value would be a second definition, and a second
+        # definition is exactly what drifted. The source pins hold the other half — no
+        # literal partition may remain in this file, because the import is the
+        # mechanism. The searched literals are assembled from parts so they cannot
+        # match the line that searches for them (that pin went red on itself once).
+        import agent_harness
+        check("population_of is the shared classifier",
+              population_of is agent_harness.population_of, True)
+        check("NOT_A_RUN is the shared skip list",
+              NOT_A_RUN is agent_harness.NOT_A_RUN, True)
+        src = Path(__file__).read_text()
+        check("no literal skip list is left in this file",
+              'frozenset({' + '"work"' in src, False)
+        check("no literal whole-game key is left in this file",
+              'WHOLEGAME_KEY = ' + '"game"' in src, False)
+        # The both-fields record classifies as scene in the shared classifier itself,
+        # independent of any tree.
+        check("population_of puts a both-fields record in scene",
+              population_of({"game": "s1_parallax", "task_class": "scene"}), "scene")
         a = across("known-answer tree", c)
         check("range exceeds floor here", a["groups_where_range_exceeds_floor"], 1)
         check("and the per-group flag agrees", g["range_exceeds_floor"], True)
@@ -1397,9 +1482,10 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                             f"not CostCensusError: {exc}")
 
         # Direction 11b: a record that PARSES and is not an object. The population test
-        # is `WHOLEGAME_KEY not in d`, a SUBSTRING test on a string — so `"a game"` would
-        # be read as a whole-game record and raise `AttributeError` naming nothing, while
-        # `"agent"` would be filed as the retired suite's and dropped without a skip.
+        # inside `population_of` is `WHOLEGAME_KEY not in record`, a SUBSTRING test on a
+        # string — so `"a game"` would be read as a whole-game record and raise
+        # `AttributeError` naming nothing, while `"agent"` would be filed as the retired
+        # suite's and dropped without a skip.
         (runs / "run-a" / "trials" / "broken.json").unlink()
         for literal in ('"a game"', '"agent"', "[1, 2]"):
             (runs / "run-a" / "trials" / "notanobject.json").write_text(literal)
@@ -1415,6 +1501,42 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
                 failures.append(f"non-object record ({literal}): raised "
                                 f"{type(exc).__name__}, not CostCensusError: {exc}")
         (runs / "run-a" / "trials" / "notanobject.json").unlink()
+
+        # Direction 11c: an OBJECT whose task class nobody partitions — on a whole-game
+        # record AND on a spec-change one. The no-`game` branch of `population_of` used
+        # to return "spec-change" BEFORE the class was read, so this tool validated the
+        # record at load and REPORTED it under spec-change while census.py's loader
+        # (which calls `task_class_of` directly) refused the same bytes — one malformed
+        # record, refused by one producer and counted by the other. Reading the class is
+        # the classifier's job on every record, spec-change included; and a non-string
+        # class (`[]`) must raise the refusal the loaders wrap, not the `TypeError` an
+        # unhashable value raises at the membership test, which nothing catches.
+        # The whole-game fixture is VALID but for `task_class`. A fixture with a missing
+        # `agent` block would be refused for that block under the very regression this
+        # pin exists for — classified whole-game, then rejected by `_validate_wholegame`
+        # with the same CostCensusError naming this file — so a refusal alone proves
+        # nothing; the refusal is required to NAME `task_class`.
+        badclass_record = _rec("gX", "ts", 1.0, 10)
+        badclass_record["task_class"] = []
+        for bad_record in ({"task": "t1_rally", "task_class": "cutscene"},
+                           badclass_record):
+            _write(runs / "run-a" / "trials" / "badclass.json", bad_record)
+            try:
+                cost_census(runs)
+                failures.append(f"an unknown task class {bad_record['task_class']!r} "
+                                f"was accepted and reported")
+            except CostCensusError as exc:
+                if "badclass.json" not in str(exc):
+                    failures.append(f"unknown task class {bad_record['task_class']!r}: "
+                                    f"error does not name the file: {exc}")
+                if "task_class" not in str(exc):
+                    failures.append(f"unknown task class {bad_record['task_class']!r}: "
+                                    f"error does not name the field it was refused "
+                                    f"for: {exc}")
+            except Exception as exc:  # noqa: BLE001 - any other class is also a failure
+                failures.append(f"unknown task class {bad_record['task_class']!r}: raised "
+                                f"{type(exc).__name__}, not CostCensusError: {exc}")
+            (runs / "run-a" / "trials" / "badclass.json").unlink()
         (runs / "run-a" / "trials" / "broken.json").write_text("{not json")
 
         # ---- VARIANTS. A mutant asks whether the check CAN fail; only a variant asks

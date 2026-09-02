@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#212 from building and running this evaluator. **Check whether a
+Findings #19-#213 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -288,6 +288,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **210** | the lie was in the mechanism, not the name: a document described a refusal gate that never existed, every name in the claim resolved, the sweep stayed green all seven days — and the remedy it named would have erased a real design difference | [documentation](findings/documentation.md) |
 | **211** | the renumbered-citation check reads tracked markdown and only that: every stale citation living in a code file was invisible to it, and 8 were found by reading while the gate stayed green | [documentation](findings/documentation.md) |
 | **212** | a check that dies is not a check that reports: a crashing expectation stopped the mutant suite six expectations early, and the damage first read 3 red of 38 where the honest count was 10 — fail-closed in the large, under-counted in the detail | [fail-open](findings/fail-open.md) |
+| **213** | the partition of the stored tree was restated in two producers, and every restatement drifted — 92 against 91 for five days because no gate reads two producers against each other, and the repair's own pin stayed green on a refusal of the wrong cause | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 
