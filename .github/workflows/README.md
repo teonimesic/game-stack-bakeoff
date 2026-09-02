@@ -8,7 +8,7 @@ repository already had; the workflows are what make them run without being remem
 | | `gates.yml` | `controls.yml` |
 |---|---|---|
 | runs on | every push and every pull request | every pull request, every push to `main`, nightly at 06:17 UTC, and on demand. On a pull request it **reports always** and **runs its suites only if the diff touches a filtered path** |
-| checks | 74 documentation, queue and selftest gates | 12 mutant and control suites |
+| checks | 75 documentation, queue and selftest gates | 12 mutant and control suites |
 | needs | Python only | Python, `just` 1.58.0, `ffmpeg` |
 | takes | **127–208s** | **706–970s** |
 
@@ -102,6 +102,11 @@ the expected answer is hand-written; seven adversarial damages must each be caug
 mutant's failure set is exactly the case its check carries (blob comparison carries two: a
 flipped member byte and a rewritten ls-tree oid), and `--runs-root` runs once on the clean
 pass, because genuine baselines stay clean under all five.
+`findings_control --selftest` runs the mode beside the default sweep above it: it pins the two
+refusals `build` applies its mutants through — an anchor absent from `docstat.py`, and one
+**measured at run time** to occur more than once, so no hardcoded ambiguous line can go stale —
+and requires a real mutant to still apply exactly once, because a `build` that refuses
+everything would keep both refusal rows green (0.09s locally).
 `corpus_control` asks which files the sweep reads at all, and its default runs the clean
 pass **and all 7 mutants** — 3.9s locally, most of it the 8 fixture repositories. `docstat
 --selftest` makes the same clean call, so a gate that only repeated it would duplicate a gate;
@@ -294,7 +299,7 @@ Each tier runs a fixed list, and this is it — not a description of it:
 | `python3 eval/tools/ci_minutes.py --selftest` | — | yes |
 | `python3 eval/tools/docstat.py --sweep` | — | yes |
 
-`pre-push` runs **6** of `gates.yml`'s **74** checks; `pre-commit` runs **4**.
+`pre-push` runs **6** of `gates.yml`'s **75** checks; `pre-commit` runs **4**.
 
 ```bash
 python3 eval/tools/ci_minutes.py --hooks

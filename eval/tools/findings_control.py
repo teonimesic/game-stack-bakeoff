@@ -15,6 +15,7 @@ status unpiped.
     ./findings_control.py                   # the controls and every mutant - what CI runs
     ./findings_control.py --clean-only      # the controls alone, unmutated
     ./findings_control.py --mutate <name>   # ... one at a time
+    ./findings_control.py --selftest        # the two refusals in `build`, pinned
     ./findings_control.py --list-mutants
 
 Every mutant is applied to a COPY in a tempdir. This file never writes to the repository -
@@ -117,6 +118,9 @@ DOCSTAT = HERE / "docstat.py"
 # The answer, written down before anything measures it (AGENTS.md rule 12).
 KNOWN_COUNT = 3
 KNOWN_LO, KNOWN_HI = 19, 21
+#: The agreeing corpus the selftest builds around: a fixture the refusals never reach
+#: (they fire before anything is written) but a real mutant must land inside.
+CONSISTENT = list(range(KNOWN_LO, KNOWN_HI + 1))
 
 
 def _index(numbers: list[int]) -> str:
@@ -534,6 +538,134 @@ MUTANTS: dict[str, tuple[str, str]] = {
 }
 
 
+def _repeated_line() -> tuple[str, int] | None:
+    """A string measured NOW to occur more than once in docstat.py, for `selftest`.
+
+    THE TICKET'S CONSTRAINT, AND WHY IT IS ONE. A hardcoded ambiguous anchor is dead the
+    day the code moves, and it dies in the dangerous direction: reading ZERO once the
+    line is edited away, the ambiguous row would trip the ABSENT refusal and pass while
+    naming a refusal it is not about - red, but for a reason it did not name, which the
+    fixture table above was rebuilt to close. So the anchor is whatever non-blank line
+    of the live file repeats, the count beside it is the count measured rather than one
+    remembered, and `None` means the ambiguous refusal cannot be exercised at run time
+    at all - itself a FAIL, never a skip.
+
+    THE COUNT IS THE SUBSTRING COUNT, the same expression `build` computes - and that
+    took a measurement to learn, not a preference. This function first counted LINES
+    (`splitlines`), and its own first run went red on the gap: the docstring-closing
+    fence, the file's first repeating line, occurs 86 times as a line and 190 times as
+    a substring, and the refusal was correct at 190 while the assertion demanded 86.
+    "Occurs" is two different measurements, and the one asserted has to be the one the
+    refusal was computed from.
+    """
+    text = DOCSTAT.read_text()
+    seen: set[str] = set()
+    for ln in text.splitlines():
+        if not ln.strip() or ln in seen:
+            continue
+        seen.add(ln)
+        n = text.count(ln)
+        if n > 1:
+            return ln, n
+    return None
+
+
+def _refusal(mutant: str, old: str, new: str) -> tuple[bool, str]:
+    """Inject `(old, new)` under `mutant`, call `build`, and report whether it refused.
+
+    The entry under MUTANTS exists for the duration of the call and never afterwards,
+    the way `tasks_mutants.selftest` brackets its drift probe. `(False, ...)` is the
+    loud outcome: `build` returned a path, so a mutation this file did not intend was
+    applied to a copy without a word.
+    """
+    MUTANTS[mutant] = (old, new)
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            build(Path(td), mutant=mutant, bodies=CONSISTENT, indexed=CONSISTENT,
+                  count=KNOWN_COUNT, high=KNOWN_HI)
+    except SystemExit as exc:
+        return True, str(exc)
+    finally:
+        del MUTANTS[mutant]
+    return False, "build() returned a path instead of raising SystemExit"
+
+
+def selftest() -> int:
+    """The runner's own pins: do `build`'s two refusals refuse, and does applying survive?
+
+    Cleanup pass 39 added the ambiguity refusal beside the absent-anchor one and
+    demonstrated both by ad-hoc invocation in that session only. A guard whose only
+    verification is the session that wrote it is one edit away from silent removal, and
+    the failure is invisible when it goes: a deleted refusal reports nothing, and the
+    next ambiguous anchor mutates whichever copy came first while the controls grade a
+    mutation this file did not name.
+
+    The third row is rule 15's other half. A refusal "repaired" into refusing everything
+    would keep rows one and two green, so a REAL mutant from the table above must still
+    apply, and exactly once.
+    """
+    before = DOCSTAT.read_bytes()
+    failures: list[str] = []
+    seen = 0
+
+    def row(ok: bool, name: str, detail: str = "") -> None:
+        nonlocal seen
+        seen += 1
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+        if not ok:
+            failures.append(name)
+            if detail:
+                print(f"        {detail[:150]}")
+
+    # (a) ABSENT. The precondition is measured, not assumed: if the sentinel ever turns
+    # up in docstat.py this row would be grading the wrong refusal, and says so rather
+    # than passing.
+    absent = "A STRING THAT IS NOT IN docstat.py"
+    n_absent = DOCSTAT.read_text().count(absent)
+    if n_absent:
+        row(False, "a mutant whose anchor is ABSENT from docstat.py REFUSES",
+            f"the sentinel itself occurs {n_absent} times in {DOCSTAT}, so this row "
+            f"would not name the refusal it claims to")
+    else:
+        refused, msg = _refusal("_selftest_absent", absent, "x")
+        row(refused and "is not in" in msg and "_selftest_absent" in msg,
+            "a mutant whose anchor is ABSENT from docstat.py REFUSES", msg)
+
+    # (b) AMBIGUOUS, built at run time out of the live file - never a hardcoded line.
+    measured = _repeated_line()
+    if measured is None:
+        row(False, "an anchor occurring more than once was MEASURED out of docstat.py",
+            "no non-blank line of the live file occurs twice, so the ambiguous refusal "
+            "cannot be exercised at run time")
+    else:
+        dup, n_dup = measured
+        refused, msg = _refusal("_selftest_ambiguous", dup, "x  # MUTANT")
+        row(refused and f"occurs {n_dup} times" in msg and "ambiguous" in msg,
+            f"an anchor measured to occur {n_dup} times in docstat.py REFUSES", msg)
+
+    # (c) and a REAL mutant must still apply, exactly once - the variant half, without
+    # which rows (a) and (b) are also satisfied by a `build` that refuses everything.
+    name = next(iter(MUTANTS))
+    old, new = MUTANTS[name]
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            copy = build(Path(td), mutant=name, bodies=CONSISTENT, indexed=CONSISTENT,
+                         count=KNOWN_COUNT, high=KNOWN_HI)
+            text = copy.read_text()
+        row(text.count(new) == 1 and text.count(old) == 0,
+            f"a REAL mutant (`{name}`) still APPLIES, exactly once",
+            f"the replacement landed {text.count(new)} time(s) and its anchor remains "
+            f"{text.count(old)} time(s)")
+    except SystemExit as exc:
+        row(False, f"a REAL mutant (`{name}`) still APPLIES, exactly once", str(exc))
+
+    row(DOCSTAT.read_bytes() == before,
+        "docstat.py is byte-identical before and after - the mutants ran on copies")
+
+    print(f"\n{seen} assertion(s), {len(failures)} failed")
+    return 1 if failures else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--mutate", metavar="NAME",
@@ -545,11 +677,18 @@ def main() -> int:
     ap.add_argument("--list-mutants", action="store_true")
     ap.add_argument("--clean-only", action="store_true",
                     help="the controls on the unmutated tool, without the mutant sweep")
+    ap.add_argument("--selftest", action="store_true",
+                    help="the two refusals in `build`, pinned: an anchor absent from "
+                         "docstat.py must refuse, an anchor measured at run time to "
+                         "occur more than once must refuse, and a real mutant must "
+                         "still apply, exactly once")
     a = ap.parse_args()
     if a.list_mutants:
         for k, (old, _) in MUTANTS.items():
             print(f"{k:26} removes: {old.strip()[:70]}")
         return 0
+    if a.selftest:
+        return selftest()
     if a.mutate:
         if a.mutate not in MUTANTS:
             raise SystemExit(f"unknown mutant {a.mutate}; --list-mutants")
