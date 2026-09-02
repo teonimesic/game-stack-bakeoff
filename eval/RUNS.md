@@ -405,6 +405,16 @@ a measurement of 16 cells.
 `wholegame.py plan --scenes …` prints this beside the cost table, which is scaled from game
 trials and says nothing about a scene.
 
+## `wg-scene-s1field-2026-09-02` — the first scene FIELD. IN FLIGHT at this writing; real numbers land at grading
+
+| | |
+|---|---|
+| what | **8 trials** — `s1_parallax` × {godot, rust, ts, unity} × 2 — the first scene field ever packed. Config read from the driver's own record, `suite.json`: `task_classes: {s1_parallax: scene}`, `harness: claude`, `model: opus`, `max_turns: 1000` (the driver's default; no flag passed), `max_budget_usd: None` (no money flag passed, per DECISIONS.md), `parallel: 2`, `started_at 2026-09-02T17:13:54Z`. Claude arm only: scenes and a second harness would be 2 variables (`eval/SCENES.md` sequencing) |
+| launch gate | both operator conditions checked at **2026-09-02T17:13:18Z**, before launch: **(a)** load average **3.50 / 3.15 / 3.46** on 16 cores, no other agent session or build running, no whole-game driver alive, orphaned-engine sweep clean; **(b)** capacity probe `claude -p 'Reply READY.'` → `READY`, exit 0, and the result recorded here before the first trial started |
+| pre-launch | `precampaign_smoke`: **23 once-per-campaign commands, 0 FAILED**, rc=0 — including `starter_gate_control` (315.2 s), `verify_blind` unpiped exit 0, `docstat --sweep` clean over 303 docs, and the per-game plans ×4; `bot_mutants` 53/53 both directions plus 17 variants; `prompt_guard --snapshot` over the run's rendered prompts at launch, rc=0. The snapshot holds **24** prompts — the full registry (16 game + 8 scene), of which the 8 `s1_parallax` files are the scheduled set per `suite.json` |
+| live check | first two trials (`s1_parallax__godot__t0`, `t1`) launched; each trial's own `artifacts/<tid>/prompt.txt` is **byte-identical** to the snapshot's rendered `s1_parallax__godot.txt` |
+| pending at this writing | turns, tokval per trial, wall clock per arm, and per-trial timestamps for the #172 spacing question; tier-1 gate; scene tier-2 grading; the 8-submission tier-3 pack and the 3 scene aspects (fidelity, motion, framework) — the first scene tier-3 rounds. The summary-table row and the `census.py` cumulative re-read land in the same update as those numbers |
+
 ## THE FRAMES CHANNEL IS NOT EQUIVALENT ACROSS ARMS, and it never has been — measured 2026-08-23
 
 **This is not a boundary in time.** Nothing changed on this date; the asymmetry has been present
