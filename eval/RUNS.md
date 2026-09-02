@@ -10,7 +10,7 @@ any two runs — most of these are **not** comparable, and the reasons are speci
 > The token counts are real and every comparison below stands; the unit is a valuation, not a
 > bill, and **no decision may rest on one as money** (FINDINGS #159).
 >
-> The figures stay in `$n` form rather than being annotated on each of the **130** lines that
+> The figures stay in `$n` form rather than being annotated on each of the **141** lines that
 > carries one (`grep -c '\$[0-9]' eval/RUNS.md`): per-run rows are what a reader compares runs
 > by, and a note on every line would be worse than the defect.
 > `python3 eval/tools/tokenvalue.py --definition` prints this, and every producer prints it
@@ -41,11 +41,11 @@ disk on 2026-08-15; neither is carried forward from a previous version of this f
 > correct about the artifacts and say nothing about the stacks. Detail and agent quotes below
 > and in FINDINGS #49.
 
-**Cumulative, re-read from disk on 2026-08-23. Two figures, because they count two things.**
+**Cumulative, re-read from disk on 2026-09-01. Two figures, because they count two things.**
 
 | | | source |
 |---|---|---|
-| agent trials, **surviving records** | **$2,466.31** over 162 trials in 24 run directories, **161 of them priced** | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth, **`claude`-harness records only**: the 162nd is the prime-agent probe and its vendor's USD is not addable to this figure |
+| agent trials, **surviving records** | **$2,466.31** over 163 trials in 25 run directories, **161 of them priced** | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth. **2 of the 163 are unpriced**: the prime-agent probe, whose vendor's USD is not addable to this figure, and the scene trial, killed before its agent reported any cost |
 | specialist-judge rounds | **$334.41** over 97 rounds in 12 sweep directories | `judge/judge_ledger.py --tree runs/` |
 
 **Records, not totals, and the gap is real but not summed here.** A retry overwrites the record
@@ -2751,10 +2751,15 @@ both were consistent with every word of the task and inconsistent with
 `judge/fixtures/ref_arena/game.py`, which the play-bot's criteria were written against. Found by
 review on PR 19.
 
-**It is driven 4,636 times.** `python3 eval/judge/aim_contract_control.py`, population *every
-tick the arena play-bot sends against the reference*: **7,540** ticks sent, **4,636** carrying a
-zero or absent aim, **33** of those holding `fire` — all 33 from `_multiplier_falls`, which fires
-through the gaps between waves with no live enemy to aim at. Nothing stores a per-tick trace, so
+**It is driven thousands of times.** `python3 eval/judge/aim_contract_control.py`, population
+*every tick the arena play-bot sends against the reference*. Read **2026-08-25**, when this was
+written: **7,540** ticks sent, **4,636** carrying a zero or absent aim, **33** of those holding
+`fire` — all 33 from `_multiplier_falls`, which fires through the gaps between waves with no live
+enemy to aim at. Read again **2026-09-01**: **7,750** / **4,948** / **32**. The counts track the
+bot, not the submissions — the population is the drive the play-bot takes, and the only change to
+`bot_arena` between the two readings is the end-signal resolution of the twenty-seventh break
+above (2026-08-27). The case is driven either way, all 22 criteria pass, and the fire-bearing
+zero-aim ticks are the same between-wave gaps. Nothing stores a per-tick trace, so
 this is the only population there is: the 8 stored trials keep a prompt, a diff, frames and a
 `playbot.json` of verdicts, and no record of what was sent.
 
@@ -2790,10 +2795,11 @@ read the gap the other way and lost points for it. The control keeps both arms a
 criterion ever starts to discriminate them, at which point the question is whether that criterion
 is legitimate now that the prompt specifies the case.
 
-**The extraction was proven on rows whose answers were stated in advance** before the 4,636 was
-believed (rule 12): `player.moves` opens the run with exactly **90** pure-movement ticks that
-must read as zero-aim, and `aim.independent` sends **120** ticks aiming +x that must not. Both
-are rows in the control.
+**The extraction was proven on rows whose answers were stated in advance** before the count was
+believed (rule 12): the control pins the opening `_take_control` and `player.moves` ticks — **90**
+when first written, **92** on the 2026-09-01 read, all read as zero-aim with the next tick not —
+and the `aim.independent` session's **120** ticks aiming +x, none of which may read as zero-aim.
+Both are rows in the control, and both rows moved with the bot, not with any stored data.
 
 ## `render.nonempty` LOST ITS INK CEILING ON 2026-08-27 — a TWENTY-FOURTH comparability break, and one offline re-grade changes a derived GAME gate verdict
 

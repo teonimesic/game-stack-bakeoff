@@ -4466,3 +4466,88 @@ comparability register whose regime boundaries are mostly never-prune, so a pass
 is verification-heavy: expect to run producers against figures, not to cut. Alternate:
 `eval/SCENES.md` (497 lines, 0 heading mentions; this pass repaired one line of it
 without reading the file whole).
+
+## Pass 53 — 2026-09-01 — `eval/RUNS.md` (3,143 lines, read whole) — 3 REPAIRS: a self-census 11 behind its own command, a headline total two records and one directory behind its producer, and a break-section census whose producer moved under it when the play-bot changed
+
+Subject chosen by pass 52's pointer (0 heading mentions — checked). Read whole, two
+chunks. Verification-heavy as predicted: the regime-boundary sections reproduce, and the
+repairs are all figures whose producer is named in the same sentence.
+
+1. **The opening self-census was typed, not run.** "each of the **130** lines that carries
+   one (`grep -c '\$[0-9]' eval/RUNS.md`)" — the command is in the sentence and the count
+   beside it was 11 behind: the twenty-first through twenty-eighth breaks added `$` lines
+   after 130 was recorded. Now **141** (grep re-run after this pass's own edits: still 141).
+2. **The cumulative census line was two records and one directory behind `census.py`.**
+   Claimed "**$2,466.31** over 162 trials in 24 run directories, **161 of them priced**";
+   the producer reads **163 in 25, 2 unpriced, 161 priced, $2,466.31 unchanged** — the
+   added record is the scene trial (2026-08-25, killed before its agent reported a cost),
+   which moved the counts but not the sum. The old clause "the 162nd is the prime-agent
+   probe" also stated the exclusion rule falsely: the second unpriced record IS
+   `claude`-harness, carrying no readable cost, so "claude-harness records only" was wrong
+   as a description of what the producer excludes. Read date → 2026-09-01.
+3. **Break 23's aim-contract census no longer reproduces, and the reason is the
+   instrument.** Recorded 2026-08-25 as 7,540 ticks sent / 4,636 zero-or-absent aim /
+   33 holding `fire`; `aim_contract_control.py` now prints **7,750 / 4,948 / 32**, and the
+   extraction-proof row moved 90 → 92 opening movement ticks. The population is the drive
+   the play-bot takes, and the only `bot_arena` change between the readings is the
+   end-signal resolution of the twenty-seventh break (2026-08-27). Both readings kept,
+   dated, the movement attributed to the bot; the substance (case driven thousands of
+   times, 22/22 criteria indifferent to both misreadings) is unchanged. The "all 33 from
+   `_multiplier_falls`" attribution stays attached to the 2026-08-25 reading — the tool
+   prints no per-criterion attribution, so it cannot be re-verified against today's drive.
+
+**Verified and sound** (producers run, not quoted):
+
+- **The run table's records column, all 8 rows to the cent**, plus `wg-g4c`'s own section:
+  wg-calib $10.14/1, wg-matrix $355.28/24, wg-audio $241.82/11, wg-cal48 $4.34/1,
+  wg-cal48b $23.75/1, wg-audio48 $486.27/16, archive-arena2d $118.62/8, wg-arena3d
+  $374.05/8, wg-g4c $421.00/8 — each summed read-only from `trials/*.json`. The built-log
+  column was not re-derived; the file documents the two-source policy and the archive
+  penny gap itself. The "$1,614.27 now" of the staleness war story re-sums exactly.
+- **The remainder split**: $91.72 over 47 top-level spec-change trials + $62.09 over 24
+  nested, both exact; they sum to $153.81 against the $153.82 whole — the independent
+  rounding the file's own pennies note describes, not a defect.
+- `wallclock.py` → 157 paired, min 0.9 / median 1.1 / max 6.5 s, 0 negative; 163 records,
+  86+71+0 paired, 6 with no self-report — every figure of the two-clocks section exact.
+  "86 of its 92" is the ADDRESS denominator (`wholegame.py` wrote the 91 game records and
+  the 1 scene record alike), correct as written.
+- `blurb_selftest.py --stored-rounds eval/runs` → 97 / 40 code-seeing / 14 hashed / 26
+  unassessable, exact; the per-aspect hash table (3536→3576, 3928→4000) reproduces.
+- `prompt_capture_census.py --runs-root eval/runs` → 57 / 39 / 18 / 0 and 468 calls /
+  31 refused / 336 no-path / 180 operands / 0 un-carried — both tables digit-exact.
+  (First tried at `eval/tools/` — rule 12 again; the real address is `eval/judge/`.)
+- `disclosure.py --runs-dir eval/runs` → 98 trials, 33 located, 43 quiet, 22 no message;
+  families 25/15 — the DECLINED section's figures are its dated 2026-08-23 census of the
+  then-90 `agent_result.json` and stay dated; the locator comparison in it (26 vs hand 31)
+  was over the same 75 messages and remains true of them.
+- `tier2_census.py` → `rally.counts 25 gradings 0 failures` (break 26, digit-exact) and
+  headline SATURATED (break 27). `audio_regrade_census.py` pass 1 → 59 gradings over 43
+  submissions, moved 0, refused 0, 0 omissions, 0 undeclared, 2 no-manifest (break 22,
+  digit-exact); `--triggered` → 69 records / 43 carried / 0 moved / 26 refused (break 28,
+  digit-exact).
+- `aim_contract_control.py` → all 13 rows ok, 22/22 criteria, `startz`/`resetx`/`nofire`
+  arms hold — break 23's substance; counts repaired as above.
+- Self-censuses: `grep -rl "rally rose on" eval/runs/` → 0; rendered prompts 16 of 24 —
+  both exact. `judge_ledger.py --tree` → 97 rounds / 12 directories / $334.41, already
+  verified this session and re-cited by the per-directory table.
+- Dated figures left dated per the file's convention: the DECLINED hand census, the fifth
+  boundary's "14 of the 68", the harness partition ("claude 90, prime-agent 1" — which is
+  also today's census output), the ~$21.61 overwritten-attempts figure, break 19's "12
+  summaries, 0 short" (pinned by synthetic controls).
+
+**Judged sound, deliberately untouched:** the regime-boundary sections themselves
+(eighth–twenty-eighth — never-prune: each says which runs may be compared with which);
+the moving-row and staleness war stories (load-bearing); the wg-scene record (consistent
+with `tier1_census`'s scene row read in pass 52). **Disk note from the monitor,
+examined and informational:** repo 6.5G of which `eval/runs` is 4.5G — the stored corpus
+is the bulk and is evidence; 377Gi free; nothing to act on.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0, tasks check
+exit 0.
+
+Next pointer: **`eval/SCENES.md`** (496 lines) — 0 heading mentions across all passes
+(re-checked this pass); pass 52 repaired one line of it without reading the file whole,
+and this pass read it whole without auditing it: the scene contract, the probe decision
+records and the perf-host requirements have never been producer-checked. Alternate:
+`eval/PERF-HOST.md` (305 lines, 0 heading mentions — checked), which SCENES.md names as
+the authority for its performance section.
