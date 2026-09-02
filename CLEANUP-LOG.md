@@ -4755,3 +4755,65 @@ closed. Alternate: `eval/AGENTS.md` (folder-scoped guidance for the harness —
 0 heading mentions across all passes, checked; the per-folder AGENTS.md files are
 the rules every session loads, and this one has never been read whole against what
 is true now).
+
+## Pass 57 — 2026-09-02 — root IMPROVEMENTS.md (431 lines, read whole) — 3 open iterations audited against the live tree: 2 settled, 1 false in the other direction; 3 tasks filed
+
+ARCHIVE, so the pass question was not stale figures — it was: which of the file's open
+items were settled elsewhere? Four candidates examined.
+
+**Settled, now closed out in dated notes the file keeps rather than rewritten:**
+
+1. **The #66 Unity lint iteration said "Awaiting a decision / PREPARED AND NOT
+   APPLIED." The change is applied.** The prepared guard is in
+   `eval/starters/unity/tools/unity-compile.sh` under `if [ "$STRICT" = "warnings" ]`,
+   with the arm-B negative and the ~2 s cost in its comment. And the predicted
+   consequence is verified, not assumed: `g4_platformer__unity__t1` is in tier 1's
+   failing 8 — `verify.green` and `lint.clean` exit 1 on the re-grade, tier 2 stays
+   1.000 (`tier1_census.py` today). The iteration's own "consequence, stated plainly"
+   paragraph came true exactly.
+2. **Iteration 1 (severed keyboard) is still live, and now recorded as such.**
+   Re-verified against the live criterion set: every tier-1 id and every tier-2 id is
+   probe/simulation-path; #128's four harder criteria replay a played tape through the
+   same probe. Nothing grades device input → intent. Filed `tasks/233` to EXECUTE the
+   pre-registered method (offline, no agent spend, falsifier already written).
+
+**Settled in the other direction — the headline:**
+
+3. **Iteration 2 said "PRE-REGISTERED, not yet built." It is built, and it has never
+   run.** `judge/judge_design.py` + `judge/design_criteria.py` are original equipment
+   (a3d0fd1), implement the iteration's exact spec (frames + telemetry, no source,
+   anchored 0–4, no weight until tuned-vs-detuned separation exceeds run-to-run
+   spread), and are registered spend producers in `tokenvalue.py`'s PRODUCERS — but no
+   stored round, no doc, no decision anywhere names a run (swept JUDGING.md, RUNS.md,
+   DECISIONS.md, eval/runs/). An instrument that is a live question nobody can see.
+   Filed `tasks/234`: run the falsification (a handful of tokval-priced calls) or
+   retire the module with a DECISIONS row naming the ground — supersession by the
+   aspect tier is valid, but must be said.
+
+**Also filed:**
+
+- `tasks/235` — starter_parity compares recipe text, not recipe reproducibility. The
+  gap is named in the #66 iteration's Scope section ("'Unity passed lint' has never
+  been the claim it appeared to be"), the fix is Unity-only, and no arm but Unity has
+  ever had its gate compared against a cold run. Either measure it per stack or
+  record why text comparison suffices.
+
+**Examined and judged sound, no action:** iteration 1's hypothesis/falsifier are
+internally complete and correctly scoped (the #41 mouse-clause preamble diff in
+`eval/findings/one-arm-bias.md` is a different incident, not this one); the task-26
+"two arms not done" section is correctly superseded by the task-52 iteration with
+the #110 correction in place; the deliberately-not-adopted registers in both
+iterations state a reason per row and need nothing.
+
+Process note: `tasks.py add` printed `error: no justfile found` before creating each
+task; all three files are well-formed per `tasks.py check` (gate below, exit 0).
+Looked at once, not chased — noted so the next pass that sees it knows it was seen.
+
+Gates after the edits, unpiped (main checkout): sweep exit 0, renumbered exit 0,
+tasks check exit 0.
+
+Next pointer: **`eval/AGENTS.md`** (folder-scoped guidance for the harness; 0 heading
+mentions across all passes — checked; pass 56's stated alternate). The per-folder
+AGENTS.md files are the rules every session loads, and this one has never been read
+whole against what is true now. Alternate: `eval/G4-PLATFORMER.md` (0 heading
+mentions) — the fourth game's design record, which README cites for its criteria.
