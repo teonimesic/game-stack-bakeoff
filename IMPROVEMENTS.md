@@ -16,13 +16,7 @@ finding is the same for both loops. `eval/IMPROVEMENTS.md`'s preamble states it.
 
 ## Iteration 1 — does the play-bot tier notice a game no human can play?
 
-**Status: PRE-REGISTERED, not yet run.**
-
-> **Still true, re-verified 2026-09-02.** Nothing added since grades the device-input path:
-> every tier-1 id and every tier-2 id is probe/simulation-path, and #128's four harder
-> criteria replay a *played* tape through the same probe. The execution is filed as
-> `tasks/233` (offline, no agent spend); this note exists so the next reader does not
-> re-derive that the iteration is still live.
+**Status: RUN 2026-09-02 — hypothesis confirmed; the falsifier did not fire. See MEASURED below.**
 
 ### Why this first
 
@@ -71,6 +65,78 @@ Offline; no agent spend.
 ### Predicted result
 
 Tier 1 unchanged at 9/9, tier 2 unchanged at 13/13, `overall` unchanged at 1.000.
+
+### MEASURED 2026-09-02 — the falsifier did not fire: 0 of 35 criteria moved
+
+Run exactly as pre-registered: offline, no agent spend, one completed submission extracted
+from its stored archive into a scratch directory outside the repository — the stored
+archive was never written to. The stack choice, the sever, the pin and the grading are
+reproducible from `tasks/233`, which also held the finding, allocated as #214 at merge.
+
+**Stack choice, stated as the ticket asks.** The TypeScript arm severs with the smallest
+edit of the four: measured against each stack's completed, fully-green wg-g4c submission,
+the sever is ONE deleted line — `pressed.add(event.code);` in `src/view/main.ts`, the only
+writer of the intent set the view reads — against 4 field initialisers turned false (rust
+`read_input()`), 4 latch lines deleted (godot `_process`), and ~8 lines across two methods
+(unity `Update`/`FixedUpdate`). Chosen: `g4_platformer__ts__t0` from `wg-g4c-2026-08-21`.
+`diff -r` over the two extracted copies shows that one line and nothing else.
+
+**Gate.** `just verify` on the severed copy: exit 0, 140 sim + 10 render tests passed —
+tier 1 cannot fail for the wrong reason.
+
+**Treatment pin, both directions** (rule 15), on the REAL playable page of each copy in
+headless chromium with the submission's own render flags and `Date.now` pinned so both
+copies spawn the same world seed; the readout is `png.differs_from` at tolerance 8 — the
+same instrument tier 1 uses:
+
+| pair | differs_from |
+|---|---|
+| pristine, idle 2 s (A vs B) | 0.017248 |
+| severed, idle 2 s (A vs B) | 0.017248 |
+| pristine vs severed at A (no input yet) | 0.000000 |
+| pristine vs severed at B (after 2 s idle) | 0.000000 |
+| pristine, holding ArrowRight 2 s (A vs B) | **0.811548** |
+| severed, holding ArrowRight 2 s (A vs B) | **0.015391** |
+
+With no keys the copies are pixel-identical at both timestamps and drift identically;
+holding right for two seconds moves 81.2% of the pristine frame and 1.5% of the severed
+frame — below its own idle drift. The treatment did what it claims, and the sever changed
+nothing else.
+
+**Grading** (`evaluate.py --no-judge`, seed 7, both copies):
+
+| tier | pristine | severed |
+|---|---|---|
+| tier 1 (programmatic — the gate) | 14/14, 1.0000, gate PASS | 14/14, 1.0000, gate PASS |
+| tier 2 (play-bot, 20 scored) | 20/20, 1.0000 | 20/20, 1.0000 |
+| overall (regime `gate-2026-08-23`) | 1.0000 | 1.0000 |
+
+Per-criterion: **0 of 35 verdict differences** (14 tier-1 + 20 scored tier-2 + the
+diagnostic `stage.completes`, which fails on BOTH copies with a byte-identical evidence
+string). All 21 tier-2 evidence strings are byte-identical between the copies. 11 of 14
+tier-1 evidence strings are identical; the 3 that differ are pure timing (`just check`
+"in 2s" vs "in 1s"; `just verify` wall seconds and a `Start at` timestamp; probe
+throughput 6926.5 vs 5882.1 ticks/s) — no verdict, no outcome field, no score moves. Wall
+33.8 s vs 31.1 s. The fresh pristine grade also agrees with the submission's stored wg-g4c
+grading (1.0 / 1.0 / 1.0), so the instrument did not drift under the extraction.
+
+**The sharpest statement of the null.** The identical right-arrow input the play-bot
+certifies — `player.walks`: "the character answered input after 2 ticks (x 40.0 -> 41.1)"
+— arrives through the probe path, which the severed copy still serves perfectly. The
+keyboard path a human presses is dead in the severed copy, and every criterion in both
+tiers runs on the probe/simulation path (#128), so a game that `just run` opens with dead
+controls grades a perfect 1.0000.
+
+**Verdict: the pre-registered falsifier — ANY drop in tier-1 or tier-2 score — did not
+fire. The hypothesis is confirmed on this submission: the grading system cannot
+distinguish this playable submission from its unplayable twin.** A confirmed null is a
+finding; allocated **#214** at merge (2026-09-02).
+
+**What this does NOT establish.** n=1 — one submission, one game (`g4_platformer`), one
+stack. No fix is measured here. The pre-registered "If confirmed" step — a criterion that
+exercises the real input path, validated in both directions — is a **criterion addition,
+i.e. a regime boundary**, and per the ticket it is deliberately NOT made in this
+iteration; it needs its own decision.
 
 ### If confirmed
 

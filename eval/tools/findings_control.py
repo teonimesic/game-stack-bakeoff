@@ -12,13 +12,28 @@ So this builds a tree whose answer is STATED BEFORE IT IS MEASURED, drops a copy
 `docstat.py` into it, and runs the real command as a subprocess, reading the real exit
 status unpiped.
 
-    ./findings_control.py                   # the controls
-    ./findings_control.py --all-mutants     # prove every one of them can go red
+    ./findings_control.py                   # the controls and every mutant - what CI runs
+    ./findings_control.py --clean-only      # the controls alone, unmutated
     ./findings_control.py --mutate <name>   # ... one at a time
     ./findings_control.py --selftest        # the two refusals in `build`, pinned
     ./findings_control.py --list-mutants
 
-Every mutant is applied to a COPY in a tempdir. This file never writes to the repository.
+Every mutant is applied to a COPY in a tempdir. This file never writes to the repository -
+and the sweep ASSERTS that rather than trusting it: the repository's own `docstat.py` is
+snapshotted before the first mutant and compared after every one, and a mismatch is restored
+from the snapshot and reported as a survivor. Module-global leak checks do not apply here -
+the mutants are text patches against a fresh copy per case, not rebindings in this process -
+so the leak surface this suite actually has is the repository file, and that is the one the
+leak check reads.
+
+**The default runs the clean pass AND every mutant**, and is red if any of them survives -
+the repair `corpus_control.sweep` records from PR 54, which this file had not received (its
+old `--all-mutants` mode was the same loop minus the clean pass and minus the leak check, and
+ran only when an operator asked; it is kept as an alias of the sweep rather than deleted, so
+the pass-39 record in CLEANUP-LOG.md that names it still resolves). `docstat --findings`
+above it in `gates.yml` makes the clean call over the live corpus already, so a gate that
+only repeated it would duplicate a gate while the nine mutants - the reason this file exists -
+ran nowhere.
 
 WHAT IS CONTROLLED, and why each one is here rather than obvious:
 
@@ -439,6 +454,56 @@ def controls(mutant: str | None = None) -> int:
     return 1 if failures else 0
 
 
+def sweep() -> int:
+    """The clean run and EVERY mutant, in one invocation.
+
+    THIS IS WHAT THE CI STEP RUNS, and it is why the step exists at all - the repair
+    `corpus_control.sweep` records from PR 54, which this file had not received: with the
+    default at `controls()` alone, the gate duplicated the clean half `docstat --findings`
+    already runs over the live corpus, and no mutant ever ran outside an operator's
+    terminal. A suite whose mutants are opt-in is a suite whose mutants are the one thing
+    nobody re-runs.
+
+    THE LEAK CHECK IS THE REPOSITORY FILE ITSELF. The template's restore-between-mutants
+    is a module-global snapshot here for no suite but `corpus_control` and
+    `withdrawn_control`: this suite's mutants never rebind anything in the running
+    process - each one is a text patch applied to a fresh COPY of `docstat.py` per case -
+    so the only state a mutant could leak into is the repository's own file. That is the
+    file `build()`'s docstring records losing an hour of uncommitted work to, which is
+    why the snapshot is compared after every mutant and restored on a mismatch rather
+    than trusted to never fire.
+    """
+    print(f"findings producer controls, {len(MUTANTS)} mutants, clean pass first\n")
+    clean_failed = controls()
+    print(f"\nCLEAN  {'FAILED' if clean_failed else 'passed'}, expected passed\n")
+
+    pristine_docstat = DOCSTAT.read_bytes()
+    killed: list[str] = []
+    survived: list[str] = []
+    for name in MUTANTS:
+        rc = controls(mutant=name)
+        if DOCSTAT.read_bytes() != pristine_docstat:
+            DOCSTAT.write_bytes(pristine_docstat)
+            survived.append(f"{name}: the mutant reached the repository's own "
+                            f"{DOCSTAT} - restored from the snapshot; this is a defect "
+                            f"in build(), never a pass")
+            continue
+        print(f"\nMUTANT {name:<26} "
+              + ("SURVIVED  <- the controls cannot see the mechanism it names"
+                 if rc == 0 else "went red, as it must"))
+        (survived if rc == 0 else killed).append(name)
+
+    print(f"\n{len(killed)} of {len(MUTANTS)} mutants died; "
+          f"{len(survived)} survived"
+          + ("" if not survived else ":\n  " + "\n  ".join(survived)))
+    if clean_failed or survived:
+        return 1
+    print("A mutant run is EXPECTED to fail its controls; a mutant that survives means "
+          "the controls no longer reach the mechanism they name, and the gate's green "
+          "is once again the ambiguity this file exists to prevent.")
+    return 0
+
+
 #: Each mutant deletes ONE mechanism the controls above name. A control that survives its
 #: own mutant is testing something else. Applied to the COPY under test, never to the
 #: repository's `docstat.py`.
@@ -594,6 +659,34 @@ def selftest() -> int:
     except SystemExit as exc:
         row(False, f"a REAL mutant (`{name}`) still APPLIES, exactly once", str(exc))
 
+    # (d) the mode flags refuse each other. `--clean-only --mutate NAME` used to run the
+    # mutation path, because `--mutate` is dispatched first, and silently ignore the
+    # other flag - an accepted-and-ignored flag, which is worse than an unsupported one
+    # (rule 13). All three sibling runners carry the same mutually exclusive argparse
+    # group; the two siblings have no --selftest mode of their own and adding one would
+    # move the CI register's --selftest census, so their refusal is pinned here beside
+    # the identical one.
+    for sib in (HERE / "fragment_control.py", HERE / "backup_evidence_control.py"):
+        p = subprocess.run([sys.executable, str(sib), "--list-mutants"],
+                           capture_output=True, text=True)
+        first = next((ln.split()[0] for ln in p.stdout.splitlines() if ln.strip()), None)
+        if not first:
+            row(False, f"{sib.name}: --list-mutants names a mutant to drive",
+                f"stdout was {p.stdout[:120]!r}")
+            continue
+        p = subprocess.run([sys.executable, str(sib), "--clean-only", "--mutate", first],
+                           capture_output=True, text=True)
+        row(p.returncode == 2 and "not allowed" in p.stdout + p.stderr,
+            f"{sib.name}: --clean-only --mutate {first} REFUSES (exit 2)",
+            f"exit {p.returncode}: {(p.stdout + p.stderr).strip()[:150]}")
+    for combo in (("--clean-only", "--mutate", next(iter(MUTANTS))),
+                  ("--all-mutants", "--clean-only")):
+        p = subprocess.run([sys.executable, str(HERE / "findings_control.py"), *combo],
+                           capture_output=True, text=True)
+        row(p.returncode == 2 and "not allowed" in p.stdout + p.stderr,
+            f"findings_control.py: {' '.join(combo)} REFUSES (exit 2)",
+            f"exit {p.returncode}: {(p.stdout + p.stderr).strip()[:150]}")
+
     row(DOCSTAT.read_bytes() == before,
         "docstat.py is byte-identical before and after - the mutants ran on copies")
 
@@ -603,13 +696,20 @@ def selftest() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mutate", metavar="NAME",
-                    help="run the controls against a MUTATED COPY of docstat.py in a "
-                         "tempdir; the repository's own file is never written to")
-    ap.add_argument("--all-mutants", action="store_true",
-                    help="every mutant in turn; exit 1 if any survives")
-    ap.add_argument("--list-mutants", action="store_true")
-    ap.add_argument("--selftest", action="store_true",
+    # One mode per invocation: `--clean-only --mutate NAME` used to run the mutation path
+    # and silently ignore the other flag, and an accepted-but-ignored flag is worse than
+    # an unsupported one (rule 13). argparse refuses the combination with exit 2.
+    modes = ap.add_mutually_exclusive_group()
+    modes.add_argument("--mutate", metavar="NAME",
+                       help="run the controls against a MUTATED COPY of docstat.py in a "
+                            "tempdir; the repository's own file is never written to")
+    modes.add_argument("--all-mutants", action="store_true",
+                       help="an alias of the default sweep, kept so the pass-39 record in "
+                            "CLEANUP-LOG.md still resolves")
+    modes.add_argument("--list-mutants", action="store_true")
+    modes.add_argument("--clean-only", action="store_true",
+                       help="the controls on the unmutated tool, without the mutant sweep")
+    modes.add_argument("--selftest", action="store_true",
                     help="the two refusals in `build`, pinned: an anchor absent from "
                          "docstat.py must refuse, an anchor measured at run time to "
                          "occur more than once must refuse, and a real mutant must "
@@ -621,15 +721,6 @@ def main() -> int:
         return 0
     if a.selftest:
         return selftest()
-    if a.all_mutants:
-        survived = []
-        for name in MUTANTS:
-            print(f"\n=== MUTANT {name}")
-            if controls(mutant=name) == 0:
-                survived.append(name)
-        print(f"\n{len(MUTANTS)} mutant(s), {len(survived)} survived"
-              + (f": {', '.join(survived)}" if survived else " - all caught"))
-        return 1 if survived else 0
     if a.mutate:
         if a.mutate not in MUTANTS:
             raise SystemExit(f"unknown mutant {a.mutate}; --list-mutants")
@@ -638,7 +729,9 @@ def main() -> int:
         print("\nthe mutant was CAUGHT" if rc else
               "\nTHE MUTANT SURVIVED - the controls above do not test what they name")
         return 0 if rc else 1
-    return controls()
+    if a.clean_only:
+        return controls()
+    return sweep()
 
 
 if __name__ == "__main__":

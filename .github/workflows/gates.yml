@@ -88,14 +88,16 @@ jobs:
       - name: linkcheck --selftest (the anchor rule the bare form leans on)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/linkcheck.py --selftest
-      # `docstat`'s duplicate-fragment check, both ways, over the live document corpus. Its
-      # `whole_line` mutant is the design that was tried first and measured as a complete
-      # false negative, so this is what stops that being tried again silently -- and until
-      # 2026-08-27 nothing ran it. 0.42s locally. It reads a historical blob for its REAL
-      # row, so it needs the `fetch-depth: 0` checkout above; in a shallow clone it goes RED
-      # rather than skipping, because no hits with nothing to find is indistinguishable from
-      # a check that cannot fire.
-      - name: fragment_control (the duplicate-fragment check, and the mutant it kills)
+      # `docstat`'s duplicate-fragment check, both ways, over the live document corpus --
+      # and since 2026-09-01 the default runs the clean pass AND all 8 mutants, 4.5s
+      # locally (`--clean-only` alone is 0.65s). Its `whole_line` mutant is the design
+      # that was tried first and measured as a complete false negative, so this is what
+      # stops that being tried again silently -- and until 2026-08-27 nothing ran the
+      # check at all. It reads a historical blob for its REAL row, so it needs the
+      # `fetch-depth: 0` checkout above; in a shallow clone it goes RED rather than
+      # skipping, because no hits with nothing to find is indistinguishable from a check
+      # that cannot fire.
+      - name: fragment_control (the duplicate-fragment check, and the mutants it kills)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/fragment_control.py
       # WHICH FILES THE SWEEP READS. `docstat --selftest` above makes the same clean call;
@@ -250,6 +252,13 @@ jobs:
         run: python3 eval/tools/runstat.py --selftest
 
       # ---- the controls that check the checkers ------------------------------------
+      # The findings producer's end-to-end controls: a fixture tree whose answer is stated
+      # before the tool runs, driven as a real subprocess with the real exit code. Since
+      # 2026-09-01 the default is the clean pass AND all 9 mutants, ~25s locally
+      # (`--clean-only` alone ~3s). Each mutant is a text patch applied to a COPY of
+      # docstat.py in a tempdir -- the module-global restore the corpus and withdrawn
+      # sweeps do has no surface here -- so the sweep snapshots the repository's own
+      # docstat.py and compares it after every mutant, restoring on a mismatch.
       - name: findings_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/findings_control.py
@@ -274,6 +283,12 @@ jobs:
       - name: dead_private_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/dead_private_control.py
+      # The starter-baseline provenance checker's controls: a real fixture repository whose
+      # baseline pair is produced by the same two commands the harness uses, seven
+      # adversarial damages, and 5 mutants whose failure sets are exactly the cases their
+      # checks carry. Since 2026-09-01 the default is the clean pass AND all 5 mutants,
+      # 0.75s locally; the --runs-root arm runs once, on the clean pass, because genuine
+      # baselines stay clean under all five.
       - name: backup_evidence_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/backup_evidence_control.py
