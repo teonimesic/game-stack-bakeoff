@@ -3181,7 +3181,9 @@ reports what each criterion separated over FIXTURES and says so; `--census --run
 checkout>/eval/runs` additionally reads every stored scene grading under the root into per-criterion
 tables under its own banner, and refuses a record that does not carry exactly the shape
 `scene_probe.drive` writes: the record's file is named by reason, and it enters no count. On a tree
-holding no gradings it prints `NOT ASKED` rather than `0 separated`. `--census-selftest` proves
+with no accepted gradings and no refusals it prints `NOT ASKED` rather than `0 separated`; a tree
+whose records are all refused prints the refusal count and names every refusal, and nothing enters
+the tables. `--census-selftest` proves
 the census can say NO, in both halves.
 
 **To re-open:** a real submission that any criterion fails for a reason that is not about the
