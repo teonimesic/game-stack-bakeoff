@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#212 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#213 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -129,6 +129,13 @@ there fails while every working file stays normal, so nothing but git reports th
 counts are byte-identical to a healthy run. The refusal names the path, both settings that
 reach that state, and the one-line repair. **No git hook can carry this check**: `git commit`
 exits 128 before any hook runs.
+
+**And it refuses when the copy that runs is not the main checkout's.** The counts read the tree
+the running copy lives in: from a linked worktree they are branch-local and plausible — work
+landing elsewhere reads as work disappearing, and `eval/runs/` being untracked,
+`python3 eval/tools/heartbeat.py` reports all 3 output counts as 0 from a fresh worktree
+(`tasks/229`). The refusal names both addresses; run the main checkout's copy.
+`heartbeat_control.py` pins both refusals.
 
 > **"Nothing moved" is a claim about the snapshot, not about the world.** Three times the
 > counters sat still through real work: once the file list went by extension, once by

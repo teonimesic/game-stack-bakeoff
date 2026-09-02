@@ -4624,3 +4624,196 @@ pass) — the performance authority every scene ramp number defers to; its figur
 confirmed present this pass but never producer-checked. Alternate: `DECISIONS.md` (1
 prior heading mention, and it is the file where superseded content must be replaced
 rather than annotated).
+
+## Pass 55 — 2026-09-02 — `eval/PERF-HOST.md` (305 lines, read whole) — 2 REPAIRS, the same defect pass 54 repaired in SCENES.md: the dated record still says no scene exists
+
+Subject chosen by pass 54's pointer. The file is a **dated measurement record**
+(2026-08-24) with an offline selftest as its pinned check, so the pass distinguished
+three figure classes: structural rows re-run and compared, load-sensitive arms left to
+their date, and the staleness class pass 54 had just taught.
+
+1. **"No scene has been built, so there is nothing to repeat"** (*What this did not
+   establish*, first bullet) — the exact overstatement SCENES.md carried until pass 54:
+   a scene submission exists, killed mid-build and salvaged, filmed and graded
+   (`eval/RUNS.md`). What is genuinely missing moved with the salvage: a
+   harness-drivable **real-time** path for its stack (the ts arm films headless on
+   SwiftShader; its real-time path today is a dev server a human opens). Rewritten to
+   say the material to repeat exists and the launch path is the gap.
+2. **"is unmeasured until a scene exists"** (*What that costs a ramp, in levels*) — the
+   same stale state one section up. Rewritten: the one scene submission on disk cannot
+   supply the spread yet, for the real-time-path reason the doc itself holds below.
+
+**Verified and sound** (producers run, not quoted):
+
+- `host_perf_probe.py --selftest` → PASS, exit 0 (the analysis, offline, with its
+  mutants — the only arm that is a check rather than a measurement).
+- **The `--caps` arm re-run today and compared row by row.** Structural rows reproduce
+  exactly: the `EINVAL` trio on `RLIMIT_AS`/`DATA`/`RSS`, `RLIMIT_STACK` at the same
+  `8372224 / 67092480` set-OK, `RLIMIT_CPU` OK, `AS==RSS` aliased; and the
+  `taskpolicy -m` hog table exact — 2048 MB allocated at `-m 512` and at
+  `-m 64 -j 10 -a`, all exit 0, the accepted-but-ignored flag intact. The CPU rate
+  table's ratios reproduce against today's ambient: 0.21 / 0.22 / 0.98 / 1.00 for
+  `-b` / background / utility / `nice` against the recorded 0.20 / 0.20 / 0.98 / 1.00,
+  with the control's own run-to-run range moving 0.7% → 1.2% as ambient does. The
+  machine line is byte-identical (`Apple M3 Max 16 cpu (12P+4E) 64 GB Darwin 25.2.0`).
+- **The ramp-level arithmetic re-derived from the ratios**: every cell of the 3x3
+  table reproduces from `log(r)/log(step)` (1.975 → 3.05/1.68/0.98; 2.130 →
+  3.39/1.86/1.09; 1.025 → 0.11/0.06/0.04), and "1.0 to 3.4" is the union the two
+  bottom rows span.
+- **Every toolchain fact verified at its address**: Bevy 0.19
+  (`crates/game/Cargo.toml:67`), three 0.185.1 (`starters/ts/package.json`), godot
+  4.7.2.stable (`godot --version`), unity 6000.0.45f1
+  (`ProjectSettings/ProjectVersion.txt`), the `--use-angle=swiftshader` pin in
+  `starters/ts/src/view/harness.ts`, and the rust starter's settle-frame allowance —
+  `MAX_SETTLE_FRAMES: usize = 240` at `src/harness.rs:410`.
+- SCENES.md's quotes of this file (1.975x, 2.13x, 25 s, 1.0–3.4) were confirmed present
+  in pass 54; today's repairs leave both files saying the same thing about the spread.
+
+**Deliberately not re-run, and why:** `--gpu`, `--spread` and `--drift` are
+load-sensitive measurements, not checks — the doc dates them (2026-08-24) and records
+the ambient state per arm (`load1` 3.79–17.01, GPU 0% median, non-zero 10 of 30), so a
+re-run produces different numbers with no defect implied, while putting minutes of GPU
+load on the operator's machine (rule 13). The structural arm plus the selftest is the
+re-checkable surface, and both are green. The Linux-VM section is environmental and
+dated; not re-checked.
+
+Gates after the edits, unpiped: sweep exit 0, renumbered exit 0, tasks check exit 0.
+
+Next pointer: **`README.md`** (386 lines, 0 heading mentions across all passes —
+checked) — the front door is gate-covered on its counts, but no exploration pass has
+ever read it whole against what is true now; the update-readme skill fires on edits,
+not as a pass. Alternate: root `IMPROVEMENTS.md` (431 lines, 0 heading mentions), which
+is ARCHIVE per the live/archive decision, so the pass there is about superseded
+hypotheses left open, not stale live figures.
+
+## Pass 56 — 2026-09-02 — README.md (386 lines, read whole) — 3 REPAIRS, all the producer-moved class; every named producer re-run, unpiped
+
+The front door, and the first whole-file read of it by a pass. The file quotes
+producers by name in nearly every quantitative sentence, so the pass was a sweep:
+**every producer README names was run today**, unpiped, and its output compared
+digit for digit against what README states.
+
+**3 repairs, all the class passes 53–55 kept finding — a figure whose named
+producer's output moved after recording:**
+
+1. "**two instruments that are never pooled**" (the pooling warning): the corpus
+   holds THREE kinds of record now — `census.py` has partitioned `SCENE` as its own
+   population, with its own NEVER-pooled line, since the 2026-08-25 scene salvage.
+   README's sentence was behind its own producer. Rewritten to three, dated.
+2. bot_mutants tally (the false-negative bullet): README said **44 criteria pinned,
+   11 variants**; the producer today reports **45 / 17, 0 pending** (3 session-lock
+   controls and 0 unmet unchanged). Digits updated, movement attributed.
+3. instruction_census range: README said **112–155** (read 2026-08-23); the producer
+   today says **136–186** — the always-loaded documents grew, exactly the sentence's
+   own prediction. Refreshed with both readings; **the same figure in `DECISIONS.md`'s
+   k=16 decision row was repaired identically** (that file is live, and its
+   parenthetical carried the old reading).
+
+Also refreshed: the *Is it still true?* re-check date is now 2026-09-02, with
+2026-08-23 kept as the prior read and the same conclusion stated — today's re-run is
+the evidence for it.
+
+**Reproduced exactly, digit for digit, and left alone** (this is the pass's real
+result — the front door's numbers are currently all load-bearing and all true):
+194 findings #19–#212 (`docstat.py --findings`, read on 2026-09-02); tier 1's 69
+submissions, 11 groups, 8-of-11 single-valued, 0-of-11 with both tiers varying, 8
+failing submissions (2 build + 6 lint/unit-test/ink, t2>0 on 6) (`tier1_census.py`);
+tier 2's saturated 5 of 11 — **all 5 game groups; the scene group (n=1) is correctly
+NOT counted saturated** (`tier2_census.py`); cost's 7 groups, 42%–254% of floor,
+floor exceeded in 5 of 7, 165 turns, ts cheapest in 5 of 7 (`cost_census.py`);
+ordering's run-unit p = 0.0156 with the producer's own note that the observed p IS
+the floor, 6-of-7 connected component with floor p 0.25, lead below floor in 5 of 5
+(`cost_census.py --ordering`); paired verdicts 0 differences against large
+evidence differences (99/148, 59/114; the tail-of-output trap — the last run
+section prints an empty table because the scene cell's 1 trial is excluded by
+design) (`paired_verdicts.py`); **the 16 hand adjudications, all false_negative** —
+the count is `len(ADJUDICATED)` and the tool's own NOTE line prints it; running the
+tool bare evaluates 0 submissions BY DESIGN (fail-closed, adjudications are pinned
+to their run) — the 38 in the applied table's false column is firings, a different
+quantity (`audit_criteria.py eval/runs/wg-matrix-2026-08-13T14-02-50`); the g4
+field's turns 205–370 over the 8 trials (`wholegame.py report --run-dir …/wg-g4c…`);
+9 criteria or 14 with audio (the tier-1 census table); 96 rounds/aspect, +0.853,
++0.043, 84 packs, 2,083 tokens (all present in `JUDGING.md` / `eval/findings/` and
+quoted consistently); 0.0622 / 0.308 / 0.462 (present in `DECISIONS.md`, which
+itself carries the "not reproduced by this method" caveat); "no item that would buy
+a new stack measurement" (`tasks.py list`, true today); all 25 paths README names
+exist (`--sweep` does not check paths); the command block's flags exist
+(`capability.py --runs`, `field_sweep.py --orders/--max-wall-min/--aspects`).
+
+Deliberately not done: no repair to the sentence "three failures in the whole
+project are properties of the work" — it already states it is a hand adjudication
+with no producer, which is the honest form.
+
+Gates after the edits, unpiped (main checkout): sweep exit 0, renumbered exit 0,
+tasks check exit 0.
+
+Next pointer: **root `IMPROVEMENTS.md`** (431 lines, 0 heading mentions across all
+passes — checked; pass 55's stated alternate). It is ARCHIVE per the live/archive
+decision, so the pass there is not about stale figures: it is about hypotheses left
+open that were settled elsewhere, and iterations whose measurement could now be
+closed. Alternate: `eval/AGENTS.md` (folder-scoped guidance for the harness —
+0 heading mentions across all passes, checked; the per-folder AGENTS.md files are
+the rules every session loads, and this one has never been read whole against what
+is true now).
+
+## Pass 57 — 2026-09-02 — root IMPROVEMENTS.md (431 lines, read whole) — 3 open iterations audited against the live tree: 2 settled, 1 false in the other direction; 3 tasks filed
+
+ARCHIVE, so the pass question was not stale figures — it was: which of the file's open
+items were settled elsewhere? Four candidates examined.
+
+**Settled, now closed out in dated notes the file keeps rather than rewritten:**
+
+1. **The #66 Unity lint iteration said "Awaiting a decision / PREPARED AND NOT
+   APPLIED." The change is applied.** The prepared guard is in
+   `eval/starters/unity/tools/unity-compile.sh` under `if [ "$STRICT" = "warnings" ]`,
+   with the arm-B negative and the ~2 s cost in its comment. And the predicted
+   consequence is verified, not assumed: `g4_platformer__unity__t1` is in tier 1's
+   failing 8 — `verify.green` and `lint.clean` exit 1 on the re-grade, tier 2 stays
+   1.000 (`tier1_census.py` today). The iteration's own "consequence, stated plainly"
+   paragraph came true exactly.
+2. **Iteration 1 (severed keyboard) is still live, and now recorded as such.**
+   Re-verified against the live criterion set: every tier-1 id and every tier-2 id is
+   probe/simulation-path; #128's four harder criteria replay a played tape through the
+   same probe. Nothing grades device input → intent. Filed `tasks/233` to EXECUTE the
+   pre-registered method (offline, no agent spend, falsifier already written).
+
+**Settled in the other direction — the headline:**
+
+3. **Iteration 2 said "PRE-REGISTERED, not yet built." It is built, and it has never
+   run.** `judge/judge_design.py` + `judge/design_criteria.py` are original equipment
+   (a3d0fd1), implement the iteration's exact spec (frames + telemetry, no source,
+   anchored 0–4, no weight until tuned-vs-detuned separation exceeds run-to-run
+   spread), and are registered spend producers in `tokenvalue.py`'s PRODUCERS — but no
+   stored round, no doc, no decision anywhere names a run (swept JUDGING.md, RUNS.md,
+   DECISIONS.md, eval/runs/). An instrument that is a live question nobody can see.
+   Filed `tasks/234`: run the falsification (a handful of tokval-priced calls) or
+   retire the module with a DECISIONS row naming the ground — supersession by the
+   aspect tier is valid, but must be said.
+
+**Also filed:**
+
+- `tasks/235` — starter_parity compares recipe text, not recipe reproducibility. The
+  gap is named in the #66 iteration's Scope section ("'Unity passed lint' has never
+  been the claim it appeared to be"), the fix is Unity-only, and no arm but Unity has
+  ever had its gate compared against a cold run. Either measure it per stack or
+  record why text comparison suffices.
+
+**Examined and judged sound, no action:** iteration 1's hypothesis/falsifier are
+internally complete and correctly scoped (the #41 mouse-clause preamble diff in
+`eval/findings/one-arm-bias.md` is a different incident, not this one); the task-26
+"two arms not done" section is correctly superseded by the task-52 iteration with
+the #110 correction in place; the deliberately-not-adopted registers in both
+iterations state a reason per row and need nothing.
+
+Process note: `tasks.py add` printed `error: no justfile found` before creating each
+task; all three files are well-formed per `tasks.py check` (gate below, exit 0).
+Looked at once, not chased — noted so the next pass that sees it knows it was seen.
+
+Gates after the edits, unpiped (main checkout): sweep exit 0, renumbered exit 0,
+tasks check exit 0.
+
+Next pointer: **`eval/AGENTS.md`** (folder-scoped guidance for the harness; 0 heading
+mentions across all passes — checked; pass 56's stated alternate). The per-folder
+AGENTS.md files are the rules every session loads, and this one has never been read
+whole against what is true now. Alternate: `eval/G4-PLATFORMER.md` (0 heading
+mentions) — the fourth game's design record, which README cites for its criteria.

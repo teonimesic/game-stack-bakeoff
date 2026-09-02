@@ -253,6 +253,15 @@ jobs:
       - name: findings_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/findings_control.py
+      # The mode, not the bare run above: it pins the two refusals `build` applies its
+      # mutants through - an anchor absent from docstat.py refuses, and an anchor
+      # MEASURED at run time to occur more than once refuses, so the pin moves with the
+      # code instead of hardcoding a line one edit would leave stale - and a real mutant
+      # must still apply exactly once, or a `build` that refuses everything would read
+      # green. Pass 39 verified both refusals by ad-hoc invocation only. 0.09s locally.
+      - name: findings_control --selftest (the refusals the mutants apply through)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/findings_control.py --selftest
       - name: withdrawn_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/withdrawn_control.py
@@ -271,14 +280,20 @@ jobs:
       - name: hook_audit_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/hook_audit_control.py
-      # The heartbeat's counts are byte-identical whether or not the main checkout is a
-      # work tree, so nothing but this asks. It pins the guard red on both settings that
-      # reach that state and green on the three where the checkout is fine -- read from the
-      # main checkout and from a linked worktree, where every git command still succeeds.
-      # About 1s locally -- `time python3 eval/tools/heartbeat_control.py` is the reading,
-      # and 2 of them minutes apart differed by 28%. Throwaway git repositories under
-      # $TMPDIR: no history, no toolchain.
-      - name: heartbeat_control (the main checkout is a work tree, both directions)
+      # The heartbeat refuses on two addresses, and nothing but this asks about either.
+      # The address guard (`tasks/229`): the counts read the tree the RUNNING COPY lives
+      # in, so a linked worktree's copy would count branch-local, plausible and wrong --
+      # pinned red, and it runs FIRST, so every refusal a worktree copy can get names both
+      # addresses, even when the main checkout is broken too. The work-tree guard: the
+      # counts are byte-identical whether or not the main checkout is a work tree; pinned
+      # red on both settings that reach that state, green on the two where the checkout is
+      # fine. The live row adapts to where this control itself runs: CI is the main
+      # checkout, agent commits are not.
+      # About 1s locally: `time python3 eval/tools/heartbeat_control.py`.
+      # 2 runs of that command, minutes apart, differed by 28%. Throwaway git
+      # repositories under $TMPDIR: a local fixture commit, no project history,
+      # no toolchain.
+      - name: heartbeat_control (a work-tree main checkout, and only its copy counts)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/heartbeat_control.py
       # The agent CLI became a variable on 2026-08-24, and nothing in a stored artifact
