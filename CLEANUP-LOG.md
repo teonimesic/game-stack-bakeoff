@@ -4624,3 +4624,64 @@ pass) — the performance authority every scene ramp number defers to; its figur
 confirmed present this pass but never producer-checked. Alternate: `DECISIONS.md` (1
 prior heading mention, and it is the file where superseded content must be replaced
 rather than annotated).
+
+## Pass 55 — 2026-09-02 — `eval/PERF-HOST.md` (305 lines, read whole) — 2 REPAIRS, the same defect pass 54 repaired in SCENES.md: the dated record still says no scene exists
+
+Subject chosen by pass 54's pointer. The file is a **dated measurement record**
+(2026-08-24) with an offline selftest as its pinned check, so the pass distinguished
+three figure classes: structural rows re-run and compared, load-sensitive arms left to
+their date, and the staleness class pass 54 had just taught.
+
+1. **"No scene has been built, so there is nothing to repeat"** (*What this did not
+   establish*, first bullet) — the exact overstatement SCENES.md carried until pass 54:
+   a scene submission exists, killed mid-build and salvaged, filmed and graded
+   (`eval/RUNS.md`). What is genuinely missing moved with the salvage: a
+   harness-drivable **real-time** path for its stack (the ts arm films headless on
+   SwiftShader; its real-time path today is a dev server a human opens). Rewritten to
+   say the material to repeat exists and the launch path is the gap.
+2. **"is unmeasured until a scene exists"** (*What that costs a ramp, in levels*) — the
+   same stale state one section up. Rewritten: the one scene submission on disk cannot
+   supply the spread yet, for the real-time-path reason the doc itself holds below.
+
+**Verified and sound** (producers run, not quoted):
+
+- `host_perf_probe.py --selftest` → PASS, exit 0 (the analysis, offline, with its
+  mutants — the only arm that is a check rather than a measurement).
+- **The `--caps` arm re-run today and compared row by row.** Structural rows reproduce
+  exactly: the `EINVAL` trio on `RLIMIT_AS`/`DATA`/`RSS`, `RLIMIT_STACK` at the same
+  `8372224 / 67092480` set-OK, `RLIMIT_CPU` OK, `AS==RSS` aliased; and the
+  `taskpolicy -m` hog table exact — 2048 MB allocated at `-m 512` and at
+  `-m 64 -j 10 -a`, all exit 0, the accepted-but-ignored flag intact. The CPU rate
+  table's ratios reproduce against today's ambient: 0.21 / 0.22 / 0.98 / 1.00 for
+  `-b` / background / utility / `nice` against the recorded 0.20 / 0.20 / 0.98 / 1.00,
+  with the control's own run-to-run range moving 0.7% → 1.2% as ambient does. The
+  machine line is byte-identical (`Apple M3 Max 16 cpu (12P+4E) 64 GB Darwin 25.2.0`).
+- **The ramp-level arithmetic re-derived from the ratios**: every cell of the 3x3
+  table reproduces from `log(r)/log(step)` (1.975 → 3.05/1.68/0.98; 2.130 →
+  3.39/1.86/1.09; 1.025 → 0.11/0.06/0.04), and "1.0 to 3.4" is the union the two
+  bottom rows span.
+- **Every toolchain fact verified at its address**: Bevy 0.19
+  (`crates/game/Cargo.toml:67`), three 0.185.1 (`starters/ts/package.json`), godot
+  4.7.2.stable (`godot --version`), unity 6000.0.45f1
+  (`ProjectSettings/ProjectVersion.txt`), the `--use-angle=swiftshader` pin in
+  `starters/ts/src/view/harness.ts`, and the rust starter's settle-frame allowance —
+  `MAX_SETTLE_FRAMES: usize = 240` at `src/harness.rs:410`.
+- SCENES.md's quotes of this file (1.975x, 2.13x, 25 s, 1.0–3.4) were confirmed present
+  in pass 54; today's repairs leave both files saying the same thing about the spread.
+
+**Deliberately not re-run, and why:** `--gpu`, `--spread` and `--drift` are
+load-sensitive measurements, not checks — the doc dates them (2026-08-24) and records
+the ambient state per arm (`load1` 3.79–17.01, GPU 0% median, non-zero 10 of 30), so a
+re-run produces different numbers with no defect implied, while putting minutes of GPU
+load on the operator's machine (rule 13). The structural arm plus the selftest is the
+re-checkable surface, and both are green. The Linux-VM section is environmental and
+dated; not re-checked.
+
+Gates after the edits, unpiped: sweep exit 0, renumbered exit 0, tasks check exit 0.
+
+Next pointer: **`README.md`** (386 lines, 0 heading mentions across all passes —
+checked) — the front door is gate-covered on its counts, but no exploration pass has
+ever read it whole against what is true now; the update-readme skill fires on edits,
+not as a pass. Alternate: root `IMPROVEMENTS.md` (431 lines, 0 heading mentions), which
+is ARCHIVE per the live/archive decision, so the pass there is about superseded
+hypotheses left open, not stale live figures.
