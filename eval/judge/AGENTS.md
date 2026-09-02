@@ -81,6 +81,8 @@ AND the captured frames, and each criterion says which halves it has.
 python3 judge/scene_probe.py s1_parallax <submission>   # drive one submission
 python3 judge/scene_mutants.py                          # both directions, ~22s
 python3 judge/scene_mutants.py --census                 # what each criterion separated
+python3 judge/scene_mutants.py --census --runs-root <main checkout>/eval/runs
+                                                        # the same, over the stored corpus
 python3 judge/scene_mutants.py --census-selftest        # can the census say NO?
 python3 judge/scene_mutants.py --attribution-selftest   # which rows are one layer's?
 ```
@@ -96,10 +98,16 @@ python3 judge/scene_mutants.py --attribution-selftest   # which rows are one lay
   way to read an `offset` — and `tasks/164` repaired the reliability filter that repair unblocked.
   The re-grade stands at **6 of 6**, with `layers.image_parallax` back to `scored=False` — and
   unmoved by `tasks/174`, which repaired the reason it gives rather than the verdict.
-- **`--census` reports over FIXTURES and says so.** It answers whether a criterion can take both
-  values on material this repository wrote. `--runs-root` looks for stored scene gradings and
-  prints `NOT ASKED` when there are none, never `0 separated` — the 2 are different claims
-  (rule 12).
+- **`--census` reports over FIXTURES and says so; `--census --runs-root` reads the corpus beside
+  them.** The fixture tables answer whether a criterion can take both values on material this
+  repository wrote. With `--runs-root <main checkout>/eval/runs` the census also reads every
+  stored scene grading it finds under the root — every file named, one per-criterion table per
+  scene, printed under its own banner so the fixture population and the stored one are never
+  pooled — and it refuses a stored record that does not carry exactly the shape
+  `scene_probe.drive` writes: named reason, named file, in no count. It prints `NOT ASKED` when
+  there are no gradings, never `0 separated` — the 2 are different claims (rule 12). The selftest
+  pins both directions over a runs tree it builds: stated counts, 3 refusal kinds in situ, and
+  14 direct refusals.
 - **An absent image half and an unestablished experiment are not the same thing**, and
   `scene_probe.py`'s docstring holds the table. A film recipe that produced no frames is a fact
   about the submission; a run in which no captured frame lands inside the light ramp is an
