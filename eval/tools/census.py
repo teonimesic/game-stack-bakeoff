@@ -51,7 +51,10 @@ adding another vendor's figure to it produces a number in no unit at all.
 both exit 2. An agent worktree has no `eval/runs/` — it is gitignored — so the honest
 answer there is a refusal, not `0 records`, which is the shape rule 3 forbids. The
 resolved absolute path is printed with the counts, because the address is an input to the
-check (#60, rule 12).
+check (#60, rule 12). A whole-game or scene record carrying no usable `stack` is refused
+by name the same way, exit 2 with the file named: the partition reads it inside
+comprehensions that can name nothing, so the loader — which has the path — refuses it
+first (`stack_of`, the one reader behind cost_census's whole-game refusal too).
 
 Judge-round cost is **not** counted here: its producer is
 `python3 eval/judge/judge_ledger.py --tree eval/runs/`, which is what `eval/RUNS.md`
@@ -90,9 +93,11 @@ import tokenvalue  # noqa: E402
 from agent_harness import (  # noqa: E402
     NOT_A_RUN,
     TOKVAL_HARNESS,
+    StackError,
     TaskClassError,
     harness_of,
     population_of,
+    stack_of,
     task_class_of,
 )
 
@@ -157,11 +162,27 @@ def load_records(runs_dir: Path) -> tuple[list[tuple[str, str, dict]], list[Path
             raise CensusError(f"{path}: `agent` is {data['agent']!r}, not an object — "
                               f"nothing can be read from it")
         # A TASK CLASS NOBODY HERE PARTITIONS FAILS BY NAME, here rather than at the
-        # point of use, because `task_class_of` is called from inside a comprehension
-        # over every record and has no path to name.
+        # point of use, because the classifier is called from inside a comprehension
+        # over every record and has no path to name. Validated through `population_of`,
+        # the shared classifier, which reads `task_class_of` on every record — the same
+        # call this loader's twin in `cost_census.py` makes.
+        #
+        # A WHOLE-GAME OR SCENE RECORD WITH NO USABLE `stack` FAILS BY NAME TOO, and
+        # for the same reason: the partition below reads `d["stack"]` inside
+        # comprehensions over every record of both populations — the game x stack cells
+        # counter, the per-run stacks, the whole-game and scene stacks counters — and a
+        # bare KeyError there ends the census naming no file. The requirement is a
+        # property of those two populations only (`STACK_KEY`'s comment in
+        # `agent_harness.py`): the retired suite never wrote the field, so a
+        # spec-change record with no `stack` is refused by NOTHING here. The reader is
+        # the shared one behind cost_census's whole-game refusal; each producer wraps
+        # it with the path that only it has.
         try:
-            task_class_of(data)
+            if population_of(data) != "spec-change":
+                stack_of(data)
         except TaskClassError as exc:
+            raise CensusError(f"{path}: {exc}") from exc
+        except StackError as exc:
             raise CensusError(f"{path}: {exc}") from exc
         out.append((str(path.parent.parent.relative_to(runs_dir)), path.name, data))
     if not out:
@@ -226,6 +247,8 @@ def census(runs_dir: Path) -> dict:
     scenes = by_population["scene"]
     specchange = by_population["spec-change"]
 
+    # Every record in `wholegame` and `scenes` carries a usable `stack`: the loader has
+    # already refused the rest by name, because these comprehensions cannot.
     cells = collections.Counter((d["game"], d["stack"]) for _, _, d in wholegame)
     per_run = {}
     for run in sorted({r for r, _, _ in wholegame}):
@@ -568,6 +591,57 @@ def selftest() -> int:
                 check("and names the class it could not place",
                       "'cutscene'" in str(exc), True)
 
+        # Direction 10: A WHOLE-GAME RECORD WITH NO `stack`, AND ITS SCENE VARIANT.
+        # The partition reads `d["stack"]` inside comprehensions over every whole-game
+        # and scene record and has no path to name, so — for the same reason the class
+        # refusal above lives in the loader — the stack check lives there too: a record
+        # classified whole-game or scene that carries no usable `stack` ended the census
+        # with a bare `KeyError: 'stack'`, exit 1, no file named. Spec-change records are
+        # NOT required to carry one: the retired suite never wrote the field, which is
+        # what the known-answer tree above already counts — 2 spec-change records, and
+        # neither fixture carries a `stack`.
+        with tempfile.TemporaryDirectory() as tmp5:
+            nostack = Path(tmp5) / "runs"
+            _write(nostack / "wg-ns" / "trials" / "g1__ts__t0.json",
+                   {"game": "g1", "trial": 0,
+                    "agent": {"cost_usd": 5.0, "terminal_reason": "completed"}})
+            try:
+                census(nostack)
+                failures.append("a whole-game record with no `stack`: returned a census "
+                                "instead of raising")
+            except CensusError as exc:
+                check("the no-`stack` refusal names the file",
+                      "g1__ts__t0.json" in str(exc), True)
+                check("and names the field it was refused for",
+                      "stack" in str(exc), True)
+            # The scene variant: a scene record carries `game` like every record, so it
+            # classifies as a scene and its `stack` is read by the same comprehensions
+            # (`d["stack"]` over the scene population builds the scene stacks counter).
+            _write(nostack / "wg-ns" / "trials" / "g1__ts__t0.json",
+                   {"game": "s1_parallax", "task_class": "scene", "trial": 0,
+                    "agent": {"cost_usd": 5.0, "terminal_reason": "completed"}})
+            try:
+                census(nostack)
+                failures.append("a scene record with no `stack`: returned a census "
+                                "instead of raising")
+            except CensusError as exc:
+                check("the scene no-`stack` refusal names the file",
+                      "g1__ts__t0.json" in str(exc), True)
+                check("and names the field it was refused for",
+                      "stack" in str(exc), True)
+            # A PRESENT VALUE THAT IS NOT A STACK NAME is refused with the absent one —
+            # `None` from `"stack": null` would otherwise group as a stack named None.
+            _write(nostack / "wg-ns" / "trials" / "g1__ts__t0.json",
+                   {"game": "g1", "stack": None, "trial": 0,
+                    "agent": {"cost_usd": 5.0, "terminal_reason": "completed"}})
+            try:
+                census(nostack)
+                failures.append("a whole-game record with a null `stack`: returned a "
+                                "census instead of raising")
+            except CensusError as exc:
+                check("the null-`stack` refusal names the file",
+                      "g1__ts__t0.json" in str(exc), True)
+
         # THE PARTITION IS THE SHARED ONE, not a local twin (task 227). IDENTITY, not
         # equality: a copy redefined here with equal value would be a second definition,
         # and a second definition is exactly what drifted. The source pins hold the other
@@ -580,6 +654,20 @@ def selftest() -> int:
               population_of is agent_harness.population_of, True)
         check("NOT_A_RUN is the shared skip list",
               NOT_A_RUN is agent_harness.NOT_A_RUN, True)
+        # THE STACK READER IS SHARED WITH IT, for the same reason: `cost_census.py`
+        # refuses a whole-game record with no usable `stack` by its own spelling, and a
+        # second spelling of "usable" is a second definition waiting to disagree with
+        # the first on some record shape neither author had in front of them.
+        check("stack_of is the shared reader",
+              stack_of is agent_harness.stack_of, True)
+        check("stack_of reads a usable stack",
+              stack_of({"game": "g1", "stack": "ts"}), "ts")
+        for bad in ({}, {"stack": None}, {"stack": ""}, {"stack": 7}, {"stack": ["ts"]}):
+            try:
+                stack_of(bad)
+                failures.append(f"stack_of accepted {bad!r}")
+            except StackError:
+                pass
         census_source = Path(__file__).read_text()
         # The searched literals are assembled from parts so they cannot match the line
         # that searches for them — the first version of this pin went red on itself.
