@@ -1,12 +1,12 @@
 ---
 id: 228
 title: 'findings_control.py has no --selftest: its two build() refusals are unpinned'
-status: in_testing
+status: done
 priority: 2
 refs: CLEANUP-LOG pass 39; .agents/skills/tasks/SKILL.md
 done_when: 'python3 eval/tools/findings_control.py --selftest exists, prints ok/FAIL per assertion and exits 1 on failure, asserting: (a) a mutant whose anchor is absent from docstat.py refuses; (b) a mutant whose anchor is AMBIGUOUS refuses — built at run time from a string measured to occur more than once in the live docstat.py, never a hardcoded line (the code moves). Read .github/workflows/README.md before adding the mode: ci_minutes.py --controls''s selftest census counts scripts declaring --selftest and asks that a workflow step or git hook names each one, so the new mode must be added to the workflow step that runs findings_control.py, or the census goes red. Plain controls and --all-mutants must still exit 0.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/108
-established_by: 'findings_control --selftest green (4 assertions, exit 0) and red when either refusal is deleted in a copy (exit 1 naming its row, both refusals demonstrated); plain controls 21/0 and --all-mutants 9/0 still exit 0; gates.yml runs the mode so the mode census reads 32 declared / 31 named / 0 unrecorded and ci_minutes --selftest, --controls, --gates, docstat --sweep and tasks.py check all exit 0 unpiped (PR #108)'
+established_by: 'Merge 59674c2 (PR #108 squash), verified on main 2026-09-02: --selftest prints 4 assertions 0 failed and exits 0 — absent-anchor refusal, ambiguous-anchor refusal (anchor measured at run time: 26 occurrences in live docstat.py), real mutant applies exactly once, docstat.py byte-identical before/after. No finding: the task pinned existing refusals, it published no number and no defect was measured beyond the absence of pins.'
 ---
 
 Pass 39 (CLEANUP-LOG) added the ambiguity refusal to build() — a mutant anchor occurring more than once in docstat.py must SystemExit rather than silently mutate whichever copy came first — beside the existing absent-anchor refusal, and verified both by ad-hoc invocation in that session only. Nothing in the repository pins them. tasks_mutants.py pins its drifted-anchor refusal with a --selftest mode and is named in CI for it; findings_control's guards are one edit away from silent removal, and the failure is invisible when they go: a deleted guard just means the next ambiguous anchor mutates the first copy and the controls grade a mutation the file did not name.
