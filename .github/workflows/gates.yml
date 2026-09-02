@@ -253,6 +253,15 @@ jobs:
       - name: findings_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/findings_control.py
+      # The mode, not the bare run above: it pins the two refusals `build` applies its
+      # mutants through - an anchor absent from docstat.py refuses, and an anchor
+      # MEASURED at run time to occur more than once refuses, so the pin moves with the
+      # code instead of hardcoding a line one edit would leave stale - and a real mutant
+      # must still apply exactly once, or a `build` that refuses everything would read
+      # green. Pass 39 verified both refusals by ad-hoc invocation only. 0.09s locally.
+      - name: findings_control --selftest (the refusals the mutants apply through)
+        if: ${{ !cancelled() }}
+        run: python3 eval/tools/findings_control.py --selftest
       - name: withdrawn_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/withdrawn_control.py
