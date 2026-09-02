@@ -71,7 +71,7 @@ Tier 1 unchanged at 9/9, tier 2 unchanged at 13/13, `overall` unchanged at 1.000
 Run exactly as pre-registered: offline, no agent spend, one completed submission extracted
 from its stored archive into a scratch directory outside the repository — the stored
 archive was never written to. The stack choice, the sever, the pin and the grading are
-reproducible from `tasks/233`, which also holds the finding un-numbered for allocation.
+reproducible from `tasks/233`, which also held the finding, allocated as #214 at merge.
 
 **Stack choice, stated as the ticket asks.** The TypeScript arm severs with the smallest
 edit of the four: measured against each stack's completed, fully-green wg-g4c submission,
@@ -130,7 +130,7 @@ controls grades a perfect 1.0000.
 **Verdict: the pre-registered falsifier — ANY drop in tier-1 or tier-2 score — did not
 fire. The hypothesis is confirmed on this submission: the grading system cannot
 distinguish this playable submission from its unplayable twin.** A confirmed null is a
-finding; it is filed on the ticket un-numbered, for the orchestrator to allocate.
+finding; allocated **#214** at merge (2026-09-02).
 
 **What this does NOT establish.** n=1 — one submission, one game (`g4_platformer`), one
 stack. No fix is measured here. The pre-registered "If confirmed" step — a criterion that

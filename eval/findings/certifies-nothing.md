@@ -6509,3 +6509,31 @@ byte-identical to pre-fix; the original spelling kept red as `partition_by_field
 (`cost_census_mutants.py`, 42/42, control green). Producer: `python3 eval/tools/census.py` and
 `python3 eval/tools/cost_census.py` over the same `--runs-dir` must print the same whole-game
 record count; disagreement is the finding firing again.
+
+## #214 - a submission whose real input path is severed grades identically to the playable original: the grade certifies the probe/simulation path, not playability
+
+**Severing only the view layer's keyboard-to-intent wiring of a fully-green submission moved
+0 of 35 criteria.** The submission: `g4_platformer__ts__t0` (`wg-g4c-2026-08-21T02-26-46`),
+extracted from its stored archive to scratch, never written back. The sever: ONE deleted line —
+`pressed.add(event.code);` in `src/view/main.ts`, the only writer of the intent set the view
+reads — chosen because ts severs with the smallest edit of the four stacks (rust 4, godot 4,
+unity ~8); `diff -r` over the two extracted copies shows that line and nothing else. Graded
+offline on both copies, seed 7: tier 1 **14/14, gate PASS, both**; tier 2 **20/20, both**;
+overall **1.0000, both**; all 21 tier-2 evidence strings byte-identical; 11 of 14 tier-1
+evidence strings identical and the 3 that differ are pure timing (wall seconds, a timestamp,
+probe throughput). The diagnostic `stage.completes` fails on BOTH copies with a byte-identical
+string, so it separates nothing here either. The treatment pin (rule 15) shows the key really
+is dead on the severed copy: holding ArrowRight for 2 s moves **81.2%** of the pristine frame
+(`png.differs_from`, tolerance 8 — tier 1's own instrument) and **1.5%** of the severed frame,
+below the severed copy's own idle drift of 1.7%; with no keys the copies are pixel-identical
+(0.000000), so the sever changed nothing else. **Every tier-1 and tier-2 criterion runs on the
+probe/simulation path** (#128 said so structurally; this is the measured consequence): the same
+right-arrow input the play-bot certifies — `player.walks`, "answered input after 2 ticks" —
+arrives through the probe the severed copy still serves perfectly, so a game `just run` opens
+with dead controls grades a perfect 1.0000. This is root `IMPROVEMENTS.md` iteration 1's
+pre-registered falsification, run 2026-09-02; the falsifier — ANY score drop — did not fire.
+Re-produced independently at merge by a second session: both copies re-warmed and re-graded,
+14/14 + 20/20 on each, overall 1.000 both. **n=1**: one submission, one game, one stack — it
+establishes that the instrument cannot see this defect, not that any real submission has it.
+The fix — a criterion that exercises the real input path, validated in both directions — is a
+**criterion addition, i.e. a regime boundary**, deliberately not made here.
