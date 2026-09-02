@@ -66,6 +66,20 @@ before counting anything and prints the one-line repair.
 `_assert_main_checkout_is_a_work_tree` holds the measurement, the two settings that reach
 that state, and why no git hook can carry this check.
 
+AND THE COPY THAT RUNS MUST BE THAT CHECKOUT'S
+----------------------------------------------
+The work-tree assertion verifies the checkout git names as the main one; the counts then
+read ROOT -- the tree the RUNNING COPY lives in. Nothing compared the two (`tasks/229`):
+from a linked worktree's copy, agent worktrees being full checkouts, the assertion passed
+and every count went branch-local, plausible and wrong -- work landing on any other
+branch read as work disappearing, and `eval/runs/` being untracked, a fresh worktree
+reported 0 runs, 0 judge rounds and 0 graded submissions (measured before the fix: exit
+0, `runs=0`, against a main checkout holding 16, 97 and 85). `_assert_root_is_main_
+checkout` compares the two addresses and refuses, naming both, and is asked FIRST -- so a
+worktree copy is answered with both addresses even when the main checkout is broken too.
+`heartbeat_control.py`
+pins it in both directions and carries the mutant that deletes the call.
+
     python3 eval/tools/heartbeat.py          # key=value lines, one per metric
     python3 eval/tools/heartbeat.py --json
 """
@@ -118,7 +132,7 @@ def _config(repo: str, key: str) -> str:
     return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else "<unset>"
 
 
-def _assert_main_checkout_is_a_work_tree() -> None:
+def _assert_main_checkout_is_a_work_tree(main: str) -> None:
     """The main checkout must be a work tree, and nothing else here notices when it is not.
 
     `core.bare` went true in the main checkout's `.git/config` on 2026-08-27 (`tasks/184`).
@@ -153,7 +167,7 @@ def _assert_main_checkout_is_a_work_tree() -> None:
     invisible. Duty cycle argues the same way and more weakly: the flip appeared while nothing
     was committing, and the heartbeat runs hourly regardless.
     """
-    path = _main_checkout_path()
+    path = main
     probe = subprocess.run(["git", "-C", path, "rev-parse", "--is-inside-work-tree"],
                            capture_output=True, text=True)
     if probe.returncode == 0 and probe.stdout.strip() == "true":
@@ -191,11 +205,67 @@ def _assert_main_checkout_is_a_work_tree() -> None:
     )
 
 
+def _assert_root_is_main_checkout(root: Path, main: str) -> None:
+    """The copy that runs must BE the main checkout's, and this is the only check that asks.
+
+    `_assert_main_checkout_is_a_work_tree` verifies the checkout git names as the main one;
+    `collect` then counts ROOT, derived from `__file__` -- the tree the RUNNING COPY lives
+    in. Nothing compared the two (`tasks/229`). Run from a linked worktree's copy -- and
+    agent worktrees are full checkouts -- the work-tree assertion passed, because the main
+    checkout IS a work tree, and every count went branch-local: findings, the task counts
+    and `project_lines` became plausible and wrong, which reads as work disappearing, and
+    `eval/runs/` is untracked so a fresh worktree reported 0 runs, 0 judge rounds and
+    0 graded submissions. Measured before the fix, from a worktree copy of this file:
+    exit 0 with `runs=0` while the main checkout held 16 runs, 97 judge rounds and 85
+    graded submissions. The fivefold jump of 2026-08-22 was worktrees counted TWICE; this
+    was the same defect one step later -- worktrees counted INSTEAD.
+
+    THE PROPERTY IS THE INVOCATION ADDRESS, not the metric. `project_lines`'s tracked-files
+    definition excludes worktrees from the MAIN checkout's count by construction, but which
+    tree is counted at all is decided by which copy of this file was invoked -- a property
+    of the address, and only a comparison of two addresses can hold it (`AGENTS.md`,
+    rule 12). `main` is already computed, by `_main_checkout_path`, for the work-tree
+    assertion; the defect was that nothing asked whether this copy lives there.
+
+    `heartbeat_control.py` pins this refusal in both directions, from the live repository
+    and from a fixture, and carries the mutant that deletes the call below -- the pre-fix
+    behaviour, reproduced on demand.
+
+    IT RUNS BEFORE THE WORK-TREE PROBE. A worktree copy with a broken main checkout is
+    answered HERE, with both addresses, rather than by a refusal about the checkout that
+    names only the checkout: run the right copy first, and the next refusal, if one still
+    fires, fires where ROOT is the main checkout and its address is the running copy's.
+    """
+    if Path(root).resolve() == Path(main).resolve():
+        return
+    raise SystemExit(
+        "heartbeat: THIS COPY IS NOT THE MAIN CHECKOUT'S.\n"
+        "\n"
+        f"    this copy (ROOT, from __file__):   {Path(root).resolve()}\n"
+        f"    main checkout (git worktree list): {Path(main).resolve()}\n"
+        "\n"
+        "Every count would be THIS tree's, not the project's: findings, the task counts\n"
+        "and `project_lines` would read branch-local, so work landing anywhere else reads\n"
+        "as work disappearing -- and `eval/runs/` is untracked, so a fresh worktree\n"
+        "reports no runs, no judge rounds and no graded submissions at all.\n"
+        "\n"
+        "Repair, one line -- run the main checkout's copy:\n"
+        f"\n"
+        f"    python3 {Path(main).resolve()}/eval/tools/heartbeat.py\n"
+        "\n"
+        "No count is reported: a count of one branch, read as the whole project, is the\n"
+        "shape of a number that gets acted on."
+    )
+
+
 def _tracked_files() -> list[Path]:
     """Git-tracked files only.
 
-    This is the whole defence against the worktree inflation. Agent worktrees live under
-    `.claude/worktrees/`, which is gitignored, so they are absent here by construction.
+    This is the defence against the worktree inflation AT THE ADDRESS THAT COUNTS: agent
+    worktrees live under `.claude/worktrees/`, which is gitignored, so they are absent
+    here by construction. That they never count anywhere else is the address refusal's
+    job -- `_assert_root_is_main_checkout` stops the run before this is reached from the
+    wrong copy.
     Fails loudly rather than returning a plausible zero -- an empty list would read as
     "the project has no code", which is exactly the shape of a broken check that produces
     an in-range number.
@@ -356,8 +426,20 @@ def _criteria() -> int:
 
 def collect() -> dict[str, int]:
     # FIRST, because every metric below is a statement about the main checkout and
-    # `git ls-files` answers happily in a bare one.
-    _assert_main_checkout_is_a_work_tree()
+    # `git ls-files` answers happily in a bare one. TWO refusals, one address each, and
+    # THE ORDER IS LOAD-BEARING: the address comparison runs before the work-tree probe,
+    # so a reader in the wrong copy is sent to the right one before anything about the
+    # checkout itself is diagnosed -- and every refusal that can then fire names both
+    # paths, or fires where ROOT IS the main checkout, so naming main names the running
+    # copy. Work-tree first, the order until PR #109's review, refused a worktree copy
+    # with a broken main checkout by naming only the main checkout -- and telling the
+    # reader that linked worktrees go on working, which that reader would have taken as
+    # licence to count branch-local. Either guard alone leaves the other unguarded: the
+    # address guard alone would count a bare checkout's index (`tasks/184`), the work-tree
+    # guard alone counted branch-local from a worktree (`tasks/229`).
+    main = _main_checkout_path()
+    _assert_root_is_main_checkout(ROOT, main)
+    _assert_main_checkout_is_a_work_tree(main)
     tracked = _tracked_files()
     n_findings, highest = _findings()
     tasks = _tasks()

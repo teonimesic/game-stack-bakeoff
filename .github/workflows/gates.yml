@@ -88,14 +88,16 @@ jobs:
       - name: linkcheck --selftest (the anchor rule the bare form leans on)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/linkcheck.py --selftest
-      # `docstat`'s duplicate-fragment check, both ways, over the live document corpus. Its
-      # `whole_line` mutant is the design that was tried first and measured as a complete
-      # false negative, so this is what stops that being tried again silently -- and until
-      # 2026-08-27 nothing ran it. 0.42s locally. It reads a historical blob for its REAL
-      # row, so it needs the `fetch-depth: 0` checkout above; in a shallow clone it goes RED
-      # rather than skipping, because no hits with nothing to find is indistinguishable from
-      # a check that cannot fire.
-      - name: fragment_control (the duplicate-fragment check, and the mutant it kills)
+      # `docstat`'s duplicate-fragment check, both ways, over the live document corpus --
+      # and since 2026-09-01 the default runs the clean pass AND all 8 mutants, 4.5s
+      # locally (`--clean-only` alone is 0.65s). Its `whole_line` mutant is the design
+      # that was tried first and measured as a complete false negative, so this is what
+      # stops that being tried again silently -- and until 2026-08-27 nothing ran the
+      # check at all. It reads a historical blob for its REAL row, so it needs the
+      # `fetch-depth: 0` checkout above; in a shallow clone it goes RED rather than
+      # skipping, because no hits with nothing to find is indistinguishable from a check
+      # that cannot fire.
+      - name: fragment_control (the duplicate-fragment check, and the mutants it kills)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/fragment_control.py
       # WHICH FILES THE SWEEP READS. `docstat --selftest` above makes the same clean call;
@@ -250,6 +252,13 @@ jobs:
         run: python3 eval/tools/runstat.py --selftest
 
       # ---- the controls that check the checkers ------------------------------------
+      # The findings producer's end-to-end controls: a fixture tree whose answer is stated
+      # before the tool runs, driven as a real subprocess with the real exit code. Since
+      # 2026-09-01 the default is the clean pass AND all 9 mutants, ~25s locally
+      # (`--clean-only` alone ~3s). Each mutant is a text patch applied to a COPY of
+      # docstat.py in a tempdir -- the module-global restore the corpus and withdrawn
+      # sweeps do has no surface here -- so the sweep snapshots the repository's own
+      # docstat.py and compares it after every mutant, restoring on a mismatch.
       - name: findings_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/findings_control.py
@@ -274,20 +283,32 @@ jobs:
       - name: dead_private_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/dead_private_control.py
+      # The starter-baseline provenance checker's controls: a real fixture repository whose
+      # baseline pair is produced by the same two commands the harness uses, seven
+      # adversarial damages, and 5 mutants whose failure sets are exactly the cases their
+      # checks carry. Since 2026-09-01 the default is the clean pass AND all 5 mutants,
+      # 0.75s locally; the --runs-root arm runs once, on the clean pass, because genuine
+      # baselines stay clean under all five.
       - name: backup_evidence_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/backup_evidence_control.py
       - name: hook_audit_control
         if: ${{ !cancelled() }}
         run: python3 eval/tools/hook_audit_control.py
-      # The heartbeat's counts are byte-identical whether or not the main checkout is a
-      # work tree, so nothing but this asks. It pins the guard red on both settings that
-      # reach that state and green on the three where the checkout is fine -- read from the
-      # main checkout and from a linked worktree, where every git command still succeeds.
-      # About 1s locally -- `time python3 eval/tools/heartbeat_control.py` is the reading,
-      # and 2 of them minutes apart differed by 28%. Throwaway git repositories under
-      # $TMPDIR: no history, no toolchain.
-      - name: heartbeat_control (the main checkout is a work tree, both directions)
+      # The heartbeat refuses on two addresses, and nothing but this asks about either.
+      # The address guard (`tasks/229`): the counts read the tree the RUNNING COPY lives
+      # in, so a linked worktree's copy would count branch-local, plausible and wrong --
+      # pinned red, and it runs FIRST, so every refusal a worktree copy can get names both
+      # addresses, even when the main checkout is broken too. The work-tree guard: the
+      # counts are byte-identical whether or not the main checkout is a work tree; pinned
+      # red on both settings that reach that state, green on the two where the checkout is
+      # fine. The live row adapts to where this control itself runs: CI is the main
+      # checkout, agent commits are not.
+      # About 1s locally: `time python3 eval/tools/heartbeat_control.py`.
+      # 2 runs of that command, minutes apart, differed by 28%. Throwaway git
+      # repositories under $TMPDIR: a local fixture commit, no project history,
+      # no toolchain.
+      - name: heartbeat_control (a work-tree main checkout, and only its copy counts)
         if: ${{ !cancelled() }}
         run: python3 eval/tools/heartbeat_control.py
       # The agent CLI became a variable on 2026-08-24, and nothing in a stored artifact
